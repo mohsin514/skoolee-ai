@@ -355,7 +355,7 @@ function MarksEntry({
           .forEach((k) => delete next[k]);
         return next;
       });
-      toast.success(`${entries.length} mark${entries.length === 1 ? "" : "s"} saved`);
+      toast.success(entries.length === 1 ? tr("1 mark saved") : tr("{0} marks saved", [entries.length]));
       onSaved?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save");
@@ -451,7 +451,7 @@ function MarksEntry({
             >
               <span className="flex items-center gap-1.5">
                 {complete ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-status-success-text" />
                 ) : null}
                 <span
                   className={cn(
@@ -478,22 +478,22 @@ function MarksEntry({
 
       {/* ── Live stats for the chosen subject ───────────────────────────── */}
       {subject ? (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-edge/20 bg-gradient-to-r from-surface-subtle to-white px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-edge/20 bg-gradient-to-r from-surface-subtle to-card px-4 py-2.5">
           <span className="flex items-center gap-1.5 text-2xs font-bold text-primary">
-            <BarChart3 className="h-3.5 w-3.5" />
-            {subject.name} · out of {subject.totalMarks}
+            <BarChart3 aria-hidden="true" className="h-3.5 w-3.5" />
+            {tr("{0} · out of {1}", [subject.name, subject.totalMarks])}
           </span>
           <span className="text-2xs font-bold text-ink-muted">
-            Entered <span className="tabular-nums text-ink-strong">{stats.entered}/{stats.total}</span>
+            {tr("Entered")} <bdi dir="ltr" className="tabular-nums text-ink-strong">{stats.entered}/{stats.total}</bdi>
           </span>
           <span className="text-2xs font-bold text-ink-muted">
-            Average <span className="tabular-nums text-ink-strong">{stats.average}</span>
+            {tr("Average")} <bdi dir="ltr" className="tabular-nums text-ink-strong">{stats.average}</bdi>
           </span>
           <span className="text-2xs font-bold text-ink-muted">
-            Passing <span className="tabular-nums text-emerald-600">{stats.passing}</span>
+            {tr("Passing")} <bdi dir="ltr" className="tabular-nums text-status-success-text">{stats.passing}</bdi>
           </span>
           <span className="text-2xs font-bold text-ink-muted">
-            Top <span className="tabular-nums text-ink-strong">{stats.top}</span>
+            {tr("Top")} <bdi dir="ltr" className="tabular-nums text-ink-strong">{stats.top}</bdi>
           </span>
           <div className="ms-auto flex items-center gap-2">
             {pendingCount > 0 ? (
@@ -521,12 +521,12 @@ function MarksEntry({
       {/* ── The column ──────────────────────────────────────────────────── */}
       {subject ? (
         <div className="sk-panel overflow-hidden">
-          <div className="grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 border-b border-edge/15 bg-surface-subtle px-2 sm:px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-            <span>Roll</span>
-            <span>Student</span>
-            <span className="text-center">Marks / {subject.totalMarks}</span>
+          <div className="grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 border-b border-edge/15 bg-surface-subtle px-2 sm:px-4 py-2 text-2xs font-semibold text-ink-muted">
+            <span>{tr("Roll")}</span>
+            <span>{tr("Student")}</span>
+            <span className="text-center">{tr("Marks / {0}", [subject.totalMarks])}</span>
             <span className="text-center">%</span>
-            <span className="text-center">Result</span>
+            <span className="text-center">{tr("Result")}</span>
           </div>
           <ul className="max-h-[24rem] divide-y divide-edge/10 overflow-y-auto custom-scrollbar">
             {students.map((student, i) => {
@@ -545,15 +545,15 @@ function MarksEntry({
                   key={student.id}
                   className={cn(
                     "grid grid-cols-[2.5rem_minmax(4rem,1fr)_8rem_3rem_3rem] items-center gap-1 px-2 py-1.5 transition-colors sm:grid-cols-[3rem_1fr_7rem_5rem_5rem] sm:gap-2 sm:px-4",
-                    unsaved ? "bg-amber-50/40" : "hover:bg-surface-subtle",
+                    unsaved ? "bg-status-warning-surface" : "hover:bg-surface-subtle",
                   )}
                 >
-                  <span className="text-2xs font-bold tabular-nums text-ink-subtle">
+                  <bdi dir="ltr" className="text-2xs font-bold tabular-nums text-ink-subtle">
                     {student.rollNo}
-                  </span>
-                  <span className="truncate text-sm font-bold text-ink-strong">
+                  </bdi>
+                  <bdi className="truncate text-sm font-bold text-ink-strong">
                     {student.fullName}
-                  </span>
+                  </bdi>
                   <div className="flex items-center justify-center gap-1">
                     <SystemInput
                       ref={(el) => {
@@ -595,8 +595,9 @@ function MarksEntry({
                         "shrink-0 px-1.5 enabled:cursor-pointer",
                         "",
                       )}
+                      aria-label={tr(absent ? "Mark present" : "Mark absent")}
                     >
-                      Abs
+                      {tr("Abs")}
                     </Button>
                     </Tooltip>
                     <Tooltip content={tr(exempt ? "Remove exemption" : "Mark exempt")}>
@@ -608,8 +609,9 @@ function MarksEntry({
                         "shrink-0 px-1.5 enabled:cursor-pointer",
                         "",
                       )}
+                      aria-label={tr(exempt ? "Remove exemption" : "Mark exempt")}
                     >
-                      Ex
+                      {tr("Ex")}
                     </Button>
                     </Tooltip>
                   </div>
@@ -619,11 +621,11 @@ function MarksEntry({
                       pct === null
                         ? "text-ink-subtle"
                         : pass
-                        ? "text-emerald-600"
-                        : "text-rose-500",
+                        ? "text-status-success-text"
+                        : "text-status-error-text",
                     )}
                   >
-                      {absent ? "ABS" : exempt ? "EX" : pct === null ? "—" : `${pct}%`}
+                      {absent ? tr("Abs") : exempt ? tr("Ex") : pct === null ? "—" : <bdi dir="ltr">{pct}%</bdi>}
                   </span>
                   <span className="text-center">
                     {absent ? (
@@ -647,9 +649,7 @@ function MarksEntry({
             })}
           </ul>
           <p className="border-t border-edge/10 bg-surface-subtle px-4 py-2 text-2xs font-semibold text-ink-subtle">
-            Press <kbd className="rounded bg-white px-1 font-bold">Enter</kbd> to move to the next
-            pupil. Nothing is written until you press Save, so a mistyped mark can just be
-            corrected.
+            {tr("Press Enter to move to the next pupil. Nothing is written until you press Save, so a mistyped mark can just be corrected.")}
           </p>
         </div>
       ) : null}

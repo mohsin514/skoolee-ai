@@ -140,7 +140,8 @@ test("leaders see workload and cover in the staff hierarchy view", async () => {
   const page = await (await context("admin")).newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/admin?view=staff-hierarchy`);
-  await page.getByRole("button", { name: "Workload & cover" }).click({ timeout: 30_000 });
+  // The Staff structure sections are the view's PageHeader tabs (ViewTabs, role="tab") since the P5 console work.
+  await page.getByRole("tab", { name: "Workload & cover" }).click({ timeout: 30_000 });
   const panel = page.locator("[data-workload-cover]");
   await panel.locator("[data-workload-row]").first().waitFor({ timeout: 15_000 });
   await panel.locator("#field-workload-week").fill(monday);
@@ -160,10 +161,10 @@ test("leaders see workload and cover in the staff hierarchy view", async () => {
 
 test("Arabic leader reads workload and cover right-to-left at phone width", async () => {
   const page = await (await context("admin-ar", { width: 390, height: 844 })).newPage();
-  await page.goto(`${base}/admin?view=staff-hierarchy`);
+  // Below sm the view's tabs render as a Select, so the phone test opens the section by its address (§3.1 `?tab=`).
+  await page.goto(`${base}/admin?view=staff-hierarchy&tab=workload`);
   await page.waitForLoadState("networkidle");
-  if (!page.url().includes("view=staff-hierarchy")) await page.goto(`${base}/admin?view=staff-hierarchy`);
-  await page.getByRole("button", { name: "العبء والتغطية" }).click({ timeout: 30_000 });
+  if (!page.url().includes("tab=workload")) await page.goto(`${base}/admin?view=staff-hierarchy&tab=workload`);
   await page.locator("[data-workload-cover] [data-workload-row]").first().waitFor({ timeout: 15_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);

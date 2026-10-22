@@ -114,7 +114,7 @@ test("leaders see the policy list and the office queue", async () => {
   await panel.getByText("Which refund rule applies to our trip next week?").waitFor({ timeout: 30_000 });
   await panel.getByLabel("Reply").first().fill("The Activities Handbook applies to this trip.");
   await panel.getByRole("button", { name: "Send reply" }).first().click();
-  await panel.getByText("Reply sent.").waitFor();
+  await page.getByText("Reply sent.").first().waitFor(); // a toast (R4), outside the panel
   await panel.evaluate((el) => el.scrollIntoView({ block: "start" }));
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${evidence}/policy-manager-en-1440.png` });

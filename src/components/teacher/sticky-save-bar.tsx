@@ -5,6 +5,7 @@ import { RotateCcw, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 
 /**
@@ -18,7 +19,12 @@ import { Tooltip } from "@/components/ui/tooltip";
  * neither screen had.
  *
  * It is deliberately quiet when clean: nothing renders, so the layout below is
- * never padded for a bar that isn't there.
+ * never padded for a bar that isn't there — unless the screen asks for it with
+ * `forceShow` (an open sheet): then a calm "saved" status stays put (no Save
+ * button until there is something to save), so the bar (and its tour anchor
+ * `teacher.marks.save`) is always where the teacher will look for it (§9.4).
+ * Save itself keeps its frozen contract: present only with changes, disabled
+ * only while saving or blocked.
  */
 export function StickySaveBar({
   dirtyCount,
@@ -45,16 +51,17 @@ export function StickySaveBar({
   blocked?: boolean;
   blockedReason?: string;
   hint?: ReactNode;
-  /** Show the bar even with no pending edits — a sheet that has never been
-      saved at all still needs one press, and hiding the button until the
-      teacher happens to change something makes that unreachable. */
+  /** Keep the bar on screen with no pending edits (an open sheet): it reads
+      `label` (e.g. "All marks saved") and Save appears once something changes. */
   forceShow?: boolean;
   /** Replaces the "N unsaved changes" line. */
   label?: string;
   /** Extra controls, rendered left of Discard. */
   children?: ReactNode;
 }) {
+  const ui = useUiText();
   const visible = dirtyCount > 0 || forceShow;
+  const clean = dirtyCount === 0 && !blocked;
   const barRef = useRef<HTMLDivElement>(null);
   const [docked, setDocked] = useState(true);
   useEffect(() => {
@@ -69,7 +76,7 @@ export function StickySaveBar({
 
   // ⌘S / Ctrl+S is what anyone doing an hour of data entry reaches for.
   useEffect(() => {
-    if (!visible || saving || blocked) return;
+    if (!visible || saving || blocked || clean) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
@@ -78,7 +85,7 @@ export function StickySaveBar({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [visible, saving, blocked, onSave]);
+  }, [visible, saving, blocked, clean, onSave]);
 
   if (!visible) return null;
 
@@ -90,32 +97,33 @@ export function StickySaveBar({
     >
       <div
         ref={barRef}
+        data-tour="teacher.marks.save"
         className={cn(
           "sk-rise pointer-events-auto flex w-full max-w-3xl flex-wrap items-center gap-3 rounded-[22px] border px-4 py-3 backdrop-blur-xl",
-          "shadow-[0_8px_24px_-8px_rgba(120,70,180,0.28),0_24px_60px_-24px_rgba(129,39,207,0.55)]",
+          clean ? "shadow-(--shadow-panel)" : "shadow-(--shadow-toast)",
           blocked
-            ? "border-rose-200 bg-rose-50/95"
-            : "border-primary/20 bg-ink-strong/95",
+            ? "border-status-error-border bg-status-error-surface"
+            : clean ? "border-border-subtle bg-card/95" : "border-primary/20 bg-ink-strong/95",
         )}
       >
         <span
           aria-hidden
           className={cn(
             "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-            blocked ? "bg-rose-100 text-rose-600" : "bg-white/10 text-white",
+            blocked ? "bg-status-error-surface text-status-error-text" : clean ? "bg-status-success-surface text-status-success-text" : "bg-primary-foreground/10 text-primary-foreground",
           )}
         >
           <Save className="h-4 w-4" />
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className={cn("text-sm font-bold leading-tight", blocked ? "text-rose-700" : "text-white")}>
+          <p className={cn("text-sm font-bold leading-tight", blocked ? "text-status-error-text" : clean ? "text-ink-strong" : "text-primary-foreground")}>
             {blocked
-              ? blockedReason || "Fix the highlighted cells to save"
-              : label || `${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"}`}
+              ? blockedReason || ui("Fix the highlighted cells to save")
+              : label || (dirtyCount === 1 ? ui("1 unsaved change") : ui("{0} unsaved changes", [dirtyCount]))}
           </p>
           {hint ? (
-            <p className={cn("truncate text-2xs font-semibold", blocked ? "text-rose-600" : "text-white/55")}>
+            <p className={cn("truncate text-2xs font-semibold", blocked ? "text-status-error-text" : clean ? "text-ink-muted" : "text-primary-foreground/60")}>
               {hint}
             </p>
           ) : null}
@@ -124,32 +132,34 @@ export function StickySaveBar({
         {children}
 
         {onReset && dirtyCount > 0 ? (
-          <Tooltip content="Discard every change made since this sheet was loaded">
+          <Tooltip content={ui("Discard every change made since this sheet was loaded")}>
           <Button variant="outline" size="sm"
             type="button"
             onClick={onReset}
             disabled={saving}
-            className="inline-flex justify-start items-center gap-1.5 focus-on-dark"
+            className={cn("inline-flex justify-start items-center gap-1.5", !blocked && "focus-on-dark")}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Discard
+            <RotateCcw aria-hidden="true" className="size-3.5" />
+            {ui("Discard")}
           </Button>
           </Tooltip>
         ) : null}
 
-        <Tooltip content={blocked ? blockedReason || "Fix the highlighted cells to save" : `${saveLabel} (⌘S)`}>
+        {clean ? null : (
+        <Tooltip content={blocked ? blockedReason || ui("Fix the highlighted cells to save") : `${saveLabel} (⌘S)`}>
         <span tabIndex={saving || blocked ? 0 : undefined} className="inline-flex">
         <Button variant="default" size="sm"
           type="button"
           onClick={onSave}
           disabled={saving || blocked}
           loading={saving}
-          className="inline-flex min-w-[132px] items-center justify-center gap-2 focus-on-dark"
+          className={cn("inline-flex min-w-[132px] items-center justify-center gap-2", !blocked && "focus-on-dark")}
         >
-          {saving ? savingLabel : saveLabel}
+          {saving ? (savingLabel === "Saving…" ? ui("Saving…") : savingLabel) : saveLabel}
         </Button>
         </span>
         </Tooltip>
+        )}
       </div>
     </div>
   );

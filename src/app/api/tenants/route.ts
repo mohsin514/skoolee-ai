@@ -7,17 +7,24 @@ import { prisma } from "@/lib/db/prisma";
 import { createTenantSchema } from "@/lib/db/tenant";
 import { onboardingSchema } from "@/lib/validators/schemas";
 import { seedRolePermissions } from "@/lib/auth/seed-permissions";
-import { getAuthUser } from "@/lib/auth";
 import { createPlanContract } from "@/config/commercial-contract";
+import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { z } from "zod";
+
+/** G3: the kind is decided when the tenant is provisioned; it is never inferred from campus counts later. */
+const registrationKindSchema = z.enum(["GROUP", "STANDALONE"]).default("GROUP");
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAuthUser();
-    if (!user || (user.role !== "APP_OWNER" && user.role !== "SUPER_ADMIN")) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    // §7.3 G21: provisioning a tenant is platform work — the platform operator only (a group admin cannot mint schools).
+    await requirePlatformOwner();
+  } catch (error) {
+    return errorResponse(error instanceof ApiError && error.status === 401 ? error : new ApiError("Only the platform operator can create a school.", 403));
+  }
+  try {
     const body = await req.json();
+    const kind = registrationKindSchema.safeParse(body?.registrationKind ?? undefined);
+    if (!kind.success) return Response.json({ error: { registrationKind: ["Choose GROUP or STANDALONE."] } }, { status: 400 });
     const parsed = onboardingSchema.safeParse(body);
     
     if (!parsed.success) {
@@ -50,6 +57,7 @@ export async function POST(req: NextRequest) {
         city: address || "Pending", // Mapping address to city for now
         contactEmail: email || `admin@${slug}.com`,
         status: "TRIAL",
+        registrationKind: kind.data,
         commercialContract: createPlanContract("FREE"),
       },
     });
@@ -68,6 +76,7 @@ export async function POST(req: NextRequest) {
       id: school.id,
       slug: school.slug,
       schemaName: schemaName,
+      registrationKind: kind.data,
     });
   } catch (error) {
     console.error("[tenants] POST error:", error);

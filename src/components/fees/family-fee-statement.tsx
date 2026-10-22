@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Banknote, CalendarClock, CheckCircle2, Receipt } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocaleFormat, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 import { OnlinePayAction, PaymentReturnStatus } from "./online-payment";
 import { InstallmentSchedule } from "./installment-plan-panel";
 import { Badge } from "@/components/ui/badge";
@@ -26,9 +26,30 @@ type Statement = {
 const STATE_TONE: Record<DueState, "success" | "neutral" | "danger" | "warning" | "info"> = { PAID: "success", CANCELLED: "neutral", OVERDUE: "danger", DUE_TODAY: "warning", NOT_YET_DUE: "info" };
 const STATE_LABEL: Record<DueState, string> = { PAID: "Paid", CANCELLED: "Cancelled", OVERDUE: "Overdue", DUE_TODAY: "Due today", NOT_YET_DUE: "Not yet due" };
 
-export function FamilyFeeStatement({ studentId, onSummary }: { studentId?: string | null; onSummary?: (summary: { outstanding: number; currency: string | null; fullName: string }) => void }) {
+/** The most recent payment on the statement, so a page header can offer "Download receipt" (§4.4 parent · Fees). */
+export type LatestReceipt = { id: string; receiptNo: string | null; paymentDate: string; amount: number; currency: string; href: string };
+export type FamilyFeeSummary = { outstanding: number; currency: string | null; fullName: string; latestReceipt: LatestReceipt | null };
+
+function latestReceiptOf(statement: Statement): LatestReceipt | null {
+  let latest: LatestReceipt | null = null;
+  for (const invoice of statement.invoices) {
+    for (const receipt of invoice.receipts) {
+      if (latest && Date.parse(receipt.paymentDate) <= Date.parse(latest.paymentDate)) continue;
+      latest = { id: receipt.id, receiptNo: receipt.receiptNo, paymentDate: receipt.paymentDate, amount: receipt.amount, currency: invoice.currency, href: `/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}` };
+    }
+  }
+  return latest;
+}
+
+/**
+ * `canPay` (default true) shows the online Pay control. A learner sees their fees but never pays — the guardian
+ * does (role-ux M101 / G44a), so `/student/fees` passes `canPay={false}` and gets a note instead of a button.
+ * `onSummary` reports the figures a page header needs, including the latest receipt (null when nothing was paid).
+ */
+export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { studentId?: string | null; onSummary?: (summary: FamilyFeeSummary) => void; canPay?: boolean }) {
   const ui = useUiText();
   const { money, date } = useLocaleFormat();
+  const { currency: campusCurrency } = useLocale();
   const params = useSearchParams();
   const focusInvoice = params.get("invoice");
   const [paymentRef, setPaymentRef] = useState<string | null>(() => params.get("payment"));
@@ -47,7 +68,8 @@ export function FamilyFeeStatement({ studentId, onSummary }: { studentId?: strin
       const json = await response.json();
       if (!response.ok || !json.success) throw new Error(json.error);
       setStatement(json.data);
-      report.current?.({ outstanding: json.data.summary.outstanding, currency: json.data.currency, fullName: json.data.student.fullName });
+      const data = json.data as Statement;
+      report.current?.({ outstanding: data.summary.outstanding, currency: data.currency, fullName: data.student.fullName, latestReceipt: latestReceiptOf(data) });
     } catch { setFailed(true); }
   }, [studentId, focusInvoice]);
   useEffect(() => { const timer = setTimeout(() => void load(currency), 0); return () => clearTimeout(timer); }, [load, currency]);
@@ -55,7 +77,7 @@ export function FamilyFeeStatement({ studentId, onSummary }: { studentId?: strin
 
   if (failed) return <ErrorState title={ui("Fee statement could not be loaded.")} description={ui("Check your connection and try again.")} retryLabel={ui("Try again")} onRetry={() => void load(currency)} />;
   if (!statement) return <SkeletonRegion label={ui("Loading fee statement…")} className="space-y-4"><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div><Skeleton className="h-40 rounded-2xl" /></SkeletonRegion>;
-  const code = statement.currency ?? "PKR", s = statement.summary, fmt = (amount: number) => money(amount, code);
+  const code = statement.currency ?? campusCurrency, s = statement.summary, fmt = (amount: number) => money(amount, code);
   return <div className="space-y-4" data-family-statement>
     {paymentRef && <PaymentReturnStatus key={paymentRef} orderRef={paymentRef} onSettled={settled} />}
     {statement.invoices.length === 0 ? <div className="sk-panel"><EmptyState icon={Receipt} title={ui("No fee obligations are available for this child.")} description={ui("New invoices from the school will appear here.")} /></div> : <>
@@ -67,7 +89,8 @@ export function FamilyFeeStatement({ studentId, onSummary }: { studentId?: strin
         <Figure icon={CheckCircle2} label={ui("Not yet due")} value={fmt(s.notYetDue)} tone="sky" />
       </div>
       <p className="text-xs leading-relaxed text-ink-muted tabular-nums" data-statement-reconciliation={s.reconciles ? "ok" : "mismatch"}><bdi>{ui("Charges {0} − payments {1} = {2} owed", [fmt(s.charges), fmt(s.payments), fmt(s.closing)])}</bdi>{" · "}{ui("Dates as of {0} (school calendar)", [date(statement.today)])}{s.reconciles ? "" : ` · ${ui("These figures do not reconcile; please contact the school office.")}`}</p>
-      <div className="space-y-3">{statement.invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} />)}</div>
+      {!canPay && s.outstanding > 0 ? <p className="text-xs leading-relaxed text-ink-muted" data-pay-note>{ui("Your parent or guardian pays fees from their family account.")}</p> : null}
+      <div className="space-y-3">{statement.invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} focused={invoice.id === focusInvoice} fmt={fmt} onPending={setPaymentRef} canPay={canPay} />)}</div>
     </>}
   </div>;
 }
@@ -77,7 +100,7 @@ function Figure({ icon: Icon, label, value, tone }: { icon: typeof Banknote; lab
   return <div className="sk-panel min-w-0 p-4"><Icon className={`mb-1 size-4 ${color}`} aria-hidden="true" /><p className={`truncate text-lg font-bold tabular-nums ${color}`}><bdi>{value}</bdi></p><p className="sk-eyebrow text-ink-subtle">{label}</p></div>;
 }
 
-function InvoiceCard({ invoice, focused, fmt, onPending }: { invoice: Statement["invoices"][number]; focused: boolean; fmt: (amount: number) => string; onPending: (ref: string) => void }) {
+function InvoiceCard({ invoice, focused, fmt, onPending, canPay }: { invoice: Statement["invoices"][number]; focused: boolean; fmt: (amount: number) => string; onPending: (ref: string) => void; canPay: boolean }) {
   const ui = useUiText();
   const { date } = useLocaleFormat();
   const card = useRef<HTMLDivElement>(null);
@@ -96,6 +119,6 @@ function InvoiceCard({ invoice, focused, fmt, onPending }: { invoice: Statement[
     {(invoice.adjustments ?? []).length > 0 && <ul className="mt-3 space-y-1 text-xs" data-invoice-adjustments>{invoice.adjustments!.map(row => <li key={row.id} className="rounded-lg border border-status-info-border bg-status-info-surface px-3 py-1.5 tabular-nums" data-family-adjustment={row.status}>
       <span className="font-semibold">{row.kind === "REFUND" ? (row.status === "DISBURSED" ? ui("Refund paid: {0}", [fmt(row.amount)]) : ui("Refund approved: {0} — waiting to be paid out", [fmt(row.amount)])) : row.kind === "WAIVER" ? ui("Waiver: {0} less owed (not a cash refund)", [fmt(row.amount)]) : ui("Credit note: {0} less owed (not a cash refund)", [fmt(row.amount)])}</span> · <bdi>{row.publicExplanation}</bdi></li>)}</ul>}
     {invoice.receipts.length > 0 && <ul className="mt-3 space-y-1 text-xs text-ink-muted" data-invoice-receipts>{invoice.receipts.map(receipt => <li key={receipt.id} className="flex flex-wrap items-center gap-x-2">{ui("Receipt")} <bdi dir="ltr">{receipt.receiptNo ?? "—"}</bdi> · <bdi>{fmt(receipt.amount)}</bdi> · {date(receipt.paymentDate)} · <a className="sk-link font-semibold text-primary" href={`/api/fees/payment-pdf?id=${encodeURIComponent(receipt.id)}`} data-receipt-download>{ui("Download receipt")}</a></li>)}</ul>}
-    {invoice.balance > 0 && !["CANCELLED", "PAID"].includes(invoice.dueState) && <OnlinePayAction invoiceId={invoice.id} onPending={onPending} />}
+    {canPay && invoice.balance > 0 && !["CANCELLED", "PAID"].includes(invoice.dueState) && <OnlinePayAction invoiceId={invoice.id} onPending={onPending} />}
   </div>;
 }

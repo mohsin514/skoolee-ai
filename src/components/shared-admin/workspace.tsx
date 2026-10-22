@@ -2,6 +2,7 @@
 import { Button as SystemButton } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { IconButton } from "@/components/ui/icon-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InputGroup } from "@/components/ui/input-group";
 
@@ -27,11 +28,17 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
+import type { ModuleTone } from "@/lib/ui/module-tones";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+
+/**
+ * Every label in this kit is an EN UI key and is translated here, so a caller may pass either the key or text it
+ * already translated (an Arabic or Urdu string is not a key and comes back unchanged).
+ */
 
 /**
  * The pieces every admin list screen was rebuilding by hand.
@@ -119,69 +126,74 @@ export function useWorkspacePrefs(
 
 /* ────────────────────────── Header ────────────────────────── */
 
+/**
+ * The list-screen header, now a thin wrapper over the one `PageHeader` (§4.3, R1): one heading, one
+ * sentence of summary, at most one primary action at the top-end and up to two visible secondaries.
+ *
+ * `headingLevel` is 2 by default (a section inside a view that already has its page title); a panel that
+ * is the whole view passes 1. `primaryAction` / `secondaryActions` are the preferred API; the legacy
+ * `actions` node still renders, in a row under the header, for callers not yet migrated.
+ *
+ * `description` (an EN UI key: the view's one sentence, §4.3) is the header's description whenever it is given;
+ * a `summary` then moves to the status row as a live line, so a counted summary never displaces the sentence.
+ */
 export function WorkspaceHeader({
   icon: Icon,
   eyebrow,
   title,
+  description,
   summary,
   actions,
   children,
-  tone = "brand",
+  primaryAction,
+  secondaryActions,
+  status,
+  tabs,
+  headingLevel = 2,
 }: {
-  icon: LucideIcon;
-  eyebrow: string;
+  icon?: LucideIcon;
+  eyebrow?: string;
   title: string;
+  /** The view's one-sentence description (EN UI key); wins over `summary` for the description slot. */
+  description?: string;
   /** One live sentence about what is on screen right now. */
   summary?: ReactNode;
+  /** @deprecated Pass `primaryAction` / `secondaryActions`. */
   actions?: ReactNode;
   children?: ReactNode;
-  /** The domain this screen belongs to — drives its accent colour. */
+  /** @deprecated Module tones are no longer painted on headers; kept for callers. */
   tone?: ModuleTone;
+  primaryAction?: PageAction;
+  secondaryActions?: PageAction[];
+  status?: ReactNode;
+  tabs?: ReactNode;
+  headingLevel?: 1 | 2;
 }) {
-  const t = toneOf(tone);
+  const ui = useUiText();
+  // The description slot takes `description` when given, else a text summary; any other summary is a status line
+  // (a text summary there is still a UI key, translated like the description would have been).
+  const summaryInDescription = !description && typeof summary === "string";
+  const summaryLine = !summaryInDescription && summary ? (typeof summary === "string" ? ui(summary) : summary) : null;
+  const statusRow = (
+    <>
+      {summaryLine ? <p className="w-full break-words text-sm font-medium leading-relaxed text-ink-muted">{summaryLine}</p> : null}
+      {status}
+    </>
+  );
   return (
-    <div className="sk-panel sk-rise relative overflow-hidden px-4 py-4 sm:px-5">
-      {/* A gradient rail reads as considered where a full gradient panel reads
-          as decoration — and it costs no vertical space. */}
-      <span
-        aria-hidden
-        className={cn("absolute inset-y-0 start-0 w-[3px] bg-gradient-to-b", t.rail)}
+    <div className="space-y-3">
+      <PageHeader
+        title={title}
+        eyebrow={eyebrow}
+        icon={Icon}
+        description={description ?? (summaryInDescription ? (summary as string) : undefined)}
+        primaryAction={primaryAction}
+        secondaryActions={secondaryActions}
+        status={summaryLine || status ? statusRow : undefined}
+        tabs={tabs}
+        headingLevel={headingLevel}
       />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full blur-2xl"
-        style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
-      />
-
-      <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 max-w-full items-center gap-3">
-          <span
-            className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
-            style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}
-          >
-            <Icon className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            {/* Eyebrow rides beside the title rather than above it: it is
-                context, not a heading, and a whole line for one word was the
-                single biggest waste of height on every screen. */}
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <h2 className="min-w-0 break-words text-lg font-bold leading-tight tracking-tight text-ink-strong">
-                {title}
-              </h2>
-              <span className={cn("hidden shrink-0 text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline", t.text)}>
-                {eyebrow}
-              </span>
-            </div>
-            {summary ? (
-              <p className="break-words text-sm font-medium leading-relaxed text-ink-muted">
-                {summary}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       {children}
     </div>
   );
@@ -200,13 +212,14 @@ export interface StatTileSpec {
   active?: boolean;
 }
 
+/** Tone names are kept for callers; each maps onto the status tokens (R10), never a raw palette. */
 const TILE_TONES = {
-  violet: { chip: "bg-brand-100 text-primary", ring: "rgba(129,39,207,0.9)", bar: "bg-primary" },
-  teal: { chip: "bg-teal-50 text-teal-600", ring: "rgba(13,148,136,0.9)", bar: "bg-teal-500" },
-  amber: { chip: "bg-amber-50 text-amber-600", ring: "rgba(245,158,11,0.9)", bar: "bg-amber-500" },
-  emerald: { chip: "bg-emerald-50 text-emerald-600", ring: "rgba(16,185,129,0.9)", bar: "bg-emerald-500" },
-  rose: { chip: "bg-rose-50 text-rose-600", ring: "rgba(225,29,72,0.9)", bar: "bg-rose-500" },
-  slate: { chip: "bg-muted text-ink-muted", ring: "rgba(107,114,128,0.9)", bar: "bg-ink-faint" },
+  violet: { chip: "bg-status-brand-surface text-status-brand-text", ring: "ring-primary", bar: "bg-primary" },
+  teal: { chip: "bg-status-info-surface text-status-info-text", ring: "ring-status-info-border", bar: "bg-status-info-text" },
+  amber: { chip: "bg-status-warning-surface text-status-warning-text", ring: "ring-status-warning-border", bar: "bg-status-warning-text" },
+  emerald: { chip: "bg-status-success-surface text-status-success-text", ring: "ring-status-success-border", bar: "bg-status-success-text" },
+  rose: { chip: "bg-status-error-surface text-status-error-text", ring: "ring-status-error-border", bar: "bg-status-error-text" },
+  slate: { chip: "bg-muted text-ink-muted", ring: "ring-border", bar: "bg-ink-faint" },
 } as const;
 
 /**
@@ -215,8 +228,10 @@ const TILE_TONES = {
  * Stacked vertically — icon, then number, then label, then hint — each tile ran
  * about 110px tall, which is a lot of screen to spend on four numbers before
  * any actual data appears. Side by side they read the same and cost half that.
+ * A tile with an `onClick` is a shared `Button` (a filter toggle, `aria-pressed`); the rest are plain blocks.
  */
 export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; columns?: 4 | 5 | 6 }) {
+  const ui = useUiText();
   return (
     <div
       className={cn(
@@ -230,46 +245,49 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
     >
       {tiles.map((t) => {
         const tone = TILE_TONES[t.tone ?? "violet"];
-        const interactive = Boolean(t.onClick);
-        // A card with nothing to do is not a button.
-        const Tag = interactive ? "button" : "div";
-        return (
-          <Tag
-            key={t.key}
-            {...(interactive
-              ? { type: "button" as const, onClick: t.onClick, "aria-pressed": Boolean(t.active) }
-              : {})}
-            className={cn(
-              "group sk-panel relative flex items-center gap-3 overflow-hidden px-3.5 py-2.5 text-start transition-all duration-200",
-              t.active
-                ? "border-transparent"
-                : "",
-              interactive &&
-                "sk-hover-lift cursor-pointer",
-            )}
-            style={t.active ? { boxShadow: `0 0 0 1.5px ${tone.ring}, 0 10px 24px -14px ${tone.ring}` } : undefined}
-          >
+        const body = (
+          <>
             {/* A tinted edge keeps the tone readable without a coloured card. */}
             <span aria-hidden className={cn("absolute inset-y-0 start-0 w-[3px]", tone.bar, t.active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60")} />
             {t.icon ? (
-              <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105", tone.chip)}>
+              <span aria-hidden="true" className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105", tone.chip)}>
                 <t.icon className="h-4 w-4" />
               </span>
             ) : null}
             <span className="min-w-0 flex-1">
-              <span className="block text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-[22px]">
+              <bdi className="block text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-2xl">
                 {t.value}
-              </span>
-              <span className="mt-1 line-clamp-2 break-words text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-muted">
-                {t.label}
+              </bdi>
+              <span className="mt-1 line-clamp-2 break-words text-xs font-semibold leading-tight text-ink-muted">
+                {ui(t.label)}
               </span>
               {t.hint ? (
                 <span className="mt-0.5 line-clamp-2 break-words text-2xs font-semibold leading-tight text-ink-subtle">
-                  {t.hint}
+                  {ui(t.hint)}
                 </span>
               ) : null}
             </span>
-          </Tag>
+          </>
+        );
+        // A card with nothing to do is not a button.
+        return t.onClick ? (
+          <Button
+            key={t.key}
+            type="button"
+            variant="choice"
+            onClick={t.onClick}
+            aria-pressed={Boolean(t.active)}
+            className={cn(
+              "group relative h-auto justify-start gap-3 overflow-hidden px-3.5 py-2.5 text-start font-normal",
+              t.active && cn("ring-2", tone.ring),
+            )}
+          >
+            {body}
+          </Button>
+        ) : (
+          <div key={t.key} className="group sk-panel relative flex items-center gap-3 overflow-hidden px-3.5 py-2.5 text-start">
+            {body}
+          </div>
         );
       })}
     </div>
@@ -310,6 +328,7 @@ export function SearchField({
   autoFocusKey?: string | null;
   className?: string;
 }) {
+  const ui = useUiText();
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -341,15 +360,15 @@ export function SearchField({
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={autoFocusKey ? `${placeholder}   ( ${autoFocusKey} )` : placeholder}
-        aria-label={label}
-        className="h-10 w-full ps-9 pe-9 transition-all"
+        placeholder={autoFocusKey ? `${ui(placeholder)}   ( ${autoFocusKey} )` : ui(placeholder)}
+        aria-label={ui(label)}
+        className="w-full ps-9 pe-9 transition-all"
       />
       {value ? (
         <SystemButton variant="ghost" data-field-affix="end"
           type="button"
           onClick={() => onChange("")}
-          aria-label="Clear search"
+          aria-label={ui("Clear search")}
           className="absolute end-2.5 top-1/2 flex -translate-y-1/2 items-center justify-center"
         >
           <X className="h-3.5 w-3.5" />
@@ -371,17 +390,18 @@ export function ToolbarSelect({
   label: string;
   options: [string, string][];
 }) {
+  const ui = useUiText();
   return (
     <div className="relative">
       <SystemSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-        className="h-10 cursor-pointer appearance-none ps-3 pe-8 transition-all"
+        aria-label={ui(label)}
+        className="cursor-pointer appearance-none ps-3 pe-8 transition-all"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
-            {l}
+            {ui(l)}
           </option>
         ))}
       </SystemSelect>
@@ -405,27 +425,24 @@ export function ToolbarToggle({
   tone?: "amber" | "rose" | "violet";
   onClick: () => void;
 }) {
+  const ui = useUiText();
   const tones = {
-    amber: { on: "border-amber-300 bg-amber-50 text-amber-700", badge: "bg-amber-500" },
-    rose: { on: "border-rose-300 bg-rose-50 text-rose-700", badge: "bg-rose-500" },
-    violet: { on: "border-primary/40 bg-brand-50 text-primary", badge: "bg-primary" },
+    amber: { on: "border-status-warning-border bg-status-warning-surface text-status-warning-text", badge: "bg-status-warning-surface text-status-warning-text" },
+    rose: { on: "border-status-error-border bg-status-error-surface text-status-error-text", badge: "bg-status-error-surface text-status-error-text" },
+    violet: { on: "border-primary/40 bg-brand-50 text-primary", badge: "bg-brand-100 text-primary" },
   } as const;
   return (
     <Button variant="outline"
+      size="sm"
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        "flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-2xs font-semibold uppercase tracking-wider transition-all",
-        active
-          ? tones[tone].on
-          : "border-edge/20 bg-white text-ink-muted hover:border-primary/30 hover:text-primary",
-      )}
+      className={cn("gap-1.5 px-3", active ? tones[tone].on : "text-ink-muted")}
     >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
+      <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+      {ui(label)}
       {count ? (
-        <span className={cn("rounded-full px-1.5 text-2xs text-white", tones[tone].badge)}>{count}</span>
+        <bdi className={cn("rounded-full px-1.5 text-2xs font-bold tabular-nums", tones[tone].badge)}>{count}</bdi>
       ) : null}
     </Button>
   );
@@ -440,23 +457,21 @@ export function ViewSwitch({
   onChange: (v: WorkspaceView) => void;
   options: { value: WorkspaceView; label: string; icon: LucideIcon }[];
 }) {
+  const ui = useUiText();
   return (
-    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-edge/20 bg-surface-subtle p-1">
+    <div role="group" aria-label={ui("Layout")} className="flex items-center gap-1 rounded-2xl border border-border-subtle bg-surface-subtle p-1">
       {options.map((o) => (
-        <Tooltip key={o.value} content={o.label}>
-        <Button variant="outline"
+        <Tooltip key={o.value} content={ui(o.label)}>
+        <Button variant="choice"
+          size="sm"
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          className={cn(
-            "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-2xs font-semibold uppercase tracking-wider transition-all",
-            value === o.value
-              ? "bg-white text-primary shadow-[0_1px_3px_rgba(120,70,180,0.12)]"
-              : "text-ink-muted hover:text-primary",
-          )}
+          aria-label={ui(o.label)}
+          className={cn("gap-1.5 px-2.5", value === o.value ? "text-primary" : "border-transparent bg-transparent text-ink-muted")}
         >
-          <o.icon className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{o.label}</span>
+          <o.icon aria-hidden="true" className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{ui(o.label)}</span>
         </Button>
         </Tooltip>
       ))}
@@ -465,12 +480,13 @@ export function ViewSwitch({
 }
 
 export function SortDirButton({ dir, onToggle }: { dir: SortDir; onToggle: () => void }) {
+  const ui = useUiText();
   return (
-    <Tooltip content={dir === "asc" ? "Ascending" : "Descending"}>
+    <Tooltip content={ui(dir === "asc" ? "Ascending" : "Descending")}>
     <Button variant="outline"
       type="button"
       onClick={onToggle}
-      aria-label={dir === "asc" ? "Sort descending" : "Sort ascending"}
+      aria-label={ui(dir === "asc" ? "Sort descending" : "Sort ascending")}
       className="w-10"
     >
       {dir === "asc" ? (
@@ -489,8 +505,10 @@ export interface BulkAction {
   key: string;
   label: string;
   icon?: LucideIcon;
-  /** Hex background. Omit for the neutral outline treatment. */
+  /** @deprecated Hex fills are no longer painted (R10); use `tone`. */
   accent?: string;
+  /** "danger" for a destructive bulk action (it still runs behind its own ConfirmAction, §4.5.4). */
+  tone?: "default" | "danger";
   count?: number;
   disabled?: boolean;
   onRun: () => void;
@@ -509,47 +527,43 @@ export function SelectionBar({
   busy?: boolean;
   note?: string;
 }) {
+  const ui = useUiText();
   if (total === 0) return null;
   return (
-    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-primary/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
-      <span className="rounded-full bg-primary px-3 py-1.5 text-2xs font-semibold uppercase tabular-nums tracking-wider text-white">
-        {total} selected
+    <div role="region" aria-label={ui("Selection actions")} className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-card/95 p-2 shadow-lg backdrop-blur-xl">
+      <span className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold tabular-nums text-primary-foreground" aria-live="polite">
+        {ui("{0} selected", [total])}
       </span>
       {actions.length === 0 ? (
         <span className="text-xs font-medium text-ink-muted">
-          {note || "Nothing can be done to this selection right now."}
+          {ui(note || "Nothing can be done to this selection right now.")}
         </span>
       ) : (
         actions.map((a) => (
-          <Button variant="outline"
+          <Button variant={a.tone === "danger" ? "destructive" : "outline"}
+            size="sm"
             key={a.key}
             type="button"
             disabled={busy || a.disabled}
             onClick={a.onRun}
-            className={cn(
-              "flex cursor-pointer items-center gap-1.5 rounded-2xl px-3.5 py-2 text-2xs font-semibold uppercase tracking-wider transition-all hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50",
-              a.accent
-                ? "text-white"
-                : "border border-edge/30 bg-white text-ink-muted hover:text-primary",
-            )}
-            style={a.accent ? { backgroundColor: a.accent } : undefined}
+            className="gap-1.5 px-3.5"
           >
             {busy ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : a.icon ? <a.icon aria-hidden="true" className="h-3.5 w-3.5" /> : null}
-            {a.label}
+            {ui(a.label)}
             {a.count !== undefined ? (
-              <span className={cn("rounded-full px-1.5 tabular-nums", a.accent ? "bg-white/25" : "bg-muted")}>
+              <bdi className={cn("rounded-full px-1.5 tabular-nums", a.tone === "danger" ? "bg-card/25" : "bg-muted")}>
                 {a.count}
-              </span>
+              </bdi>
             ) : null}
           </Button>
         ))
       )}
-      <Button variant="outline"
+      <Button variant="ghost"
+        size="sm"
         type="button"
         onClick={onClear}
-        className=""
       >
-        Clear
+        {ui("Clear selection")}
       </Button>
     </div>
   );
@@ -644,6 +658,7 @@ export function DataTable<T>({
   selectAllLabel?: string;
 }) {
   const copy = tableCopy[useLocale().language];
+  const ui = useUiText();
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectable = Boolean(onToggleSelect);
   const allSelected =
@@ -692,7 +707,7 @@ export function DataTable<T>({
                     onClick={() => onSort(c.key)}
                     className="inline-flex items-center gap-1 justify-start"
                   >
-                    {c.label}
+                    {ui(c.label)}
                     {sort?.key === c.key ? (
                       sort.dir === "asc" ? (
                         <ArrowUpWideNarrow className="h-3 w-3 text-primary" />
@@ -704,7 +719,7 @@ export function DataTable<T>({
                     )}
                   </SystemButton>
                 ) : (
-                  c.label
+                  ui(c.label)
                 )}
               </th>
             ))}
@@ -777,7 +792,7 @@ export function DataTable<T>({
                 className="px-4 py-8"
               >
                 {empty == null || typeof empty === "string" ? (
-                  <EmptyState size="sm" icon={Inbox} title={empty ?? "Nothing to show."} />
+                  <EmptyState size="sm" icon={Inbox} title={ui(empty ?? "Nothing to show.")} />
                 ) : (
                   empty
                 )}
@@ -813,19 +828,20 @@ export function Pagination({
   onPerPage: (n: number) => void;
   perPageOptions?: number[];
 }) {
+  const ui = useUiText();
   if (total === 0) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-muted pt-5">
-      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-        Showing {firstShown}–{lastShown} of {total}
+      <p className="text-xs font-semibold text-ink-muted" aria-live="polite">
+        {ui("Showing {0}–{1} of {2}", [firstShown, lastShown, total])}
       </p>
       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-          Per page
+        <label className="flex items-center gap-2 text-xs font-semibold text-ink-subtle">
+          {ui("Per page")}
           <SystemSelect
             value={perPage}
             onChange={(e) => onPerPage(Number(e.target.value))}
-            className="h-9 cursor-pointer px-2.5 transition-all"
+            className="cursor-pointer px-2.5 transition-all"
           >
             {perPageOptions.map((n) => (
               <option key={n} value={n}>
@@ -840,19 +856,19 @@ export function Pagination({
               type="button"
               onClick={() => onPage(Math.max(1, page - 1))}
               disabled={page <= 1}
-              aria-label="Previous page"
+              aria-label={ui("Previous page")}
               className="w-10"
             >
               <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
             </Button>
-            <span className="min-w-[64px] text-center text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+            <bdi dir="ltr" className="min-w-[64px] text-center text-xs font-semibold tabular-nums text-ink-muted">
               {page} / {totalPages}
-            </span>
+            </bdi>
             <Button variant="outline"
               type="button"
               onClick={() => onPage(Math.min(totalPages, page + 1))}
               disabled={page >= totalPages}
-              aria-label="Next page"
+              aria-label={ui("Next page")}
               className="w-10"
             >
               <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
@@ -906,6 +922,7 @@ export function ModalPager({
   /** "light" sits on a white header, "dark" on a coloured one. */
   tone?: "light" | "dark";
 }) {
+  const ui = useUiText();
   const index = sequence.findIndex((s) => s.id === currentId);
   const prev = index > 0 ? sequence[index - 1] : undefined;
   const next = index >= 0 && index < sequence.length - 1 ? sequence[index + 1] : undefined;
@@ -936,54 +953,43 @@ export function ModalPager({
 
   if (sequence.length < 2 || index < 0) return null;
 
-  const base =
-    tone === "dark"
-      ? "text-white/80 hover:bg-white/20"
-      : "text-ink-muted hover:bg-brand-50 hover:text-primary";
+  // 44 px icon buttons (R9), the shared IconButton with its own tooltip; quiet on the dark modal header too.
+  const toneClass = tone === "dark" ? "text-white/80 actionable-hover:bg-white/20 actionable-hover:text-white" : "text-ink-muted";
 
   return (
     <div
       className={cn(
-        "flex items-center gap-1 rounded-2xl px-1.5 py-1",
+        "flex items-center gap-1 rounded-2xl px-1 py-0.5",
         tone === "dark" ? "bg-white/12" : "bg-muted",
       )}
     >
-      <Tooltip content={prev ? `Previous ${noun}: ${prev.label}` : `First ${noun}`}>
-      <Button variant="outline"
-        type="button"
+      <IconButton
+        label={ui(`Previous ${noun}`)}
+        tooltip={prev ? `${ui(`Previous ${noun}`)}: ${prev.label}` : ui(`First ${noun}`)}
         disabled={!prev}
         onClick={() => prev && onNavigate(prev.id)}
-        aria-label={`Previous ${noun}`}
-        className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-xl transition-colors enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-35",
-          base,
-        )}
+        className={toneClass}
       >
-        <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
-      </Button>
-      </Tooltip>
-      <span
+        <ChevronLeft className="rtl:rotate-180" aria-hidden="true" />
+      </IconButton>
+      <bdi
+        dir="ltr"
         className={cn(
           "px-1 text-2xs font-bold tabular-nums",
           tone === "dark" ? "text-white/80" : "text-ink-muted",
         )}
       >
         {index + 1}/{sequence.length}
-      </span>
-      <Tooltip content={next ? `Next ${noun}: ${next.label}` : `Last ${noun}`}>
-      <Button variant="outline"
-        type="button"
+      </bdi>
+      <IconButton
+        label={ui(`Next ${noun}`)}
+        tooltip={next ? `${ui(`Next ${noun}`)}: ${next.label}` : ui(`Last ${noun}`)}
         disabled={!next}
         onClick={() => next && onNavigate(next.id)}
-        aria-label={`Next ${noun}`}
-        className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-xl transition-colors enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-35",
-          base,
-        )}
+        className={toneClass}
       >
-        <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
-      </Button>
-      </Tooltip>
+        <ChevronRight className="rtl:rotate-180" aria-hidden="true" />
+      </IconButton>
     </div>
   );
 }

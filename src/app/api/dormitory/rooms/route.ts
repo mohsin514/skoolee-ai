@@ -6,7 +6,7 @@ import { campusToday, overlaps, roomChangeImpact } from "@/lib/dormitory/allocat
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const body = await request.json();
     const campusId = await resolveCampusId(user, body.campusId);
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const body = await request.json();
     const { id, ...updates } = body;
@@ -146,7 +146,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const id = request.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);

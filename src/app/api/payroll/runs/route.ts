@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireAuthUser();
-    const body = z.object({ action: z.enum(["policy", "provider", "employee", "adjust", "void-adjustment", "prepare", "approve", "submit", "result", "correct"]), id: z.string().min(1).max(120).optional(), data: z.unknown().optional() }).strict().parse(await request.json().catch(() => ({})));
+    const body = z.object({ action: z.enum(["policy", "provider", "employee", "adjust", "void-adjustment", "prepare", "approve", "submit", "result", "correct"]), id: z.string().min(1).max(120).optional(), data: z.unknown().optional(), reason: z.string().max(500).optional() }).strict().parse(await request.json().catch(() => ({})));
     const id = body.id ?? "";
     const run = (): Promise<unknown> => {
       switch (body.action) {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
         case "adjust": return addAdjustment(user, body.data);
         case "void-adjustment": return voidAdjustment(user, id);
         case "prepare": return prepareRun(user, body.data);
-        case "approve": return approveRun(user, id);
+        case "approve": return approveRun(user, id, body.reason);
         case "submit": return submitRun(user, id);
         case "result": return recordProviderResult(user, id, body.data);
         default: return createCorrection(user, id);

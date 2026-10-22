@@ -7,54 +7,29 @@ import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
 import { openSettings } from "@/components/settings/settings-sections";
 import { clearDeviceDrafts } from "@/lib/drafts/store";
 
-
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { useEffect, useRef, useState } from "react";
-import {
-  Award,
-  Bell,
-  BookOpen,
-  Calendar,
-  CalendarCheck,
-  ChevronDown,
-  FileText,
-  GraduationCap,
-  LayoutDashboard,
-  LayoutGrid,
-  LogOut,
-  Mail,
-  MessageCircle,
-  Receipt,
-  Settings,
-  UserCheck,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, ChevronDown, Languages, LayoutDashboard, LogOut, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { toast } from "@/components/ui/toast";
 import type { EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
-import { ScopeBadge } from "./ScopeBadge";
+import { ScopeBadge, useShellSession } from "./ScopeBadge";
+import { HelpMenu } from "./HelpMenu";
 import { useNotifications } from "@/hooks/use-notifications";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Menu, type MenuItem } from "@/components/ui/menu";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { clearOnSignOut, pendingOnDevice } from "@/lib/offline/store";
+import { clearNavigationAccessCache } from "@/components/nav/NavigationAccess";
+import { dashboardPathForRole, type UserRole } from "@/lib/roles";
 
 
-const accountMenuItemClass = "flex w-full justify-start items-center gap-3 text-start";
-
-const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
-  Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
-  GraduationCap, LayoutGrid, Mail, MessageCircle, Receipt, UserCheck,
-};
-
-function resolveNotifIcon(name: string | null): LucideIcon {
-  return (name && NOTIF_ICON_MAP[name]) || Bell;
-}
+/** Roles that see the academic-cycle chip (staff who work inside a cycle; not the group admin or the platform). */
+const NO_CYCLE: ReadonlySet<string> = new Set(["SUPER_ADMIN", "APP_OWNER", "PARENT", "STUDENT"]);
 
 function relativeTime(dateStr: string, language: string, timeZone: string): string {
   const date = new Date(dateStr);
@@ -68,42 +43,66 @@ function relativeTime(dateStr: string, language: string, timeZone: string): stri
   return date.toLocaleDateString(language, { timeZone, month: "short", day: "numeric" });
 }
 
+/** A registry `accountMenu` leaf (e.g. My leave), already translated by RoleShell. */
+export interface AccountMenuLink { id: string; label: string; icon: LucideIcon; href?: string; onSelect?: () => void }
+
 interface RoleHeaderProps {
+  /** Translated console name (registry eyebrow). */
   eyebrow?: string;
-  searchPlaceholder?: string;
+  /** The console landing view: the greeting and date show only here. */
+  landing?: boolean;
   userName?: string;
+  /** @deprecated fallback only; the session's mode-aware role label wins. */
   userRole?: string;
   avatarSeed?: string;
   dashboardHref?: string;
   compact?: boolean;
-  actions?: ReactNode;
+  /** Scope switchers only (parent child switcher, SA "Back to all campuses"). Never page actions. */
+  context?: ReactNode;
+  accountLinks?: AccountMenuLink[];
+  role?: UserRole;
+  framed?: boolean;
+}
+
+function isModalOpen() {
+  return Boolean(document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]'));
 }
 
 export function RoleHeader({
   eyebrow,
-  searchPlaceholder,
+  landing = true,
   userName = "Skoolee User",
-  userRole = "Dashboard",
-  avatarSeed,
-  dashboardHref = "/dashboard",
+  userRole,
+  dashboardHref,
   compact = false,
-  actions,
+  context,
+  accountLinks = [],
+  role,
+  framed = false,
 }: RoleHeaderProps) {
-  const router = useRouter();
   const t = useUiText();
   const { language, timezone } = useLocale();
+  const session = useShellSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
+  const [touring, setTouring] = useState(false);
+  const [signOutCount, setSignOutCount] = useState<number | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [arrival, setArrival] = useState("");
   const notifRef = useRef<HTMLDivElement | null>(null);
   const prevUnreadRef = useRef(0);
-  const { notifications: liveNotifications, unreadCount, markAsRead, refresh: refreshNotifications } = useNotifications();
-  const toastedNotifIds = useRef<Set<string>>(new Set());
-  const displayName = (headerProfile?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
-  const displayRole = headerProfile?.roleLabel || userRole;
+  const { notifications: liveNotifications, unreadCount, refresh: refreshNotifications } = useNotifications();
+  const seenNotifIds = useRef<Set<string> | null>(null);
+  const displayName = (headerProfile?.fullName || session?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
+  // The EN key re-translates after a language switch; the session label is already in the display language.
+  const displayRole = session?.roleLabelKey || session?.roleLabel || headerProfile?.roleLabel || userRole || "";
   const displayAvatar = headerProfile?.profileImageUrl;
+  const viewerRole = role ?? session?.role;
+  const home = dashboardHref ?? (viewerRole ? dashboardPathForRole(viewerRole) : session?.dashboardPath ?? "/login");
+  const scopeLine = session?.schoolName ? (session.campusName && session.role !== "SUPER_ADMIN" && !session.institution?.standaloneOwner ? `${session.schoolName} · ${session.campusName}` : session.schoolName) : null;
+  const showCycle = Boolean(viewerRole) && !NO_CYCLE.has(viewerRole as string);
 
   const greeting = (() => {
     const h = Number(new Intl.DateTimeFormat("en", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(new Date()));
@@ -114,74 +113,67 @@ export function RoleHeader({
 
   const today = new Date().toLocaleDateString(language, { timeZone: timezone, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
+  // The spotlight tour pauses the arrival cue and the bell shake (SPEC §9.3).
   useEffect(() => {
-    const newest = liveNotifications[0];
-    if (!newest || newest.isRead) return;
-    if (toastedNotifIds.current.has(newest.id)) return;
+    const onTour = (event: Event) => setTouring(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
+    window.addEventListener("skoolee:tour-state", onTour);
+    return () => window.removeEventListener("skoolee:tour-state", onTour);
+  }, []);
 
-    const iconName = newest.icon;
-    const Icon = resolveNotifIcon(iconName);
-
-    playNotificationBell();
-    toast(iconName ? <Icon className="h-4 w-4 text-primary" /> : undefined, {
-      description: (
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-ink-strong">{newest.title}</p>
-          {newest.message && (
-            <p className="mt-0.5 text-xs font-medium text-ink line-clamp-2">{newest.message}</p>
-          )}
-        </div>
-      ),
-      duration: 5000,
-    });
-
-    toastedNotifIds.current.add(newest.id);
-    if (toastedNotifIds.current.size > 100) {
-      const ids = [...toastedNotifIds.current];
-      ids.slice(0, ids.length - 100).forEach((id) => toastedNotifIds.current.delete(id));
+  // An ACTION item that arrives while the shell is open rings and shakes the bell and is announced to screen readers —
+  // never for what was already unread on load, never during a tour or over an open dialog. It is not a toast: toasts
+  // report the result of something the viewer just did (addendum 2026-10-22 §4). The bell keeps the full list.
+  useEffect(() => {
+    if (seenNotifIds.current === null) {
+      if (liveNotifications.length === 0) return;
+      seenNotifIds.current = new Set(liveNotifications.map((item) => item.id));
+      return;
     }
-  }, [liveNotifications, markAsRead]);
+    const seen = seenNotifIds.current;
+    const fresh = liveNotifications.filter((item) => !seen.has(item.id));
+    fresh.forEach((item) => seen.add(item.id));
+    if (seen.size > 200) seenNotifIds.current = new Set([...seen].slice(-100));
+    const newest = fresh.find((item) => !item.isRead && (item as { category?: string }).category === "ACTION");
+    if (!newest || touring || isModalOpen()) return;
+    playNotificationBell();
+    setArrival(t("New notification: {0}", [newest.title]));
+    // Reads the translator at the moment an item arrives; a language switch should not re-announce it.
+  }, [liveNotifications, touring]);
 
+  // Header identity (name, photo). A failed read keeps the session name: no toast for a load (R4).
   useEffect(() => {
     let cancelled = false;
-
     fetch("/api/profile")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!cancelled && data?.profile) setHeaderProfile(data.profile);
       })
-      .catch(() => { toast.error(t("Failed to load profile")); });
-
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, []);
 
   useEffect(() => {
-    if (unreadCount > prevUnreadRef.current) {
+    if (unreadCount > prevUnreadRef.current && !touring) {
       setBellShake(true);
       const timer = setTimeout(() => setBellShake(false), 340);
       prevUnreadRef.current = unreadCount;
       return () => clearTimeout(timer);
     }
     prevUnreadRef.current = unreadCount;
-  }, [unreadCount]);
+  }, [unreadCount, touring]);
 
   useEffect(() => {
-    if (!menuOpen && !notifOpen) return;
+    if (!notifOpen) return;
 
     const closeOnOutsideClick = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (menuRef.current?.contains(target)) return;
       if (notifRef.current?.contains(target)) return;
-      setMenuOpen(false);
       setNotifOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-        setNotifOpen(false);
-      }
+      if (event.key === "Escape") setNotifOpen(false);
     };
 
     document.addEventListener("pointerdown", closeOnOutsideClick);
@@ -191,178 +183,151 @@ export function RoleHeader({
       document.removeEventListener("pointerdown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [menuOpen, notifOpen]);
+  }, [notifOpen]);
 
-  const handleLogout = async () => {
-    // SKO-448: this device's shared-device policy removes offline registers and unsynced marks on sign-out.
-    const unsynced = pendingOnDevice();
-    if (unsynced && !window.confirm(t("{0} changes on this device are not synced yet. Signing out removes them from this device. Sign out anyway?").replace("{0}", String(unsynced)))) return;
+  const signOut = async () => {
+    setSigningOut(true);
     clearOnSignOut();
     clearDeviceDrafts();
-    await fetch("/api/auth/logout", { method: "POST" });
+    // The shell's per-tab access cache never outlives the session it was confirmed for.
+    clearNavigationAccessCache();
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     window.location.href = "/login";
   };
 
+  const handleLogout = () => {
+    // SKO-448: this device's shared-device policy removes offline registers and unsynced marks on sign-out.
+    const unsynced = pendingOnDevice();
+    if (unsynced) { setSignOutCount(unsynced); return; }
+    void signOut();
+  };
 
   return (
     <>
-      <header data-workspace-header className={cn("relative flex flex-wrap items-center justify-between gap-[8px] shrink-0 bg-white border border-border rounded-[22px] px-[12px] py-[8px] sm:px-4 sm:py-2.5 shadow-[0_1px_2px_rgba(120,70,180,0.08),0_8px_28px_-10px_rgba(129,39,207,0.16)] z-40", compact ? "mb-3" : "mb-4")}>
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-brand-400 flex items-center justify-center shadow-md shadow-primary/15 shrink-0">
-            <LayoutDashboard className="h-[18px] w-[18px] text-white" />
-          </div>
+      <header data-workspace-header className={cn("sk-panel relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-[8px] px-[12px] py-[8px] sm:px-4 sm:py-2.5", compact ? "mb-3" : "mb-4")}>
+        <div data-tour="shell.header.identity" className="flex min-w-0 items-center gap-3">
+          <Tooltip content={t("Home")} describe={false}>
+            <Link href={home} aria-label={t("Home")} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-brand-400 shadow-md shadow-primary/15 sm:h-9 sm:w-9">
+              <LayoutDashboard aria-hidden="true" className="h-[18px] w-[18px] text-primary-foreground" />
+            </Link>
+          </Tooltip>
           {/* Both lines come from the *viewer's* clock and timezone, which the
               server cannot know, so its guess and the browser's routinely
-              disagree ("Good evening" vs "Good morning", and the date itself
-              either side of midnight). That mismatch was throwing a hydration
-              error on every dashboard load. The client value is the correct
-              one; suppress the diff rather than degrade to a server guess. */}
+              disagree. The client value is the correct one; suppress the diff
+              rather than degrade to a server guess. */}
           <div className="min-w-0">
             {eyebrow && <p className="text-xs font-bold leading-tight text-ink-strong">{eyebrow}</p>}
-            <p suppressHydrationWarning className={cn("text-xs font-semibold tracking-tight text-ink-muted leading-tight", eyebrow ? "mt-1 hidden sm:block" : "hidden sm:block")}>{t(greeting)}, <bdi>{displayName}</bdi></p>
-            {!eyebrow && <p suppressHydrationWarning className="hidden sm:block text-2xs font-semibold text-ink-muted leading-tight mt-px">{today}</p>}
+            {landing && <p suppressHydrationWarning className={cn("hidden text-xs font-semibold leading-tight tracking-tight text-ink-muted sm:block", eyebrow && "mt-1")}>{t(greeting)}, <bdi>{displayName}</bdi></p>}
+            {landing && <p suppressHydrationWarning className="mt-px hidden text-2xs font-semibold leading-tight text-ink-muted sm:block">{today}</p>}
           </div>
         </div>
 
         <div className="ms-auto flex w-full min-w-0 flex-wrap items-center justify-end gap-[6px] sm:w-auto sm:gap-2.5">
-          <div className="me-auto flex min-w-0 max-w-full flex-wrap items-center gap-[6px] [&_svg]:shrink-0"><ScopeBadge /><div className="[&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div></div>
-        {actions}
-        <div ref={notifRef} className="sm:relative">
-          <Tooltip content={t("View notifications")} describe={false}>
-          <Button variant="outline" size="icon"
-            type="button"
-            onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
-            className={cn(
-              "relative flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px] sm:h-11 sm:w-11 sm:min-w-11",
-              notifOpen && "border-primary",
-              bellShake && "sk-shake"
-            )}
-            aria-label={t("View notifications")}
-          >
-            <Bell className="w-[18px] h-[18px]" />
-            {unreadCount > 0 && (
-              <span className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-white ring-2 ring-white shadow-md shadow-primary/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
-            )}
-          </Button>
-          </Tooltip>
-
-          {notifOpen && (
-            <div className="animate-dropdown-enter sk-panel absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-edge/10">
-                <h3 className="text-sm font-bold text-ink-strong tracking-tight"><UiText>{"Notifications"}</UiText></h3>
-                {unreadCount > 0 && (
-                  <span className="text-2xs font-semibold text-primary bg-brand-50 px-2.5 py-1 rounded-full">{unreadCount}{" "}<UiText>{"new"}</UiText></span>
-                )}
-              </div>
-              <NotificationCenter formatTime={(iso) => relativeTime(iso, language, timezone)} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
-            </div>
-          )}
-        </div>
-        <Tooltip content={t("Account settings")} describe={false}>
-        <Button variant="outline" size="icon"
-          type="button"
-          onClick={() => openSettings("profile")}
-          className="flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px] sm:h-11 sm:w-11 sm:min-w-11"
-          aria-label={t("Account settings")}
-        >
-          <Settings className="w-[18px] h-[18px]" />
-        </Button>
-        </Tooltip>
-        <div aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-border sm:block" />
-
-        <div ref={menuRef} className="sm:relative">
-          <Tooltip content={t("Account menu")} describe={false}>
-          <Button variant="ghost"
-            type="button"
-            onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
-            aria-label={t("Account menu")}
-            className={cn(
-              "flex min-h-[44px] min-w-[44px] justify-start items-center gap-0 px-[6px] py-[6px] sm:min-h-11 sm:gap-2.5 sm:px-4 hover:-translate-y-0.5",
-              menuOpen && "border-primary/30 bg-white shadow-lg"
-            )}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
-            <div className={cn("h-[28px] w-[28px] sm:h-8 sm:w-8 bg-gradient-to-br from-brand-50 to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-primary/25" : "ring-1 ring-primary/10")}>
-              <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
-            </div>
-            <div className="hidden sm:block text-start">
-              <p className="max-w-28 truncate text-xs font-semibold text-ink-strong leading-none">{displayName}</p>
-            </div>
-            <ChevronDown className={cn("hidden sm:block h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-primary")} />
-          </Button>
-          </Tooltip>
-
-          {menuOpen && (
-            <div
-              role="menu"
-              className="animate-dropdown-enter sk-panel absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(18rem,calc(100vw-24px))] overflow-y-auto"
+          <div className="me-auto flex min-w-0 max-w-full flex-wrap items-center gap-[6px] [&_svg]:shrink-0">
+            <ScopeBadge />
+            {showCycle ? <div data-tour="shell.header.cycle" className="hidden sm:block [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div> : null}
+            {context ? <div data-tour="shell.header.context" className="flex min-w-0 max-w-full items-center gap-2">{context}</div> : null}
+          </div>
+          {viewerRole ? <HelpMenu role={viewerRole} framed={framed} /> : null}
+          <div ref={notifRef} className="sm:relative">
+            <Tooltip content={t("View notifications")} describe={false}>
+            <Button variant="outline" size="icon"
+              type="button"
+              data-tour="shell.header.notifications"
+              onClick={() => setNotifOpen((o) => !o)}
+              className={cn(
+                "relative flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px] sm:h-11 sm:w-11 sm:min-w-11",
+                notifOpen && "border-primary",
+                bellShake && "sk-shake"
+              )}
+              aria-label={unreadCount > 0 ? t("Notifications, {0} unread", [unreadCount]) : t("View notifications")}
+              aria-expanded={notifOpen}
             >
-              <div className="border-b border-edge/10 bg-gradient-to-br from-brand-50/80 to-white p-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn("flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md", menuOpen ? "ring-2 ring-primary/25" : "ring-1 ring-primary/10")}>
-                    <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-ink-strong">{displayName}</p>
-                    <p className="truncate text-2xs font-semibold text-ink-muted">{t(displayRole)}</p>
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-2xs font-semibold text-primary border border-primary/10">
-                      <UserRound className="h-3 w-3" /><UiText>{"Active account"}</UiText></div>
-                  </div>
+              <Bell className="h-[18px] w-[18px]" />
+              {unreadCount > 0 && (
+                <span aria-hidden="true" className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground ring-2 ring-card shadow-md shadow-primary/30"><bdi>{unreadCount > 99 ? "99+" : unreadCount}</bdi></span>
+              )}
+            </Button>
+            </Tooltip>
+
+            {/* Polite announcement of a newly arrived action item (the bell's visual cue is the shake and the count). */}
+            <p role="status" aria-live="polite" className="sr-only">{arrival}</p>
+            {notifOpen && (
+              <div className="animate-dropdown-enter sk-panel absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-edge/10 px-5 py-4">
+                  <h3 className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Notifications"}</UiText></h3>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-primary"><bdi>{unreadCount}</bdi>{" "}<UiText>{"new"}</UiText></span>
+                  )}
+                </div>
+                <NotificationCenter formatTime={(iso) => relativeTime(iso, language, timezone)} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
+              </div>
+            )}
+          </div>
+          <div aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-border sm:block" />
+
+          {/* The shared Menu: role="menu", roving focus, Escape returns focus to the avatar, Tab and outside clicks close it. */}
+          <Menu
+            label="Account menu"
+            align="end"
+            onOpenChange={(open) => { setMenuOpen(open); if (open) setNotifOpen(false); }}
+            header={(
+              <div className="mb-1.5 flex items-center gap-3 rounded-xl bg-surface-subtle p-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-card shadow-md ring-1 ring-primary/10">
+                  <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-ink-strong"><bdi>{displayName}</bdi></p>
+                  {displayRole ? <p className="truncate text-2xs font-semibold text-primary">{t(displayRole)}</p> : null}
+                  {scopeLine ? <p className="mt-0.5 truncate text-2xs font-medium text-ink-muted"><bdi>{scopeLine}</bdi></p> : null}
                 </div>
               </div>
-
-              <div className="p-1.5">
-                <MenuLink href={dashboardHref} icon={LayoutDashboard} label="Main dashboard" onClick={() => setMenuOpen(false)} />
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    openSettings("profile");
-                  }}
-                  className={accountMenuItemClass}
-                  role="menuitem"
-                >
-                  <Settings className="h-4 w-4" /><UiText>{"Account settings"}</UiText></Button>
-                <Button variant="ghost" size="sm"
-                  type="button"
-                  onClick={handleLogout}
-                  className={accountMenuItemClass}
-                  role="menuitem"
-                >
-                  <LogOut className="h-4 w-4" /><UiText>{"Sign out"}</UiText></Button>
-              </div>
-            </div>
-          )}
+            )}
+            items={[
+              { id: "account-settings", label: "Account settings", icon: Settings, onSelect: () => openSettings("profile") },
+              { id: "language", label: "Language", icon: Languages, onSelect: () => openSettings("language") },
+              // The same Settings section `/account/security` redirects to, opened without leaving the page.
+              { id: "security", label: "Security & sign-in", icon: ShieldCheck, onSelect: () => openSettings("security") },
+              ...accountLinks.map((link): MenuItem => ({ id: link.id, label: link.label, icon: link.icon, href: link.href, onSelect: link.href ? undefined : link.onSelect })),
+              "separator",
+              { id: "sign-out", label: "Sign out", icon: LogOut, onSelect: handleLogout },
+            ]}
+            trigger={(
+              <Button variant="ghost"
+                type="button"
+                data-tour="shell.header.account"
+                aria-label={t("Account menu")}
+                className={cn(
+                  "flex min-h-[44px] min-w-[44px] items-center justify-start gap-0 px-[6px] py-[6px] sm:min-h-11 sm:gap-2.5 sm:px-4",
+                  menuOpen && "bg-surface-hover"
+                )}
+              >
+                <div className={cn("flex h-[28px] w-[28px] items-center justify-center overflow-hidden rounded-xl border-2 border-card bg-brand-50 shadow-sm sm:h-8 sm:w-8", menuOpen ? "ring-2 ring-primary/25" : "ring-1 ring-primary/10")}>
+                  <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
+                </div>
+                <div className="hidden text-start sm:block">
+                  <p className="max-w-28 truncate text-xs font-semibold leading-none text-ink-strong"><bdi>{displayName}</bdi></p>
+                </div>
+                <ChevronDown aria-hidden="true" className={cn("hidden h-3.5 w-3.5 text-ink-subtle transition-transform duration-300 sm:block", menuOpen && "rotate-180 text-primary")} />
+              </Button>
+            )}
+          />
         </div>
-      </div>
       </header>
+
+      <ConfirmAction
+        open={signOutCount !== null}
+        tone="warning"
+        title={t("Sign out with unsynced changes?")}
+        description={t("{0} changes on this device are not synced yet. Signing out removes them from this device and cannot be undone.", [signOutCount ?? 0])}
+        confirmLabel={t("Sign out")}
+        cancelLabel={t("Keep editing")}
+        busy={signingOut}
+        onCancel={() => setSignOutCount(null)}
+        onConfirm={() => { void signOut(); }}
+      />
 
       <SettingsModalHost onProfileSaved={setHeaderProfile} />
     </>
-  );
-}
-
-function MenuLink({
-  href,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  href: string;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={buttonVariants({ variant: "ghost", size: "sm", className: accountMenuItemClass })}
-      role="menuitem"
-    >
-      <Icon className="h-4 w-4" />
-      <UiText>{label}</UiText>
-    </Link>
   );
 }

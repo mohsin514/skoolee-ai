@@ -1,6 +1,6 @@
 "use client";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
@@ -16,19 +16,20 @@ import { InfoTip, Tooltip } from "@/components/ui/tooltip";
 import { MarkScanPanel } from "@/components/marks/mark-scan-panel";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { toast } from "@/components/ui/toast";
 import {
-  ArrowDownToLine, ChevronDown, ClipboardList, Download, Eraser, FileText, Keyboard,
-  Lock, Plus, Search, Star, X,
+  ArrowDownToLine, BarChart3, ChevronDown, ClipboardList, Download, Eraser, Keyboard,
+  Lock, PenLine, Plus, Search, Star, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { BrandButton } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import {
   classLabel, MarksSkeleton, StatusPill, StudentMini, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { useGradingTools } from "../use-grading-tools";
-import { GradingModals, GradingToolbar } from "../grading-tools";
+import { FinalGradesPreview } from "../grading-tools";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { csvCell } from "@/lib/csv";
@@ -39,6 +40,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 const EXAM_PAGE = 6;
 
 export default function MarksPage() {
+  const ui = useUiText();
   const { data, loading, error, loadData } = useTeacherData();
   const searchParams = useSearchParams();
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -69,7 +71,7 @@ export default function MarksPage() {
   const [showAllExams, setShowAllExams] = useState(false);
   const gridRef = useRef<HTMLTableSectionElement>(null);
 
-  const grading = useGradingTools({ onChanged: loadData });
+  const grading = useGradingTools();
 
   const classHubs = data?.classHubs || [];
   const activeExam = (data?.exams || []).find((exam: any) => exam.id === selectedExamId);
@@ -145,7 +147,7 @@ export default function MarksPage() {
           payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: Number(value) });
         }
       }
-      if (payload.length === 0) { toast.error("Enter at least one mark before saving."); return; }
+      if (payload.length === 0) { toast.error(ui("Enter at least one mark before saving.")); return; }
       const res = await fetch("/api/marks", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks: draft.baseline }),
@@ -157,18 +159,18 @@ export default function MarksPage() {
         toast.error(result.error);
         return;
       }
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not save the marks. Please try again."));
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not save the marks. Please try again.")));
       draft.markSaved();
-      toast.success("Marks saved for this assessment.");
+      toast.success(ui("Marks saved for this test."));
       await loadMarks(selectedExamId);
       await loadData();
     } catch (error: unknown) { toast.error(error); }
     finally { setMarksSaving(false); }
-  }, [selectedExamId, markSheet, marksByKey, baselineMarks, loadMarks, loadData, draft]);
+  }, [selectedExamId, markSheet, marksByKey, loadMarks, loadData, draft, ui]);
 
   const exportMarksCSV = useCallback(() => {
     if (!markSheet) return;
-    const rows = [["Student", "Roll No", ...markSheet.subjects.map((s: any) => s.name)]];
+    const rows = [[ui("Pupil"), ui("Roll number"), ...markSheet.subjects.map((s: any) => s.name)]];
     for (const student of markSheet.students || []) {
       const row = [student.fullName, student.rollNo || ""];
       for (const subject of markSheet.subjects || []) {
@@ -179,12 +181,13 @@ export default function MarksPage() {
     }
     // Student names routinely contain commas ("Khan, Ayesha"); unquoted they
     // shift every following column into the wrong subject.
+    // The UTF-8 BOM keeps Arabic and Urdu names readable when the file opens in a spreadsheet app.
     const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `marks-${selectedExamId}.csv`; a.click();
     URL.revokeObjectURL(url);
-  }, [markSheet, marksByKey, selectedExamId]);
+  }, [markSheet, marksByKey, selectedExamId, ui]);
 
   const visibleExams = useMemo(() => {
     const all: any[] = data?.exams || [];
@@ -306,15 +309,17 @@ export default function MarksPage() {
 
   return (
     <TeacherPage
-      tone="exams"
-      icon={FileText}
-      eyebrow="Marks Entry"
-      title="Tests, Exams & Marks"
-      summary={`${data.exams?.length || 0} exam cycle${(data.exams?.length || 0) === 1 ? "" : "s"} · enter marks, create assessments and manage grading`}
-      actions={<GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />}
+      icon={PenLine}
+      title="Marks"
+      description="Enter marks for your tests; the sticky bar saves the sheet. You lock your own quizzes and class tests; your academic lead locks term exams and publishes results."
+      secondaryActions={[
+        ...(markSheet?.students?.length ? [{ id: "export-csv", label: "Export CSV", icon: Download, onClick: exportMarksCSV }] : []),
+        ...(markSheet?.students?.length && !isLocked ? [{ id: "shortcuts", label: shortcutsOpen ? "Hide shortcuts" : "Shortcuts", icon: Keyboard, onClick: () => setShortcutsOpen((v) => !v) }] : []),
+        ...(classHubs.length ? [{ id: "final-grades", label: "Final grades preview", icon: BarChart3, onClick: () => grading.openFinalGrades(activeExam?.classId || classHubs[0]?.id) }] : []),
+      ]}
     >
-      <DraftRecovery recordLabel={activeExam?.title || "Marks entry"} draft={draft} saving={marksSaving} labels={Object.fromEntries((markSheet?.students || []).flatMap((student: any) => (markSheet?.subjects || []).map((subject: any) => [`${student.id}:${subject.id}`, `${student.fullName} — ${subject.name}`])))} />
-      <FormErrorSummary errors={Object.fromEntries(invalidCells.map(({ student, subject }: any) => [`mark-${student.id}:${subject.id}`, `${student.fullName}: ${subject.name} must be between 0 and ${subject.totalMarks || 100}.`]))} onFocusField={(id) => document.getElementById(id)?.focus()} />
+      <DraftRecovery recordLabel={activeExam?.title || ui("Marks entry")} draft={draft} saving={marksSaving} labels={Object.fromEntries((markSheet?.students || []).flatMap((student: any) => (markSheet?.subjects || []).map((subject: any) => [`${student.id}:${subject.id}`, `${student.fullName} — ${subject.name}`])))} />
+      <FormErrorSummary errors={Object.fromEntries(invalidCells.map(({ student, subject }: any) => [`mark-${student.id}:${subject.id}`, ui("{0}: {1} must be between 0 and {2}.", [student.fullName, subject.name, subject.totalMarks || 100])]))} onFocusField={(id) => document.getElementById(id)?.focus()} />
       <div className="space-y-3">
 
         {/* Zero state — with no assessments the selector, sheet and save bar are
@@ -323,25 +328,18 @@ export default function MarksPage() {
           <div className="sk-panel sk-enter">
             <EmptyState
               icon={Star}
-              title="No assessments yet"
-              description="Create a test or exam for one of your classes, and its mark sheet will open up here for you to fill in."
-              action={
-                <BrandButton variant="dark" icon={<Plus aria-hidden="true" className="h-4 w-4" />}
-                  onClick={() => grading.setShowExamModal(true)}>
-                  Create Assessment
-                </BrandButton>
-              }
-              secondaryAction={classHubs.length ? (
-                <BrandButton variant="soft" icon={<FileText aria-hidden="true" className="h-4 w-4" />}
-                  onClick={() => grading.openGradeConfig(classHubs[0]?.id)}>
-                  Set Grade Config
-                </BrandButton>
+              title={ui("No tests yet")}
+              description={ui("Create a quiz or class test for one of your classes, and its mark sheet opens here for you to fill in.")}
+              action={classHubs.length ? (
+                <Link href="/teacher/tests" className={buttonVariants({ variant: "default" })}>
+                  <Plus aria-hidden="true" /> {ui("New test")}
+                </Link>
               ) : undefined}
             />
             {!classHubs.length ? (
               <div className="mx-auto max-w-md px-6 pb-8">
                 <Alert tone="warning" compact live="off">
-                  You have no classes assigned yet — ask your campus admin to assign one.
+                  {ui("You have no classes assigned yet — ask your campus admin to assign one.")}
                 </Alert>
               </div>
             ) : null}
@@ -361,23 +359,23 @@ export default function MarksPage() {
             only one — with a filter in front of them, which is what the
             dropdown was really being used for once the list grew. */}
         <div className="flex flex-wrap items-center gap-2">
-          <InputGroup surfaceClassName="bg-white" className="w-full sm:w-[320px] sm:flex-none">
+          <InputGroup surfaceClassName="bg-card" className="w-full sm:w-[320px] sm:flex-none">
             <Search data-field-affix="start" aria-hidden="true" className="pointer-events-none size-4 text-ink-subtle" />
             <SystemInput
               value={examQuery}
               onChange={(e) => setExamQuery(e.target.value)}
-              placeholder="Find an assessment or class…"
-              aria-label="Filter assessments"
+              placeholder={ui("Find a test or class…")}
+              aria-label={ui("Filter tests")}
               className={"w-full"}
             />
             {examQuery ? (
-              <FieldAction data-field-affix="end" type="button" onClick={() => setExamQuery("")} label="Clear assessment filter">
+              <FieldAction data-field-affix="end" type="button" onClick={() => setExamQuery("")} label={ui("Clear test filter")}>
                 <X aria-hidden="true" />
               </FieldAction>
             ) : null}
           </InputGroup>
           <span aria-live="polite" className="text-xs tabular-nums text-ink-subtle">
-            {visibleExams.length} of {data.exams.length} assessment{data.exams.length === 1 ? "" : "s"}
+            {ui("{0} of {1} tests", [visibleExams.length, data.exams.length])}
           </span>
           {/* The grid caps at a readable number; without this the teacher had
               no way to know the other six existed. */}
@@ -385,7 +383,7 @@ export default function MarksPage() {
             <Button variant="outline" size="sm" type="button" onClick={() => setShowAllExams((v) => !v)} aria-expanded={showAllExams}
               className="justify-start gap-1.5">
               <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform", showAllExams && "rotate-180")} />
-              {showAllExams ? "Show fewer" : `Show all ${visibleExams.length}`}
+              {showAllExams ? ui("Show fewer") : ui("Show all {0}", [visibleExams.length])}
             </Button>
           )}
         </div>
@@ -393,7 +391,7 @@ export default function MarksPage() {
         {/* Locked banner */}
         {isLocked && (
           <Alert tone="warning" icon={Lock} compact live="off">
-            <span className="font-semibold text-status-warning-text">This exam is locked &mdash; marks are read-only.</span>
+            <span className="font-semibold text-status-warning-text">{ui("This test is locked — marks are read-only.")}</span>
           </Alert>
         )}
 
@@ -411,14 +409,14 @@ export default function MarksPage() {
                     <p className="mt-0.5 truncate text-xs font-normal text-ink-muted">{exam.subject ? `${exam.subject.name} · ` : ""}{classLabel(exam.class)}</p>
                   </div>
                   <span className="flex shrink-0 items-center gap-1">
-                    {isLockedExam ? <Lock role="img" aria-label="Locked" className="h-3.5 w-3.5 text-amber-700" /> : null}
+                    {isLockedExam ? <Lock role="img" aria-label={ui("Locked")} className="h-3.5 w-3.5 text-status-warning-text" /> : null}
                     <StatusPill status={exam.status} />
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="success" size="sm" dot data-numeric>{exam.enteredMarks || 0} entered</Badge>
+                  <Badge variant="success" size="sm" dot data-numeric>{ui("{0} entered", [exam.enteredMarks || 0])}</Badge>
                   {exam.missingMarks > 0 && (
-                    <Badge variant="danger" size="sm" dot data-numeric>{exam.missingMarks} missing</Badge>
+                    <Badge variant="danger" size="sm" dot data-numeric>{ui("{0} missing", [exam.missingMarks])}</Badge>
                   )}
                 </div>
               </Button>
@@ -429,11 +427,11 @@ export default function MarksPage() {
               <EmptyState
                 size="sm"
                 icon={Search}
-                title={`No assessment matches “${examQuery}”`}
-                description="Search by assessment title, subject or class."
+                title={ui("No test matches “{0}”", [examQuery])}
+                description={ui("Search by test title, subject or class.")}
                 action={
                   <Button variant="secondary" size="sm" type="button" onClick={() => setExamQuery("")}>
-                    <X aria-hidden="true" /> Clear filter
+                    <X aria-hidden="true" /> {ui("Clear filter")}
                   </Button>
                 }
               />
@@ -444,15 +442,15 @@ export default function MarksPage() {
         {/* Progress bar */}
         {markSheet && totalCells > 0 && (
           <div className="flex items-center gap-3">
-            <Progress className="flex-1" value={completion} label="Mark sheet filled" valueText={`${filledCells} of ${totalCells} cells`} />
-            <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-ink-muted">{filledCells}/{totalCells} cells ({completion}%)</span>
+            <Progress className="flex-1" value={completion} label={ui("Mark sheet filled")} valueText={ui("{0} of {1} cells", [filledCells, totalCells])} />
+            <bdi className="whitespace-nowrap text-xs font-semibold tabular-nums text-ink-muted">{filledCells}/{totalCells} · {completion}%</bdi>
           </div>
         )}
 
         {/* Marks table */}
         <div className="sk-panel sk-enter overflow-hidden" style={{ "--sk-delay": "120ms" } as CSSProperties}>
           {marksLoading ? (
-            <SkeletonRegion label="Loading the mark sheet">
+            <SkeletonRegion label={ui("Loading the mark sheet")}>
               <div className="flex gap-8 bg-muted/45 px-5 py-4">
                 <Skeleton className="h-3 w-20 rounded-2xl" />
                 <Skeleton className="h-3 w-16 rounded-2xl" />
@@ -475,8 +473,8 @@ export default function MarksPage() {
             </SkeletonRegion>
           ) : marksFailed ? (
             <ErrorState
-              title="Couldn't load this mark sheet"
-              description="Check your connection and try again. Marks already saved are safe on the server."
+              title={ui("Couldn't load this mark sheet")}
+              description={ui("Check your connection and try again. Marks already saved are safe on the server.")}
               onRetry={() => void loadMarks(selectedExamId)}
             />
           ) : markSheet?.subjects?.length && markSheet?.students?.length ? (
@@ -487,30 +485,30 @@ export default function MarksPage() {
                     {/* The student column is frozen: past three subjects the
                         names scrolled out of view and the teacher was typing
                         into an anonymous grid. */}
-                    <TableHead className="sticky start-0 z-10 bg-brand-50/95 px-5 py-4 backdrop-blur-sm">Student</TableHead>
+                    <TableHead className="sticky start-0 z-10 bg-brand-50/95 px-5 py-4 backdrop-blur-sm">{ui("Pupil")}</TableHead>
                     {markSheet.subjects.map((subject: any, col: number) => {
                       const entered = markSheet.students.filter(
                         (st: any) => (marksByKey[`${st.id}:${subject.id}`] ?? "") !== "",
                       ).length;
                       return (
                         <TableHead key={subject.id} className="px-3 py-3 text-center">
-                          <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-muted">{subject.name}</span>
+                          <span className="block text-2xs font-semibold text-ink-muted">{subject.name}</span>
                           <span className="block text-2xs font-normal tabular-nums text-ink-subtle">
-                            <span className="sr-only">Out of </span>/ {subject.totalMarks || 100} · {entered}/{markSheet.students.length}<span className="sr-only"> entered</span>
+                            <span className="sr-only">{ui("Out of")} </span><bdi>/ {subject.totalMarks || 100} · {entered}/{markSheet.students.length}</bdi><span className="sr-only"> {ui("entered")}</span>
                           </span>
                           {!isLocked ? (
                             <span className="mt-1 flex items-center justify-center gap-1">
-                              <Tooltip content={`Jump to the first ${subject.name} cell`}>
+                              <Tooltip content={ui("Jump to the first {0} cell", [subject.name])}>
                                 <Button size="sm" variant="link" type="button"
                                   onClick={() => focusCell(0, col)}
                                   className="px-1">
-                                  Enter
+                                  {ui("Enter")}
                                 </Button>
                               </Tooltip>
                               <IconButton size="sm" variant="ghost"
                                 onClick={() => clearColumn(subject.id, subject.name)}
-                                label={`Clear the ${subject.name} column`}
-                                tooltip={`Clear every ${subject.name} mark on this sheet`}
+                                label={ui("Clear the {0} column", [subject.name])}
+                                tooltip={ui("Clear every {0} mark on this sheet", [subject.name])}
                               >
                                 <Eraser aria-hidden="true" />
                               </IconButton>
@@ -521,7 +519,7 @@ export default function MarksPage() {
                     })}
                     {/* A mark sheet without a running total makes the teacher do
                         the arithmetic they came here to avoid. */}
-                    <TableHead className="px-4 py-4 text-center">Total</TableHead>
+                    <TableHead className="px-4 py-4 text-center">{ui("Total")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody ref={gridRef} className="divide-y divide-muted">
@@ -538,9 +536,9 @@ export default function MarksPage() {
                     return (
                       <TableRow key={student.id} className={cn(
                         "transition-colors hover:bg-surface-hover",
-                        rowIncomplete && !isLocked && "bg-amber-50/25",
+                        rowIncomplete && !isLocked && "bg-status-warning-surface/40",
                       )}>
-                        <TableCell className="sticky start-0 z-10 bg-white px-5 py-3">
+                        <TableCell className="sticky start-0 z-10 bg-card px-5 py-3">
                           <StudentMini student={student} />
                         </TableCell>
                         {markSheet.subjects.map((subject: any, col: number) => {
@@ -570,15 +568,15 @@ export default function MarksPage() {
                                     const filled = fillDown(row, subject.id, value);
                                     toast.success(
                                       filled
-                                        ? `Filled ${filled} empty ${subject.name} cell${filled === 1 ? "" : "s"} with ${value}`
-                                        : `No empty ${subject.name} cells below this one`,
+                                        ? ui("Filled {0} empty {1} cells with {2}", [filled, subject.name, value])
+                                        : ui("No empty {0} cells below this one", [subject.name]),
                                     );
                                   }
                                 }}
-                                aria-description={isLocked ? "This exam is locked. Marks are read-only." : undefined}
-                                aria-label={`${subject.name} marks for ${student.fullName}, out of ${max}`}
+                                aria-description={isLocked ? ui("This test is locked. Marks are read-only.") : undefined}
+                                aria-label={ui("{0} marks for {1}, out of {2}", [subject.name, student.fullName, max])}
                                 className={"w-full text-center"} />
-                              {isOverLimit && <p id={`mark-${key}-error`} className="sk-field-message mt-1 text-center text-xs font-medium text-destructive">Enter 0 to {max}.</p>}
+                              {isOverLimit && <p id={`mark-${key}-error`} className="sk-field-message mt-1 text-center text-xs font-medium text-destructive">{ui("Enter 0 to {0}.", [max])}</p>}
                             </TableCell>
                           );
                         })}
@@ -587,12 +585,12 @@ export default function MarksPage() {
                             <span className="inline-flex flex-col items-center leading-tight">
                               <span className={cn(
                                 "text-sm font-bold tabular-nums",
-                                pct !== null && pct >= 50 ? "text-primary" : "text-rose-600",
+                                pct !== null && pct >= 50 ? "text-primary" : "text-status-error-text",
                               )}>
                                 {obtained}/{outOf}
                               </span>
                               <span className="text-2xs font-semibold tabular-nums text-ink-subtle">
-                                {pct}%{rowIncomplete ? " so far" : ""}
+                                <bdi>{pct}%</bdi>{rowIncomplete ? ` ${ui("so far")}` : ""}
                               </span>
                             </span>
                           ) : (
@@ -610,13 +608,13 @@ export default function MarksPage() {
               <EmptyState
                 size="sm"
                 icon={ClipboardList}
-                title={markSheet && !markSheet.students?.length && markSheet.subjects?.length ? "No students on this sheet" : "No editable subjects for this exam."}
+                title={markSheet && !markSheet.students?.length && markSheet.subjects?.length ? ui("No pupils on this sheet") : ui("No subjects you can mark in this test")}
                 description={markSheet && !markSheet.students?.length && markSheet.subjects?.length
-                  ? "This class has no enrolled students yet, so there is nothing to mark."
-                  : "You can enter marks only for the subjects you teach in this class, or for every subject if you are its class teacher."}
+                  ? ui("This class has no enrolled pupils yet, so there is nothing to mark.")
+                  : ui("You can enter marks only for the subjects you teach in this class, or for every subject if you are its class teacher.")}
               />
             ) : (
-              <EmptyState size="sm" icon={ClipboardList} title="Select an exam to enter marks." description="Choose an assessment above and its mark sheet opens here." />
+              <EmptyState size="sm" icon={ClipboardList} title={ui("Choose a test to enter marks")} description={ui("Pick a test above and its mark sheet opens here.")} />
             )
           )}
         </div>
@@ -625,49 +623,34 @@ export default function MarksPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           {activeExam ? (
             <p className="inline-flex items-center gap-0.5 text-sm font-medium tabular-nums text-ink-muted">
-              {activeExam.enteredMarks || 0}/{activeExam.expectedMarks || 0} marks entered
-              <InfoTip content="Saved marks for this assessment, out of the marks expected in the subjects you can mark. Unsaved edits on the sheet are not counted until you save." />
+              {ui("{0} of {1} marks entered", [activeExam.enteredMarks || 0, activeExam.expectedMarks || 0])}
+              <InfoTip content={ui("Saved marks for this test, out of the marks expected in the subjects you can mark. Unsaved edits on the sheet are not counted until you save.")} />
             </p>
           ) : (
             /* The empty sheet above already says "Select an exam to enter
                marks."; repeating it here printed the same line twice. */
             <span />
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {markSheet?.students?.length && !isLocked ? (
-              <Tooltip content="Show the keyboard shortcuts for entering a mark sheet quickly">
-                <Button className="justify-start" variant="choice" type="button" onClick={() => setShortcutsOpen((v) => !v)} aria-pressed={shortcutsOpen}>
-                  <Keyboard aria-hidden="true" className="h-4 w-4" />
-                  Shortcuts
-                </Button>
-              </Tooltip>
-            ) : null}
-            {markSheet?.students?.length ? (
-              <Tooltip content="Download marks as CSV file">
-                <BrandButton variant="soft" icon={<Download aria-hidden="true" className="w-4 h-4" />} onClick={exportMarksCSV}>Export CSV</BrandButton>
-              </Tooltip>
-            ) : null}
-          </div>
         </div>
 
         {shortcutsOpen && !isLocked ? (
-          <Alert tone="brand" icon={Keyboard} live="off" title="Mark sheet shortcuts" className="sk-enter-scale">
+          <Alert tone="brand" icon={Keyboard} live="off" title={ui("Mark sheet shortcuts")} className="sk-enter-scale">
             <ul className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
               {[
-                ["↵ / ↓", "Next student, same subject"],
-                ["↑", "Previous student"],
-                ["⇥", "Next subject"],
-                ["⌘D / Ctrl+D", "Fill this mark down the empty cells below"],
-                ["⌘S / Ctrl+S", "Save"],
+                ["↵ / ↓", ui("Next pupil, same subject")],
+                ["↑", ui("Previous pupil")],
+                ["⇥", ui("Next subject")],
+                ["⌘D / Ctrl+D", ui("Fill this mark down the empty cells below")],
+                ["⌘S / Ctrl+S", ui("Save")],
               ].map(([k, meaning]) => (
                 <li key={k} className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
-                  <kbd dir="ltr" className="rounded-md border border-edge/50 bg-white px-1.5 py-0.5 text-2xs font-semibold text-ink-strong shadow-xs">{k}</kbd>
+                  <kbd dir="ltr" className="rounded-md border border-edge/50 bg-card px-1.5 py-0.5 text-2xs font-semibold text-ink-strong shadow-xs">{k}</kbd>
                   {meaning}
                 </li>
               ))}
             </ul>
             <p className="mt-2 inline-flex items-center gap-1 text-xs text-ink-subtle">
-              <ArrowDownToLine aria-hidden="true" className="h-3.5 w-3.5" /> Fill-down never overwrites a mark that is already there.
+              <ArrowDownToLine aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Fill-down never overwrites a mark that is already there.")}
             </p>
           </Alert>
         ) : null}
@@ -679,38 +662,42 @@ export default function MarksPage() {
           saving={marksSaving}
           onSave={saveMarks}
           onReset={resetMarks}
-          saveLabel="Save marks"
+          saveLabel={ui("Save marks")}
+          // An open, editable sheet keeps its save bar: a calm "All marks saved" status when clean; Save appears with the first change.
+          forceShow={Boolean(markSheet?.students?.length) && !isLocked}
+          label={dirtyKeys.size ? undefined : ui("All marks saved")}
           blocked={invalidCells.length > 0 || isLocked}
           blockedReason={
             isLocked
-              ? "This exam is locked — marks are read-only"
-              : `${invalidCells.length} mark${invalidCells.length !== 1 ? "s are" : " is"} outside the allowed range`
+              ? ui("This test is locked — marks are read-only")
+              : ui("{0} marks are outside the allowed range", [invalidCells.length])
           }
           hint={
             invalidCells.length
-              ? `Fix the highlighted cell${invalidCells.length !== 1 ? "s" : ""} to save`
-              : `${activeExam?.title || "This sheet"} · ${filledCells}/${totalCells} cells filled (${completion}%)`
+              ? ui("Fix the highlighted cells to save")
+              : ui("{0} · {1} of {2} cells filled ({3}%)", [activeExam?.title || ui("This sheet"), filledCells, totalCells, completion])
           }
         />
         </>)}
       </div>
 
-      <ConfirmAction open={pendingExamId !== null} title="Change assessment?" description="Your marks are not saved to the server. Eligible input stays in this tab as a draft for up to 24 hours." confirmLabel="Change assessment" onConfirm={() => { if (pendingExamId) setSelectedExamId(pendingExamId); setPendingExamId(null); }} onCancel={() => setPendingExamId(null)} />
-      <GradingModals grading={grading} classHubs={classHubs} />
+      <ConfirmAction open={pendingExamId !== null} title={ui("Change test?")} description={ui("Your marks are not saved to the server. Eligible input stays in this tab as a draft for up to 24 hours.")} confirmLabel={ui("Change test")} cancelLabel={ui("Keep editing")} onConfirm={() => { if (pendingExamId) setSelectedExamId(pendingExamId); setPendingExamId(null); }} onCancel={() => setPendingExamId(null)} />
+      <FinalGradesPreview grading={grading} classHubs={classHubs} />
 
 
 
       <ConfirmAction
         open={clearTarget !== null}
         tone="danger"
-        title={`Clear every mark in ${clearTarget?.subjectName ?? "this subject"}?`}
-        description="This empties the whole column on this sheet. Nothing is sent to the server until you save, so you can still leave without saving to get the marks back."
+        title={ui("Clear every mark in {0}?", [clearTarget?.subjectName ?? ui("this subject")])}
+        description={ui("This empties the whole column on this sheet. Nothing is sent to the server until you save, so you can still leave without saving to get the marks back.")}
         detail={
           clearTargetCount > 0
-            ? `${clearTargetCount} entered mark${clearTargetCount === 1 ? "" : "s"} will be removed from the sheet.`
-            : "Nothing has been entered in this column yet."
+            ? ui("{0} entered marks will be removed from the sheet.", [clearTargetCount])
+            : ui("Nothing has been entered in this column yet.")
         }
-        confirmLabel="Clear column"
+        confirmLabel={ui("Clear column")}
+        cancelLabel={ui("Keep editing")}
         onCancel={() => setClearTarget(null)}
         onConfirm={confirmClearColumn}
       />

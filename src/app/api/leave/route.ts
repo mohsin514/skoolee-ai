@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  canLeadAcademics,
+  canManageAcademics,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -12,6 +13,23 @@ import { getBatchLeaveBalances, getLeaveBalances, rangeTenths } from "@/lib/leav
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { notify } from "@/lib/notifications/in-app";
+import { isCampusOperator } from "@/lib/auth/institution";
+import { isStaffRole } from "@/lib/roles";
+
+const LEAVE_STAFF_ROLES = ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN"];
+
+/** Whose leave a reviewer sees (§2.2 #33, §7.6): teaching staff belong to the academic lead (the principal,
+ *  or a campus operator while no principal is appointed); everyone else, the principal included, to the
+ *  campus operator. The group admin keeps a read-only view of every applicant. */
+async function leaveApplicantRoles(user: Parameters<typeof canManageAcademics>[0], campusId: string, purpose: "decide" | "balances") {
+  if (user.role === "SUPER_ADMIN") return LEAVE_STAFF_ROLES;
+  if (user.role === "PRINCIPAL") return ["TEACHER"];
+  if (!isCampusOperator(user)) return [];
+  // Operators own allocations, so their balance view covers every member of staff.
+  if (purpose === "balances") return LEAVE_STAFF_ROLES;
+  const leadsTeaching = await canLeadAcademics(user, campusId);
+  return leadsTeaching ? LEAVE_STAFF_ROLES : LEAVE_STAFF_ROLES.filter((role) => role !== "TEACHER");
+}
 
 // Leave requests.
 // GET — ?mode=my        staff: their own requests + balances
@@ -38,13 +56,14 @@ export async function GET(req: NextRequest) {
     const yearEnd = new Date(`${academicYear + 1}-01-01T00:00:00Z`);
 
     if (mode === "balances") {
-      if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+      if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
+      const roles = await leaveApplicantRoles(user, campusId, "balances");
       const staff = await prisma.user.findMany({
         where: {
           campusId,
           schoolId: user.schoolId,
           isActive: true,
-          role: { in: ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"] as any },
+          role: { in: roles as any },
         },
         select: { id: true, fullName: true, role: true, email: true },
         orderBy: { fullName: "asc" },
@@ -58,11 +77,13 @@ export async function GET(req: NextRequest) {
     }
 
     if (mode === "all") {
-      if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+      if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
+      const roles = await leaveApplicantRoles(user, campusId, "decide");
       const [requests, users] = await Promise.all([
         prisma.leaveRequest.findMany({
           where: {
             campusId,
+            user: { role: { in: roles as any } },
             ...(statusFilter ? { status: String(statusFilter).toUpperCase() } : {}),
             fromDate: { gte: yearStart, lt: yearEnd },
           },
@@ -74,7 +95,7 @@ export async function GET(req: NextRequest) {
           orderBy: [{ status: "asc" }, { createdAt: "desc" }],
         }),
         prisma.user.findMany({
-          where: { campusId, schoolId: user.schoolId, isActive: true },
+          where: { campusId, schoolId: user.schoolId, isActive: true, role: { in: roles as any } },
           select: { id: true, fullName: true, role: true },
           orderBy: { fullName: "asc" },
         }),
@@ -110,6 +131,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    // Leave is for members of staff; families and the platform operator have no leave record.
+    if (!isStaffRole(user.role)) throw new ApiError("Leave applications are for school staff.", 403);
     const body = await req.json();
 
     const campusId = await resolveCampusId(user, body.campusId);

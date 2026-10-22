@@ -2,22 +2,28 @@ import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertFeesRead, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertFeesRead, canManageFinance, soleChecker } from "@/lib/api/scope";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { getLocalePackage } from "@/lib/locale/store";
 import { calculate, findVersion, limitationFor, PACKAGES, type Line } from "./packages";
 
 // SKO-444: a school activates a versioned country package for named campuses after recording its tax identity,
 // exemptions, a validation owner, dated review evidence and a passing run of its own accountant-approved fixtures;
-// a second finance administrator approves. Invoices issued on or after the effective date get an immutable tax
+// the institution authority signs it off (role-ux §2.5: the tax identity spans campuses, so the group admin or, in a
+// single school, the school admin approves; the preparer never approves their own draft unless no other authority
+// user exists — SD3, with a typed reason recorded in the audit row). Invoices issued on or after the effective date get an immutable tax
 // document (rules, identity, currency, lines, totals and a sequential number). Electronic submission goes through
 // the package's adapter only where one exists; retries and corrections keep the same document number and external
 // id. A campus whose country has no package gets an explicit limitation, never a "compliant" badge.
 
-const isFinance = (user: AuthUser) => canManageOperations(user) || user.role === "ACCOUNTANT";
+/** Drafting, fixtures, submission and corrections: the finance desk (accountant, or the campus admin while no accountant is on the campus). */
+const isFinance = (user: AuthUser) => canManageFinance(user);
 async function finance(user: AuthUser) {
   await assertFeesRead(user);
-  if (!isFinance(user)) throw new ApiError("Only authorised finance administrators can change invoice rules.", 403);
+  if (!isFinance(user)) throw new ApiError("Only the finance desk prepares tax packages.", 403);
 }
+/** SD3 reason floor (role-ux §2.5). */
+export const SELF_APPROVAL_REASON_MIN = 10;
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const list = (v: unknown) => Array.isArray(v) ? [...new Set(v.map(x => String(x).trim()).filter(Boolean))].slice(0, 100) : [];
 const configHash = (a: { packageCode: string; packageVersion: number; campusIds: string[]; legalName: string; taxId: string | null; exemptFeeCodes: string[]; currency: string }) =>
@@ -32,8 +38,43 @@ export async function overview(user: AuthUser) {
   const withCountry = await Promise.all(campuses.map(async c => { const country = (await getLocalePackage(user.schoolId, c.id)).country ?? "OTHER"; return { ...c, country, limitation: limitationFor(country) }; }));
   const activations = await prisma.taxActivation.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "desc" }, include: { fixtureRuns: { orderBy: { createdAt: "desc" }, take: 1 } } });
   const feeTypes = await prisma.feeType.findMany({ where: { schoolId: user.schoolId }, select: { code: true, name: true }, orderBy: { name: "asc" } }).catch(() => []);
-  const staff = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { in: ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "ACCOUNTANT"] } }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } });
-  return { packages: PACKAGES, campuses: withCountry, activations: activations.map(a => ({ ...a, lastRun: a.fixtureRuns[0] ?? null, fixtureRuns: undefined, blockers: blockers(a, a.fixtureRuns[0] ?? null) })), feeTypes, staff, canManage: isFinance(user), userId: user.userId };
+  const staff = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { in: ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "ACCOUNTANT"] } }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } });
+  const canApprove = isInstitutionAuthority(user);
+  // SD3 only matters to an authority looking at a draft they prepared themselves.
+  const soleApprover = canApprove && activations.some(a => a.status === "DRAFT" && a.preparedById === user.userId) ? await soleChecker("tax", user, null) : false;
+  // "Submit for sign-off" (role-ux §4.4b) is recorded in the audit trail: the latest request per draft, valid only
+  // while the draft's configuration is the one that was submitted (an edit after submitting needs a new request).
+  const drafts = activations.filter(a => a.status === "DRAFT");
+  const requests = drafts.length ? await prisma.auditLog.findMany({ where: { schoolId: user.schoolId, tableName: "tax_activations", recordId: { in: drafts.map(a => a.id) } }, orderBy: { createdAt: "desc" }, select: { recordId: true, newValue: true, createdAt: true, userId: true } }) : [];
+  const signOffRequest = (a: Activation) => {
+    const row = requests.find(r => r.recordId === a.id && (r.newValue as { action?: string } | null)?.action === SIGN_OFF_REQUESTED);
+    return row && (row.newValue as { configHash?: string }).configHash === a.configHash ? { at: row.createdAt, byId: row.userId } : null;
+  };
+  return { packages: PACKAGES, campuses: withCountry, activations: activations.map(a => ({ ...a, lastRun: a.fixtureRuns[0] ?? null, fixtureRuns: undefined, blockers: blockers(a, a.fixtureRuns[0] ?? null), selfApproved: a.approvedById !== null && a.approvedById === a.preparedById, signOffRequestedAt: a.status === "DRAFT" ? signOffRequest(a)?.at ?? null : null })), feeTypes, staff, canManage: isFinance(user), canApprove, soleApprover, userId: user.userId };
+}
+
+const SIGN_OFF_REQUESTED = "SIGN_OFF_REQUESTED";
+
+/**
+ * The finance desk submits a ready draft (every validation requirement met, fixtures passing) to the institution
+ * authority for sign-off (role-ux §4.4b row action). Recorded once per configuration in the audit trail; the
+ * authority is told through the `TAX_SIGNOFF_REQUESTED` notice (an ACTION item linking to Approvals › Tax; the draft
+ * is also listed in the authority's Approvals queue).
+ */
+export async function requestSignOff(user: AuthUser, id: string) {
+  await finance(user);
+  const a = await prisma.taxActivation.findFirst({ where: { id, schoolId: user.schoolId, status: "DRAFT" } });
+  if (!a) throw new ApiError("Draft not found", 404);
+  const run = await prisma.taxFixtureRun.findFirst({ where: { activationId: a.id }, orderBy: { createdAt: "desc" } });
+  const missing = blockers(a, run);
+  if (missing.length) throw new ApiError(`Resolve these before submitting for sign-off: ${missing.join(" ")}`, 409);
+  const earlier = await prisma.auditLog.findMany({ where: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id }, orderBy: { createdAt: "desc" }, take: 20, select: { newValue: true, createdAt: true } });
+  const same = earlier.find(r => (r.newValue as { action?: string; configHash?: string } | null)?.action === SIGN_OFF_REQUESTED && (r.newValue as { configHash?: string }).configHash === a.configHash);
+  if (same) return { id: a.id, requestedAt: same.createdAt, repeated: true };
+  const row = await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { action: SIGN_OFF_REQUESTED, configHash: a.configHash, packageCode: a.packageCode, packageVersion: a.packageVersion } } });
+  // Fire-and-forget after the write; loaded lazily so the tax service never opens the delivery queue on import.
+  void import("@/lib/notifications/in-app").then(({ notify }) => notify("TAX_SIGNOFF_REQUESTED", { schoolId: user.schoolId, campusId: null, actorId: user.userId, actorName: user.fullName ?? null, activationId: a.id, packageCode: a.packageCode, packageVersion: a.packageVersion })).catch(() => undefined);
+  return { id: a.id, requestedAt: row.createdAt, repeated: false };
 }
 
 type Activation = Prisma.TaxActivationGetPayload<object>;
@@ -111,17 +152,27 @@ export async function runFixtures(user: AuthUser, body: Record<string, unknown>)
   return { id: run.id, passed: run.passed, results };
 }
 
-/** A second finance administrator approves only with every blocker cleared. */
-export async function approve(user: AuthUser, id: string) {
-  await finance(user);
+/** The institution authority signs off only with every blocker cleared; never their own draft unless they are the only authority (SD3). */
+export async function approve(user: AuthUser, id: string, reason?: string | null) {
+  await assertFeesRead(user);
+  if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator signs off a tax package.", 403);
   const a = await prisma.taxActivation.findFirst({ where: { id, schoolId: user.schoolId, status: "DRAFT" } });
   if (!a) throw new ApiError("Draft not found", 404);
-  if (a.preparedById === user.userId) throw new ApiError("Another finance administrator must approve a package you prepared.", 403);
+  let self: { selfApproved: true; reason: string } | null = null;
+  if (a.preparedById === user.userId) {
+    // SD3: no other active authority user; an accountant never blocks it.
+    if (!(await soleChecker("tax", user, null))) throw new ApiError("You prepared this package, so another administrator must sign it off.", 403);
+    const why = (reason ?? "").trim().slice(0, 2000);
+    if (why.length < SELF_APPROVAL_REASON_MIN) throw new ApiError(`You are the only administrator who can sign this off. Give a reason of at least ${SELF_APPROVAL_REASON_MIN} characters.`, 400);
+    self = { selfApproved: true, reason: why };
+  }
   const run = await prisma.taxFixtureRun.findFirst({ where: { activationId: a.id }, orderBy: { createdAt: "desc" } });
   const missing = blockers(a, run);
   if (missing.length) throw new ApiError(`This package has unresolved validation requirements: ${missing.join(" ")}`, 409);
   const done = await prisma.taxActivation.updateMany({ where: { id: a.id, status: "DRAFT", configHash: a.configHash }, data: { status: "SCHEDULED", approvedById: user.userId, approvedAt: new Date() } });
   if (!done.count) throw new ApiError("The draft changed while you were reviewing it. Review it again.", 409);
+  await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "tax_activations", recordId: a.id, userId: user.userId, oldValue: { status: "DRAFT" }, newValue: { status: "SCHEDULED", preparedById: a.preparedById, configHash: a.configHash, ...(self ?? {}) } } });
+  // The approver is the institution authority, so an SD3 sign-off needs no authority notice (role-ux §2.5).
   await activateDue(user.schoolId);
   return { id: a.id, effectiveFrom: a.effectiveFrom };
 }

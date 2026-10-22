@@ -2,6 +2,7 @@
 
 import { BookOpen, DoorOpen, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import type {
   GridDay,
   GridPeriod,
@@ -61,9 +62,9 @@ const DENSITY = {
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string; short: string }> = {
   BREAK: { bg: "bg-muted", text: "text-ink-muted", label: "Break", short: "Break" },
-  PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/70", label: "Prayer / Namaz", short: "Prayer" },
-  ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/70", label: "Assembly", short: "Assembly" },
-  ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/70", label: "Activity", short: "Activity" },
+  PRAYER: { bg: "bg-status-warning-surface", text: "text-status-warning-text", label: "Prayer / Namaz", short: "Prayer" },
+  ASSEMBLY: { bg: "bg-status-info-surface", text: "text-status-info-text", label: "Assembly", short: "Assembly" },
+  ACTIVITY: { bg: "bg-status-success-surface", text: "text-status-success-text", label: "Activity", short: "Activity" },
 };
 
 function resolveName<T extends { id: string; name?: string; fullName?: string; roomNumber?: string }>(
@@ -120,6 +121,7 @@ export function TimetableGrid({
   onCellClick: (slot: StudioSlot) => void;
   onDropSubject?: (slot: StudioSlot, subjectId: string) => void;
 }) {
+  const ui = useUiText();
   const d = DENSITY[density];
   const getSlot = (day: number, period: number): StudioSlot | undefined =>
     slots.find((s) => s.dayOfWeek === day && s.periodNumber === period);
@@ -134,11 +136,11 @@ export function TimetableGrid({
       {/* Header row — sticky so the day you are looking at stays named while
           you scroll a long list of periods. */}
       <div
-        className="sticky top-0 z-10 grid border-b border-edge/20 bg-white/95 backdrop-blur"
+        className="sticky top-0 z-10 grid border-b border-edge/20 bg-card/95 backdrop-blur"
         style={{ gridTemplateColumns: gridCols }}
       >
         <div className="flex items-center justify-center p-3">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period</span>
+          <span className="text-xs font-semibold text-ink-subtle">{ui("Period")}</span>
         </div>
         {visibleDays.map((day) => {
           const isOff = weekendDays.includes(day.num);
@@ -146,17 +148,16 @@ export function TimetableGrid({
             <div
               key={day.num}
               className={cn(
-                "flex flex-col items-center justify-center border-l border-muted py-2.5",
+                "flex flex-col items-center justify-center border-s border-muted py-2.5",
                 isOff && "bg-muted/70 opacity-60",
               )}
             >
-              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-strong">
-                {day.short}
+              <span className="text-xs font-semibold text-ink-strong">
+                {ui(day.full)}
               </span>
-              <span className="mt-0.5 text-2xs font-semibold text-ink-subtle">{day.full}</span>
               {isOff ? (
-                <span className="mt-1 rounded bg-rose-50 px-1.5 py-px text-3xs font-semibold uppercase tracking-wider text-rose-500">
-                  Off
+                <span className="mt-1 rounded bg-status-error-surface px-1.5 py-px text-2xs font-semibold text-status-error-text">
+                  {ui("Off")}
                 </span>
               ) : null}
             </div>
@@ -180,18 +181,18 @@ export function TimetableGrid({
           >
             {/* Time column: the period, the window it covers, and how long it
                 runs — the three things anyone reads a timetable row for. */}
-            <div className="flex flex-col items-center justify-center border-r border-muted px-1.5 py-2">
-              <span className="text-2xs font-bold text-primary">P{period.num}</span>
-              <span className="mt-0.5 text-2xs font-bold leading-tight text-ink-muted">
+            <div className="flex flex-col items-center justify-center border-e border-muted px-1.5 py-2">
+              <span className="text-2xs font-bold text-primary" title={ui("Period {0}", [period.num])}>{ui("P{0}", [period.num])}</span>
+              <bdi dir="ltr" className="mt-0.5 text-2xs font-bold leading-tight text-ink-muted">
                 {period.start}
-              </span>
-              <span className="text-2xs font-semibold leading-tight text-ink-subtle">
+              </bdi>
+              <bdi dir="ltr" className="text-2xs font-semibold leading-tight text-ink-subtle">
                 {period.end}
-              </span>
+              </bdi>
               {duration && density !== "compact" ? (
-                <span className="mt-1 rounded-full bg-muted px-1.5 text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <bdi dir="ltr" className="mt-1 rounded-full bg-muted px-1.5 text-3xs font-semibold text-ink-subtle">
                   {duration}
-                </span>
+                </bdi>
               ) : null}
             </div>
 
@@ -200,7 +201,7 @@ export function TimetableGrid({
               const offCls = isOff ? "opacity-40 bg-muted/70" : "";
               const slot = getSlot(day.num, period.num);
               if (!slot) {
-                return <div key={day.num} className={cn("border-l border-muted p-1", offCls)} />;
+                return <div key={day.num} className={cn("border-s border-muted p-1", offCls)} />;
               }
 
               const change = pendingChanges.get(slot.id);
@@ -219,11 +220,11 @@ export function TimetableGrid({
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onCellClick(slot); } }}
                     role="button"
                     tabIndex={0}
-                    aria-label={style?.label || effectiveType}
-                    title={style?.label || effectiveType}
+                    aria-label={ui("{0} · {1}, period {2}", [ui(style?.label || effectiveType), ui(day.full), period.num])}
+                    title={ui(style?.label || effectiveType)}
                   >
                     <span className={cn("text-2xs font-bold", style?.text || "text-ink-subtle")}>
-                      {density === "compact" ? style?.short : style?.label || effectiveType}
+                      {ui(density === "compact" ? style?.short ?? effectiveType : style?.label || effectiveType)}
                     </span>
                   </div>
                 );
@@ -254,10 +255,10 @@ export function TimetableGrid({
               // rather than lossy.
               const fullTitle = [
                 subjectName,
-                teacherName ? `Teacher: ${teacherName}` : null,
-                roomName ? `Room: ${roomName}` : null,
-                `${day.full} · P${period.num} ${period.start}–${period.end}`,
-                hasChange ? "Unsaved change" : null,
+                teacherName ? ui("Teacher: {0}", [teacherName]) : null,
+                roomName ? ui("Room: {0}", [roomName]) : null,
+                ui("{0} · Period {1} {2}–{3}", [ui(day.full), period.num, period.start, period.end]),
+                hasChange ? ui("Unsaved change") : null,
               ]
                 .filter(Boolean)
                 .join("\n");
@@ -265,7 +266,7 @@ export function TimetableGrid({
               return (
                 <div
                   key={day.num}
-                  className={cn("group cursor-pointer border-l border-muted p-1 transition-all", offCls)}
+                  className={cn("group cursor-pointer border-s border-muted p-1 transition-all", offCls)}
                   onClick={() => onCellClick(slot)}
                   onDragOver={(e) => {
                     if (onDropSubject) e.preventDefault();
@@ -285,9 +286,9 @@ export function TimetableGrid({
                         d.cell,
                         d.pad,
                         d.gap,
-                        color?.bg || "bg-gray-50",
-                        color?.border || "border-gray-200",
-                        hasChange && "ring-2 ring-amber-300",
+                        color?.bg || "bg-surface-subtle",
+                        color?.border || "border-border",
+                        hasChange && "ring-2 ring-status-warning-border",
                       )}
                     >
                       {/* A colour rail reads faster than a tinted background
@@ -296,14 +297,14 @@ export function TimetableGrid({
                         aria-hidden
                         className={cn(
                           "absolute inset-y-0 start-0 w-[3px]",
-                          color?.dot?.replace("bg-", "bg-") || "bg-gray-300",
+                          color?.dot || "bg-ink-faint",
                         )}
                       />
                       <p
                         className={cn(
                           "truncate ps-1.5 font-bold leading-tight",
                           d.subject,
-                          color?.text || "text-gray-600",
+                          color?.text || "text-ink-muted",
                         )}
                       >
                         {subjectName}
@@ -344,14 +345,14 @@ export function TimetableGrid({
                       {/* An unplaced teacher is the thing that breaks a
                           timetable, so say so instead of leaving a blank. */}
                       {d.showMeta && !teacherName ? (
-                        <span className={cn("ps-1.5 font-semibold text-amber-600", d.meta)}>
-                          No teacher
+                        <span className={cn("ps-1.5 font-semibold text-status-warning-text", d.meta)}>
+                          {ui("No teacher")}
                         </span>
                       ) : null}
                     </div>
                   ) : (
                     <div
-                      aria-label={`Free · ${day.full}, period ${period.num}, ${period.start}–${period.end}`}
+                      aria-label={ui("Free · {0}, period {1}, {2}–{3}", [ui(day.full), period.num, period.start, period.end])}
                       className={cn(
                         "flex h-full items-center justify-center rounded-xl border border-dashed border-edge/20 transition-all group-hover:border-primary/30 group-hover:bg-brand-50/30",
                         d.cell,

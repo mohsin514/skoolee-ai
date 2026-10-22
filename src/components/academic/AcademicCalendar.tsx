@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input as SystemInput } from "@/components/ui/input";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -96,20 +97,31 @@ function subscribeCalendarWidth(callback: () => void) {
   return () => media.removeEventListener('change', callback);
 }
 
+/** "CLASS_TEST" → "Class test": a readable word for a stored enum, looked up as a UI key. */
+const sentenceCase = (value: string) => {
+  const text = String(value ?? "").replaceAll("_", " ").toLowerCase();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+};
+
 export function AcademicCalendar({
   campusId,
   readOnly = false,
-  role = "STUDENT",
+  role,
   onScheduleExam,
 }: {
   campusId?: string;
+  /**
+   * Hides every write control (SPEC §10.11, K-m8). Holidays and term dates are campus operations (G23), so
+   * the principal's School calendar, teachers and families pass `readOnly`; the campus setup tab does not.
+   */
   readOnly?: boolean;
+  /** Viewer role. Teachers, students and families never edit, whatever `readOnly` says. */
   role?: CalendarRole;
   onScheduleExam?: () => void;
 }) {
   const tr = useUiText();
   const locale = useLocale();
-  const canEdit = !readOnly && (role === "ADMIN" || role === "PRINCIPAL");
+  const canEdit = !readOnly && role !== "TEACHER" && role !== "STUDENT" && role !== "PARENT";
 
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
@@ -139,15 +151,18 @@ export function AcademicCalendar({
 
   const qs = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
+  // R4: a load failure is an inline ErrorState with retry, never a toast.
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
-      const res = await fetch(`/api/academic/calendar/unified${qs ? `${qs}&` : "?" }year=${viewYear}`);
+      const res = await fetch(`/api/academic/calendar/unified${qs ? `${qs}&` : "?" }year=${viewYear}`, { cache: "no-store" });
       const json = await res.json();
       if (json.success) setFeed(json.data);
-      else toast.error(tr("Failed to load unified calendar"));
+      else setLoadFailed(true);
     } catch {
-      toast.error(tr("Failed to load unified calendar"));
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -179,7 +194,7 @@ export function AcademicCalendar({
             iso,
             kind: "exam",
             title: e.title,
-            detail: `${e.className} · ${e.examType.replaceAll("_", " ")}`,
+            detail: `${e.className} · ${tr(sentenceCase(e.examType))}`,
             color: "#8127cf",
           }),
         ),
@@ -194,7 +209,7 @@ export function AcademicCalendar({
             items.push({
               iso: last,
               kind: "deadline",
-              title: `${e.title} — marks due`,
+              title: tr("{0} — marks due", [e.title]),
               detail: e.className,
               color: "#f43f5e",
             });
@@ -209,8 +224,8 @@ export function AcademicCalendar({
           title: h.name,
           detail:
             h.toDate.slice(0, 10) === h.fromDate.slice(0, 10)
-              ? "One day"
-              : `Until ${h.toDate.slice(0, 10)}`,
+              ? tr("One day")
+              : tr("Until {0}", [new Date(`${h.toDate.slice(0, 10)}T00:00:00Z`).toLocaleDateString(localeTag(locale), { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" })]),
           color: "#0d9488",
         }),
       );
@@ -221,22 +236,22 @@ export function AcademicCalendar({
         if (t.startDate) items.push({
           iso: t.startDate.slice(0, 10),
           kind: "term",
-          title: `${t.label} begins`,
-          detail: `Academic year ${t.academicYear}`,
+          title: tr("{0} begins", [t.label]),
+          detail: tr("Academic year {0}", [t.academicYear]),
           color: "#d97706",
         });
         if (t.endDate) items.push({
           iso: t.endDate.slice(0, 10),
           kind: "term",
-          title: `${t.label} ends`,
-          detail: `Academic year ${t.academicYear}`,
+          title: tr("{0} ends", [t.label]),
+          detail: tr("Academic year {0}", [t.academicYear]),
           color: "#d97706",
         });
       });
     }
 
     return items.sort((a, b) => a.iso.localeCompare(b.iso) || a.title.localeCompare(b.title));
-  }, [feed, layers]);
+  }, [feed, layers, tr, locale]);
 
   const upcoming = useMemo(() => {
     const today = todayIso();
@@ -334,13 +349,13 @@ export function AcademicCalendar({
   return (
     <div className="sk-panel border-edge/15 overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-[12px] p-[12px] sm:p-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between bg-gradient-to-r from-surface-subtle via-white to-brand-100 border-b border-edge/10">
+      <div className="flex flex-col gap-[12px] p-[12px] sm:p-5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between bg-gradient-to-r from-surface-subtle via-card to-brand-100 border-b border-edge/10">
         <div className="flex min-w-0 items-center gap-[10px]">
           <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
-            <CalendarDays className="h-[20px] w-[20px]" />
+            <CalendarDays aria-hidden="true" className="h-[20px] w-[20px]" />
           </div>
           <div className="min-w-0 [overflow-wrap:anywhere]">
-            <h3 className="text-lg font-bold tracking-tight text-ink-strong"><UiText>{"Academic Calendar"}</UiText></h3>
+            <h3 className="text-lg font-bold tracking-tight text-ink-strong"><UiText>{"Academic calendar"}</UiText></h3>
             <p className="text-2xs font-semibold text-ink-muted">
               {calendarView === "month" ? new Intl.DateTimeFormat(localeTag(locale), { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(viewYear, viewMonth, 1))) : `${viewYear}`}
               {upcoming.length > 0 ? tr(" · {0} still to come", [upcoming.length]) : tr(" · nothing else scheduled")}
@@ -399,7 +414,9 @@ export function AcademicCalendar({
         <LayerChip label={tr("Deadlines")} color="#f43f5e" active={layers.deadlines} onClick={() => setLayers((l) => ({ ...l, deadlines: !l.deadlines }))} />
       </div>
 
-      {loading ? (
+      {loadFailed && !loading ? (
+        <ErrorState variant="panel" title={tr("The calendar could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
+      ) : loading ? (
         <div className="space-y-3 p-5 animate-skeleton-in">
           <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: 7 }).map((_, i) => (
@@ -420,7 +437,7 @@ export function AcademicCalendar({
         <div role="region" tabIndex={0} aria-label={tr("Month calendar. Scroll horizontally to see all days.")} className="overflow-x-auto p-[12px] sm:p-5">
           <div className="grid min-w-[22rem] grid-cols-7 gap-[6px]">
             {Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(localeTag(locale), { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2027, 0, 3 + ((feed?.weekStartsOn ?? 1) + i) % 7)))).map((d) => (
-              <div key={d} className="pb-1 text-center text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <div key={d} className="pb-1 text-center text-2xs font-semibold text-ink-subtle">
                 {d}
               </div>
             ))}
@@ -442,12 +459,12 @@ export function AcademicCalendar({
                   }}
                   className={cn(
                     "group relative flex min-h-[64px] min-w-[44px] flex-col items-stretch justify-start p-[6px] text-start",
-                    holidayBg && "bg-teal-50",
+                    holidayBg && "bg-status-info-surface",
                     weekendBg && "bg-surface-subtle"
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={cn("text-xs font-bold", holidayBg ? "text-teal-700" : weekendBg ? "text-ink-subtle" : "text-ink-strong")}>
+                    <span className={cn("text-xs font-bold", holidayBg ? "text-status-info-text" : weekendBg ? "text-ink-subtle" : "text-ink-strong")}>
                       {cell.dayNum}
                     </span>
                     {canEdit && (
@@ -576,10 +593,11 @@ function DayPopover({
 
   const events: { kind: string; color: string; text: string }[] = [];
   if (day) {
-    if (layers.holidays) day.holidays.forEach((h) => events.push({ kind: "Holiday", color: "#0d9488", text: h.name }));
-    if (layers.exams) day.exams.forEach((e) => events.push({ kind: `Exam · ${e.examType}`, color: "#8127cf", text: `${e.title} (${e.className})` }));
-    if (layers.deadlines) day.deadlines.forEach((e) => events.push({ kind: "Deadline", color: "#f43f5e", text: `${e.title} — ${e.status}` }));
-    if (layers.terms) day.terms.forEach((t) => events.push({ kind: t.type === "start" ? "Term starts" : "Term ends", color: "#d97706", text: `${t.term.label} (${t.term.academicYear})` }));
+    // R7/R11: event kinds are translated words, never raw enum text (exam types read as sentence-case words).
+    if (layers.holidays) day.holidays.forEach((h) => events.push({ kind: tr("Holiday"), color: "#0d9488", text: h.name }));
+    if (layers.exams) day.exams.forEach((e) => events.push({ kind: `${tr("Exam")} · ${tr(sentenceCase(e.examType))}`, color: "#8127cf", text: `${e.title} (${e.className})` }));
+    if (layers.deadlines) day.deadlines.forEach((e) => events.push({ kind: tr("Deadline"), color: "#f43f5e", text: `${e.title} — ${tr(sentenceCase(e.status))}` }));
+    if (layers.terms) day.terms.forEach((t) => events.push({ kind: tr(t.type === "start" ? "Term starts" : "Term ends"), color: "#d97706", text: `${t.term.label} (${t.term.academicYear})` }));
   }
 
   return (
@@ -600,7 +618,7 @@ function DayPopover({
             <li key={i} className="flex items-start gap-2">
               <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: ev.color }} />
               <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider" style={{ color: ev.color }}>{ev.kind}</p>
+                <p className="text-2xs font-semibold" style={{ color: ev.color }}>{ev.kind}</p>
                 <p className="text-xs font-semibold text-ink-strong">{ev.text}</p>
               </div>
             </li>
@@ -612,11 +630,11 @@ function DayPopover({
         <div className="mt-3 space-y-3 border-t border-edge/10 pt-3">
           <div className="grid grid-cols-2 gap-2">
             <label className="block">
-              <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-muted"><UiText>{"From"}</UiText></span>
+              <span className="mb-1 block text-2xs font-semibold text-ink-muted"><UiText>{"From"}</UiText></span>
               <SystemInput type="date" aria-label={tr("From")} readOnly={saving} value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-muted"><UiText>{"To"}</UiText></span>
+              <span className="mb-1 block text-2xs font-semibold text-ink-muted"><UiText>{"To"}</UiText></span>
               {/* The picker itself now refuses a date before the start. */}
               <SystemInput type="date" aria-label={tr("To")} aria-invalid={datesReversed} readOnly={saving} value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)}
                 className={`w-full ${""} `} />
@@ -632,7 +650,7 @@ function DayPopover({
             className="w-full"
           />
           {blockedReason ? (
-            <p className="text-2xs font-semibold text-amber-700">{blockedReason}</p>
+            <p className="text-2xs font-semibold text-status-warning-text">{blockedReason}</p>
           ) : null}
           <div className="flex gap-2">
             <Button variant="default"
@@ -642,15 +660,15 @@ function DayPopover({
               title={blockedReason || tr("Add a holiday from {0} to {1}", [fromDate, toDate])}
               className="flex flex-1 items-center justify-center gap-1 px-3 py-2"
             >
-              <PartyPopper className="h-3.5 w-3.5" /><UiText>{"Add Holiday"}</UiText></Button>
+              <PartyPopper className="h-3.5 w-3.5" /><UiText>{"Add holiday"}</UiText></Button>
             <Button variant="default"
               type="button"
               disabled={saving}
-              onClick={() => { onClose(); if (onScheduleExam) onScheduleExam(); else toast.info("Open the Exam Cycles manager to schedule an exam."); }}
+              onClick={() => { onClose(); if (onScheduleExam) onScheduleExam(); else toast.info(tr("Open Exams & results to schedule an exam.")); }}
               title={tr("Schedule an exam on this date")}
               className="flex flex-1 items-center justify-center gap-1 px-3 py-2"
             >
-              <BookOpen className="h-3.5 w-3.5" /><UiText>{"Schedule Exam"}</UiText></Button>
+              <BookOpen className="h-3.5 w-3.5" /><UiText>{"Schedule exam"}</UiText></Button>
           </div>
         </div>
       )}
@@ -707,7 +725,7 @@ function AgendaList({
           >
             {d.toLocaleDateString(localeTag(locale), { timeZone: "UTC", day: "numeric", month: "short" })}
           </p>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <p className="text-2xs font-semibold text-ink-subtle">
             {isToday
               ? tr("Today")
               : days === 1
@@ -747,7 +765,7 @@ function AgendaList({
       )}
       {past.length > 0 ? (
         <>
-          <p className="border-y border-edge/10 bg-surface-subtle px-5 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Already happened"}</UiText></p>
+          <p className="border-y border-edge/10 bg-surface-subtle px-5 py-2 text-2xs font-semibold text-ink-subtle"><UiText>{"Already happened"}</UiText></p>
           <ul className="divide-y divide-edge/10">{past.map((g) => renderDay(g, true))}</ul>
         </>
       ) : null}

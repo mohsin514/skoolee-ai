@@ -1,18 +1,22 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlarmClock, CheckCheck, History, ListChecks, RefreshCw, UserPlus } from "lucide-react";
+import { AlarmClock, CheckCheck, History, ListChecks, MoreHorizontal, RefreshCw, UserPlus } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal, ModalActions } from "@/components/ui/modal";
+import { Menu, type MenuItem } from "@/components/ui/menu";
+import { IconButton } from "@/components/ui/icon-button";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // SKO-417: the next useful action first. Every row says why it exists (trigger), who owns it, when it is
 // due and the one step that resolves it in its own workspace. Assign / acknowledge / snooze never close
@@ -21,7 +25,7 @@ import { ErrorState } from "@/components/ui/error-state";
 type Item = { key: string; type: string; title: string; trigger: string; nextAction: string; sourceOwner: { id: string; name: string } | null; dueAt: string | null; link: string; overdue: boolean; reason: string; assignee: { id: string; name: string } | null; acknowledgedAt: string | null; snoozedUntil: string | null; snoozeReason: string | null; snoozed: boolean };
 type Queue = { viewerId: string; items: Item[]; resolved: { key: string; title: string | null; resolvedAt: string }[]; counts: { active: number; overdue: number; snoozed: number; unassigned: number }; failedSources: string[]; checkedAt: string; sortingRule: string };
 type Staff = { id: string; fullName: string; role: string };
-const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments" , SUPPORT_CHECKIN: "Learning actions" };
+const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments", CORRECTION_APPROVAL: "Record corrections", SUPPORT_CHECKIN: "Learning actions" };
 
 export function ActionQueue({ campusId }: { campusId?: string }) {
   const ui = useUiText();
@@ -65,16 +69,17 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
     && (owner === "" || (owner === "me" && (item.assignee?.id === viewerId || item.sourceOwner?.id === viewerId)) || (owner === "unassigned" && !item.assignee && !item.sourceOwner)));
   const toggle = (key: string) => setSelected(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
 
-  return <section className="sk-panel space-y-4 p-5" data-action-queue aria-labelledby="action-queue-title">
+  // The Today queue (§8.2: "Today queue (seats)"); the spotlight tour points at it (work.today.queue).
+  return <section className="sk-panel space-y-4 p-5" data-action-queue data-tour="work.today.queue" aria-labelledby="action-queue-title">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h2 id="action-queue-title" className="flex items-center gap-2 text-base font-bold"><ListChecks className="size-5 text-primary" aria-hidden />{ui("Action queue")}</h2>
+        <h2 id="action-queue-title" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><ListChecks className="size-5 text-primary" aria-hidden />{ui("Waiting on you")}</h2>
         <p className="text-xs text-ink-muted" aria-live="polite">{queue ? ui("Sources checked {0}", [dateTime(queue.checkedAt)]) : ui("Checking sources…")}{live ? ` · ${ui("Live: re-checks every 2 minutes")}` : ""}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label={ui("Update mode")} className="flex rounded-xl bg-muted p-0.5 text-xs font-bold">
-          <Button variant="ghost" type="button" aria-pressed={!live} onClick={() => setLive(false)} className={`rounded-lg px-3 py-1.5 ${!live ? "bg-white shadow-sm" : ""}`} data-mode="snapshot">{ui("Snapshot")}</Button>
-          <Button variant="ghost" type="button" aria-pressed={live} onClick={() => setLive(true)} className={`rounded-lg px-3 py-1.5 ${live ? "bg-white shadow-sm" : ""}`} data-mode="live">{ui("Live")}</Button>
+          <Button variant="ghost" type="button" aria-pressed={!live} onClick={() => setLive(false)} className={`rounded-lg px-3 py-1.5 ${!live ? "bg-card shadow-sm" : ""}`} data-mode="snapshot">{ui("Snapshot")}</Button>
+          <Button variant="ghost" type="button" aria-pressed={live} onClick={() => setLive(true)} className={`rounded-lg px-3 py-1.5 ${live ? "bg-card shadow-sm" : ""}`} data-mode="live">{ui("Live")}</Button>
         </div>
         <Button size="sm" variant="secondary" onClick={() => void load()} disabled={loading}><RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />{ui("Re-check now")}</Button>
       </div>
@@ -103,9 +108,9 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
     </div> : null}
 
     {error ? <ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Retry")} />
-      : !queue ? <p role="status" className="text-sm text-ink-muted">{ui("Checking sources…")}</p>
-      : !visible.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-queue-empty>{queue.items.length ? ui("No items match these filters.") : ui("Nothing needs attention in this campus right now.")}</p>
-      : <ol className="space-y-2" aria-label={ui("Action queue")}>{visible.map(item => <li key={item.key} className={`rounded-2xl border p-3 ${item.overdue ? "border-status-error-border bg-status-error-surface" : "border-border"}`} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
+      : !queue ? <SkeletonList rows={3} label={ui("Checking sources…")} />
+      : !visible.length ? <div data-queue-empty><EmptyState size="sm" icon={queue.items.length ? ListChecks : CheckCheck} title={queue.items.length ? ui("No items match these filters.") : ui("Nothing needs attention in this campus right now.")} secondaryAction={queue.items.length && (type || owner) ? <Button size="sm" variant="ghost" onClick={() => { setType(""); setOwner(""); }}>{ui("Clear filters")}</Button> : undefined} /></div>
+      : <ol className="space-y-2" aria-label={ui("Waiting on you")}>{visible.map(item => <li key={item.key} className={`rounded-2xl border p-3 ${item.overdue ? "border-status-error-border bg-status-error-surface" : "border-border"}`} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
         <div className="flex items-start gap-3">
           <Checkbox className="mt-1" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [item.title])} />
           <div className="min-w-0 flex-1 space-y-0.5">
@@ -118,11 +123,21 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
               {item.acknowledgedAt ? <span>{ui("Acknowledged")}</span> : null}
               {item.snoozed ? <span className="text-status-warning-text">{ui("Snoozed until {0}: {1}", [dateTime(item.snoozedUntil!), item.snoozeReason ?? ""])}</span> : null}
             </p>
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              <Link href={item.link} className="inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground hover:opacity-90" aria-label={ui("{0}: {1}", [ui(item.nextAction), item.title])} data-next-action>{ui(item.nextAction)}</Link>
-              {!item.acknowledgedAt ? <Button size="sm" variant="ghost" onClick={() => void send({ action: "acknowledge", keys: [item.key] }, "Acknowledged. The item stays open until its source is resolved.")}><CheckCheck className="size-3.5" aria-hidden />{ui("Acknowledge")}</Button> : null}
-              {item.snoozed ? <Button size="sm" variant="ghost" onClick={() => void send({ action: "unsnooze", keys: [item.key] }, "Snooze removed.")}>{ui("Unsnooze")}</Button> : <Button size="sm" variant="ghost" onClick={() => setSnoozing([item])}><AlarmClock className="size-3.5" aria-hidden />{ui("Snooze")}</Button>}
-              <Button size="sm" variant="ghost" onClick={() => setHistoryFor(item)}><History className="size-3.5" aria-hidden />{ui("History")}</Button>
+            {/* §4.5.2: one inline action per row (the next step); acknowledge, snooze and history sit in its overflow. */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <Link href={item.link} className={buttonVariants({ size: "sm" })} aria-label={ui("{0}: {1}", [ui(item.nextAction), item.title])} data-next-action>{ui(item.nextAction)}</Link>
+              <Menu
+                label={ui("More actions for {0}", [ui(item.title)])}
+                align="end"
+                trigger={<IconButton label={ui("More actions for {0}", [ui(item.title)])} data-row-menu><MoreHorizontal aria-hidden="true" /></IconButton>}
+                items={[
+                  ...(item.acknowledgedAt ? [] : [{ id: "acknowledge", label: "Acknowledge", icon: CheckCheck, description: "It stays open until its source is resolved.", onSelect: () => void send({ action: "acknowledge", keys: [item.key] }, "Acknowledged. The item stays open until its source is resolved.") } satisfies MenuItem]),
+                  item.snoozed
+                    ? { id: "unsnooze", label: "Unsnooze", icon: AlarmClock, onSelect: () => void send({ action: "unsnooze", keys: [item.key] }, "Snooze removed.") }
+                    : { id: "snooze", label: "Snooze", icon: AlarmClock, onSelect: () => setSnoozing([item]) },
+                  { id: "history", label: "History", icon: History, onSelect: () => setHistoryFor(item) },
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -141,26 +156,48 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
 function SnoozeDialog({ items, onClose, onSave }: { items: Item[]; onClose: () => void; onSave: (until: string, reason: string) => Promise<void> }) {
   const ui = useUiText();
   const [until, setUntil] = useState(() => { const tomorrow = new Date(Date.now() + 86_400_000); tomorrow.setHours(8, 0, 0, 0); return new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }), [reason, setReason] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
-  return <ModalFrame title={ui("Snooze {0} item(s)", [items.length])} eyebrow={ui("Action queue")} subtitle={ui("Snoozing hides an item until the return time. It does not resolve it, and overdue items stay visible.")} onClose={onClose} dirty={Boolean(reason)}>
-    <div className="space-y-3" data-snooze-dialog>
+  const save = async () => {
+    if (reason.trim().length < 5) { setError(ui("Say why you are snoozing (5–300 characters).")); return; }
+    setError(""); setBusy(true);
+    try { await onSave(new Date(until).toISOString(), reason.trim()); } finally { setBusy(false); }
+  };
+  return <Modal
+    title={items.length === 1 ? ui("Snooze this item") : ui("Snooze {0} items", [items.length])}
+    eyebrow={ui("Waiting on you")}
+    subtitle={ui("Snoozing hides an item until the return time. It does not resolve it, and overdue items stay visible.")}
+    onClose={onClose}
+    dirty={Boolean(reason)}
+    size="sm"
+    footer={<ModalActions busy={busy} busyLabel={ui("Saving…")} actionLabel={ui("Snooze")} onCancel={onClose} onAction={() => void save()} />}
+  >
+    <form className="space-y-3" data-snooze-dialog onSubmit={(event) => { event.preventDefault(); void save(); }}>
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="snooze-until" label={ui("Return on")}><Input type="datetime-local" value={until} onChange={event => setUntil(event.target.value)} /></FormField>
       <FormField name="snooze-reason" label={ui("Reason")}><Input value={reason} maxLength={300} onChange={event => setReason(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button>
-        <Button disabled={busy} onClick={async () => { if (reason.trim().length < 5) { setError(ui("Say why you are snoozing (5–300 characters).")); return; } setBusy(true); await onSave(new Date(until).toISOString(), reason.trim()); setBusy(false); }}>{ui("Snooze")}</Button></div>
-    </div>
-  </ModalFrame>;
+    </form>
+  </Modal>;
 }
 
 function HistoryDialog({ item, scope, staff, onClose }: { item: Item; scope: string; staff: Staff[]; onClose: () => void }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [events, setEvents] = useState<{ id: string; kind: string; note: string | null; assigneeId: string | null; snoozedUntil: string | null; actorId: string | null; createdAt: string }[] | null>(null);
-  useEffect(() => { void fetch(`/api/principal/queue?${scope}&history=${encodeURIComponent(item.key)}`, { cache: "no-store" }).then(r => r.json()).then(json => setEvents(json.success ? json.data : [])).catch(() => setEvents([])); }, [item.key, scope]);
+  // R4: a history that did not load says so (with Retry) instead of looking empty.
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void fetch(`/api/principal/queue?${scope}&history=${encodeURIComponent(item.key)}`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(json => { if (!live) return; if (json.success) { setEvents(json.data); setFailed(false); } else setFailed(true); })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [item.key, scope, attempt]);
   const name = (id: string | null) => staff.find(person => person.id === id)?.fullName ?? "";
   const KIND: Record<string, string> = { ASSIGNED: "Assigned", ACKNOWLEDGED: "Acknowledged", SNOOZED: "Snoozed", UNSNOOZED: "Snooze removed", RESOLVED: "Resolved at the source" };
-  return <ModalFrame title={ui(item.title)} eyebrow={ui("Action queue")} subtitle={ui(item.trigger)} onClose={onClose}>
-    {!events ? <p role="status" className="text-sm">{ui("Checking sources…")}</p> : !events.length ? <p className="text-sm text-ink-muted">{ui("No changes recorded yet.")}</p>
-      : <ol className="space-y-1.5 text-xs" data-queue-history>{events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2"><p className="font-bold">{ui(KIND[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorId ? ` · ${name(event.actorId)}` : ""}</p>{event.assigneeId ? <p>{ui("Assigned to {0}", [name(event.assigneeId)])}</p> : null}{event.note ? <p><bdi>{event.note}</bdi></p> : null}</li>)}</ol>}
-  </ModalFrame>;
+  return <Modal title={ui(item.title)} eyebrow={ui("Waiting on you")} subtitle={ui(item.trigger)} onClose={onClose}>
+    {failed ? <ErrorState title={ui("The history did not load")} onRetry={() => { setFailed(false); setEvents(null); setAttempt(n => n + 1); }} retryLabel={ui("Try again")} />
+      : !events ? <SkeletonList rows={3} label={ui("Loading history…")} /> : !events.length ? <EmptyState size="sm" icon={History} title={ui("No changes recorded yet.")} />
+      : <ol className="space-y-1.5 text-xs" data-queue-history>{events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2"><p className="font-bold">{ui(KIND[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorId ? <> · <bdi>{name(event.actorId)}</bdi></> : null}</p>{event.assigneeId ? <p>{ui("Assigned to {0}", [name(event.assigneeId)])}</p> : null}{event.note ? <p><bdi>{event.note}</bdi></p> : null}</li>)}</ol>}
+  </Modal>;
 }

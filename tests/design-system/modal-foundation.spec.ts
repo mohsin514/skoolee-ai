@@ -62,10 +62,10 @@ for (const width of [390, 1440]) {
     if (width < 640) await dragHeader(page, "Confirm synthetic change");
     await page.waitForTimeout(220);
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Keep editing", exact: true })).toBeDisabled();
     await page.screenshot({ path: test.info().outputPath("busy-confirmation.png") });
     await page.evaluate(() => window.dispatchEvent(new Event("fixture:release-operation")));
-    await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeEnabled();
+    await expect(dialog.getByRole("button", { name: "Keep editing", exact: true })).toBeEnabled();
     await expect(dialog.getByRole("button", { name: "Start example operation" })).toHaveAttribute("aria-busy", "false");
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
@@ -287,4 +287,22 @@ test('a dialog mounted inactive remembers the current opener across reopen', asy
     await expect(page.getByRole('dialog', { name: 'Inactive hook example', exact: true })).toHaveCount(0);
     await expect(trigger).toBeFocused();
   }
+});
+
+// §10.9 / R3: a typed reason gates Confirm and travels to onConfirm (P9 acceptance 3; the rule itself is unit-tested
+// in tests/locale/feedback-primitives.test.ts).
+test("requireReason blocks Confirm until the reason is long enough, then records it", async ({ page }) => {
+  await mountFixture(page);
+  await page.getByRole("button", { name: "Open reasoned approval" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Approve your own request?" });
+  const reason = dialog.getByLabel("Reason for approving");
+  await expect(reason).toBeFocused();
+  await reason.fill("too short");
+  await dialog.getByRole("button", { name: "Approve with reason" }).click();
+  await expect(dialog).toBeVisible();
+  await expect(reason).toHaveAttribute("aria-invalid", "true");
+  await reason.fill("  Sole admin on this campus  ");
+  await dialog.getByRole("button", { name: "Approve with reason" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByLabel("Recorded reason")).toHaveText("Sole admin on this campus");
 });

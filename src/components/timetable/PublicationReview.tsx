@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-403: review before publishing. Shows the hard conflicts that block publication (each with the other
@@ -73,16 +74,17 @@ export function PublicationReview({ timetableId, className, onClose, onPublished
       onPublished();
     } finally { setBusy(false); }
   };
-  return <ModalFrame title={ui("Review and publish")} eyebrow={ui("Timetable")} subtitle={className} onClose={onClose} wide>
+  // R2: one dialog API — the shared Modal (the ModalFrame adapter is deprecated).
+  return <Modal title={ui("Review and publish")} eyebrow={ui("Timetable")} subtitle={<bdi>{className}</bdi>} onClose={onClose} size="lg" dismissible={!busy}>
     <div className="space-y-4" data-publication-review>
       {error ? <div data-publication-error><Alert tone="danger" compact live="assertive">{error}</Alert></div> : null}
-      {!data ? <p className="text-sm text-ink-muted">{ui("Checking actual times, rooms and teachers…")}</p> : <>
+      {!data ? <div role="status" aria-label={ui("Checking actual times, rooms and teachers…")}><p className="mb-3 text-sm text-ink-muted">{ui("Checking actual times, rooms and teachers…")}</p><SkeletonList /></div> : <>
         <p className="text-sm" data-publication-current>{data.inForce ? ui("Everyone sees version {0}, in force from {1}. Publishing creates version {2}.", [String(data.inForce.version), date(data.inForce.effectiveFrom), String((data.latest?.version ?? 0) + 1)]) : ui("Nothing is published yet. Publishing creates version {0}.", [String((data.latest?.version ?? 0) + 1)])}</p>
         <section data-publication-hard={hard.length}>
           <h4 className="text-sm font-bold">{hard.length ? ui("Hard conflicts that prevent publication: {0}", [String(hard.length)]) : ui("No hard conflicts")}</h4>
-          <ul className="mt-1 space-y-1 text-sm">{hard.map((c, i) => <li key={c.identity ?? i} className="rounded-lg bg-rose-50 px-3 py-2 text-rose-800" data-hard-conflict={c.type}><bdi>{dayName(ui, c.dayOfWeek)}</bdi> · {describe(ui, c)}</li>)}</ul>
+          <ul className="mt-1 space-y-1 text-sm">{hard.map((c, i) => <li key={c.identity ?? i} className="rounded-lg bg-status-error-surface px-3 py-2 text-status-error-text" data-hard-conflict={c.type}><bdi>{dayName(ui, c.dayOfWeek)}</bdi> · {describe(ui, c)}</li>)}</ul>
         </section>
-        {soft.length ? <section data-publication-soft={soft.length}><h4 className="text-sm font-bold">{ui("Warnings that do not block: {0}", [String(soft.length)])}</h4><ul className="mt-1 space-y-1 text-xs text-amber-900">{soft.slice(0, 12).map((c, i) => <li key={i}><bdi>{dayName(ui, c.dayOfWeek)}</bdi> · {describe(ui, c)}</li>)}</ul></section> : null}
+        {soft.length ? <section data-publication-soft={soft.length}><h4 className="text-sm font-bold">{ui("Warnings that do not block: {0}", [String(soft.length)])}</h4><ul className="mt-1 space-y-1 text-xs text-status-warning-text">{soft.slice(0, 12).map((c, i) => <li key={i}><bdi>{dayName(ui, c.dayOfWeek)}</bdi> · {describe(ui, c)}</li>)}</ul></section> : null}
         <section data-publication-changes={data.changes.length}>
           <h4 className="text-sm font-bold">{ui("Lessons that change: {0}", [String(data.changes.length)])}</h4>
           <ul className="mt-1 max-h-48 space-y-1 overflow-y-auto text-xs">{data.changes.slice(0, 60).map(change => <li key={change.slotId}><bdi>{dayName(ui, change.dayOfWeek)}</bdi> <bdi>{change.after?.startTime ?? change.before?.startTime}</bdi>: {lesson(ui, change.before)} → {lesson(ui, change.after)}</li>)}</ul>
@@ -92,11 +94,11 @@ export function PublicationReview({ timetableId, className, onClose, onPublished
           <FormField name="publication-effective" label={ui("Takes effect from")}><Input type="date" value={effectiveFrom} min={data.today} onChange={event => setEffectiveFrom(event.target.value)} /></FormField>
           <FormField name="publication-note" label={ui("Note (optional)")}><Textarea value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
         </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>{ui("Cancel")}</Button>
-          <Button disabled={busy || hard.length > 0 || !effectiveFrom} onClick={() => void publish()} data-confirm-publish>{ui("Publish version {0}", [String((data.latest?.version ?? 0) + 1)])}</Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" onClick={onClose} disabled={busy}>{ui("Keep editing")}</Button>
+          <Button loading={busy} disabled={busy || hard.length > 0 || !effectiveFrom} onClick={() => void publish()} data-confirm-publish>{ui("Publish version {0}", [String((data.latest?.version ?? 0) + 1)])}</Button>
         </div>
       </>}
     </div>
-  </ModalFrame>;
+  </Modal>;
 }

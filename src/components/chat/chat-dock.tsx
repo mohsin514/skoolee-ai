@@ -40,6 +40,14 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
   // On phones Studio provides an in-flow messages link with the unread count.
   // Keep its horizontal task tabs and editor controls clear of the launcher.
   const onExamStudio = pathname === "/ai/studio";
+  // The spotlight tour hides the launcher while it runs (one overlay at a time, SPEC §9.3).
+  const [touring, setTouring] = useState(false);
+  useEffect(() => {
+    const onTour = (event: Event) => setTouring(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
+    window.addEventListener("skoolee:tour-state", onTour);
+    return () => window.removeEventListener("skoolee:tour-state", onTour);
+  }, []);
+  useEffect(() => { if (touring) setIsOpen(false); }, [touring]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -59,7 +67,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
 
   // No viewer means no session, or a role with no place in school messaging
   // (which /api/chat/unread refuses) — nothing to open.
-  if (onMessagesPage || !viewer) return null;
+  if (onMessagesPage || !viewer || touring) return null;
 
   const hasUnread = unreadTotal > 0;
 
@@ -68,6 +76,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
       {/* Sits above the mobile tab bar, which occupies the bottom of the screen. */}
       <MotionButton variant="default" size="icon"
         type="button"
+        data-tour="shell.chat.launcher"
         onClick={() => setIsOpen((v) => !v)}
         aria-label={hasUnread ? ui("Messages, {0} unread", [unreadTotal]) : ui("Messages")}
         aria-expanded={isOpen}
@@ -96,7 +105,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
             animate={{ opacity: 1, rotate: 0, scale: 1 }}
             exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
             transition={{ duration: 0.18 }}
-            className="relative z-10 text-white"
+            className="relative z-10 text-primary-foreground"
           >
             {isOpen ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
           </motion.span>
@@ -139,7 +148,7 @@ export function ChatDock({ mobileMessagesAvailable = false }: { mobileMessagesAv
               className={cn(
                 "fixed z-[58] flex flex-col overflow-hidden rounded-3xl border border-border bg-card",
 
-                "shadow-[0_32px_80px_-20px_rgba(120,70,180,0.45),0_0_0_1px_rgba(129,39,207,0.06)]",
+                "shadow-2xl",
                 "inset-x-3 bottom-40 top-3",
                 "md:inset-auto md:bottom-24 md:end-6 md:top-auto md:h-[620px] md:max-h-[calc(100dvh-8rem)] md:w-[420px]"
               )}

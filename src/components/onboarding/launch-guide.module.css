@@ -141,6 +141,18 @@
 .choice { width: 100%; justify-content: flex-start; text-align: start; padding: 1rem; gap: .9rem; border-radius: var(--radius-control); background: white; }
 .choiceText { flex: 1; min-width: 0; }
 .choiceText small { display: block; margin-top: .25rem; font-size: .68rem; font-weight: 500; color: var(--ink-muted); }
+/* SkooleeAI's two flagships (addendum 2026-10-22): AI Workflows and Exam Studio, introduced on the welcome's first
+   chapter in the note's gradient-hairline look, and marked with the shared FlagshipChip on the choices and scenes. */
+.flagships { margin: 1.25rem 0 0; }
+.flagshipsTitle { margin: 0 0 .6rem; font-size: .72rem; font-weight: 700; line-height: 1.6; color: var(--brand-800); }
+.flagshipList { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .65rem; margin: 0; padding: 0; list-style: none; }
+.flagship { display: grid; align-content: start; gap: .35rem; min-width: 0; padding: .9rem 1rem; border: 1px solid transparent; border-radius: var(--radius-control); background: linear-gradient(white, white) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--brand-600) 55%, transparent), color-mix(in srgb, var(--berry) 30%, transparent) 50%, var(--brand-200)) border-box; box-shadow: var(--shadow-xs); }
+.flagship p { margin: 0; font-size: .78rem; line-height: 1.6; color: var(--ink-muted); overflow-wrap: anywhere; }
+.flagship .flagshipName { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; font-size: .88rem; font-weight: 700; line-height: 1.4; color: var(--ink-strong); }
+.choiceChip { display: inline-flex; vertical-align: middle; margin-inline-start: .45rem; }
+.featureChip { flex: none; }
+.flagshipStrip { display: flex; flex-wrap: wrap; gap: .5rem; margin: -.75rem 0 1.25rem; padding: 0; list-style: none; }
+.flagshipStrip > li { display: inline-flex; align-items: center; gap: .45rem; min-height: 2rem; padding-block: .3rem; padding-inline: .35rem .8rem; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); background: rgb(255 255 255 / .8); font-size: .78rem; font-weight: 600; color: var(--brand-900); }
 .setupPath, .nextStep { padding: 1rem 1.1rem; border: 1px dashed var(--field-border); border-radius: var(--radius-control); background: rgb(255 255 255 / .75); font-size: .8rem; line-height: 1.65; color: var(--ink); }
 .setupPath strong { color: var(--ink-strong); }
 .setupPath ol { padding-inline-start: 1.2rem; margin: .5rem 0 0; }
@@ -175,7 +187,17 @@
 .replayHint { font-size: .7rem; color: var(--ink-muted); line-height: 1.6; max-width: 22rem; }
 .actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: .6rem; margin-inline-start: auto; }
 .actions > button { white-space: normal; height: auto; min-height: 2.75rem; }
-.replay { position: fixed; inset-inline-start: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 40; box-shadow: 0 4px 15px -6px var(--brand-800); }
+/* Chapter 3 can carry three actions: Back, "Show me around" and the chosen task. Where the footer is narrower than one
+   comfortable line (phones, tablets, the desk column), the task takes a full-width line of its own under the other two
+   — reading order kept — instead of squeezing long AR/UR labels side by side. */
+.bottom { container-type: inline-size; }
+.tourChoice { min-width: 0; }
+@container (max-width: 46rem) {
+  .actions:has(.tourChoice) { flex-wrap: wrap; width: 100%; margin-inline-start: 0; }
+  .actions:has(.tourChoice) > button { flex: 1 1 auto; }
+  .actions:has(.tourChoice) > button:first-child { flex: 0 1 auto; }
+  .actions:has(.tourChoice) > button:last-child { flex: 1 0 100%; }
+}
 
 /* The companion beside long forms: paper with the gradient hairline. */
 .companion { display: flex; align-items: center; gap: 1rem; margin-block: 1rem; padding: .8rem 1.2rem; border: 1px solid transparent; border-radius: var(--radius-control); background: linear-gradient(110deg, color-mix(in srgb, var(--brand-50) 60%, white), white) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--brand-600) 45%, transparent), color-mix(in srgb, var(--berry) 25%, transparent) 50%, var(--brand-200)) border-box; box-shadow: var(--shadow-xs); }
@@ -289,7 +311,6 @@
   .interviewAside { position: static; padding: .8rem 1rem; }
   .interviewAside .character, .interviewAside > p, .interviewSection { display: none; }
   .interviewAside h2 { font-size: .8rem; margin-bottom: .6rem; }
-  .replay { bottom: max(5rem, calc(env(safe-area-inset-bottom) + 4rem)); }
 }
 @media (max-width: 380px) {
   .stageArtwork { width: min(210px, 27dvh); }
@@ -324,6 +345,6 @@
 }
 @media (forced-colors: active) {
   .aurora, .rays, .spotlight, .confetti, .stageGrid { display: none; }
-  .workflowCard, .guideSpeech, .note, .demoFeatures > div[data-active] { border: 1px solid CanvasText; }
+  .workflowCard, .guideSpeech, .note, .flagship, .demoFeatures > div[data-active] { border: 1px solid CanvasText; }
   .stageSignature button { color: ButtonText; }
 }

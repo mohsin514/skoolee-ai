@@ -3,7 +3,7 @@ import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import type { PermissionModule } from "@/lib/permissions";
 import { assertConversationActor } from "./conversation-service";
-import { assertWorkspacePermission, isSchoolAiManager, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SCHOOL_AI_STAFF_ROLES, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
+import { assertWorkspacePermission, canManageSetupTasks, isSchoolAiManager, loadWorkspacePermissionSnapshot, resolveWorkerPrincipal, resolveWorkspaceCampus, SCHOOL_AI_STAFF_ROLES, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
 import { getWorkspaceRecordInTransaction, updateWorkspaceRecordInTransaction, workspaceRequestHash } from "./repository";
 import { schoolAiTransaction } from "./transaction";
 import { readSetupDraft, validateSetupAnswer, type SetupAnswerKey } from "./onboarding";
@@ -11,11 +11,15 @@ import { schoolAICopy } from "./copy";
 import { setupTaskCreateSchema, setupTaskUpdateSchema, type SetupTask, type SetupTaskDetail } from "./setup-tasks";
 const domains: Partial<Record<SetupAnswerKey, PermissionModule>> = { grades: "exams", academicYear: "exams", startDate: "exams", endDate: "exams", workingDays: "timetable", curriculum: "exams", assessmentPolicy: "exams", feePolicy: "fees", resources: "timetable", staff: "staff", students: "students" };
 async function fieldAccess(user: AuthUser, field: SetupAnswerKey, permissions: WorkspacePermissionSnapshot, edit = false) { if (domains[field]) await assertWorkspacePermission(user, domains[field]!, edit ? "edit" : "view", permissions); }
-async function managerAccess(user: AuthUser, tx: TxClient) { const permissions = await assertConversationActor(user, tx); if (!isSchoolAiManager(user)) throw new SchoolAiError("Only school managers can delegate and accept setup facts.", 403); await assertWorkspacePermission(user, "ai", "edit", permissions); return permissions; }
+// G42: delegating and accepting setup facts belongs to the institution authority or the named readiness lead
+// (§10.8 isReadinessLead), not to every campus manager; assignees still answer their own tasks.
+async function managerAccess(user: AuthUser, tx: TxClient) { const permissions = await assertConversationActor(user, tx); if (!isSchoolAiManager(user) || !(await canManageSetupTasks(user, tx))) throw new SchoolAiError("Only your school's administrator or setup lead can delegate and accept setup facts.", 403); await assertWorkspacePermission(user, "ai", "edit", permissions); return permissions; }
 async function currentAssignee(user: AuthUser, campusId: string, assigneeId: string, field: SetupAnswerKey, tx: TxClient, expectedRole?: string) {
   const staff = await tx.user.findFirst({ where: { id: assigneeId, schoolId: user.schoolId, campusId, isActive: true, role: { in: [...SCHOOL_AI_STAFF_ROLES].filter(role => role !== "SUPER_ADMIN") } }, select: { id: true, email: true, role: true, campusId: true, fullName: true, accessVersion: true } });
   if (!staff || expectedRole && staff.role !== expectedRole) throw new SchoolAiError("Choose an active staff member assigned to this campus.", 403);
-  const actor: AuthUser = { userId: staff.id, schoolId: user.schoolId, campusId: staff.campusId, email: staff.email, role: staff.role, accessVersion: staff.accessVersion };
+  // Never a hand-built AuthUser (C32): the assignee is resolved like any other principal.
+  const actor = await resolveWorkerPrincipal({ userId: staff.id, schoolId: user.schoolId, role: staff.role, accessVersion: staff.accessVersion });
+  if (!actor) throw new SchoolAiError("Choose an active staff member assigned to this campus.", 403);
   const permissions = await loadWorkspacePermissionSnapshot(actor, tx);
   await assertWorkspacePermission(actor, "ai", "view", permissions); await assertWorkspacePermission(actor, "ai", "add", permissions); await fieldAccess(actor, field, permissions);
   return staff;
@@ -32,7 +36,7 @@ async function readTask(user: AuthUser, id: string, tx: TxClient) {
 }
 async function publicTask(user: AuthUser, row: SchoolAiSetupTask, tx: TxClient, permissions: WorkspacePermissionSnapshot): Promise<SetupTask> {
   const staff = await tx.user.findFirst({ where: { id: row.assigneeId, schoolId: user.schoolId }, select: { fullName: true } });
-  const canManage = isSchoolAiManager(user) && (user.role === "SUPER_ADMIN" || permissions.get("ai")?.canEdit === true);
+  const canManage = isSchoolAiManager(user) && (user.role === "SUPER_ADMIN" || permissions.get("ai")?.canEdit === true) && await canManageSetupTasks(user, tx);
   return { id: row.id, campusId: row.campusId, recordId: row.recordId, fieldKey: row.fieldKey as SetupAnswerKey, question: row.question, instructions: row.instructions, requestedById: row.requestedById, assigneeId: row.assigneeId, assigneeName: staff?.fullName ?? "", status: row.status as SetupTask["status"], answer: row.answer, version: row.version, acceptedRecordVersion: row.acceptedRecordVersion, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(), canManage, canAnswer: row.assigneeId === user.userId && row.assigneeRole === user.role && permissions.get("ai")?.canAdd === true };
 }
 async function revision(row: SchoolAiSetupTask, actor: AuthUser, action: string, tx: TxClient) {

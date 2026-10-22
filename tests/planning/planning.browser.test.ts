@@ -41,7 +41,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar North", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Cedar North", regId: campusId, city: "Riyadh" } });
-  await user("principal", "PRINCIPAL"); await user("principal-ar", "PRINCIPAL", "ar"); await user("teacher", "TEACHER");
+  await user("principal", "PRINCIPAL"); await user("admin", "CAMPUS_ADMIN"); await user("admin-ar", "CAMPUS_ADMIN", "ar"); await user("teacher", "TEACHER");
   const science = users.get("teacher")!.id;
   await db.staffProfile.create({ data: { schoolId, userId: science, contractedPeriodsPerWeek: 12 } });
   for (let n = 1; n <= 4; n++) await db.classRoom.create({ data: { schoolId, campusId, roomNumber: `R-${n}`, capacity: 30 } });
@@ -68,8 +68,10 @@ after(async () => {
 test("seats fit but lab periods do not; an added lab is compared side by side; nothing live changes (EN desktop)", async () => {
   const before453 = await live();
   assert.equal((await (await context("teacher")).request.get(`${base}/api/planning`)).status(), 403, "planning access is required");
-  const page = await (await context("principal")).newPage();
-  await page.goto(`${base}/principal?view=academic-hub`);
+  // M56: the scenario planner lives in the campus console's Academic overview (the principal console has no
+  // academic-overview view any more; `?view=academic-hub` there aliases to Today).
+  const page = await (await context("admin")).newPage();
+  await page.goto(`${base}/admin?view=academic-hub`);
   const panel = page.locator('section[aria-labelledby="scenario-planner"]');
   await panel.waitFor({ timeout: 60_000 });
   await panel.getByRole("button", { name: "Take baseline" }).click();
@@ -83,6 +85,8 @@ test("seats fit but lab periods do not; an added lab is compared side by side; n
     await panel.getByLabel("Room type needed").selectOption("LAB");
     await panel.getByLabel("Add a teacher for").selectOption("Science");
     await panel.getByLabel("New teacher periods per week").fill("10");
+    // The currency defaults to the school's locale currency (R7: never hard-coded); this school states SAR.
+    await panel.getByLabel("Currency").fill("SAR");
     if (addLab) { await panel.getByLabel("Add rooms").selectOption("LAB"); await panel.getByLabel("Room cost per year, low (estimate)").fill("40000"); await panel.getByLabel("Room cost per year, high (estimate)").fill("60000"); }
     await panel.getByRole("button", { name: "Run constraint check" }).click();
     await panel.getByText("Scenario evaluated.").waitFor({ timeout: 30_000 });
@@ -113,8 +117,8 @@ test("seats fit but lab periods do not; an added lab is compared side by side; n
 });
 
 test("the planner reads right to left on a phone (AR)", async () => {
-  const page = await (await context("principal-ar", { width: 390, height: 844 })).newPage();
-  await page.goto(`${base}/principal?view=academic-hub`);
+  const page = await (await context("admin-ar", { width: 390, height: 844 })).newPage();
+  await page.goto(`${base}/admin?view=academic-hub`);
   const panel = page.locator('section[aria-labelledby="scenario-planner"]');
   await panel.waitFor({ timeout: 60_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");

@@ -1,7 +1,7 @@
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
 
 // GET /api/academic/rooms?campusId= — list class rooms with exam-day capacity
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "add");
 
     const body = await req.json();
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "edit");
 
     const body = await req.json();
@@ -190,7 +190,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "delete");
 
     const id = req.nextUrl.searchParams.get("id");

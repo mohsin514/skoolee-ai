@@ -78,9 +78,12 @@ test("an invoice keeps the campus identity it was first issued with after the ca
 test("a campus administrator edits only their campus name after reviewing it; nothing else changes", async () => {
   const admin = await context("northAdmin"), page = await admin.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(`${base}/admin?view=institution`);
-  await page.getByText("School details are managed by the institution owner.", { exact: false }).waitFor({ timeout: 30_000 });
-  assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 1, "only their own campus can be edited; the school group has no Edit");
+  // role-ux: a group campus admin's record lives in Campus setup › Profile (one campus card; the group's own record
+  // belongs to the group admin and is not shown here).
+  await page.goto(`${base}/admin?view=settings&tab=profile`);
+  await page.locator("[data-campus-card]").waitFor({ timeout: 30_000 });
+  assert.equal(await page.locator("[data-school-record]").count(), 0, "the school group's record is not on the campus admin's screen");
+  assert.equal(await page.getByRole("button", { name: "Edit" }).count(), 1, "only their own campus can be edited");
   const before = await db.campus.findUniqueOrThrow({ where: { id: north } });
   await page.getByRole("button", { name: "Edit" }).click();
   await dialog(page).getByText("You are editing Palm North, not the whole school group.").waitFor();
@@ -134,9 +137,9 @@ test("the owner's invalid save keeps the form and writes nothing; a tagline-only
 
 test("unpaid invoices block archiving a campus that has no active pupils or classes", async () => {
   const owner = await context("owner"), page = await owner.newPage();
-  await page.goto(`${base}/super?view=settings`);
-  const southRow = page.locator("div.rounded-\\[24px\\]").filter({ hasText: "Palm South" }).first();
-  await southRow.getByRole("button", { name: /Archive/ }).click({ timeout: 30_000 });
+  // role-ux M17: archiving happens from the campus detail (`?view=campuses&campus=<id>`), footer start side.
+  await page.goto(`${base}/super?view=campuses&campus=${south}`);
+  await page.getByRole("button", { name: "Archive campus" }).click({ timeout: 30_000 });
   const blockers = page.locator("[data-campus-archive-blockers]");
   await blockers.waitFor({ timeout: 15_000 });
   assert.match(await blockers.innerText(), /unpaid invoice/);
@@ -147,7 +150,7 @@ test("unpaid invoices block archiving a campus that has no active pupils or clas
 
 test("the Arabic campus review reads right-to-left at phone width with a long Arabic name", async () => {
   const ctx = await context("northAdmin-ar", { width: 390, height: 844 }), page = await ctx.newPage();
-  await page.goto(`${base}/admin?view=institution`);
+  await page.goto(`${base}/admin?view=settings&tab=profile`);
   await page.getByRole("button", { name: "تعديل" }).first().click({ timeout: 30_000 });
   await page.locator("#c-name").fill("فرع النخيل الشمالي للتعليم الأساسي والمتوسط");
   await dialog(page).getByRole("button", { name: "مراجعة التغييرات" }).click();

@@ -1,8 +1,10 @@
 import { z } from "zod";
-import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, canManageSubscription, errorResponse, isFamilyRole, requireAuthUser } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { parsePlan, previewCancellation, previewPlanChange, saveSubscriptionRequest } from "@/lib/billing/lifecycle";
 import { stripe } from "@/lib/stripe/server";
+import { kindFor } from "@/lib/auth/institution";
+import { getSubscriptionOwners } from "@/lib/auth/institution-server";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +21,11 @@ export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
     if (!canManageSubscription(user)) {
-      const payer = await prisma.user.findFirst({ where: { schoolId: user.schoolId, isInstitutionOwner: true, isActive: true }, select: { fullName: true, email: true } });
-      const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true } });
-      return Response.json({ canManage: false, billingContact: payer, institutionName: school?.name || "your institution", requests: [] });
+      // G9: families never see who pays; staff see the payer's name only (never an email). With no payer the
+      // client shows "Contact SkooleeAI support to restore billing access." (§1.5).
+      if (isFamilyRole(user) || user.role === "APP_OWNER") throw new ApiError("The SkooleeAI subscription is managed by the school.", 403);
+      const [payer] = await getSubscriptionOwners(user.schoolId, undefined, kindFor(user) ?? undefined);
+      return Response.json({ canManage: false, managedBy: payer?.fullName ?? null, requests: [] });
     }
     const school = await prisma.school.findUnique({
       where: { id: user.schoolId },
@@ -44,10 +48,15 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    if (!canManageSubscription(user)) throw new ApiError("Subscription management is not delegated to this membership", 403);
+    if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
     const parsed = requestSchema.safeParse(await request.json());
     if (!parsed.success) throw new ApiError("Choose a valid subscription action", 400);
     const input = parsed.data;
+    // G6 / K-I5: cancelling, asking for a refund and changing the payment method need a verified second factor;
+    // previews, plan changes, resume and grace requests do not, so a deferred-MFA owner can still recover.
+    if ((input.action === "cancel" || input.action === "refund") && user.mfaVerified !== true) {
+      return Response.json({ error: "Turn on two-step sign-in before you cancel the plan or request a refund.", code: "MFA_REQUIRED" }, { status: 403 });
+    }
 
     if (input.action === "preview") {
       const plan = parsePlan(input.plan);

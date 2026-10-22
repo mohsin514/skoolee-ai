@@ -2,7 +2,7 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     const campusId = await resolveCampusId(user, body.campusId);
@@ -59,7 +60,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "edit");
 
     const body = await req.json();
     if (!body.id) throw new ApiError("id required", 400);
@@ -87,7 +89,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "delete");
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) throw new ApiError("id required", 400);

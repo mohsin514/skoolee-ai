@@ -1,6 +1,9 @@
 'use client'
 
+import { useId } from "react";
 import { unresolvedOptionalWork, type SetupStepId } from "@/lib/onboarding/setup-state";
+import { FlagshipChip } from "@/components/ui/flagship";
+import type { Language } from "@/lib/locale/package";
 import { ErrorSummary } from "@/components/onboarding/ErrorSummary";
 import { PackageChooser } from "@/components/onboarding/PackageChooser";
 import { fill } from "./copy";
@@ -17,7 +20,51 @@ import { ReviewStep } from "./_wizard/steps/review-step";
 
 // The setup wizard (SKO-391) on the Front Desk shell ("Charter Desk"). State and server calls live in
 // `useSetupWizard`; this file picks the load state and composes the studio frame, the one step card
-// (with its error summary in the card's notices) and the handover strip.
+// (with its error summary in the card's notices), what opens next (the two flagships) and the handover strip.
+
+/** SkooleeAI's flagships (addendum 2026-10-22), as the owner meets them right after activation. */
+const NEXT_COPY = {
+  title: ["What opens next", "ما الذي يُفتح بعد ذلك", "اس کے بعد کیا کھلے گا"],
+  items: [
+    {
+      key: "ai-workflows",
+      name: ["AI Workflows", "مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز"],
+      body: [
+        "Right after activation, answer a short questionnaire and AI drafts your launch plan; nothing applies until you approve it.",
+        "بعد التفعيل مباشرةً، أجب عن استبيان قصير ليُعدّ الذكاء الاصطناعي مسودة خطة الانطلاق؛ ولا يُطبَّق شيء قبل موافقتك.",
+        "فعال ہوتے ہی ایک مختصر سوالنامے کے جواب دیں اور اے آئی آغاز کے منصوبے کا مسودہ بناتا ہے؛ آپ کی منظوری سے پہلے کچھ لاگو نہیں ہوتا۔",
+      ],
+    },
+    {
+      key: "exam-studio",
+      name: ["Exam Studio", "استوديو الاختبارات", "ایگزام اسٹوڈیو"],
+      body: [
+        "Whenever your teachers are ready, AI builds assessments from their material; they review, deliver securely and mark.",
+        "متى كان معلموك مستعدين، يبني الذكاء الاصطناعي الاختبارات من موادهم؛ فيراجعونها ويقدّمونها بأمان ويصحّحونها.",
+        "جب آپ کے اساتذہ تیار ہوں، اے آئی ان کے مواد سے جائزے تیار کرتا ہے؛ وہ جائزہ لے کر محفوظ طریقے سے امتحان لیتے اور جانچتے ہیں۔",
+      ],
+    },
+  ],
+} as const;
+
+function FlagshipsNext({ language }: { language: Language }) {
+  const index = language === "ar" ? 1 : language === "ur" ? 2 : 0;
+  const titleId = useId();
+  return (
+    <section className="sk-panel flex flex-col gap-3 p-4 sm:p-5" aria-labelledby={titleId} data-onboarding-flagships>
+      <h2 id={titleId} className="text-base font-bold text-ink-strong">{NEXT_COPY.title[index]}</h2>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {NEXT_COPY.items.map((item) => (
+          <li key={item.key} className="min-w-0 space-y-1" data-flagship={item.key}>
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong"><FlagshipChip />{item.name[index]}</p>
+            <p className="text-sm leading-relaxed text-ink-muted">{item.body[index]}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function OnboardingWizard() {
   const w = useSetupWizard();
   const { load, ready, t, local, lang, headingRef, summaryRef, saving, activating, step, flow, stepIndex, reachable, success, errors } = w;
@@ -173,6 +220,8 @@ export default function OnboardingWizard() {
           onActivate={() => void w.handleActivate()}
         />
       )}
+
+      {step === 'review' && <FlagshipsNext language={lang} />}
 
       {w.packages.open && v.actor.canPurchase && (
         <PackageChooser

@@ -50,7 +50,10 @@ test("module handoffs only use verified role destinations", () => {
   assert.equal(moduleWorkspaceHref("ADMIN", "exams"), "/admin?view=exam-cycles");
   assert.equal(moduleWorkspaceHref("TEACHER", "exams"), "/teacher/tests");
   assert.equal(moduleWorkspaceHref("ACCOUNTANT", "fees"), "/accountant");
-  assert.equal(moduleWorkspaceHref("PRINCIPAL", "staff"), "/principal");
+  // G42: principal deep links land in the Academic console's own views.
+  assert.equal(moduleWorkspaceHref("PRINCIPAL", "staff"), "/principal?view=teachers");
+  assert.equal(moduleWorkspaceHref("PRINCIPAL", "fees"), "/principal");
+  assert.equal(moduleWorkspaceHref("CAMPUS_ADMIN", "admissions"), "/admin?view=admissions");
   assert.equal(moduleWorkspaceHref("TEACHER", "curriculum"), "/ai");
 });
 test("typed visual extraction keeps tables and math bounded and never treats provider claims as reviewed evidence",()=>{const region={id:"math-1",kind:"MATH",box:{x:0.1,y:0.2,width:0.4,height:0.2},text:"2 + 2 = 4",confidence:0.7,needsReview:false,reviewed:true,issue:"Check symbols",math:{latex:"2+2=4",plainText:"Two plus two equals four"}};const raw={text:"2 + 2 = 4",pages:[{page:1,text:"2 + 2 = 4",reviewed:true,regions:[region]}],uncertainties:[],expectedPageCount:1,missingPages:[],structureReviewed:true};const result=unreviewedExtraction(raw);assert.equal(result.structureReviewed,false);assert.equal(result.pages[0].reviewed,false);assert.equal(result.pages[0].regions?.[0].needsReview,true);assert.equal(result.pages[0].regions?.[0].reviewed,false);assert.equal(extractionSchema.safeParse({...raw,pages:[{...raw.pages[0],regions:[{...region,box:{x:0.9,y:0,width:0.5,height:1}}]}]}).success,false);assert.equal(extractionSchema.safeParse({...raw,pages:[{...raw.pages[0],regions:[{...region,kind:"TABLE"}]}]}).success,false);assert.equal(extractionSchema.safeParse({...raw,missingPages:[1]}).success,false);});

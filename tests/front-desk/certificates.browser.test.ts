@@ -55,7 +55,7 @@ before(async () => {
   for (const [id, name] of [[campusId, "Jasmine Gulberg"], [otherCampusId, "Jasmine DHA"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Lahore" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 7", section: "B", academicYear: 2026 } });
   await db.class.create({ data: { id: otherClassId, schoolId, campusId: otherCampusId, name: "Grade 7", section: "A", academicYear: 2026 } });
-  const lead = await user("lead", "PRINCIPAL"); await user("desk", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G38a: templates and approvals are the campus admin's await user("desk", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER");
   const pupil = (id: string, fullName: string, rollNo: string, extra: Record<string, unknown> = {}, campus = campusId, cls = classId) => db.student.create({ data: { id, schoolId, campusId: campus, classId: cls, fullName, rollNo, gender: "MALE", enrollmentDate: new Date("2025-04-01Z"), ...extra } });
   await pupil(pupils.complete, LONG_NAME, "J-701", { dateOfBirth: new Date("2013-05-09Z"), guardianName: "Synthetic Guardian Khalid", admissionNo: "ADM-2025-0042" });
@@ -223,7 +223,7 @@ test("reception previews and requests a document in the UI; the Arabic queue rea
   await page.goto(`${base}/receptionist?view=certificates`);
   const panel = page.locator("[data-certificates-desk]");
   await panel.locator("[data-issue]").first().waitFor({ timeout: 30_000 });
-  await panel.getByRole("button", { name: "Issue document" }).click();
+  await page.getByRole("button", { name: "Issue certificate" }).first().click(); // PageHeader primary (role-ux §4.4)
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Template").selectOption(certTemplate);
   await dialog.getByLabel("Find the pupil (name, roll or admission number)").fill("Hina");

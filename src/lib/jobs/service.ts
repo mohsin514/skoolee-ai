@@ -111,13 +111,24 @@ export async function itemsFor(job: Job, db: Sql = prisma) {
     WHERE i.job_id=${job.id} AND i.school_id=${job.school_id} ORDER BY i.label,i.id`;
   return rows;
 }
-/** Source links point only to actual role workspaces; unsupported role sources fall back to their dashboard. */
+/**
+ * Where a job's "Open source" goes (G49): always the reader's own console view for that work, never another
+ * console. Bank-statement imports open the accountant's Collect › Bank import tab (a campus operator's Fees);
+ * report PDF and delivery jobs open Report cards for that exam. Anything else falls back to the reader's home.
+ */
 export function jobSourceHref(user: Pick<AuthUser, "role">, job: Pick<Job, "kind" | "source_id">) {
   const base = dashboardPathForRole(user.role);
-  if (job.kind !== "IMPORT" && user.role === "TEACHER") return `${base}/reports?examId=${encodeURIComponent(job.source_id)}`;
-  if (["ADMIN", "PRINCIPAL", "CAMPUS_ADMIN"].includes(user.role)) return `${base}?view=${job.kind === "IMPORT" ? "fees" : "report-cards"}${job.kind === "IMPORT" ? "" : `&examId=${encodeURIComponent(job.source_id)}`}`;
-  if (job.kind === "IMPORT" && user.role === "ACCOUNTANT") return `${base}?view=accounts`;
-  if (job.kind === "IMPORT" && user.role === "SUPER_ADMIN") return `${base}?view=fees`;
+  const at = (path: string, params: Record<string, string>) => `${path}?${new URLSearchParams(params).toString()}`;
+  if (job.kind === "IMPORT") {
+    if (user.role === "ACCOUNTANT") return at("/accountant", { view: "payments", tab: "bank-import" });
+    if (user.role === "CAMPUS_ADMIN" || user.role === "ADMIN") return at("/admin", { view: "fees", tab: "payments" });
+    if (user.role === "SUPER_ADMIN") return at("/super", { view: "campuses" });
+    return base;
+  }
+  if (user.role === "TEACHER") return at("/teacher/reports", { exam: job.source_id });
+  if (user.role === "PRINCIPAL") return at("/principal", { view: "report-cards", exam: job.source_id });
+  if (user.role === "CAMPUS_ADMIN" || user.role === "ADMIN") return at("/admin", { view: "report-cards", exam: job.source_id });
+  if (user.role === "SUPER_ADMIN") return at("/super", { view: "campuses" });
   return base;
 }
 

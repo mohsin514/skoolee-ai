@@ -106,7 +106,7 @@ test("concurrent exact plans and duplicate transaction references cannot double 
 test("existing payment correction cannot rewrite a reconciled bank period", () => school(async f => {
   const collected = await execute(f, { ...payment(f, 10000), bankAccountId: f.bank.id } as FinanceOperationProposal), paymentId = collected.receipt.createdIds[0];
   const scoped = <T>(fn: () => Promise<T>) => runWithTenantContext({ schoolId: f.schoolId, campusId: f.campusId, userId: f.user.userId, role: f.user.role }, fn);
-  const [original] = await scoped(() => catalog(f.user, "PAYMENT"));
+  const { items: [original] } = await scoped(() => catalog(f.user, "PAYMENT"));
   const proposal = { kind: "PAYMENT" as const, sourceId: paymentId, expectedVersion: original.version, allocations: [{ invoiceId: f.invoice.id, minor: 1000 }], unappliedMinor: 0 };
   const preview = await schoolAiTransaction(f.user, tx => correctionPreview(tx, f.user, proposal));
   const correction = await scoped(() => requestCorrection(f.user, proposal, preview.hash, { reason: "Returned overcollection", publicExplanation: "Refund approved" }));

@@ -1,3 +1,5 @@
+import { dashboardPathForRole } from "@/lib/roles";
+
 // SKO-431 / SKO-474: whether an online payment can actually be taken for an invoice, decided before
 // any order exists, and where each role returns after the hosted checkout. The return path is built
 // on the server from the caller's role and the authorized invoice, never from request input.
@@ -18,12 +20,22 @@ export function onlinePaymentAvailability(currency: string, env: Env = process.e
   return { available: false, reason: "NOT_CONFIGURED", supportedCurrencies: ONLINE_PAYMENT_CURRENCIES };
 }
 
-/** The page a payer comes back to: the family's own fee page with the same child and invoice. */
+/** Staff who may take an online payment on a family's behalf: the finance desk (role-ux G44b, P8-11). */
+export const ONLINE_PAYMENT_STAFF: readonly string[] = ["ACCOUNTANT", "CAMPUS_ADMIN", "ADMIN", "SUPER_ADMIN"];
+
+/**
+ * The page a payer comes back to: the family's own fee page with the same child and invoice, or — for staff —
+ * the finance view of their own console (role-ux G44b; the legacy /dashboard console is retired). Only campus
+ * admins come back to `/admin`; the group admin returns to the group console; any other role (refused by the
+ * route before an order exists) would land on its own console home, never on a console it cannot open.
+ */
 export function paymentReturnPath(role: string, invoice: { id: string; studentId: string }, orderRef: string) {
   const query = new URLSearchParams({ invoice: invoice.id, payment: orderRef });
   if (role === "PARENT") { query.set("student", invoice.studentId); return `/parent/fees?${query}`; }
   if (role === "STUDENT") return `/student/fees?${query}`;
-  return `/dashboard/fees?${query}`;
+  if (role === "ACCOUNTANT") return `/accountant?${new URLSearchParams({ view: "payments", invoice: invoice.id, payment: orderRef })}`;
+  if (role === "CAMPUS_ADMIN" || role === "ADMIN") return `/admin?${new URLSearchParams({ view: "fees", invoice: invoice.id, payment: orderRef })}`;
+  return dashboardPathForRole(role);
 }
 
 /** What a payer is told about an order. Only a verified provider event moves it past PENDING. */

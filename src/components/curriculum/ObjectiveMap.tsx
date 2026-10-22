@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { fill, getObjectiveMapCopy, type ObjectiveMapCopy } from "./objective-map-copy";
+import { csvCell } from "@/lib/csv";
 
 // SKO-406 objective map. Planned, taught and assessed stay separate columns with their evidence;
 // nothing here turns coverage into a mastery claim.
@@ -44,7 +45,12 @@ async function call(path: string, body?: unknown) {
 }
 const Code = ({ value }: { value?: string }) => value ? <bdi dir="ltr" className="font-mono text-xs">{value}</bdi> : null;
 
-export function ObjectiveMap() {
+/**
+ * `exportRequest` (a counter the page's **Export** secondary bumps, §4.4b) downloads the objectives on screen —
+ * after the search and filter — as a CSV with translated headers; `onExportableChange` tells the page when there
+ * is something to export, so the header action is disabled (with its reason) until then.
+ */
+export function ObjectiveMap({ exportRequest = 0, onExportableChange }: { exportRequest?: number; onExportableChange?: (ready: boolean) => void } = {}) {
   const { language } = useLocale();
   const t = getObjectiveMapCopy(language);
   const rtl = language === "ar" || language === "ur";
@@ -76,6 +82,32 @@ export function ObjectiveMap() {
     if (filter === "notAssessed") return coverage.assessed.releases.length === 0;
     return true;
   }), [view, q, filter]);
+
+  const exportable = Boolean(view && rows.length);
+  useEffect(() => { onExportableChange?.(exportable); }, [exportable, onExportableChange]);
+  // Only a press after mount exports: the counter the page keeps survives remounts (e.g. a language switch).
+  const handledExport = useRef(exportRequest);
+  useEffect(() => {
+    if (exportRequest === handledExport.current) return;
+    handledExport.current = exportRequest;
+    if (!view || !rows.length) return;
+    const lineFor = (coverage: Coverage) => {
+      const taught = coverage.taught.sections.length, assessed = coverage.assessed.releases.length, planned = coverage.planned.topics.length;
+      return taught && assessed ? t.statusLine.both : taught ? fill(t.statusLine.taughtOnly, { n: taught }) : assessed ? t.statusLine.assessedOnly : planned ? t.statusLine.plannedOnly : t.statusLine.nothing;
+    };
+    const header = [t.code, t.objective, t.planned, t.taught, t.assessed, t.resources, t.exportStatus];
+    const lines = rows.map(objective => {
+      const coverage = view.coverage.find(row => row.outcomeId === objective.id)!;
+      return [objective.code ?? "", objective.title, coverage.planned.topics.length, coverage.taught.sections.length, coverage.assessed.releases.length, coverage.resources.length, lineFor(coverage)];
+    });
+    const blob = new Blob(["\uFEFF" + [header, ...lines].map(line => line.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${t.exportFile}-v${view.record.version}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [exportRequest, view, rows, t]);
 
   const banner = status && <Alert tone={status.tone === "ok" ? "success" : "danger"} live="polite" compact>{status.text}</Alert>;
   if (list && !list.length) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner}<EmptyState title={t.noCurricula} /></div>;
@@ -184,16 +216,17 @@ function Evidence({ title, items, none }: { title: string; items: Array<{ key: s
 
 function MappingPanel({ t, view, label, onSaved, onError }: { t: ObjectiveMapCopy; view: MapView; label: (o?: Pick<Objective, "code" | "title">) => React.ReactNode; onSaved: () => Promise<void>; onError: (text: string) => void }) {
   const [targetId, setTargetId] = useState("");
+  const [relation, setRelation] = useState<Mapping["relation"] | "">("");
   const [busy, setBusy] = useState(false);
   const target = view.mappingTargets.find(item => item.id === targetId);
   const describe = (recordId: string, outcomeId: string) => recordId === view.record.id ? view.objectives.find(row => row.id === outcomeId) : view.mappingTargets.find(item => item.id === recordId)?.objectives.find(row => row.id === outcomeId);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget), value = (name: string) => String(form.get(name) ?? "");
-    if (!target) return;
+    if (!target || !relation) return;
     setBusy(true);
     try {
-      await call("/api/curriculum/map", { op: "mapping", from: { recordId: view.record.id, version: view.record.version, outcomeId: value("from") }, to: { recordId: target.id, version: target.version, outcomeId: value("to") }, relation: value("relation"), note: value("note") });
+      await call("/api/curriculum/map", { op: "mapping", from: { recordId: view.record.id, version: view.record.version, outcomeId: value("from") }, to: { recordId: target.id, version: target.version, outcomeId: value("to") }, relation, note: value("note") });
       await onSaved();
     } catch (error) { onError(error instanceof Error ? error.message : t.failed); }
     finally { setBusy(false); }
@@ -205,10 +238,13 @@ function MappingPanel({ t, view, label, onSaved, onError }: { t: ObjectiveMapCop
       <label className="grid gap-1 text-xs font-semibold">{t.from}<Select name="from" required defaultValue=""><option value="" disabled>{t.choose}</option>{view.objectives.map(row => <option key={row.id} value={row.id}>{row.code ? `${row.code} · ` : ""}{row.title}</option>)}</Select></label>
       <label className="grid gap-1 text-xs font-semibold">{t.target}<Select value={targetId} required onChange={event => setTargetId(event.target.value)}><option value="" disabled>{t.choose}</option>{view.mappingTargets.map(item => <option key={item.id} value={item.id}>{item.title} · {item.board} · v{item.version}</option>)}</Select></label>
       <label className="grid gap-1 text-xs font-semibold">{t.targetObjective}<Select name="to" required defaultValue="" key={targetId} disabled={!target}><option value="" disabled>{t.choose}</option>{target?.objectives.map(row => <option key={row.id} value={row.id}>{row.code ? `${row.code} · ` : ""}{row.title}</option>)}</Select></label>
-      <fieldset className="grid gap-1 text-xs"><legend className="font-semibold">{t.relation}</legend>
-        {(["SAME", "PARTIAL", "NOT_EQUIVALENT"] as const).map(value => <label key={value} className="flex min-h-8 items-center gap-2 text-sm"><input type="radio" name="relation" value={value} required />{t.relations[value]}</label>)}</fieldset>
+      {/* Shared choice buttons as a radio group (no native radio, §11.0 rule 4); the decision is required. */}
+      <div className="grid gap-1 text-xs"><p id="mapping-relation" className="font-semibold">{t.relation}</p>
+        <div role="radiogroup" aria-labelledby="mapping-relation" className="flex flex-wrap gap-2">
+          {(["SAME", "PARTIAL", "NOT_EQUIVALENT"] as const).map(value => <Button key={value} type="button" size="sm" variant="choice" role="radio" aria-checked={relation === value} onClick={() => setRelation(value)}>{t.relations[value]}</Button>)}
+        </div></div>
       <label className="grid gap-1 text-xs font-semibold sm:col-span-2">{t.note}<Input name="note" maxLength={500} /></label>
-      <div className="sm:col-span-2"><Button type="submit" disabled={busy || !target}>{t.record}</Button></div>
+      <div className="sm:col-span-2"><Button type="submit" disabled={busy || !target || !relation}>{t.record}</Button></div>
     </form>}
     <h3 className="text-sm font-semibold">{t.decisions}</h3>
     {view.mappings.length ? <ul className="grid gap-2">{view.mappings.map(row => <li key={row.id} className="rounded-lg bg-surface-subtle px-3 py-2">

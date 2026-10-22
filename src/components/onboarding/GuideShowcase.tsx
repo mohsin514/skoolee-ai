@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, ArrowRight, Maximize, Minimize, Pause, Play, RotateCcw, Repeat, School, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, ClipboardCheck, Maximize, Minimize, Pause, Play, RotateCcw, Repeat, Users, Workflow } from "lucide-react";
 import SkooleeLogo from "@/components/SkooleeLogo";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { InkHeading } from "@/components/ui/ink-heading";
+import { FlagshipChip } from "@/components/ui/flagship";
 import type { Language } from "@/lib/locale/package";
+import type { Flagship } from "@/lib/onboarding/launch-plan";
 import type { UserRole } from "@/lib/roles";
 import { GuideStage } from "./GuideStage";
 import { launchCopy } from "./launch-copy";
@@ -21,10 +23,17 @@ function subscribeMotion(callback: () => void) {
   return () => media.removeEventListener("change", callback);
 }
 
-/** Presentation only. An optional role personalizes the private tour without account data. */
-export function GuideShowcase({ language, role, onReturn, onContinue, publicView = false, entryLabel, entryPending = false, entryError, completionDescription }: {
+/** The general showcase's scenes: the school and its people, then one scene per flagship (addendum 2026-10-22). */
+const DEMO_FLAGSHIPS: readonly (Flagship | null)[] = [null, "ai-workflows", "exam-studio"];
+
+/**
+ * Presentation only. An optional role personalizes the private tour without account data; `flagships` (the ones the
+ * caller's welcome plan leads to) are then shown under the role's scenes. Without a role the three scenes are the
+ * product story, and two of them are SkooleeAI's flagships: AI Workflows and Exam Studio.
+ */
+export function GuideShowcase({ language, role, flagships = [], onReturn, onContinue, publicView = false, entryLabel, entryPending = false, entryError, completionDescription }: {
   language: Language; onReturn: () => void; onContinue?: () => void; publicView?: boolean;
-  role?: UserRole;
+  role?: UserRole; flagships?: readonly Flagship[];
   entryLabel?: string; entryPending?: boolean; entryError?: string; completionDescription?: string;
 }) {
   const c = launchCopy(language);
@@ -73,7 +82,8 @@ export function GuideShowcase({ language, role, onReturn, onContinue, publicView
   const titles = personal ? [personal.title, personal.preparationTitle, personal.chooseTitle] : [c.demoTitleOne, c.demoTitleTwo, c.demoTitleThree];
   const descriptions = personal ? [personal.introduction, personal.preparation, personal.scenes[2].caption] : [c.demoBodyOne, c.demoBodyTwo, c.demoBodyThree];
   const features = personal ? personal.scenes[Math.min(scene, 2)].cards.map(card => card.title) : [c.demoFeatureOne, c.demoFeatureTwo, c.demoFeatureThree];
-  const icons = role ? roleGuideIcons[role] : [School, Users, ShieldCheck];
+  const icons = role ? roleGuideIcons[role] : [Users, Workflow, ClipboardCheck];
+  const featureFlagships = personal ? [null, null, null] : DEMO_FLAGSHIPS;
   return <section className={`${styles.surface} ${styles.showcase}`} ref={surface} data-showcase data-scene={Math.min(scene, 2)} data-complete={complete || undefined} data-loop={loop || undefined} data-paused={stopped || undefined} dir={language === "en" ? "ltr" : "rtl"} lang={language}>
     <header className={styles.topbar}>
       <SkooleeLogo size="1.8rem" weight="heavy" />
@@ -90,8 +100,11 @@ export function GuideShowcase({ language, role, onReturn, onContinue, publicView
         <p className={styles.description} key={scene}>{complete ? completionDescription ?? (personal ? `${personal.scenes[2].caption} ${personal.saveHint}` : publicView ? c.publicCompleteBody : c.showcaseCompleteBody) : descriptions[scene]}</p>
         <div className={styles.demoFeatures}>{features.map((label, index) => {
           const Icon = icons[index];
-          return <div key={label} data-active={scene === index || undefined}><Icon aria-hidden="true" /><span>{label}</span><span className={styles.leader} aria-hidden="true" /><span className={styles.featureNumber} aria-hidden="true">{`0${index + 1}`}</span></div>;
+          return <div key={label} data-active={scene === index || undefined} data-flagship={featureFlagships[index] ?? undefined}><Icon aria-hidden="true" /><span>{label}</span>{featureFlagships[index] && <FlagshipChip className={styles.featureChip} />}<span className={styles.leader} aria-hidden="true" /><span className={styles.featureNumber} aria-hidden="true">{`0${index + 1}`}</span></div>;
         })}</div>
+        {personal && flagships.length > 0 && <ul className={styles.flagshipStrip} aria-label={c.flagshipsTitle} data-guide-flagships>
+          {flagships.map(flagship => <li key={flagship} data-flagship={flagship}><FlagshipChip /><span>{c.flagshipName(flagship)}</span></li>)}
+        </ul>}
         {fullscreenError && <Alert tone="info" compact>{c.fullscreenFailed}</Alert>}
       </div>
     </div>

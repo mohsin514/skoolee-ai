@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import * as integrations from "@/lib/integrations/service";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
       case "test": return ok(await integrations.testDestination(user, String(body.id ?? "")));
       case "replay": return ok(await integrations.replay(user, String(body.id ?? "")));
       case "deliver-now": {
-        if (!(user.role === "SUPER_ADMIN" || user.isInstitutionOwner)) throw new ApiError("Integration administration access is required.", 403);
+        if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator manages integrations.", 403);
         return ok({ sent: await integrations.deliverDue(user.schoolId) });
       }
       default: throw new ApiError("Unknown action", 400);

@@ -61,7 +61,13 @@ export function SsoCallback() {
     void fetch("/api/auth/sso/callback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, state }) }).then(async r => {
       const json = await r.json().catch(() => ({}));
       if (json.mfaRequired) { router.replace("/protect-account"); return; }
-      if (r.ok && json.success) { router.replace("/"); return; }
+      // F20: a finished school sign-in lands on the person's own console, never on the marketing root.
+      if (r.ok && json.success) {
+        const home = typeof json.dashboardPath === "string" && json.dashboardPath.startsWith("/") && !json.dashboardPath.startsWith("//") ? json.dashboardPath
+          : await fetch("/api/auth/session", { cache: "no-store" }).then(s => s.ok ? s.json() : null).then(body => typeof body?.user?.dashboardPath === "string" ? body.user.dashboardPath as string : "/").catch(() => "/");
+        router.replace(home);
+        return;
+      }
       setMessage(json.error || "The school identity provider did not confirm this sign-in. Try again or use your Skoolee password.");
     }).catch(() => setMessage("The school identity provider did not confirm this sign-in. Try again or use your Skoolee password."));
   }, [params, router]);

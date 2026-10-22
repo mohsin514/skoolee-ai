@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canManageCampusOps } from "@/lib/api/scope";
 import { calendarDateIn } from "@/lib/datetime";
 import { getLocalePackage } from "@/lib/locale/store";
 import { guardianHasAccess } from "@/lib/parent/guardian-access";
@@ -27,8 +27,10 @@ const ID_METHODS = ["PHOTO_ID", "SCHOOL_PICKUP_CARD", "KNOWN_TO_STAFF"] as const
 const PREFIX = "SKPU1:";
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
-const isGate = (user: AuthUser) => canManageOperations(user) || user.role === "RECEPTIONIST";
-const isLead = (user: AuthUser) => canManageOperations(user);
+// role-ux G29: the gate is the front desk (and campus admins, who hold the desk when no receptionist is on duty);
+// lead decisions and restrictions are campus operations. The principal is academic and holds neither.
+const isGate = (user: AuthUser) => canManageCampusOps(user) || user.role === "RECEPTIONIST";
+const isLead = (user: AuthUser) => canManageCampusOps(user);
 const sameCampus = (user: AuthUser, campusId: string) => user.role === "SUPER_ADMIN" || user.campusId === campusId;
 
 async function event(tx: TxClient, schoolId: string, studentId: string, kind: string, actorId: string | null, detail: Record<string, unknown> = {}, ids: { authorizationId?: string | null; checkId?: string | null } = {}) {

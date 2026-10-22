@@ -7,21 +7,33 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/tooltip";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { AccessNotice } from "@/components/ui/access-notice";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
-import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ClipboardCheck, FileDown, Layers, Plus } from "lucide-react";
 
 // SKO-450: improvement evidence workspace. Frameworks are school-configured references and no accreditation outcome
 // is implied. Every claim keeps its source, date and freshness beside it; gaps are shown, not hidden. Actions link to
 // a documented reassessment, and before/after observations never claim a cause.
+//
+// Framed by src/app/improvement/layout.tsx (RoleFrame supplies nav, header and <main>), so this renders content
+// only: one PageHeader with one primary action ("Add evidence", or "New framework version" before any framework
+// exists), dialogs on the shared Modal, revocation behind ConfirmAction, and inline load/permission states (R4–R6).
 
 type Ui = ReturnType<typeof useUiText>;
+class RequestError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || !json.success) throw new RequestError(json.error || "The change was not saved.", response.status);
   return json.data;
 }
 type Item = { id: string; sourceType: string; sourceDate: string; sourceVersion: string; freshness: string; reviewState: string; verified: boolean; stance: string; sensitivity: string; audience: string; restricted: boolean; sourceId: string | null; title: string | null; note: string | null; owner: string; ownerId: string; reviewBy: string; reviewNote: string | null; reviewer: string | null; criterionIds: string[]; narrativeOnly: boolean };
@@ -32,7 +44,7 @@ type Data = { frameworks: { id: string; name: string; version: string; status: s
 type Person = { id: string; fullName: string; role: string };
 
 const statusLabel = (ui: Ui, s: string) => ({ CURRENT: ui("Current evidence"), STALE: ui("Stale evidence"), MISSING: ui("Needs evidence"), UNVERIFIED: ui("Not yet reviewed"), CONFLICTING: ui("Conflicting evidence") } as Record<string, string>)[s] ?? s;
-const statusTone = (s: string) => s === "CURRENT" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : s === "CONFLICTING" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-900 border-amber-200";
+const statusTone = (s: string) => (s === "CURRENT" ? "success" : s === "CONFLICTING" ? "danger" : "warning") as "success" | "danger" | "warning";
 const freshLabel = (ui: Ui, f: string) => ({ CURRENT: ui("Current"), SOURCE_CHANGED: ui("Source changed since linked"), EXPIRED: ui("Past its review date"), MISSING: ui("Source unavailable") } as Record<string, string>)[f] ?? f;
 const reviewLabel = (ui: Ui, r: string) => ({ PENDING: ui("Awaiting review"), ACCEPTED: ui("Reviewed and accepted"), MORE_REQUESTED: ui("More evidence requested") } as Record<string, string>)[r] ?? r;
 const sourceLabel = (ui: Ui, t: string) => ({ INTERVENTION: ui("Learning action"), REPORT_CARD: ui("Report card"), CLINIC_VISIT: ui("Clinic visit"), CARE_PLAN: ui("Care plan"), DOCUMENT: ui("Narrative note") } as Record<string, string>)[t] ?? t;
@@ -86,9 +98,9 @@ function ItemRow({ item, data, reload }: { item: Item; data: Data; reload: () =>
   return <li className="rounded-xl border border-border p-3 text-sm" data-evidence-item={item.id} data-freshness={item.freshness} data-review-state={item.reviewState} data-restricted={item.restricted ? "true" : "false"}>
     <div className="flex flex-wrap items-center gap-2">
       <span className="font-semibold">{item.restricted ? ui("Restricted source · {0}", [sourceLabel(ui, item.sourceType)]) : <bdi>{item.title}</bdi>}</span>
-      <span className={cn("rounded-full border px-2 py-0.5 text-xs", item.freshness === "CURRENT" ? "border-emerald-200 text-emerald-800" : "border-amber-200 text-amber-900")} data-freshness-label>{freshLabel(ui, item.freshness)}</span>
-      <span className="rounded-full border border-border px-2 py-0.5 text-xs">{reviewLabel(ui, item.reviewState)}</span>
-      {item.stance === "CONTRADICTS" ? <span className="rounded-full border border-rose-200 px-2 py-0.5 text-xs text-rose-800">{ui("Contradicts the criterion")}</span> : null}
+      <Badge size="sm" variant={item.freshness === "CURRENT" ? "success" : "warning"} data-freshness-label>{freshLabel(ui, item.freshness)}</Badge>
+      <Badge size="sm" variant="neutral">{reviewLabel(ui, item.reviewState)}</Badge>
+      {item.stance === "CONTRADICTS" ? <Badge size="sm" variant="danger">{ui("Contradicts the criterion")}</Badge> : null}
       {item.narrativeOnly ? <span className="text-xs text-ink-muted">{ui("Narrative only · not verified")}</span> : null}
     </div>
     <p className="mt-1 text-xs text-ink-muted">{sourceLabel(ui, item.sourceType)} · <bdi dir="ltr">{item.sourceVersion}</bdi> · {ui("Source date {0}", [date(item.sourceDate)])} · {ui("Review by {0}", [date(item.reviewBy)])} · {ui("Owner")}: <bdi>{item.owner}</bdi> · {audienceLabel(ui, item.audience)}</p>
@@ -119,11 +131,11 @@ function ActionCard({ action, view, data, reload }: { action: Action; view: View
   const post = async (body: Record<string, unknown>, done: string) => { try { await call("/api/improvement", "POST", body); toast.success(done); setMode(null); await reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
   return <li className="sk-panel space-y-2 p-4 text-sm" data-action={action.id} data-action-status={action.status} data-outcome={action.outcome.state}>
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold"><bdi>{action.title}</bdi></h3>
-      <div className="flex flex-wrap gap-1">{action.overdue ? <span className="rounded-full border border-rose-200 px-2 py-0.5 text-xs text-rose-800" data-action-overdue>{ui("Overdue")}</span> : null}<span className="rounded-full border border-border px-2 py-0.5 text-xs">{action.status === "COMPLETED" ? ui("Completed") : ui("Open")}</span></div></div>
+      <div className="flex flex-wrap gap-1">{action.overdue ? <Badge size="sm" variant="danger" data-action-overdue>{ui("Overdue")}</Badge> : null}<Badge size="sm" variant={action.status === "COMPLETED" ? "success" : "neutral"}>{action.status === "COMPLETED" ? ui("Completed") : ui("Open")}</Badge></div></div>
     <p className="text-xs text-ink-muted">{ui("Owner")}: <bdi>{action.owner}</bdi> · {ui("Due {0}", [date(action.dueDate)])} · {ui("Criteria")}: <bdi dir="ltr">{codes.join(", ")}</bdi></p>
     <p>{ui("Expected measure")}: <bdi>{action.expectedMeasure}</bdi></p>
     {action.learningAction ? <p className="text-xs" data-learning-action>{ui("Linked learning action")}: {action.learningAction.status}{action.learningAction.version ? ` · v${action.learningAction.version}` : ""} · {ui("Managed in learning actions; not changed here.")}</p> : null}
-    {action.milestones.length ? <ul className="text-xs">{action.milestones.map((m, i) => <li key={i}>{m.done ? "✓" : "○"} <bdi>{m.label}</bdi> · {date(m.date)}</li>)}</ul> : null}
+    {action.milestones.length ? <ul className="text-xs">{action.milestones.map((m, i) => <li key={i}><span aria-hidden="true">{m.done ? "✓" : "○"}</span><span className="sr-only">{m.done ? ui("Done") : ui("Open")}</span> <bdi>{m.label}</bdi> · {date(m.date)}</li>)}</ul> : null}
     <p className="font-semibold" data-outcome-text>{outcomeLabel(ui, action.outcome)}</p>
     {action.reflection ? <p className="text-xs"><bdi>{action.reflection}</bdi></p> : null}
     {action.status === "OPEN" && (data.mode === "LEAD" || data.mode === "STAFF") ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setMode(mode === "follow" ? null : "follow")} data-follow-open>{ui("Record follow-up measure")}</Button><Button size="sm" onClick={() => setMode(mode === "complete" ? null : "complete")} data-complete-open>{ui("Complete with evidence")}</Button></div> : null}
@@ -145,52 +157,83 @@ function ActionCard({ action, view, data, reload }: { action: Action; view: View
 export function ImprovementWorkspace() {
   const ui = useUiText();
   const { date, dateTime } = useLocaleFormat();
-  const [data, setData] = useState<Data | null>(null), [error, setError] = useState<string | null>(null), [frameworkId, setFrameworkId] = useState<string | null>(null);
+  const [data, setData] = useState<Data | null>(null), [error, setError] = useState<{ status: number; message: string } | null>(null), [frameworkId, setFrameworkId] = useState<string | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [modal, setModal] = useState<null | { kind: "framework" | "evidence" | "action" | "grant" | "export" | "interpret"; criterionId?: string }>(null);
   const [onlyGaps, setOnlyGaps] = useState(false), [open, setOpen] = useState<Record<string, boolean>>({});
+  const [revoking, setRevoking] = useState<Data["grants"][number] | null>(null), [revokeBusy, setRevokeBusy] = useState(false);
   const load = useCallback(async () => {
-    try { const d: Data = await call(`/api/improvement?view=workspace${frameworkId ? `&frameworkId=${frameworkId}` : ""}`); setData(d); setError(null); if (d.mode === "LEAD" && !people.length) setPeople(await call("/api/improvement?view=staff").catch(() => [])); }
-    catch (e) { setError(e instanceof Error ? e.message : "Unavailable"); }
+    try { const d: Data = await call(`/api/improvement?view=workspace${frameworkId ? `&frameworkId=${encodeURIComponent(frameworkId)}` : ""}`); setData(d); setError(null); if (d.mode === "LEAD" && !people.length) setPeople(await call("/api/improvement?view=staff").catch(() => [])); }
+    catch (e) { setError({ status: e instanceof RequestError ? e.status : 0, message: e instanceof Error ? e.message : "Unavailable" }); }
   }, [frameworkId, people.length]);
   useEffect(() => { void load(); }, [load]);
-  if (error) return <p className="sk-panel p-4 text-sm" role="alert" data-improvement-denied>{ui(error)}</p>;
-  if (!data) return <p className="text-sm text-ink-muted" aria-live="polite">{ui("Checking source access and evidence freshness.")}</p>;
+
+  const title = "Improvement evidence";
+  const description = "School-configured framework. No accreditation outcome is implied.";
+  // Permission (403) is an access notice naming why; any other load failure is an inline error with retry (R4).
+  if (error && !data) return <div className="min-w-0 space-y-5" data-improvement-denied>
+    <PageHeader title={title} description={description} icon={ClipboardCheck} />
+    {error.status === 403 || error.status === 404
+      ? <AccessNotice reason={error.message} />
+      : <ErrorState title={ui("Improvement evidence could not be loaded")} description={ui(error.message)} onRetry={load} />}
+  </div>;
+  if (!data) return <div className="min-w-0 space-y-5" aria-busy="true">
+    <PageHeader title={title} description={description} icon={ClipboardCheck} />
+    <SkeletonList rows={4} label={ui("Checking source access and evidence freshness.")} />
+  </div>;
+
   const view = data.view, lead = data.mode === "LEAD";
   const close = async () => { setModal(null); await load(); };
+  const canAddEvidence = Boolean(view) && data.mode !== "REVIEWER" && view?.framework.status === "ACTIVE";
+  const addEvidence: PageAction = { id: "add-evidence", label: "Add evidence", icon: Plus, onClick: () => setModal({ kind: "evidence" }) };
+  const newFramework: PageAction = { id: "new-framework", label: "New framework version", icon: Layers, onClick: () => setModal({ kind: "framework" }) };
+  // One primary per screen (§4.4): adding evidence is the everyday job; before a framework exists, a lead's first job is creating one.
+  const primaryAction = canAddEvidence ? addEvidence : lead && !data.frameworks.length ? newFramework : undefined;
+  const secondaryActions: PageAction[] = lead ? [
+    ...(view ? [{ id: "export-pack", label: "Export a versioned pack", icon: FileDown, onClick: () => setModal({ kind: "export" }) }] : []),
+    ...(primaryAction !== newFramework ? [newFramework] : []),
+  ] : [];
+  const revoke = async () => {
+    if (!revoking) return;
+    setRevokeBusy(true);
+    try { await call("/api/improvement", "POST", { action: "revoke", id: revoking.id }); toast.success(ui("Reviewer access revoked.")); setRevoking(null); await load(); }
+    catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); }
+    finally { setRevokeBusy(false); }
+  };
+
   return <div className="min-w-0 space-y-5" data-improvement data-mode={data.mode}>
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("Improvement evidence")}</h1><p className="text-sm text-ink-muted" data-disclaimer>{ui("School-configured framework. No accreditation outcome is implied.")}</p></div>
-      <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto">
-        {data.frameworks.length ? <Select className="w-full min-w-0 max-w-full sm:w-auto" value={view?.framework.id ?? ""} onChange={e => setFrameworkId(e.target.value)} aria-label={ui("Framework")} data-framework-select>{data.frameworks.map(f => <option key={f.id} value={f.id}>{f.name} · {f.version}{f.status === "RETIRED" ? ` (${ui("Retired")})` : ""}</option>)}</Select> : null}
-        {lead ? <Button variant="outline" onClick={() => setModal({ kind: "framework" })} data-framework-new>{ui("New framework version")}</Button> : null}
-      </div>
-    </header>
-    {!view ? <Alert tone="info" live="off" data-improvement-empty>{ui("No criteria mapped. Select a framework and add your first evidence link.")}</Alert> : <>
+    <PageHeader
+      title={title}
+      description={description}
+      icon={ClipboardCheck}
+      primaryAction={primaryAction}
+      secondaryActions={secondaryActions}
+      status={data.frameworks.length ? <Select className="w-full min-w-0 max-w-full sm:w-auto" value={view?.framework.id ?? ""} onChange={e => setFrameworkId(e.target.value)} aria-label={ui("Framework")} data-framework-select>{data.frameworks.map(f => <option key={f.id} value={f.id}>{f.name} · {f.version}{f.status === "RETIRED" ? ` (${ui("Retired")})` : ""}</option>)}</Select> : null}
+    />
+    {error ? <Alert tone="warning" live="polite" actions={<Button size="sm" variant="outline" onClick={() => void load()}>{ui("Try again")}</Button>}>{ui("Could not refresh. Showing the last loaded evidence.")}</Alert> : null}
+    {!view ? <section className="sk-panel" data-improvement-empty>
+      <EmptyState icon={ClipboardCheck} title={ui("No criteria mapped yet")} description={ui("No criteria mapped. Select a framework and add your first evidence link.")} primaryAction={primaryAction} />
+    </section> : <>
       <section className="sk-panel flex flex-wrap items-center justify-between gap-3 p-4" data-summary>
         <div><p className="flex items-center gap-1.5 text-lg font-bold tabular-nums text-ink-strong"><span data-summary-current>{ui("Current: {0} of {1}", [String(view.summary.current), String(view.summary.total)])}</span><InfoTip content={ui("A criterion is current when it has reviewed, accepted evidence that supports it, whose source has not changed and whose review date has not passed, and no accepted evidence contradicts it.")} /></p>
           <p className="text-sm text-ink-muted">{view.summary.needsEvidence ? ui("{0} criteria need current evidence", [String(view.summary.needsEvidence)]) : ui("Every criterion has current, reviewed evidence.")}{view.summary.overdueActions ? ` · ${ui("{0} overdue actions", [String(view.summary.overdueActions)])}` : ""} · {ui("As of {0}", [date(view.asOf)])}</p>
           {data.mode === "REVIEWER" ? <p className="text-xs text-ink-muted" data-reviewer-scope>{ui("You can review the criteria you were granted. Restricted sources stay closed.")}</p> : null}</div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant={onlyGaps ? "default" : "outline"} onClick={() => setOnlyGaps(!onlyGaps)} aria-pressed={onlyGaps} data-review-gaps>{ui("Review gaps")}</Button>
-          {data.mode !== "REVIEWER" && view.framework.status === "ACTIVE" ? <Button variant="outline" onClick={() => setModal({ kind: "evidence" })} data-evidence-add>{ui("Add evidence")}</Button> : null}
-          {lead ? <Button onClick={() => setModal({ kind: "export" })} data-export-open>{ui("Export a versioned pack")}</Button> : null}
-        </div>
+        <Button variant={onlyGaps ? "default" : "outline"} onClick={() => setOnlyGaps(!onlyGaps)} aria-pressed={onlyGaps} data-review-gaps>{ui("Review gaps")}</Button>
       </section>
 
       <section className="space-y-2" aria-labelledby="criteria-h"><h2 id="criteria-h" className="text-base font-bold">{ui("Evidence map")}</h2>
         <ul className="space-y-2">{view.criteria.filter(c => !onlyGaps || c.status !== "CURRENT" || !c.interpretationApproved).map(c => <li key={c.id} className="sk-panel p-4" data-criterion={c.code} data-criterion-status={c.status}>
           <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={!!open[c.id]} onClick={() => setOpen({ ...open, [c.id]: !open[c.id] })} data-criterion-toggle={c.code}>
-            <span className="font-bold"><bdi dir="ltr">{c.code}</bdi> · {c.title}</span>
-            <span className={cn("rounded-full border px-2 py-0.5 text-xs", statusTone(c.status))} data-criterion-status-label>{statusLabel(ui, c.status)}</span>
+            <span className="font-bold"><bdi dir="ltr">{c.code}</bdi> · <bdi>{c.title}</bdi></span>
+            <Badge size="sm" variant={statusTone(c.status)} data-criterion-status-label>{statusLabel(ui, c.status)}</Badge>
           </Button>
-          <p className="mt-1 text-xs text-ink-muted">{view.framework.name} · <bdi dir="ltr">{view.framework.version}</bdi> · {c.interpretationApproved ? <>{ui("School interpretation approved")} · <bdi>{c.interpretationApprovedBy}</bdi></> : <span data-interpretation-pending>{ui("Interpretation not yet approved")}</span>}</p>
+          <p className="mt-1 text-xs text-ink-muted"><bdi>{view.framework.name}</bdi> · <bdi dir="ltr">{view.framework.version}</bdi> · {c.interpretationApproved ? <>{ui("School interpretation approved")} · <bdi>{c.interpretationApprovedBy}</bdi></> : <span data-interpretation-pending>{ui("Interpretation not yet approved")}</span>}</p>
           {open[c.id] ? <div className="mt-3 space-y-2">
             {c.interpretation ? <p className="text-sm"><bdi>{c.interpretation}</bdi></p> : null}
             {lead ? <Button size="sm" variant="ghost" onClick={() => setModal({ kind: "interpret", criterionId: c.id })} data-interpret-open={c.code}>{ui("Approve interpretation")}</Button> : null}
-            {c.gaps.length ? <ul className="text-xs text-amber-900" data-criterion-gaps>{[...(!c.interpretationApproved ? [ui("Interpretation not yet approved")] : []), ...(gapText(ui, c.status) ? [gapText(ui, c.status)] : []), ...c.items.filter(i => i.freshness !== "CURRENT").map(i => `${i.restricted ? ui("Restricted source · {0}", [sourceLabel(ui, i.sourceType)]) : i.title} — ${freshLabel(ui, i.freshness)}`)].map((g, i) => <li key={i}><bdi>{g}</bdi></li>)}</ul> : null}
+            {c.gaps.length ? <ul className="text-xs text-status-warning-text" data-criterion-gaps>{[...(!c.interpretationApproved ? [ui("Interpretation not yet approved")] : []), ...(gapText(ui, c.status) ? [gapText(ui, c.status)] : []), ...c.items.filter(i => i.freshness !== "CURRENT").map(i => `${i.restricted ? ui("Restricted source · {0}", [sourceLabel(ui, i.sourceType)]) : i.title} — ${freshLabel(ui, i.freshness)}`)].map((g, i) => <li key={i}><bdi>{g}</bdi></li>)}</ul> : null}
             {c.items.length ? <ul className="space-y-2">{c.items.map(i => <ItemRow key={i.id} item={i} data={data} reload={load} />)}</ul> : <p className="text-sm text-ink-muted">{ui("No evidence linked")}</p>}
-            {data.mode !== "REVIEWER" && view.framework.status === "ACTIVE" ? <Button size="sm" variant="outline" onClick={() => setModal({ kind: "evidence", criterionId: c.id })} data-evidence-add-for={c.code}>{ui("Add evidence")}</Button> : null}
+            {canAddEvidence ? <Button size="sm" variant="outline" onClick={() => setModal({ kind: "evidence", criterionId: c.id })} data-evidence-add-for={c.code}>{ui("Add evidence")}</Button> : null}
           </div> : null}
         </li>)}</ul>
       </section>
@@ -200,21 +243,32 @@ export function ImprovementWorkspace() {
       </section>
 
       {lead ? <section className="sk-panel space-y-2 p-4" data-grants><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Reviewer access")}</h2><Button size="sm" variant="outline" onClick={() => setModal({ kind: "grant" })} data-grant-open>{ui("Grant reviewer access")}</Button></div>
-        {data.grants.length ? <ul className="space-y-1 text-sm">{data.grants.map(g => <li key={g.id} className="flex flex-wrap items-center justify-between gap-2" data-grant={g.userId}><span><bdi>{g.name}</bdi> · {ui("{0} criteria", [String(g.criterionIds.length)])} · {ui("Until {0}", [date(g.expiresAt)])}</span><Button size="sm" variant="ghost" data-grant-revoke onClick={async () => { try { await call("/api/improvement", "POST", { action: "revoke", id: g.id }); toast.success(ui("Reviewer access revoked.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } }}>{ui("Revoke")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No reviewer has access.")}</p>}
+        {data.grants.length ? <ul className="space-y-1 text-sm">{data.grants.map(g => <li key={g.id} className="flex flex-wrap items-center justify-between gap-2" data-grant={g.userId}><span><bdi>{g.name}</bdi> · {ui("{0} criteria", [String(g.criterionIds.length)])} · {ui("Until {0}", [date(g.expiresAt)])}</span><Button size="sm" variant="ghost" className="text-destructive" data-grant-revoke onClick={() => setRevoking(g)}>{ui("Revoke")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No reviewer has access.")}</p>}
       </section> : null}
 
       {data.packs.length ? <section className="sk-panel space-y-2 p-4" data-packs><h2 className="text-base font-bold">{ui("Evidence packs")}</h2>
         <ul className="space-y-1 text-sm">{data.packs.map(p => <li key={p.id} className="flex flex-wrap items-center justify-between gap-2" data-pack={p.version}><span>{ui("Version {0}", [String(p.version)])} · {p.audience === "EXTERNAL" ? ui("External") : ui("Staff")} · {dateTime(p.createdAt)} · {ui("{0} marked gaps", [String(p.gaps)])} · <bdi dir="ltr" className="font-mono text-xs">{p.digest.slice(0, 12)}</bdi></span>
-          {data.mode !== "STAFF" ? <Button size="sm" variant="ghost" data-pack-download={p.version} onClick={async () => { try { const d = await call(`/api/improvement?view=pack&id=${p.id}`); const url = URL.createObjectURL(new Blob([JSON.stringify({ digest: d.digest, manifest: d.manifest }, null, 2)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = `evidence-pack-v${d.version}.json`; a.click(); URL.revokeObjectURL(url); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } }}>{ui("Download")}</Button> : null}</li>)}</ul>
+          {data.mode !== "STAFF" ? <Button size="sm" variant="ghost" data-pack-download={p.version} onClick={async () => { try { const d = await call(`/api/improvement?view=pack&id=${encodeURIComponent(p.id)}`); const url = URL.createObjectURL(new Blob([JSON.stringify({ digest: d.digest, manifest: d.manifest }, null, 2)], { type: "application/json" })); const a = document.createElement("a"); a.href = url; a.download = `evidence-pack-v${d.version}.json`; a.click(); URL.revokeObjectURL(url); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } }}>{ui("Download")}</Button> : null}</li>)}</ul>
       </section> : null}
     </>}
 
-    {modal?.kind === "framework" ? <ModalFrame title={ui("New framework version")} onClose={() => setModal(null)}><FrameworkForm data={data} onDone={close} /></ModalFrame> : null}
-    {modal?.kind === "evidence" && view ? <ModalFrame title={ui("Add evidence")} onClose={() => setModal(null)}><EvidenceForm view={view} preset={modal.criterionId ?? null} onDone={close} /></ModalFrame> : null}
-    {modal?.kind === "action" && view ? <ModalFrame title={ui("Create an improvement action")} onClose={() => setModal(null)}><ActionForm view={view} people={people} onDone={close} /></ModalFrame> : null}
-    {modal?.kind === "grant" && view ? <ModalFrame title={ui("Grant reviewer access")} onClose={() => setModal(null)}><GrantForm view={view} people={people} onDone={close} /></ModalFrame> : null}
-    {modal?.kind === "export" && view ? <ModalFrame title={ui("Export a versioned pack")} onClose={() => setModal(null)}><ExportForm view={view} onDone={close} /></ModalFrame> : null}
-    {modal?.kind === "interpret" && view ? <ModalFrame title={ui("Approve interpretation")} onClose={() => setModal(null)}><InterpretForm criterion={view.criteria.find(c => c.id === modal.criterionId)!} onDone={close} /></ModalFrame> : null}
+    {modal?.kind === "framework" ? <Modal title={ui("New framework version")} icon={Layers} size="lg" onClose={() => setModal(null)}><FrameworkForm data={data} onDone={close} /></Modal> : null}
+    {modal?.kind === "evidence" && view ? <Modal title={ui("Add evidence")} icon={Plus} size="lg" onClose={() => setModal(null)}><EvidenceForm view={view} preset={modal.criterionId ?? null} onDone={close} /></Modal> : null}
+    {modal?.kind === "action" && view ? <Modal title={ui("Create an improvement action")} size="lg" onClose={() => setModal(null)}><ActionForm view={view} people={people} onDone={close} /></Modal> : null}
+    {modal?.kind === "grant" && view ? <Modal title={ui("Grant reviewer access")} size="lg" onClose={() => setModal(null)}><GrantForm view={view} people={people} onDone={close} /></Modal> : null}
+    {modal?.kind === "export" && view ? <Modal title={ui("Export a versioned pack")} icon={FileDown} size="lg" onClose={() => setModal(null)}><ExportForm view={view} onDone={close} /></Modal> : null}
+    {modal?.kind === "interpret" && view ? <Modal title={ui("Approve interpretation")} size="lg" onClose={() => setModal(null)}><InterpretForm criterion={view.criteria.find(c => c.id === modal.criterionId)!} onDone={close} /></Modal> : null}
+    <ConfirmAction
+      open={Boolean(revoking)}
+      tone="danger"
+      title={ui("Revoke reviewer access?")}
+      description={revoking ? ui("{0} can no longer open these criteria or their evidence. You can grant access again later.", [revoking.name]) : ""}
+      confirmLabel={ui("Revoke")}
+      cancelLabel={ui("Keep editing")}
+      busy={revokeBusy}
+      onConfirm={revoke}
+      onCancel={() => setRevoking(null)}
+    />
   </div>;
 }
 

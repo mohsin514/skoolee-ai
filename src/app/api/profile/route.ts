@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { dashboardPathForRole, roleLabel } from "@/lib/roles";
+import { dashboardPathForRole, roleLabelFor, type UserRole } from "@/lib/roles";
+import type { InstitutionKind } from "@/lib/auth/institution";
+import { getDisplayLocale } from "@/lib/locale/display";
+import type { Language } from "@/lib/locale/package";
 import { deleteFile } from "@/lib/storage/s3";
 
 function cleanOptionalText(value: unknown) {
@@ -67,14 +70,17 @@ type ProfileUser = {
   city: string | null;
 };
 
-function toProfile(user: ProfileUser) {
+function toProfile(user: ProfileUser, institutionKind?: InstitutionKind, language: Language = "en") {
   return {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
     phone: user.phone || "",
     role: user.role,
-    roleLabel: roleLabel(user.role),
+    // Mode-aware (§1.5): "School admin" in a standalone school, "Campus admin" in a group, in the viewer's display
+    // language; roleLabelKey is the EN key for a client that re-translates after a language switch.
+    roleLabel: roleLabelFor({ role: user.role as UserRole, institutionKind }, language),
+    roleLabelKey: roleLabelFor({ role: user.role as UserRole, institutionKind }),
     dashboardPath: dashboardPathForRole(user.role),
     profileImageUrl: user.profileImageUrl || "",
     qualification: user.qualification || "",
@@ -91,14 +97,15 @@ function toProfile(user: ProfileUser) {
 
 export async function GET() {
   try {
-    const session = await requireAuthUser();
+    // A shell read: the suspended minimal shell still shows who is signed in (G43, K-I14).
+    const session = await requireAuthUser({ allowSuspended: true });
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: PROFILE_SELECT,
     });
 
     if (!user) throw new ApiError("Profile not found", 404);
-    return Response.json({ success: true, profile: toProfile(user) });
+    return Response.json({ success: true, profile: toProfile(user, session.institutionKind, (await getDisplayLocale(session)).language) });
   } catch (error) {
     return errorResponse(error, "[profile] GET failed");
   }
@@ -160,7 +167,7 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    return Response.json({ success: true, profile: toProfile(user) });
+    return Response.json({ success: true, profile: toProfile(user, session.institutionKind, (await getDisplayLocale(session)).language) });
   } catch (error) {
     return errorResponse(error, "[profile] PATCH failed");
   }

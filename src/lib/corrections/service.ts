@@ -6,9 +6,11 @@ import { capturePaymentReceipt } from "@/lib/fees/receipt";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertPermission } from "@/lib/api/scope";
+import { ApiError, assertPermission, canApproveFinance, canLeadAcademics } from "@/lib/api/scope";
 import { campusScope, studentScope, isFamily } from "@/lib/auth/policy";
-import { isCampusAdminRole } from "@/lib/roles";
+import { isCampusOperator } from "@/lib/auth/institution";
+import { getCampusSeats } from "@/lib/auth/seats";
+import { notifyCorrectionRequested } from "@/lib/notifications/events";
 import { contentHash, refreshVersion, versionTransaction } from "@/lib/academic/report-versions";
 import { gradeForMark, thresholdsForClass } from "@/lib/academic/report-cards";
 import { assertSeparateApprover, validateCorrectionRequest, previewMarkCorrection, previewPaymentReversal, invoiceAfterReversal } from "./domain";
@@ -25,15 +27,52 @@ export type Proposal = {
     }[];
     unappliedMinor?: number;
 };
-const academic = (u: AuthUser) => u.role === "SUPER_ADMIN" || u.role === "PRINCIPAL" || isCampusAdminRole(u.role);
-export async function permit(user: AuthUser, kind: Kind, write = false, approve = false) {
+/*
+ * role-ux G28a / §2.3 #69 / §2.4 #85 — who does what with each correction kind:
+ *  - MARK: the teacher requests; the academic lead (the principal, or the campus admin while the campus has no
+ *    principal) approves. The principal and the academic lead read the history; the group admin keeps a read.
+ *  - PAYMENT: the finance desk requests (the accountant, or the campus admin while the campus has no accountant);
+ *    the campus admin approves (canApproveFinance; the group admin is server-side break-glass only).
+ * The separate-approver rule stays the school's existing correctionSeparateApprover policy (not SD3).
+ */
+async function canReadKind(user: AuthUser, kind: Kind) {
+    if (kind === "MARK")
+        return user.role === "TEACHER" || user.role === "PRINCIPAL" || user.role === "SUPER_ADMIN" || (isCampusOperator(user) && await canLeadAcademics(user, user.campusId));
+    return user.role === "ACCOUNTANT" || user.role === "SUPER_ADMIN" || isCampusOperator(user);
+}
+async function canRequestKind(user: AuthUser, kind: Kind) {
+    if (kind === "MARK")
+        return user.role === "TEACHER";
+    if (user.role === "ACCOUNTANT")
+        return true;
+    return isCampusOperator(user) && !(await getCampusSeats(user.schoolId, user.campusId ?? null)).accountant;
+}
+async function canApproveKind(user: AuthUser, kind: Kind, campusId: string | null) {
+    return kind === "MARK" ? canLeadAcademics(user, campusId) : canApproveFinance(user);
+}
+/** The correction kinds this person may open on /corrections (families: their children's applied history of both). */
+export async function permittedKinds(user: AuthUser): Promise<Kind[]> {
+    if (isFamily(user))
+        return ["MARK", "PAYMENT"];
+    const kinds: Kind[] = [];
+    for (const kind of ["MARK", "PAYMENT"] as const)
+        if (await canReadKind(user, kind))
+            kinds.push(kind);
+    return kinds;
+}
+export async function permit(user: AuthUser, kind: Kind, write = false, approve = false, campusId?: string | null) {
     if (isFamily(user)) {
         if (write)
             throw new ApiError("Only authorized staff can request corrections", 403);
         return;
     }
-    if (kind === "MARK" ? !(academic(user) || (!approve && user.role === "TEACHER")) : !(academic(user) || user.role === "ACCOUNTANT"))
-        throw new ApiError("This role cannot review this correction domain", 403);
+    const allowed = approve ? await canApproveKind(user, kind, campusId ?? user.campusId ?? null) : write ? await canRequestKind(user, kind) : await canReadKind(user, kind);
+    if (!allowed)
+        throw new ApiError(approve
+            ? kind === "MARK" ? "Only the academic lead approves mark corrections." : "Only your campus admin approves payment corrections."
+            : write
+                ? kind === "MARK" ? "Teachers request mark corrections for their own classes." : "The finance desk requests payment corrections."
+                : "This role cannot review this correction domain", 403);
     await assertPermission(user, kind === "MARK" ? "reports" : "fees", write ? "edit" : "view");
 }
 async function source(tx: TxClient, user: AuthUser, kind: Kind, id: string) {
@@ -100,7 +139,7 @@ export async function requestCorrection(user: AuthUser, proposal: Proposal, revi
     privateNote?: string;
 }) {
     const text = validateCorrectionRequest(explanation);
-    return versionTransaction(async (tx) => {
+    const correction = await versionTransaction(async (tx) => {
         const p = await preview(tx, user, proposal);
         if (p.hash !== reviewHash)
             throw new ApiError("Review the current before/after preview before submitting", 409);
@@ -109,12 +148,27 @@ export async function requestCorrection(user: AuthUser, proposal: Proposal, revi
             await tx.correctionNote.create({ data: { schoolId: user.schoolId, campusId: p.campusId, correctionId: correction.id, text: text.privateNote } });
         return correction;
     });
+    // After commit, fire-and-forget: the checker seat (campus admin for PAYMENT, academic lead for MARK) is told.
+    void Promise.resolve()
+        .then(() => notifyCorrectionRequested({ schoolId: correction.schoolId, campusId: correction.campusId, correctionId: correction.id, kind: correction.kind as Kind, requesterId: user.userId }))
+        .catch((error) => console.error("[corrections] request notice failed", error));
+    return correction;
 }
-export async function decideCorrection(user: AuthUser, id: string, decision: "APPLIED" | "REJECTED", reviewHash: string) {
+/** Typed reason floor for a payment-correction decision (role-ux R3, §4.5.5: money decisions carry a reason). */
+export const DECISION_REASON_MIN = 10;
+/**
+ * Approve or reject a pending correction. `reason` (P8-10): a caller that carries decision reasons passes a string
+ * or null; a payment decision then needs a typed reason of at least `DECISION_REASON_MIN` characters, kept in the
+ * decision's audit row. `undefined` is the older caller that sends no reason (accepted until the route passes one).
+ */
+export async function decideCorrection(user: AuthUser, id: string, decision: "APPLIED" | "REJECTED", reviewHash: string, reason?: string | null) {
+    const why = reason === undefined ? undefined : String(reason ?? "").trim().slice(0, 2000);
     return versionTransaction(async (tx) => {
         const c = await tx.correction.findFirst({ where: { id, ...campusScope(user) } });
         if (!c)
             throw new ApiError("Correction unavailable", 403);
+        if (c.kind === "PAYMENT" && why !== undefined && why.length < DECISION_REASON_MIN)
+            throw new ApiError(`Give a reason of at least ${DECISION_REASON_MIN} characters for this decision. It is kept with the record.`, 400);
         if (c.kind === "PAYMENT") {
             await lockInvoiceGeneration(tx, user.schoolId, c.campusId);
             const actor = await tx.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
@@ -123,7 +177,7 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
             await assertWorkspacePermission(user, "fees", "view", grants);
             await assertWorkspacePermission(user, "fees", "edit", grants);
         }
-        await permit(user, c.kind as Kind, true, true);
+        await permit(user, c.kind as Kind, true, true, c.campusId);
         const policy = await tx.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { correctionSeparateApprover: true } });
         try {
             assertSeparateApprover(c.requesterId, user.userId, c.separateApprover || policy.correctionSeparateApprover);
@@ -199,11 +253,14 @@ export async function decideCorrection(user: AuthUser, id: string, decision: "AP
                 await capturePaymentReceipt(tx, receipt.id);
             }
         }
+        if (why)
+            await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "corrections", recordId: c.id, userId: user.userId, oldValue: { status: "PENDING" }, newValue: { status: decision, kind: c.kind, reason: why } } });
         return tx.correction.update({ where: { id }, data: { status: decision, approverId: user.userId, approverName: user.fullName ?? user.role, decidedAt: new Date(), successorId, reportVersionIds } });
     });
 }
 export async function history(user: AuthUser, kind: Kind) {
     await permit(user, kind);
+    const approver = !isFamily(user) && await canApproveKind(user, kind, user.campusId ?? null);
     // A parent reaches a pupil through either a live guardian relationship
     // (current model) or the pupil's explicit parent account link. Corrections
     // keep both so a linked parent still sees the child's released history.
@@ -233,15 +290,22 @@ export async function history(user: AuthUser, kind: Kind) {
                 }
             }
             const note = await prisma.correctionNote.findUnique({ where: { correctionId: row.id } });
-            output.push({ ...row, privateNote: note?.text ?? null, released, canApprove: (kind === "PAYMENT" || academic(user)) && (!row.separateApprover || row.requesterId !== user.userId) });
+            output.push({ ...row, privateNote: note?.text ?? null, released, canApprove: approver && (!row.separateApprover || row.requesterId !== user.userId) });
         }
     }
     return output;
 }
-export async function catalog(user: AuthUser, kind: Kind) {
+/**
+ * The records this viewer may file a correction on, with `canRequest` computed by the same rule the request path
+ * enforces (P8-03, §4.5.11): the request form and the "Request correction" primary appear only for a requester
+ * (teachers for marks; the accountant, or a campus admin while the campus has no accountant, for payments).
+ * Approvers and readers get no records and no form.
+ */
+export async function catalog(user: AuthUser, kind: Kind): Promise<{ canRequest: boolean; items: Array<{ id: string; label: string; version: string; original: unknown }> }> {
     await permit(user, kind);
-    if (isFamily(user))
-        return [];
+    if (isFamily(user) || !(await canRequestKind(user, kind)))
+        return { canRequest: false, items: [] };
     const ids = kind === "MARK" ? await prisma.mark.findMany({ where: { ...campusScope(user), ...(user.role === "TEACHER" ? { OR: [{ subject: { teacherId: user.userId } }, { exam: { class: { classTeacherId: user.userId } } }] } : {}) }, select: { id: true }, take: 100 }) : await prisma.payment.findMany({ where: { ...campusScope(user), amount: { gt: 0 }, reversalOfId: null }, select: { id: true }, orderBy: { createdAt: "desc" }, take: 100 });
-    return Promise.all(ids.map(async ({ id }) => { const s = await source(prisma, user, kind, id); return { id, label: s.label, version: s.version, original: s.snapshot }; }));
+    const items = await Promise.all(ids.map(async ({ id }) => { const s = await source(prisma, user, kind, id); return { id, label: s.label, version: s.version, original: s.snapshot as unknown }; }));
+    return { canRequest: true, items };
 }

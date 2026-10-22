@@ -4,6 +4,11 @@ import { cn } from "@/lib/utils";
 import { cardSurface } from "./card";
 import { Skeleton } from "./skeleton";
 
+/**
+ * @deprecated Product screens use `PageHeader` (src/components/ui/page-header.tsx, §8.1 R1), which carries the
+ * spotlight anchors and the one-primary-action rule. Kept only for the design-system reference page, which
+ * renders rich (non-string) titles.
+ */
 export function TaskHeader({ scope, title, description, action }: { scope: ReactNode; title: ReactNode; description?: ReactNode; action?: ReactNode }) {
   return <header className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:flex-wrap">
     <div className="min-w-0 flex-1">
@@ -17,9 +22,9 @@ export function TaskHeader({ scope, title, description, action }: { scope: React
 
 const FEEDBACK = {
   empty: { icon: Inbox, chip: "bg-brand-50 text-primary ring-brand-200/70", edge: "" },
-  error: { icon: AlertTriangle, chip: "bg-status-error-surface text-red-700 ring-status-error-border", edge: "border-status-error-border" },
-  permission: { icon: Lock, chip: "bg-status-warning-surface text-amber-700 ring-status-warning-border", edge: "border-status-warning-border" },
-  success: { icon: CheckCircle2, chip: "bg-status-success-surface text-emerald-700 ring-status-success-border", edge: "border-status-success-border" },
+  error: { icon: AlertTriangle, chip: "bg-status-error-surface text-status-error-text ring-status-error-border", edge: "border-status-error-border" },
+  permission: { icon: Lock, chip: "bg-status-warning-surface text-status-warning-text ring-status-warning-border", edge: "border-status-warning-border" },
+  success: { icon: CheckCircle2, chip: "bg-status-success-surface text-status-success-text ring-status-success-border", edge: "border-status-success-border" },
 } as const;
 
 export function TaskFeedback({ kind, title, children, action }: { kind: 'empty' | 'error' | 'permission' | 'success'; title: string; children?: ReactNode; action?: ReactNode }) {

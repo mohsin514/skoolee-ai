@@ -1,11 +1,13 @@
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canManageCampusOps } from "@/lib/api/scope";
+import { isCampusOperator } from "@/lib/auth/institution";
 import { guardianHasAccess } from "@/lib/parent/guardian-access";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { tripConsentStatus } from "@/lib/family/trips";
 import { requestAdjustment } from "@/lib/fees/adjustments-service";
+import { getLocalePackage } from "@/lib/locale/store";
 
 // SKO-440: clubs, sports and trips on one roster.
 // - Interest, reservation and confirmed participation are separate states. Places are taken under a row lock
@@ -25,10 +27,18 @@ const HOLDING = ["OFFERED", "RESERVED", "CONFIRMED"];
 const ACTIVE = ["WAITLIST", ...HOLDING];
 const KINDS = ["CLUB", "SPORT", "TRIP"] as const;
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
-const isCoordinator = (user: AuthUser, activity?: { coordinatorId: string; staffIds: string[]; campusId: string }) => (canManageOperations(user) && (!activity || user.role === "SUPER_ADMIN" || user.campusId === activity.campusId)) || Boolean(activity && (activity.coordinatorId === user.userId || activity.staffIds.includes(user.userId)));
+// role-ux G38 / §2.2 #46: campus admins run every activity on their campus; coordinators and named staff run their
+// own. Money and cancellation (waive, refund hand-off, cancel) belong to the campus admin only.
+const isCoordinator = (user: AuthUser, activity?: { coordinatorId: string; staffIds: string[]; campusId: string }) => (canManageCampusOps(user) && (!activity || user.role === "SUPER_ADMIN" || user.campusId === activity.campusId)) || Boolean(activity && (activity.coordinatorId === user.userId || activity.staffIds.includes(user.userId)));
+// Every staff seat may be named coordinator or staff on an activity (the `activityStaff` capability counts the same
+// roles); families, learners and the platform operator never use the staff desk.
+const STAFF_ROLES: ReadonlySet<string> = new Set(["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN"]);
+// §2.2 #46: campus operations and teachers publish; the principal oversees (reads every activity on the campus).
+const canPublish = (user: AuthUser) => canManageCampusOps(user) || user.role === "TEACHER";
+const readsCampus = (user: AuthUser, activity?: { campusId: string }) => user.role === "PRINCIPAL" && (!activity || user.campusId === activity.campusId);
 
 export async function createActivity(user: AuthUser, body: Record<string, unknown>) {
-  if (!canManageOperations(user) && user.role !== "TEACHER") throw new ApiError("Only staff publish activities.", 403);
+  if (!canPublish(user)) throw new ApiError("Only your campus admin and teachers publish activities.", 403);
   const kind = String(body.kind ?? "");
   if (!KINDS.includes(kind as typeof KINDS[number])) throw new ApiError("Choose club, sport or trip.", 400);
   const title = text(body.title, 120), location = text(body.location, 160), cancellationTerms = text(body.cancellationTerms, 600);
@@ -47,7 +57,7 @@ export async function createActivity(user: AuthUser, body: Record<string, unknow
   if (tripId && !await prisma.trip.count({ where: { id: tripId, schoolId: user.schoolId, campusId, status: "OPEN" } })) throw new ApiError("Trip not found", 400);
   const offerHours = Number(body.offerHours ?? 48);
   try {
-    return await prisma.activity.create({ data: { schoolId: user.schoolId, campusId, kind, title, description: text(body.description, 2000), location, startsAt, endsAt, capacity, classIds, staffIds: (Array.isArray(body.staffIds) ? body.staffIds : []).map(String), costAmount, costCurrency: text(body.costCurrency, 3).toUpperCase() || "PKR", tripId, offerHours: Number.isInteger(offerHours) && offerHours >= 1 && offerHours <= 336 ? offerHours : 48, cancellationTerms, coordinatorId: user.userId } });
+    return await prisma.activity.create({ data: { schoolId: user.schoolId, campusId, kind, title, description: text(body.description, 2000), location, startsAt, endsAt, capacity, classIds, staffIds: (Array.isArray(body.staffIds) ? body.staffIds : []).map(String), costAmount, costCurrency: text(body.costCurrency, 3).toUpperCase() || (await getLocalePackage(user.schoolId, campusId || null)).currency, tripId, offerHours: Number.isInteger(offerHours) && offerHours >= 1 && offerHours <= 336 ? offerHours : 48, cancellationTerms, coordinatorId: user.userId } });
   } catch (error) { if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError("This trip already has an activity.", 409); throw error; }
 }
 
@@ -193,7 +203,7 @@ export async function cancelPlace(user: AuthUser, body: Record<string, unknown>)
 /** Coordinator hands a paid cancellation to finance as one refund request (idempotent per place). */
 export async function requestRefund(user: AuthUser, body: Record<string, unknown>) {
   const place = await prisma.activityPlace.findFirst({ where: { id: String(body.placeId ?? ""), schoolId: user.schoolId }, include: { activity: true } });
-  if (!place || !isCoordinator(user, place.activity) || !canManageOperations(user)) throw new ApiError("Only campus leaders hand refunds to finance.", 403);
+  if (!place || !isCoordinator(user, place.activity) || !isCampusOperator(user)) throw new ApiError("Only your campus admin hands refunds to finance.", 403);
   if (place.refundState === "REQUESTED" && place.refundAdjustmentId) return { adjustmentId: place.refundAdjustmentId, repeated: true };
   if (place.status !== "CANCELLED" || place.refundState !== "NEEDED" || !place.invoiceId) throw new ApiError("Only a cancelled paid place with its invoice can be refunded.", 409);
   const adjustment = await requestAdjustment(user, { kind: "REFUND", invoiceId: place.invoiceId, paymentId: place.paymentId, amount: place.activity.costAmount, reasonCategory: "WITHDRAWAL", reason: `Activity place cancelled: ${place.activity.title}`, publicExplanation: "Refund for a cancelled activity place, following the stated cancellation terms.", idempotencyKey: `activity-refund-${place.id}` });
@@ -215,8 +225,12 @@ export async function recordFee(user: AuthUser, body: Record<string, unknown>) {
       if (!await tx.invoice.count({ where: { id: invoiceId, schoolId: user.schoolId, studentId: first.studentId } })) throw new ApiError("Choose this learner's invoice that records the payment.", 400);
       paymentId = body.paymentId ? String(body.paymentId) : null;
     }
-    if (status === "WAIVED" && !canManageOperations(user)) throw new ApiError("Only campus leaders waive a fee.", 403);
+    if (status === "WAIVED" && !isCampusOperator(user)) throw new ApiError("Only your campus admin waives a fee.", 403);
+    // A waiver is a money decision: it carries a reason (≥ 10 characters) recorded in the audit trail (role-ux R3).
+    const reason = status === "WAIVED" ? text(body.reason, 500) : "";
+    if (status === "WAIVED" && reason.length < 10) throw new ApiError("Give a reason of at least 10 characters for waiving this fee.", 400);
     await tx.activityPlace.update({ where: { id: first.id }, data: { feeStatus: status, invoiceId, paymentId, version: { increment: 1 } } });
+    if (status === "WAIVED") await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "activity_places", recordId: first.id, userId: user.userId, oldValue: { feeStatus: first.feeStatus }, newValue: { feeStatus: "WAIVED", reason } } });
     await syncRequirements(tx, activity);
     return { feeStatus: status };
   });
@@ -253,7 +267,8 @@ export async function familyActivities(user: AuthUser, studentId: string) {
 /** Coordinator roster: who is confirmed or conditional and what is missing; no care or medical detail. */
 export async function roster(user: AuthUser, activityId: string) {
   const activity = await prisma.activity.findFirst({ where: { id: activityId, schoolId: user.schoolId } });
-  if (!activity || !isCoordinator(user, activity)) throw new ApiError("Activity not found", 404);
+  // The principal reads any roster on the campus (oversight, §2.2 #46); only its coordinators run it.
+  if (!activity || (!isCoordinator(user, activity) && !readsCampus(user, activity))) throw new ApiError("Activity not found", 404);
   await prisma.$transaction(async tx => { await settle(tx as TxClient, activity); await syncRequirements(tx as TxClient, activity); });
   const places = await prisma.activityPlace.findMany({ where: { activityId }, orderBy: { createdAt: "asc" } });
   const students = new Map((await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: places.map(p => p.studentId) } }, select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } } })).map(s => [s.id, s]));
@@ -261,22 +276,28 @@ export async function roster(user: AuthUser, activityId: string) {
   const sessions = await prisma.activitySession.findMany({ where: { activityId }, orderBy: { startsAt: "asc" } });
   const marks = sessions.length ? await prisma.activityAttendance.findMany({ where: { sessionId: { in: sessions.map(s => s.id) } } }) : [];
   return {
-    activity: { ...activity, placesTaken: places.filter(p => HOLDING.includes(p.status)).length },
+    activity: { ...activity, placesTaken: places.filter(p => HOLDING.includes(p.status)).length, canRun: isCoordinator(user, activity) },
     places: places.map(p => { const s = students.get(p.studentId); return { id: p.id, studentId: p.studentId, name: s?.fullName ?? "", className: [s?.class?.name, s?.class?.section].filter(Boolean).join(" "), status: p.status, version: p.version, offerExpiresAt: p.offerExpiresAt, feeStatus: p.feeStatus, invoiceId: p.invoiceId, refundState: p.refundState, refundAdjustmentId: p.refundAdjustmentId, cancelReason: p.cancelReason, requirements: requirements(activity, p, consent?.get(p.studentId)) }; }),
     sessions: sessions.map(s => ({ ...s, marks: marks.filter(m => m.sessionId === s.id).map(m => ({ studentId: m.studentId, status: m.status })) })),
   };
 }
 
 export async function staffActivities(user: AuthUser) {
-  if (!canManageOperations(user) && user.role !== "TEACHER") throw new ApiError("Activities are for staff.", 403);
-  const where: Prisma.ActivityWhereInput = { schoolId: user.schoolId, ...(canManageOperations(user) ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { OR: [{ coordinatorId: user.userId }, { staffIds: { has: user.userId } }] }) };
+  // P8-01: any staff member lists the activities they coordinate or staff; campus operators run every activity on
+  // their campus and the principal reads them (§2.2 #46 PR = R). The nav entry (`activityStaff`) never leads to a 403.
+  if (!STAFF_ROLES.has(user.role)) throw new ApiError("Activities are for staff.", 403);
+  const campusWide = canManageCampusOps(user) || readsCampus(user);
+  const where: Prisma.ActivityWhereInput = { schoolId: user.schoolId, ...(campusWide ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { OR: [{ coordinatorId: user.userId }, { staffIds: { has: user.userId } }] }) };
   const rows = await prisma.activity.findMany({ where, orderBy: { startsAt: "asc" }, take: 100 });
   const counts = rows.length ? await prisma.activityPlace.groupBy({ by: ["activityId", "status"], where: { activityId: { in: rows.map(r => r.id) } }, _count: { _all: true } }) : [];
   const [classes, trips] = await Promise.all([
     prisma.class.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? undefined, archivedAt: null }, select: { id: true, name: true, section: true }, orderBy: { name: "asc" } }),
     prisma.trip.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? undefined, status: "OPEN" }, include: { versions: { orderBy: { version: "desc" }, take: 1, select: { title: true } } } }),
   ]);
-  return { activities: rows.map(r => ({ ...r, counts: Object.fromEntries(counts.filter(c => c.activityId === r.id).map(c => [c.status, c._count._all])) })), classes: classes.map(c => ({ id: c.id, name: [c.name, c.section].filter(Boolean).join(" ") })), trips: trips.map(t => ({ id: t.id, title: t.versions[0]?.title ?? "" })) };
+  // canLead: waive, refund hand-off and cancel are offered only to the campus admin (M71), never shown-then-refused.
+  // canPublish / canRun: "Publish activity" and the roster's session, attendance and cancel controls are offered only
+  // to those the server lets act (§4.5.11) — the principal reads; coordinators and campus operators run.
+  return { activities: rows.map(r => ({ ...r, canRun: isCoordinator(user, r), counts: Object.fromEntries(counts.filter(c => c.activityId === r.id).map(c => [c.status, c._count._all])) })), classes: classes.map(c => ({ id: c.id, name: [c.name, c.section].filter(Boolean).join(" ") })), trips: trips.map(t => ({ id: t.id, title: t.versions[0]?.title ?? "" })), canLead: isCampusOperator(user), canPublish: canPublish(user), currency: (await getLocalePackage(user.schoolId, user.campusId ?? null)).currency };
 }
 
 export async function addSession(user: AuthUser, body: Record<string, unknown>) {
@@ -300,7 +321,7 @@ export async function markAttendance(user: AuthUser, body: Record<string, unknow
 export async function cancelActivity(user: AuthUser, activityId: string) {
   return schoolAiTransaction(user, async tx => {
     const activity = await lockActivity(tx, user.schoolId, activityId);
-    if (!isCoordinator(user, activity) || !canManageOperations(user)) throw new ApiError("Only campus leaders cancel an activity.", 403);
+    if (!isCoordinator(user, activity) || !isCampusOperator(user)) throw new ApiError("Only your campus admin cancels an activity.", 403);
     await tx.activity.update({ where: { id: activity.id }, data: { status: "CANCELLED" } });
     const live = await tx.activityPlace.findMany({ where: { activityId, status: { in: ACTIVE } } });
     for (const p of live) await tx.activityPlace.update({ where: { id: p.id }, data: { status: "CANCELLED", cancelledAt: new Date(), cancelledById: user.userId, cancelReason: "Activity cancelled by the school", refundState: p.feeStatus === "PAID" ? "NEEDED" : null, version: { increment: 1 } } });

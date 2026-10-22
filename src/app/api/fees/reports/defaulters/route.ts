@@ -1,3 +1,4 @@
+import { dominantInvoiceCurrency } from "../invoice-currency";
 import { getLocalePackage } from "@/lib/locale/store";
 import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
@@ -21,9 +22,10 @@ export async function GET(req: NextRequest) {
         ? null
         : await resolveCampusId(user, requestedCampusId);
 
-    const currency = searchParams.get("currency") || (await getLocalePackage(user.schoolId, campusId)).currency;
-    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) return Response.json({ error: "Invalid currency" }, { status: 400 });
-    const minDaysOverdue = parseInt(searchParams.get("minDays") ?? "1", 10);
+    const minDaysOverdue = Number(searchParams.get("minDays") ?? "1");
+    if (!Number.isSafeInteger(minDaysOverdue) || minDaysOverdue < 0) {
+      return Response.json({ error: "Invalid minimum overdue days" }, { status: 400 });
+    }
 
     const campusWhere = {
       schoolId: user.schoolId,
@@ -35,11 +37,16 @@ export async function GET(req: NextRequest) {
     });
     const campusIds = campuses.map((c) => c.id);
 
+    // Default to the currency the campus actually bills in, not the locale default.
+    const currency = searchParams.get("currency")
+      || (await dominantInvoiceCurrency(user.schoolId, campusIds, (await getLocalePackage(user.schoolId, campusId)).currency));
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) return Response.json({ error: "Invalid currency" }, { status: 400 });
+
     const overdueInvoices = await prisma.invoice.findMany({
       where: {
         currency,
         campusId: { in: campusIds },
-        status: { in: ["PENDING", "OVERDUE"] },
+        status: { not: "CANCELLED" },
         balanceDue: { gt: 0 },
         dueDate: { lt: new Date() },
       },

@@ -8,7 +8,6 @@ import { ANNUAL_DISCOUNT, getPlanLimits, type BillingPeriod } from "@/config/pla
 import type { PlanDetails } from "@/types";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { getPaymentConfig } from "@/lib/payments/gateway";
-import { dashboardPathForRole } from "@/lib/roles";
 import { COMMERCIAL_CONTRACT, createPlanContract, encodePlanContractMetadata } from "@/config/commercial-contract";
 import { findApprovedPlanChange, markPlanChangeCheckoutStarted, restorePlanChangeApproval } from "@/lib/billing/lifecycle";
 
@@ -36,7 +35,7 @@ function periodLabel(price: number | null | undefined, billingPeriod: BillingPer
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    if (!canManageSubscription(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
 
     const parsed = checkoutSchema.safeParse(await req.json());
     if (!parsed.success) {
@@ -144,26 +143,21 @@ export async function POST(req: NextRequest) {
 
       if (merchantId && apiKey && secretKey) {
         const amountInPaisa = (price || 0) * 100;
-        // Land the payer back on their own billing hub: campus admins buy from
-        // the campus Plans & Billing view, school owners from the super view.
-        const billingHub =
-          dashboardPathForRole(user.role) === "/super"
-            ? "/super?view=billing"
-            : dashboardPathForRole(user.role) === "/admin"
-              ? "/admin?view=billing"
-              : "/dashboard/billing";
+        // §6.2: the provider returns to /billing, which resolves the payer's own Billing & plan view. One query
+        // string built with URLSearchParams (the old hub path already carried "?view=billing", so appending
+        // "?safepay_status=…" produced a second "?").
         const result = await createSafePayOrder(
           {
             merchantId,
             apiKey,
             secretKey,
-            returnUrl: `${appBase}${billingHub}?safepay_status=completed&ref=${orderRef}`,
+            returnUrl: `${appBase}/billing?${new URLSearchParams({ safepay_status: "completed", ref: orderRef })}`,
             sandbox: process.env.SAFEPAY_PRODUCTION !== "true",
           },
           {
             amount: amountInPaisa,
             orderRef,
-            description: `Upgrade to ${planDetail.name} plan (${parsed.data.billingPeriod})`,
+            description: `SkooleeAI ${planDetail.name} plan (${parsed.data.billingPeriod})`,
             customerEmail: user.email,
             customerName: user.fullName,
             metadata: { schoolId: school.id, plan: parsed.data.plan, billingPeriod: parsed.data.billingPeriod, commercialContract: encodedContract },

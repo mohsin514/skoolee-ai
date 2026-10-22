@@ -48,6 +48,7 @@ import { createPortal } from "react-dom";
 import { AlertTriangle, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dialogActionTones } from "./action-tones";
+import { Button } from "./button";
 import { useOverlayMessages } from "@/hooks/use-overlay-messages";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -69,6 +70,23 @@ const listeners = new Set<() => void>();
 
 function emit() {
   for (const l of listeners) l();
+}
+
+/**
+ * True when no Modal, ConfirmAction, Dialog or ModalSurface is open. The
+ * spotlight tour and live notification toasts wait for this, so neither ever
+ * appears over (or behind) a dialog the user is working in.
+ */
+export function isModalStackEmpty(): boolean {
+  return stack.length === 0;
+}
+
+/** Called whenever a dialog opens or closes; returns the unsubscribe function. */
+export function subscribeModalStack(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 function useModalLayer(id: string, active = true) {
@@ -656,7 +674,7 @@ export function ModalSurface({
           transition: dragging ? "none" : undefined,
         }}
         className={cn(
-          "relative flex min-w-0 w-full max-w-full flex-col overflow-hidden bg-white",
+          "relative flex min-w-0 w-full max-w-full flex-col overflow-hidden bg-card",
           fullscreen
             ? "h-[100dvh] max-h-[100dvh] rounded-none"
             : "max-h-[92dvh] rounded-t-[32px] border border-edge/20 shadow-[0_-8px_60px_rgba(120,70,180,0.28)] sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(120,70,180,0.28)]",
@@ -706,10 +724,8 @@ function DiscardChangesPrompt({ message, onKeepEditing, onDiscard }: {
     </div>
     <p id={descriptionId} className="overflow-y-auto px-5 py-4 text-sm leading-relaxed text-ink">{message}</p>
     <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-edge/15 bg-surface-subtle px-5 py-3.5 pb-[max(.875rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
-      <button ref={keepEditingRef} type="button" onClick={onKeepEditing}
-        className="min-h-11 rounded-2xl border border-edge/25 bg-white px-5 text-sm font-semibold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98]">{copy.keepEditing}</button>
-      <button type="button" onClick={onDiscard}
-        className={cn("min-h-11 rounded-2xl px-5 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98]", dialogActionTones.rose)}>{copy.discard}</button>
+      <Button ref={keepEditingRef} type="button" variant="outline" onClick={onKeepEditing} className="px-5">{copy.keepEditing}</Button>
+      <Button type="button" variant="destructive" onClick={onDiscard} className="px-5">{copy.discard}</Button>
     </div>
   </ModalSurface>;
 }
@@ -969,6 +985,27 @@ function ModalChrome({
  * what was missing.
  * ────────────────────────────────────────────────────────────────────────── */
 
+export type DialogActionTone = "violet" | "rose" | "emerald" | "amber";
+
+/**
+ * The solid action of a dialog footer, on the shared `Button`. Violet is the
+ * brand primary and rose the destructive variant; the amber (warning) and
+ * emerald (success) tones keep the Button's shape, focus ring and busy state and
+ * swap only the fill, so every dialog action in the product is the same control.
+ */
+export function dialogActionClass(tone: DialogActionTone): string | undefined {
+  if (tone === "violet" || tone === "rose") return undefined;
+  return cn(
+    "border-transparent bg-none text-white shadow-lg [&_svg]:text-white",
+    "actionable-hover:border-transparent actionable-hover:shadow-lg",
+    dialogActionTones[tone],
+  );
+}
+
+export function dialogActionVariant(tone: DialogActionTone): "default" | "destructive" {
+  return tone === "rose" ? "destructive" : "default";
+}
+
 export function ModalActions({
   busy = false,
   busyLabel,
@@ -988,46 +1025,43 @@ export function ModalActions({
   cancelLabel?: string;
   /** Non-empty means the form is not ready: the action is disabled and this says why. */
   blockedReason?: string | null;
-  tone?: "violet" | "rose" | "emerald";
-  /** An extra low-emphasis action pinned to the left, e.g. "Save draft". */
+  tone?: DialogActionTone;
+  /** An extra low-emphasis action pinned to the start side, e.g. "Save draft". */
   secondary?: ReactNode;
 }) {
   const copy = useOverlayMessages();
   const surface = useContext(ModalSurfaceContext);
   const blocked = Boolean(blockedReason);
-  const toneClass = dialogActionTones[tone];
 
   return (
     <div className="space-y-2.5">
       {blocked ? (
         <p className="flex items-center gap-2 rounded-2xl border border-status-warning-border bg-status-warning-surface px-3.5 py-2.5 text-xs font-semibold text-status-warning-text">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {blockedReason}
         </p>
       ) : null}
       <div className="flex flex-col-reverse items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-end">
         {secondary ? <div className="sm:me-auto">{secondary}</div> : null}
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={surface?.requestClose ?? onCancel}
           disabled={busy}
-          className="h-12 cursor-pointer rounded-2xl border border-edge/25 bg-white px-5 text-sm font-semibold text-ink transition-all hover:border-primary/30 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-12 px-5"
         >
           {cancelLabel ?? copy.cancel}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant={dialogActionVariant(tone)}
           onClick={onAction}
-          aria-busy={busy}
-          disabled={busy || blocked}
-          className={cn(
-            "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 text-sm font-semibold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
-            toneClass,
-          )}
+          loading={busy}
+          disabled={blocked}
+          className={cn("min-h-12 px-6", dialogActionClass(tone))}
         >
-          {busy ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
           {busy ? (busyLabel ?? actionLabel) : actionLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );

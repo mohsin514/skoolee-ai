@@ -13,7 +13,8 @@ const en = {
   sourceRights: "Source and sharing rights", sourceHelp: "e.g. Written by our maths department; may be shared with our learners.",
   file: "File", link: "Or an https link", fileHelp: "PDF, image, Word, Excel or text, up to 10 MB.", save: "Save draft", uploading: "Uploading…",
   publish: "Publish version", replace: "Upload a new version", replaceHelp: "Existing references keep the version they used.", retire: "Retire", cancel: "Cancel",
-  answerKeyNote: "Answer keys are always staff only.", history: "Versions", changeAudience: "Change audience",
+  answerKeyNote: "Answer keys are always staff only.", history: "Versions", changeAudience: "Change audience", moreActions: "More actions", moreActionsFor: "More actions for {title}",
+  staffTitle: "Resources", retireTitle: "Retire this resource?", retireBody: "Learners and families stop seeing it straight away. Its versions stay in the history, and it cannot be published again.", retireConfirm: "Retire resource", keep: "Keep resource", errorTitle: "Couldn't load the resources", retry: "Try again",
 };
 export type ResourceCopy = typeof en;
 
@@ -32,7 +33,8 @@ const ar: ResourceCopy = {
   sourceRights: "المصدر وحقوق المشاركة", sourceHelp: "مثال: من إعداد قسم الرياضيات؛ يجوز مشاركته مع طلابنا.",
   file: "الملف", link: "أو رابط https", fileHelp: "PDF أو صورة أو Word أو Excel أو نص، حتى 10 ميغابايت.", save: "حفظ كمسودة", uploading: "جارٍ الرفع…",
   publish: "نشر الإصدار", replace: "رفع إصدار جديد", replaceHelp: "تحتفظ المراجع الحالية بالإصدار الذي استخدمته.", retire: "إيقاف", cancel: "إلغاء",
-  answerKeyNote: "مفاتيح الإجابة للموظفين فقط دائماً.", history: "الإصدارات", changeAudience: "تغيير الجمهور",
+  answerKeyNote: "مفاتيح الإجابة للموظفين فقط دائماً.", history: "الإصدارات", changeAudience: "تغيير الجمهور", moreActions: "إجراءات أخرى", moreActionsFor: "إجراءات أخرى لـ {title}",
+  staffTitle: "المصادر", retireTitle: "إيقاف هذا المصدر؟", retireBody: "يتوقف الطلاب والأسر عن رؤيته فوراً. تبقى إصداراته في السجل، ولا يمكن نشره مرة أخرى.", retireConfirm: "إيقاف المصدر", keep: "الإبقاء على المصدر", errorTitle: "تعذّر تحميل المصادر", retry: "حاول مرة أخرى",
 };
 
 const ur: ResourceCopy = {
@@ -50,7 +52,8 @@ const ur: ResourceCopy = {
   sourceRights: "ماخذ اور اشتراک کے حقوق", sourceHelp: "مثلاً: ہمارے ریاضی شعبے کی تیار کردہ؛ ہمارے طلبہ سے شیئر کی جا سکتی ہے۔",
   file: "فائل", link: "یا https لنک", fileHelp: "PDF، تصویر، Word، Excel یا متن، 10 MB تک۔", save: "مسودہ محفوظ کریں", uploading: "اپ لوڈ ہو رہا ہے…",
   publish: "ورژن شائع کریں", replace: "نیا ورژن اپ لوڈ کریں", replaceHelp: "موجودہ حوالے اپنا استعمال شدہ ورژن برقرار رکھتے ہیں۔", retire: "ریٹائر کریں", cancel: "منسوخ",
-  answerKeyNote: "جوابی کلید ہمیشہ صرف عملے کے لیے ہے۔", history: "ورژن", changeAudience: "سامعین تبدیل کریں",
+  answerKeyNote: "جوابی کلید ہمیشہ صرف عملے کے لیے ہے۔", history: "ورژن", changeAudience: "سامعین تبدیل کریں", moreActions: "مزید اقدامات", moreActionsFor: "{title} کے لیے مزید اقدامات",
+  staffTitle: "وسائل", retireTitle: "یہ وسیلہ ریٹائر کریں؟", retireBody: "طلبہ اور والدین اسے فوراً دیکھنا بند کر دیں گے۔ اس کے ورژن ریکارڈ میں رہیں گے، اور اسے دوبارہ شائع نہیں کیا جا سکے گا۔", retireConfirm: "وسیلہ ریٹائر کریں", keep: "وسیلہ رکھیں", errorTitle: "وسائل لوڈ نہ ہو سکے", retry: "دوبارہ کوشش کریں",
 };
 
 export function getResourceCopy(language: string): ResourceCopy {

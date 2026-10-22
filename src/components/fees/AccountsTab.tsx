@@ -1,22 +1,23 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
-import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Archive,
   Banknote,
   Building2,
   CreditCard,
   Download,
   Landmark,
   Loader,
+  MoreHorizontal,
   Pencil,
   Percent,
   Plus,
@@ -29,8 +30,12 @@ import {
 import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState, StatCard } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { ModalFrame, ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
-import { formatPKR, paisaToRupees, rupeesToPaisa } from "@/components/fees/fee-utils";
+import { ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { Menu, type MenuItem } from "@/components/ui/menu";
+import { formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
+import { SectionPicker } from "@/components/operations/console-page";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
@@ -38,50 +43,76 @@ const API = "/api";
 const inputClass = "w-full";
 const labelClass = "block mb-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
 
-type AccountsTabKey = "chart" | "methods" | "banks" | "income" | "expense" | "profit";
+export type AccountsTabKey = "chart" | "methods" | "banks" | "income" | "expense" | "profit";
 
-const TABS: { key: AccountsTabKey; label: string }[] = [
-  { key: "chart", label: "Chart of Accounts" },
-  { key: "methods", label: "Payment Methods" },
-  { key: "banks", label: "Bank Accounts" },
-  { key: "income", label: "Income" },
-  { key: "expense", label: "Expense" },
-  { key: "profit", label: "Profit" },
+/** Accounts & ledger sections (also the accountant's PageHeader tabs). */
+export const ACCOUNTS_TABS: { id: AccountsTabKey; label: string }[] = [
+  { id: "chart", label: "Chart of accounts" },
+  { id: "methods", label: "Payment methods" },
+  { id: "banks", label: "Bank accounts" },
+  { id: "income", label: "Income" },
+  { id: "expense", label: "Expense" },
+  { id: "profit", label: "Profit" },
 ];
 
-export function AccountsTab({ campusId }: { campusId?: string }) {
-  const tr = useUiText();
-  const [active, setActive] = useState<AccountsTabKey>("chart");
+/** The section a `?tab=` value opens (unknown values open the chart of accounts). */
+export function accountsSection(tab: string | null | undefined): AccountsTabKey {
+  return ACCOUNTS_TABS.some((item) => item.id === tab) ? (tab as AccountsTabKey) : "chart";
+}
+
+/**
+ * The PageHeader primary for each Accounts & ledger section (role-ux §4.4b; EN UI keys). The profit report has
+ * none: "Run report" is the report's own filter action.
+ */
+export const ACCOUNTS_CREATE: Record<AccountsTabKey, string | null> = {
+  chart: "Add account",
+  methods: "New payment method",
+  banks: "New bank account",
+  income: "Record income",
+  expense: "Record expense",
+  profit: null,
+};
+
+/**
+ * Accounts & ledger. `tab`/`onTabChange` let a console persist the section as `?tab=`. `command` "create" (the
+ * accountant's PageHeader primary, role-ux §4.4b; label `ACCOUNTS_CREATE[section]`) runs the open section's create
+ * action, and "add-account" opens the chart of accounts with the new-account form. `hideHeader` removes the
+ * sections' own create buttons so the screen has one primary action (the empty state may still repeat it, §4.5.7).
+ */
+export function AccountsTab({ campusId, command, hideHeader = false, tab, onTabChange, sectionNav = "picker" }: { campusId?: string; command?: PanelCommand | null; hideHeader?: boolean; tab?: string | null; onTabChange?: (tab: AccountsTabKey) => void; sectionNav?: "picker" | "none" }) {
+  const [localTab, setLocalTab] = useState<AccountsTabKey>("chart");
+  const active: AccountsTabKey = ACCOUNTS_TABS.some((item) => item.id === tab) ? (tab as AccountsTabKey) : onTabChange ? "chart" : localTab;
+  // A header command for another section first opens the section it belongs to. Changing section (here or in the
+  // console's PageHeader tabs) drops it, so a section opened later never replays an old command.
+  // Each forwarded command is tagged with the section it is for and reaches only that section.
+  const [forwarded, setForwarded] = useState<{ section: AccountsTabKey; command: PanelCommand } | null>(null);
+  const select = (next: AccountsTabKey) => { setLocalTab(next); onTabChange?.(next); setForwarded(null); };
+  const forward = (section: AccountsTabKey, id?: string) => { const copy = forwardCommand(command, id); setForwarded(copy ? { section, command: copy } : null); };
+  usePanelCommand(command, {
+    "add-account": () => { select("chart"); forward("chart", "create"); },
+    create: () => forward(active),
+    // "Export ledger" (accountant PageHeader): the income, expense and profit sections export their filtered rows.
+    export: () => forward(active),
+  });
+  const panel = { campusId, command: forwarded?.section === active ? forwarded.command : null, hideCreate: hideHeader };
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
-        {TABS.map((tab) => {
-          const isActive = active === tab.key;
-          return (
-            <Button aria-pressed={isActive} variant="choice"
-              key={tab.key}
-              type="button"
-              onClick={() => setActive(tab.key)}
-              className={"justify-start " + (`flex items-center gap-1.5 px-4 py-2 whitespace-nowrap ${
-                ""
-              } `)}
-            >
-              {tr(tab.label)}
-            </Button>
-          );
-        })}
-      </div>
+      {/* One tab row per screen (§3.1): the accountant console shows these as PageHeader tabs ("none"); inside the
+          campus admin's Fees tabs they are a section picker. */}
+      {sectionNav === "picker" ? <SectionPicker label="Accounts section" items={ACCOUNTS_TABS} value={active} onChange={select} /> : null}
 
-      {active === "chart" && <ChartPanel campusId={campusId} />}
-      {active === "methods" && <MethodsPanel campusId={campusId} />}
-      {active === "banks" && <BanksPanel campusId={campusId} />}
-      {active === "income" && <EntriesPanel campusId={campusId} kind="INCOME" />}
-      {active === "expense" && <EntriesPanel campusId={campusId} kind="EXPENSE" />}
-      {active === "profit" && <ProfitPanel campusId={campusId} />}
+      {active === "chart" && <ChartPanel {...panel} />}
+      {active === "methods" && <MethodsPanel {...panel} />}
+      {active === "banks" && <BanksPanel {...panel} />}
+      {active === "income" && <EntriesPanel {...panel} kind="INCOME" />}
+      {active === "expense" && <EntriesPanel {...panel} kind="EXPENSE" />}
+      {active === "profit" && <ProfitPanel {...panel} />}
     </div>
   );
 }
+
+type SectionProps = { campusId?: string; command?: PanelCommand | null; hideCreate?: boolean };
 
 /* ── Chart of Accounts ─────────────────────────────────── */
 
@@ -102,7 +133,7 @@ const TYPE_TONES: Record<string, "info" | "warning" | "secondary" | "success" | 
   EXPENSE: "danger",
 };
 
-function ChartPanel({ campusId }: { campusId?: string }) {
+function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const tr = useUiText();
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,7 +157,6 @@ function ChartPanel({ campusId }: { campusId?: string }) {
       else setLoadFailed(true);
     } catch {
       setLoadFailed(true);
-      toast.error(tr("Failed to load accounts"));
     } finally {
       setLoading(false);
     }
@@ -140,6 +170,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
     setType(row?.type ?? "INCOME");
     setShowModal(true);
   };
+  usePanelCommand(command, { create: () => openModal(null), "add-account": () => openModal(null) }, !loading);
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error(tr("Name is required")); return; }
@@ -200,11 +231,11 @@ function ChartPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="sk-eyebrow mb-1"><UiText>{"Chart of Accounts"}</UiText></p>
+          <p className="sk-eyebrow mb-1"><UiText>{"Chart of accounts"}</UiText></p>
           <p className="text-sm font-bold text-ink-strong"><UiText>{"Bookkeeping heads used by the ledger"}</UiText></p>
           <p className="text-xs leading-relaxed text-ink-muted mt-0.5"><UiText>{"Fee income auto-posts to \"Fee Income\" and payroll to \"Salaries Expense\". Accounts with entries keep their type and cannot be deleted; deactivate them to stop new entries."}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Account"}</UiText></BrandButton>
+        {hideCreate ? null : <Button onClick={() => openModal(null)}><Plus className="size-4" aria-hidden="true" /><UiText>{"Add account"}</UiText></Button>}
       </div>
 
       {loading ? (
@@ -216,7 +247,7 @@ function ChartPanel({ campusId }: { campusId?: string }) {
           icon={Wallet}
           title={tr("No accounts yet")}
           description={tr("Create account heads to organise income and expense entries.")}
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Account"}</UiText></BrandButton>}
+          action={<Button onClick={() => openModal(null)}><Plus className="size-4" aria-hidden="true" /><UiText>{"Add account"}</UiText></Button>}
         />
       ) : (
         <div className="space-y-3">
@@ -238,36 +269,28 @@ function ChartPanel({ campusId }: { campusId?: string }) {
               <Badge size="sm" variant={TYPE_TONES[acc.type] ?? "neutral"}>
                 {acc.type}
               </Badge>
-              <IconButton label={tr("Edit account")} variant="secondary" onClick={() => openModal(acc)}>
-                <Pencil className="w-4 h-4" aria-hidden="true" />
-              </IconButton>
-              {!acc.isSystem && (acc._count?.entries ?? 0) > 0 ? (
-                <Button variant="secondary" size="sm" type="button" onClick={() => void toggleActive(acc)} data-account-toggle={acc.id}>
-                  {acc.isActive === false ? tr("Reactivate") : tr("Deactivate")}
-                </Button>
-              ) : null}
-              {(acc._count?.entries ?? 0) > 0 ? (
-                <Tooltip content={tr("Accounts with entries are kept for audit; deactivate instead.")}>
-                  <span tabIndex={0} className="inline-flex rounded-lg">
-                    <Button variant="secondary" size="icon" type="button" className="flex items-center justify-center" aria-label={tr("Delete account")} disabled>
-                      <Trash2 className="w-4 h-4" aria-hidden="true" />
-                    </Button>
-                  </span>
-                </Tooltip>
-              ) : (
-                <IconButton label={tr("Delete account")} variant="secondary" onClick={() => setDeleting(acc)}>
-                  <Trash2 className="w-4 h-4" aria-hidden="true" />
-                </IconButton>
-              )}
+              {/* Row overflow (role-ux §4.5.2–3): Edit · Deactivate/Reactivate · Delete (last, danger, confirmed).
+                  An account with entries is kept for audit, so it offers Deactivate and explains why it cannot be deleted. */}
+              <RowMenu
+                items={[
+                  { id: "edit", label: "Edit", icon: Pencil, onSelect: () => openModal(acc) },
+                  ...(!acc.isSystem && (acc._count?.entries ?? 0) > 0
+                    ? [{ id: "toggle", label: acc.isActive === false ? "Reactivate" : "Deactivate", icon: acc.isActive === false ? Undo2 : Archive, onSelect: () => void toggleActive(acc) }]
+                    : []),
+                  (acc._count?.entries ?? 0) > 0
+                    ? { id: "delete", label: "Delete", icon: Trash2, tone: "danger" as const, disabled: true, description: "Accounts with entries are kept for audit; deactivate instead." }
+                    : { id: "delete", label: "Delete", icon: Trash2, tone: "danger" as const, onSelect: () => setDeleting(acc) },
+                ]}
+              />
             </div>
           ))}
         </div>
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? tr("Edit Account") : tr("New Account")} eyebrow={tr("Accounts · Chart")} onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit account") : tr("New account")} eyebrow={tr("Accounts · Chart")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label={tr("Account Name")} value={name} placeholder={tr("e.g. Library Fee")} onChange={setName} />
+            <FormInput label={tr("Account name")} value={name} placeholder={tr("e.g. Library Fee")} onChange={setName} />
             <label>
               <span className={labelClass}><UiText>{"Type"}</UiText></span>
               <SystemSelect value={type} onChange={(e) => setType(e.target.value)} className="w-full" disabled={Boolean(editing && ((editing._count?.entries ?? 0) > 0 || editing.isSystem))}>
@@ -279,9 +302,9 @@ function ChartPanel({ campusId }: { campusId?: string }) {
               </SystemSelect>
               <span className="mt-1 block text-xs leading-relaxed text-ink-subtle">{editing && ((editing._count?.entries ?? 0) > 0 || editing.isSystem) ? tr("The type is locked because this account is a system account or already has entries.") : tr("Income and expense heads are used for ledger entries. The type cannot be changed once the account has entries.")}</span>
             </label>
-            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save Changes") : tr("Create Account")} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create account")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
 
       {deleting && (
@@ -307,7 +330,7 @@ interface MethodRow {
   isActive: boolean;
 }
 
-function MethodsPanel({ campusId }: { campusId?: string }) {
+function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const tr = useUiText();
   const [methods, setMethods] = useState<MethodRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -316,17 +339,20 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<MethodRow | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch(`${API}/accounts/payment-methods${qp}`);
       const json = await res.json();
       if (json.success) setMethods(json.data);
+      else setLoadFailed(true);
     } catch {
-      toast.error(tr("Failed to load payment methods"));
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -339,6 +365,7 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
     setName(row?.name ?? "");
     setShowModal(true);
   };
+  usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error(tr("Name is required")); return; }
@@ -401,20 +428,22 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Payment Methods"}</UiText></p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Payment methods"}</UiText></p>
           <p className="text-sm font-bold text-ink-strong"><UiText>{"Labels used on receipts and ledger entries"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Method"}</UiText></BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New payment method"}</UiText></BrandButton>}
       </div>
 
       {loading ? (
         <SkeletonRows />
+      ) : loadFailed ? (
+        <ErrorState title={tr("Payment methods could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
       ) : methods.length === 0 ? (
         <EmptyState
           icon={CreditCard}
           title={tr("No payment methods")}
-          description={tr("Add methods like Cash, Bank Transfer, Cheque — used on receipts.")}
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Method"}</UiText></BrandButton>}
+          description={tr("Add methods like cash, bank transfer, cheque — used on receipts.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New payment method"}</UiText></BrandButton>}
         />
       ) : (
         <div className="space-y-3">
@@ -434,24 +463,24 @@ function MethodsPanel({ campusId }: { campusId?: string }) {
               >
                 {m.isActive ? tr("Active") : tr("Inactive")}
               </Button>
-              <IconButton label={tr("Edit method")} variant="secondary" onClick={() => openModal(m)}>
-                <Pencil className="w-4 h-4" aria-hidden="true" />
-              </IconButton>
-              <IconButton label={tr("Delete method")} variant="secondary" onClick={() => setDeleting(m)}>
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-              </IconButton>
+              <RowMenu
+                items={[
+                  { id: "edit", label: "Edit", icon: Pencil, onSelect: () => openModal(m) },
+                  { id: "delete", label: "Delete", icon: Trash2, tone: "danger", onSelect: () => setDeleting(m) },
+                ]}
+              />
             </div>
           ))}
         </div>
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? tr("Edit Payment Method") : tr("New Payment Method")} eyebrow={tr("Accounts · Methods")} onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit payment method") : tr("New payment method")} eyebrow={tr("Accounts · Methods")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
             <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Cash")} onChange={setName} />
-            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save Changes") : tr("Create Method")} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create method")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
 
       {deleting && (
@@ -481,8 +510,8 @@ interface BankRow {
   isActive: boolean;
 }
 
-function BanksPanel({ campusId }: { campusId?: string }) {
-  const [currency, setCurrency] = useState("PKR");
+function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
+  const [currency, setCurrency] = useState<string>(useLocale().currency);
   const [defaultCurrency, setDefaultCurrency] = useState("");
   useEffect(() => { void getFinancialLocale(campusId).then(policy => setDefaultCurrency(policy.currency)); }, [campusId]);
  const { money: formatPKR } = useLocaleFormat();
@@ -497,17 +526,20 @@ function BanksPanel({ campusId }: { campusId?: string }) {
   const [openingBalance, setOpeningBalance] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<BankRow | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch(`${API}/accounts/bank-accounts${qp}`);
       const json = await res.json();
       if (json.success) setBanks(json.data);
+      else setLoadFailed(true);
     } catch {
-      toast.error(tr("Failed to load bank accounts"));
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -524,6 +556,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
     setOpeningBalance(row ? String(paisaToRupees(row.openingBalance, row.currency)) : "");
     setShowModal(true);
   };
+  usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error(tr("Name is required")); return; }
@@ -594,20 +627,22 @@ function BanksPanel({ campusId }: { campusId?: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Bank Accounts"}</UiText></p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1"><UiText>{"Bank accounts"}</UiText></p>
           <p className="text-sm font-bold text-ink-strong"><UiText>{"Deposit accounts entries can be attributed to"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Bank Account"}</UiText></BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New bank account"}</UiText></BrandButton>}
       </div>
 
       {loading ? (
         <SkeletonRows />
+      ) : loadFailed ? (
+        <ErrorState title={tr("Bank accounts could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
       ) : banks.length === 0 ? (
         <EmptyState
           icon={Landmark}
           title={tr("No bank accounts")}
           description={tr("Add a bank account to attribute ledger entries to it.")}
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New Bank Account"}</UiText></BrandButton>}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New bank account"}</UiText></BrandButton>}
         />
       ) : (
         <div className="space-y-3">
@@ -623,7 +658,7 @@ function BanksPanel({ campusId }: { campusId?: string }) {
                 </p>
               </div>
               <div className="text-end">
-                <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Opening Balance"}</UiText></p>
+                <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Opening balance"}</UiText></p>
                 <p className="text-sm font-bold tabular-nums text-ink-strong">{formatPKR(b.openingBalance, b.currency)}</p>
               </div>
               <Button aria-pressed={b.isActive} variant="choice"
@@ -633,27 +668,27 @@ function BanksPanel({ campusId }: { campusId?: string }) {
               >
                 {b.isActive ? tr("Active") : tr("Inactive")}
               </Button>
-              <IconButton label={tr("Edit bank")} variant="secondary" onClick={() => openModal(b)}>
-                <Pencil className="w-4 h-4" aria-hidden="true" />
-              </IconButton>
-              <IconButton label={tr("Delete bank")} variant="secondary" onClick={() => setDeleting(b)}>
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-              </IconButton>
+              <RowMenu
+                items={[
+                  { id: "edit", label: "Edit", icon: Pencil, onSelect: () => openModal(b) },
+                  { id: "delete", label: "Delete", icon: Trash2, tone: "danger", onSelect: () => setDeleting(b) },
+                ]}
+              />
             </div>
           ))}
         </div>
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? tr("Edit Bank Account") : tr("New Bank Account")} eyebrow={tr("Accounts · Banks")} onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit bank account") : tr("New bank account")} eyebrow={tr("Accounts · Banks")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label={tr("Account Name")} value={name} placeholder={tr("e.g. Main School Account")} onChange={setName} />
-            <FormInput label={tr("Bank Name")} value={bankName} placeholder={tr("e.g. HBL")} onChange={setBankName} />
-            <FormInput label={tr("Account Number")} value={accountNumber} placeholder="e.g. 1234-5678-90" onChange={setAccountNumber} />
-            <FormInput label={`${tr("Opening Balance")} (${currency})`} type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
-            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save Changes") : tr("Create Bank Account")} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <FormInput label={tr("Account name")} value={name} placeholder={tr("e.g. Main School Account")} onChange={setName} />
+            <FormInput label={tr("Bank name")} value={bankName} placeholder={tr("e.g. HBL")} onChange={setBankName} />
+            <FormInput label={tr("Account number")} value={accountNumber} placeholder={tr("e.g. {0}", ["1234-5678-90"])} onChange={setAccountNumber} />
+            <FormInput label={`${tr("Opening balance")} (${currency})`} type="number" value={openingBalance} placeholder="0" onChange={setOpeningBalance} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={editing ? tr("Save changes") : tr("Create bank account")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
 
       {deleting && (
@@ -700,8 +735,10 @@ type LedgerTotals = { income: number; expense: number; net: number; incomeCount:
 const SOURCE_LABEL: Record<LedgerRow["source"], string> = { MANUAL: "Manual", FEE: "Fee payment", PAYROLL: "Payroll", CORRECTION: "Correction" };
 const PAGE_SIZE = 50;
 
-function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | "EXPENSE" }) {
+function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionProps & { kind: "INCOME" | "EXPENSE" }) {
   const { money, date: formatDate } = useLocaleFormat();
+  // Until the ledger reports its currency, amounts are in the campus currency (locale package, R7).
+  const { currency: campusCurrency } = useLocale();
   const tr = useUiText();
   const [currency, setCurrency] = useState("");
   const [from, setFrom] = useState(""), [to, setTo] = useState(""), [filterAccount, setFilterAccount] = useState(""), [source, setSource] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(1);
@@ -768,13 +805,15 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
 
   const openNew = () => { setFormError(""); setShowModal(true); };
+  // "Export ledger" in the accountant's PageHeader downloads exactly the filtered rows (the same filter as the list).
+  usePanelCommand(command, { create: openNew, export: () => { const params = filterParams(); params.set("format", "csv"); window.location.assign(`${API}/accounts/ledger?${params}`); } });
   const handleSave = async () => {
     setFormError("");
     if (sourceName.trim().length < 3 || !accountId || !amount || Number(amount) <= 0 || !date) {
       setFormError(tr("Enter a description, account, amount greater than zero and date."));
       return;
     }
-    const payload = { campusId: campusId || undefined, kind, sourceName: sourceName.trim(), accountId, currency, amount: rupeesToPaisa(amount, currency || "PKR"), date, bankAccountId: bankAccountId || undefined, note: note.trim() || undefined };
+    const payload = { campusId: campusId || undefined, kind, sourceName: sourceName.trim(), accountId, currency, amount: rupeesToPaisa(amount, currency || campusCurrency), date, bankAccountId: bankAccountId || undefined, note: note.trim() || undefined };
     const fingerprint = JSON.stringify(payload);
     // A retry of the same entry reuses its key, so a lost response never posts the money twice.
     if (attempt.current?.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID() };
@@ -826,7 +865,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
 
   const pickList = accounts.filter((a) => a.type === kind);
   const activePickList = pickList.filter((a) => a.isActive !== false);
-  const shownCurrency = currency || "PKR";
+  const shownCurrency = currency || campusCurrency;
   const kindTotal = totals ? (kind === "INCOME" ? totals.income : totals.expense) : 0;
   const pages = totals ? Math.max(1, Math.ceil(totals.count / PAGE_SIZE)) : 1;
   const exportParams = filterParams(); exportParams.set("format", "csv");
@@ -836,9 +875,9 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
     <div className="space-y-4" data-ledger-panel={kind}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}</p>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-1">{kind === "INCOME" ? tr("Income entries") : tr("Expense entries")}</p>
           <p className="text-sm font-bold text-ink-strong" data-ledger-total={kindTotal} aria-live="polite">
-            <span className={kind === "INCOME" ? "text-emerald-600" : "text-rose-600"}><bdi>{money(kindTotal, shownCurrency)}</bdi></span>{" "}
+            <span className={kind === "INCOME" ? "text-status-success-text" : "text-status-error-text"}><bdi>{money(kindTotal, shownCurrency)}</bdi></span>{" "}
             {tr("total across {0} matching records", [totals?.count ?? 0])}
           </p>
           <p className="text-2xs font-semibold text-ink-subtle mt-0.5" data-ledger-scope>
@@ -846,8 +885,8 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-bold hover:border-primary/40" href={`${API}/accounts/ledger?${exportParams}`} data-ledger-export><Download className="w-4 h-4" aria-hidden="true" />{tr("Export these rows (CSV)")}</a>
-          <BrandButton icon={<Plus className="w-4 h-4" />} onClick={openNew}>{kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}</BrandButton>
+          {hideCreate ? null : <a className={buttonVariants({ variant: "outline" })} href={`${API}/accounts/ledger?${exportParams}`} data-ledger-export><Download className="w-4 h-4" aria-hidden="true" />{tr("Export these rows (CSV)")}</a>}
+          {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={openNew}>{kind === "INCOME" ? tr("Record income") : tr("Record expense")}</BrandButton>}
         </div>
       </div>
 
@@ -875,18 +914,18 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
             icon={kind === "INCOME" ? TrendingUp : TrendingDown}
             title={kind === "INCOME" ? tr("No income entries") : tr("No expense entries")}
             description={kind === "INCOME" ? tr("Fee collections post here automatically. Add other income manually.") : tr("Payroll posts here when salaries are paid. Add other expenses manually.")}
-            action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={openNew}>{kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}</BrandButton>}
+            action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={openNew}>{kind === "INCOME" ? tr("Record income") : tr("Record expense")}</BrandButton>}
           />
         )
       ) : (
         <>
-          <ul className="space-y-3" aria-label={kind === "INCOME" ? tr("Income Entries") : tr("Expense Entries")}>
+          <ul className="space-y-3" aria-label={kind === "INCOME" ? tr("Income entries") : tr("Expense entries")}>
             {entries.map((e) => {
               const reference = e.payment?.receiptNo ? tr("Receipt {0}", [e.payment.receiptNo]) : e.payrollLine ? tr("Payroll {0}/{1}", [e.payrollLine.payrollRun.month, e.payrollLine.payrollRun.year]) : e.reversalOf ? tr("Corrects “{0}” of {1}", [e.reversalOf.sourceName, formatDate(e.reversalOf.date)]) : "";
               const correctable = e.source === "MANUAL" && !e.reversedBy;
               return (
                 <li key={e.id} className="sk-panel p-5 flex flex-wrap items-center gap-4" data-ledger-row={e.id} data-ledger-source={e.source} data-ledger-reversed={e.reversedBy ? "true" : "false"}>
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${e.kind === "INCOME" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${e.kind === "INCOME" ? "bg-status-success-surface text-status-success-text" : "bg-status-error-surface text-status-error-text"}`}>
                     {e.kind === "INCOME" ? <TrendingUp className="w-5 h-5" aria-hidden="true" /> : <TrendingDown className="w-5 h-5" aria-hidden="true" />}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -898,10 +937,10 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
                       {" · "}{formatDate(e.date)}
                       {reference ? <> · <bdi>{reference}</bdi></> : null}
                     </p>
-                    {e.reversedBy ? <p className="text-2xs font-bold text-amber-700 mt-0.5">{tr("Corrected on {0}; the original stays for audit.", [formatDate(e.reversedBy.date)])}</p> : null}
+                    {e.reversedBy ? <p className="text-2xs font-bold text-status-warning-text mt-0.5">{tr("Corrected on {0}; the original stays for audit.", [formatDate(e.reversedBy.date)])}</p> : null}
                     {e.note ? <p className="text-2xs font-semibold text-ink-subtle mt-0.5"><bdi>{e.note}</bdi></p> : null}
                   </div>
-                  <p className={`text-sm font-bold ${e.amount < 0 ? "text-ink-muted" : e.kind === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(e.amount, e.currency)}</bdi></p>
+                  <p className={`text-sm font-bold ${e.amount < 0 ? "text-ink-muted" : e.kind === "INCOME" ? "text-status-success-text" : "text-status-error-text"}`}><bdi>{money(e.amount, e.currency)}</bdi></p>
                   {correctable && (
                     <Button variant="secondary" size="sm" type="button" onClick={() => { setReason(""); setCorrectionError(""); setCorrecting(e); }} aria-label={tr("Correct entry {0}", [e.sourceName])}>
                       <Undo2 className="w-4 h-4" aria-hidden="true" />{tr("Correct")}
@@ -927,15 +966,15 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
       )}
 
       {showModal && (
-        <ModalFrame
-          title={kind === "INCOME" ? tr("Record Income") : tr("Record Expense")}
+        <Modal
+          title={kind === "INCOME" ? tr("Record income") : tr("Record expense")}
           eyebrow={tr("Accounts · Ledger")}
           subtitle={kind === "INCOME" ? tr("Money received by the school. It increases income for {0}.", [shownCurrency]) : tr("Money paid out by the school. It increases expense for {0}.", [shownCurrency])}
           onClose={() => setShowModal(false)}
           dirty={Boolean(sourceName || amount || note)}
         >
           <div className="space-y-4">
-            {formError ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-ledger-form-error>{formError}</p> : null}
+            {formError ? <p role="alert" className="rounded-xl bg-status-error-surface px-3 py-2 text-xs font-bold text-status-error-text" data-ledger-form-error>{formError}</p> : null}
             <FormInput label={tr("Source / Description")} value={sourceName} placeholder={kind === "INCOME" ? tr("e.g. Donation") : tr("e.g. Electricity bill")} onChange={setSourceName} />
             <FormSelect label={tr("Account")} value={accountId} onChange={setAccountId}>
               <option value=""><UiText>{"Select account..."}</UiText></option>
@@ -948,7 +987,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
               <FormInput label={tr("Date")} type="date" value={date} placeholder="2026-08-09" onChange={setDate} />
             </div>
             <label>
-              <span className={labelClass}><UiText>{"Bank Account (optional)"}</UiText></span>
+              <span className={labelClass}><UiText>{"Bank account (optional)"}</UiText></span>
               <SystemSelect value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className="w-full">
                 <option value=""><UiText>{"— None —"}</UiText></option>
                 {banks.filter((b) => b.isActive && b.currency === currency).map((b) => (
@@ -957,9 +996,9 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
               </SystemSelect>
             </label>
             <FormInput label={tr("Note (optional)")} value={note} placeholder={tr("Extra detail")} onChange={setNote} />
-            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={kind === "INCOME" ? tr("Record Income") : tr("Record Expense")} onClose={() => setShowModal(false)} onSave={() => void handleSave()} hint={tr("Posted entries are not edited. Mistakes are fixed with a correction that keeps the original.")} />
+            <ModalActions busy={saving} busyLabel={tr("Saving...")} actionLabel={kind === "INCOME" ? tr("Record income") : tr("Record expense")} onClose={() => setShowModal(false)} onSave={() => void handleSave()} hint={tr("Posted entries are not edited. Mistakes are fixed with a correction that keeps the original.")} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
 
       {correcting && (
@@ -970,7 +1009,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
           detail={<div className="space-y-2">
             <label className="block text-xs font-bold" htmlFor="ledger-correction-reason">{tr("Reason for the correction")}</label>
             <SystemInput id="ledger-correction-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} aria-invalid={Boolean(correctionError)} aria-describedby={correctionError ? "ledger-correction-error" : undefined} />
-            {correctionError ? <p id="ledger-correction-error" role="alert" className="text-xs font-bold text-rose-700">{correctionError}</p> : null}
+            {correctionError ? <p id="ledger-correction-error" role="alert" className="text-xs font-bold text-status-error-text">{correctionError}</p> : null}
           </div>}
           confirmLabel={tr("Post correction")}
           tone="warning"
@@ -1000,7 +1039,7 @@ function EntriesPanel({ campusId, kind }: { campusId?: string; kind: "INCOME" | 
 
 type ProfitReport = { currency: string; from: string; to: string; income: number; expense: number; net: number; incomeCount: number; expenseCount: number; count: number; breakdown: { accountId: string; accountName: string; accountActive: boolean; type: string; amount: number; entries: number }[]; bySource: Record<string, { income: number; expense: number; count: number }>; otherCurrencies: { currency: string; entries: number }[] };
 
-function ProfitPanel({ campusId }: { campusId?: string }) {
+function ProfitPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const { money, date: formatDate } = useLocaleFormat();
   const tr = useUiText();
   const [currency, setCurrency] = useState("");
@@ -1031,6 +1070,8 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
   useEffect(() => { const timer = setTimeout(() => void run(), 0); return () => clearTimeout(timer); }, [run]);
 
   const exportParams = new URLSearchParams({ from, to, ...(currency ? { currency } : {}), ...(campusId ? { campusId } : {}), format: "csv" });
+  // "Export ledger" in the accountant's PageHeader downloads the rows behind this report (same filter).
+  usePanelCommand(command, { export: () => window.location.assign(`${API}/accounts/ledger?${exportParams}`) });
 
   return (
     <div className="space-y-4" data-profit-panel>
@@ -1045,13 +1086,13 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
           <SystemInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full" />
         </label>
         <BrandButton icon={<Percent className="w-4 h-4" />} onClick={() => void run()} disabled={loading}>
-          {loading ? <Loader className="w-4 h-4 animate-spin" /> : tr("Run Report")}
+          {loading ? <Loader className="w-4 h-4 animate-spin" /> : tr("Run report")}
         </BrandButton>
-        <a className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-bold hover:border-primary/40" href={`${API}/accounts/ledger?${exportParams}`} data-profit-export><Download className="w-4 h-4" aria-hidden="true" />{tr("Export the rows behind this report (CSV)")}</a>
+        {hideCreate ? null : <a className={buttonVariants({ variant: "outline" })} href={`${API}/accounts/ledger?${exportParams}`} data-profit-export><Download className="w-4 h-4" aria-hidden="true" />{tr("Export the rows behind this report (CSV)")}</a>}
       </div>
 
       {error ? (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-rose-50 border border-rose-100 px-4 py-3 text-sm font-bold text-rose-700"><span>{error}</span><Button size="sm" variant="secondary" onClick={() => void run()}>{tr("Retry")}</Button></div>
+        <ErrorState title={tr("The report could not be loaded")} description={error} onRetry={() => void run()} retryLabel={tr("Retry")} />
       ) : !report ? (
         loading ? <div role="status" aria-label={tr("Loading report")}><SkeletonRows /></div> : <EmptyState icon={TrendingUp} title={tr("Run the report")} description={tr("Pick a date range to see income, expense and net profit.")} />
       ) : (
@@ -1060,14 +1101,14 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
             {tr("Cash basis, {0} only, {1} to {2} inclusive. Includes fee payments and refunds, paid payroll, manual entries and corrections recorded in this period; unpaid invoices and draft payroll are not included. Totals are the sum of the {3} rows in the export.", [report.currency, formatDate(report.from), formatDate(report.to), report.count])}
           </p>
           {report.otherCurrencies.length > 0 ? (
-            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800" data-profit-other-currencies>
+            <p className="rounded-2xl border border-status-warning-border bg-status-warning-surface px-4 py-3 text-xs font-bold text-status-warning-text" data-profit-other-currencies>
               {tr("This period also has entries in {0}. They are reported separately and never added to {1} totals.", [report.otherCurrencies.map((row) => `${row.currency} (${row.entries})`).join(", "), report.currency])}
             </p>
           ) : null}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4" data-profit-totals data-income={report.income} data-expense={report.expense} data-net={report.net}>
             <StatCard icon={TrendingUp} label={tr("Income")} value={money(report.income, report.currency)} tone="green" />
             <StatCard icon={TrendingDown} label={tr("Expense")} value={money(report.expense, report.currency)} tone="rose" />
-            <StatCard icon={Banknote} label={tr("Net Profit")} value={money(report.net, report.currency)} tone={report.net < 0 ? "rose" : "purple"} />
+            <StatCard icon={Banknote} label={tr("Net profit")} value={money(report.net, report.currency)} tone={report.net < 0 ? "rose" : "purple"} />
           </div>
 
           {Object.keys(report.bySource).length > 0 ? (
@@ -1082,14 +1123,14 @@ function ProfitPanel({ campusId }: { campusId?: string }) {
             <div className="space-y-3">
               {report.breakdown.map((b) => (
                 <div key={`${b.accountId}-${b.type}`} className="sk-panel p-5 flex items-center gap-4">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${b.type === "INCOME" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${b.type === "INCOME" ? "bg-status-success-surface text-status-success-text" : "bg-status-error-surface text-status-error-text"}`}>
                     {b.type === "INCOME" ? <TrendingUp className="w-5 h-5" aria-hidden="true" /> : <TrendingDown className="w-5 h-5" aria-hidden="true" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-ink-strong"><bdi>{b.accountName}</bdi>{b.accountActive ? "" : ` (${tr("inactive")})`}</p>
                     <p className="text-2xs font-bold text-ink-subtle mt-0.5">{tr("{0} entries", [b.entries])}</p>
                   </div>
-                  <p className={`text-sm font-bold ${b.type === "INCOME" ? "text-emerald-700" : "text-rose-700"}`}><bdi>{money(b.amount, report.currency)}</bdi></p>
+                  <p className={`text-sm font-bold ${b.type === "INCOME" ? "text-status-success-text" : "text-status-error-text"}`}><bdi>{money(b.amount, report.currency)}</bdi></p>
                 </div>
               ))}
             </div>
@@ -1120,5 +1161,17 @@ function SkeletonRows() {
         </div>
       ))}
     </div>
+  );
+}
+
+/** One row overflow menu (role-ux §4.5.2–3); item labels are EN UI keys, translated by `Menu`. */
+function RowMenu({ items }: { items: MenuItem[] }) {
+  const tr = useUiText();
+  return (
+    <Menu
+      label="More actions"
+      items={items}
+      trigger={<IconButton variant="ghost" label={tr("More actions")}><MoreHorizontal aria-hidden="true" /></IconButton>}
+    />
   );
 }

@@ -5,6 +5,8 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -26,15 +28,29 @@ export function InstallmentSchedule({ installments, currency }: { installments: 
   </li>)}</ol>;
 }
 
-export function InstallmentPlanPanel({ invoiceId, currency }: { invoiceId: string; currency: string }) {
+/**
+ * `canPropose` (default true) is the finance desk. A campus admin who does not hold the desk only decides: they see a
+ * proposed plan and approve it in the invoice drawer (role-ux §3.1 "approvals inside the invoice drawer"), but never
+ * propose one, and the panel stays out of the way when there is nothing to decide.
+ */
+export function InstallmentPlanPanel({ invoiceId, currency, canPropose = true }: { invoiceId: string; currency: string; canPropose?: boolean }) {
   const ui = useUiText();
   const { money } = useLocaleFormat();
   const [data, setData] = useState<{ today: string; balance: number; plans: Plan[] } | null>(null);
   const [count, setCount] = useState("3"), [firstDue, setFirstDue] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  // Approving a schedule changes what the family owes and when, so it is confirmed (R3).
+  const [approving, setApproving] = useState(false);
+  // A failed load says so in place with a retry (R4) instead of the panel silently disappearing.
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = useCallback(async () => {
-    const response = await fetch(`/api/fees/payment-plans?invoiceId=${encodeURIComponent(invoiceId)}`, { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    if (response.ok && json.success) setData(json.data);
+    try {
+      const response = await fetch(`/api/fees/payment-plans?invoiceId=${encodeURIComponent(invoiceId)}`, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error("load");
+      setData(json.data);
+      setLoadFailed(false);
+    } catch { setLoadFailed(true); }
   }, [invoiceId]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
   const preview = useMemo(() => data && firstDue && Number(count) >= 2 ? splitEvenly(data.balance, Number(count), firstDue) : [], [data, firstDue, count]);
@@ -48,18 +64,47 @@ export function InstallmentPlanPanel({ invoiceId, currency }: { invoiceId: strin
       toast.success(success); setFirstDue(""); await load();
     } catch (failure) { setError(failure instanceof Error ? failure.message : ui("The plan could not be saved.")); } finally { setBusy(false); }
   };
-  if (!data) return null;
+  if (!data) {
+    if (!loadFailed) return null;
+    return <section className="space-y-2 rounded-2xl border border-edge p-4" data-installment-panel="error">
+      <h4 className="flex items-center gap-2 text-sm font-bold text-ink-strong"><CalendarRange className="size-4 text-primary" aria-hidden="true" />{ui("Instalment plan")}</h4>
+      <ErrorState title={ui("The instalment plan could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} retryLabel={ui("Try again")} className="py-6" />
+    </section>;
+  }
   const plan = data.plans[0];
+  if (!canPropose && !plan) return null;
   return <section className="space-y-3 rounded-2xl border border-edge p-4" data-installment-panel={plan?.status ?? "none"}>
     <h4 className="flex items-center gap-2 text-sm font-bold text-ink-strong"><CalendarRange className="size-4 text-primary" aria-hidden="true" />{ui("Instalment plan")}</h4>
     {plan ? <>
       <p className="text-xs text-ink-muted">{plan.status === "active" ? ui("Approved. The family sees this schedule; only past-due instalments count as overdue.") : plan.proposedByYou ? ui("Proposed by you. Another staff member must approve it before the family sees it.") : ui("Proposed by a colleague and waiting for your approval.")}</p>
       <InstallmentSchedule installments={plan.installments} currency={currency} />
       <div className="flex flex-wrap gap-2">
-        {plan.status === "proposed" && !plan.proposedByYou && <Button disabled={busy} loading={busy} onClick={() => void act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "approve" }) }), ui("Instalment plan approved."))}>{ui("Approve plan")}</Button>}
-        <Button variant="ghost" disabled={busy} onClick={() => void act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "cancel" }) }), ui("Instalment plan cancelled."))}>{ui("Cancel plan")}</Button>
+        {plan.status === "proposed" && !plan.proposedByYou && <Button disabled={busy} loading={busy} onClick={() => setApproving(true)}>{ui("Approve plan")}</Button>}
+        <Button variant="outline" className="text-destructive" disabled={busy} onClick={() => setCancelling(true)}>{ui("Cancel plan")}</Button>
       </div>
-    </> : data.balance > 0 ? <>
+      <ConfirmAction
+        open={approving}
+        busy={busy}
+        tone="primary"
+        title={ui("Approve this instalment plan?")}
+        description={ui("The family is shown this schedule and only past-due instalments count as overdue. You can still cancel the plan later.")}
+        confirmLabel={ui("Approve plan")}
+        cancelLabel={ui("Keep editing")}
+        onConfirm={() => { setApproving(false); void act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "approve" }) }), ui("Instalment plan approved.")); }}
+        onCancel={() => setApproving(false)}
+      />
+      <ConfirmAction
+        open={cancelling}
+        busy={busy}
+        tone="danger"
+        title={ui("Cancel this instalment plan?")}
+        description={ui("The schedule is withdrawn and the invoice falls due on its original date again. The family is no longer shown the instalments.")}
+        confirmLabel={ui("Cancel plan")}
+        cancelLabel={ui("Keep editing")}
+        onConfirm={() => { setCancelling(false); void act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "cancel" }) }), ui("Instalment plan cancelled.")); }}
+        onCancel={() => setCancelling(false)}
+      />
+    </> : canPropose && data.balance > 0 ? <>
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="plan-count" label={ui("Number of instalments")} hint={ui("Between 2 and 24.")}><Input type="number" min={2} max={24} value={count} onChange={event => setCount(event.target.value)} /></FormField>
         <FormField name="plan-first" label={ui("First instalment due")} hint={ui("Today or later. Later instalments fall due monthly after this date.")}><Input type="date" value={firstDue} min={data.today} onChange={event => setFirstDue(event.target.value)} /></FormField>

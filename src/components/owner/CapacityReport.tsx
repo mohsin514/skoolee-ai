@@ -8,11 +8,17 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { PageHeader } from "@/components/ui/page-header";
+import { SkeletonCards } from "@/components/ui/skeleton";
+import { Download, Gauge, RefreshCw } from "lucide-react";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
+import { Alert } from "@/components/ui/alert";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 
 // SKO-451: release performance report and resource-policy review in the owner console. Measured values are kept
 // apart from estimates, missing or stale telemetry is said plainly, and a policy change asks for a follow-up run.
@@ -46,7 +52,7 @@ function RunDetail({ run }: { run: Run }) {
   const [evidence, setEvidence] = useState(false);
   return <div className="space-y-3" data-run-detail={run.runId}>
     <Table><TableHeader><TableRow><TableHead>{ui("Objective")}</TableHead><TableHead>{ui("Target")}</TableHead><TableHead>{ui("Observed")}</TableHead><TableHead>{ui("Result")}</TableHead></TableRow></TableHeader>
-      <TableBody>{run.objectives.map(o => <TableRow key={o.key} data-objective={o.key} data-pass={String(o.pass)}><TableCell>{objectiveLabel(ui, o.label)}</TableCell><TableCell><bdi dir="ltr">{o.target}</bdi></TableCell><TableCell><bdi dir="ltr">{o.observed ?? "—"}</bdi></TableCell><TableCell className={cn("font-semibold", o.pass === false ? "text-rose-700" : o.pass ? "text-emerald-700" : "text-amber-800")}>{result(ui, o.pass)}</TableCell></TableRow>)}</TableBody></Table>
+      <TableBody>{run.objectives.map(o => <TableRow key={o.key} data-objective={o.key} data-pass={String(o.pass)}><TableCell>{objectiveLabel(ui, o.label)}</TableCell><TableCell><bdi dir="ltr">{o.target}</bdi></TableCell><TableCell><bdi dir="ltr">{o.observed ?? "—"}</bdi></TableCell><TableCell className={cn("font-semibold", o.pass === false ? "text-status-error-text" : o.pass ? "text-status-success-text" : "text-status-warning-text")}>{result(ui, o.pass)}</TableCell></TableRow>)}</TableBody></Table>
     <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("Workload")}</TableHead><TableHead>{ui("Class")}</TableHead><TableHead>{ui("Requests")}</TableHead><TableHead>p50</TableHead><TableHead>p95</TableHead><TableHead>{ui("Quiet baseline p95")}</TableHead><TableHead>p99</TableHead><TableHead>{ui("Errors")}</TableHead><TableHead>{ui("Refused (429)")}</TableHead><TableHead>{ui("Timeouts")}</TableHead></TableRow></TableHeader>
       <TableBody>{Object.entries(run.results.workloads).map(([name, w]) => <TableRow key={name} data-workload={name}><TableCell><bdi dir="ltr">{name}</bdi></TableCell><TableCell>{w.serviceClass}</TableCell><TableCell><bdi dir="ltr">{w.count}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(w.p50)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(w.p95)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(run.results.baseline?.[name]?.p95 ?? null)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(w.p99)}</bdi></TableCell><TableCell><bdi dir="ltr">{w.errors}</bdi></TableCell><TableCell><bdi dir="ltr">{w.rejected}</bdi></TableCell><TableCell><bdi dir="ltr">{w.timeouts}</bdi></TableCell></TableRow>)}</TableBody></Table></div>
     {run.results.backgroundPeaks.length ? <p className="text-xs text-ink-muted">{ui("Background requests in flight per school (server-measured peak / limit)")}: {run.results.backgroundPeaks.map(p => <bdi key={p.schoolId} dir="ltr" className="me-2">{p.schoolId.slice(0, 18)} {p.peak}/{p.limit}</bdi>)}</p> : null}
@@ -84,20 +90,48 @@ export function CapacityReport() {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [data, setData] = useState<Report | null>(null), [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null), [failingOnly, setFailingOnly] = useState(false), [changing, setChanging] = useState(false), [reverting, setReverting] = useState<Policy | null>(null), [revertReason, setRevertReason] = useState("");
+  const [open, setOpen] = useState<string | null>(null), [failingOnly, setFailingOnly] = useState(false), [changing, setChanging] = useState(false), [reverting, setReverting] = useState<Policy | null>(null), [revertBusy, setRevertBusy] = useState(false);
   const load = useCallback(async () => { try { setData(await call("/api/owner/capacity")); setError(null); } catch (e) { setError(e instanceof Error ? e.message : "Unavailable"); } }, []);
   useEffect(() => { void load(); }, [load]);
-  if (error) return <div className="m-4 sm:m-6" data-capacity-error><ErrorState title={ui("Telemetry is unavailable; do not infer healthy service.")} description={ui(error)} onRetry={() => void load()} /></div>;
-  if (!data) return <p className="p-4 text-sm text-ink-muted sm:p-6" aria-live="polite">{ui("Loading measured telemetry…")}</p>;
+  // §4.4b: a monitoring screen — no primary action; Export and Refresh are its secondaries.
+  const exportReport = () => {
+    if (!data) return;
+    const cell = (value: unknown) => { const raw = value == null ? "" : String(value); const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw; return /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe; };
+    const rows = [["section", "name", "detail", "passed_or_state", "measured_at"],
+      ...data.runs.map(r => ["release run", r.runId, `${r.profile} · ${r.release} · ${r.environment}`, r.passed ? "passed" : "failed", r.finishedAt]),
+      ...data.requests.classes.map(c => ["live class", c.serviceClass, `requests ${c.count} · p95 ${c.p95 ?? ""} · p99 ${c.p99 ?? ""} · errors ${c.errors} · refused ${c.rejected}`, data.requests.state, data.requests.measuredAt]),
+      ...data.policy.active.map(p => ["policy", p.schoolName ?? "platform default", `${p.scope} ${p.limitValue} · ${p.reason}`, "active", p.createdAt])];
+    const url = URL.createObjectURL(new Blob([rows.map(row => row.map(cell).join(",")).join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = `capacity-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
+  };
+  const header = <PageHeader eyebrow="Platform operations" title="Capacity" icon={Gauge}
+    description="Capacity and tenant fairness: synthetic benchmarks and live measurements. Values here are not capacity claims."
+    secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: exportReport, disabled: !data }, { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void load() }]} />;
+  // The scrolling body of the shell's one page card (addendum 2026-10-22).
+  const body = cn("custom-scrollbar min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY);
+  if (error) return <div className={body} data-capacity-error>{header}<div className="sk-panel"><ErrorState title={ui("Telemetry is unavailable; do not infer healthy service.")} description={ui(error)} onRetry={() => load()} /></div></div>;
+  if (!data) return <div className={body}>{header}<SkeletonCards count={3} label={ui("Loading measured telemetry…")} /></div>;
+  // §8.1 R3: reverting a policy is confirmed with a typed reason (it changes what every school may run).
+  const revert = async (reason?: string) => {
+    if (!reverting || !reason) return;
+    setRevertBusy(true);
+    try {
+      await call("/api/owner/capacity", "POST", { action: "revert", id: reverting.id, reason });
+      toast.success(ui("Change reverted; the previous limit applies again. A follow-up measurement is required."));
+      setReverting(null);
+      await load();
+    } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); }
+    finally { setRevertBusy(false); }
+  };
   const runs = failingOnly ? data.runs.filter(r => !r.passed) : data.runs;
   const req = data.requests;
   const stateText = req.state === "MEASURED" ? ui("Measured") : req.state === "STALE" ? ui("Stale: no request in the last minute") : ui("No measurement yet");
-  return <div className="min-w-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6" data-capacity>
-    <header><h2 className="text-xl font-bold">{ui("Capacity and tenant fairness")}</h2><p className="text-sm text-ink-muted">{ui("Synthetic benchmarks and live measurements. Values here are not capacity claims.")}</p></header>
-    {data.followUpRequired ? <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900" role="status" data-follow-up>{ui("Scoped policy applied. A follow-up measurement is required.")}</p> : null}
+  return <div className={body} data-capacity>
+    {header}
+    {data.followUpRequired ? <Alert tone="warning" compact data-follow-up>{ui("Scoped policy applied. A follow-up measurement is required.")}</Alert> : null}
 
     <section className="sk-panel space-y-3 p-4" data-runs>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Release performance report")}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Release performance report")}</h2>
         <Button size="sm" variant={failingOnly ? "default" : "outline"} aria-pressed={failingOnly} onClick={() => { setFailingOnly(!failingOnly); const f = data.runs.find(r => !r.passed); if (!failingOnly && f) setOpen(f.id); }} data-review-failing>{ui("Review failing workload")}</Button></div>
       {!data.runs.length ? <p className="text-sm" data-runs-empty>{ui("No representative benchmark has been recorded for this workload. No capacity claim is available until this workload is measured.")}</p> : <ul className="space-y-2">{runs.map(r => <li key={r.id} className="rounded-xl border border-border p-3" data-run={r.runId} data-run-passed={String(r.passed)}>
         <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)} data-run-toggle={r.runId}>
@@ -110,31 +144,39 @@ export function CapacityReport() {
     </section>
 
     <section className="sk-panel space-y-3 p-4" data-live>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Live measurements")}</h3><Badge variant={req.state === "MEASURED" ? "success" : req.state === "STALE" ? "warning" : "neutral"} dot data-telemetry-state={req.state}>{stateText}</Badge></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Live measurements")}</h2><Badge variant={req.state === "MEASURED" ? "success" : req.state === "STALE" ? "warning" : "neutral"} dot data-telemetry-state={req.state}>{stateText}</Badge></div>
       <p className="text-xs text-ink-muted">{ui(req.scope)} · {ui("Last {0} minutes", [String(req.windowSeconds / 60)])} · {ui("Measured at {0}", [dateTime(req.measuredAt)])}</p>
       <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("Class")}</TableHead><TableHead>{ui("Requests")}</TableHead><TableHead>p95</TableHead><TableHead>p99</TableHead><TableHead>{ui("Errors")}</TableHead><TableHead>{ui("Refused (429)")}</TableHead></TableRow></TableHeader>
         <TableBody>{req.classes.map(c => <TableRow key={c.serviceClass} data-live-class={c.serviceClass}><TableCell>{c.serviceClass}</TableCell><TableCell><bdi dir="ltr">{c.count}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(c.p95)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(c.p99)}</bdi></TableCell><TableCell><bdi dir="ltr">{c.errors}</bdi></TableCell><TableCell><bdi dir="ltr">{c.rejected}</bdi></TableCell></TableRow>)}</TableBody></Table></div>
-      <div data-database>{data.database.available ? <p className="text-sm">{ui("Database: {0} of {1} connections, {2} active, {3} waiting on locks, probe {4} ms", [String(data.database.connections), String(data.database.maxConnections), String(data.database.active), String(data.database.waitingOnLocks), String(data.database.probeMs)])}</p> : <p className="text-sm font-semibold text-rose-700" data-database-unavailable>{ui(data.database.reason)}</p>}</div>
-      <h4 className="text-sm font-bold">{ui("Durable queue by school")}</h4>
-      {!data.queue.available ? <p className="text-sm text-rose-700">{ui(data.queue.reason ?? "Telemetry is unavailable; do not infer healthy service.")}</p> : !data.queue.schools.length ? <p className="text-sm text-ink-muted">{ui("No queued or recent durable work.")}</p> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("School")}</TableHead><TableHead>{ui("Pending")}</TableHead><TableHead>{ui("Running")}</TableHead><TableHead>{ui("Oldest waiting")}</TableHead><TableHead>{ui("Failed (24 h)")}</TableHead><TableHead>{ui("Estimate")}</TableHead></TableRow></TableHeader>
+      <div data-database>{data.database.available ? <p className="text-sm">{ui("Database: {0} of {1} connections, {2} active, {3} waiting on locks, probe {4} ms", [String(data.database.connections), String(data.database.maxConnections), String(data.database.active), String(data.database.waitingOnLocks), String(data.database.probeMs)])}</p> : <p className="text-sm font-semibold text-status-error-text" data-database-unavailable>{ui(data.database.reason)}</p>}</div>
+      <h3 className="text-sm font-bold">{ui("Durable queue by school")}</h3>
+      {!data.queue.available ? <p className="text-sm text-status-error-text">{ui(data.queue.reason ?? "Telemetry is unavailable; do not infer healthy service.")}</p> : !data.queue.schools.length ? <p className="text-sm text-ink-muted">{ui("No queued or recent durable work.")}</p> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("School")}</TableHead><TableHead>{ui("Pending")}</TableHead><TableHead>{ui("Running")}</TableHead><TableHead>{ui("Oldest waiting")}</TableHead><TableHead>{ui("Failed (24 h)")}</TableHead><TableHead>{ui("Estimate")}</TableHead></TableRow></TableHeader>
         <TableBody>{data.queue.schools.map(s => <TableRow key={s.schoolId} data-queue-school={s.schoolId}><TableCell><bdi>{s.name ?? s.schoolId}</bdi></TableCell><TableCell><bdi dir="ltr">{s.pending}</bdi></TableCell><TableCell><bdi dir="ltr">{s.running}</bdi></TableCell><TableCell><bdi dir="ltr">{s.oldestPendingSeconds} s</bdi></TableCell><TableCell><bdi dir="ltr">{s.failed24h}</bdi></TableCell><TableCell className="text-xs italic">{s.estimate ? (s.estimate.drainMinutes === null ? ui("Estimate unavailable: {0}", [ui(s.estimate.basis)]) : ui("Estimate: about {0} min to drain, from {1}", [String(s.estimate.drainMinutes), ui(s.estimate.basis)])) : "—"}</TableCell></TableRow>)}</TableBody></Table></div>}
     </section>
 
     <section className="sk-panel space-y-3 p-4" data-policy>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-bold">{ui("Resource policy")}</h3><Button size="sm" variant="outline" onClick={() => setChanging(true)} data-policy-open>{ui("Change policy")}</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Resource policy")}</h2><Button size="sm" variant="outline" onClick={() => setChanging(true)} data-policy-open>{ui("Change policy")}</Button></div>
       <p className="text-sm">{ui("Platform default")}: {scopeLabel(ui, "BACKGROUND_REQUESTS")} <bdi dir="ltr">{data.policy.platform.BACKGROUND_REQUESTS.limit}</bdi> · {scopeLabel(ui, "BACKGROUND_JOBS")} <bdi dir="ltr">{data.policy.platform.BACKGROUND_JOBS.limit}</bdi></p>
       <p className="text-xs text-ink-muted">{ui("Background exports are limited; interactive school work remains prioritized.")}</p>
       {data.policy.active.length ? <ul className="space-y-2">{data.policy.active.map(p => <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm" data-active-policy={p.id}>
         <span><bdi>{p.schoolName ?? ui("Platform default")}</bdi> · {scopeLabel(ui, p.scope)} <bdi dir="ltr">{p.limitValue}</bdi> · <bdi>{p.reason}</bdi>{p.expiresAt ? <> · {ui("Until {0}", [dateTime(p.expiresAt)])}</> : null}</span>
-        <Button size="sm" variant="ghost" onClick={() => { setReverting(p); setRevertReason(""); }} data-policy-revert={p.id}>{ui("Revert")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No scoped changes are in force.")}</p>}
+        <Button size="sm" variant="ghost" onClick={() => setReverting(p)} data-policy-revert={p.id}>{ui("Revert")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No scoped changes are in force.")}</p>}
       {data.policy.history.length ? <details className="text-sm" data-policy-history><summary className="cursor-pointer font-semibold">{ui("Policy history")}</summary><ul className="mt-2 space-y-1">{data.policy.history.map(h => <li key={h.id}><bdi>{dateTime(h.createdAt)}</bdi> · <bdi>{h.schoolName ?? ui("Platform default")}</bdi> · <bdi dir="ltr">{h.scope} {h.limitValue}</bdi>{h.revokedAt ? <> · {ui("Reverted")} <bdi>{h.revokeReason}</bdi></> : null}</li>)}</ul></details> : null}
     </section>
 
-    {changing ? <ModalFrame title={ui("Resource policy change review")} onClose={() => setChanging(false)}><PolicyForm data={data} onDone={async () => { setChanging(false); await load(); }} /></ModalFrame> : null}
-    {reverting ? <ModalFrame title={ui("Revert policy change")} onClose={() => setReverting(null)}><div className="space-y-3" data-revert-form>
-      <p className="text-sm"><bdi>{reverting.schoolName ?? ui("Platform default")}</bdi> · {scopeLabel(ui, reverting.scope)} <bdi dir="ltr">{reverting.limitValue}</bdi></p>
-      <FormField name="cp-revert" label={ui("Reason")}><Textarea value={revertReason} onChange={e => setRevertReason(e.target.value)} rows={2} dir="auto" data-revert-reason /></FormField>
-      <Button disabled={revertReason.trim().length < 5} data-revert-save onClick={async () => { try { await call("/api/owner/capacity", "POST", { action: "revert", id: reverting.id, reason: revertReason }); toast.success(ui("Change reverted; the previous limit applies again. A follow-up measurement is required.")); setReverting(null); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } }}>{ui("Revert")}</Button>
-    </div></ModalFrame> : null}
+    {changing ? <Modal title={ui("Resource policy change review")} size="md" onClose={() => setChanging(false)}><PolicyForm data={data} onDone={async () => { setChanging(false); await load(); }} /></Modal> : null}
+    <ConfirmAction
+      open={Boolean(reverting)}
+      tone="warning"
+      title={ui("Revert this policy change?")}
+      description={ui("The previous limit applies again straight away. A follow-up measurement is required.")}
+      detail={reverting ? <p className="text-sm"><bdi>{reverting.schoolName ?? ui("Platform default")}</bdi> · {scopeLabel(ui, reverting.scope)} <bdi dir="ltr">{reverting.limitValue}</bdi></p> : null}
+      confirmLabel={ui("Revert")}
+      cancelLabel={ui("Keep editing")}
+      requireReason={{ label: ui("Why revert this change?"), minLength: 5 }}
+      busy={revertBusy}
+      onCancel={() => setReverting(null)}
+      onConfirm={(reason?: string) => void revert(reason)}
+    />
   </div>;
 }

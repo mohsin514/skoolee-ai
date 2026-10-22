@@ -4,13 +4,16 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { AccessNotice } from "@/components/ui/access-notice";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { ArrowLeft, Search, X } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-401: search school records within the reader's own scope. The query and every filter live in the URL,
 // so Back and refresh restore the same search; an older response can never overwrite a newer one; filters
@@ -24,12 +27,21 @@ type Options = { campuses: { id: string; name: string }[]; classes: { id: string
 const typeLabel = (ui: Ui, type: string) => ({ student: ui("Pupils"), class: ui("Classes"), staff: ui("Staff"), application: ui("Applications") } as Record<string, string>)[type] ?? type;
 const statusLabel = (ui: Ui, status: string) => ({ active: ui("Current only"), archived: ui("Archived or closed only"), all: ui("Current and archived") } as Record<string, string>)[status] ?? status;
 
-export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
+/**
+ * Framed by `src/app/search/layout.tsx` (RoleFrame supplies the role's nav, header and `<main>`), so this renders
+ * content only: one PageHeader, no page chrome and no "Back to dashboard" link (the sidebar is the way back).
+ * `dashboardHref` is accepted for one release and ignored.
+ */
+export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
   const ui = useUiText();
+  const { language } = useLocale();
   const router = useRouter(), pathname = usePathname(), params = useSearchParams();
   const [input, setInput] = useState(params.get("q") ?? "");
   const [data, setData] = useState<Response | null>(null), [options, setOptions] = useState<Options | null>(null);
   const [loading, setLoading] = useState(false), [error, setError] = useState("");
+  // A 403 is a permission answer, not a failure: it shows the access notice and never a Retry (R4/R6, P9-06).
+  const [denied, setDenied] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const sequence = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
   const state = useMemo(() => ({ q: params.get("q") ?? "", types: (params.get("types") ?? "").split(",").filter(Boolean), status: params.get("status") ?? "active", year: params.get("year") ?? "", cls: params.get("class") ?? "", campus: params.get("campus") ?? "", page: Number(params.get("page") ?? "1") || 1 }), [params]);
@@ -42,7 +54,7 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }, [params, pathname, router]);
 
-  useEffect(() => { void fetch("/api/search?options=1", { cache: "no-store" }).then(r => r.json()).then(json => json.success && setOptions(json.data)).catch(() => undefined); }, []);
+  useEffect(() => { void fetch("/api/search?options=1", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(json => json?.success && setOptions(json.data)).catch(() => undefined); }, []);
   useEffect(() => { const timer = setTimeout(() => { if (input !== state.q) update({ q: input.trim() || null }); }, 300); return () => clearTimeout(timer); }, [input, state.q, update]);
   useEffect(() => {
     const id = ++sequence.current, controller = new AbortController();
@@ -50,10 +62,13 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
       setLoading(true); setError("");
       try {
         const query = new URLSearchParams(params.toString());
+        query.set("lang", language); // role names and statuses in the reader's language
         const response = await fetch(`/api/search?${query}`, { cache: "no-store", signal: controller.signal });
         const json = await response.json().catch(() => ({}));
         if (id !== sequence.current) return; // a newer search has started; this answer is stale
+        if (response.status === 403) { setData(null); setDenied(typeof json.error === "string" ? json.error : "Record search is not part of your workspace."); return; }
         if (!response.ok || !json.success) throw new Error(json.error || "Search failed.");
+        setDenied(null);
         setData(json.data);
       } catch (failure) {
         if (controller.signal.aborted || id !== sequence.current) return;
@@ -61,7 +76,7 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
       } finally { if (id === sequence.current) setLoading(false); }
     }, 0);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [params, ui]);
+  }, [params, ui, language, attempt]);
 
   const chips = [
     ...state.types.map(type => ({ key: `type-${type}`, text: typeLabel(ui, type), clear: () => update({ types: state.types.filter(t => t !== type).join(",") || null }) })),
@@ -81,12 +96,18 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
     links[event.key === "ArrowDown" ? Math.min(links.length - 1, index + 1) : Math.max(0, index - 1)]?.focus();
   };
 
-  return <div className="min-h-dvh font-sans text-foreground" onKeyDown={onKeyDown} data-search-page>
-    <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur md:px-6">
-      <Link href={dashboardHref} className={buttonVariants({ variant: "ghost", size: "sm" })} aria-label={ui("Back to dashboard")}><ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" /><span className="hidden sm:inline">{ui("Back to dashboard")}</span></Link>
-      <h1 className="text-base font-semibold">{ui("Search records")}</h1>
-    </header>
-    <main className="mx-auto max-w-4xl space-y-4 px-4 py-5 md:px-6">
+  const header = <PageHeader
+    title="Search records"
+    description="Find a pupil, class, staff member or application in your own school and open it in your workspace."
+    icon={Search}
+  />;
+  if (denied) return <div className="mx-auto w-full max-w-4xl space-y-4 font-sans text-foreground" data-search-page data-search-denied>
+    {header}
+    <AccessNotice reason={denied} />
+  </div>;
+
+  return <div className="mx-auto w-full max-w-4xl space-y-4 font-sans text-foreground" onKeyDown={onKeyDown} data-search-page>
+      {header}
       <p className="text-xs text-ink-muted" data-search-scope>{data ? (data.scope.allCampuses ? ui("Searching {0} · all campuses", [data.scope.school]) : ui("Searching {0} · {1}", [data.scope.school, data.scope.campus ?? ""])) : ui("Searching your school")}</p>
       <FormField name="search-q" label={ui("Search by name, roll number, admission number or reference")}>
         <div className="relative"><Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" /><Input type="search" value={input} autoFocus autoComplete="off" className="ps-9" onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === "Enter") update({ q: input.trim() || null }); }} /></div>
@@ -104,7 +125,9 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
         <Button size="sm" variant="ghost" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })} data-search-clear>{ui("Clear filters")}</Button>
       </div> : null}
       {data?.partial ? <div data-search-partial><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="ghost" onClick={() => router.refresh()}>{ui("Retry")}</Button>}>{ui("Results are partial: {0} could not be searched just now.", [Object.entries(data.sources).filter(([, state]) => state === "failed").map(([type]) => typeLabel(ui, type)).join(", ")])}</Alert></div> : null}
-      {error ? <Alert tone="danger" compact actions={<Button size="sm" variant="secondary" onClick={() => update({ page: String(state.page) })}>{ui("Retry")}</Button>}>{error}</Alert> : null}
+      {/* Load failure (R4): inline, with a retry that really runs the search again; earlier results stay visible. */}
+      {error && data ? <Alert tone="danger" compact actions={<Button size="sm" variant="secondary" onClick={() => setAttempt(n => n + 1)}>{ui("Retry")}</Button>}>{error}</Alert> : null}
+      {error && !data ? <ErrorState title={ui("Search failed.")} description={error} onRetry={() => setAttempt(n => n + 1)} /> : null}
       <p className="sr-only" role="status" aria-live="polite">{loading ? ui("Searching…") : data ? ui("{0} results", [total]) : ""}</p>
       {loading && !data ? <SkeletonList rows={4} label={ui("Searching…")} /> : null}
       {data && !total && !error ? <div data-search-empty><EmptyState size="sm" icon={Search} title={state.q ? ui("No matches for “{0}”.", [state.q]) : ui("No records in this scope.")} description={chips.length ? ui("Filters in use: {0}. Remove one to widen the search.", [chips.map(chip => chip.text).join(", ")]) : ui("Try part of the name, or the exact roll number, admission number or application reference.")} action={chips.length ? <Button size="sm" variant="secondary" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })}>{ui("Clear filters")}</Button> : undefined} /></div> : null}
@@ -113,9 +136,9 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
           <h2 className="mb-2 flex items-center justify-between text-sm font-bold"><span>{typeLabel(ui, group.type)} <span className="text-ink-muted">({group.total})</span></span>{!single && group.total > group.rows.length ? <Button size="sm" variant="ghost" onClick={() => update({ types: group.type })}>{ui("See all {0}", [group.total])}</Button> : null}</h2>
           <ul className="space-y-1.5">{group.rows.map(row => <li key={`${row.type}-${row.id}-${row.identifiers[0] ?? ""}`}>
             <Link href={row.href} data-search-result={row.id} className="block rounded-xl border border-border bg-card px-3 py-2 text-sm hover:bg-muted">
-              <span className="flex flex-wrap items-center gap-2"><bdi className="font-bold">{row.title}</bdi>{row.exact ? <span className="rounded bg-emerald-50 px-1.5 text-2xs font-bold text-emerald-800">{ui("Exact match")}</span> : null}{row.archived ? <span className="rounded bg-muted px-1.5 text-2xs font-bold">{row.type === "application" ? ui("Closed") : ui("Archived")}</span> : null}</span>
+              <span className="flex flex-wrap items-center gap-2"><bdi className="font-bold">{row.title}</bdi>{row.exact ? <span className="rounded bg-status-success-surface px-1.5 text-2xs font-bold text-status-success-text">{ui("Exact match")}</span> : null}{row.archived ? <span className="rounded bg-muted px-1.5 text-2xs font-bold">{row.type === "application" ? ui("Closed") : ui("Archived")}</span> : null}</span>
               <span className="block text-xs text-ink-muted">{row.context.filter(Boolean).map((part, index) => <span key={index}>{index ? " · " : ""}<bdi>{part}</bdi></span>)}{row.identifiers.length ? <> · {row.identifiers.map((id, index) => <span key={index}>{index ? " · " : ""}<bdi dir="ltr">{id}</bdi></span>)}</> : null}</span>
-              {row.note ? <span className="block text-xs text-amber-800">{ui("This identifier belongs to a merged record; it opens the current one.")}</span> : null}
+              {row.note ? <span className="block text-xs text-status-warning-text">{ui("This identifier belongs to a merged record; it opens the current one.")}</span> : null}
             </Link>
           </li>)}</ul>
         </section>)}
@@ -125,6 +148,5 @@ export function SearchWorkspace({ dashboardHref }: { dashboardHref: string }) {
         <span className="text-xs" data-search-page-number>{ui("Page {0} of {1}", [state.page, Math.ceil(single.total / (data?.pageSize ?? 25))])}</span>
         <Button variant="secondary" size="sm" disabled={state.page >= Math.ceil(single.total / (data?.pageSize ?? 25))} onClick={() => update({ page: String(state.page + 1) })}>{ui("Next")}</Button>
       </nav> : null}
-    </main>
   </div>;
 }

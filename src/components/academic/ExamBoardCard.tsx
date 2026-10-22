@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * Where opening an exam should land.
@@ -96,6 +97,7 @@ export function ExamBoardCard({
   onDragStart,
   onDragEnd,
 }: ExamBoardCardProps) {
+  const ui = useUiText();
   const hasSchedule = (schedule?.papers ?? 0) > 0;
   const action = nextAction(exam, hasSchedule, role);
   const accent = accentFor(exam, hasSchedule);
@@ -116,7 +118,7 @@ export function ExamBoardCard({
       onDragEnd={onDragEnd}
       tabIndex={0}
       role="listitem"
-      aria-label={`${exam.title}, ${classLabel(exam.class)}${selected ? ", selected" : ""}`}
+      aria-label={ui(selected ? "{0}, {1}, selected" : "{0}, {1}", [exam.title, classLabel(exam.class)])}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -155,7 +157,7 @@ export function ExamBoardCard({
             checked={selected}
             onChange={() => onToggleSelect()}
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Select ${exam.title}`}
+            aria-label={ui("Select {0}", [exam.title])}
             className={cn(
               "mt-1 h-4 w-4 shrink-0 cursor-pointer accent-primary transition-opacity",
               selectionActive || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
@@ -166,13 +168,13 @@ export function ExamBoardCard({
             onClick={() => onOpen()}
             className="min-w-0 text-start text-sm font-semibold leading-tight text-ink-strong"
           >
-            {exam.title}
+            <bdi>{exam.title}</bdi>
           </Button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {flagged ? (
-            <Tooltip content="Needs your attention">
-              <span tabIndex={0} aria-label="Needs your attention" className="text-status-warning-text">
+            <Tooltip content={ui("Needs your attention")}>
+              <span tabIndex={0} aria-label={ui("Needs your attention")} className="text-status-warning-text">
                 <TriangleAlert aria-hidden="true" className="h-3.5 w-3.5" />
               </span>
             </Tooltip>
@@ -184,12 +186,12 @@ export function ExamBoardCard({
 
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <Badge variant="default" size="sm">
-          {EXAM_TYPE_LABELS[exam.examType as ExamType] ||
+          {ui(EXAM_TYPE_LABELS[exam.examType as ExamType] ||
             exam.examType?.replaceAll("_", " ") ||
-            "Exam"}
+            "Exam")}
         </Badge>
         <Badge variant="neutral" size="sm">
-          {classLabel(exam.class)}
+          <bdi>{classLabel(exam.class)}</bdi>
         </Badge>
         {dateRange ? (
           <Badge variant="info" size="sm" className="tabular-nums">
@@ -201,23 +203,23 @@ export function ExamBoardCard({
 
       {!compact ? (
         <p className="mb-3 text-xs text-ink-subtle">
-          {exam.subject ? exam.subject.name : "All subjects"}
-          {meta?.subjectsCount
-            ? ` · ${meta.subjectsCount} subject${meta.subjectsCount > 1 ? "s" : ""}`
-            : ""}
-          {meta?.studentsCount ? ` · ${meta.studentsCount} students` : ""}
+          {[
+            exam.subject ? exam.subject.name : ui("All subjects"),
+            meta?.subjectsCount ? ui(meta.subjectsCount > 1 ? "{0} subjects" : "{0} subject", [meta.subjectsCount]) : null,
+            meta?.studentsCount ? ui("{0} students", [meta.studentsCount]) : null,
+          ].filter(Boolean).join(" · ")}
         </p>
       ) : null}
 
       {meta && meta.expectedMarks > 0 ? (
         <div className="mb-3">
           <div aria-hidden="true" className="mb-1 flex items-center justify-between text-2xs font-semibold">
-            <span className="text-ink-muted">Marks entered</span>
-            <span className="tabular-nums text-ink">
+            <span className="text-ink-muted">{ui("Marks entered")}</span>
+            <bdi dir="ltr" className="tabular-nums text-ink">
               {meta.enteredMarks}/{meta.expectedMarks} · {pct}%
-            </span>
+            </bdi>
           </div>
-          <Progress value={pct} max={100} label="Marks entered" size="sm" tone={pct === 100 ? "success" : "brand"} />
+          <Progress value={pct} max={100} label={ui("Marks entered")} size="sm" tone={pct === 100 ? "success" : "brand"} />
         </div>
       ) : null}
 
@@ -227,7 +229,7 @@ export function ExamBoardCard({
           compact
           live="off"
           className="mb-3"
-          title={`Sent back${exam.rejectionCount && exam.rejectionCount > 1 ? ` · ${exam.rejectionCount} times` : ""}`}
+          title={exam.rejectionCount && exam.rejectionCount > 1 ? ui("Sent back · {0} times", [exam.rejectionCount]) : ui("Sent back")}
         >
           {exam.rejectionReason}
         </Alert>
@@ -247,11 +249,11 @@ export function ExamBoardCard({
           ) : (
             <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
           )}
-          {action.label}
+          {ui(action.label)}
         </Button>
       ) : (
         <div className="flex items-center justify-center gap-1.5 rounded-xl bg-status-success-surface py-2 text-xs font-semibold text-status-success-text">
-          <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" /> Complete
+          <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Complete")}
         </div>
       )}
 
@@ -261,7 +263,7 @@ export function ExamBoardCard({
           onClick={onReject}
           className="mt-2 flex w-full items-center justify-center gap-1.5 py-2"
         >
-          <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> Send Back
+          <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Send back")}
         </Button>
       ) : null}
     </article>
@@ -288,6 +290,7 @@ function CardMenu({
   onOpen: (tab?: DetailTab) => void;
   onMove: (to: ColumnKey) => void;
 }) {
+  const ui = useUiText();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -323,7 +326,7 @@ function CardMenu({
       <IconButton
         variant="ghost"
         size="sm"
-        label={`Actions for ${exam.title}`}
+        label={ui("Actions for {0}", [exam.title])}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -344,13 +347,13 @@ function CardMenu({
                 className="flex w-full items-center justify-start gap-2 px-3 py-2 text-start"
               >
                 <Icon aria-hidden="true" className="h-3.5 w-3.5 text-primary" />
-                {t.label}
+                {ui(t.label)}
               </Button>
             );
           })}
 
-          <p className="mt-1 border-t border-edge/15 px-3 pb-1 pt-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-            Move to
+          <p className="mt-1 border-t border-edge/15 px-3 pb-1 pt-2 text-xs font-semibold text-ink-subtle">
+            {ui("Move to")}
           </p>
           {columns.map((col) => {
             const verdict = evaluateMove(exam, col.key, { role, hasSchedule, meta });
@@ -359,7 +362,7 @@ function CardMenu({
                 key={col.key}
                 type="button"
                 disabled={!verdict.ok}
-                title={verdict.ok ? verdict.label : verdict.reason}
+                title={ui(verdict.ok ? verdict.label : verdict.reason)}
                 onClick={() => {
                   setOpen(false);
                   onMove(col.key);
@@ -373,7 +376,7 @@ function CardMenu({
                     className="h-2 w-2 rounded-full"
                     style={{ backgroundColor: verdict.ok ? col.accent : "var(--ink-faint)" }}
                   />
-                  {col.title}
+                  {ui(col.title)}
                 </span>
                 {verdict.ok ? <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 text-ink-subtle rtl:rotate-180" /> : null}
               </Button>

@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertStaffRole, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, soleChecker } from "@/lib/api/scope";
+import { authorityRoleFor, isCampusOperator, isGroupConsole, kindFor } from "@/lib/auth/institution";
 import { getLocalePackage } from "@/lib/locale/store";
+import { notifySelfApproval } from "@/lib/notifications/events";
 
 // SKO-443: school-group policy templates with controlled campus overrides.
 // - A template covers one domain (grading or calendar) for named campuses, and says which countries and boards it
@@ -44,8 +46,26 @@ export const KEYS: Record<Domain, Record<string, Spec>> = {
 const DOMAINS = Object.keys(KEYS) as Domain[];
 const domainOf = (v: unknown): Domain => { if (!DOMAINS.includes(v as Domain)) throw new ApiError("Choose a policy domain.", 400); return v as Domain; };
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
-const isGroupOwner = (user: AuthUser) => user.role === "SUPER_ADMIN" || !!user.isInstitutionOwner;
-function groupOwner(user: AuthUser) { if (!isGroupOwner(user)) throw new ApiError("Only group policy owners can change group templates.", 403); }
+// §7.3 G16: group policy is a school-group instrument. The group admin owns templates and decisions; a campus
+// operator in a group requests overrides; staff of a group read what applies. A single school has no group policy.
+const isGroupOwner = (user: AuthUser) => isGroupConsole(user);
+/** Every user-facing entry point starts here: a single school (or an unknown kind) has no group policy at all. */
+function assertGroupSchool(user: AuthUser) { if (kindFor(user) !== "GROUP") throw new ApiError("Group policy applies to school groups.", 404); }
+function groupOwner(user: AuthUser) {
+  assertGroupSchool(user);
+  if (!isGroupOwner(user)) throw new ApiError("Only the group admin can change group policy.", 403);
+}
+const canRequestOverride = (user: AuthUser) => kindFor(user) === "GROUP" && isCampusOperator(user);
+/** SD3 (§2.5): the minimum typed reason when the only group admin reviews their own version. */
+const SELF_APPROVAL_REASON_MIN = 10;
+/** §10.8 notifySelfApproval (P9), typed against its contract and fire-and-forget: a notification never fails the decision. */
+async function noticeSelfApproval(input: Parameters<typeof notifySelfApproval>[0]) {
+  try {
+    await notifySelfApproval(input);
+  } catch (error) {
+    console.error("[group-policy] self-approval notice failed", error);
+  }
+}
 const LIVE = ["SCHEDULED", "ACTIVE", "SUPERSEDED"];
 
 async function event(tx: TxClient | typeof prisma, schoolId: string, kind: string, actorId: string | null, ids: { templateId?: string | null; versionId?: string | null; campusId?: string | null }, detail: Record<string, unknown> = {}) {
@@ -163,6 +183,7 @@ const campusFor = async (user: AuthUser, campusId?: string | null) => {
 
 export async function campusPolicy(user: AuthUser, campusIdParam: string | null, domainParam: string | null, atParam?: string | null) {
   assertStaffRole(user);
+  assertGroupSchool(user);
   const campus = await campusFor(user, campusIdParam);
   const domain = domainOf(domainParam || "GRADING");
   const at = atParam ? new Date(atParam) : new Date();
@@ -170,11 +191,12 @@ export async function campusPolicy(user: AuthUser, campusIdParam: string | null,
   const eff = await resolve(user.schoolId, campus.id, domain, at, await localValues(user.schoolId, campus.id, domain));
   const pending = eff.template ? await prisma.policyOverride.findMany({ where: { schoolId: user.schoolId, campusId: campus.id, templateId: eff.template.id, status: "PENDING" }, select: { id: true, key: true, value: true, validFrom: true, validUntil: true, reason: true } }) : [];
   const scheduled = eff.template ? await prisma.policyTemplateVersion.findFirst({ where: { templateId: eff.template.id, status: "SCHEDULED" }, select: { version: true, effectiveFrom: true } }) : null;
-  return { campus, ...eff, pending, scheduled, canRequest: canManageOperations(user) && (isGroupOwner(user) || user.campusId === campus.id), canPublish: isGroupOwner(user) };
+  return { campus, ...eff, pending, scheduled, canRequest: canRequestOverride(user) && user.campusId === campus.id, canPublish: isGroupOwner(user) };
 }
 
 export async function requestOverride(user: AuthUser, body: Record<string, unknown>) {
-  if (!canManageOperations(user)) throw new ApiError("Only campus leaders can request a policy override.", 403);
+  assertGroupSchool(user);
+  if (!canRequestOverride(user)) throw new ApiError("Only a campus admin in a school group can request a policy override.", 403);
   const campus = await campusFor(user, body.campusId ? String(body.campusId) : null);
   const domain = domainOf(body.domain), key = String(body.key ?? "");
   const spec = KEYS[domain][key];
@@ -204,7 +226,7 @@ export async function decideOverride(user: AuthUser, body: Record<string, unknow
   if (decision !== "APPROVE" && decision !== "DECLINE") throw new ApiError("Approve or decline.", 400);
   const row = await prisma.policyOverride.findFirst({ where: { id: String(body.id ?? ""), schoolId: user.schoolId } });
   if (!row) throw new ApiError("Override not found", 404);
-  if (row.requestedById === user.userId) throw new ApiError("Another group policy owner must decide an override you requested.", 403);
+  if (row.requestedById === user.userId) throw new ApiError("Another group admin must decide an override you requested.", 403);
   const done = await prisma.policyOverride.updateMany({ where: { id: row.id, status: "PENDING" }, data: { status: decision === "APPROVE" ? "APPROVED" : "DECLINED", approverId: user.userId, decidedAt: new Date(), decisionNote: text(body.note, 500) || null } });
   if (!done.count) throw new ApiError("This override was already decided.", 409);
   await event(prisma, user.schoolId, decision === "APPROVE" ? "OVERRIDE_APPROVED" : "OVERRIDE_DECLINED", user.userId, { templateId: row.templateId, versionId: row.versionId, campusId: row.campusId }, { overrideId: row.id, key: row.key });
@@ -231,8 +253,10 @@ export async function library(user: AuthUser) {
     prisma.policyOverride.findMany({ where: { schoolId: user.schoolId, status: "PENDING" }, orderBy: { createdAt: "asc" } }),
   ]);
   const countries = Object.fromEntries(await Promise.all(campuses.map(async c => [c.id, (await getLocalePackage(user.schoolId, c.id)).country ?? "OTHER"] as const)));
-  const owners = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, OR: [{ role: "SUPER_ADMIN" }, { isInstitutionOwner: true }] }, select: { id: true, fullName: true } });
-  return { templates, campuses: campuses.map(c => ({ ...c, country: countries[c.id] })), pending, owners, keys: Object.fromEntries(DOMAINS.map(d => [d, Object.entries(KEYS[d]).map(([key, s]) => ({ key, label: s.label, hint: s.hint }))])), userId: user.userId };
+  const owners = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: authorityRoleFor("GROUP") }, select: { id: true, fullName: true } });
+  // SD3: with no second group admin the author may review their own version, with a typed reason.
+  const soleReviewer = await soleChecker("policy", user, null);
+  return { templates, campuses: campuses.map(c => ({ ...c, country: countries[c.id] })), pending, owners, keys: Object.fromEntries(DOMAINS.map(d => [d, Object.entries(KEYS[d]).map(([key, s]) => ({ key, label: s.label, hint: s.hint }))])), userId: user.userId, soleReviewer, selfApprovalReasonMin: SELF_APPROVAL_REASON_MIN };
 }
 
 export async function createTemplate(user: AuthUser, body: Record<string, unknown>) {
@@ -327,8 +351,14 @@ export async function submitForReview(user: AuthUser, body: Record<string, unkno
   if (!Object.keys(version.values as object).length) throw new ApiError("Set at least one value before submitting.", 400);
   const effectiveFrom = new Date(String(body.effectiveFrom ?? ""));
   if (Number.isNaN(effectiveFrom.getTime())) throw new ApiError("Choose the effective date.", 400);
-  const reviewer = await prisma.user.findFirst({ where: { id: String(body.reviewerId ?? ""), schoolId: user.schoolId, isActive: true, OR: [{ role: "SUPER_ADMIN" }, { isInstitutionOwner: true }] }, select: { id: true } });
-  if (!reviewer || reviewer.id === user.userId) throw new ApiError("Choose another group policy owner to review this change.", 400);
+  // Reviewer = another active group admin. SD3: when the author is the only group admin, they name themselves and
+  // the self-review is recorded with a typed reason at approval.
+  const requested = String(body.reviewerId ?? "") || user.userId;
+  const sole = requested === user.userId ? await soleChecker("policy", user, null) : false;
+  const reviewer = requested === user.userId
+    ? (sole ? { id: user.userId } : null)
+    : await prisma.user.findFirst({ where: { id: requested, schoolId: user.schoolId, isActive: true, role: authorityRoleFor("GROUP") }, select: { id: true } });
+  if (!reviewer) throw new ApiError("Choose another group admin to review this change.", 400);
   const p = await computePreview(user.schoolId, version.template, version, effectiveFrom);
   if (p.previewHash !== String(body.previewHash ?? "")) throw new ApiError("Campus settings changed since your preview. Review the new impact before submitting.", 409);
   if (p.blocking) throw new ApiError(`${p.blocking} campus(es) are incompatible with this template. Remove them or create a separate template for them.`, 409);
@@ -345,6 +375,14 @@ export async function review(user: AuthUser, body: Record<string, unknown>) {
   const version = await prisma.policyTemplateVersion.findFirst({ where: { id: String(body.versionId ?? ""), schoolId: user.schoolId, status: "IN_REVIEW", activatedAt: null }, include: { template: true } });
   if (!version || !version.effectiveFrom) throw new ApiError("Version awaiting review not found", 404);
   if (version.reviewerId !== user.userId) throw new ApiError("Only the named reviewer can decide this version.", 403);
+  // SD3 (§2.5): a self-review needs that the author is still the only active group admin and a typed reason.
+  const selfReview = version.submittedById === user.userId;
+  let selfReason: string | null = null;
+  if (selfReview && String(body.decision ?? "") === "APPROVE") {
+    if (!(await soleChecker("policy", user, null))) throw new ApiError("Another group admin is now active. Ask them to review this version.", 403);
+    selfReason = text(body.reason, 2000);
+    if (selfReason.length < SELF_APPROVAL_REASON_MIN) throw new ApiError(`You are the only group admin. Give a reason of at least ${SELF_APPROVAL_REASON_MIN} characters to approve your own version.`, 400);
+  }
   if (decision === "RETURN") {
     await prisma.policyTemplateVersion.update({ where: { id: version.id }, data: { status: "DRAFT", previewHash: null, submittedById: null, reviewerId: null, effectiveFrom: null } });
     await event(prisma, user.schoolId, "RETURNED", user.userId, { templateId: version.templateId, versionId: version.id }, { note: text(body.note, 500) });
@@ -358,7 +396,13 @@ export async function review(user: AuthUser, body: Record<string, unknown>) {
   }
   const done = await prisma.policyTemplateVersion.updateMany({ where: { id: version.id, status: "IN_REVIEW" }, data: { status: "SCHEDULED", reviewedAt: new Date() } });
   if (!done.count) throw new ApiError("This version was already decided.", 409);
-  await event(prisma, user.schoolId, "SCHEDULED", user.userId, { templateId: version.templateId, versionId: version.id }, { effectiveFrom: version.effectiveFrom });
+  await event(prisma, user.schoolId, "SCHEDULED", user.userId, { templateId: version.templateId, versionId: version.id }, { effectiveFrom: version.effectiveFrom, ...(selfReason ? { selfApproved: true, reason: selfReason } : {}) });
+  if (selfReason) {
+    await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "policy_template_versions", recordId: version.id, userId: user.userId, oldValue: { status: "IN_REVIEW" }, newValue: { status: "SCHEDULED", selfApproved: true, reason: selfReason } } });
+    // §11 P1 makes the call; §2.5's "skipped when the maker is the authority" lives in notifySelfApproval itself (P9,
+    // events.ts returns early for an authority actor), so a group admin approving their own version notifies nobody.
+    void noticeSelfApproval({ schoolId: user.schoolId, campusId: null, kind: "policy", recordId: version.id, actorId: user.userId, reason: selfReason });
+  }
   const activated = await activateDue(user.schoolId);
   return { id: version.id, status: activated && version.effectiveFrom <= new Date() ? "ACTIVE" : "SCHEDULED", effectiveFrom: version.effectiveFrom, affected: p.affected };
 }
@@ -370,5 +414,6 @@ export async function history(user: AuthUser, templateId: string) {
 
 export async function provenanceFor(user: AuthUser, recordType: string, recordId: string) {
   assertStaffRole(user);
+  assertGroupSchool(user);
   return prisma.policyProvenance.findMany({ where: { schoolId: user.schoolId, recordType, recordId }, orderBy: { createdAt: "asc" } });
 }

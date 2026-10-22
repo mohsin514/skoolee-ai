@@ -1,274 +1,220 @@
 "use client";
 
-import { pageCardSurface } from "@/components/ui/page-card";
-
-import { WorkspaceSubnav } from "@/components/nav/WorkspaceSubnav";
-import React, { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
-import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
+import { Fragment, useId, useSyncExternalStore, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
+import { Select } from "@/components/ui/select";
+import { PageHeaderSkeleton, TileSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
+import { labelFor, leafForView, type ConsoleId } from "@/lib/navigation/role-nav";
+import { cn } from "@/lib/utils";
 
-
-/**
- * The shell the operations consoles sit in.
- *
- * Accountant, Librarian and Receptionist were the three roles the console
- * redesign never reached. Each was a single route switching an `activeView`
- * inside a bare `<section>`: no page header, no section strip, a "Welcome,
- * {name}" hero repeated verbatim in all three, and a naked spinner for every
- * load. Meanwhile the teacher, student and guardian consoles had all moved to
- * a compact header with a domain-tinted rail and a strip of tabs.
- *
- * These are the same primitives, driven by `activeView` rather than by the
- * router — which is the only real difference between those consoles and
- * these.
- */
-
-export interface ConsoleNavItem<T extends string = string> {
-  id: T;
-  label: string;
-  icon: LucideIcon;
-  tone: ModuleTone;
-  /** Optional grouping — a hairline is drawn where the group changes. */
-  group?: string;
-  /** Shown in the page header when this view is active. */
-  eyebrow?: string;
-  /** Shown under the title when this view is active. */
-  summary?: string;
+/** Phone width (below Tailwind `sm`), where capture desks move their one primary action into a sticky bar. */
+const PHONE_QUERY = "(max-width: 639.98px)";
+function subscribePhone(onChange: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+function usePhoneWidth() {
+  return useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
 }
 
 /**
- * Horizontal navigation across a console's views.
+ * The page frame of the operations-staff consoles (Finance desk, Front desk, Library) — role-ux §4.3.
  *
- * The sidebar already lists them, but on a single-route console the sidebar
- * is the *only* way between views — collapse it and the console loses its
- * navigation entirely. This puts every view one click from every other, and
- * keeps the active one scrolled into sight.
+ * One `PageHeader` per view: the title is the registry label verbatim, the description is the registry
+ * `summary` (or the console's own one-sentence description), at most one primary action at the top-end, up to
+ * two visible secondaries, persistent state in `status` and the view's tabs. The sidebar is the only section
+ * navigation: the old section strip that repeated it under the header is gone, and so are the quick-link tiles
+ * that repeated it again on the landing view (role-ux §4.5.8, F14).
+ *
+ * `captureDesk` marks the desks staff work standing up (Visitors, Collect, Lending desk, Pickup — §4.5.1): on a
+ * phone their one primary action leaves the header for a sticky bar at the bottom of the content, just above the
+ * mobile navigation, so it stays under the thumb while the list scrolls. It is still the only primary.
  */
-export function ConsoleSubnav<T extends string>({
-  items,
-  activeId,
-  onSelect,
-  label = "Console sections",
-}: {
-  items: ConsoleNavItem<T>[];
-  activeId: T;
-  onSelect: (id: T) => void;
-  label?: string;
-}) {
-  return <WorkspaceSubnav label={label} items={items} active={activeId} onSelect={(id) => onSelect(id as T)} />;
-}
-
-
-export function ConsolePage<T extends string>({
-  items,
-  activeId,
-  onSelect,
-  navLabel,
-  icon: Icon,
-  eyebrow,
+export function ConsolePage({
+  consoleId,
+  view,
   title,
-  summary,
-  actions,
-  banner,
+  description,
+  icon,
+  status,
+  primaryAction,
+  secondaryActions,
+  tabs,
+  notice,
+  captureDesk = false,
   children,
   contentClassName,
-  tone = "brand",
 }: {
-  items: ConsoleNavItem<T>[];
-  activeId: T;
-  onSelect: (id: T) => void;
-  navLabel?: string;
-  icon: LucideIcon;
-  eyebrow: ReactNode;
-  title: string;
-  summary?: ReactNode;
-  actions?: ReactNode;
-  /** Rendered flush under the header, outside the scroll area. */
-  banner?: ReactNode;
+  consoleId: ConsoleId;
+  /** The registry view this page renders; supplies the title and summary. */
+  view: string;
+  /** Overrides the registry label (EN UI key). */
+  title?: string;
+  /** Overrides the registry summary (EN UI key; one sentence naming the decider where relevant). */
+  description?: string;
+  icon?: LucideIcon;
+  status?: ReactNode;
+  primaryAction?: PageAction;
+  secondaryActions?: PageAction[];
+  tabs?: ReactNode;
+  /** A retired-view notice (EN UI key) from `useConsoleView().retiredNotice`, shown once above the content. */
+  notice?: string | null;
+  /** Capture-first desk: on a phone the primary action moves to a sticky bottom bar (role-ux §4.5.1). */
+  captureDesk?: boolean;
   children: ReactNode;
   contentClassName?: string;
-  /** The domain this view belongs to — drives its accent colour. */
-  tone?: ModuleTone;
 }) {
-  const t = toneOf(tone);
-  // Section names and summaries are catalog copy; names and other runtime text pass through unchanged.
   const ui = useUiText();
-  const copy = (value: ReactNode) => (typeof value === "string" ? ui(value) : value);
+  const access = useConsoleAccess();
+  const leaf = leafForView(consoleId, view);
+  const map: Record<string, boolean> = {};
+  if (leaf?.labelWhen) for (const when of leaf.labelWhen) map[when.key] = access.has(when.key);
+  const heading = title ?? (leaf ? labelFor(leaf, map) : view);
+  const summary = description ?? leaf?.summary;
+  const phone = usePhoneWidth();
+  const sticky = captureDesk && phone && primaryAction && !primaryAction.href ? primaryAction : null;
+  const StickyIcon = sticky?.icon;
+
   return (
-    <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")} >
-      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
-        <span aria-hidden className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", t.rail)} />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -end-20 -top-20 h-48 w-48 rounded-full blur-2xl"
-          style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
+    // Inside the shell's one page card (addendum 2026-10-22): no card of its own. On a phone the header scrolls away
+    // with the content; from `sm` up it stays pinned while the content scrolls under it.
+    <div className="custom-scrollbar relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto sm:overflow-hidden" data-console-view={view}>
+      <div className={cn("shrink-0 border-b border-border-subtle", CONSOLE_GUTTER, "pb-4 pt-4 sm:pb-5 sm:pt-6")}>
+        <PageHeader
+          title={heading}
+          description={summary}
+          icon={icon}
+          status={status}
+          primaryAction={sticky ? undefined : primaryAction}
+          secondaryActions={secondaryActions}
+          tabs={tabs}
         />
-        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
-              style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}
-            >
-              <Icon className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-2">
-                <h1 className="break-words text-lg font-bold leading-tight tracking-tight text-ink-strong">
-                  {copy(title)}
-                </h1>
-                <span
-                  className={cn(
-                    "hidden shrink-0 truncate text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline",
-                    t.text,
-                  )}
-                >
-                  {copy(eyebrow)}
-                </span>
-              </div>
-              {summary ? (
-                <p className="break-words text-sm font-semibold leading-tight text-ink-muted">{copy(summary)}</p>
-              ) : null}
-            </div>
-          </div>
-          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-        </div>
-      </header>
-
-      <ConsoleSubnav items={items} activeId={activeId} onSelect={onSelect} label={navLabel} />
-      {banner}
-
-      <div
-        className={cn(
-          "custom-scrollbar flex-1 overflow-y-auto bg-brand-50/20 p-4 sm:p-5",
-          contentClassName,
-        )}
-      >
-        {children}
       </div>
-    </section>
+      <div className={cn("custom-scrollbar flex min-w-0 flex-1 flex-col gap-5 sm:min-h-0 sm:overflow-y-auto", CONSOLE_GUTTER, "py-4 sm:py-6", contentClassName)} data-console-content>
+        {notice ? <Alert tone="info" live="polite" compact>{ui(notice)}</Alert> : null}
+        {children}
+        {sticky ? (
+          <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-auto border-t border-border-subtle bg-card px-4 py-3" data-console-sticky-action>
+            <Button
+              type="button"
+              className="w-full"
+              data-tour="page.primary-action"
+              loading={sticky.loading}
+              aria-disabled={sticky.disabled || undefined}
+              onClick={() => { if (!sticky.disabled) sticky.onClick?.(); }}
+            >
+              {StickyIcon && !sticky.loading ? <StickyIcon aria-hidden="true" /> : null}
+              <span className="[overflow-wrap:anywhere]">{ui(sticky.label)}</span>
+            </Button>
+            {sticky.disabled && sticky.disabledReason ? <p className="mt-1.5 text-center text-xs text-ink-muted">{ui(sticky.disabledReason)}</p> : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
+/** Horizontal padding of the console header and content: the shell card's body gutter (`PAGE_CARD_BODY`). */
+const CONSOLE_GUTTER = "px-4 sm:px-6";
 
 /**
- * What these consoles show while their session loads.
- *
- * All three used to render a naked spinner on a full-bleed lilac background —
- * not the page, not even the sidebar, so the whole console flashed away and
- * rebuilt itself. This mirrors `ConsolePage` so the only thing that changes
- * when the data lands is the content.
+ * A panel's own sections when the screen already has a tab row (role-ux §3.1: tabs never nest a second level) —
+ * e.g. Accounts & ledger inside the campus admin's Fees tabs. A labelled picker in the panel's toolbar, not a
+ * second tab strip, so the screen keeps one set of `page.tab.*` anchors. The consoles that own the view render
+ * the sections as the PageHeader's tabs instead (`sectionNav="none"` on the panel).
  */
-export function ConsoleSkeleton({ cards = 4, label = "Loading the console" }: { cards?: number; label?: string }) {
+export function SectionPicker<T extends string>({ items, value, onChange, label }: {
+  items: ReadonlyArray<{ id: T; label: string }>;
+  value: T;
+  onChange: (id: T) => void;
+  /** EN UI key naming what is picked ("Fee setup section"). */
+  label: string;
+}) {
+  const ui = useUiText();
+  const id = useId();
   return (
-    <section
-      /* Announced once, at the frame, so a screen reader says "loading"
-         rather than reading a page of empty placeholders. */
-      role="status"
-      aria-busy="true"
-      aria-label={label}
-      className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex flex-1 flex-col overflow-hidden")}
-    >
-      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
-        <span
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-primary to-brand-400 opacity-30"
-        />
-        <div className="relative flex items-center gap-3 px-4 py-3 sm:px-5">
-          <SkeletonBlock className="h-9 w-9 shrink-0 rounded-xl" />
-          <div className="min-w-0 space-y-1.5">
-            <SkeletonBlock className="h-4 w-44" />
-            <SkeletonBlock className="h-2.5 w-60" />
-          </div>
-        </div>
-      </header>
+    <div className="flex min-w-0 flex-wrap items-center gap-2" data-section-picker>
+      <label htmlFor={id} className="text-sm font-semibold text-ink-muted">{ui(label)}</label>
+      <Select id={id} value={value} onChange={(event) => onChange(event.target.value as T)} className="w-full min-w-0 sm:w-auto sm:min-w-56">
+        {items.map((item) => <option key={item.id} value={item.id}>{ui(item.label)}</option>)}
+      </Select>
+    </div>
+  );
+}
 
-      {/* The strip's shape is known before the session is: it is a static
-          list, so drawing it here keeps the header from shifting. */}
-      <div className="flex items-center gap-1 border-b border-edge/12 bg-white/70 px-3 py-1.5">
-        {[...Array(6)].map((_, i) => (
-          <SkeletonBlock key={i} className="h-8 w-24 shrink-0 rounded-lg" />
+/**
+ * What these consoles show while their session loads, drawn inside the shell's page card: the same PageHeader and
+ * content shapes as `ConsolePage` (and the same shapes `RoleShellSkeleton` draws for the route's loading.tsx), so
+ * the only thing that changes when the data lands is the content. Announced once.
+ *
+ * `bare` drops the console gutters for a caller that already pads its body (`RoleShellSkeleton`'s page card).
+ */
+export function ConsoleSkeleton({ cards = 4, label = "Loading the console", bare = false }: { cards?: number; label?: string; bare?: boolean }) {
+  const ui = useUiText();
+  const body = (
+    <div className="space-y-6">
+      <PageHeaderSkeleton />
+      <div className="grid grid-cols-1 gap-4 min-[420px]:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: Math.min(cards, 4) }).map((_, i) => <TileSkeleton key={i} delay={i * 80} className={i >= 2 ? "hidden xl:block" : undefined} />)}
+      </div>
+      <div aria-hidden="true" className="sk-panel space-y-3 p-4 sm:p-5">
+        <div className="flex items-center gap-2.5">
+          <SkeletonBlock className="size-9 shrink-0 rounded-xl" />
+          <SkeletonBlock className="h-4 w-40 max-w-full rounded-lg" />
+        </div>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <SkeletonBlock className="size-9 shrink-0 rounded-xl" delay={i * 60} />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <SkeletonBlock className="h-3 w-1/2 rounded-full" delay={i * 60} />
+              <SkeletonBlock className="h-2.5 w-1/3 rounded-full" delay={i * 60} />
+            </div>
+            <SkeletonBlock className="hidden h-8 w-20 shrink-0 rounded-lg sm:block" delay={i * 60} />
+          </div>
         ))}
       </div>
+    </div>
+  );
+  if (bare) return body;
+  return (
+    <div role="status" aria-busy="true" aria-label={ui(label)} className={cn("min-h-0 flex-1 overflow-hidden", CONSOLE_GUTTER, "py-4 sm:py-6")}>
+      {body}
+    </div>
+  );
+}
 
-      <div className="custom-scrollbar flex-1 overflow-y-auto bg-brand-50/20 p-4 sm:p-5">
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {[...Array(cards)].map((_, i) => (
-              <div
-                key={i}
-                className="sk-panel p-4"
-              >
-                <SkeletonBlock className="mb-3 h-9 w-9 rounded-xl" />
-                <SkeletonBlock className="h-4 w-24" />
-                <SkeletonBlock className="mt-1.5 h-2.5 w-32" />
-              </div>
-            ))}
-          </div>
-          <div className="sk-panel p-4">
-            <div className="mb-3 flex items-center gap-2.5">
-              <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />
-              <SkeletonBlock className="h-4 w-40" />
-            </div>
-            <div className="space-y-2">
-              {[...Array(4)].map((_, i) => (
-                <SkeletonBlock key={i} className="h-12 w-full rounded-2xl" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+/** The console's load failure, inside the page card with the console gutters (M88: never a sign-out). */
+export function ConsoleError({ title, onRetry }: { title: string; onRetry: () => void }) {
+  const ui = useUiText();
+  return (
+    <div className={cn("flex min-h-0 flex-1 flex-col justify-center", CONSOLE_GUTTER, "py-6")}>
+      <ErrorState title={ui(title)} description={ui("Your work is safe. Check your connection and try again.")} onRetry={onRetry} retryLabel={ui("Try again")} />
+    </div>
   );
 }
 
 /**
- * A dashboard entry point.
- *
- * The old tiles were a gradient chip over a label and the words "View &
- * manage" — four cards that said the same thing the sidebar already said,
- * with no indication of what waited behind them. These carry the view's own
- * domain colour and a real description.
+ * A translated sentence whose `{0}`, `{1}` values (names, numbers, amounts) are isolated in `<bdi>` (role-ux R7/R8).
+ * The word order comes from the translation, never from fragments glued around a number, so AR and UR read
+ * naturally. `text` is an EN UI key with `{n}` placeholders.
  */
-export function ConsoleQuickLink({
-  icon: Icon,
-  label,
-  description,
-  tone = "brand",
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  description: string;
-  tone?: ModuleTone;
-  onClick: () => void;
-}) {
-  const t = toneOf(tone);
+export function UiSentence({ text, values }: { text: string; values: ReactNode[] }) {
+  const ui = useUiText();
   return (
-    <Button variant="outline"
-      type="button"
-      onClick={onClick}
-      className="sk-panel block group relative overflow-hidden p-4 text-start"
-    >
-      <span
-        aria-hidden
-        className={cn("absolute inset-y-0 start-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 bg-gradient-to-b", t.tile)}
-      />
-      <span
-        className={cn(
-          "mb-3 flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105",
-          t.chip,
-        )}
-      >
-        <Icon className="h-4 w-4" />
-      </span>
-      <p className="text-sm font-bold tracking-tight text-ink-strong transition-colors group-hover:text-primary">
-        {label}
-      </p>
-      <p className="mt-1 text-2xs font-semibold leading-snug text-ink-muted">{description}</p>
-    </Button>
+    <>
+      {ui(text).split(/(\{\d+\})/).map((part, index) => {
+        const slot = /^\{(\d+)\}$/.exec(part);
+        if (slot) return <bdi key={index}>{values[Number(slot[1])]}</bdi>;
+        return part ? <Fragment key={index}>{part}</Fragment> : null;
+      })}
+    </>
   );
 }

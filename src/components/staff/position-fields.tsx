@@ -13,6 +13,7 @@
  * sees a short line saying so and carries on inviting people.
  */
 
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
 import { Network } from "lucide-react";
 import { Select } from "@/components/ui/select";
@@ -96,20 +97,21 @@ export function PositionFields({
   onChange: (next: PositionValue) => void;
   options: ReturnType<typeof usePositionOptions>;
 }) {
+  const ui = useUiText();
   const { designations, departments, managers, ready } = options;
   const set = <K extends keyof PositionValue>(key: K, next: PositionValue[K]) =>
     onChange({ ...value, [key]: next });
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field label="Rank" hint={designations.length === 0 && ready ? "No ranks set up yet — you can add one later under Staff → Hierarchy." : "Their designation on the ladder."}>
+      <Field label={ui("Rank")} hint={designations.length === 0 && ready ? ui("No ranks set up yet. Add them later in Staff structure › Rank ladder.") : ui("Their designation on the ladder.")}>
         <Select value={value.designationId} onChange={(e) => set("designationId", e.target.value)} disabled={designations.length === 0}>
-          <option value="">Not set</option>
+          <option value="">{ui("Not set")}</option>
           {Object.entries(TRACK_TONES).map(([track, tone]) => {
             const inTrack = designations.filter((d) => d.track === track);
             if (inTrack.length === 0) return null;
             return (
-              <optgroup key={track} label={tone.label}>
+              <optgroup key={track} label={ui(tone.label)}>
                 {inTrack.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
@@ -119,22 +121,22 @@ export function PositionFields({
         </Select>
       </Field>
 
-      <Field label="Home department" hint="They can be added to more departments afterwards.">
+      <Field label={ui("Home department")} hint={ui("They can be added to more departments afterwards.")}>
         <Select value={value.primaryDepartmentId} onChange={(e) => set("primaryDepartmentId", e.target.value)} disabled={departments.length === 0}>
-          <option value="">Not set</option>
+          <option value="">{ui("Not set")}</option>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.parentId ? "— " : ""}
               {d.name}
-              {d.kind ? ` (${DEPARTMENT_KIND_LABELS[d.kind as keyof typeof DEPARTMENT_KIND_LABELS]})` : ""}
+              {d.kind ? ` (${ui(DEPARTMENT_KIND_LABELS[d.kind as keyof typeof DEPARTMENT_KIND_LABELS])})` : ""}
             </option>
           ))}
         </Select>
       </Field>
 
-      <Field label="Reports to" hint="Who they answer to day to day. Leave empty for the head of the institution.">
+      <Field label={ui("Reports to")} hint={ui("Who they answer to day to day. Leave empty for the head of the institution.")}>
         <Select value={value.reportsToId} onChange={(e) => set("reportsToId", e.target.value)}>
-          <option value="">Not set</option>
+          <option value="">{ui("Not set")}</option>
           {managers.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}
@@ -144,17 +146,17 @@ export function PositionFields({
         </Select>
       </Field>
 
-      <Field label="Employment type">
+      <Field label={ui("Employment type")}>
         <Select value={value.employmentType} onChange={(e) => set("employmentType", e.target.value)}>
           {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
+            <option key={key} value={key}>{ui(label)}</option>
           ))}
         </Select>
       </Field>
 
       <div className="sm:col-span-2">
-        <Field label="Staff code" hint="Your own employee number, if you use one.">
-          <Input value={value.employeeCode} onChange={(e) => set("employeeCode", e.target.value)} placeholder="e.g. EMP-0142" />
+        <Field label={ui("Staff code")} hint={ui("Your own employee number, if you use one.")}>
+          <Input value={value.employeeCode} onChange={(e) => set("employeeCode", e.target.value)} placeholder={ui("e.g. EMP-0142")} />
         </Field>
       </div>
     </div>

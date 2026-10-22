@@ -37,7 +37,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 
 import {
   TeacherPicker,
@@ -146,9 +146,9 @@ function sectionSetupStatus(section: any): "ready" | "partial" | "empty" {
 }
 
 const STATUS_DOT: Record<string, string> = {
-  ready: "bg-emerald-400",
-  partial: "bg-amber-400",
-  empty: "bg-gray-300",
+  ready: "bg-success",
+  partial: "bg-warning",
+  empty: "bg-muted",
 };
 
 /**
@@ -229,17 +229,17 @@ function SectionTransfer({ section, siblings, ui, onDone }: { section: any; sibl
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Transfer failed");
       if (action === "preview") { setPreview(json.preview); return; }
-      toast.success(ui("Moved {0} student(s) to {1}; the section is archived.", [json.moved, json.preview.to.label]));
+      toast.success(json.moved === 1 ? ui("Moved 1 student to {0}; the section is archived.", [json.preview.to.label]) : ui("Moved {0} students to {1}; the section is archived.", [json.moved, json.preview.to.label]));
       onDone();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Transfer failed");
+      setError(friendlyErrorMessage(failure, ui("The students could not be moved. Nothing changed; try again.")));
     } finally {
       setBusy(false);
     }
   };
   return (
     <div className="rounded-3xl border border-edge/40 bg-surface-subtle p-5" data-testid="section-transfer">
-      <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Move students to another section")}</p>
+      <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">{ui("Move students to another section")}</p>
       {siblings.length === 0 ? (
         <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">{ui("Add another section first, then move the students there.")}</p>
       ) : (
@@ -348,12 +348,12 @@ function SettingsDrawer({
         aria-modal="true"
         aria-label={ui("{0} settings", [classLabel(section)])}
         tabIndex={-1}
-        className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-modal-enter"
+        className="relative z-10 flex h-full w-full max-w-md flex-col bg-card shadow-2xl animate-modal-enter"
       >
         {/* Drawer header */}
         <div className="flex items-center justify-between border-b border-edge/15 px-6 py-5">
           <div>
-            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
               {ui("Settings")}
             </p>
             <h3 className="mt-1 text-lg font-bold text-ink-strong">
@@ -374,7 +374,7 @@ function SettingsDrawer({
         {/* Drawer body */}
         <div className="flex-1 space-y-5 overflow-y-auto p-6 custom-scrollbar">
           <div className="space-y-4">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
               {ui("Edit Class Details")}
             </p>
             <FormInput
@@ -411,8 +411,8 @@ function SettingsDrawer({
             <SectionTransfer section={section} siblings={siblings} ui={ui} onDone={() => { onRefresh?.(); onClose(); }} />
           ) : null}
 
-          <div className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-amber-800">
+          <div className="rounded-3xl border border-status-warning-border bg-status-warning-surface/50 p-5">
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-status-warning-text">
               {ui("Class archive")}
             </p>
             <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
@@ -533,7 +533,7 @@ function AddSectionPanel({
       className="sk-panel mt-3 p-3.5"
     >
       <div className="flex items-center justify-between">
-        <span className="text-2xs font-semibold uppercase tracking-wider text-primary">
+        <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
           {ui("New section")}
         </span>
         <SystemButton variant="ghost"
@@ -554,7 +554,7 @@ function AddSectionPanel({
         autoFocus
         disabled={busy}
         placeholder={ui("B  ·  or  B-D")}
-        className="mt-2 h-10 w-full px-3 transition-all"
+        className="mt-2 w-full px-3 transition-all"
       />
 
       {names.length > 0 ? (
@@ -578,14 +578,14 @@ function AddSectionPanel({
       {/* Copy subjects from — the reason most sections get added at all. */}
       {sections.some((sec) => (sec.subjects?.length || 0) > 0) ? (
         <label className="mt-3 block">
-          <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <span className="mb-1 block text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
             {ui("Copy subjects from")}
           </span>
           <SystemSelect
             value={cloneFromId}
             onChange={(e) => setCloneFromId(e.target.value)}
             disabled={busy}
-            className="h-9 w-full cursor-pointer px-2.5"
+            className="w-full cursor-pointer px-2.5"
           >
             <option value="">{ui("Start empty")}</option>
             {sections
@@ -600,14 +600,14 @@ function AddSectionPanel({
       ) : null}
 
       <label className="mt-2 block">
-        <span className="mb-1 block text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+        <span className="mb-1 block text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
           {ui("Class teacher")}
         </span>
         <SystemSelect
           value={teacherId}
           onChange={(e) => setTeacherId(e.target.value)}
           disabled={busy}
-          className="h-9 w-full cursor-pointer px-2.5"
+          className="w-full cursor-pointer px-2.5"
         >
           <option value="">{ui("Assign later")}</option>
           {teachers.map((t: any) => (
@@ -682,13 +682,13 @@ function MatrixView({
       <table className="w-full min-w-[600px] border-collapse">
         <thead>
           <tr>
-            <th className="sticky start-0 z-10 rounded-ss-3xl bg-gradient-to-br from-primary to-brand-400 px-5 py-4 text-start text-2xs font-semibold uppercase tracking-wider text-white/90">
+            <th className="sticky start-0 z-10 rounded-ss-3xl bg-gradient-to-br from-primary to-brand-400 px-5 py-4 text-start text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-white/90">
               {ui("Subject")}
             </th>
             {sections.map((sec) => (
               <th
                 key={sec.id}
-                className="bg-gradient-to-br from-primary to-brand-400 px-4 py-4 text-center text-2xs font-semibold uppercase tracking-wider text-white/90 last:rounded-se-3xl"
+                className="bg-gradient-to-br from-primary to-brand-400 px-4 py-4 text-center text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-white/90 last:rounded-se-3xl"
               >
                 <span className="block">
                   {sec.section ? ui("Section {0}", [sec.section]) : ui("Main")}
@@ -705,7 +705,7 @@ function MatrixView({
             <tr
               key={subjectName}
               className={
-                rowIdx % 2 === 0 ? "bg-white" : "bg-brand-50/25"
+                rowIdx % 2 === 0 ? "bg-card" : "bg-brand-50/25"
               }
             >
               {/* Subject name cell */}
@@ -747,9 +747,9 @@ function MatrixView({
                     key={sec.id}
                     className={cn(
                       "border-t border-edge/10 px-3 py-2.5 text-center transition-all duration-300",
-                      isFlashing && "bg-emerald-50",
+                      isFlashing && "bg-status-success-surface",
                       !isFlashing && assigned && "bg-status-success-surface/40",
-                      !isFlashing && !assigned && !isSingle && "bg-rose-50/30",
+                      !isFlashing && !assigned && !isSingle && "bg-status-error-surface/30",
                     )}
                   >
                     {!subject ? (
@@ -765,7 +765,7 @@ function MatrixView({
                       <div className="flex flex-col items-center gap-1">
                         {teacher?.id ? (
                           <>
-                            <div className="h-7 w-7 overflow-hidden rounded-lg border border-edge/20 bg-white">
+                            <div className="h-7 w-7 overflow-hidden rounded-lg border border-edge/20 bg-card">
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
                                 name={teacher.fullName}
@@ -790,7 +790,7 @@ function MatrixView({
                       <div className="flex flex-col items-center gap-1.5">
                         {assigned ? (
                           <>
-                            <div className="h-8 w-8 overflow-hidden rounded-xl border-2 border-emerald-200 bg-white shadow-sm">
+                            <div className="h-8 w-8 overflow-hidden rounded-xl border-2 border-status-success-border bg-card shadow-sm">
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
                                 name={teacher.fullName}
@@ -805,10 +805,10 @@ function MatrixView({
                         ) : (
                           <div className="flex flex-col items-center gap-1">
                             <span className="relative flex h-2.5 w-2.5">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
-                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
                             </span>
-                            <span className="text-2xs font-bold text-rose-400">
+                            <span className="text-2xs font-bold text-status-error-text">
                               {ui("Unassigned")}
                             </span>
                           </div>
@@ -828,7 +828,7 @@ function MatrixView({
                           {assigned ? ui("Change") : ui("Assign")}
                         </SystemButton>
                         {isPickerOpen ? (
-                          <div className="mt-1 w-full max-w-[200px] rounded-xl border border-edge/15 bg-white p-2 shadow-lg">
+                          <div className="mt-1 w-full max-w-[200px] rounded-xl border border-edge/15 bg-card p-2 shadow-lg">
                             <TeacherPicker
                               label=""
                               teachers={teachers}
@@ -1009,7 +1009,7 @@ function SectionDetailView({
         <div className="min-w-0 space-y-5">
           {/* Teaching mode toggle */}
           <div className="rounded-3xl border border-edge/10 bg-gradient-to-br from-surface-subtle to-brand-50 p-4">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
               {ui("Teaching Mode")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
@@ -1020,18 +1020,18 @@ function SectionDetailView({
                     title: ui("One Teacher"),
                     desc: ui("Class teacher takes all subjects"),
                     icon: UserCheck,
-                    activeClasses: "border-teal-600 bg-gradient-to-br from-white to-status-success-surface shadow-[0_6px_20px_-4px_rgba(13,148,136,0.25)]",
-                    activeTitleColor: "text-teal-700",
-                    activeIconBg: "bg-teal-600",
+                    activeClasses: "border-status-info-text bg-gradient-to-br from-card to-status-success-surface shadow-md",
+                    activeTitleColor: "text-status-info-text",
+                    activeIconBg: "bg-status-info-text",
                   },
                   {
                     mode: "SUBJECT" as const,
                     title: ui("Per Subject"),
                     desc: ui("Each subject has its own teacher"),
                     icon: Users,
-                    activeClasses: "border-amber-600 bg-gradient-to-br from-white to-status-warning-surface shadow-[0_6px_20px_-4px_rgba(217,119,6,0.25)]",
-                    activeTitleColor: "text-amber-700",
-                    activeIconBg: "bg-amber-600",
+                    activeClasses: "border-status-warning-text bg-gradient-to-br from-card to-status-warning-surface shadow-md",
+                    activeTitleColor: "text-status-warning-text",
+                    activeIconBg: "bg-warning",
                   },
                 ] as const
               ).map((option) => {
@@ -1050,7 +1050,7 @@ function SectionDetailView({
                       "p-3.5 text-start",
                       active
                         ? option.activeClasses
-                        : "border-transparent bg-white/70 hover:border-edge/30 hover:bg-white hover:shadow-sm",
+                        : "border-transparent bg-card/70 hover:border-edge/30 hover:bg-card hover:shadow-sm",
                     )}
                   >
                     <div className="flex items-center justify-between gap-1">
@@ -1092,7 +1092,7 @@ function SectionDetailView({
           {/* Subject cards */}
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <p className="flex items-center gap-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                 <BookOpen className="h-3.5 w-3.5 text-primary" />
                 {ui("Subjects ({0})", [subjectCount])}
               </p>
@@ -1168,7 +1168,7 @@ function SectionDetailView({
                           </div>
                           <p className="mt-1 text-xs font-medium text-ink-subtle">
                             {teachingMode === "SINGLE" ? (
-                              <span className="text-teal-700">
+                              <span className="text-status-info-text">
                                 {ui("Follows class teacher")}
                               </span>
                             ) : subject.teacher?.fullName ? (
@@ -1186,7 +1186,7 @@ function SectionDetailView({
                                 {subject.teacher.fullName}
                               </span>
                             ) : (
-                              <span className="text-rose-400">
+                              <span className="text-status-error-text">
                                 {ui("Teacher unassigned")}
                               </span>
                             )}
@@ -1281,8 +1281,8 @@ function SectionDetailView({
           </div>
 
           {/* Add subject form */}
-          <div className="rounded-3xl border-2 border-dashed border-edge/25 bg-gradient-to-br from-white to-surface-subtle/50 p-5">
-            <div className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-primary/60">
+          <div className="rounded-3xl border-2 border-dashed border-edge/25 bg-gradient-to-br from-card to-surface-subtle/50 p-5">
+            <div className="flex items-center gap-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary/60">
               <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10">
                 <Plus className="h-3 w-3 text-primary" />
               </span>
@@ -1328,7 +1328,7 @@ function SectionDetailView({
                     "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
                     applyToAllSections
                       ? "border-primary bg-primary"
-                      : "border-edge/50 bg-white",
+                      : "border-edge/50 bg-card",
                   )}
                 >
                   {applyToAllSections ? (
@@ -1371,14 +1371,14 @@ function SectionDetailView({
               <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/15">
                 <GraduationCap className="h-3 w-3 text-primary" />
               </div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-primary/60">
+              <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary/60">
                 {teachingMode === "SINGLE"
                   ? ui("Class Teacher")
                   : ui("Homeroom Teacher")}
               </p>
             </div>
             <div className="mt-3 flex items-center gap-3">
-              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-md shadow-primary/8">
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-card shadow-md shadow-primary/8">
                 {section.classTeacher?.id ? (
                   <AvatarImage
                     src={teacherAvatar(section.classTeacher)}
@@ -1435,13 +1435,13 @@ function SectionDetailView({
           </div>
 
           {/* Student count with mini avatars */}
-          <div className="rounded-3xl border border-rose-500/10 bg-gradient-to-br from-white to-status-error-surface p-4 shadow-sm">
+          <div className="rounded-3xl border border-status-error-text/10 bg-gradient-to-br from-card to-status-error-surface p-4 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-rose-500/10">
-                  <Users className="h-3 w-3 text-rose-700" />
+                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-destructive/10">
+                  <Users className="h-3 w-3 text-status-error-text" />
                 </div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-rose-700">
+                <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-status-error-text">
                   {ui("Students")}
                 </p>
               </div>
@@ -1454,7 +1454,7 @@ function SectionDetailView({
                 {students.slice(0, 5).map((s: any) => (
                   <div
                     key={s.id}
-                    className="h-8 w-8 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm"
+                    className="h-8 w-8 shrink-0 overflow-hidden rounded-full border-2 border-white bg-card shadow-sm"
                   >
                     <AvatarImage src={s.profileImageUrl} name={s.fullName} alt="" initialsClassName="text-2xs" />
                   </div>
@@ -1495,22 +1495,22 @@ function SectionDetailView({
           <div className={cn(
             "rounded-3xl border p-4 shadow-sm transition-all duration-500",
             completedSteps === totalSteps
-              ? "border-emerald-200/50 bg-gradient-to-br from-white to-status-success-surface"
-              : "border-edge/10 bg-white",
+              ? "border-status-success-border/50 bg-gradient-to-br from-card to-status-success-surface"
+              : "border-edge/10 bg-card",
           )}>
             <div className="flex items-center gap-2">
               <div className={cn(
                 "flex h-5 w-5 items-center justify-center rounded-md",
-                completedSteps === totalSteps ? "bg-emerald-100" : "bg-muted",
+                completedSteps === totalSteps ? "bg-status-success-surface" : "bg-muted",
               )}>
                 <CheckCircle2 className={cn(
                   "h-3 w-3",
-                  completedSteps === totalSteps ? "text-emerald-600" : "text-ink-subtle",
+                  completedSteps === totalSteps ? "text-status-success-text" : "text-ink-subtle",
                 )} />
               </div>
               <p className={cn(
-                "text-2xs font-semibold uppercase tracking-wider",
-                completedSteps === totalSteps ? "text-emerald-600/60" : "text-ink-subtle",
+                "text-2xs font-semibold ltr:uppercase ltr:tracking-wider",
+                completedSteps === totalSteps ? "text-status-success-text/60" : "text-ink-subtle",
               )}>
                 {completedSteps === totalSteps ? ui("Setup Complete") : ui("Setup Progress")}
               </p>
@@ -1572,7 +1572,7 @@ function SectionDetailView({
                       className={cn(
                         "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full",
                         step.done
-                          ? "bg-emerald-100 text-emerald-600"
+                          ? "bg-status-success-surface text-status-success-text"
                           : "bg-muted text-ink-subtle",
                       )}
                     >
@@ -1603,7 +1603,7 @@ function SectionDetailView({
       {showAllStudents ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+            <p className="flex items-center gap-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
               <GraduationCap className="h-3.5 w-3.5 text-primary" />
               {ui("All Students ({0})", [students.length])}
             </p>
@@ -1624,7 +1624,7 @@ function SectionDetailView({
                 onClick={() => onViewStudent(student)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-start sm:w-auto sm:min-w-[200px] justify-start"
               >
-                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
+                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-card shadow-sm">
                   <AvatarImage src={student.profileImageUrl} name={student.fullName} alt="" initialsClassName="text-2xs" />
                 </div>
                 <div className="min-w-0">
@@ -1772,7 +1772,7 @@ export function ClassManager({
         {/* ============================================================ */}
         {/*  HEADER                                                       */}
         {/* ============================================================ */}
-        <div className="shrink-0 rounded-t-[34px] border-b border-edge/12 bg-gradient-to-r from-surface-subtle via-white to-brand-100 px-5 py-4 sm:px-8 sm:py-5">
+        <div className="shrink-0 rounded-t-[34px] border-b border-edge/12 bg-gradient-to-r from-surface-subtle via-card to-brand-100 px-5 py-4 sm:px-8 sm:py-5">
           <div>
             {/* Top row: title + close */}
             <div className="flex items-center justify-between gap-4">
@@ -1781,11 +1781,12 @@ export function ClassManager({
                   <School className="h-5 w-5 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="truncate text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">
-                    <span className="bg-gradient-to-r from-primary via-brand-400 to-brand-700 bg-clip-text text-transparent">
+                  {/* A dialog over a console view: the view keeps the page's one h1 (§4.3), so this is an h2. */}
+                  <h2 className="truncate text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">
+                    <bdi className="bg-gradient-to-r from-primary via-brand-400 to-brand-700 bg-clip-text text-transparent">
                       {className}
-                    </span>
-                  </h1>
+                    </bdi>
+                  </h2>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Badge size="sm" variant="secondary" className="tabular-nums">
                       {academicYear}
@@ -1838,19 +1839,19 @@ export function ClassManager({
                   className={cn(
                     "flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-sm",
                     readySections === sortedSections.length
-                      ? "border-emerald-200 bg-emerald-50"
-                      : "border-amber-200 bg-amber-50",
+                      ? "border-status-success-border bg-status-success-surface"
+                      : "border-status-warning-border bg-status-warning-surface",
                   )}
                 >
                   {readySections === sortedSections.length ? (
-                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                    <CheckCircle2 className="h-3 w-3 text-status-success-text" />
                   ) : (
-                    <AlertCircle className="h-3 w-3 text-amber-600" />
+                    <AlertCircle className="h-3 w-3 text-status-warning-text" />
                   )}
                   <span
                     className={cn(
                       "text-2xs font-bold",
-                      readySections === sortedSections.length ? "text-emerald-700" : "text-amber-700",
+                      readySections === sortedSections.length ? "text-status-success-text" : "text-status-warning-text",
                     )}
                   >
                     {readySections === sortedSections.length
@@ -1858,13 +1859,13 @@ export function ClassManager({
                       : ui("{0}/{1} ready", [readySections, sortedSections.length])}
                   </span>
                   <span
-                    className="h-1.5 w-12 overflow-hidden rounded-full bg-white/70"
+                    className="h-1.5 w-12 overflow-hidden rounded-full bg-card/70"
                     aria-hidden
                   >
                     <span
                       className={cn(
                         "block h-full rounded-full transition-all duration-500",
-                        readySections === sortedSections.length ? "bg-emerald-500" : "bg-amber-500",
+                        readySections === sortedSections.length ? "bg-success" : "bg-warning",
                       )}
                       style={{ width: `${(readySections / sortedSections.length) * 100}%` }}
                     />
@@ -1879,7 +1880,7 @@ export function ClassManager({
                 </div>
               ) : null}
 
-              <div className="flex items-center gap-1.5 rounded-xl border border-primary/10 bg-white px-3 py-1.5 shadow-sm">
+              <div className="flex items-center gap-1.5 rounded-xl border border-primary/10 bg-card px-3 py-1.5 shadow-sm">
                 <Layers className="h-3 w-3 text-primary" />
                 <span className="text-2xs font-bold text-primary">
                   {sortedSections.length}
@@ -1888,18 +1889,18 @@ export function ClassManager({
                   {ui(sortedSections.length !== 1 ? "sections" : "section")}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 rounded-xl border border-teal-600/10 bg-white px-3 py-1.5 shadow-sm">
-                <BookOpen className="h-3 w-3 text-teal-700" />
-                <span className="text-2xs font-bold text-teal-700">
+              <div className="flex items-center gap-1.5 rounded-xl border border-status-info-text/10 bg-card px-3 py-1.5 shadow-sm">
+                <BookOpen className="h-3 w-3 text-status-info-text" />
+                <span className="text-2xs font-bold text-status-info-text">
                   {totalSubjects}
                 </span>
                 <span className="text-2xs font-bold text-ink-subtle">
                   {ui(totalSubjects !== 1 ? "subjects" : "subject")}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 rounded-xl border border-rose-500/10 bg-white px-3 py-1.5 shadow-sm">
-                <GraduationCap className="h-3 w-3 text-rose-700" />
-                <span className="text-2xs font-bold text-rose-700">
+              <div className="flex items-center gap-1.5 rounded-xl border border-status-error-text/10 bg-card px-3 py-1.5 shadow-sm">
+                <GraduationCap className="h-3 w-3 text-status-error-text" />
+                <span className="text-2xs font-bold text-status-error-text">
                   {totalStudents}
                 </span>
                 <span className="text-2xs font-bold text-ink-subtle">
@@ -1937,7 +1938,7 @@ export function ClassManager({
             {/* Mobile close */}
             {mobileRailOpen ? (
               <div className="flex items-center justify-between border-b border-edge/10 px-4 py-3 lg:hidden">
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                   {ui("Sections")}
                 </span>
                 <SystemButton variant="ghost"
@@ -1961,8 +1962,8 @@ export function ClassManager({
                 className={cn(
                   "flex w-full items-center gap-2.5 px-3.5 py-3 text-start justify-start",
                   selectedSectionId === "all"
-                    ? "bg-white shadow-md shadow-primary/8"
-                    : "hover:bg-white/70",
+                    ? "bg-card shadow-md shadow-primary/8"
+                    : "hover:bg-card/70",
                 )}
               >
                 <div
@@ -2019,8 +2020,8 @@ export function ClassManager({
                       className={cn(
                         "flex w-full items-start gap-2.5 px-3.5 py-3 text-start justify-start",
                         active
-                          ? "border-s-[3px] border-s-primary bg-white ps-3 shadow-md shadow-primary/8"
-                          : "border-s-[3px] border-s-transparent hover:bg-white/70",
+                          ? "border-s-[3px] border-s-primary bg-card ps-3 shadow-md shadow-primary/8"
+                          : "border-s-[3px] border-s-transparent hover:bg-card/70",
                       )}
                     >
                       {/* Status dot */}
@@ -2115,11 +2116,11 @@ export function ClassManager({
           ) : null}
 
           {/* Main Area */}
-          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-surface-subtle to-white p-4 sm:p-6 lg:p-8 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-surface-subtle to-card p-4 sm:p-6 lg:p-8 custom-scrollbar">
             <div className="mx-auto max-w-5xl">
               <label className="mb-4 flex flex-wrap items-center justify-end gap-2 text-2xs font-bold text-ink-muted">
                 <span>{ui("Teacher changes take effect from")}</span>
-                <SystemInput type="date" aria-label={ui("Teacher changes take effect from")} value={assignmentDate} onChange={(event) => setAssignmentDate(event.target.value || today)} className="h-9 w-auto" data-testid="assignment-effective-date" />
+                <SystemInput type="date" aria-label={ui("Teacher changes take effect from")} value={assignmentDate} onChange={(event) => setAssignmentDate(event.target.value || today)} className="w-auto" data-testid="assignment-effective-date" />
               </label>
               {selectedSectionId === "all" ? (
                 <>
@@ -2157,11 +2158,11 @@ export function ClassManager({
                           "flex h-10 w-10 items-center justify-center rounded-2xl shadow-md",
                           sectionSetupStatus(selectedSection) ===
                             "ready"
-                            ? "bg-gradient-to-br from-emerald-500 to-emerald-400 text-white shadow-emerald-500/20"
+                            ? "bg-gradient-to-br from-success to-success text-white "
                             : sectionSetupStatus(
                                   selectedSection,
                                 ) === "partial"
-                              ? "bg-gradient-to-br from-amber-500 to-amber-400 text-white shadow-amber-500/20"
+                              ? "bg-gradient-to-br from-warning to-warning text-white "
                               : "bg-gradient-to-br from-edge to-brand-200 text-white shadow-edge/20",
                         )}
                       >
@@ -2218,7 +2219,7 @@ export function ClassManager({
         {/* ============================================================ */}
         {/*  FOOTER                                                       */}
         {/* ============================================================ */}
-        <div className="shrink-0 rounded-b-[34px] border-t border-edge/10 bg-gradient-to-r from-surface-subtle via-white to-brand-100 px-5 py-2.5 sm:px-8">
+        <div className="shrink-0 rounded-b-[34px] border-t border-edge/10 bg-gradient-to-r from-surface-subtle via-card to-brand-100 px-5 py-2.5 sm:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-2xs font-bold text-ink-subtle">
               <span className="rounded-md bg-primary/8 px-2 py-0.5 text-3xs font-bold text-primary/50">

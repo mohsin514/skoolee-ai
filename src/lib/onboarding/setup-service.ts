@@ -451,13 +451,20 @@ export async function completeSetup(user: AuthUser, expectedVersion: number, fau
         });
       }
 
+      // §7.2 G7: subscription purchasing belongs to the institution authority. Anyone left holding the purchase
+      // flag outside the authority role (the delegate is promoted above, so keeps it) loses it here.
+      const clearedPurchaseFlags = (await tx.user.updateMany({
+        where: { schoolId: school.id, canPurchaseSubscription: true, role: { not: ownerRole } },
+        data: { canPurchaseSubscription: false },
+      })).count;
+
       const result = { activatedCampusIds, draftCampusKeys: drafts.map((c) => c.key), primaryCampusId };
       await tx.institutionSetup.update({
         where: { schoolId: school.id },
         data: { status: "COMPLETED", completedAt: new Date(), completedById: user.userId, result, lastError: null, failedStep: null, version: { increment: 1 }, currentStep: "review", completedSteps: setupFlow(type) },
       });
       await tx.auditLog.create({
-        data: { schoolId: school.id, tableName: "institution_setup", recordId: setup.id, userId: user.userId, newValue: { action: "setup.completed", institutionType: type, adoptionMode, activated: activatedCampusIds.length, drafts: drafts.length, actor: actor.kind } },
+        data: { schoolId: school.id, tableName: "institution_setup", recordId: setup.id, userId: user.userId, newValue: { action: "setup.completed", institutionType: type, adoptionMode, activated: activatedCampusIds.length, drafts: drafts.length, actor: actor.kind, clearedPurchaseFlags } },
       });
       return { replayed: false, institutionType: type, ...result };
     }, { timeout: 30_000, maxWait: 10_000 });

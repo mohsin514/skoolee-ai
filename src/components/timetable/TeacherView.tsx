@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import type { GridDay, GridPeriod, TeacherOption, TimetableData } from "./TimetableStudio";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 
 interface TeacherSlot {
@@ -34,6 +35,7 @@ export function TeacherView({
   selectedTeacherId: string;
   onSelectTeacher: (id: string) => void;
 }) {
+  const ui = useUiText();
   const teacherSlotMap = new Map<string, TeacherSlot[]>();
   for (const tt of timetables) {
     const clsLabel = `${tt.class.name}${tt.class.section ? ` ${tt.class.section}` : ""}`;
@@ -63,8 +65,9 @@ export function TeacherView({
             value={selectedTeacherId}
             onChange={(e) => onSelectTeacher(e.target.value)}
             className="px-4 pe-10 appearance-none"
+            aria-label={ui("Teacher")}
           >
-            <option value="">— Select teacher —</option>
+            <option value="">{ui("Choose a teacher")}</option>
             {teachers.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.fullName}
@@ -75,7 +78,7 @@ export function TeacherView({
         </div>
         {selectedTeacherId && (
           <span className="text-2xs font-bold text-ink-muted">
-            {selectedTeacherSlots.length} slot{selectedTeacherSlots.length !== 1 ? "s" : ""} across all classes
+            {ui(selectedTeacherSlots.length === 1 ? "1 slot across all classes" : "{0} slots across all classes", [selectedTeacherSlots.length])}
           </span>
         )}
         {selectedTeacherId && (
@@ -84,14 +87,14 @@ export function TeacherView({
             onClick={() => window.print()}
             className="flex justify-start items-center gap-1.5"
           >
-            <Printer className="h-3.5 w-3.5" />Print Routine
+            <Printer aria-hidden="true" className="h-3.5 w-3.5" />{ui("Print routine")}
           </Button>
         )}
       </div>
 
       {!selectedTeacherId && (
         <div className="py-16">
-          <EmptyState icon={User} title="Select a teacher" description="Choose a teacher above to see their full weekly schedule across every class they teach." />
+          <EmptyState icon={User} title={ui("Select a teacher")} description={ui("Choose a teacher above to see their full weekly schedule across every class they teach.")} />
         </div>
       )}
 
@@ -100,17 +103,16 @@ export function TeacherView({
           <div className="min-w-[760px]">
             <div className="grid border-b border-muted" style={{ gridTemplateColumns: gridCols }}>
               <div className="flex items-center justify-center p-3">
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period</span>
+                <span className="text-xs font-semibold text-ink-subtle">{ui("Period")}</span>
               </div>
               {visibleDays.map((day) => (
                 <div
                   key={day.num}
-                  className={`flex flex-col items-center justify-center py-3 border-l border-muted ${
+                  className={`flex flex-col items-center justify-center py-3 border-s border-muted ${
                     weekendDays.includes(day.num) ? "opacity-50 bg-muted/70" : ""
                   }`}
                 >
-                  <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                  <span className="text-3xs font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                  <span className="text-xs font-semibold text-ink-subtle">{ui(day.full)}</span>
                 </div>
               ))}
             </div>
@@ -122,9 +124,9 @@ export function TeacherView({
                   className="grid border-b border-muted last:border-b-0"
                   style={{ gridTemplateColumns: gridCols }}
                 >
-                  <div className="flex flex-col items-center justify-center p-2 border-r border-muted">
-                    <span className="text-2xs font-bold text-primary">P{period.num}</span>
-                    <span className="text-3xs font-bold text-ink-subtle mt-0.5">{period.start}</span>
+                  <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
+                    <span className="text-2xs font-bold text-primary" title={ui("Period {0}", [period.num])}>{ui("P{0}", [period.num])}</span>
+                    <bdi dir="ltr" className="text-3xs font-bold text-ink-subtle mt-0.5">{period.start}</bdi>
                   </div>
                   {visibleDays.map((day) => {
                     const isOff = weekendDays.includes(day.num);
@@ -134,24 +136,24 @@ export function TeacherView({
                     return (
                       <div
                         key={day.num}
-                        className={`border-l border-muted p-1 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
+                        className={`border-s border-muted p-1 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
                       >
                         {slotInfo ? (
                           <div
                             className={`h-full min-h-[48px] rounded-xl p-2 flex flex-col justify-center ${
-                              isConflict ? "bg-rose-100 border border-rose-300" : "bg-emerald-50 border border-emerald-200"
+                              isConflict ? "bg-status-error-surface border border-status-error-border" : "bg-status-success-surface border border-status-success-border"
                             }`}
                           >
-                            <p
-                              className={`text-2xs font-bold leading-tight ${
-                                isConflict ? "text-rose-700" : "text-emerald-700"
+                            <bdi
+                              className={`block text-2xs font-bold leading-tight ${
+                                isConflict ? "text-status-error-text" : "text-status-success-text"
                               }`}
                             >
                               {slotInfo.subject}
-                            </p>
-                            <p className="text-3xs font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</p>
+                            </bdi>
+                            <bdi className="block text-3xs font-semibold text-ink-muted mt-0.5">{slotInfo.classLabel}</bdi>
                             {isConflict && (
-                              <Badge variant="danger" size="sm" className="mt-0.5">Conflict</Badge>
+                              <Badge variant="danger" size="sm" className="mt-0.5">{ui("Conflict")}</Badge>
                             )}
                           </div>
                         ) : (
@@ -166,7 +168,7 @@ export function TeacherView({
               ))
             ) : (
               <div className="py-10">
-                <EmptyState size="sm" icon={CalendarX} title="No timetable periods yet" description="Create timetables for classes first." />
+                <EmptyState size="sm" icon={CalendarX} title={ui("No timetable periods yet")} description={ui("Create timetables for classes first.")} />
               </div>
             )}
           </div>

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, assertPermission, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { Prisma } from "@prisma/client";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 // Consolidation keeps both immutable IDs and all source foreign keys. A source
 // with academic/financial obligations needs case-by-case reconciliation rather
@@ -35,12 +36,13 @@ async function preview(tx: TxClient, sourceId: string, targetId: string) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (user.role !== "SUPER_ADMIN") throw new ApiError("Institution administrators alone may review or consolidate identities", 403);
+    // G19: the institution authority (group admin, or the school admin of a single school) consolidates duplicates.
+    if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator may review or consolidate identities.", 403);
     await assertPermission(user, "students", "delete");
     const body = await req.json();
     const sourceId = String(body.sourceId || ""), targetId = String(body.targetId || "");
     if (body.action === "preview") return Response.json(await preview(prisma, sourceId, targetId));
-    if (body.action !== "confirm" || body.verifiedSourceId !== sourceId || body.verifiedTargetId !== targetId || !String(body.reason || "").trim()) throw new ApiError("Verify both permanent IDs and record a reason", 400);
+    if (body.action !== "confirm" || body.verifiedSourceId !== sourceId || body.verifiedTargetId !== targetId || String(body.reason || "").trim().length < 10) throw new ApiError("Verify both permanent IDs and record a reason of at least 10 characters", 400);
     const result = await prisma.$transaction(async tx => {
       const report = await preview(tx, sourceId, targetId);
       if (report.blockers.length) throw new ApiError(report.blockers.join(" "), 409);

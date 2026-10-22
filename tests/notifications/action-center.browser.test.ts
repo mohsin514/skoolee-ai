@@ -11,10 +11,11 @@ import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 import { redis } from "../../src/lib/queue/connection";
 import { prisma as appPrisma } from "../../src/lib/db/prisma";
 
-// SKO-416 on the isolated app: a leave request becomes one "Needs you" action per reviewer; reading or
-// "mark all as seen" never completes it; a duplicate event bumps the same row; the review (or the
-// requester cancelling) resolves it for every reviewer; revoked access withholds the stored text and
-// refuses the open; direct messages are consolidated mentions.
+// SKO-416 on the isolated app: a leave request becomes one "Needs you" action for its reviewer seat; reading or
+// "mark all as seen" never completes it; a duplicate event bumps the same row; the review (or the requester
+// cancelling) resolves it; revoked access withholds the stored text and refuses the open; direct messages are
+// consolidated mentions. G41 routing: a teacher's leave goes to the academic lead (the principal) only; a
+// non-teaching staff member's leave goes to the campus operator only (§2.5).
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.NOTIF_TEST_APP || "http://localhost:3107";
@@ -60,8 +61,9 @@ before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Maple Inbox School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Maple Inbox", regId: campusId, city: "Lahore" } });
   await user("principal", "PRINCIPAL"); await user("admin", "CAMPUS_ADMIN"); await user("teacher", "TEACHER"); await user("principal-ar", "PRINCIPAL", "ar");
+  await user("accountant", "ACCOUNTANT");
   leaveTypeId = (await db.leaveType.create({ data: { schoolId, campusId, name: "Casual", defaultDays: 100 } })).id;
-  for (const year of [2026, 2027]) await db.leaveAllocation.create({ data: { schoolId, campusId, leaveTypeId, role: "TEACHER", days: 200, academicYear: year } });
+  for (const role of ["TEACHER", "ACCOUNTANT"]) for (const year of [2026, 2027]) await db.leaveAllocation.create({ data: { schoolId, campusId, leaveTypeId, role: role as never, days: 200, academicYear: year } });
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
   browser = await chromium.launch({ headless: true });
@@ -74,7 +76,7 @@ test("a leave request is one open action per reviewer that reading never complet
   const stored = await db.leaveRequest.findUniqueOrThrow({ where: { id: firstLeave } });
   assert.equal(principalRow.category, "ACTION");
   assert.equal(principalRow.dueAt?.getTime(), new Date(stored.fromDate.toISOString().slice(0, 10) + "T00:00:00.000Z").getTime() - 86_400_000, "due the day before the leave starts");
-  assert.equal((await actionsFor(users.get("admin")!.id, firstLeave)).length, 1);
+  assert.equal((await actionsFor(users.get("admin")!.id, firstLeave)).length, 0, "teaching-staff leave goes to the academic lead only (G41)");
   const principal = await context("principal");
   const opened = await (await principal.request.post(`${base}/api/notifications/${principalRow.id}/open`)).json();
   assert.deepEqual([opened.data.state, opened.data.link, opened.data.isRead], ["open", "/principal?view=leave", true]);
@@ -92,14 +94,15 @@ test("a duplicate event bumps the same action instead of adding another", async 
   assert.deepEqual([rows[0].reminderCount, rows[0].isRead], [1, false]);
 });
 
-test("the review resolves every reviewer's action; a cancelled request resolves as withdrawn", async () => {
-  const admin = await context("admin");
-  const review = await admin.request.patch(`${base}/api/leave/review`, { data: { id: firstLeave, status: "APPROVED" } });
+test("the review resolves the reviewer's action; a cancelled request resolves as withdrawn", async () => {
+  // The academic lead decides teaching-staff leave (§2.5); the campus admin holds no row for it.
+  const principal = await context("principal");
+  const review = await principal.request.patch(`${base}/api/leave/review`, { data: { id: firstLeave, status: "APPROVED" } });
   assert.equal(review.status(), 200, await review.text());
-  for (const key of ["principal", "admin"]) {
-    const [row] = await actionsFor(users.get(key)!.id, firstLeave);
-    assert.deepEqual([Boolean(row.resolvedAt), row.resolution], [true, "COMPLETED"], key);
-  }
+  const [row] = await actionsFor(users.get("principal")!.id, firstLeave);
+  assert.ok(row, "the principal's action exists");
+  assert.deepEqual([Boolean(row.resolvedAt), row.resolution], [true, "COMPLETED"]);
+  assert.equal((await actionsFor(users.get("admin")!.id, firstLeave)).length, 0);
   const unresolved = await db.notification.findMany({ where: { sourceType: "leave", sourceId: firstLeave, resolvedAt: null }, select: { userId: true, campusId: true, schoolId: true } });
   assert.deepEqual(unresolved, [], "every reviewer's action is resolved");
   assert.equal((await inbox("principal", "actions")).counts.openActions, 0);
@@ -107,6 +110,18 @@ test("the review resolves every reviewer's action; a cancelled request resolves 
   assert.equal((await (await context("teacher")).request.patch(`${base}/api/leave`, { data: { id: second, action: "cancel" } })).status(), 200);
   const [withdrawn] = await actionsFor(users.get("principal")!.id, second);
   assert.equal(withdrawn.resolution, "CANCELLED");
+});
+
+test("a non-teaching staff member's leave goes to the campus operator, never the principal (G41)", async () => {
+  const response = await (await context("accountant")).request.post(`${base}/api/leave`, { data: { leaveTypeId, fromDate: day(40), toDate: day(40), reason: "Synthetic appointment" } });
+  assert.equal(response.status(), 201, await response.text());
+  const id = (await response.json()).data.id as string;
+  const rows = await waitFor(() => actionsFor(users.get("admin")!.id, id), found => found.length === 1);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].category, "ACTION");
+  assert.equal((await actionsFor(users.get("principal")!.id, id)).length, 0, "the principal does not decide office staff leave");
+  const opened = await (await (await context("admin")).request.post(`${base}/api/notifications/${rows[0].id}/open`)).json();
+  assert.deepEqual([opened.data.state, opened.data.link], ["open", "/admin?view=leave"]);
 });
 
 test("revoked access withholds the stored text and refuses the open", async () => {

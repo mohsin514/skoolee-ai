@@ -99,20 +99,22 @@ test('header icons and account menu share consistent button surfaces', async ({ 
   await mount(page, 1440);
   await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: true } } }));
   await page.getByRole('button', { name: 'Open role-shell', exact: true }).click();
-  const notifications = page.getByTitle('View notifications');
-  const settings = page.getByTitle('Account settings', { exact: true });
+  // §4.1 H5: the header lost its settings gear; the other icon button beside the bell is Help. The account menu is
+  // the shared Menu (no title attributes, no "Main dashboard" item).
+  const notifications = page.getByRole('button', { name: 'View notifications', exact: true });
+  const help = page.getByRole('button', { name: 'Help', exact: true });
   await expect(notifications).toBeVisible();
   const surface = (element: HTMLElement) => {
     const style = getComputedStyle(element);
     return [style.borderWidth, style.borderColor, style.borderRadius, style.backgroundColor, style.height, style.fontSize];
   };
-  expect(await notifications.evaluate(surface)).toEqual(await settings.evaluate(surface));
-  await page.getByTitle('Account menu').click();
+  expect(await notifications.evaluate(surface)).toEqual(await help.evaluate(surface));
+  await page.getByRole('button', { name: 'Account menu', exact: true }).click();
   const menu = page.getByRole('menu');
   const account = menu.getByRole('menuitem', { name: 'Account settings', exact: true });
-  const dashboard = menu.getByRole('menuitem', { name: 'Main dashboard', exact: true });
+  const language = menu.getByRole('menuitem', { name: 'Language', exact: true });
   const signout = menu.getByRole('menuitem', { name: 'Sign out', exact: true });
   await expect(account).toBeVisible();
-  expect(await account.evaluate(surface)).toEqual(await dashboard.evaluate(surface));
+  expect(await account.evaluate(surface)).toEqual(await language.evaluate(surface));
   expect(await account.evaluate(surface)).toEqual(await signout.evaluate(surface));
 });

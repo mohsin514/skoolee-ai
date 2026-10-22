@@ -91,7 +91,8 @@ for (const role of USER_ROLES) {
     await signIn(context, role);
     await page.goto(dashboardPathForRole(role));
     await enterGuide(page);
-    const c = launchCopy("en"), personal = roleGuideCopy(role, "en");
+    // The fixture school is a GROUP: an ADMIN there reads the campus-operator story (SPEC §0.3 rule 3).
+    const c = launchCopy("en"), personal = roleGuideCopy(role, "en", "GROUP");
     const guide = page.locator("[data-launch-guide]");
     await expect(guide.getByRole("heading", { name: personal.title, exact: true })).toBeVisible();
     await expect(guide).toContainText(personal.introduction);
@@ -131,7 +132,8 @@ for (const role of USER_ROLES) {
     await expect(guide).toHaveAttribute("data-chapter", "2");
     await page.keyboard.press("Escape");
     await expect(guide).toHaveCount(0);
-    await page.getByRole("button", { name: c.replay, exact: true }).click();
+    // M106: no floating replay button; Help → Replay welcome dispatches this event (SPEC §4.2).
+    await page.evaluate(() => window.dispatchEvent(new Event("skoolee:replay-welcome")));
     await enterGuide(page);
     await expect(guide.getByRole("heading", { name: personal.title, exact: true })).toBeVisible();
     await expect(character(guide)).toHaveAttribute("data-guide-persona", role);
@@ -163,7 +165,7 @@ for (const role of ["STUDENT", "PARENT"] as const) {
       await page.setViewportSize({ width: 390, height: 667 });
       await page.goto(dashboardPathForRole(role));
       await enterGuide(page, language);
-      const c = launchCopy(language), personal = roleGuideCopy(role, language);
+      const c = launchCopy(language), personal = roleGuideCopy(role, language, "GROUP");
       const guide = page.locator("[data-launch-guide]");
       await expect(guide.getByRole("heading", { name: personal.title, exact: true })).toBeVisible();
       await expect(page.getByRole("dialog", { name: c.guide })).toHaveCSS("direction", language === "en" ? "ltr" : "rtl");

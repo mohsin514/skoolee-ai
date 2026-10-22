@@ -41,7 +41,7 @@ export function SessionsCard({ sessions, t, locale, busyId, onEnd }: {
             return (
               <li key={session.id} className="flex flex-col gap-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 transition-colors hover:bg-surface-hover sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-xs">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-xs">
                     <Icon aria-hidden="true" className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">

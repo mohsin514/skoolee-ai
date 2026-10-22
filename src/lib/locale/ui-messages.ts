@@ -1,7 +1,12 @@
 import { arabicNavigationUi, urduNavigationUi } from "./navigation-ui-messages";
 import { arabicWorkflowUi, urduWorkflowUi } from "./workflow-ui-messages";
 import { arabicDesignSystemUi, urduDesignSystemUi } from "./design-system-ui-messages";
-export const arabicUi: Record<string, string> = {
+import { arabicRoleUxUi, urduRoleUxUi } from "./role-ux/index";
+/**
+ * The reviewed Arabic catalog (everything translated before the role re-architecture). It keeps precedence: a
+ * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
+ */
+export const arabicReviewedUi: Record<string, string> = {
   ...arabicDesignSystemUi,
   "Uploading": "جارٍ الرفع",
   "Logo uploaded": "تم رفع الشعار",
@@ -371,7 +376,11 @@ export const arabicUi: Record<string, string> = {
   "Import Bank Statement": "استيراد كشف الحساب البنكي", "Upload and validate first. Only reviewed rows are saved to the reconciliation receipt.": "حمّل الملف وتحقق منه أولاً. تحفظ الصفوف التي تمت مراجعتها فقط في إيصال التسوية.", "Validate statement": "التحقق من الكشف", "Validating...": "جارٍ التحقق...", "Commit {0} selected transactions": "اعتماد {0} معاملة مختارة", "Reconciliation saved. {0} transactions matched and {1} remain unmatched.": "تم حفظ التسوية. تمت مطابقة {0} معاملة وبقيت {1} دون مطابقة.", "{0} transactions committed; {1} matched; {2} unmatched.": "تم حفظ {0} معاملة؛ تمت مطابقة {1}؛ دون مطابقة {2}.", "This marks the pending reconciliation reversed and retains its receipt.": "سيضع هذا التسوية المعلقة في حالة معكوسة مع الاحتفاظ بإيصالها.", "Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.": "تستخدم المطابقة مرجع الفاتورة الدقيق فقط. تبقى الصفوف دون مطابقة حتى مراجعتها؛ ولا يتم تسجيل أي دفعة.", "Invoice match": "مطابقة الفاتورة", "Invoice for row {0}": "الفاتورة للصف {0}", "Leave unmatched": "اتركها دون مطابقة", "Amount": "المبلغ", "Description": "الوصف", "Reconciliation": "التسوية", "Currency": "العملة", "Account Name": "اسم الحساب", "From": "من", "To": "إلى", "CSV File": "ملف CSV", "Click to upload CSV": "اضغط لتحميل ملف CSV", "transaction_date,amount,description": "تاريخ_المعاملة،المبلغ،الوصف", "All fields required": "جميع الحقول مطلوبة",
 };
 
-export const urduUi: Record<string, string> = {
+/** Every Arabic UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
+export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicReviewedUi };
+
+/** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
+export const urduReviewedUi: Record<string, string> = {
   ...urduDesignSystemUi,
   "Uploading": "اپ لوڈ ہو رہا ہے",
   "Logo uploaded": "لوگو اپ لوڈ ہو گیا",
@@ -739,8 +748,11 @@ export const urduUi: Record<string, string> = {
   "{0} selected": "{0} منتخب", "{0} rejected": "{0} مسترد", "{0} skipped": "{0} چھوڑے گئے", "{0} unresolved": "{0} غیر حل شدہ", "{0} total rows": "کل {0} قطاریں",
   "Match key: campus + class + roll number. Existing pupils are never overwritten. Staging expires {0}.": "مطابقت کی کلید: کیمپس، جماعت اور رول نمبر۔ موجودہ ریکارڈ تبدیل نہیں ہوتے۔ مرحلہ وار ڈیٹا {0} کو ختم ہوگا۔",
   "Download corrections": "اصلاحات ڈاؤن لوڈ کریں", "Include": "شامل کریں", "Row": "قطار", "Roll No": "رول نمبر", "Match key": "مطابقت کی کلید", "Include row {0}": "قطار {0} شامل کریں", "Commit {0} selected pupils": "{0} منتخب طلبہ منظور کریں", "Committing...": "منظوری جاری ہے...", "Choose Different File": "دوسری فائل منتخب کریں", "Choose CSV File": "CSV فائل منتخب کریں", "Download Template": "سانچہ ڈاؤن لوڈ کریں", "Only CSV files are accepted": "صرف CSV فائلیں قبول ہیں", "File size must be under 5MB": "فائل کا حجم 5MB سے کم ہونا چاہیے", "Could not parse CSV file": "CSV فائل پڑھی نہیں جا سکی", "Import failed": "درآمد ناکام", "Import Complete": "درآمد مکمل", "Import Failed": "درآمد ناکام", "ACCEPTED": "قبول", "REJECTED": "مسترد", "SKIPPED": "چھوڑا", "UNRESOLVED": "غیر حل شدہ", "COMMITTED": "منظور", "PARTIAL": "جزوی",
-  "Import Bank Statement": "بینک اسٹیٹمنٹ درآمد کریں", "Upload and validate first. Only reviewed rows are saved to the reconciliation receipt.": "پہلے فائل اپ لوڈ اور تصدیق کریں۔ صرف دیکھی گئی قطاریں مصالحتی رسید میں محفوظ ہوں گی۔", "Validate statement": "اسٹیٹمنٹ کی تصدیق کریں", "Validating...": "تصدیق جاری ہے...", "Commit {0} selected transactions": "{0} منتخب لین دین منظور کریں", "Reconciliation saved. {0} transactions matched and {1} remain unmatched.": "مصالحت محفوظ ہے۔ {0} لین دین مل گئے اور {1} نہیں ملے۔", "{0} transactions committed; {1} matched; {2} unmatched.": "{0} لین دین محفوظ؛ {1} ملے؛ {2} نہیں ملے۔", "This marks the pending reconciliation reversed and retains its receipt.": "زیرِ التوا مصالحت کو واپس نشان زد کیا جائے گا اور رسید محفوظ رہے گی۔", "Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.": "صرف عین انوائس حوالہ ملایا جاتا ہے۔ جائزے تک غیر مطابق قطاریں وہیں رہیں گی؛ کوئی ادائیگی درج نہیں ہوگی۔", "Invoice match": "انوائس کی مطابقت", "Invoice for row {0}": "قطار {0} کی انوائس", "Leave unmatched": "غیر مطابق رہنے دیں", "Amount": "رقم", "Description": "تفصیل", "Currency": "کرنسی", "Account Name": "اکاؤنٹ کا نام", "From": "سے", "To": "تک", "CSV File": "CSV فائل", "Click to upload CSV": "CSV اپ لوڈ کرنے کے لیے کلک کریں", "transaction_date,amount,description": "لین دین_کی_تاریخ،رقم،تفصیل", "All fields required": "تمام خانے درکار ہیں"
+  "Import Bank Statement": "بینک اسٹیٹمنٹ درآمد کریں", "Upload and validate first. Only reviewed rows are saved to the reconciliation receipt.": "پہلے فائل اپ لوڈ اور تصدیق کریں۔ صرف دیکھی گئی قطاریں مصالحتی رسید میں محفوظ ہوں گی۔", "Validate statement": "اسٹیٹمنٹ کی تصدیق کریں", "Validating...": "تصدیق جاری ہے...", "Commit {0} selected transactions": "{0} منتخب لین دین منظور کریں", "Reconciliation saved. {0} transactions matched and {1} remain unmatched.": "مصالحت محفوظ ہے۔ {0} لین دین مل گئے اور {1} نہیں ملے۔", "{0} transactions committed; {1} matched; {2} unmatched.": "{0} لین دین محفوظ؛ {1} ملے؛ {2} نہیں ملے۔", "This marks the pending reconciliation reversed and retains its receipt.": "زیرِ التوا مصالحت کو واپس نشان زد کیا جائے گا اور رسید محفوظ رہے گی۔", "Matching uses exact invoice references only. Unmatched rows stay unmatched until reviewed; no payment is posted.": "صرف عین انوائس حوالہ ملایا جاتا ہے۔ جائزے تک غیر مطابق قطاریں وہیں رہیں گی؛ کوئی ادائیگی درج نہیں ہوگی۔", "Invoice match": "انوائس کی مطابقت", "Invoice for row {0}": "قطار {0} کی انوائس", "Leave unmatched": "غیر مطابق رہنے دیں", "Amount": "رقم", "Description": "تفصیل", "Currency": "کرنسی", "Account Name": "اکاؤنٹ کا نام", "From": "سے", "To": "تک", "CSV File": "CSV فائل", "Click to upload CSV": "CSV اپ لوڈ کرنے کے لیے کلک کریں", "transaction_date,amount,description": "لین دین_کی_تاریخ،رقم،تفصیل", "All fields required": "تمام خانے درکار ہیں",
 };
+
+/** Every Urdu UI key. The role re-architecture catalogs (§10.10) only fill gaps: reviewed entries win. */
+export const urduUi: Record<string, string> = { ...urduRoleUxUi, ...urduReviewedUi };
 
 const academicModelUi: Record<"ar" | "ur", Record<string, string>> = {
   ar: {
@@ -780,12 +792,25 @@ const academicModelUiExtra: Record<"ar" | "ur", Record<string, string>> = {
   },
 };
 
+/**
+ * The reviewed translation of a key, or undefined: navigation → UI → workflow → academic model, the order
+ * `translateUi` has always used. Excludes the role re-architecture catalogs (exported for the catalog tests).
+ */
+export function reviewedTranslation(source: string, language: "en" | "ar" | "ur"): string | undefined {
+  if (language === "en") return undefined;
+  const catalog = language === "ar" ? arabicReviewedUi : urduReviewedUi;
+  const workflow = language === "ar" ? arabicWorkflowUi : urduWorkflowUi;
+  const navigation = language === "ar" ? arabicNavigationUi : urduNavigationUi;
+  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source];
+}
+
 const reportedMissing = new Set<string>();
 export function translateUi(source: string, language: "en" | "ar" | "ur") {
-  const catalog = language === "ar" ? arabicUi : language === "ur" ? urduUi : undefined;
-  const workflow = language === "ar" ? arabicWorkflowUi : language === "ur" ? urduWorkflowUi : undefined;
-  const navigation = language === "ar" ? arabicNavigationUi : language === "ur" ? urduNavigationUi : undefined;
-  const value = navigation?.[source] ?? catalog?.[source] ?? workflow?.[source] ?? (language === "en" ? undefined : academicModelUi[language][source] ?? academicModelUiExtra[language][source]);
+  // Reviewed catalogs first, in their original order; the role re-architecture catalogs (§10.10) answer only keys none
+  // of them knows, so a package can add copy but never change what an existing word means across the app
+  // (P9-01: "Grade", "Owner" and "Home" drifted while role-ux was consulted first).
+  const roleUx = language === "ar" ? arabicRoleUxUi : language === "ur" ? urduRoleUxUi : undefined;
+  const value = reviewedTranslation(source, language) ?? roleUx?.[source];
   if (language !== "en" && value === undefined && /[a-zA-Z]{2}/.test(source) && process.env.NODE_ENV !== "production") {
     const key = `${language}:${source}`;
     if (!reportedMissing.has(key)) { reportedMissing.add(key); console.warn(`[locale:missing] ${key}`); }

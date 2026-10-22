@@ -57,7 +57,12 @@ const inviteErrorText = (message: string, language: "en" | "ar" | "ur") => INVIT
 
 const copy = {
   en: {
-    secureInvitation: "Secure invitation", title: "Accept invitation", brandTitle: { light: "Create your profile and step into", strong: "your Skoolee workspace." }, brandBody: "Your campus role is already prepared. Complete this setup to activate your protected account.", intro: "Set your password to activate your campus account.", language: "Language",
+    secureInvitation: "Secure invitation", title: "Accept invitation", brandTitle: { light: "Create your profile and step into", strong: "your Skoolee workspace." }, brandBody: "Your role is already prepared. Complete this setup to activate your protected account.", intro: "Set your password to activate your Skoolee account.", language: "Language",
+    // Role-aware lines (SPEC §8.2): families and learners never read "campus account".
+    introStaff: "Set your password to activate your campus account.", introFamily: "Set your password to open your family account.", introLearner: "Set your password to open your learner account.",
+    brandBodyFamily: "Your family access is already prepared. Complete this setup to open your protected account.", brandBodyLearner: "Your learner access is already prepared. Complete this setup to open your protected account.",
+    // The staff footer (ownership, employment rank) never reaches families or learners (R7).
+    privacyFamily: "This account shows only the children linked to it. Your school decides what each guardian can see.", privacyLearner: "This account shows only your own lessons, work and results.",
     missingToken: "This invitation link is missing its secure token.", invalid: "This invitation link is invalid or no longer available.",
     expired: "This invitation has expired. Please request a new invite.", cancelled: "This invitation has been cancelled. Please ask your administrator to resend it.",
     alreadyAccepted: "This invitation has already been accepted. Please sign in.", unavailable: "Could not check this invitation right now. Check your connection and try again.",
@@ -74,7 +79,10 @@ const copy = {
     expiresInfo: "After this time the link stops working. You can then request a new link from this page.",
   },
   ar: {
-    secureInvitation: "دعوة آمنة", title: "قبول الدعوة", brandTitle: { light: "أنشئ ملفك الشخصي وادخل إلى", strong: "مساحة عملك في Skoolee." }, brandBody: "دورك في الفرع جاهز بالفعل. أكمل هذا الإعداد لتفعيل حسابك المحمي.", intro: "أنشئ كلمة مرور لتفعيل حسابك في الفرع.", language: "اللغة",
+    secureInvitation: "دعوة آمنة", title: "قبول الدعوة", brandTitle: { light: "أنشئ ملفك الشخصي وادخل إلى", strong: "مساحة عملك في Skoolee." }, brandBody: "دورك جاهز بالفعل. أكمل هذا الإعداد لتفعيل حسابك المحمي.", intro: "أنشئ كلمة مرور لتفعيل حسابك في Skoolee.", language: "اللغة",
+    introStaff: "أنشئ كلمة مرور لتفعيل حسابك في الفرع.", introFamily: "أنشئ كلمة مرور لفتح حساب أسرتك.", introLearner: "أنشئ كلمة مرور لفتح حسابك كطالب.",
+    brandBodyFamily: "وصول أسرتك جاهز بالفعل. أكمل هذا الإعداد لفتح حسابك المحمي.", brandBodyLearner: "وصولك كطالب جاهز بالفعل. أكمل هذا الإعداد لفتح حسابك المحمي.",
+    privacyFamily: "يعرض هذا الحساب الأبناء المرتبطين به فقط، وتحدد مدرستك ما يمكن لكل وليّ أمر رؤيته.", privacyLearner: "يعرض هذا الحساب دروسك وأعمالك ونتائجك فقط.",
     missingToken: "رابط الدعوة لا يحتوي على رمز الأمان.", invalid: "رابط الدعوة غير صالح أو لم يعد متاحاً.",
     expired: "انتهت صلاحية هذه الدعوة. اطلب دعوة جديدة.", cancelled: "أُلغيت هذه الدعوة. اطلب من المسؤول إعادة إرسالها.",
     alreadyAccepted: "قُبلت هذه الدعوة من قبل. سجّل الدخول.", unavailable: "تعذر التحقق من هذه الدعوة الآن. تحقق من اتصالك ثم حاول مجدداً.",
@@ -91,7 +99,10 @@ const copy = {
     expiresInfo: "بعد هذا الوقت يتوقف الرابط عن العمل، ويمكنك عندها طلب رابط جديد من هذه الصفحة.",
   },
   ur: {
-    secureInvitation: "محفوظ دعوت نامہ", title: "دعوت قبول کریں", brandTitle: { light: "اپنی پروفائل بنائیں اور", strong: "اپنے Skoolee ورک اسپیس میں قدم رکھیں۔" }, brandBody: "آپ کا کیمپس کردار پہلے سے تیار ہے۔ اپنا محفوظ اکاؤنٹ فعال کرنے کے لیے یہ سیٹ اپ مکمل کریں۔", intro: "اپنے کیمپس اکاؤنٹ کو فعال کرنے کے لیے پاس ورڈ بنائیں۔", language: "زبان",
+    secureInvitation: "محفوظ دعوت نامہ", title: "دعوت قبول کریں", brandTitle: { light: "اپنی پروفائل بنائیں اور", strong: "اپنے Skoolee ورک اسپیس میں قدم رکھیں۔" }, brandBody: "آپ کا کردار پہلے سے تیار ہے۔ اپنا محفوظ اکاؤنٹ فعال کرنے کے لیے یہ سیٹ اپ مکمل کریں۔", intro: "اپنا Skoolee اکاؤنٹ فعال کرنے کے لیے پاس ورڈ بنائیں۔", language: "زبان",
+    introStaff: "اپنے کیمپس اکاؤنٹ کو فعال کرنے کے لیے پاس ورڈ بنائیں۔", introFamily: "اپنا خاندانی اکاؤنٹ کھولنے کے لیے پاس ورڈ بنائیں۔", introLearner: "اپنا طالب علم اکاؤنٹ کھولنے کے لیے پاس ورڈ بنائیں۔",
+    privacyFamily: "اس اکاؤنٹ میں صرف اس سے منسلک بچے نظر آتے ہیں۔ ہر سرپرست کیا دیکھ سکتا ہے، یہ آپ کا اسکول طے کرتا ہے۔", privacyLearner: "اس اکاؤنٹ میں صرف آپ کے اسباق، کام اور نتائج نظر آتے ہیں۔",
+    brandBodyFamily: "آپ کے خاندان کی رسائی پہلے سے تیار ہے۔ اپنا محفوظ اکاؤنٹ کھولنے کے لیے یہ سیٹ اپ مکمل کریں۔", brandBodyLearner: "آپ کی بطور طالب علم رسائی پہلے سے تیار ہے۔ اپنا محفوظ اکاؤنٹ کھولنے کے لیے یہ سیٹ اپ مکمل کریں۔",
     missingToken: "دعوت کے لنک میں محفوظ ٹوکن موجود نہیں۔", invalid: "دعوت کا لنک درست نہیں یا اب دستیاب نہیں۔",
     expired: "اس دعوت کی مدت ختم ہو گئی ہے۔ نئی دعوت طلب کریں۔", cancelled: "یہ دعوت منسوخ ہو گئی ہے۔ منتظم سے دوبارہ بھیجنے کو کہیں۔",
     alreadyAccepted: "یہ دعوت پہلے ہی قبول ہو چکی ہے۔ سائن اِن کریں۔", unavailable: "ابھی اس دعوت کی جانچ نہیں ہو سکی۔ اپنا کنکشن چیک کر کے دوبارہ کوشش کریں۔",
@@ -111,6 +122,15 @@ const copy = {
 
 const delay = (ms: number) => ({ "--sk-delay": `${ms}ms` }) as CSSProperties;
 
+const CAMPUS_STAFF: ReadonlySet<UserRole> = new Set(["CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN"]);
+/** Families and learners are invited to their own portal, not a campus account; leaders keep the neutral line. */
+function audienceOf(role: UserRole | undefined): "staff" | "family" | "learner" | "other" {
+  if (!role) return "other";
+  if (role === "PARENT") return "family";
+  if (role === "STUDENT") return "learner";
+  return CAMPUS_STAFF.has(role) ? "staff" : "other";
+}
+
 export default function AcceptInvitePage() {
   const { language, setLanguage } = useAuthLanguage();
   const t = copy[language];
@@ -122,6 +142,7 @@ export default function AcceptInvitePage() {
   const [inviteMessage, setInviteMessage] = useState("");
   const [inviteLoading, setInviteLoading] = useState(true);
   const [details, setDetails] = useState<{ contextKey: string; role: UserRole; institutionName: string; campusName: string; invitedBy: string; expiresAt: string; canPurchaseSubscription: boolean; canManageMemberships: boolean } | null>(null);
+  const audience = audienceOf(details?.role);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -309,7 +330,7 @@ export default function AcceptInvitePage() {
           eyebrow={t.secureInvitation}
           // The page's one h1 is the form title; the cover line is its tagline.
           heading={{ light: t.brandTitle.light, strong: t.brandTitle.strong, as: "p" }}
-          body={t.brandBody}
+          body={audience === "family" ? t.brandBodyFamily : audience === "learner" ? t.brandBodyLearner : t.brandBody}
           index={{
             label: ac.trustLabel,
             items: [
@@ -341,7 +362,7 @@ export default function AcceptInvitePage() {
         </Badge>
         <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">{t.title}</h1>
         <p className="mt-2 text-md leading-relaxed text-ink-muted">
-          {t.intro}
+          {audience === "staff" ? t.introStaff : audience === "family" ? t.introFamily : audience === "learner" ? t.introLearner : t.intro}
         </p>
       </div>
 
@@ -390,7 +411,7 @@ export default function AcceptInvitePage() {
             ) : null}
             {details && preview && <section aria-labelledby="invite-scope-title" className="sk-enter mb-6 rounded-2xl border border-border-subtle bg-surface-subtle/70 p-4 sm:p-5">
               <div className="flex items-start gap-3">
-                <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-primary shadow-xs ring-1 ring-border-subtle">
+                <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl bg-card text-primary shadow-xs ring-1 ring-border-subtle">
                   <Building2 className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -429,9 +450,11 @@ export default function AcceptInvitePage() {
                   ))}
                 </ul>
               </div>
-              <dl className="mt-4 space-y-3 border-t border-border-subtle pt-4">
+              {audience !== "family" && audience !== "learner" && <dl className="mt-4 space-y-3 border-t border-border-subtle pt-4">
                 {[
-                  { label: t.purchasing, text: preview.purchasing, granted: details.canPurchaseSubscription },
+                  // The subscription is shown only to someone who holds it (§0.3 rule 2, R6). No invitation grants it
+                  // since G7, so in practice this row never renders; it stays for invitations issued before G7.
+                  ...(details.canPurchaseSubscription ? [{ label: t.purchasing, text: preview.purchasing, granted: true }] : []),
                   { label: t.management, text: preview.management, granted: details.canManageMemberships },
                 ].map(({ label, text, granted }) => (
                   <div key={label} className="min-w-0">
@@ -444,10 +467,10 @@ export default function AcceptInvitePage() {
                     <dd className="mt-0.5 ps-6 text-sm leading-relaxed text-ink-muted">{text}</dd>
                   </div>
                 ))}
-              </dl>
+              </dl>}
               <p className="mt-4 flex items-start gap-2 border-t border-border-subtle pt-4 text-xs leading-relaxed text-ink-subtle">
                 <ShieldCheck aria-hidden="true" className="mt-px size-4 shrink-0" />
-                <span>{preview.ownership} {preview.rank}</span>
+                <span>{audience === "family" ? t.privacyFamily : audience === "learner" ? t.privacyLearner : `${preview.ownership} ${preview.rank}`}</span>
               </p>
             </section>}
             <form onSubmit={handleSubmit} aria-busy={loading} className="space-y-5">

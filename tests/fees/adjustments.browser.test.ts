@@ -34,7 +34,8 @@ async function context(key: string) {
   ctxs.set(key, ctx); return ctx;
 }
 const request = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.request.post(`${base}/api/fees/adjustments`, { data: { invoiceId, reasonCategory: "WITHDRAWAL", reason: "Synthetic staff reason with evidence", publicExplanation: "Synthetic family explanation", privateNote: "SYNTHETIC-PRIVATE-NOTE", idempotencyKey: randomUUID(), ...body } });
-const decide = (ctx: BrowserContext, id: string, action: string, reference = "") => ctx.request.patch(`${base}/api/fees/adjustments`, { data: { id, action, reference } });
+// Approve / decline are money decisions with a typed reason kept in the audit row (role-ux R3, P8-10).
+const decide = (ctx: BrowserContext, id: string, action: string, reference = "") => ctx.request.patch(`${base}/api/fees/adjustments`, { data: { id, action, reference, ...(action === "approve" || action === "decline" ? { reason: "Checked the receipt and the fee policy." } : {}) } });
 const invoice = () => db.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
 const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
@@ -68,7 +69,7 @@ test("the requester cannot approve; approval is not disbursement; disbursement i
   const clerk = await context("clerk"), bursar = await context("bursar");
   const self = await decide(clerk, refundId, "approve");
   assert.equal(self.status(), 403);
-  assert.match((await self.json()).error, /another authorized approver must decide/);
+  assert.match((await self.json()).error, /Only your campus admin approves/); // role-ux G28: the finance desk never checks
   assert.equal((await (await decide(bursar, refundId, "approve")).json()).data.status, "APPROVED");
   assert.deepEqual([(await invoice()).totalAmountPaid, await db.payment.count({ where: { invoiceId, amount: { lt: 0 } } })], [60000, 0], "approval moves no money");
   const family = await context("parent");
@@ -115,8 +116,8 @@ test("families see decided outcomes with the public explanation only; the statem
 test("the bursar sees the adjustment history and effect wording in the invoice dialog", async () => {
   const bursar = await context("bursar"), page = await bursar.newPage();
   await page.goto(`${base}/admin?view=fees`);
-  await page.getByRole("button", { name: "Invoices", exact: true }).first().click({ timeout: 30_000 });
-  await page.getByRole("button", { name: "View Details" }).first().click({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Invoices", exact: true }).first().click({ timeout: 30_000 }); // FeesPanel sections are ViewTabs (role-ux §3.1)
+  await page.getByRole("button", { name: "View details" }).first().click({ timeout: 30_000 });
   const panel = page.locator("[data-adjustments-panel]");
   await panel.locator('[data-adjustment-status="DISBURSED"]').waitFor({ timeout: 15_000 });
   assert.equal(await panel.locator('[data-adjustment-status="DISBURSED"]').count(), 1);

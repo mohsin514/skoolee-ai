@@ -2,7 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import type { CertificateIssue } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageFrontDesk, canManageOperations } from "@/lib/api/scope";
+import { ApiError } from "@/lib/api/scope";
+import { isCampusOperator } from "@/lib/auth/institution";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { getLocalePackage } from "@/lib/locale/store";
 import { formatDateOnly, type Language } from "@/lib/locale/package";
@@ -24,7 +25,10 @@ type Variable = (typeof VARIABLES)[number];
 const SYSTEM: Variable[] = ["issueDate", "serial"];
 const PATTERN = /\{\{\s*([A-Za-z]+)\s*\}\}/g;
 
-export const isLeader = (user: AuthUser) => canManageOperations(user);
+// role-ux G38a / §2.2 #54: templates (design and approval) belong to the campus admin; issuing is the front desk's
+// (the receptionist, or the campus admin who holds the desk when no receptionist is on duty).
+export const isLeader = (user: AuthUser) => isCampusOperator(user);
+const canIssue = (user: AuthUser) => isCampusOperator(user) || user.role === "RECEPTIONIST";
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const sha256Bytes = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
 const text = (value: unknown, label: string, min: number, max: number) => {
@@ -33,8 +37,8 @@ const text = (value: unknown, label: string, min: number, max: number) => {
   if (out.length > max) throw new ApiError(`${label} is too long (max ${max}).`, 400);
   return out;
 };
-function frontDesk(user: AuthUser) { if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can issue certificates.", 403); }
-function leader(user: AuthUser, what: string) { if (!isLeader(user)) throw new ApiError(`Only a campus leader can ${what}.`, 403); }
+function frontDesk(user: AuthUser) { if (!canIssue(user)) throw new ApiError("Only the front desk and your campus admin can issue certificates.", 403); }
+function leader(user: AuthUser, what: string) { if (!isLeader(user)) throw new ApiError(`Only your campus admin can ${what}.`, 403); }
 
 /** The variables a body uses; unknown names are refused so a typo cannot silently print blank. */
 export function usedVariables(body: string) {

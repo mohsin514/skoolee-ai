@@ -10,7 +10,7 @@ export async function assertExamSchedulingAccess(user: AuthUser, campusId: strin
   if ((!canManageOperations(user) && !(allowClassroomTeacher && user.role === "TEACHER")) || user.role !== "SUPER_ADMIN" && user.campusId !== campusId) throw new ApiError("Forbidden", 403);
   const actor = await tx.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
   if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new ApiError("Account access changed. Sign in again.", 403);
-  const grants = await tx.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true } });
+  const grants = await tx.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true, updatedAt: true } }); // updatedAt: role-defaults cut-over (§7.4)
   const flags = moduleFlags(grants, user.role, "exams");
   if (!flags[{ view: "canView", add: "canAdd", edit: "canEdit", delete: "canDelete" }[action] as keyof typeof flags]) throw new ApiError(`Insufficient permissions: exams.${action}`, 403);
   await assertSchoolOperational(user.schoolId, tx);

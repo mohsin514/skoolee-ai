@@ -31,6 +31,7 @@ import {
 } from "@/lib/academic/exam-pipeline";
 import type { DetailTab } from "@/components/academic/ExamBoardCard";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 export type SortKey = "manual" | "title" | "class" | "progress" | "date" | "stage";
 
@@ -78,6 +79,7 @@ export function ExamTableView({
   onReject: (exam: ExamItem) => void;
   flagged: Set<string>;
 }) {
+  const ui = useUiText();
   const allSelected = exams.length > 0 && exams.every((e) => selected.has(e.id));
 
   return (
@@ -90,7 +92,7 @@ export function ExamTableView({
 
                 checked={allSelected}
                 onChange={onToggleAll}
-                aria-label="Select every exam in this list"
+                aria-label={ui("Select every exam in this list")}
                 className=""
               />
             </TableHead>
@@ -99,7 +101,7 @@ export function ExamTableView({
                 key={h.label}
                 aria-sort={h.key ? (sort.key === h.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none") : undefined}
                 className={cn(
-                  "px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted",
+                  "px-4 py-3 text-xs font-semibold text-ink-muted",
                   h.className,
                 )}
               >
@@ -109,7 +111,7 @@ export function ExamTableView({
                     onClick={() => onSort(h.key as SortKey)}
                     className="justify-start inline-flex items-center gap-1"
                   >
-                    {h.label}
+                    {ui(h.label)}
                     {sort.key === h.key ? (
                       sort.dir === "asc" ? (
                         <ArrowUpWideNarrow className="h-3 w-3 text-primary" />
@@ -120,9 +122,9 @@ export function ExamTableView({
                       <ArrowUpDown className="h-3 w-3 text-edge" />
                     )}
                   </Button>
-                ) : (
-                  h.label
-                )}
+                ) : h.label ? (
+                  ui(h.label)
+                ) : null}
               </TableHead>
             ))}
           </TableRow>
@@ -151,7 +153,7 @@ export function ExamTableView({
 
                     checked={selected.has(exam.id)}
                     onChange={() => onToggleSelect(exam.id)}
-                    aria-label={`Select ${exam.title}`}
+                    aria-label={ui("Select {0}", [exam.title])}
                     className=""
                   />
                 </TableCell>
@@ -162,19 +164,19 @@ export function ExamTableView({
                     className="justify-start flex items-center gap-1.5 text-start"
                   >
                     {flagged.has(exam.id) ? (
-                      <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                      <TriangleAlert aria-label={ui("Needs your attention")} className="h-3.5 w-3.5 shrink-0 text-status-warning-text" />
                     ) : null}
-                    {exam.title}
+                    <bdi>{exam.title}</bdi>
                   </Button>
-                  <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    {EXAM_TYPE_LABELS[exam.examType as ExamType] ||
+                  <p className="mt-0.5 text-2xs font-semibold text-ink-subtle">
+                    {ui(EXAM_TYPE_LABELS[exam.examType as ExamType] ||
                       exam.examType?.replaceAll("_", " ") ||
-                      "Exam"}
+                      "Exam")}
                     {" · "}
                     {exam.term} {exam.academicYear}
                   </p>
                 </TableCell>
-                <TableCell className="px-4 py-3 text-xs font-bold text-ink">{classLabel(exam.class)}</TableCell>
+                <TableCell className="px-4 py-3 text-xs font-bold text-ink"><bdi>{classLabel(exam.class)}</bdi></TableCell>
                 <TableCell className="px-4 py-3">
                   <StatusPill status={exam.status} />
                 </TableCell>
@@ -184,11 +186,11 @@ export function ExamTableView({
                       <CalendarDays className="h-3 w-3 text-primary" aria-hidden="true" />
                       {range}
                       <span className="text-ink-subtle">
-                        · {sched?.papers} paper{(sched?.papers ?? 0) > 1 ? "s" : ""}
+                        · {ui((sched?.papers ?? 0) > 1 ? "{0} papers" : "{0} paper", [sched?.papers ?? 0])}
                       </span>
                     </span>
                   ) : (
-                    <span className="text-2xs font-semibold text-ink-subtle">Not scheduled</span>
+                    <span className="text-2xs font-semibold text-ink-subtle">{ui("Not scheduled")}</span>
                   )}
                 </TableCell>
                 <TableCell className="px-4 py-3">
@@ -206,8 +208,8 @@ export function ExamTableView({
                         value={pct}
                         size="sm"
                         tone={pct === 100 ? "success" : "warning"}
-                        label="Marks entered"
-                        valueText={`${m.enteredMarks} of ${m.expectedMarks} marks entered`}
+                        label={ui("Marks entered")}
+                        valueText={ui("{0} of {1} marks entered", [m.enteredMarks, m.expectedMarks])}
                       />
                     </div>
                   ) : (
@@ -222,7 +224,7 @@ export function ExamTableView({
                         onClick={() => onReject(exam)}
                         className="justify-start flex items-center gap-1 px-2.5 py-1.5"
                       >
-                        <RotateCcw className="h-3 w-3" /> Send back
+                        <RotateCcw aria-hidden="true" className="h-3 w-3" /> {ui("Send back")}
                       </Button>
                     ) : null}
                     {action ? (
@@ -236,11 +238,11 @@ export function ExamTableView({
                         ) : (
                           <CheckCircle2 className="h-3 w-3" />
                         )}
-                        {action.label}
+                        {ui(action.label)}
                       </Button>
                     ) : (
                       <Badge variant="success">
-                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Done
+                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> {ui("Done")}
                       </Badge>
                     )}
                   </div>

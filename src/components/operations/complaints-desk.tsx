@@ -11,7 +11,12 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { ModalFrame, PanelTitle } from "@/components/shared-admin";
+import { PanelTitle } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
+import { downloadCSV } from "@/lib/csv";
+
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -22,7 +27,9 @@ type Row = { id: string; referenceCode: string; type: string; complainantName: s
 type Status = "OPEN" | "IN_PROGRESS" | "RESOLVED";
 type Event = { id: string; kind: string; fromStatus: string | null; toStatus: string | null; note: string | null; ownerName: string | null; dueDate: string | null; actorName: string | null; createdAt: string };
 type Detail = Row & { description: string | null; phone: string | null; publicResponse: string | null; resolution: string | null; resolvedAt: string | null; events: Event[] };
-type Owner = { id: string; fullName: string };
+type Owner = { id: string; fullName: string; role?: string };
+// role-ux G40: only the front desk and campus admins own front-office work; the server refuses anyone else.
+const OWNER_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"]);
 const STATUS_LABEL: Record<Status, string> = { OPEN: "Open", IN_PROGRESS: "In progress", RESOLVED: "Resolved" };
 const EVENT_LABEL: Record<string, string> = { CREATED: "Received", ASSIGNED: "Owner and due date set", NOTE: "Internal note", STATUS: "Work started", RESOLVED: "Resolved", REOPENED: "Reopened" };
 const todayText = () => new Date().toISOString().slice(0, 10);
@@ -35,7 +42,11 @@ async function call(method: string, body: Record<string, unknown>) {
   return json;
 }
 
-export function ComplaintsDesk() {
+/**
+ * `hideHeader` hands the title and "Record complaint" to the console's PageHeader; `command` "record-complaint"
+ * opens intake and "export" saves the complaints the filters show as CSV (§4.4b Front desk · Export), once loaded.
+ */
+export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
   const [rows, setRows] = useState<Row[]>([]), [counts, setCounts] = useState({ active: 0, unassigned: 0, overdue: 0 }), [leader, setLeader] = useState(false);
@@ -58,17 +69,31 @@ export function ComplaintsDesk() {
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Complaints could not be loaded.")); } finally { setLoading(false); }
   }, [status, owner, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
-  useEffect(() => { void fetch("/api/front-desk/complaints?owners=1", { cache: "no-store" }).then(r => r.json()).then(json => json.success && setOwners(json.data)).catch(() => undefined); }, []);
+  // Owner candidates (G40, F13): the campus's admins — including a single school's admin — and receptionists. The
+  // complaints route's older `?owners=1` list still names the principal and omits ADMIN, so the candidates come from
+  // the front-desk list that serves them (the smallest one: callbacks the viewer owns).
+  useEffect(() => { void fetch("/api/front-desk/phone-calls?view=mine", { cache: "no-store" }).then(r => r.json()).then(json => json.success && Array.isArray(json.owners) && setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)))).catch(() => undefined); }, []);
+  usePanelCommand(command, { "record-complaint": () => setIntakeOpen(true) });
+  usePanelCommand(command, {
+    export: () => {
+      if (loadError) return;
+      if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      downloadCSV(`complaints-${todayText()}`, [
+        ["Reference", "Category", "Complainant", "Confidential", "Status", "Received", "Owner", "Response due", "Past response date"],
+        ...rows.map(row => [row.referenceCode, row.type, row.complainantName, row.confidential ? "Yes" : "No", STATUS_LABEL[row.status], row.date.slice(0, 10), row.owner?.fullName ?? "", row.dueDate?.slice(0, 10) ?? "", row.overdue ? "Yes" : "No"]),
+      ]);
+    },
+  }, !loading);
 
-  return <div className="sk-panel space-y-4 p-5" data-complaints-desk>
-    <div className="flex flex-wrap items-center justify-between gap-3">
+  return <div className={hideHeader ? "space-y-4" : "sk-panel space-y-4 p-5"} data-complaints-desk>
+    {hideHeader ? null : <div className="flex flex-wrap items-center justify-between gap-3">
       <PanelTitle icon={MessageSquare} title={ui("Complaints")} />
       <Button onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record complaint")}</Button>
-    </div>
+    </div>}
     <p className="flex flex-wrap gap-3 text-sm font-bold" aria-live="polite" data-complaint-counts>
       <span>{ui("Active: {0}", [counts.active])}</span>
-      <span className={counts.unassigned ? "text-amber-800" : ""} data-unassigned={counts.unassigned}>{ui("Unassigned: {0}", [counts.unassigned])}</span>
-      <span className={counts.overdue ? "text-rose-700" : ""} data-overdue={counts.overdue}>{ui("Past response date: {0}", [counts.overdue])}</span>
+      <span className={counts.unassigned ? "text-status-warning-text" : ""} data-unassigned={counts.unassigned}>{ui("Unassigned: {0}", [counts.unassigned])}</span>
+      <span className={counts.overdue ? "text-status-error-text" : ""} data-overdue={counts.overdue}>{ui("Past response date: {0}", [counts.overdue])}</span>
     </p>
     <div className="grid gap-3 sm:grid-cols-3">
       <FormField name="complaint-filter-status" label={ui("Status")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="active">{ui("Open and in progress")}</option><option value="OPEN">{ui("Open")}</option><option value="IN_PROGRESS">{ui("In progress")}</option><option value="RESOLVED">{ui("Resolved")}</option><option value="all">{ui("All complaints")}</option></Select></FormField>
@@ -79,11 +104,11 @@ export function ComplaintsDesk() {
     {loading && !rows.length ? <SkeletonList rows={3} label={ui("Loading complaints…")} />
       : loadError ? <ErrorState description={loadError} onRetry={() => void load()} retryLabel={ui("Retry")} />
       : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm">{status !== "active" || owner || q ? ui("No complaints match these filters.") : ui("No open complaints. Record a complaint when one is received.")}</p>
-      : <ul className="space-y-2" aria-label={ui("Complaints")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-rose-200 bg-rose-50/40" : "border-border"}`} data-complaint={row.referenceCode} data-complaint-status={row.status} data-confidential={row.confidential}>
+      : <ul className="space-y-2" aria-label={ui("Complaints")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-status-error-border bg-status-error-surface" : "border-border"}`} data-complaint={row.referenceCode} data-complaint-status={row.status} data-confidential={row.confidential}>
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-ink-strong"><bdi>{row.referenceCode}</bdi> · <bdi>{row.type}</bdi>{row.confidential ? <Badge size="sm" variant="info" className="ms-2"><Lock className="size-3" aria-hidden="true" />{ui("Confidential")}</Badge> : null}</p>
           <p className="text-xs text-ink-muted"><bdi>{row.complainantName}</bdi> · {ui("Received {0}", [formatDate(row.date)])}{row.reopenedCount ? ` · ${ui("Reopened {0} time(s)", [row.reopenedCount])}` : ""}</p>
-          <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{row.dueDate ? ` · ${ui("Response due {0}", [formatDate(row.dueDate)])}` : ""}</p>
+          <p className="text-xs text-ink-muted">{row.owner ? ui("Owner: {0}", [row.owner.fullName]) : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{row.dueDate ? ` · ${ui("Response due {0}", [formatDate(row.dueDate)])}` : ""}</p>
         </div>
         <Badge size="sm" dot variant={row.overdue ? "danger" : row.status === "RESOLVED" ? "success" : "neutral"}>{row.overdue ? ui("Past response date") : ui(STATUS_LABEL[row.status])}</Badge>
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Open complaint {0}", [row.referenceCode])}>{ui("Open")}</Button>
@@ -113,14 +138,14 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your details are kept; retrying will not record the complaint twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  if (receipt) return <ModalFrame title={ui("Complaint recorded")} eyebrow={ui("Complaints")} onClose={onDone}>
+  if (receipt) return <Modal title={ui("Complaint recorded")} eyebrow={ui("Complaints")} onClose={onDone}>
     <div className="space-y-3" data-complaint-receipt={receipt}>
       <p className="text-sm">{ui("Give the complainant this reference: {0}", [receipt])}</p>
-      {form.confidential ? <p className="rounded-xl bg-violet-50 p-3 text-xs text-violet-900">{ui("This confidential concern has gone to campus leaders. It will not appear in the reception queue.")}</p> : null}
+      {form.confidential ? <p className="rounded-xl bg-status-info-surface p-3 text-xs text-status-info-text">{ui("This confidential concern has gone to your campus admin. It will not appear in the reception queue.")}</p> : null}
       <div className="flex justify-end"><Button onClick={onDone}>{ui("Done")}</Button></div>
     </div>
-  </ModalFrame>;
-  return <ModalFrame title={ui("Record complaint")} eyebrow={ui("Complaints")} subtitle={ui("Write down what was reported. The original report cannot be edited later; follow-up is added as notes.")} onClose={onClose} dirty={Boolean(form.description || form.complainantName)}>
+  </Modal>;
+  return <Modal title={ui("Record complaint")} eyebrow={ui("Complaints")} subtitle={ui("Write down what was reported. The original report cannot be edited later; follow-up is added as notes.")} onClose={onClose} dirty={Boolean(form.description || form.complainantName)}>
     <div className="space-y-3" data-complaint-intake>
       {error ? <Alert tone="danger" compact data-complaint-error>{error}</Alert> : null}
       <fieldset className="space-y-2 rounded-xl border border-border p-3">
@@ -145,7 +170,7 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
       </div> : null}
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy} disabled={busy}>{ui("Record complaint")}</Button></div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; owners: Owner[]; leader: boolean; onClose: () => void; onChanged: () => void }) {
@@ -169,7 +194,7 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
     finally { setBusy(false); }
   };
   const canAssign = detail && (!detail.confidential || leader);
-  return <ModalFrame title={detail ? ui("Complaint {0}", [detail.referenceCode]) : ui("Complaint")} eyebrow={ui("Complaints")} size="lg" onClose={onClose} dirty={Boolean(note || resolution || reason)}>
+  return <Modal title={detail ? ui("Complaint {0}", [detail.referenceCode]) : ui("Complaint")} eyebrow={ui("Complaints")} size="lg" onClose={onClose} dirty={Boolean(note || resolution || reason)}>
     {loadError ? <ErrorState description={loadError} onRetry={() => { setLoadError(""); void load(); }} retryLabel={ui("Retry")} /> : !detail ? <SkeletonList rows={3} label={ui("Loading complaints…")} /> : <div className="space-y-4" data-complaint-case={detail.referenceCode}>
       {error ? <Alert tone="danger" compact data-case-error>{error}</Alert> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Original report")}>
@@ -193,7 +218,7 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
         <FormField name="case-resolution" label={ui("Resolution (required to resolve)")}><Textarea value={resolution} rows={2} maxLength={2000} onChange={event => setResolution(event.target.value)} /></FormField>
         <Button disabled={busy} onClick={() => { if (resolution.trim().length < 5) { setError(ui("Describe the resolution (at least 5 characters).")); return; } void run({ action: "resolve", resolution, publicResponse }, "Complaint resolved."); }}>{ui("Resolve")}</Button>
       </div> : <div className="space-y-2">
-        <p className="rounded-xl bg-emerald-50 p-3 text-sm" data-case-resolution><bdi>{detail.resolution}</bdi></p>
+        <p className="rounded-xl bg-status-success-surface p-3 text-sm" data-case-resolution><bdi>{detail.resolution}</bdi></p>
         <FormField name="case-reopen" label={ui("Reason for reopening")}><Input value={reason} maxLength={2000} onChange={event => setReason(event.target.value)} /></FormField>
         <Button variant="secondary" disabled={busy} onClick={() => { if (reason.trim().length < 5) { setError(ui("Explain why the complaint is reopened (at least 5 characters).")); return; } void run({ action: "reopen", reason }, "Complaint reopened."); }}>{ui("Reopen")}</Button>
       </div>}
@@ -206,5 +231,5 @@ function CaseDialog({ id, owners, leader, onClose, onChanged }: { id: string; ow
         </li>)}</ol>
       </section>
     </div>}
-  </ModalFrame>;
+  </Modal>;
 }

@@ -20,9 +20,10 @@ function Content() {
 }
 function ParentFixture() {
   const { data, selectedStudentId } = useParentData();
-  return <ParentShell><ParentPage icon={BookOpen} title={data.student.fullName} eyebrow={data.student.rollNo} summary={data.student.className}><output data-testid="selected-child">{selectedStudentId}</output><Content /></ParentPage></ParentShell>;
+  // ParentPage/StudentPage are thin PageHeader wrappers now (role-ux §4.3): one title, one description.
+  return <ParentShell><ParentPage icon={BookOpen} title={data.student.fullName} description={`${data.student.rollNo} — ${data.student.className}`}><output data-testid="selected-child">{selectedStudentId}</output><Content /></ParentPage></ParentShell>;
 }
 function StudentFixture() {
-  return <StudentShell><StudentPage icon={BookOpen} title={CHILD_NAME} eyebrow={LONG_ROLL_A} summary={`${LONG_ROLL_A} — Grade 5 — International School`}><Content /></StudentPage></StudentShell>;
+  return <StudentShell><StudentPage icon={BookOpen} title={CHILD_NAME} description={`${LONG_ROLL_A} — Grade 5 — International School`}><Content /></StudentPage></StudentShell>;
 }
 createRoot(document.getElementById("root")!).render(<StaticLocaleProvider value={{ ...defaultLocale, language }}><FixtureData>{role === "parent" ? <ParentFixture /> : <StudentFixture />}</FixtureData></StaticLocaleProvider>);

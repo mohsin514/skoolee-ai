@@ -44,7 +44,8 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState<Repair | null>(null);
-  const [note, setNote] = useState("");
+  // F16 / R3: a rejection records its reason in a dialog (was window.prompt).
+  const [rejecting, setRejecting] = useState<Repair | null>(null);
   const load = useCallback(async () => { const response = await fetch(api, { cache: "no-store" }).catch(() => null); if (response?.ok) setData(await response.json()); }, [api]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
   const question = data?.questions.find(entry => entry.id === questionId);
@@ -118,8 +119,8 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
         <span className="font-semibold">{ui(STEP_LABEL[step.type])}</span><span>{entry ? (entry.status === "APPLIED" ? ui("Applied") : ui("Failed")) : ui("Waiting")}</span>{entry ? <bdi className="text-ink-muted" dir={entry.status === "APPLIED" && (step.type === "RESULT" || step.type === "MARK") ? "ltr" : undefined}>{entry.status === "FAILED" ? entry.detail : stepOutcome(step)}</bdi> : null}</li>; })}</ol> : null}
       <div className="flex flex-wrap gap-2">
         {repair.status === "PENDING_REVIEW" && data.canApprove && repair.proposedById !== data.me ? <>
-          <Button size="sm" disabled={busy} onClick={() => { setNote(""); setConfirming(repair); }}>{ui("Review and apply")}</Button>
-          <Button size="sm" variant="outline" disabled={busy} onClick={async () => { const text = window.prompt(ui("Why is this repair rejected?")); if (text?.trim()) { await post("decide", { repairId: repair.id, version: repair.version, decision: "REJECT", note: text }); await load(); } }}>{ui("Reject")}</Button>
+          <Button size="sm" disabled={busy} onClick={() => setConfirming(repair)}>{ui("Review and apply")}</Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => setRejecting(repair)}>{ui("Reject")}</Button>
         </> : null}
         {repair.status === "PENDING_REVIEW" && repair.proposedById === data.me ? <p className="text-xs text-ink-muted">{ui("Another academic leader reviews this repair.")}</p> : null}
         {["APPLYING", "PARTIAL"].includes(repair.status) && data.canApprove ? <Button size="sm" disabled={busy} onClick={async () => { await post("resume", { repairId: repair.id, version: repair.version }); await load(); }}>{ui("Continue unfinished steps")}</Button> : null}
@@ -134,10 +135,19 @@ export function AssessmentRepairPanel({ examId }: { examId: string }) {
         <p>{ui("Notices to {0} people", [number(recipients(confirming))])}:</p>
         <ul className="list-disc ps-4">{confirming.impact.rows.filter(row => row.kind === "NOTICE" && row.group === "CHANGED").map(row => <li key={row.studentId ?? row.label}><bdi>{row.label}</bdi>{row.note ? <> · {ui("Guardians")}: <bdi>{row.note}</bdi></> : null}</li>)}</ul>
         <p className="font-semibold">{ui("Family explanation")}: <bdi className="font-normal">{confirming.publicExplanation}</bdi></p>
-        <div className="grid gap-1 font-semibold"><label htmlFor={`${fid}-n`}>{ui("Approval note")}</label><Textarea id={`${fid}-n`} value={note} onChange={event => setNote(event.target.value)} maxLength={2000} /></div>
       </div> : null}
+      // §4.5.5 / R3 / R4: the shared typed-reason field — Confirm stays disabled until the note is written (inline,
+      // never a toast or a page-level error).
+      requireReason={{ label: ui("Approval note"), minLength: 1 }}
       onCancel={() => setConfirming(null)}
-      onConfirm={async () => { if (!confirming || !note.trim()) { setError(ui("Add an approval note.")); return; } const target = confirming; setConfirming(null); await post("decide", { repairId: target.id, version: target.version, decision: "APPROVE", note }); await load(); }} />
+      onConfirm={async (approvalNote) => { if (!confirming || !approvalNote) return; const target = confirming; setConfirming(null); await post("decide", { repairId: target.id, version: target.version, decision: "APPROVE", note: approvalNote }); await load(); }} />
+
+    <ConfirmAction open={!!rejecting} busy={busy} tone="danger" title={ui("Reject this repair?")}
+      description={ui("The answer key and released results stay as they are. The person who proposed the repair sees your reason.")}
+      confirmLabel={ui("Reject")} cancelLabel={ui("Keep editing")}
+      requireReason={{ label: ui("Why is this repair rejected?"), minLength: 10, placeholder: ui("At least 10 characters. The person who proposed the repair sees it.") }}
+      onCancel={() => setRejecting(null)}
+      onConfirm={async (rejection) => { if (!rejecting || !rejection) return; const target = rejecting; setRejecting(null); await post("decide", { repairId: target.id, version: target.version, decision: "REJECT", note: rejection }); await load(); }} />
   </section>;
 }
 

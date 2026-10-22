@@ -13,7 +13,8 @@
  * does not promote them, and it does not demote the person who had it.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
   ChevronDown,
@@ -25,7 +26,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -85,11 +86,18 @@ export function DepartmentManager({
   campusId,
   staff,
   onChanged,
+  addRequest,
+  hideAdd = false,
 }: {
   campusId?: string;
   staff: OrgNode[];
   onChanged?: () => void;
+  /** Each change opens "New unit" (the console's PageHeader primary "Add unit"); the first value never fires. */
+  addRequest?: number;
+  /** The console's PageHeader carries "Add unit", so the section header does not repeat it. */
+  hideAdd?: boolean;
 }) {
+  const ui = useUiText();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -97,8 +105,17 @@ export function DepartmentManager({
   const [saving, setSaving] = useState(false);
   const [memberFor, setMemberFor] = useState<Unit | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<Unit | null>(null);
+  // R3: taking someone out of a unit is a removal, so it confirms first (it used to act on one click).
+  const [pendingMemberRemoval, setPendingMemberRemoval] = useState<{ id: string; name: string; unit: string } | null>(null);
+  const [removingMember, setRemovingMember] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const lastAddRequest = useRef(addRequest);
+  useEffect(() => {
+    if (addRequest === undefined || addRequest === lastAddRequest.current) return;
+    lastAddRequest.current = addRequest;
+    setDraft({ ...emptyDraft });
+  }, [addRequest]);
 
   const load = useCallback(async () => {
     try {
@@ -108,8 +125,9 @@ export function DepartmentManager({
       setUnits(data.departments ?? []);
       setLoadError(false);
     } catch (error) {
+      // R4: the inline ErrorState below (with retry) is the only signal; no toast on top of it.
+      console.error(error);
       setLoadError(true);
-      toast.error(error instanceof Error ? error.message : "Could not load departments");
     } finally {
       setLoading(false);
     }
@@ -156,13 +174,13 @@ export function DepartmentManager({
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save the unit");
-      toast.success(draft.id ? "Unit updated" : `${payload.name} created`);
+      if (!res.ok) throw new Error(data.error || "");
+      toast.success(draft.id ? ui("Unit updated") : ui("{0} created", [payload.name]));
       setDraft(null);
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save the unit");
+      toast.error(friendlyErrorMessage(error, ui("Could not save the unit. Please try again.")));
     } finally {
       setSaving(false);
     }
@@ -173,13 +191,13 @@ export function DepartmentManager({
     try {
       const res = await fetch(`/api/staff/departments?id=${unit.id}`, { method: "DELETE" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not remove the unit");
-      toast.success(data.message || `${unit.name} removed`);
+      if (!res.ok) throw new Error(data.error || "");
+      toast.success(data.message || ui("{0} removed", [unit.name]));
       setPendingRemoval(null);
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove the unit");
+      toast.error(friendlyErrorMessage(error, ui("Could not remove the unit. Please try again.")));
     } finally {
       setRemoving(false);
     }
@@ -193,18 +211,18 @@ export function DepartmentManager({
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "That did not work");
+      if (!res.ok) throw new Error(data.error || "");
       toast.success(successMessage);
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "That did not work");
+      toast.error(friendlyErrorMessage(error, ui("Could not save the change. Please try again.")));
     }
   };
 
   if (loading) {
     return (
-      <SkeletonRegion label="Loading departments…" className="py-2">
+      <SkeletonRegion label={ui("Loading departments…")} className="py-2">
         <SkeletonList rows={4} />
       </SkeletonRegion>
     );
@@ -213,8 +231,8 @@ export function DepartmentManager({
   if (loadError) {
     return (
       <ErrorState
-        title="Departments did not load"
-        description="Could not load the department list. Check your connection and try again."
+        title={ui("Departments did not load")}
+        description={ui("Could not load the department list. Check your connection and try again.")}
         onRetry={() => {
           setLoading(true);
           void load();
@@ -232,14 +250,14 @@ export function DepartmentManager({
       <li key={unit.id} style={{ marginInlineStart: depth * 20 }} className="space-y-1.5">
         <div
           className={cn(
-            "sk-hover-lift rounded-2xl border bg-white px-3.5 py-3",
+            "sk-hover-lift rounded-2xl border bg-card px-3.5 py-3",
             unit.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
           )}
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <IconButton variant="secondary" size="sm"
+            <IconButton variant="secondary"
               onClick={() => toggle(unit.id)}
-              label={isOpen ? `Collapse ${unit.name}` : `Expand ${unit.name}`}
+              label={isOpen ? ui("Collapse {0}", [unit.name]) : ui("Expand {0}", [unit.name])}
               aria-expanded={isOpen}
             >
               {isOpen ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" className="rtl:rotate-180" />}
@@ -250,20 +268,20 @@ export function DepartmentManager({
                 <span className="text-sm font-semibold text-ink-strong">{unit.name}</span>
                 {unit.code ? <span className="text-xs font-medium text-ink-muted">{unit.code}</span> : null}
                 <Badge variant="secondary" size="sm">
-                  {DEPARTMENT_KIND_LABELS[unit.kind]}
+                  {ui(DEPARTMENT_KIND_LABELS[unit.kind])}
                 </Badge>
                 {!unit.isActive ? (
-                  <Badge variant="neutral" size="sm" dot>Archived</Badge>
+                  <Badge variant="neutral" size="sm" dot>{ui("Archived")}</Badge>
                 ) : null}
               </span>
               <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-normal text-ink-subtle">
                 {head ? (
                   <span className="inline-flex items-center gap-1 text-primary">
                     <Crown className="h-3 w-3" />
-                    {head.isActing ? "Acting head" : "Head"}: {head.user.fullName}
+                    {head.isActing ? ui("Acting head") : ui("Head")}: {head.user.fullName}
                   </span>
                 ) : (
-                  <span className="font-medium text-status-warning-text">No head assigned</span>
+                  <span className="font-medium text-status-warning-text">{ui("No head assigned")}</span>
                 )}
                 <span aria-hidden="true">·</span>
                 <span className="inline-flex items-center gap-1">
@@ -273,14 +291,14 @@ export function DepartmentManager({
             </span>
 
             <span className="flex shrink-0 gap-1">
-              <IconButton variant="secondary" size="sm"
+              <IconButton variant="secondary"
                 onClick={() => setMemberFor(unit)}
-                label={`Manage people in ${unit.name}`}
+                label={ui("Manage people in {0}", [unit.name])}
               >
                 <UserPlus aria-hidden="true" />
               </IconButton>
-              <IconButton variant="secondary" size="sm"
-                label={`Edit ${unit.name}`}
+              <IconButton variant="secondary"
+                label={ui("Edit {0}", [unit.name])}
                 onClick={() =>
                   setDraft({
                     id: unit.id,
@@ -294,9 +312,9 @@ export function DepartmentManager({
               >
                 <Pencil aria-hidden="true" />
               </IconButton>
-              <IconButton variant="destructive" size="sm"
+              <IconButton variant="ghost" className="text-status-error-text actionable-hover:bg-status-error-surface actionable-hover:text-status-error-text"
                 onClick={() => setPendingRemoval(unit)}
-                label={`Remove ${unit.name}`}
+                label={ui("Remove {0}", [unit.name])}
               >
                 <Trash2 aria-hidden="true" />
               </IconButton>
@@ -308,13 +326,13 @@ export function DepartmentManager({
               {unit.description ? <p className="text-sm font-normal leading-relaxed text-ink-muted">{unit.description}</p> : null}
               {unit.members.length === 0 ? (
                 <p className="text-sm font-normal leading-relaxed text-ink-muted">
-                  Nobody in this unit yet. Add people, then give one of them charge of it.
+                  {ui("Nobody in this unit yet. Add people, then give one of them charge of it.")}
                 </p>
               ) : (
                 <ul className="space-y-1">
                   {unit.members.map((member) => (
                     <li key={member.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-muted/60 px-2.5 py-1.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-2xs font-bold text-ink-muted">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-card text-2xs font-bold text-ink-muted">
                         {member.user.profileImageUrl ? (
                           <AvatarImage src={member.user.profileImageUrl} name={member.user.fullName} />
                         ) : (
@@ -322,15 +340,15 @@ export function DepartmentManager({
                         )}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink-strong">
-                        {member.user.fullName}
+                        <bdi>{member.user.fullName}</bdi>
                         {member.user.staffProfile?.designation ? (
                           <span className="font-normal text-ink-muted"> · {member.user.staffProfile.designation}</span>
                         ) : null}
                       </span>
                       {member.isPrimary ? (
-                        <Tooltip content="This is their home department">
+                        <Tooltip content={ui("This is their home department")}>
                           <span tabIndex={0} className="shrink-0 rounded-full">
-                            <Badge variant="neutral" size="sm">Home</Badge>
+                            <Badge variant="neutral" size="sm">{ui("Home unit")}</Badge>
                           </span>
                         </Tooltip>
                       ) : null}
@@ -339,18 +357,18 @@ export function DepartmentManager({
                         onChange={(e) =>
                           act(
                             { action: "set-member", departmentId: unit.id, userId: member.user.id, role: e.target.value },
-                            `${member.user.fullName} is now ${DEPARTMENT_ROLE_LABELS[e.target.value as keyof typeof DEPARTMENT_ROLE_LABELS].toLowerCase()} of ${unit.name}`
+                            ui("{0} is now {1} of {2}", [member.user.fullName, ui(DEPARTMENT_ROLE_LABELS[e.target.value as keyof typeof DEPARTMENT_ROLE_LABELS]), unit.name])
                           )
                         }
                         className="w-auto shrink-0 px-2 py-0"
                       >
                         {Object.entries(DEPARTMENT_ROLE_LABELS).map(([key, label]) => (
-                          <option key={key} value={key}>{label}</option>
+                          <option key={key} value={key}>{ui(label)}</option>
                         ))}
                       </Select>
-                      <IconButton variant="destructive" size="sm"
-                        onClick={() => act({ action: "remove-member", memberId: member.id }, `${member.user.fullName} removed from ${unit.name}`)}
-                        label={`Remove ${member.user.fullName} from ${unit.name}`}
+                      <IconButton variant="ghost" className="text-status-error-text actionable-hover:bg-status-error-surface actionable-hover:text-status-error-text"
+                        onClick={() => setPendingMemberRemoval({ id: member.id, name: member.user.fullName, unit: unit.name })}
+                        label={ui("Remove {0} from {1}", [member.user.fullName, unit.name])}
                       >
                         <Trash2 aria-hidden="true" />
                       </IconButton>
@@ -373,25 +391,26 @@ export function DepartmentManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-ink-strong">Departments & units</h3>
+          <h3 className="text-base font-bold text-ink-strong">{ui("Departments & units")}</h3>
           <p className="mt-0.5 max-w-2xl text-sm font-normal leading-relaxed text-ink-muted">
-            Faculties, departments, year sections and admin units. Nest them however your institution is
-            organised — a school usually keeps one flat level, a university nests departments inside faculties.
+            {ui("Faculties, departments, year sections and admin units. Nest them however your institution is organised — a school usually keeps one flat level, a university nests departments inside faculties.")}
           </p>
         </div>
-        <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
-          Add unit
-        </BrandButton>
+        {hideAdd ? null : (
+          <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
+            {ui("Add unit")}
+          </BrandButton>
+        )}
       </div>
 
       {roots.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="No departments yet"
-          description="Applying a preset on the Rank ladder tab creates a starting set for your kind of institution, or add your own here."
+          title={ui("No departments yet")}
+          description={ui("Applying a preset on the Rank ladder tab creates a starting set for your kind of institution, or add your own here.")}
           action={
             <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
-              Add unit
+              {ui("Add unit")}
             </BrandButton>
           }
         />
@@ -402,68 +421,88 @@ export function DepartmentManager({
       <ConfirmAction
         open={pendingRemoval !== null}
         tone={pendingRemoval && pendingRemoval.members.length > 0 ? "warning" : "danger"}
-        title={pendingRemoval ? `Remove ${pendingRemoval.name}?` : ""}
+        title={pendingRemoval ? ui("Remove {0}?", [pendingRemoval.name]) : ""}
         description={
           pendingRemoval && pendingRemoval.members.length > 0
-            ? `${pendingRemoval.members.length} people still belong to this unit, so it will be archived rather than deleted — their history stays intact.`
-            : "Nobody belongs to this unit, so it will be deleted outright."
+            ? ui("{0} people still belong to this unit, so it will be archived rather than deleted — their history stays intact.", [pendingRemoval.members.length])
+            : ui("Nobody belongs to this unit, so it will be deleted outright.")
         }
-        confirmLabel={pendingRemoval && pendingRemoval.members.length > 0 ? "Archive unit" : "Delete unit"}
+        confirmLabel={pendingRemoval && pendingRemoval.members.length > 0 ? ui("Archive unit") : ui("Delete unit")}
         busy={removing}
-        onConfirm={() => pendingRemoval && remove(pendingRemoval)}
+        onConfirm={async () => { if (pendingRemoval) await remove(pendingRemoval); }}
         onCancel={() => setPendingRemoval(null)}
+      />
+
+      <ConfirmAction
+        open={pendingMemberRemoval !== null}
+        tone="warning"
+        title={pendingMemberRemoval ? ui("Remove {0} from {1}?", [pendingMemberRemoval.name, pendingMemberRemoval.unit]) : ""}
+        description={ui("Their record in this unit is kept, and you can add them back at any time. Their rank and salary do not change.")}
+        confirmLabel={ui("Remove from unit")}
+        busy={removingMember}
+        onConfirm={async () => {
+          if (!pendingMemberRemoval) return;
+          setRemovingMember(true);
+          try {
+            await act({ action: "remove-member", memberId: pendingMemberRemoval.id }, ui("{0} removed from {1}", [pendingMemberRemoval.name, pendingMemberRemoval.unit]));
+          } finally {
+            setRemovingMember(false);
+            setPendingMemberRemoval(null);
+          }
+        }}
+        onCancel={() => setPendingMemberRemoval(null)}
       />
 
       {draft ? (
         <Modal
-          title={draft.id ? `Edit ${draft.name || "unit"}` : "New unit"}
-          eyebrow="Departments"
+          title={draft.id ? draft.name ? ui("Edit {0}", [draft.name]) : ui("Edit unit") : ui("New unit")}
+          eyebrow={ui("Departments")}
           icon={Building2}
           size="md"
           onClose={() => setDraft(null)}
           footer={
             <ModalActions
               busy={saving}
-              busyLabel="Saving…"
-              actionLabel={draft.id ? "Save unit" : "Create unit"}
+              busyLabel={ui("Saving…")}
+              actionLabel={draft.id ? ui("Save unit") : ui("Create unit")}
               onCancel={() => setDraft(null)}
               onAction={save}
-              blockedReason={draft.name.trim() ? null : "Give the unit a name."}
+              blockedReason={draft.name.trim() ? null : ui("Give the unit a name.")}
             />
           }
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <Labelled label="Name" required>
-                <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Faculty of Science" />
+              <Labelled label={ui("Name")} required>
+                <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={ui("e.g. Faculty of Science")} />
               </Labelled>
             </div>
-            <Labelled label="Code" hint="Short identifier used on lists">
-              <Input value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} placeholder="e.g. FSC" />
+            <Labelled label={ui("Code")} hint={ui("Short identifier used on lists")}>
+              <Input value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} placeholder={ui("e.g. FSC")} />
             </Labelled>
-            <Labelled label="Kind">
+            <Labelled label={ui("Kind")}>
               <Select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value as typeof draft.kind })}>
                 {Object.entries(DEPARTMENT_KIND_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
+                  <option key={key} value={key}>{ui(label)}</option>
                 ))}
               </Select>
             </Labelled>
             <div className="sm:col-span-2">
-              <Labelled label="Sits inside" hint="Leave empty for a top-level unit.">
+              <Labelled label={ui("Sits inside")} hint={ui("Leave empty for a top-level unit.")}>
                 <Select value={draft.parentId} onChange={(e) => setDraft({ ...draft, parentId: e.target.value })}>
-                  <option value="">Nothing — top level</option>
+                  <option value="">{ui("Nothing — top level")}</option>
                   {units
                     .filter((u) => u.id !== draft.id)
                     .map((u) => (
                       <option key={u.id} value={u.id}>
-                        {u.name} ({DEPARTMENT_KIND_LABELS[u.kind]})
+                        {u.name} ({ui(DEPARTMENT_KIND_LABELS[u.kind])})
                       </option>
                     ))}
                 </Select>
               </Labelled>
             </div>
             <div className="sm:col-span-2">
-              <Labelled label="Description" hint="Optional">
+              <Labelled label={ui("Description")} hint={ui("Optional")}>
                 <Textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
               </Labelled>
             </div>
@@ -494,6 +533,7 @@ function MemberPicker({
   onClose: () => void;
   onAct: (body: Record<string, unknown>, message: string) => Promise<void>;
 }) {
+  const ui = useUiText();
   const [userId, setUserId] = useState("");
   const [role, setRole] = useState<keyof typeof DEPARTMENT_ROLE_LABELS>("MEMBER");
   const [isPrimary, setIsPrimary] = useState(false);
@@ -512,7 +552,7 @@ function MemberPicker({
       role === "HEAD"
         ? { action: "set-head", departmentId: unit.id, userId, isActing }
         : { action: "set-member", departmentId: unit.id, userId, role, isPrimary },
-      `${person?.fullName ?? "Staff member"} added to ${unit.name}`
+      ui("{0} added to {1}", [person?.fullName ?? ui("Staff member"), unit.name])
     );
     setUserId("");
     setBusy(false);
@@ -521,20 +561,20 @@ function MemberPicker({
 
   return (
     <Modal
-      title={`People in ${unit.name}`}
-      eyebrow={DEPARTMENT_KIND_LABELS[unit.kind]}
-      subtitle="Headship is a post, not a rank — giving someone charge here does not change their designation or their salary."
+      title={ui("People in {0}", [unit.name])}
+      eyebrow={ui(DEPARTMENT_KIND_LABELS[unit.kind])}
+      subtitle={ui("Headship is a post, not a rank — giving someone charge here does not change their designation or their salary.")}
       icon={Users}
       size="sm"
       onClose={onClose}
       footer={
         <ModalActions
           busy={busy}
-          busyLabel="Adding…"
-          actionLabel="Add to unit"
+          busyLabel={ui("Adding…")}
+          actionLabel={ui("Add to unit")}
           onCancel={onClose}
           onAction={add}
-          blockedReason={userId ? null : "Pick someone first."}
+          blockedReason={userId ? null : ui("Pick someone first.")}
         />
       }
     >
@@ -543,21 +583,21 @@ function MemberPicker({
           <div className="flex items-center gap-2 rounded-2xl bg-brand-50/60 px-3.5 py-2.5">
             <Crown aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" />
             <p className="min-w-0 flex-1 text-sm font-semibold text-ink-strong">
-              {head.isActing ? "Acting head" : "Head"}: {head.user.fullName}
+              {head.isActing ? ui("Acting head") : ui("Head")}: <bdi>{head.user.fullName}</bdi>
             </p>
-            <Button variant="destructive" size="sm"
+            <Button variant="outline" size="sm"
               type="button"
-              onClick={() => onAct({ action: "set-head", departmentId: unit.id, userId: null }, `${unit.name} has no head now`)}
+              onClick={() => onAct({ action: "set-head", departmentId: unit.id, userId: null }, ui("{0} has no head now", [unit.name]))}
               className="shrink-0"
             >
-              Clear
+              {ui("Clear")}
             </Button>
           </div>
         ) : null}
 
-        <Labelled label="Staff member" required>
+        <Labelled label={ui("Staff member")} required>
           <Select value={userId} onChange={(e) => setUserId(e.target.value)}>
-            <option value="">Pick someone…</option>
+            <option value="">{ui("Pick someone…")}</option>
             {available.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.fullName}
@@ -567,10 +607,10 @@ function MemberPicker({
           </Select>
         </Labelled>
 
-        <Labelled label="Their role here">
+        <Labelled label={ui("Their role here")}>
           <Select value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
             {Object.entries(DEPARTMENT_ROLE_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
+              <option key={key} value={key}>{ui(label)}</option>
             ))}
           </Select>
         </Labelled>
@@ -579,9 +619,9 @@ function MemberPicker({
           <label className="flex cursor-pointer items-start gap-2.5">
             <SystemCheckbox  checked={isActing} onChange={(e) => setIsActing(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
             <span>
-              <span className="block text-sm font-semibold text-ink-strong">Acting charge</span>
+              <span className="block text-sm font-semibold text-ink-strong">{ui("Acting charge")}</span>
               <span className="block text-xs font-normal leading-relaxed text-ink-muted">
-                Covering the post without holding it permanently. Whoever heads it now steps back to member.
+                {ui("Covering the post without holding it permanently. Whoever heads it now steps back to member.")}
               </span>
             </span>
           </label>
@@ -589,9 +629,9 @@ function MemberPicker({
           <label className="flex cursor-pointer items-start gap-2.5">
             <SystemCheckbox  checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
             <span>
-              <span className="block text-sm font-semibold text-ink-strong">Make this their home department</span>
+              <span className="block text-sm font-semibold text-ink-strong">{ui("Make this their home department")}</span>
               <span className="block text-xs font-normal leading-relaxed text-ink-muted">
-                The one the org chart files them under. Someone can belong to several; only one is home.
+                {ui("The one the org chart files them under. Someone can belong to several; only one is home.")}
               </span>
             </span>
           </label>

@@ -3,7 +3,8 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Button } from "@/components/ui/button";
 import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
 
-import { UiText, useUiText } from "@/components/locale/LocaleProvider";
+import { UiText, useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { resultGradeLabel } from "@/lib/locale/result-grade";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -18,6 +19,8 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
@@ -73,6 +76,13 @@ function LegacyReportCardsPanel({
   onChanged?: () => void;
 }) {
   const tr = useUiText();
+  // SKO-496: the result grade column, not the school level.
+  const gradeLabel = resultGradeLabel(useLocale().language);
+  // G31/G32: reviewing and publishing results are the academic lead's acts (the principal, or a campus admin
+  // while no principal is appointed); anyone else sees who does it instead of a button the server refuses.
+  const academicLead = useNavigationAccess().has("academicLead");
+  // R3/F16: publishing and sending to families are confirmed with their consequence.
+  const [pendingStep, setPendingStep] = useState<"publish" | "send" | null>(null);
   const [cards, setCards] = useState<ReportCard[]>([]);
   const [progress, setProgress] = useState<{ entered: number; expected: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -269,6 +279,8 @@ function LegacyReportCardsPanel({
     state: StepState;
     reason: string;
     cta: string;
+    /** Only the academic lead runs this step (G31/G32). */
+    lead?: boolean;
     onRun: () => void;
   }[] => {
     const pdfsMissing = cards.filter((c) => !c.pdfUrl).length;
@@ -310,6 +322,7 @@ function LegacyReportCardsPanel({
           ? tr("Report cards awaiting an approved remark: {0}. Write and approve them below.", [needingRemarks])
           : tr("Every remark is approved. Ready for sign-off."),
         cta: tr("Mark reviewed"),
+        lead: true,
         onRun: () => run("review", "Results reviewed"),
       },
       {
@@ -347,7 +360,8 @@ function LegacyReportCardsPanel({
           ? tr("Report cards without a PDF: {0}. Run the step above.", [pdfsMissing])
           : tr("Reviewed, PDFs built, ready to publish."),
         cta: tr("Publish all"),
-        onRun: () => run("publish", "Report cards published"),
+        lead: true,
+        onRun: () => setPendingStep("publish"),
       },
       {
         key: "send",
@@ -359,7 +373,7 @@ function LegacyReportCardsPanel({
           ? tr("{0} of {1} already sent.", [cards.filter((c) => c.isSent).length, cards.length])
           : tr("Publish the report cards before sending them out."),
         cta: tr("Send all"),
-        onRun: () => run("send", "Report cards sent"),
+        onRun: () => setPendingStep("send"),
       },
     ];
   }, [isLocked, reviewed, published, marksComplete, missing, progress, cards, needingRemarks, tr]);
@@ -390,7 +404,7 @@ function LegacyReportCardsPanel({
                 className={cn(
                   "flex flex-wrap items-center gap-3 rounded-[18px] border px-4 py-3 transition-colors",
                   step.state === "done"
-                    ? "border-emerald-200/70 bg-emerald-50/50"
+                    ? "border-status-success-border bg-status-success-surface/50"
                     : step.state === "ready"
                     ? "border-primary/30 bg-brand-50"
                     : "border-edge/25 bg-surface-subtle",
@@ -400,7 +414,7 @@ function LegacyReportCardsPanel({
                   className={cn(
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white",
                     step.state === "done"
-                      ? "bg-emerald-500"
+                      ? "bg-status-success-text"
                       : step.state === "ready"
                       ? "bg-primary"
                       : "bg-surface-sunken text-ink-muted",
@@ -424,7 +438,7 @@ function LegacyReportCardsPanel({
                   <p
                     className={cn(
                       "mt-1 flex items-center gap-1 text-2xs font-bold leading-snug",
-                      step.state === "blocked" ? "text-amber-700" : "text-ink-subtle",
+                      step.state === "blocked" ? "text-status-warning-text" : "text-ink-subtle",
                     )}
                   >
                     {step.state === "blocked" ? (
@@ -435,9 +449,12 @@ function LegacyReportCardsPanel({
                 </div>
 
                 {step.state === "done" ? (
-                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-700"><UiText>{"Done"}</UiText></span>
+                  <span className="rounded-full bg-status-success-surface px-3 py-1 text-2xs font-semibold text-status-success-text"><UiText>{"Done"}</UiText></span>
+                ) : step.lead && !academicLead ? (
+                  <span className="rounded-full bg-surface-subtle px-3 py-1 text-2xs font-semibold text-ink-muted"><UiText>{"With your principal"}</UiText></span>
                 ) : (
-                  <Button variant="default"
+                  // One decisive control per screen: only the step that is ready now is painted as primary.
+                  <Button variant={step.state === "ready" ? "default" : "outline"}
                     type="button"
                     disabled={step.state !== "ready" || !!busy}
                     onClick={step.onRun}
@@ -510,9 +527,9 @@ function LegacyReportCardsPanel({
                   {["Pupil", "%", "Grade", "Remark for the report card", "Status", ""].map((h) => (
                     <TableHead
                       key={h}
-                      className="px-4 py-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle"
+                      className="px-4 py-2.5 text-xs font-semibold text-ink-subtle"
                     >
-                      {h}
+                      {h === "Grade" ? gradeLabel : h ? tr(h) : null}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -556,7 +573,7 @@ function LegacyReportCardsPanel({
                     </TableCell>
                     <TableCell className="px-4 py-2.5">
                       {c.remarksApproved ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-status-success-surface px-2.5 py-1 text-2xs font-semibold text-status-success-text">
                           <CheckCircle2 className="h-3 w-3" />
                           {c.isSent ? tr("Sent") : tr("Approved")}
                         </span>
@@ -579,7 +596,7 @@ function LegacyReportCardsPanel({
                         href={`/api/reports/download?reportCardId=${c.id}&redirect=1`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-edge/30 px-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted transition-colors hover:border-primary/40 hover:text-primary"
+                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-edge/30 px-2.5 text-2xs font-semibold text-ink-muted transition-colors hover:border-primary/40 hover:text-primary"
                       >
                         <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a></Tooltip>
                     </TableCell>
@@ -590,6 +607,29 @@ function LegacyReportCardsPanel({
 
         )}
       </Panel>
+
+      <ConfirmAction
+        open={pendingStep === "publish"}
+        title={tr("Publish report cards?")}
+        description={tr("Families and students see the approved versions as soon as they are published. A later correction creates a new version with a reason families can read.")}
+        confirmLabel={tr("Publish")}
+        cancelLabel={tr("Keep editing")}
+        tone="warning"
+        busy={busy === "publish"}
+        onCancel={() => setPendingStep(null)}
+        onConfirm={async () => { setPendingStep(null); await run("publish", "Report cards published"); }}
+      />
+      <ConfirmAction
+        open={pendingStep === "send"}
+        title={tr("Send report cards to families?")}
+        description={tr("Each guardian with a contact on file receives the published report card by their usual channel. Messages already sent are not repeated. This cannot be undone.")}
+        confirmLabel={tr("Send")}
+        cancelLabel={tr("Keep editing")}
+        tone="primary"
+        busy={busy === "send"}
+        onCancel={() => setPendingStep(null)}
+        onConfirm={async () => { setPendingStep(null); await run("send", "Report cards sent"); }}
+      />
     </div>
   );
 }

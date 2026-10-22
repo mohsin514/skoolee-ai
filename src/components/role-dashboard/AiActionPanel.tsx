@@ -141,7 +141,7 @@ export function AiActionPanel({
             <Sparkles className="w-[20px] h-[20px]" />
           </div>
         </div>
-        <h3 className="min-w-0 text-sm font-bold text-ink-strong tracking-wider [overflow-wrap:anywhere]">{title}</h3>
+        <h3 className="min-w-0 text-sm font-bold text-ink-strong [overflow-wrap:anywhere]">{title}</h3>
       </div>}
 
       <div className="space-y-3">
@@ -193,7 +193,7 @@ export function AiActionPanel({
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-status-success-text">
                 <Check className="sk-check-pop w-4 h-4" />
-                <p className="text-2xs font-semibold uppercase tracking-wider">{outputMode === "demo" ? p.sampleTag : p.savedTag}</p>
+                <p className="text-2xs font-semibold">{outputMode === "demo" ? p.sampleTag : p.savedTag}</p>
               </div>
               <div className="flex items-center gap-1">
                 <Tooltip content={p.copyHint}>
@@ -277,7 +277,7 @@ export function AIReviewQueue({
     <div className="space-y-3">
       {visibleItems.slice(0, 5).map((item, index) => (
         <div key={item.id} className="sk-panel sk-rise p-4" style={{ animationDelay: `${index * 60}ms` }}>
-          <p className="text-2xs font-semibold text-primary uppercase tracking-wider mb-1">
+          <p className="text-2xs font-semibold text-primary mb-1">
             {copy.features[item.feature]?.label ?? item.feature.replaceAll("_", " ")}
           </p>
           <p className="text-xs font-bold text-ink-strong leading-snug mb-3">{item.title}</p>

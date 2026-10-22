@@ -10,6 +10,7 @@
       {
         "kind": "select",
         "attrs": {
+          "id": "\"guardian-child\"",
           "value": "{studentId}",
           "onChange": "{(event) => { setStudentId(event.target.value); setPreview(null); setEditingId(null); setForm(emptyForm()); }}"
         }
@@ -30,32 +31,9 @@
         }
       },
       {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "disabled": "{busy}",
-          "onClick": "{() => beginEdit(relation, \"SUSPENDED\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "disabled": "{busy}",
-          "onClick": "{() => beginEdit(relation, \"REVOKED\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "disabled": "{busy}",
-          "onClick": "{() => beginEdit(relation, \"ACTIVE\")}"
-        }
-      },
-      {
         "kind": "input",
         "attrs": {
+          "ref": "{nameFieldRef}",
           "required": "true",
           "minLength": "{2}",
           "maxLength": "{120}",
@@ -113,17 +91,17 @@
       {
         "kind": "input",
         "attrs": {
-          "type": "\"checkbox\"",
           "checked": "{form.permissions[key]}",
-          "onChange": "{(event) => updatePermission(key, event.target.checked)}"
+          "onChange": "{(event) => updatePermission(key, event.target.checked)}",
+          "type": "\"checkbox\""
         }
       },
       {
         "kind": "input",
         "attrs": {
-          "type": "\"checkbox\"",
           "checked": "{form.permissions.consents[key]}",
-          "onChange": "{(event) => updatePermission(`consents.${key}`, event.target.checked)}"
+          "onChange": "{(event) => updatePermission(`consents.${key}`, event.target.checked)}",
+          "type": "\"checkbox\""
         }
       },
       {
@@ -139,6 +117,7 @@
       {
         "kind": "button",
         "attrs": {
+          "ref": "{reviewButtonRef}",
           "type": "\"submit\"",
           "disabled": "{busy || !studentId}"
         }
@@ -179,7 +158,7 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => { void navigator.clipboard.writeText(invitationUrl); setNotice(t.copied); }}"
+          "onClick": "{() => { void navigator.clipboard.writeText(invitationUrl).then(() => toast.success(t.copied), () => toast.error(t.saveError)); }}"
         }
       }
     ],
@@ -352,12 +331,6 @@
     "file": "src/components/academic-year/TeacherPerformancePanel.tsx",
     "controls": [
       {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => void load()}"
-        }
-      },
-      {
         "kind": "select",
         "attrs": {
           "value": "{String(year)}",
@@ -401,8 +374,23 @@
       {
         "kind": "button",
         "attrs": {
-          "disabled": "{saving || draft.trim().length < 10}",
+          "disabled": "{saving || draft.trim().length < NOTE_MIN}",
           "onClick": "{() => void saveNote(row.teacherId)}"
+        }
+      },
+      {
+        "kind": "select",
+        "attrs": {
+          "value": "{composer.teacherId}",
+          "onChange": "{event => setComposer(c => (c ? { ...c, teacherId: event.target.value } : c))}"
+        }
+      },
+      {
+        "kind": "textarea",
+        "attrs": {
+          "maxLength": "{2000}",
+          "value": "{composer.body}",
+          "onChange": "{event => setComposer(c => (c ? { ...c, body: event.target.value } : c))}"
         }
       }
     ],
@@ -425,26 +413,21 @@
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
+          "onClick": "{retryLoad}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
           "onClick": "{() => handlePeriodChange(p)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{handlePrevMonth}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{handleNextMonth}",
-          "disabled": "{shiftMonth(selectedMonth, 1) > currentMonthStr()}"
         }
       },
       {
         "kind": "input",
         "attrs": {
           "type": "\"text\"",
+          "aria-label": "{ui(\"Search classes\")}",
           "value": "{classSearch}",
           "onChange": "{(e) => setClassSearch(e.target.value)}"
         }
@@ -465,6 +448,7 @@
         "kind": "input",
         "attrs": {
           "type": "\"text\"",
+          "aria-label": "{ui(\"Search students\")}",
           "value": "{studentSearch}",
           "onChange": "{(e) => onStudentSearch(e.target.value)}"
         }
@@ -482,50 +466,24 @@
       {
         "kind": "button",
         "attrs": {
-          "onClick": "{() => setActiveTab(tab)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => shiftDate(-1)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => shiftDate(1)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setTeacherDate(new Date().toISOString().split(\"T\")[0])}"
+          "onClick": "{() => setTeacherDate(todayIso())}"
         }
       },
       {
         "kind": "input",
         "attrs": {
           "type": "\"text\"",
-          "value": "{teacherSearch}",
-          "onChange": "{(e) => setTeacherSearch(e.target.value)}"
+          "aria-label": "{ui(\"Search teachers\")}",
+          "value": "{search}",
+          "onChange": "{(e) => setSearch(e.target.value)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => shiftTeacherMonth(-1)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => shiftTeacherMonth(1)}"
+          "onClick": "{() => setSearch(\"\")}"
         }
       }
     ],
@@ -555,302 +513,132 @@
     "requests": []
   },
   {
-    "file": "src/components/billing/FeeManagementPanel.tsx",
+    "file": "src/components/billing/SubscriptionWorkspace.tsx",
     "controls": [
       {
         "kind": "button",
         "attrs": {
-          "onClick": "{() => setFeeModal(true)}",
-          "disabled": "{classes.length === 0}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => setFilter(item)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => { setPaymentModal(invoice); setPaymentForm({ amountPaid: String(invoice.balanceDue), method: \"CASH\", receiptNo: \"\" }); }}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {}
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"number\"",
-          "value": "{paymentForm.amountPaid}",
-          "max": "{paymentModal.balanceDue}",
-          "onChange": "{(event) => setPaymentForm((form) => ({ ...form, amountPaid: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "value": "{paymentForm.method}",
-          "onChange": "{(event) => setPaymentForm((form) => ({ ...form, method: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "value": "{paymentForm.receiptNo}",
-          "onChange": "{(event) => setPaymentForm((form) => ({ ...form, receiptNo: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{recordPayment}",
-          "disabled": "{isSubmittingPayment || !paymentForm.amountPaid}"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "value": "{feeForm.classId}",
-          "onChange": "{(event) => setFeeForm((form) => ({ ...form, classId: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "value": "{feeForm.term}",
-          "onChange": "{(event) => setFeeForm((form) => ({ ...form, term: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"number\"",
-          "min": "{1}",
-          "value": "{feeForm.monthsCount}",
-          "onChange": "{(event) => setFeeForm((form) => ({ ...form, monthsCount: Number(event.target.value) }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"number\"",
-          "min": "{0}",
-          "value": "{feeForm.tuitionMonthly}",
-          "onChange": "{(event) => setFeeForm((form) => ({ ...form, tuitionMonthly: Number(event.target.value) }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"number\"",
-          "min": "{0}",
-          "value": "{feeForm.examFee}",
-          "onChange": "{(event) => setFeeForm((form) => ({ ...form, examFee: Number(event.target.value) }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"number\"",
-          "min": "{0}",
-          "value": "{feeForm.annualFee}",
-          "onChange": "{(event) => setFeeForm((form) => ({ ...form, annualFee: Number(event.target.value) }))}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{saveFeeStructure}",
-          "disabled": "{isSavingFee || !feeForm.classId || !feeForm.term}"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "value": "{genForm.classId}",
-          "onChange": "{(event) => setGenForm((form) => ({ ...form, classId: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "value": "{genForm.term}",
-          "onChange": "{(event) => setGenForm((form) => ({ ...form, term: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"number\"",
-          "value": "{genForm.academicYear}",
-          "onChange": "{(event) => setGenForm((form) => ({ ...form, academicYear: parseInt(event.target.value, 10) }))}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"date\"",
-          "value": "{genForm.dueDate}",
-          "onChange": "{(event) => setGenForm((form) => ({ ...form, dueDate: event.target.value }))}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{generateInvoices}",
-          "disabled": "{isGenerating || !genForm.classId || !genForm.term || !genForm.dueDate}"
-        }
-      }
-    ],
-    "requests": [
-      "fetch(\"/api/billing\")",
-      "fetch(\"/api/classes\")",
-      "fetch(\"/api/billing/invoices\")",
-      "fetch(\"/api/billing\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action: \"record-payment\", invoiceId: paymentModal.id, amountPaid: parseInt(paymentForm.amountPaid, 10), method: paymentForm.method, receiptNo: paymentForm.receiptNo || undefined, }), })",
-      "fetch(\"/api/billing\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action: \"generate-invoices\", ...genForm, academicYear: Number(genForm.academicYear) }), })",
-      "fetch(\"/api/billing\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action: \"create-fee-structure\", ...feeForm, tuitionMonthly: Number(feeForm.tuitionMonthly), examFee: Number(feeForm.examFee), annualFee: Number(feeForm.annualFee), monthsCount: Number(feeForm.monthsCount), }), })"
-    ]
-  },
-  {
-    "file": "src/components/billing/PlansPanel.tsx",
-    "controls": [
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{openPortal}",
-          "disabled": "{!!isPlanAction}"
+          "type": "\"button\"",
+          "onClick": "{() => setPeriod(value)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => setBillingPeriod(period)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "disabled": "true"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "disabled": "{!!isPlanAction || !canCheckout}",
-          "onClick": "{() => { if (plan.type === \"BASIC\" || plan.type === \"PRO\") { window.dispatchEvent(new CustomEvent(\"subscription-plan-review\", { detail: { plan: plan.type, billingPeriod } })); } }}"
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => void startCheckout(plan.type, period)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => setPaymentModalOpen(false)}"
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => void reviewPlan(plan.type)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{submitPaymentNotification}",
-          "disabled": "{isPlanAction !== null}"
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => void resume()}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{Boolean(busy) || pendingGrace}",
+          "onClick": "{() => setConfirm(\"grace\")}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => void openCancel()}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => setConfirm(\"refund\")}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => setPreview(null)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => void startCheckout(preview.proposedPlan as PlanType, preview.billingPeriod)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{Boolean(busy)}",
+          "onClick": "{() => void requestChange()}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{busy === \"bank\"}",
+          "onClick": "{() => setBank(null)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{busy === \"bank\"}",
+          "onClick": "{() => void sendPaymentReference()}"
         }
       },
       {
         "kind": "input",
         "attrs": {
           "value": "{receiptRef}",
-          "onChange": "{(e) => setReceiptRef(e.target.value)}"
+          "onChange": "{(event) => setReceiptRef(event.target.value)}"
+        }
+      },
+      {
+        "kind": "input",
+        "attrs": {
+          "type": "\"date\"",
+          "value": "{graceUntil}",
+          "onChange": "{(event) => setGraceUntil(event.target.value)}"
         }
       }
     ],
     "requests": [
-      "fetch(\"/api/billing\")",
-      "fetch(\"/api/stripe/checkout\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ plan, billingPeriod: period }), })",
-      "fetch(\"/api/billing/payment-request\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ plan: pendingPlan, billingPeriod, idempotencyKey: crypto.randomUUID(), receiptRef }), })",
-      "fetch(\"/api/stripe/portal\", { method: \"POST\" })"
+      "fetch(\"/api/billing\", { cache: \"no-store\" })",
+      "fetch(\"/api/billing/lifecycle\", { cache: \"no-store\" })",
+      "fetch(\"/api/billing/lifecycle\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action, ...extra, idempotencyKey: keys.current[fingerprint] }), })",
+      "fetch(\"/api/stripe/checkout\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ plan, billingPeriod }) })",
+      "fetch(\"/api/billing/payment-request\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ plan: bank.plan, billingPeriod: period, idempotencyKey: crypto.randomUUID(), receiptRef }) })",
+      "fetch(\"/api/stripe/portal\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({}) })"
     ]
   },
   {
     "file": "src/components/billing/SubscriptionLifecyclePanel.tsx",
-    "controls": [
-      {
-        "kind": "select",
-        "attrs": {
-          "value": "{plan}",
-          "onChange": "{event => setPlan(event.target.value)}"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "value": "{billingPeriod}",
-          "onChange": "{event => setBillingPeriod(event.target.value as \"monthly\" | \"annual\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "disabled": "{saving}",
-          "onClick": "{() => void submit(\"preview\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "disabled": "{saving}",
-          "onClick": "{() => void submit(\"request-change\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "disabled": "{saving}",
-          "onClick": "{() => window.dispatchEvent(new CustomEvent(\"subscription-proceed-checkout\", { detail: { plan, billingPeriod } }))}"
-        }
-      },
-      {
-        "kind": "textarea",
-        "attrs": {
-          "maxLength": "{1000}",
-          "value": "{reason}",
-          "onChange": "{event => setReason(event.target.value)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "disabled": "{saving || Boolean(data.school.cancellationEffectiveAt)}",
-          "onClick": "{() => void submit(\"cancel\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "disabled": "{saving}",
-          "onClick": "{() => void submit(\"refund\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "disabled": "{saving}",
-          "onClick": "{() => void recoverPayment()}"
-        }
-      }
-    ],
-    "requests": [
-      "fetch(\"/api/billing/lifecycle\", { cache: \"no-store\" })",
-      "fetch(\"/api/billing/lifecycle\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action, plan: requestedPlan, billingPeriod: requestedPeriod, reason: reason || undefined, idempotencyKey: crypto.randomUUID() }), })",
-      "fetch(\"/api/stripe/portal\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }) })"
-    ]
+    "controls": [],
+    "requests": []
   },
   {
     "file": "src/components/chat/chat-avatar.tsx",
@@ -865,15 +653,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{() => setIsOpen((v) => !v)}",
-          "aria-label": "{hasUnread ? `Messages, ${unreadTotal} unread` : \"Messages\"}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setIsOpen(false)}",
-          "aria-label": "\"Close messages\""
+          "aria-label": "{hasUnread ? ui(\"Messages, {0} unread\", [unreadTotal]) : ui(\"Messages\")}"
         }
       }
     ],
@@ -894,7 +674,9 @@
       "fetch(`/api/chat/conversations/${activeId}`)",
       "fetch(`/api/chat/conversations/${activeId}/messages?limit=40`)",
       "fetch( `/api/chat/conversations/${activeId}/messages?limit=40&cursor=${olderCursor}` )",
-      "fetch(`/api/chat/conversations/${activeId}/messages`, { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ body, replyToId, clientKey, attachments }), })",
+      "fetch(`/api/chat/conversations/${conversationId}/messages?limit=40`, { cache: \"no-store\" })",
+      "fetch(`/api/chat/conversations/${conversationId}/messages?after=${encodeURIComponent(after)}&limit=100`, { cache: \"no-store\" })",
+      "fetch(`/api/chat/conversations/${conversationId}/messages`, { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ body: input.body, replyToId: input.replyToId, clientKey, attachments: input.attachments, urgent: input.urgent || undefined }), })",
       "fetch(`/api/chat/messages/${messageId}`, { method: \"PATCH\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ body }), })",
       "fetch(`/api/chat/messages/${messageId}`, { method: \"DELETE\" })",
       "fetch(\"/api/chat/conversations\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ kind: \"DIRECT\", userId }), })",
@@ -916,16 +698,6 @@
         }
       },
       {
-        "kind": "button",
-        "attrs": {
-          "id": "{`chat-setting-${toggle.key}`}",
-          "type": "\"button\"",
-          "role": "\"switch\"",
-          "aria-checked": "{value}",
-          "onClick": "{() => save({ ...settings, [toggle.key]: !value })}"
-        }
-      },
-      {
         "kind": "input",
         "attrs": {
           "id": "{id}",
@@ -942,16 +714,7 @@
   },
   {
     "file": "src/components/chat/chat-workspace.tsx",
-    "controls": [
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{clearError}",
-          "aria-label": "\"Dismiss\""
-        }
-      }
-    ],
+    "controls": [],
     "requests": []
   },
   {
@@ -961,16 +724,16 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "aria-label": "{editing ? \"Cancel edit\" : \"Cancel reply\"}",
-          "onClick": "{() => { if (editing) { onClearEditing(); setValue(\"\"); } else { onClearReply(); } }}"
+          "aria-label": "{ui(\"Retry upload of {0}\", [f.file.name])}",
+          "onClick": "{async () => { const file = f.file; setFiles((prev) => prev.map((p) => (p.file === file ? { file } : p))); const result = await uploadFile(file); setFiles((prev) => prev.map((p) => (p.file === file ? result : p))); }}"
         }
       },
       {
-        "kind": "button",
+        "kind": "input",
         "attrs": {
-          "type": "\"button\"",
-          "aria-label": "{`Remove ${f.file.name}`}",
-          "onClick": "{() => setFiles((prev) => prev.filter((_, index) => index !== i))}"
+          "checked": "{urgent}",
+          "onChange": "{(event) => setUrgent(event.target.checked)}",
+          "type": "\"checkbox\""
         }
       },
       {
@@ -981,15 +744,6 @@
           "multiple": "true",
           "onChange": "{(e) => { handleFiles(e.target.files); e.target.value = \"\"; }}",
           "accept": "\"image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt\""
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => fileInputRef.current?.click()}",
-          "disabled": "{files.length >= 5}",
-          "aria-label": "\"Attach a file\""
         }
       },
       {
@@ -1009,7 +763,7 @@
           "type": "\"button\"",
           "onClick": "{submit}",
           "disabled": "{!canSend}",
-          "aria-label": "{editing ? \"Save changes\" : \"Send message\"}"
+          "aria-label": "{editing ? ui(\"Save changes\") : ui(\"Send message\")}"
         }
       }
     ],
@@ -1034,7 +788,7 @@
           "type": "\"search\"",
           "value": "{search}",
           "onChange": "{(e) => setSearch(e.target.value)}",
-          "aria-label": "\"Search conversations\""
+          "aria-label": "{ui(\"Search conversations\")}"
         }
       },
       {
@@ -1072,7 +826,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{onBack}",
-          "aria-label": "\"Back to conversations\""
+          "aria-label": "{ui(\"Back to conversations\")}"
         }
       },
       {
@@ -1080,7 +834,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{() => setShowMembers((v) => !v)}",
-          "aria-label": "{`${detail.memberCount} members`}"
+          "aria-label": "{ui(\"{0} members\", [detail.memberCount])}"
         }
       },
       {
@@ -1088,7 +842,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{() => setMenuOpen((v) => !v)}",
-          "aria-label": "\"Conversation options\""
+          "aria-label": "{ui(\"Conversation options\")}"
         }
       },
       {
@@ -1109,8 +863,16 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{onClick}",
-          "aria-label": "{label}"
+          "onClick": "{onRetry}",
+          "aria-label": "{ui(\"Retry sending this message\")}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{onDiscard}",
+          "aria-label": "{ui(\"Discard this unsent message\")}"
         }
       }
     ],
@@ -1124,7 +886,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{onClose}",
-          "aria-label": "\"Close\""
+          "aria-label": "{ui(\"Close\")}"
         }
       },
       {
@@ -1149,7 +911,7 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "aria-label": "{`Remove ${c.fullName}`}",
+          "aria-label": "{ui(\"Remove {0}\", [c.fullName])}",
           "onClick": "{() => setSelected((prev) => prev.filter((s) => s.id !== c.id))}"
         }
       },
@@ -1222,35 +984,7 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{onAddStudent}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{onAddClass}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
           "onClick": "{() => onNavigate(\"classes\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => onNavigate(\"fees\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => onNavigate(\"report-cards\")}"
         }
       }
     ],
@@ -1314,7 +1048,7 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => onNavigate(\"library\")}"
+          "onClick": "{() => onNavigate(\"catalogue\")}"
         }
       }
     ],
@@ -1327,21 +1061,15 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => { const full = campuses.find((c: any) => c.id === campus.id); if (full) onSelectCampus(full); }}"
+          "onClick": "{() => open(campus.id)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{onOpenFees}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => { const full = campuses.find((c: any) => c.id === campus.id); if (full) onSelectCampus(full); }}"
+          "onClick": "{() => open(campus.id)}",
+          "aria-label": "{t(\"Open {0}\", [campus.name])}"
         }
       }
     ],
@@ -1394,13 +1122,6 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => setShowTable((v) => !v)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
           "onClick": "{onClick}"
         }
       }
@@ -1408,62 +1129,8 @@
     "requests": []
   },
   {
-    "file": "src/components/layout/header.tsx",
-    "controls": [
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => { setNotifOpen((open) => !open); setMenuOpen(false); }}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{markAllAsRead}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => { setMenuOpen((open) => !open); setNotifOpen(false); }}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{signOut}",
-          "role": "\"menuitem\""
-        }
-      }
-    ],
-    "requests": [
-      "fetch(\"/api/auth/session\")",
-      "fetch(\"/api/academic-cycle\")",
-      "fetch(\"/api/academic-cycle\")",
-      "fetch(\"/api/auth/logout\", { method: \"POST\" })"
-    ]
-  },
-  {
-    "file": "src/components/layout/sidebar.tsx",
-    "controls": [],
-    "requests": [
-      "fetch(\"/api/auth/logout\", { method: \"POST\" })"
-    ]
-  },
-  {
     "file": "src/components/nav/NavigationAccess.tsx",
-    "controls": [
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{state.retry}"
-        }
-      }
-    ],
+    "controls": [],
     "requests": [
       "fetch('/api/navigation/access', { cache: 'no-store', signal: controller.signal })"
     ]
@@ -1494,7 +1161,15 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{onClick}"
+          "onClick": "{() => { if (!sticky.disabled) sticky.onClick?.(); }}"
+        }
+      },
+      {
+        "kind": "select",
+        "attrs": {
+          "id": "{id}",
+          "value": "{value}",
+          "onChange": "{(event) => onChange(event.target.value as T)}"
         }
       }
     ],
@@ -1506,14 +1181,8 @@
       {
         "kind": "button",
         "attrs": {
-          "onClick": "{onClick}",
-          "disabled": "{loading}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => setTab(t)}"
+          "onClick": "{() => onChange(item.id)}",
+          "spread1": "(dataAttr ? { [dataAttr]: item.id } : {})"
         }
       },
       {
@@ -1535,6 +1204,12 @@
           "min": "{0}",
           "step": "\"0.01\"",
           "spread3": "form.field(\"fare\")"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "onClick": "{() => { setShowAdd(false); form.reset(); }}"
         }
       },
       {
@@ -1569,12 +1244,6 @@
         "attrs": {
           "inputMode": "\"tel\"",
           "spread1": "form.field(\"driverPhone\")"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => setTab(t)}"
         }
       },
       {
@@ -1620,12 +1289,6 @@
         }
       },
       {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => setTab(t)}"
-        }
-      },
-      {
         "kind": "input",
         "attrs": {
           "spread0": "form.field(\"name\")"
@@ -1634,6 +1297,7 @@
       {
         "kind": "input",
         "attrs": {
+          "aria-label": "{ui(\"Search books\")}",
           "value": "{search}",
           "onChange": "{(e) => setSearch(e.target.value)}"
         }
@@ -1671,9 +1335,32 @@
         }
       },
       {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{() => { setPicked(null); onChange(\"\"); setQuery(\"\"); }}"
+        }
+      },
+      {
         "kind": "input",
         "attrs": {
-          "spread0": "form.field(\"userId\")"
+          "value": "{query}",
+          "onChange": "{(e) => setQuery(e.target.value)}",
+          "aria-label": "{ui(\"Find a reader by name\")}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{() => setAttempt((n) => n + 1)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{() => { setPicked({ id: person.id, fullName: person.fullName }); onChange(person.id); }}"
         }
       },
       {
@@ -1705,12 +1392,6 @@
         "kind": "button",
         "attrs": {
           "onClick": "{() => returnBook(i.id)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => setTab(t)}"
         }
       },
       {
@@ -1822,179 +1503,11 @@
         "attrs": {
           "spread0": "form.field(\"note\")"
         }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"name\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "inputMode": "\"tel\"",
-          "spread1": "form.field(\"phone\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"purpose\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"toMeet\")"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => checkout(v.id)}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"complainantName\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"type\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "inputMode": "\"tel\"",
-          "spread1": "form.field(\"phone\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"date\"",
-          "spread1": "form.field(\"date\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"description\")"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{() => resolve(c.id)}"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "spread0": "form.field(\"direction\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"fromName\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"toName\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"referenceNo\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"date\"",
-          "spread1": "form.field(\"date\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"note\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"name\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "inputMode": "\"tel\"",
-          "spread1": "form.field(\"phone\")"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "spread0": "form.field(\"direction\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"date\"",
-          "spread1": "form.field(\"date\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "\"date\"",
-          "spread1": "form.field(\"followUpDate\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"note\")"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "spread0": "form.field(\"name\")"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "spread0": "form.field(\"kind\")"
-        }
-      },
-      {
-        "kind": "select",
-        "attrs": {
-          "spread0": "form.field(\"pageSize\")"
-        }
-      },
-      {
-        "kind": "textarea",
-        "attrs": {
-          "spread0": "form.field(\"bodyTemplate\")"
-        }
       }
     ],
     "requests": [
       "fetch(url, { method: options.method ?? \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify(payload), })",
+      "fetch(url, { cache: \"no-store\" })",
       "fetch(\"/api/transport/routes\")",
       "fetch(`/api/transport/routes?id=${id}`, { method: \"DELETE\" })",
       "fetch(\"/api/transport/vehicles\")",
@@ -2009,6 +1522,8 @@
       "fetch(`/api/library/books${q}`)",
       "fetch(\"/api/library/categories\")",
       "fetch(`/api/library/books?id=${id}`, { method: \"DELETE\" })",
+      "fetch(`/api/students?${new URLSearchParams({ search: q, limit: \"8\" })}`, { cache: \"no-store\" })",
+      "fetch(`/api/chat/directory?${new URLSearchParams({ q, limit: \"8\" })}`, { cache: \"no-store\" })",
       "fetch(\"/api/library/members\")",
       "fetch(`/api/library/members?id=${id}`, { method: \"DELETE\" })",
       "fetch(\"/api/library/issues\")",
@@ -2027,45 +1542,49 @@
       "fetch(\"/api/inventory/transactions\")",
       "fetch(\"/api/inventory/items\")",
       "fetch(\"/api/inventory/stores\")",
-      "fetch(\"/api/inventory/suppliers\")",
-      "fetch(\"/api/front-desk/visitors\")",
-      "fetch(\"/api/front-desk/visitors\", { method: \"PATCH\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ id, outTime: new Date().toISOString() }) })",
-      "fetch(\"/api/front-desk/complaints\")",
-      "fetch(\"/api/front-desk/complaints\", { method: \"PATCH\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ id, status: \"RESOLVED\" }) })",
-      "fetch(\"/api/front-desk/postal\")",
-      "fetch(\"/api/front-desk/phone-calls\")",
-      "fetch(\"/api/front-desk/certificates\")",
-      "fetch(`/api/front-desk/certificates?id=${id}`, { method: \"DELETE\" })"
+      "fetch(\"/api/inventory/suppliers\")"
     ]
   },
   {
     "file": "src/components/owner/SubscriptionRequestReview.tsx",
     "controls": [
       {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{busy === row.id}",
+          "onClick": "{() => setDeciding({ row, decision: \"APPROVE_REQUEST\" })}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{busy === row.id}",
+          "onClick": "{() => setDeciding({ row, decision: \"DECLINE_REQUEST\" })}"
+        }
+      },
+      {
         "kind": "textarea",
         "attrs": {
-          "value": "{reasons[row.id] || \"\"}",
-          "onChange": "{event => setReasons(previous => ({ ...previous, [row.id]: event.target.value }))}"
+          "value": "{notes[row.eventId] || \"\"}",
+          "onChange": "{event => setNotes(previous => ({ ...previous, [row.eventId]: event.target.value }))}"
         }
       },
       {
         "kind": "button",
         "attrs": {
-          "disabled": "{busy === row.id}",
-          "onClick": "{() => void review(row, \"APPROVE_REQUEST\")}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "disabled": "{busy === row.id}",
-          "onClick": "{() => void review(row, \"DECLINE_REQUEST\")}"
+          "type": "\"button\"",
+          "disabled": "{busy === row.eventId || (notes[row.eventId] || \"\").trim().length < 8}",
+          "onClick": "{() => void resolve(row)}"
         }
       }
     ],
     "requests": [
       "fetch(\"/api/owner/subscription-requests\", { cache: \"no-store\" })",
-      "fetch(\"/api/owner/subscription-requests\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ requestId: row.id, decision, reason: reasons[row.id] || \"Reviewed under current commercial policy.\" }), })"
+      "fetch(\"/api/owner/subscription-requests\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ requestId: row.id, decision, reason: reason.trim() }), })",
+      "fetch(\"/api/owner/provider-events\", { cache: \"no-store\" })",
+      "fetch(\"/api/owner/provider-events\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ eventId: row.eventId, note: (notes[row.eventId] || \"\").trim() }) })"
     ]
   },
   {
@@ -2074,34 +1593,48 @@
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{() => copy(data.email, \"email\")}",
-          "aria-label": "\"Copy email\""
+          "aria-label": "{t(\"Copy email\")}"
         }
       },
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{() => setReveal((v) => !v)}",
-          "aria-label": "{reveal ? \"Hide password\" : \"Show password\"}"
+          "aria-label": "{reveal ? t(\"Hide password\") : t(\"Show password\")}"
         }
       },
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{() => copy(data.password, \"pw\")}",
-          "aria-label": "\"Copy password\""
+          "aria-label": "{t(\"Copy password\")}"
         }
       },
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{() => copy(bundle, \"all\")}"
         }
       },
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{onDone}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "role": "\"radio\"",
+          "aria-checked": "{on}",
+          "type": "\"button\"",
+          "onClick": "{() => setKind(choice.value)}"
         }
       },
       {
@@ -2129,6 +1662,7 @@
       {
         "kind": "input",
         "attrs": {
+          "type": "\"tel\"",
           "value": "{form.phone}",
           "onChange": "{(e) => set(\"phone\", e.target.value)}"
         }
@@ -2181,7 +1715,7 @@
         "attrs": {
           "onClick": "{() => setPassword(makePassword())}",
           "type": "\"button\"",
-          "aria-label": "\"Regenerate password\""
+          "aria-label": "{t(\"Make a new password\")}"
         }
       },
       {
@@ -2194,20 +1728,24 @@
       {
         "kind": "button",
         "attrs": {
+          "role": "\"radio\"",
+          "aria-checked": "{form.status === status}",
           "type": "\"button\"",
-          "onClick": "{() => set(\"status\", s)}"
+          "onClick": "{() => set(\"status\", status)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{onClose}"
         }
       },
       {
         "kind": "button",
         "attrs": {
-          "onClick": "{submit}",
+          "type": "\"button\"",
+          "onClick": "{() => void submit()}",
           "disabled": "{!valid || busy}"
         }
       },
@@ -2221,6 +1759,8 @@
       {
         "kind": "button",
         "attrs": {
+          "role": "\"radio\"",
+          "aria-checked": "{on}",
           "type": "\"button\"",
           "onClick": "{() => set(\"role\", r.value)}"
         }
@@ -2243,6 +1783,7 @@
       {
         "kind": "input",
         "attrs": {
+          "type": "\"tel\"",
           "value": "{form.phone}",
           "onChange": "{(e) => set(\"phone\", e.target.value)}"
         }
@@ -2267,25 +1808,27 @@
         "attrs": {
           "onClick": "{() => setPassword(makePassword())}",
           "type": "\"button\"",
-          "aria-label": "\"Regenerate password\""
+          "aria-label": "{t(\"Make a new password\")}"
         }
       },
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{onClose}"
         }
       },
       {
         "kind": "button",
         "attrs": {
-          "onClick": "{submit}",
+          "type": "\"button\"",
+          "onClick": "{() => void submit()}",
           "disabled": "{!valid || busy}"
         }
       }
     ],
     "requests": [
-      "fetch(\"/api/owner/schools\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ ...form, password }), })",
+      "fetch(\"/api/owner/schools\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ ...form, kind, password }), })",
       "fetch(\"/api/owner/users\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ ...form, password }), })"
     ]
   },
@@ -2315,7 +1858,8 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => fileInputRef.current?.click()}"
+          "onClick": "{() => fileInputRef.current?.click()}",
+          "disabled": "{uploading}"
         }
       },
       {
@@ -2328,6 +1872,8 @@
     ],
     "requests": [
       "fetch(\"/api/profile\")",
+      "fetch(\"/api/uploads/presign\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ kind: \"profile\", fileName: file.name, contentType: file.type, sizeBytes: file.size }), })",
+      "fetch(uploadUrl, { method: \"PUT\", headers: { \"Content-Type\": file.type }, body: file })",
       "fetch(\"/api/profile\", { method: \"PATCH\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ fullName: form.fullName.trim(), phone: form.phone.trim() || null, profileImageUrl: form.profileImageUrl.trim() || null, }), })"
     ]
   },
@@ -2348,17 +1894,27 @@
         "kind": "select",
         "attrs": {
           "value": "{feature}",
-          "aria-label": "\"AI action\"",
-          "onChange": "{(event) => setFeature(event.target.value)}"
+          "aria-label": "{p.action}",
+          "onChange": "{(event) => { setFeature(event.target.value); setOutput(\"\"); setError(\"\"); }}",
+          "disabled": "{busy}"
         }
       },
       {
         "kind": "textarea",
         "attrs": {
+          "id": "{inputId}",
           "value": "{value}",
           "onChange": "{(event) => setValue(event.target.value)}",
-          "aria-label": "{`Context for ${selected?.label || \"this AI action\"}`}",
+          "aria-label": "{fillAi(p.context, labelOf(selected) || p.action)}",
           "onKeyDown": "{(event) => { if ((event.metaKey || event.ctrlKey) && event.key === \"Enter\" && !busy) { event.preventDefault(); runAI(); } }}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "disabled": "{busy}",
+          "onClick": "{showSample}"
         }
       },
       {
@@ -2372,7 +1928,7 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{runAI}",
+          "onClick": "{outputMode === \"demo\" ? showSample : runAI}",
           "disabled": "{busy}"
         }
       }
@@ -2419,12 +1975,14 @@
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{() => onRemove(user.id!)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "onClick": "{onAdd}"
         }
       }
@@ -2438,120 +1996,29 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => { setNotifOpen((o) => !o); setMenuOpen(false); }}"
+          "onClick": "{() => setNotifOpen((o) => !o)}",
+          "aria-label": "{unreadCount > 0 ? t(\"Notifications, {0} unread\", [unreadCount]) : t(\"View notifications\")}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => handleNotificationClick(n)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{markAllAsRead}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setSettingsOpen(true)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => { setMenuOpen((open) => !open); setNotifOpen(false); }}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => { setMenuOpen(false); setSettingsOpen(true); }}",
-          "role": "\"menuitem\""
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => { setMenuOpen(false); setPasswordModalOpen(true); }}",
-          "role": "\"menuitem\""
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{handleLogout}",
-          "role": "\"menuitem\""
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{onClose}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "onClick": "{handleSubmit}",
-          "disabled": "{loading || !currentPassword || !newPassword || newPassword !== confirmPassword}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "{showPasswords ? \"text\" : \"password\"}",
-          "id": "\"current-password\"",
-          "value": "{currentPassword}",
-          "onChange": "{(e) => setCurrentPassword(e.target.value)}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "{showPasswords ? \"text\" : \"password\"}",
-          "id": "\"new-password\"",
-          "value": "{newPassword}",
-          "onChange": "{(e) => setNewPassword(e.target.value)}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setShowPasswords(!showPasswords)}",
-          "aria-label": "{t(showPasswords ? \"Hide passwords\" : \"Show passwords\")}"
-        }
-      },
-      {
-        "kind": "input",
-        "attrs": {
-          "type": "{showPasswords ? \"text\" : \"password\"}",
-          "id": "\"confirm-new-password\"",
-          "value": "{confirmPassword}",
-          "onChange": "{(e) => setConfirmPassword(e.target.value)}"
+          "aria-label": "{t(\"Account menu\")}"
         }
       }
     ],
     "requests": [
       "fetch(\"/api/profile\")",
-      "fetch(\"/api/auth/logout\", { method: \"POST\" })",
-      "fetch(\"/api/auth/change-password\", { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ currentPassword, newPassword }), })"
+      "fetch(\"/api/auth/logout\", { method: \"POST\" })"
     ]
   },
   {
     "file": "src/components/role-dashboard/RoleShell.tsx",
     "controls": [],
-    "requests": []
+    "requests": [
+      "fetch(\"/api/navigation/counts\", { cache: \"no-store\", signal: controller.signal })"
+    ]
   },
   {
     "file": "src/components/role-dashboard/RoleShellSkeleton.tsx",
@@ -2565,6 +2032,14 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
+          "aria-label": "{t(\"Find a workspace\")}",
+          "onClick": "{() => setMobileOpen(true)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
           "onClick": "{onToggleCollapse}",
           "aria-label": "{collapsed ? t(\"Expand sidebar\") : t(\"Collapse sidebar\")}"
         }
@@ -2573,6 +2048,7 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
+          "aria-label": "{t(\"More\")}",
           "onClick": "{() => setMobileOpen(true)}"
         }
       },
@@ -2585,18 +2061,34 @@
         }
       },
       {
+        "kind": "input",
+        "attrs": {
+          "ref": "{searchRef}",
+          "type": "\"search\"",
+          "value": "{query}",
+          "onChange": "{event => setQuery(event.target.value)}",
+          "autoComplete": "\"off\""
+        }
+      },
+      {
         "kind": "button",
         "attrs": {
-          "type": "\"button\"",
-          "aria-label": "{group.label}",
-          "onClick": "{() => { if (collapsed) { setOpen(true); onExpand?.(); } else setOpen(!open); }}"
+          "onClick": "{() => { setQuery(\"\"); searchRef.current?.focus(); }}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "aria-label": "{item.label}",
+          "aria-label": "{group.label}",
+          "onClick": "{toggleGroup}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "aria-label": "{name}",
           "aria-current": "{active ? \"page\" : undefined}",
           "onClick": "{() => { item.onClick?.(); onNavigate?.(); }}"
         }
@@ -2610,6 +2102,7 @@
       {
         "kind": "button",
         "attrs": {
+          "type": "\"button\"",
           "role": "\"button\"",
           "tabIndex": "{0}",
           "onClick": "{onClick}",
@@ -2722,50 +2215,10 @@
     "file": "src/components/staff/department-manager.tsx",
     "controls": [
       {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => toggle(unit.id)}",
-          "aria-label": "{isOpen ? `Collapse ${unit.name}` : `Expand ${unit.name}`}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setMemberFor(unit)}",
-          "aria-label": "{`Manage people in ${unit.name}`}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setDraft({ id: unit.id, name: unit.name, code: unit.code ?? \"\", kind: unit.kind, parentId: unit.parentId ?? \"\", description: unit.description ?? \"\", }) }",
-          "aria-label": "{`Edit ${unit.name}`}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setPendingRemoval(unit)}",
-          "aria-label": "{`Remove ${unit.name}`}"
-        }
-      },
-      {
         "kind": "select",
         "attrs": {
           "value": "{member.role}",
-          "onChange": "{(e) => act( { action: \"set-member\", departmentId: unit.id, userId: member.user.id, role: e.target.value }, `${member.user.fullName} is now ${DEPARTMENT_ROLE_LABELS[e.target.value as keyof typeof DEPARTMENT_ROLE_LABELS].toLowerCase()} of ${unit.name}` ) }"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => act({ action: \"remove-member\", memberId: member.id }, `${member.user.fullName} removed from ${unit.name}`)}",
-          "aria-label": "{`Remove ${member.user.fullName} from ${unit.name}`}"
+          "onChange": "{(e) => act( { action: \"set-member\", departmentId: unit.id, userId: member.user.id, role: e.target.value }, ui(\"{0} is now {1} of {2}\", [member.user.fullName, ui(DEPARTMENT_ROLE_LABELS[e.target.value as keyof typeof DEPARTMENT_ROLE_LABELS]), unit.name]) ) }"
         }
       },
       {
@@ -2807,7 +2260,7 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => onAct({ action: \"set-head\", departmentId: unit.id, userId: null }, `${unit.name} has no head now`)}"
+          "onClick": "{() => onAct({ action: \"set-head\", departmentId: unit.id, userId: null }, ui(\"{0} has no head now\", [unit.name]))}"
         }
       },
       {
@@ -2839,23 +2292,8 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => setDraft({ id: d.id, name: d.name, shortName: d.shortName ?? \"\", level: d.level, track: d.track, canHeadDepartment: d.canHeadDepartment, isInstitutionHead: d.isInstitutionHead, promotesToId: d.promotesToId ?? \"\", minYearsInRank: d.minYearsInRank == null ? \"\" : String(d.minYearsInRank), description: d.description ?? \"\", }) }",
-          "aria-label": "{`Edit ${d.name}`}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
-          "onClick": "{() => setPendingRemoval(d)}",
-          "aria-label": "{`Remove ${d.name}`}"
-        }
-      },
-      {
-        "kind": "button",
-        "attrs": {
-          "type": "\"button\"",
           "disabled": "{applying !== null}",
+          "aria-current": "{institutionType === preset.type ? \"true\" : undefined}",
           "onClick": "{() => applyPreset(preset.type)}"
         }
       },
@@ -2929,15 +2367,14 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => setTab(t.key)}"
+          "onClick": "{() => load(true)}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => load(true)}",
-          "disabled": "{refreshing}"
+          "onClick": "{() => setTab(\"ladder\")}"
         }
       }
     ],
@@ -2961,7 +2398,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{() => setQuery(\"\")}",
-          "aria-label": "\"Clear search\""
+          "aria-label": "{ui(\"Clear search\")}"
         }
       },
       {
@@ -2983,7 +2420,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{() => setScale((s) => Math.max(0.25, s - 0.1))}",
-          "aria-label": "\"Zoom out\""
+          "aria-label": "{ui(\"Zoom out\")}"
         }
       },
       {
@@ -2991,7 +2428,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{() => setScale((s) => Math.min(1.6, s + 0.1))}",
-          "aria-label": "\"Zoom in\""
+          "aria-label": "{ui(\"Zoom in\")}"
         }
       },
       {
@@ -2999,7 +2436,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{fit}",
-          "aria-label": "\"Fit to screen\""
+          "aria-label": "{ui(\"Fit to screen\")}"
         }
       },
       {
@@ -3014,7 +2451,7 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{onToggle}",
-          "aria-label": "{collapsed ? `Show ${entry.hiddenCount} below ${node.fullName}` : `Hide the team below ${node.fullName}`}"
+          "aria-label": "{collapsed ? ui(\"Show {0} below {1}\", [entry.hiddenCount, node.fullName]) : ui(\"Hide the team below {0}\", [node.fullName])}"
         }
       }
     ],
@@ -3055,15 +2492,15 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => departmentAction( { action: \"set-member\", departmentId: m.department.id, userId: node.id, role: m.role, isPrimary: true }, `${m.department.name} is now their home department` ) }"
+          "onClick": "{() => departmentAction( { action: \"set-member\", departmentId: m.department.id, userId: node.id, role: m.role, isPrimary: true }, ui(\"{0} is now their home department\", [m.department.name]) ) }"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => departmentAction({ action: \"remove-member\", memberId: m.id }, `Removed from ${m.department.name}`) }",
-          "aria-label": "{`Remove from ${m.department.name}`}"
+          "onClick": "{() => setPendingRemoval({ kind: \"member\", id: m.id, name: m.department.name })}",
+          "aria-label": "{ui(\"Remove from {0}\", [m.department.name])}"
         }
       },
       {
@@ -3120,8 +2557,8 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => removeLine(line.id)}",
-          "aria-label": "\"Remove line\""
+          "onClick": "{() => setPendingRemoval({ kind: \"line\", id: line.id, name: line.manager.fullName })}",
+          "aria-label": "{ui(\"Remove line\")}"
         }
       },
       {
@@ -3191,11 +2628,6 @@
     "requests": [
       "fetch(`/api/staff/hierarchy${campusId ? `?campusId=${campusId}` : \"\"}`)"
     ]
-  },
-  {
-    "file": "src/components/student/StudentSubnav.tsx",
-    "controls": [],
-    "requests": []
   },
   {
     "file": "src/components/student/student-components.tsx",
@@ -3358,8 +2790,8 @@
         "attrs": {
           "value": "{query}",
           "onChange": "{(e) => setQuery(e.target.value)}",
-          "onKeyDown": "{(e) => { if (e.key === \"ArrowDown\") { e.preventDefault(); setCursor((c) => Math.min(c + 1, results.length - 1)); } else if (e.key === \"ArrowUp\") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); } else if (e.key === \"Enter\") { e.preventDefault(); run(results[cursor]); } }}",
-          "aria-label": "\"Search sections, classes and students\""
+          "onKeyDown": "{(e) => { if (e.key === \"ArrowDown\") { e.preventDefault(); setCursor((c) => Math.max(0, Math.min(c + 1, results.length - 1))); } else if (e.key === \"ArrowUp\") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); } else if (e.key === \"Enter\") { e.preventDefault(); run(results[cursor]); } }}",
+          "aria-label": "{t(\"Search sections, classes and students\")}"
         }
       },
       {
@@ -3411,14 +2843,6 @@
     "file": "src/components/teacher/teacher-components.tsx",
     "controls": [
       {
-        "kind": "input",
-        "attrs": {
-          "type": "{type}",
-          "value": "{value}",
-          "onChange": "{(event) => onChange(event.target.value)}"
-        }
-      },
-      {
         "kind": "select",
         "attrs": {
           "value": "{value}",
@@ -3426,47 +2850,53 @@
         }
       },
       {
-        "kind": "input",
-        "attrs": {
-          "type": "\"number\"",
-          "min": "{0}",
-          "max": "{100}",
-          "value": "{text}",
-          "onChange": "{(e) => { setText(e.target.value); const n = Number(e.target.value); if (e.target.value !== \"\" && Number.isFinite(n) && n >= 0 && n <= 100) onChange(n); }}"
-        }
-      },
-      {
         "kind": "button",
         "attrs": {
-          "type": "\"submit\"",
-          "tabIndex": "{-1}"
+          "type": "\"button\"",
+          "onClick": "{handleDownloadPdf}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{evenSplit}"
+          "onClick": "{() => onGenerate(selectedGradeClassId)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{() => router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || \"\")}`)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{() => router.push(`/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${encodeURIComponent(student.class?.id || \"\")}`)}"
         }
       },
       {
         "kind": "textarea",
         "attrs": {
           "value": "{remarks.en}",
-          "onChange": "{(e) => handleRemarksEnChange(e.target.value)}"
+          "onChange": "{(e) => handleRemarksEnChange(e.target.value)}",
+          "aria-label": "{ui(\"Remarks in English\")}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
+          "disabled": "{translatingUr || remarks.en.trim().length < 4}",
           "onClick": "{handleTranslateUrdu}"
         }
       }
     ],
     "requests": [
       "fetch(`/api/reports/${report.id}/detail`)",
-      "fetch(\"/api/ai/translate\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ text: en }), })"
+      "fetch(\"/api/ai/translate\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ text: en }), signal: controller.signal, })"
     ]
   },
   {
@@ -3488,7 +2918,8 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{onOpenTimetable}"
+          "onClick": "{onOpenTimetable}",
+          "aria-label": "{ui(\"Period {0}: {1}, {2}, {3} to {4}\", [slot.periodNumber, subject, className, slot.startTime, slot.endTime])}"
         }
       }
     ],
@@ -3501,8 +2932,14 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{load}",
-          "disabled": "{loading}"
+          "onClick": "{load}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{load}"
         }
       },
       {
@@ -3526,14 +2963,16 @@
         "kind": "select",
         "attrs": {
           "value": "{classFilter}",
-          "onChange": "{(e) => { setClassFilter(e.target.value); setSelectedExamId(\"\"); }}"
+          "onChange": "{(e) => { setClassFilter(e.target.value); setSelectedExamId(\"\"); }}",
+          "aria-label": "{ui(\"Class\")}"
         }
       },
       {
         "kind": "select",
         "attrs": {
           "value": "{selectedExamId}",
-          "onChange": "{(e) => setSelectedExamId(e.target.value)}"
+          "onChange": "{(e) => setSelectedExamId(e.target.value)}",
+          "aria-label": "{ui(\"Exam\")}"
         }
       },
       {
@@ -3542,13 +2981,20 @@
           "type": "\"button\"",
           "onClick": "{() => window.print()}"
         }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "type": "\"button\"",
+          "onClick": "{download}"
+        }
       }
     ],
     "requests": [
       "fetch(`/api/parent/exam-datesheet?token=${encodeURIComponent(token)}`)",
-      "fetch(`/api/exams${qp}`)",
+      "fetch(`/api/exams${examsQuery}`)",
       "fetch(`/api/academic/calendar${qp}`)",
-      "fetch(`/api/academic/exam-schedule?examId=${selectedExamId}${qp}`)"
+      "fetch(`/api/academic/exam-schedule?${params.toString()}`)"
     ]
   },
   {
@@ -3568,7 +3014,8 @@
         "kind": "select",
         "attrs": {
           "value": "{selectedTeacherId}",
-          "onChange": "{(e) => onSelectTeacher(e.target.value)}"
+          "onChange": "{(e) => onSelectTeacher(e.target.value)}",
+          "aria-label": "{ui(\"Teacher\")}"
         }
       },
       {
@@ -3583,7 +3030,18 @@
   },
   {
     "file": "src/components/timetable/TimetableGrid.tsx",
-    "controls": [],
+    "controls": [
+      {
+        "kind": "button",
+        "attrs": {
+          "onClick": "{() => onCellClick(slot)}",
+          "onKeyDown": "{(e) => { if (e.key === \"Enter\" || e.key === \" \") { e.preventDefault(); onCellClick(slot); } }}",
+          "role": "\"button\"",
+          "tabIndex": "{0}",
+          "aria-label": "{ui(\"{0} · {1}, period {2}\", [ui(style?.label || effectiveType), ui(day.full), period.num])}"
+        }
+      }
+    ],
     "requests": []
   },
   {
@@ -3621,7 +3079,8 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => setSelectedClassId(cls.id)}"
+          "onClick": "{() => changeSelection(() => setSelectedClassId(cls.id))}",
+          "disabled": "{changing}"
         }
       },
       {
@@ -3642,7 +3101,15 @@
       {
         "kind": "button",
         "attrs": {
+          "disabled": "{addDisabled}",
+          "onClick": "{() => setAddingPeriod(true)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
           "type": "\"button\"",
+          "disabled": "{changing || pendingChanges.size > 0}",
           "onClick": "{() => { const p = periods.map((pp) => ({ period: pp.num, start: pp.start, end: pp.end, type: pp.type })); setCustomPeriods(p); setShowPeriodConfig(true); }}"
         }
       },
@@ -3673,7 +3140,25 @@
         "attrs": {
           "type": "\"button\"",
           "onClick": "{handlePublish}",
-          "disabled": "{publishing}"
+          "disabled": "{changing || pendingChanges.size > 0}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "onClick": "{() => setEditingSlot(slot)}",
+          "role": "\"button\"",
+          "tabIndex": "{0}",
+          "onKeyDown": "{(e) => { if (e.key === \"Enter\" || e.key === \" \") { e.preventDefault(); setEditingSlot(slot); } }}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "onClick": "{() => setEditingSlot(slot)}",
+          "role": "\"button\"",
+          "tabIndex": "{0}",
+          "onKeyDown": "{(e) => { if (e.key === \"Enter\" || e.key === \" \") { e.preventDefault(); setEditingSlot(slot); } }}"
         }
       },
       {
@@ -3760,15 +3245,14 @@
       "fetch(`/api/timetable${qp}`)",
       "fetch(`/api/classes${qp}`)",
       "fetch(`/api/staff${qp}`)",
-      "fetch(`/api/academic/periods?timeType=CLASS${qp}`)",
+      "fetch(`/api/academic/periods?timeType=CLASS${campusId ? `&campusId=${encodeURIComponent(campusId)}` : \"\"}`)",
       "fetch(`/api/academic/rooms${qp}`)",
       "fetch(`/api/academic/calendar${qp}`)",
-      "fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : \"\"}`)",
-      "fetch(`/api/timetable?classId=${selectedClassId}${qp}`)",
-      "fetch(\"/api/timetable\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ classId: selectedClassId, academicYear: cls?.academicYear || new Date().getFullYear(), periods: periods || fromDefs || defaultPeriods, }), })",
+      "fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : \"\"}`, { signal: controller.signal })",
+      "fetch(\"/api/timetable\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ classId: selectedClassId, campusId, academicYear: scope.year, term: scope.term, periods: periods || fromDefs || defaultPeriods, }), })",
       "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ slots: slotsToUpdate }), })",
       "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action }), })",
-      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ slots: slotUpdates }), })",
+      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ slots: updates }), })",
       "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"DELETE\" })"
     ]
   },
@@ -3780,7 +3264,8 @@
         "attrs": {
           "type": "\"time\"",
           "value": "{p.start}",
-          "onChange": "{(e) => updatePeriod(i, \"start\", e.target.value)}"
+          "onChange": "{(e) => updatePeriod(i, \"start\", e.target.value)}",
+          "aria-label": "{ui(\"Period {0} starts\", [p.period])}"
         }
       },
       {
@@ -3788,21 +3273,24 @@
         "attrs": {
           "type": "\"time\"",
           "value": "{p.end}",
-          "onChange": "{(e) => updatePeriod(i, \"end\", e.target.value)}"
+          "onChange": "{(e) => updatePeriod(i, \"end\", e.target.value)}",
+          "aria-label": "{ui(\"Period {0} ends\", [p.period])}"
         }
       },
       {
         "kind": "select",
         "attrs": {
           "value": "{p.type}",
-          "onChange": "{(e) => updatePeriod(i, \"type\", e.target.value)}"
+          "onChange": "{(e) => updatePeriod(i, \"type\", e.target.value)}",
+          "aria-label": "{ui(\"Period {0} type\", [p.period])}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => removePeriod(i)}"
+          "onClick": "{() => removePeriod(i)}",
+          "aria-label": "{ui(\"Remove period {0}\", [p.period])}"
         }
       },
       {
@@ -3858,7 +3346,9 @@
         "kind": "select",
         "attrs": {
           "value": "{selectedClassId || \"\"}",
-          "onChange": "{(e) => setSelectedClassId(e.target.value || null)}"
+          "onChange": "{(e) => { const id = e.target.value || null; changeSelection(() => setSelectedClassId(id)); }}",
+          "disabled": "{changing}",
+          "aria-label": "{scopeCopy.class}"
         }
       },
       {
@@ -3886,15 +3376,16 @@
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{handlePublish}",
-          "disabled": "{!activeTimetable || publishing || viewMode !== \"class\"}"
+          "onClick": "{handleUnpublish}",
+          "disabled": "{changing || publishing || viewMode !== \"class\"}"
         }
       },
       {
         "kind": "button",
         "attrs": {
           "type": "\"button\"",
-          "onClick": "{() => { setCustomPeriods(defaultPeriods.map((p) => ({ ...p }))); setShowPeriodConfig(true); }}"
+          "onClick": "{() => setReviewOpen(true)}",
+          "disabled": "{!activeTimetable || changing || pendingChanges.size > 0 || viewMode !== \"class\"}"
         }
       },
       {
@@ -3929,7 +3420,22 @@
       {
         "kind": "button",
         "attrs": {
+          "disabled": "true",
+          "onClick": "{() => setAddingPeriod(true)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
+          "disabled": "{changing || pendingChanges.size > 0}",
+          "onClick": "{() => setAddingPeriod(true)}"
+        }
+      },
+      {
+        "kind": "button",
+        "attrs": {
           "type": "\"button\"",
+          "disabled": "{changing || pendingChanges.size > 0}",
           "onClick": "{() => { const p = periods.map((pp) => ({ period: pp.num, start: pp.start, end: pp.end, type: pp.type })); setCustomPeriods(p); setShowPeriodConfig(true); }}"
         }
       },
@@ -3976,15 +3482,14 @@
       "fetch(`/api/timetable${qp}`)",
       "fetch(`/api/classes${qp}`)",
       "fetch(`/api/staff${qp}`)",
-      "fetch(`/api/academic/periods?timeType=CLASS${qp}`)",
+      "fetch(`/api/academic/periods?timeType=CLASS${campusId ? `&campusId=${encodeURIComponent(campusId)}` : \"\"}`)",
       "fetch(`/api/academic/rooms${qp}`)",
       "fetch(`/api/academic/calendar${qp}`)",
-      "fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : \"\"}`)",
-      "fetch(`/api/timetable?classId=${selectedClassId}${qp}`)",
-      "fetch(\"/api/timetable\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ classId: selectedClassId, academicYear: cls?.academicYear || new Date().getFullYear(), periods: periodsArg || fromDefs || defaultPeriods, }), })",
-      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ slots: slotsToUpdate }), })",
-      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action }), })",
-      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ slots: slotUpdates }), })",
+      "fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : \"\"}`, { signal: controller.signal })",
+      "fetch(\"/api/timetable\", { method: \"POST\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ classId: selectedClassId, campusId, academicYear: scope.year, term: scope.term, periods: periodsArg || fromDefs || defaultPeriods, }), })",
+      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ slots: slotsToUpdate, draftRevision: activeTimetable.draftRevision }), })",
+      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ action: \"unpublish\" }), })",
+      "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"PUT\", headers: { \"Content-Type\": \"application/json\" }, body: JSON.stringify({ slots: updates, draftRevision: activeTimetable.draftRevision }), })",
       "fetch(`/api/timetable/${activeTimetable.id}`, { method: \"DELETE\" })"
     ]
   }

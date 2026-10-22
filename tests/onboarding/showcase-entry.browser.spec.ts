@@ -125,7 +125,9 @@ test("a completed welcome returns to the existing workspace without repeating on
   await finishShowcase(page);
   await page.locator("[data-guide-actions]").getByRole("button", { name: c.continueWorkspace, exact: true }).click();
   await expect(page).toHaveURL(/\/principal(?:\?view=overview)?$/);
-  await expect(page.getByRole("button", { name: c.replay, exact: true })).toBeVisible();
+  // Replay lives in Help now (M106); there is no floating replay button.
+  await expect(page.getByRole("button", { name: "Help", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: c.replay, exact: true })).toHaveCount(0);
   await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
 });
 

@@ -1,5 +1,11 @@
-import { Integrations } from "@/components/integrations/integrations";
+import { redirect } from "next/navigation";
+import { requirePageSession } from "@/lib/auth/require-page-session";
+import { orphanRouteTarget } from "@/lib/navigation/legacy-redirects";
 
-export const metadata = { title: "Integrations" };
+export const dynamic = "force-dynamic";
 
-export default function Page() { return <main className="mx-auto w-full min-w-0 max-w-5xl space-y-4 p-4 sm:p-6"><Integrations /></main>; }
+/** SPEC §6.3 — integrations and API keys belong to the institution authority's settings (Settings › Integrations / School settings › Integrations). */
+export default async function IntegrationsPage() {
+  const user = await requirePageSession();
+  redirect(orphanRouteTarget("integrations", user)); // outside try/catch
+}

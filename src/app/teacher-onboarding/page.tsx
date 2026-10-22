@@ -23,6 +23,7 @@ import {
   Check,
   CheckCircle2,
   ClipboardCheck,
+  Compass,
   GraduationCap,
   MapPin,
   Phone,
@@ -373,7 +374,7 @@ export default function TeacherOnboardingPage() {
 
       {sessionExpired ? (
         <div className="sk-panel sk-gradient-border sk-enter-scale mt-7 p-5 shadow-xl sm:p-9" role="alert" aria-labelledby="session-ended">
-          <div aria-hidden="true" className="mb-5 grid size-12 place-items-center rounded-2xl border border-status-warning-border bg-status-warning-surface text-amber-700">
+          <div aria-hidden="true" className="mb-5 grid size-12 place-items-center rounded-2xl border border-status-warning-border bg-status-warning-surface text-status-warning-text">
             <Shield className="size-5" />
           </div>
           <h1 id="session-ended" tabIndex={-1} ref={headingRef} className="text-2xl font-bold tracking-tight text-ink-strong outline-none">{ui("Your session has ended")}</h1>
@@ -406,17 +407,17 @@ export default function TeacherOnboardingPage() {
                   aria-hidden="true"
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-2xs font-bold tabular-nums transition-all duration-300 ${
                     complete
-                      ? "bg-emerald-500 text-white"
+                      ? "bg-success text-primary-foreground"
                       : active
-                      ? "bg-gradient-to-br from-primary to-brand-400 text-white shadow-md shadow-primary/25"
+                      ? "bg-gradient-to-br from-primary to-brand-400 text-primary-foreground shadow-md shadow-primary/25"
                       : "bg-edge/25 text-ink-subtle"
                   }`}
                 >
                   {complete ? <Check className="h-3 w-3" strokeWidth={3.5} /> : i + 1}
                 </span>
                 <span
-                  className={`hidden whitespace-nowrap text-2xs font-semibold uppercase tracking-wider transition-colors ${
-                    active ? "text-ink-strong @sm:block" : complete ? "text-emerald-600 @2xl:block" : "text-ink-subtle @2xl:block"
+                  className={`sk-eyebrow hidden whitespace-nowrap transition-colors ${
+                    active ? "text-ink-strong @sm:block" : complete ? "text-status-success-text @2xl:block" : "text-ink-subtle @2xl:block"
                   }`}
                 >
                   {ui(label)}
@@ -424,7 +425,7 @@ export default function TeacherOnboardingPage() {
               </Button>
               {i < STEPS.length - 1 && (
                 <span className="h-px flex-1 rounded-full bg-edge/30">
-                  <span className={`block h-px rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all duration-500 ${complete ? "w-full" : "w-0"}`} />
+                  <span className={`block h-px rounded-full bg-gradient-to-r from-primary to-success transition-all duration-500 ${complete ? "w-full" : "w-0"}`} />
                 </span>
               )}
             </div>
@@ -434,7 +435,7 @@ export default function TeacherOnboardingPage() {
 
       <div className="sk-enter sk-panel sk-gradient-border p-5 shadow-xl sm:p-9" style={delay(140)}>
         <div className="mb-6">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider text-primary">
+          <div className="mb-3 inline-flex items-center gap-2 sk-eyebrow rounded-full bg-brand-50 px-3 py-1.5 text-primary">
             <Sparkles className="h-3.5 w-3.5" aria-hidden />
             {ui("Step {0} of {1}", [step + 1, STEPS.length])}
           </div>
@@ -516,7 +517,7 @@ export default function TeacherOnboardingPage() {
                 <legend className="sr-only">{ui("Subjects you teach")}</legend>
                 <div className="flex items-center gap-2" aria-hidden>
                   <BookOpen className="h-3.5 w-3.5 text-primary" />
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Subjects you teach")}</p>
+                  <p className="sk-eyebrow text-primary">{ui("Subjects you teach")}</p>
                 </div>
                 <p className="text-xs leading-relaxed text-ink-muted">{ui("These record what you can teach. Classes and subjects are assigned by your school, not by this form.")}</p>
 
@@ -528,10 +529,10 @@ export default function TeacherOnboardingPage() {
                   <span
                     aria-hidden="true"
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
-                      teachesAll ? "border-emerald-500 bg-emerald-500" : "border-edge/50 bg-white"
+                      teachesAll ? "border-success bg-success" : "border-edge/50 bg-card"
                     }`}
                   >
-                    {teachesAll ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
+                    {teachesAll ? <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3.5} /> : null}
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-ink-strong">{ui("I can teach all subjects")}</span>
@@ -548,14 +549,14 @@ export default function TeacherOnboardingPage() {
                         {specialties.map((s) => (
                           <li
                             key={s}
-                            className="sk-enter-scale inline-flex max-w-full items-center gap-1 rounded-full bg-primary py-0.5 ps-3 pe-0.5 text-xs font-semibold text-white shadow-sm shadow-primary/25"
+                            className="sk-enter-scale inline-flex max-w-full items-center gap-1 rounded-full bg-primary py-0.5 ps-3 pe-0.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/25"
                           >
                             <bdi className="min-w-0 truncate">{s}</bdi>
                             <IconButton
                               size="sm"
                               variant="ghost"
                               onClick={() => setSpecialties((cur) => cur.filter((x) => x !== s))}
-                              className="focus-on-dark rounded-full text-white actionable-hover:bg-white/15 actionable-hover:text-white"
+                              className="focus-on-dark rounded-full text-primary-foreground actionable-hover:bg-primary-foreground/15 actionable-hover:text-primary-foreground"
                               label={ui("Remove {0}", [s])}
                             >
                               <X aria-hidden="true" className="h-3 w-3" strokeWidth={3.5} />
@@ -627,10 +628,10 @@ export default function TeacherOnboardingPage() {
                 <legend className="sr-only">{ui("Emergency contact")}</legend>
                 <div className="flex items-center gap-2" aria-hidden>
                   <Shield className="h-3.5 w-3.5 text-primary" />
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Emergency contact")}</p>
+                  <p className="sk-eyebrow text-primary">{ui("Emergency contact")}</p>
                 </div>
-                <Field label={ui("Contact Person")} id="emergencyContact" value={form.emergencyContact} placeholder={ui("Who should we call?")} onChange={(v) => set("emergencyContact", v)} inputClassName="bg-white" />
-                <Field label={ui("Contact Phone")} id="emergencyPhone" type="tel" value={form.emergencyPhone} placeholder={ui("Emergency phone number")} onChange={(v) => set("emergencyPhone", v)} inputClassName="bg-white"
+                <Field label={ui("Contact Person")} id="emergencyContact" value={form.emergencyContact} placeholder={ui("Who should we call?")} onChange={(v) => set("emergencyContact", v)} inputClassName="bg-card" />
+                <Field label={ui("Contact Phone")} id="emergencyPhone" type="tel" value={form.emergencyPhone} placeholder={ui("Emergency phone number")} onChange={(v) => set("emergencyPhone", v)} inputClassName="bg-card"
                   error={errors.emergencyPhone ? ui(errors.emergencyPhone) : fieldErrors.emergencyPhone ? ui(fieldErrors.emergencyPhone) : undefined} />
               </fieldset>
             </div>
@@ -726,7 +727,7 @@ function ProfilePreview({ form, specialties, teachesAll, completeness }: {
   return (
     <div className="sk-letterhead">
       <div className="flex items-start gap-3">
-        <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-lg font-bold text-white shadow-sm shadow-primary/25">
+        <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-lg font-bold text-primary-foreground shadow-sm shadow-primary/25">
           {name.charAt(0).toUpperCase() || "T"}
         </span>
         <div className="min-w-0 flex-1">
@@ -775,12 +776,12 @@ function ReviewPanel({ rows, privateCount, onEdit }: {
   const later = rows.filter((row) => !row.required && !row.value).length;
   return (
     <div className="space-y-4">
-      <dl className="divide-y divide-edge/25 overflow-hidden rounded-3xl border border-edge/30 bg-white">
+      <dl className="divide-y divide-edge/25 overflow-hidden rounded-3xl border border-edge/30 bg-card">
         {rows.map((row) => (
           <div key={row.label} className="flex items-start justify-between gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
             <div className="min-w-0">
-              <dt className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                {ui(row.label)} {row.required ? <span className="text-rose-500" aria-hidden>*</span> : null}
+              <dt className="sk-eyebrow">
+                {ui(row.label)} {row.required ? <span className="text-status-error-text" aria-hidden>*</span> : null}
               </dt>
               <dd className="mt-0.5 break-words text-sm font-semibold text-ink-strong">
                 {row.value ? <bdi dir={row.ltr ? "ltr" : undefined}>{row.value}</bdi> : <span className="font-medium text-ink-subtle">{ui("Add later")}</span>}
@@ -823,13 +824,13 @@ function ReadyPanel({ done, headingRef, onOpen }: {
       <div className="mt-5 space-y-4">
         {classTeacherOf.length ? (
           <div>
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Class teacher of")}</p>
+            <p className="sk-eyebrow">{ui("Class teacher of")}</p>
             <p className="mt-1 text-sm font-semibold text-ink-strong"><bdi>{classTeacherOf.join(", ")}</bdi></p>
           </div>
         ) : null}
         {subjects.length ? (
           <div>
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Subjects assigned to you")}</p>
+            <p className="sk-eyebrow">{ui("Subjects assigned to you")}</p>
             <ul className="mt-1 space-y-0.5 text-sm font-semibold text-ink-strong">
               {subjects.slice(0, 6).map((row) => <li key={`${row.className}:${row.subject}`}><bdi>{row.subject} · {row.className}</bdi></li>)}
             </ul>
@@ -843,9 +844,15 @@ function ReadyPanel({ done, headingRef, onOpen }: {
         ) : null}
       </div>
 
-      <Button className="sk-nudge-trigger mt-6 items-center gap-2" onClick={() => onOpen(next.href)}>
-        {ui(action)} <ArrowRight className="sk-nudge h-4 w-4 rtl:rotate-180" aria-hidden />
-      </Button>
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <Button className="sk-nudge-trigger items-center gap-2" onClick={() => onOpen(next.href)}>
+          {ui(action)} <ArrowRight className="sk-nudge h-4 w-4 rtl:rotate-180" aria-hidden />
+        </Button>
+        {/* The spotlight tour of the teaching workspace (SPEC §9.1): opens /teacher, whose tour provider starts it. */}
+        <Button variant="outline" className="items-center gap-2" onClick={() => onOpen("/teacher?tour=teacher")}>
+          <Compass aria-hidden="true" />{ui("Show me around")}
+        </Button>
+      </div>
     </div>
   );
 }

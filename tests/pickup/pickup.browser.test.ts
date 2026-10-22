@@ -45,8 +45,8 @@ const shot = async (page: Page, name: string) => { await page.evaluate("Promise.
 const call = async (key: string, method: "post" | "get", path: string, data?: Record<string, unknown>) => { const ctx = await context(key); const r = await ctx.request[method](`${base}${path}`, data ? { data } : undefined); const body = await r.text(); await ctx.close(); let json: { data?: any; error?: string } = {}; try { json = JSON.parse(body); } catch { /* */ } return { status: r.status(), json, body }; };
 const id = (key: string) => users.get(key)!.id;
 const relate = async (guardianKey: string, pickup: boolean) => {
-  const rel = await db.guardianRelationship.create({ data: { schoolId, campusId: north, studentId: ids.hana, guardianUserId: id(guardianKey), createdByUserId: id("principal"), fullName: `Synthetic ${guardianKey}`, email: users.get(guardianKey)!.email, relationship: "Parent", status: "ACTIVE", verifiedAt: new Date() } });
-  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: rel.id, createdByUserId: id("principal"), reason: "Synthetic pickup fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance: true, finances: false, communication: true, pickup } } });
+  const rel = await db.guardianRelationship.create({ data: { schoolId, campusId: north, studentId: ids.hana, guardianUserId: id(guardianKey), createdByUserId: id("campusAdmin"), fullName: `Synthetic ${guardianKey}`, email: users.get(guardianKey)!.email, relationship: "Parent", status: "ACTIVE", verifiedAt: new Date() } });
+  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: rel.id, createdByUserId: id("campusAdmin"), reason: "Synthetic pickup fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance: true, finances: false, communication: true, pickup } } });
 };
 const issue = async (extra: Record<string, unknown> = {}) => { const start = local(new Date(Date.now() - 10 * 60_000)), end = local(new Date(Date.now() + 2 * 3_600_000)); return call("guardian", "post", "/api/pickup", { action: "issue", studentId: ids.hana, recipientName: "Synthetic Amina Rahman", recipientRelation: "Aunt", idMethod: "PHOTO_ID", idLast4: "4821", date: start.date, from: start.time, until: end.date === start.date ? end.time : "23:59", ...extra }); };
 const gate = (key: string, body: Record<string, unknown>) => call(key, "post", "/api/pickup/gate", body);
@@ -54,7 +54,7 @@ const gate = (key: string, body: Record<string, unknown>) => call(key, "post", "
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Linden School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: TZ } as never });
   for (const [cid, name] of [[north, "Linden North"], [south, "Linden South"]]) { await db.campus.create({ data: { id: cid, schoolId, name, regId: cid, city: "Lahore" } }); await db.academicCycle.create({ data: { schoolId, campusId: cid, label: "2026", academicYear: 2026, status: "ACTIVE" } }); }
-  await user("principal", "PRINCIPAL"); await user("gate1", "RECEPTIONIST"); await user("gate2", "RECEPTIONIST"); await user("southGate", "RECEPTIONIST", south); await user("teacher", "TEACHER");
+  await user("campusAdmin", "CAMPUS_ADMIN"); // role-ux §7.6: campus operations (the principal is academic and holds none of this) await user("gate1", "RECEPTIONIST"); await user("gate2", "RECEPTIONIST"); await user("southGate", "RECEPTIONIST", south); await user("teacher", "TEACHER");
   await user("guardian", "PARENT"); await user("noPickup", "PARENT"); await user("guardian-ar", "PARENT", north, "ar");
   await db.class.create({ data: { id: classId, schoolId, campusId: north, name: "Grade 4", section: "A", academicYear: 2026 } });
   ids.hana = randomUUID();
@@ -129,27 +129,27 @@ test("expired and rotated codes block", async () => {
 
 test("custody restrictions cannot be overridden at the gate; lead approval is recorded and identity still checked", async () => {
   assert.equal((await call("gate1", "post", "/api/pickup/restrictions", { action: "add", studentId: ids.hana, kind: "DO_NOT_RELEASE", instruction: "x" })).status, 403);
-  const added = await call("principal", "post", "/api/pickup/restrictions", { action: "add", studentId: ids.hana, kind: "CUSTODY_ORDER", instruction: "Do not release to anyone except the listed mother. Call the principal.", reason: "SYNTHETIC-COURT-ORDER-438" });
+  const added = await call("campusAdmin", "post", "/api/pickup/restrictions", { action: "add", studentId: ids.hana, kind: "CUSTODY_ORDER", instruction: "Do not release to anyone except the listed mother. Call the principal.", reason: "SYNTHETIC-COURT-ORDER-438" });
   assert.equal(added.status, 201); ids.r1 = added.json.data.id;
   const blocked = await gate("gate1", { action: "scan", code: ids.code4 });
   assert.deepEqual([blocked.json.data.status, blocked.json.data.blockReason, blocked.json.data.restriction.kind], ["BLOCKED", "RESTRICTION", "CUSTODY_ORDER"]);
   assert.ok(!blocked.body.includes("SYNTHETIC-COURT-ORDER-438"), "the gate sees the instruction, not the reason");
   assert.equal((await gate("gate1", { action: "escalate", checkId: blocked.json.data.checkId, note: "Uncle says he was sent" })).status, 200);
-  assert.equal(await db.notification.count({ where: { userId: id("principal"), type: "PICKUP_EXCEPTION_REQUESTED" } }), 1);
-  assert.equal((await gate("principal", { action: "decide", checkId: blocked.json.data.checkId, decision: "approve", note: "Spoke to mother" })).status, 409, "a custody order is not overridden at the gate");
-  assert.equal((await gate("principal", { action: "decide", checkId: blocked.json.data.checkId, decision: "deny", note: "Custody order stands" })).status, 200);
-  assert.equal((await call("principal", "post", "/api/pickup/restrictions", { action: "lift", id: ids.r1 })).status, 200);
-  await call("principal", "post", "/api/pickup/restrictions", { action: "add", studentId: ids.hana, kind: "LEAD_APPROVAL", instruction: "Ask the principal to approve each pickup this week." });
+  assert.equal(await db.notification.count({ where: { userId: id("campusAdmin"), type: "PICKUP_EXCEPTION_REQUESTED" } }), 1);
+  assert.equal((await gate("campusAdmin", { action: "decide", checkId: blocked.json.data.checkId, decision: "approve", note: "Spoke to mother" })).status, 409, "a custody order is not overridden at the gate");
+  assert.equal((await gate("campusAdmin", { action: "decide", checkId: blocked.json.data.checkId, decision: "deny", note: "Custody order stands" })).status, 200);
+  assert.equal((await call("campusAdmin", "post", "/api/pickup/restrictions", { action: "lift", id: ids.r1 })).status, 200);
+  await call("campusAdmin", "post", "/api/pickup/restrictions", { action: "add", studentId: ids.hana, kind: "LEAD_APPROVAL", instruction: "Ask the principal to approve each pickup this week." });
   const open = await gate("gate1", { action: "scan", code: ids.code4 });
   assert.equal(open.json.data.status, "OPEN");
   assert.equal((await gate("gate1", { action: "release", checkId: open.json.data.checkId, identityConfirmed: true, identityMethod: "PHOTO_ID" })).json.data.blockReason, "RESTRICTION", "lead approval needed first");
   const again = await gate("gate1", { action: "scan", code: ids.code4 });
   await gate("gate1", { action: "escalate", checkId: again.json.data.checkId, note: "Lead approval needed" });
   assert.equal((await gate("gate2", { action: "decide", checkId: again.json.data.checkId, decision: "approve", note: "ok" })).status, 403, "only the designated lead decides");
-  assert.equal((await gate("principal", { action: "decide", checkId: again.json.data.checkId, decision: "approve", note: "Confirmed with the guardian by phone" })).status, 200);
+  assert.equal((await gate("campusAdmin", { action: "decide", checkId: again.json.data.checkId, decision: "approve", note: "Confirmed with the guardian by phone" })).status, 200);
   const released = await gate("gate1", { action: "release", checkId: again.json.data.checkId, identityConfirmed: true, identityMethod: "PHOTO_ID" });
   assert.equal(released.json.data.status, "RELEASED", JSON.stringify(released.json));
-  const history = (await call("principal", "get", `/api/pickup/restrictions?studentId=${ids.hana}`)).json.data;
+  const history = (await call("campusAdmin", "get", `/api/pickup/restrictions?studentId=${ids.hana}`)).json.data;
   const rel = history.events.filter((e: { kind: string }) => e.kind === "RELEASED");
   assert.equal(rel.length, 2);
   const last = rel[0];
@@ -175,7 +175,8 @@ test("screens: family code (EN), gate valid and revoked states, phone gate, Arab
   const g = await (await context("gate1")).newPage();
   await g.goto(`${base}/pickup`);
   await g.locator("[data-pickup-gate] input").first().fill(shown);
-  await g.locator("[data-pg-scan]").click();
+  // The console's PageHeader owns "Check code" (one primary, P8-14); Enter in the code field runs the same check.
+  await g.locator("[data-pickup-gate] input").first().press("Enter");
   await g.locator("[data-pg-check][data-pg-status=OPEN]").waitFor();
   await shot(g, "02-gate-valid-identity-pending");
   const authId = (await db.pickupAuthorization.findFirstOrThrow({ where: { schoolId, recipientName: "Synthetic Zara Rahman" } })).id;

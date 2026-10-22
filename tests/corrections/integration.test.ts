@@ -23,7 +23,7 @@ const users: Record<string, string> = {}, cookies: Record<string, string> = {}, 
 let markId = "", publishedId = "";
 const scoped = <T>(fn: () => Promise<T>) => runWithTenantContext({ schoolId, campusId, userId: users.PRINCIPAL, role: "PRINCIPAL" }, fn);
 async function api(role: string, kind = "MARK", body?: unknown) { const response = await fetch(`${base}/api/corrections?kind=${kind}`, { headers: { cookie: cookies[role], "Content-Type": "application/json" }, ...(body ? { method: "POST", body: JSON.stringify(body) } : {}) }); return { status: response.status, data: await response.json() }; }
-async function request(role: string, kind: string, id: string, changes: any, overrides: any = {}) { const catalog = await api(role, kind); assert.equal(catalog.status, 200, JSON.stringify(catalog.data)); const record = catalog.data.records.find((r: any) => r.id === id); assert(record); const proposal = { kind, sourceId: id, expectedVersion: record.version, ...changes }; const preview = await api(role, kind, { action: "preview", proposal }); assert.equal(preview.status, 200, JSON.stringify(preview.data)); const input = { action: "request", proposal, reviewHash: preview.data.hash, reason: "PRIVATE RECONCILIATION REASON", publicExplanation: "Corrected after review", privateNote: "PRIVATE INTERNAL NOTE", ...overrides }; return { ...(await api(role, kind, input)), proposal, preview: preview.data }; }
+async function request(role: string, kind: string, id: string, changes: any, overrides: any = {}) { const catalog = await api(role, kind); assert.equal(catalog.status, 200, JSON.stringify(catalog.data)); const record = catalog.data.records.items.find((r: any) => r.id === id); assert(record); const proposal = { kind, sourceId: id, expectedVersion: record.version, ...changes }; const preview = await api(role, kind, { action: "preview", proposal }); assert.equal(preview.status, 200, JSON.stringify(preview.data)); const input = { action: "request", proposal, reviewHash: preview.data.hash, reason: "PRIVATE RECONCILIATION REASON", publicExplanation: "Corrected after review", privateNote: "PRIVATE INTERNAL NOTE", ...overrides }; return { ...(await api(role, kind, input)), proposal, preview: preview.data }; }
 before(async () => {
     await raw.school.create({ data: { id: schoolId, name: "Synthetic corrections school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Synthetic", status: "ACTIVE", plan: "PRO" } });
     await raw.campus.create({ data: { id: campusId, schoolId, name: "Synthetic campus", city: "Synthetic", regId: campusId } });
@@ -54,7 +54,9 @@ before(async () => {
 after(async () => { writeFileSync(join(tmpdir(), "sko213-fixture.json"), JSON.stringify({ schoolId, campusId, studentId, reportId, examId, markId, users, cookies, payments })); await raw.$disconnect(); await prisma.$disconnect(); });
 test("role matrix enforces direct API domain access", async () => { for (const role of USER_ROLES) {
     for (const kind of ["MARK", "PAYMENT"]) {
-        const allowed = kind === "MARK" ? ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "PARENT", "STUDENT"] : ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT", "PARENT", "STUDENT"];
+        // role-ux G28a: marks belong to teachers and the academic lead (this campus has a principal, so campus admins
+        // are not academic leads); payments belong to the finance desk and the campus admins (the principal is academic).
+        const allowed = kind === "MARK" ? ["SUPER_ADMIN", "PRINCIPAL", "TEACHER", "PARENT", "STUDENT"] : ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "ACCOUNTANT", "PARENT", "STUDENT"];
         const r = await api(role, kind);
         assert.equal(r.status, allowed.includes(role) ? 200 : 403, `${role}/${kind}: ${JSON.stringify(r.data)}`);
     }
@@ -66,7 +68,8 @@ test("two mark requests preserve immutable originals, stale second rejects, new 
     assert.equal(second.status, 201);
     const denied = await api("TEACHER", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash });
     assert.equal(denied.status, 403);
-    const [one, two] = await Promise.all([api("PRINCIPAL", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash }), api("ADMIN", "MARK", { action: "approve", id: second.data.id, reviewHash: second.data.previewHash })]);
+    assert.equal((await api("ADMIN", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash })).status, 403, "a campus admin is not the academic lead while a principal is appointed");
+    const [one, two] = await Promise.all([api("PRINCIPAL", "MARK", { action: "approve", id: first.data.id, reviewHash: first.data.previewHash }), api("PRINCIPAL", "MARK", { action: "approve", id: second.data.id, reviewHash: second.data.previewHash })]);
     assert.deepEqual([one.status, two.status].sort(), [200, 409]);
     const applied = one.status === 200 ? one.data : two.data;
     let updated = await raw.reportCard.findUniqueOrThrow({ where: { id: reportId } });
@@ -88,13 +91,20 @@ test("two mark requests preserve immutable originals, stale second rejects, new 
     await assert.rejects(raw.correction.update({ where: { id: applied.id }, data: { reason: "rewrite" } }), /immutable/);
 });
 test("missing reason, review hash, direct self-approval and stale preview are rejected", async () => {
-    const r = await request("PRINCIPAL", "MARK", markId, { marksObtained: 88, isAbsent: false }, { reason: " " });
+    // role-ux G28a: the teacher requests a mark correction; only the academic lead decides it.
+    const r = await request("TEACHER", "MARK", markId, { marksObtained: 88, isAbsent: false }, { reason: " " });
     assert.equal(r.status, 400);
-    const valid = await request("PRINCIPAL", "MARK", markId, { marksObtained: 88, isAbsent: false });
+    const valid = await request("TEACHER", "MARK", markId, { marksObtained: 88, isAbsent: false });
     assert.equal(valid.status, 201);
-    assert.equal((await api("PRINCIPAL", "MARK", { action: "approve", id: valid.data.id, reviewHash: valid.data.previewHash })).status, 403);
-    assert.equal((await api("ADMIN", "MARK", { action: "approve", id: valid.data.id, reviewHash: "unreviewed" })).status, 409);
-    assert.equal((await api("ADMIN", "MARK", { action: "reject", id: valid.data.id, reviewHash: valid.data.previewHash })).status, 200);
+    assert.equal((await api("TEACHER", "MARK", { action: "approve", id: valid.data.id, reviewHash: valid.data.previewHash })).status, 403);
+    assert.equal((await api("PRINCIPAL", "MARK", { action: "request", proposal: valid.proposal, reviewHash: valid.preview.hash, reason: "Principal request", publicExplanation: "x" })).status, 403, "the principal does not raise mark corrections");
+    // P8-03: the screen never offers what the server refuses — the approver's GET says it cannot request.
+    const principalView = (await api("PRINCIPAL", "MARK")).data.records;
+    assert.equal(principalView.canRequest, false);
+    assert.equal(principalView.items.length, 0);
+    assert.equal((await api("TEACHER", "MARK")).data.records.canRequest, true);
+    assert.equal((await api("PRINCIPAL", "MARK", { action: "approve", id: valid.data.id, reviewHash: "unreviewed" })).status, 409);
+    assert.equal((await api("PRINCIPAL", "MARK", { action: "reject", id: valid.data.id, reviewHash: valid.data.previewHash })).status, 200);
     assert(!(await api("PARENT")).data.history.some((c: any) => c.id === valid.data.id));
 });
 test("five original currencies reverse partially allocated receipt and reconcile invoice, credit and ledger", async () => {
@@ -105,7 +115,8 @@ test("five original currencies reverse partially allocated receipt and reconcile
         const r = await request("ACCOUNTANT", "PAYMENT", id, { allocations: [{ invoiceId: original.id, minor: 30001 }], unappliedMinor: 10000 });
         assert.equal(r.status, 201, JSON.stringify(r.data));
         assert.equal((await api("ACCOUNTANT", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash })).status, 403);
-        const applied = await api("PRINCIPAL", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash });
+        assert.equal((await api("PRINCIPAL", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash })).status, 403, "the principal approves no money");
+        const applied = await api("CAMPUS_ADMIN", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash });
         assert.equal(applied.status, 200, JSON.stringify(applied.data));
         const reversal = await raw.payment.findUniqueOrThrow({ where: { id: applied.data.successorId } });
         assert.equal(reversal.amount, -40001);
@@ -133,7 +144,7 @@ test("tenant, campus and unrelated family IDs are denied", async () => {
     const foreignSchool = await raw.school.create({ data: { name: "Other synthetic", slug: randomUUID(), regId: randomUUID(), contactEmail: `${randomUUID()}@example.invalid`, city: "Synthetic" } });
     const foreignCampus = await raw.campus.create({ data: { schoolId: foreignSchool.id, name: "Other", city: "Other", regId: randomUUID() } });
     const outside = await raw.campus.create({ data: { schoolId, name: "Other campus", city: "Other", regId: randomUUID() } });
-    const version = (await api("ACCOUNTANT", "PAYMENT")).data.records[0].version;
+    const version = (await api("ACCOUNTANT", "PAYMENT")).data.records.items[0].version;
     const payload = { action: "preview", proposal: { kind: "PAYMENT", sourceId: Object.values(payments)[0], expectedVersion: version, allocations: [], unappliedMinor: 1 } };
     await raw.user.update({ where: { id: users.ACCOUNTANT }, data: { campusId: outside.id } });
     assert.equal((await api("ACCOUNTANT", "PAYMENT", payload)).status, 403);
@@ -156,14 +167,14 @@ test("one partially allocated payment reverses across both affected invoices ato
     await raw.feeCarryForward.create({ data: { schoolId, campusId, studentId, fromAcademicYear: 2035, toAcademicYear: 2036, balance: -20000, currency: "KWD" } });
     const r = await request("ACCOUNTANT", "PAYMENT", p.id, { allocations: invoices.map(i => ({ invoiceId: i.id, minor: 10000 })), unappliedMinor: 5000 });
     assert.equal(r.status, 201);
-    const applied = await api("PRINCIPAL", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash });
+    const applied = await api("CAMPUS_ADMIN", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash });
     assert.equal(applied.status, 200, JSON.stringify(applied.data));
     for (const i of invoices) {
         const next = await raw.invoice.findUniqueOrThrow({ where: { id: i.id } });
         assert.equal(next.totalAmountPaid, 20000);
         assert.equal(next.balanceDue, i.totalAmount - 20000);
     }
-    const receiptResponse = await fetch(`${base}/api/corrections?kind=PAYMENT&receipt=${r.data.id}`, { headers: { cookie: cookies.PRINCIPAL } });
+    const receiptResponse = await fetch(`${base}/api/corrections?kind=PAYMENT&receipt=${r.data.id}`, { headers: { cookie: cookies.CAMPUS_ADMIN } });
     assert.equal(receiptResponse.status, 200);
     assert(!(await receiptResponse.text()).includes("PRIVATE"));
     const entries = await raw.paymentAllocation.findMany({ where: { paymentId: applied.data.successorId } });

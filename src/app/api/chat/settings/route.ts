@@ -30,7 +30,7 @@ export async function GET() {
     return Response.json({
       success: true,
       settings,
-      canManage: canManageChatSettings(user.role),
+      canManage: canManageChatSettings(user),
     });
   } catch (error) {
     return errorResponse(error, "[chat] get settings failed");
@@ -40,8 +40,8 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireChatUser();
-    if (!canManageChatSettings(user.role)) {
-      throw new ApiError("Only school leadership can change messaging settings", 403);
+    if (!canManageChatSettings(user)) {
+      throw new ApiError("Only the institution administrator can change the messaging policy.", 403);
     }
 
     const parsed = patchSchema.safeParse(await req.json());

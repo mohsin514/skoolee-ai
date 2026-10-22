@@ -7,6 +7,8 @@ import { Select } from "@/components/ui/select";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
 import { secureBrowserCopy } from "./secure-browser-copy";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-449 surfaces: the learner admission gate, the coordinator profile manager and the invigilator alternative.
 export type SecureBrowserState = { required: false } | { required: true; admitted: boolean; via: "SEB" | "SUPERVISED_ALTERNATIVE" | null; reason: "MISSING_HEADERS" | "CONFIG_MISMATCH" | "CLIENT_MISMATCH" | "NO_EVIDENCE" | null; profile: { name: string; minClientVersion: string; version: number } };
@@ -42,12 +44,16 @@ export function SecureProfiles({ locale }: { locale: AssessmentLocale }) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [editing, setEditing] = useState<Profile | "new" | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  // F16: retiring a profile stops new secure sittings from using it, so it is confirmed first (R3).
+  const ui = useUiText();
+  const [retiring, setRetiring] = useState<Profile | null>(null);
+  const [retireBusy, setRetireBusy] = useState(false);
   const load = useCallback(async () => setProfiles((await call("/api/school-ai/secure-profiles")).profiles), []);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const run = async (work: () => Promise<unknown>) => { setStatus(null); try { await work(); await load(); setStatus({ tone: "ok", text: t.saved }); return true; } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; } };
   const latest = (profiles ?? []).filter((row, index, all) => all.findIndex(other => other.profileKey === row.profileKey) === index);
   return <div className="space-y-4">
-    {status && <p role="status" className={`rounded-xl border px-3 py-2 text-sm ${status.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>{status.text}</p>}
+    {status && <p role="status" className={`rounded-xl border px-3 py-2 text-sm ${status.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}>{status.text}</p>}
     <p className="text-xs text-ink-subtle">{t.limits}</p>
     {editing === "new" ? <ProfileForm t={t} onCancel={() => setEditing(null)} onSave={async body => { if (await run(() => call("/api/school-ai/secure-profiles", "POST", body))) setEditing(null); }} /> : <Button onClick={() => setEditing("new")}>{t.newProfile}</Button>}
     {profiles && !latest.length && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-subtle">{t.none}</p>}
@@ -60,12 +66,29 @@ export function SecureProfiles({ locale }: { locale: AssessmentLocale }) {
         {profile.approvalIssues.length > 0 && <ul className="list-disc ps-5 text-sm text-status-warning-text">{profile.approvalIssues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
         <div className="flex flex-wrap gap-2">
           {profile.status === "DRAFT" && <Button disabled={profile.approvalIssues.length > 0} onClick={() => void run(() => call(`/api/school-ai/secure-profiles/${profile.id}`, "PATCH", { status: "APPROVED" }))}>{t.approve}</Button>}
-          {profile.status === "APPROVED" && <Button variant="outline" onClick={() => void run(() => call(`/api/school-ai/secure-profiles/${profile.id}`, "PATCH", { status: "RETIRED" }))}>{t.retire}</Button>}
+          {profile.status === "APPROVED" && <Button variant="outline" onClick={() => setRetiring(profile)}>{t.retire}</Button>}
           <Button variant="ghost" onClick={() => setEditing(profile)}>{t.edit}</Button>
         </div>
         {editing !== "new" && editing?.profileKey === profile.profileKey && <ProfileForm t={t} base={profile} expected={history[0].version} onCancel={() => setEditing(null)} onSave={async body => { if (await run(() => call("/api/school-ai/secure-profiles", "POST", body))) setEditing(null); }} />}
       </li>;
     })}</ul>
+    <ConfirmAction
+      open={retiring !== null}
+      title={ui("Retire this secure exam profile?")}
+      description={ui("New secure exams can no longer use it. Exams already scheduled with it keep their settings. You can approve a new version later.")}
+      confirmLabel={t.retire}
+      cancelLabel={ui("Keep editing")}
+      tone="warning"
+      busy={retireBusy}
+      onCancel={() => setRetiring(null)}
+      onConfirm={async () => {
+        if (!retiring) return;
+        setRetireBusy(true);
+        await run(() => call(`/api/school-ai/secure-profiles/${retiring.id}`, "PATCH", { status: "RETIRED" }));
+        setRetireBusy(false);
+        setRetiring(null);
+      }}
+    />
   </div>;
 }
 

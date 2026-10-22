@@ -3,7 +3,6 @@ type CheckKey = "campus" | "locale" | "academic" | "staff" | "roster" | "imports
 type PhaseKey = "foundation" | "people" | "money" | "rehearse";
 
 export type LaunchCopy = {
-  back: string;
   progress: string;          // "{0} of {1} required checks done"
   percentLabel: string;      // "ready"
   nextEyebrow: string;
@@ -12,7 +11,8 @@ export type LaunchCopy = {
   goApprove: string;
   phases: Record<PhaseKey, string>;
   why: Record<CheckKey, string>;
-  delegated: string;
+  delegated: string;          // group admin: campus-level work done by each campus admin
+  handledElsewhere: string;   // any other viewer without a screen for the check
   optionalTag: string;
   doneTag: string;
   todoTag: string;
@@ -25,7 +25,6 @@ export type LaunchCopy = {
 };
 
 const en: LaunchCopy = {
-  back: "Back to dashboard",
   progress: "{0} of {1} required checks done",
   percentLabel: "ready",
   nextEyebrow: "Next step",
@@ -44,7 +43,8 @@ const en: LaunchCopy = {
     fees: "Invoices and receipts need a fee structure to start from.",
     rehearsal: "A safe practice run of a real school day, with synthetic learners.",
   },
-  delegated: "Done by each campus admin in their campus console. Open a campus from Schools.",
+  delegated: "Done by each campus admin in their campus console. Open a campus from Campuses.",
+  handledElsewhere: "Your campus admin completes this step in their console. It turns green here once it is done.",
   optionalTag: "Optional",
   doneTag: "Done",
   todoTag: "To do",
@@ -57,7 +57,6 @@ const en: LaunchCopy = {
 };
 
 const ar: LaunchCopy = {
-  back: "العودة إلى لوحة التحكم",
   progress: "{0} من {1} فحوص مطلوبة مكتملة",
   percentLabel: "جاهز",
   nextEyebrow: "الخطوة التالية",
@@ -76,7 +75,8 @@ const ar: LaunchCopy = {
     fees: "تحتاج الفواتير والإيصالات إلى هيكل رسوم تبدأ منه.",
     rehearsal: "تدريب آمن على يوم دراسي حقيقي بطلاب افتراضيين.",
   },
-  delegated: "يُنجزه مدير كل فرع في لوحة الفرع. افتح فرعاً من قائمة المدارس.",
+  delegated: "يُنجزه مدير كل فرع في لوحة الفرع. افتح فرعاً من قائمة الفروع.",
+  handledElsewhere: "يُكمل مدير الفرع هذه الخطوة في لوحته. تظهر هنا مكتملة بعد إنجازها.",
   optionalTag: "اختياري",
   doneTag: "مكتمل",
   todoTag: "مطلوب",
@@ -89,7 +89,6 @@ const ar: LaunchCopy = {
 };
 
 const ur: LaunchCopy = {
-  back: "ڈیش بورڈ پر واپس",
   progress: "{1} میں سے {0} لازمی جانچیں مکمل",
   percentLabel: "تیار",
   nextEyebrow: "اگلا قدم",
@@ -108,7 +107,8 @@ const ur: LaunchCopy = {
     fees: "انوائس اور رسید کے لیے فیس کا ڈھانچہ ضروری ہے۔",
     rehearsal: "فرضی طلبہ کے ساتھ حقیقی اسکول کے دن کی محفوظ مشق۔",
   },
-  delegated: "ہر کیمپس منتظم اپنے کیمپس کنسول میں کرتا ہے۔ اسکولز سے کیمپس کھولیں۔",
+  delegated: "ہر کیمپس منتظم اپنے کیمپس کنسول میں کرتا ہے۔ کیمپسز سے کیمپس کھولیں۔",
+  handledElsewhere: "آپ کا کیمپس منتظم یہ مرحلہ اپنے کنسول میں مکمل کرتا ہے۔ مکمل ہونے پر یہ یہاں سبز ہو جاتا ہے۔",
   optionalTag: "اختیاری",
   doneTag: "مکمل",
   todoTag: "باقی",

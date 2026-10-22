@@ -3,7 +3,7 @@ import { Prisma, type PrismaClient, type SchoolAiRun } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
-import { assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SchoolAiError } from "./access";
+import { assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, resolveWorkerPrincipal, resolveWorkspaceCampus, SchoolAiError } from "./access";
 import { getWorkspaceRecordInTransaction, workspaceRequestHash } from "./repository";
 import { assertSchoolAiOperationAccess, executionOperationSchema, executeSchoolAiToolInTransaction, previewSchoolAiExecution } from "./execution";
 import { schoolAiTransaction } from "./transaction";
@@ -112,10 +112,11 @@ export async function sweepSchoolRuns(db: PrismaClient, limit = 20) {
   const rows = await db.schoolAiRun.findMany({ where: { status: "QUEUED", scheduledAt: { lte: new Date() } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], select: { id: true, schoolId: true, campusId: true, actorId: true, actorRole: true, accessVersion: true, version: true }, take: Math.max(1, Math.min(limit, 50)) });
   let processed = 0;
   for (const row of rows) {
-    const person = await db.user.findFirst({ where: { id: row.actorId, schoolId: row.schoolId }, select: { id: true, email: true, role: true, campusId: true, accessVersion: true } });
-    if (!person) { await db.schoolAiRun.updateMany({ where: { id: row.id, schoolId: row.schoolId, status: "QUEUED", version: row.version }, data: { status: "BLOCKED", errorCode: "ACCESS_CHANGED", version: { increment: 1 } } }); continue; }
-    const user: AuthUser = { userId: person.id, schoolId: row.schoolId, role: row.actorRole as AuthUser["role"], campusId: row.actorRole === "SUPER_ADMIN" ? null : row.campusId, email: person.email, accessVersion: row.accessVersion };
-    try { await processSchoolRun(user, row.id); processed++; } catch { /* Scoped durable state carries the reason; never log school contents. */ }
+    // G42 [K-B2]: rebuild the approving actor through resolveCurrentPrincipal (kind included, C32); a changed
+    // role or access version blocks the run instead of executing with stale authority.
+    const actor = await resolveWorkerPrincipal({ userId: row.actorId, schoolId: row.schoolId, role: row.actorRole, accessVersion: row.accessVersion }).catch(() => null);
+    if (!actor) { await db.schoolAiRun.updateMany({ where: { id: row.id, schoolId: row.schoolId, status: "QUEUED", version: row.version }, data: { status: "BLOCKED", errorCode: "ACCESS_CHANGED", version: { increment: 1 } } }); continue; }
+    try { await processSchoolRun(actor, row.id); processed++; } catch { /* Scoped durable state carries the reason; never log school contents. */ }
   }
   return { processed };
 }

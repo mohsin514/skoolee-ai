@@ -74,9 +74,10 @@ test("the lead sees required checks, reconciliation and the next step; approval 
   const { ctx, page, errors } = await open("owner");
   await page.getByRole("heading", { name: "School readiness" }).waitFor();
   await page.getByText("Setup in progress").waitFor();
-  await page.getByRole("region", { name: "Required before going live" }).waitFor();
-  assert.equal(await page.getByRole("region", { name: "Optional — can follow go-live" }).count(), 0, "no empty optional section in full operations");
-  assert.equal(await page.getByRole("region", { name: "Next required step" }).getByText("First-class practice rehearsal").count(), 1);
+  // Launch-control layout: the checks journey, and one spotlighted next step carrying the screen's one primary action.
+  await page.getByRole("region", { name: "Checks" }).waitFor();
+  assert.equal(await page.locator("#checks").getByText("Optional", { exact: true }).count(), 0, "every check is required in full operations");
+  assert.equal(await page.getByRole("region", { name: "Next step" }).getByText("First-class practice rehearsal").count(), 1);
   await page.getByText("cedar-roster.csv").waitFor();
   assert.equal(await page.getByText("1 unknown class", { exact: false }).count() >= 1, true, "the rejected unknown-class row stays visible");
   assert.equal(await page.getByRole("button", { name: "Approve go-live" }).isDisabled(), true);
@@ -96,10 +97,16 @@ test("the practice rehearsal is labelled synthetic and then go-live is approved 
   await shot(page, "readiness-practice-family-en-1440");
   const roster = page.locator("li").filter({ hasText: "Complete the pupil roster" }).first();
   await roster.getByLabel("Owner").selectOption({ label: "Synthetic teacher" });
-  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  // Action results are toasts now (R4); Sonner renders them in a live region.
+  await page.getByText("Saved.", { exact: true }).first().waitFor();
   assert.equal(await raw.attendance.count({ where: { schoolId } }), 0, "rehearsal attendance is never saved");
-  await page.getByRole("button", { name: "Approve go-live" }).click();
-  await page.getByText("Live — approved").waitFor();
+  // With every check done the spotlight carries the primary "Approve go-live" (the approve bar repeats it as outline).
+  await page.getByRole("region", { name: "Next step" }).getByRole("button", { name: "Approve go-live" }).click();
+  // Go-live waits behind a warning confirmation (R3) that says it is final and that nobody is notified.
+  const confirm = page.getByRole("alertdialog", { name: "Approve go-live?" });
+  await confirm.getByText("This cannot be undone", { exact: false }).first().waitFor();
+  await confirm.getByRole("button", { name: "Approve go-live" }).click();
+  await page.getByRole("heading", { name: "Your school is live" }).first().waitFor();
   const record = await raw.schoolReadiness.findUniqueOrThrow({ where: { schoolId } });
   assert.equal(record.approvedById, people.get("owner")!.id);
   assert.ok((record.evidence as { outstandingOptional: unknown[] }).outstandingOptional.length > 0);
@@ -114,7 +121,7 @@ test("a teacher sees and closes only the follow-up assigned to them, on a phone"
   await page.getByText("Assigned to you").waitFor();
   await page.getByRole("button", { name: "Mark done" }).click();
   await page.getByText("Done", { exact: true }).first().waitFor();
-  assert.equal(await page.getByRole("region", { name: "Required before going live" }).count(), 0);
+  assert.equal(await page.getByRole("region", { name: "Checks" }).count(), 0, "a follow-up owner never sees the lead's checks");
   assert.equal(await noOverflow(page), true);
   await shot(page, "readiness-teacher-task-en-390");
   assert.deepEqual(errors, []); await ctx.close();
@@ -125,7 +132,7 @@ test("Arabic owner and Urdu setup delegate layouts are RTL without overflow at 3
     const { ctx, page, errors } = await open(key, { width: 390, height: 860 });
     await page.getByRole("heading", { name: title }).waitFor();
     await page.locator("#practice").waitFor(); // lead content loaded, not the loading state
-    assert.equal(await page.locator("main").getAttribute("dir"), "rtl");
+    assert.equal(await page.locator("[data-readiness]").getAttribute("dir"), "rtl");
     assert.equal(await noOverflow(page), true, key);
     await shot(page, `readiness-${key}-390`);
     assert.deepEqual(errors, []); await ctx.close();

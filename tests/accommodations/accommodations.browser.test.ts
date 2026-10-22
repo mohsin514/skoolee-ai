@@ -85,7 +85,8 @@ after(async () => { await browser?.close(); await raw.school.delete({ where: { i
 
 test("the coordinator approves a plan, sees the effective-time calculation and keeps supporting records restricted", async () => {
   const { ctx, page, errors } = await open("coordinator", "/accommodations");
-  await page.getByRole("heading", { name: "Assessment access plans" }).waitFor();
+  // Framed in the coordinator's own shell (RoleFrame); the PageHeader title is the registry label.
+  await page.getByRole("heading", { level: 1, name: "Access plans", exact: true }).waitFor();
   const pupil = page.locator('ul[aria-label="Assessment access plans"] > li').filter({ hasText: "Synthetic pupil 1" });
   await pupil.getByRole("button", { name: "Create access plan" }).click();
   const form = page.getByRole("form", { name: "Review access plan" });
@@ -136,9 +137,9 @@ test("the learner sees the exact entitlement and completes a practice check", as
 test("Arabic coordinator and Urdu learner layouts are RTL without overflow at 390px", async () => {
   {
     const { ctx, page, errors } = await open("coordinator-ar", "/accommodations", { width: 390, height: 860 });
-    await page.getByRole("heading", { name: "خطط إتاحة التقييم" }).waitFor();
+    await page.getByRole("heading", { level: 1, name: "خطط التسهيلات", exact: true }).waitFor();
     await page.getByText("Synthetic pupil 2").waitFor();
-    assert.equal(await page.locator("main").getAttribute("dir"), "rtl");
+    assert.equal(await page.evaluate(() => document.documentElement.dir), "rtl");
     assert.equal(await noOverflow(page), true);
     await shot(page, "access-coordinator-ar-390");
     assert.deepEqual(errors, []); await ctx.close();

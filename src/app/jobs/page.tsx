@@ -13,6 +13,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 import { LocaleProvider, useLocale } from "@/components/locale/LocaleProvider";
 import { useJobActivity, type JobDetail } from "@/components/jobs/use-job-activity";
 import { jobMessages } from "@/lib/jobs/messages";
@@ -33,9 +34,21 @@ function JobCardsSkeleton() {
 export default function JobsPage() {
   return <LocaleProvider><Suspense fallback={<InitialLoading />}><JobsRoute /></Suspense></LocaleProvider>;
 }
+/** The one header of /jobs (R1). Title and description come from the jobs dictionary, already in the viewer's
+ *  language; Refresh is the page's only header action. While the first read is pending it has no action. */
+function JobsHeader({ copy, refresh }: { copy: (typeof jobMessages)[keyof typeof jobMessages]; refresh?: { onClick: () => void; loading: boolean; disabled: boolean } }) {
+  return <PageHeader
+    icon={ClipboardList}
+    title={copy.title}
+    description={copy.description}
+    secondaryActions={refresh ? [{ id: "refresh", label: copy.refresh, icon: RefreshCw, onClick: refresh.onClick, loading: refresh.loading, disabled: refresh.disabled }] : undefined}
+  />;
+}
+/** The Refresh control in the header: the focus target when a review closes and its own trigger is gone. */
+const refreshControl = () => document.querySelector<HTMLElement>('[data-page-action="refresh"]');
 function InitialLoading() {
   const { language } = useLocale();
-  return <main className="mx-auto max-w-6xl space-y-5 p-4 sm:p-8"><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{jobMessages[language].title}</h1><p role="status" className="text-sm text-ink-muted">{jobMessages[language].loading}</p><JobCardsSkeleton /></main>;
+  return <div className="mx-auto w-full min-w-0 max-w-6xl space-y-5"><JobsHeader copy={jobMessages[language]} /><p role="status" className="text-sm text-ink-muted">{jobMessages[language].loading}</p><JobCardsSkeleton /></div>;
 }
 function JobsRoute() {
   const params = useSearchParams();
@@ -52,7 +65,6 @@ function Jobs({ id }: { id: string }) {
   const [actionError, setActionError] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [notice, setNotice] = useState<"exportFailed" | "exportSaved" | null>(null);
-  const refreshButton = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -129,7 +141,7 @@ function Jobs({ id }: { id: string }) {
   };
   const closeReview = () => {
     if (busy) return;
-    if (confirmed || !returnFocus.current?.isConnected || returnFocus.current.matches(":disabled")) returnFocus.current = refreshButton.current;
+    if (confirmed || !returnFocus.current?.isConnected || returnFocus.current.matches(':disabled, [aria-disabled="true"]')) returnFocus.current = refreshControl();
     setReview(null); setReason(""); setActionError(false); setConfirmed(false);
   };
   const changedSelection = !!review && review.action !== "reconcile" && (!detail?.canEdit || (review.action === "retry" ? review.items.some(item => !detail?.items.some(current => current.id === item.id && current.canRetry)) : !!detail?.cancel_requested_at));
@@ -171,11 +183,8 @@ function Jobs({ id }: { id: string }) {
         </> : <label className={fieldLabel}>{t.channel}<Select value={channel} onChange={event => update("channel", event.target.value)}><option value="">{t.all}</option><option value="WHATSAPP">{t.WHATSAPP}</option><option value="EMAIL">{t.EMAIL}</option></Select></label>}
       </section>;
   const errorText = error === "denied" ? t.denied : error === "missing" ? t.missing : t.unknown;
-  return <main lang={language} dir={language === "en" ? "ltr" : "rtl"} className="mx-auto min-h-screen max-w-6xl space-y-5 p-4 text-foreground sm:p-8 [overflow-wrap:anywhere]">
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div className="flex min-w-0 flex-1 items-start gap-3"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-primary shadow-xs"><ClipboardList className="size-5" /></span><div className="min-w-0"><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{t.title}</h1><p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-muted">{t.description}</p></div></div>
-      <Button ref={refreshButton} variant="outline" loading={loading} disabled={busy} onClick={() => void status.refresh()}>{loading ? null : <RefreshCw aria-hidden />}{t.refresh}</Button>
-    </header>
+  return <div lang={language} dir={language === "en" ? "ltr" : "rtl"} className="mx-auto w-full min-w-0 max-w-6xl space-y-5 text-foreground [overflow-wrap:anywhere]">
+    <JobsHeader copy={t} refresh={{ onClick: () => void status.refresh(), loading, disabled: busy }} />
     {id && <Button variant="ghost" disabled={busy} onClick={() => open("")}><ArrowLeft aria-hidden className="rtl:rotate-180" />{t.back}</Button>}
     {error && <Alert tone="warning" live="assertive">{errorText}</Alert>}
     {notice && <Alert tone={notice === "exportFailed" ? "danger" : "success"} live={notice === "exportFailed" ? "assertive" : "polite"} onDismiss={() => setNotice(null)}>{t[notice]}</Alert>}
@@ -185,10 +194,10 @@ function Jobs({ id }: { id: string }) {
       {loading && !checkedAt && <><p role="status" className="text-sm text-ink-muted">{t.loading}</p><JobCardsSkeleton /></>}
       {!id ? <section className="grid gap-4 md:grid-cols-2" aria-label={t.title}>
         {!loading && !error && !filteredJobs.length && <div className={`${cardClass} md:col-span-2`}><EmptyState size="sm" icon={jobs.length ? SearchX : ClipboardList} title={jobs.length ? t.filteredEmpty : t.empty} action={jobs.length > 0 ? <Button variant="outline" onClick={clear}>{t.clearFilters}</Button> : undefined} /></div>}
-        {filteredJobs.map(job => <Button key={job.id} variant="choice" className="sk-hover-lift sk-nudge-trigger block h-auto min-w-0 w-full space-y-2 rounded-2xl bg-white p-5 text-start font-normal shadow-xs" onClick={() => open(job.id)}><span className="flex items-start justify-between gap-3"><strong className="block min-w-0 text-base font-bold leading-snug text-ink-strong">{job.source_label}</strong><ArrowRight aria-hidden className="sk-nudge mt-0.5 size-4 shrink-0 text-ink-subtle rtl:rotate-180" /></span><span className="block text-sm text-ink-muted">{t[job.kind as "PDF"] || job.kind} · {job.campus_label}</span><span className="block text-sm tabular-nums text-ink">{t.completed}: {job.counts.completed} / {job.counts.total} · <span className={job.attentionCount > 0 ? "font-semibold text-status-warning-text" : undefined}>{t.attention}: {job.attentionCount}</span></span><span className="block text-xs text-ink-subtle">{date(job.created_at)}</span><bdi dir="ltr" className="block break-all font-mono text-2xs font-normal text-ink-subtle">{job.id}</bdi></Button>)}
+        {filteredJobs.map(job => <Button key={job.id} variant="choice" className="sk-hover-lift sk-nudge-trigger block h-auto min-w-0 w-full space-y-2 rounded-2xl bg-card p-5 text-start font-normal shadow-xs" onClick={() => open(job.id)}><span className="flex items-start justify-between gap-3"><strong className="block min-w-0 text-base font-bold leading-snug text-ink-strong">{job.source_label}</strong><ArrowRight aria-hidden className="sk-nudge mt-0.5 size-4 shrink-0 text-ink-subtle rtl:rotate-180" /></span><span className="block text-sm text-ink-muted">{t[job.kind as "PDF"] || job.kind} · {job.campus_label}</span><span className="block text-sm tabular-nums text-ink">{t.completed}: <bdi>{job.counts.completed} / {job.counts.total}</bdi> · <span className={job.attentionCount > 0 ? "font-semibold text-status-warning-text" : undefined}>{t.attention}: <bdi>{job.attentionCount}</bdi></span></span><span className="block text-xs text-ink-subtle">{date(job.created_at)}</span><bdi dir="ltr" className="block break-all font-mono text-2xs font-normal text-ink-subtle">{job.id}</bdi></Button>)}
       </section> : detail && <>
         <section className={cardClass}><h2 className="text-lg font-bold leading-snug text-ink-strong sm:text-xl">{detail.source_label}</h2><p className="mt-1.5 text-xs text-ink-subtle">{t.jobId}: <bdi dir="ltr" className="break-all font-mono">{id}</bdi></p><Link href={detail.sourceHref} className="sk-link sk-nudge-trigger mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm">{t.source}<ArrowRight aria-hidden className="sk-nudge size-4 rtl:rotate-180" /></Link></section>
-        <div className="sk-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{(["total",...outcomes] as const).map(outcome => <div key={outcome} className="sk-panel min-w-0 p-3"><p className="truncate text-xs font-semibold text-ink-muted">{t[outcome]}</p><strong className="mt-1 block text-2xl font-bold tabular-nums text-ink-strong">{counts?.[outcome]}</strong></div>)}</div>
+        <div className="sk-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{(["total",...outcomes] as const).map(outcome => <div key={outcome} className="sk-panel min-w-0 p-3"><p className="truncate text-xs font-semibold text-ink-muted">{t[outcome]}</p><strong className="mt-1 block text-2xl font-bold tabular-nums text-ink-strong"><bdi>{counts?.[outcome]}</bdi></strong></div>)}</div>
         <p role="status" aria-live="polite" className="text-sm font-semibold text-ink-strong">{phase}{detail.cancel_requested_at ? ` · ${t.cancelRequested}` : ""}</p>
         {detail.kind === "REPORT_DELIVERY" && <p className="text-sm leading-relaxed text-ink-muted">{t.processingNote}</p>}
         <Alert tone="info" live="off">{t.cancelNote}</Alert>
@@ -223,5 +232,5 @@ function Jobs({ id }: { id: string }) {
         </>}
       </div>
     </Modal>}
-  </main>;
+  </div>;
 }

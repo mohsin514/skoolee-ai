@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, CheckCircle2, Clock,
   Pause, Play, Plus, XCircle,
@@ -9,12 +9,14 @@ import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
-import { YearClosureChecklist } from "@/components/academic/YearClosureChecklist";
+import { YearClosureChecklist, type YearCloseCommand, type YearClosureState } from "@/components/academic/YearClosureChecklist";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 
 
 interface Cycle {
@@ -34,16 +36,49 @@ const statusConfig: Record<string, { color: string; bg: string; icon: typeof Act
   ENDED: { color: "text-ink-muted", bg: "bg-surface-subtle", icon: XCircle, label: "Ended", badge: "neutral" },
 };
 
+/**
+ * Academic years (cycles) for a campus and the year-end checklist.
+ *
+ * `canManageCycles` (default true): creating, activating, pausing and resuming a cycle are year logistics —
+ * campus operations (§2.2 #24, PR reads). The principal passes false and keeps the close-year checklist,
+ * where `canForceClose` adds the academic lead's override (§2.3 #70). Omitted, it follows the caller's
+ * `academicLead` capability (the principal, or the campus admin while no principal is appointed), so the
+ * campus console offers the override exactly when the server would accept it.
+ *
+ * Host-owned header (§4.4b "Academic year": **Close year** (ConfirmAction) primary, Checklist secondary,
+ * Force-close in the overflow): `hideCloseActions` drops the checklist's own close buttons; the host drives them
+ * with `closeCommand` (or `closeRequest`, a number that asks to close a ready year) and reads `onClosureState`
+ * (or `onCloseReady`). `canOpen` limits the checklist's "Fix this" links to screens the viewer can open.
+ */
 export function CycleManagementPanel({
   campusId,
-  canForceClose = false,
+  canForceClose: canForceCloseProp,
+  canManageCycles = true,
   onNavigate,
+  canOpen,
+  hideCloseActions = false,
+  closeCommand,
+  closeRequest,
+  onClosureState,
+  onCloseReady,
 }: {
   campusId?: string;
-  /** Principals may close a year that still has outstanding work. */
+  /** The academic lead may close a year that still has outstanding work (server: canLeadAcademics). */
   canForceClose?: boolean;
+  /** Create / activate / pause / resume cycles. False for the principal (read-only year logistics). */
+  canManageCycles?: boolean;
   onNavigate?: (view: string) => void;
+  canOpen?: (view: string) => boolean;
+  hideCloseActions?: boolean;
+  closeCommand?: YearCloseCommand;
+  closeRequest?: number;
+  onClosureState?: (state: YearClosureState) => void;
+  onCloseReady?: (ready: boolean) => void;
 } = {}) {
+  const ui = useUiText();
+  const { date: formatDay } = useLocaleFormat();
+  const navigationAccess = useNavigationAccess();
+  const canForceClose = canForceCloseProp ?? navigationAccess.has("academicLead");
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
@@ -72,8 +107,8 @@ export function CycleManagementPanel({
         body: JSON.stringify({ action, cycleId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Action failed");
-      toast.success(json.message);
+      if (!res.ok) throw new Error(json.error || ui("Could not update the academic year. Try again."));
+      toast.success(ui(action === "pause" ? "Academic year paused" : action === "activate" ? "Academic year activated" : action === "resume" ? "Academic year resumed" : "Academic year updated"));
       // Update the affected cycle in place (no waiting on a second fetch) and
       // notify the header/badge to refresh the active-cycle indicator.
       if (json.data) {
@@ -91,7 +126,7 @@ export function CycleManagementPanel({
   };
 
   const handleCreate = async () => {
-    if (!newLabel.trim()) return toast.error("Label is required");
+    if (!newLabel.trim()) return toast.error(ui("Enter a name for the academic year"));
     setCreating(true);
     try {
       const res = await fetch("/api/academic-cycle", {
@@ -100,8 +135,8 @@ export function CycleManagementPanel({
         body: JSON.stringify({ action: "create", label: newLabel.trim(), academicYear: newYear }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to create cycle");
-      toast.success(json.message);
+      if (!res.ok) throw new Error(json.error || ui("Could not create the academic year. Try again."));
+      toast.success(ui("Academic year created"));
       setShowCreate(false);
       setNewLabel("");
       // Show the new cycle immediately instead of waiting on a refetch.
@@ -118,6 +153,19 @@ export function CycleManagementPanel({
   };
 
   const activeCycle = cycles.find((c) => c.status === "ACTIVE");
+  // `closeRequest` (a plain number) is the short form of `closeCommand={{ id: "close", nonce }}`.
+  const command = useMemo<YearCloseCommand | undefined>(
+    () => closeCommand ?? (closeRequest ? { id: "close", nonce: closeRequest } : undefined),
+    [closeCommand, closeRequest],
+  );
+  const reportClosure = useCallback((state: YearClosureState) => {
+    onClosureState?.(state);
+    onCloseReady?.(state.ready);
+  }, [onClosureState, onCloseReady]);
+  // No open year: the header has nothing to close.
+  useEffect(() => {
+    if (!loading && !activeCycle) reportClosure({ hasOpenYear: false, ready: false, canForce: false, label: null, loading: false });
+  }, [loading, activeCycle, reportClosure]);
 
   if (loading) {
     return (
@@ -159,25 +207,27 @@ export function CycleManagementPanel({
                 <Activity className="h-7 w-7" />
               </div>
               <div>
-                <p className="sk-eyebrow text-status-success-text">Current Active Cycle</p>
-                <h3 className="text-xl font-bold text-ink-strong tracking-tight">{activeCycle.label}</h3>
+                <p className="sk-eyebrow text-status-success-text">{ui("Current academic year")}</p>
+                <h3 className="text-xl font-bold text-ink-strong tracking-tight"><bdi>{activeCycle.label}</bdi></h3>
                 <p className="text-xs font-normal text-ink-muted mt-0.5">
-                  Academic Year {activeCycle.academicYear}
-                  {activeCycle.startDate && ` · Started ${new Date(activeCycle.startDate).toLocaleDateString()}`}
+                  {ui("Academic year {0}", [activeCycle.academicYear])}
+                  {activeCycle.startDate ? <> · {ui("Started {0}", [formatDay(activeCycle.startDate)])}</> : null}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm"
-                loading={acting === `pause-${activeCycle.id}`}
-                onClick={() => doAction("pause", activeCycle.id)}
-                disabled={acting !== null}
-                className="flex justify-start items-center gap-2"
-              >
-                {acting === `pause-${activeCycle.id}` ? null : <Pause className="h-3.5 w-3.5" />}
-                Pause
-              </Button>
-            </div>
+            {canManageCycles ? (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm"
+                  loading={acting === `pause-${activeCycle.id}`}
+                  onClick={() => doAction("pause", activeCycle.id)}
+                  disabled={acting !== null}
+                  className="flex justify-start items-center gap-2"
+                >
+                  {acting === `pause-${activeCycle.id}` ? null : <Pause className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {ui("Pause")}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -193,37 +243,43 @@ export function CycleManagementPanel({
           year={activeCycle.academicYear}
           canForceClose={canForceClose}
           onNavigate={onNavigate}
+          canOpen={canOpen}
+          hideActions={hideCloseActions}
+          command={command}
+          onState={reportClosure}
           onClosed={fetchCycles}
         />
       )}
 
       {!activeCycle && (
-        <Alert tone="danger" title="No active cycle — teachers cannot operate without one" live="off" className="sk-rise">
-          Create and activate a cycle to allow attendance, marks entry, and reports.
+        <Alert tone="danger" title={ui("No active academic year — teachers cannot work without one")} live="off" className="sk-rise">
+          {ui(canManageCycles ? "Create and activate an academic year to allow attendance, marks entry and reports." : "Your campus admin creates and activates the academic year.")}
         </Alert>
       )}
 
       {/* Create new cycle */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-ink-strong">All Cycles</h3>
-        <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-          New Cycle
-        </BrandButton>
+        <h3 className="text-sm font-bold text-ink-strong">{ui("All academic years")}</h3>
+        {canManageCycles ? (
+          <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
+            {ui("New academic year")}
+          </BrandButton>
+        ) : null}
       </div>
 
-      {showCreate && (
+      {showCreate && canManageCycles && (
         <div className="sk-rise sk-panel p-5 space-y-4" style={{ animationDelay: "240ms" }}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField name="cycle-label" label="Cycle Label">
+            <FormField name="cycle-label" label={ui("Name")}>
               <SystemInput
                 type="text"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
-                placeholder="e.g. Session 2026-27"
+                placeholder={ui("e.g. Session 2026-27")}
                 className="w-full px-4"
               />
             </FormField>
-            <FormField name="cycle-year" label="Academic Year">
+            <FormField name="cycle-year" label={ui("Academic year")}>
               <SystemInput
                 type="number"
                 value={newYear}
@@ -235,12 +291,11 @@ export function CycleManagementPanel({
           <div className="flex gap-2">
             <Button variant="secondary" size="sm"
               onClick={() => setShowCreate(false)}
-
             >
-              Cancel
+              {ui("Cancel")}
             </Button>
             <BrandButton onClick={handleCreate} disabled={creating} loading={creating}>
-              Create Cycle
+              {ui("Create academic year")}
             </BrandButton>
           </div>
         </div>
@@ -250,8 +305,8 @@ export function CycleManagementPanel({
       {cycles.length === 0 ? (
         <EmptyState
           icon={Activity}
-          title="No cycles yet"
-          description="Create your first academic cycle to get started."
+          title={ui("No academic years yet")}
+          description={ui(canManageCycles ? "Create your first academic year to get started." : "Your campus admin sets up the academic year.")}
         />
       ) : (
         <div className="space-y-3">
@@ -274,33 +329,33 @@ export function CycleManagementPanel({
                     <Icon className={cn("h-5 w-5", config.color)} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-ink-strong">{cycle.label}</p>
-                    <p className="text-2xs font-semibold text-ink-muted">
-                      Year {cycle.academicYear}
-                      {cycle.startDate && ` · Started ${new Date(cycle.startDate).toLocaleDateString()}`}
-                      {cycle.endDate && ` · Ended ${new Date(cycle.endDate).toLocaleDateString()}`}
+                    <p className="text-sm font-bold text-ink-strong"><bdi>{cycle.label}</bdi></p>
+                    <p className="text-xs font-semibold text-ink-muted">
+                      {ui("Academic year {0}", [cycle.academicYear])}
+                      {cycle.startDate ? <> · {ui("Started {0}", [formatDay(cycle.startDate)])}</> : null}
+                      {cycle.endDate ? <> · {ui("Ended {0}", [formatDay(cycle.endDate)])}</> : null}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Badge size="sm" dot variant={config.badge}>
-                    {config.label}
+                    {ui(config.label)}
                   </Badge>
 
-                  {cycle.status === "DRAFT" && (
+                  {canManageCycles && cycle.status === "DRAFT" && (
                     <Button variant="default" size="sm"
                       loading={acting === `activate-${cycle.id}`}
                       onClick={() => doAction("activate", cycle.id)}
                       disabled={acting !== null}
                       className="flex justify-start items-center gap-1.5"
                     >
-                      {acting === `activate-${cycle.id}` ? null : <Play className="h-3.5 w-3.5" />}
-                      Activate
+                      {acting === `activate-${cycle.id}` ? null : <Play className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {ui("Activate")}
                     </Button>
                   )}
 
-                  {cycle.status === "PAUSED" && (
+                  {canManageCycles && cycle.status === "PAUSED" && (
                     <Button variant="default" size="sm"
                       loading={acting === `resume-${cycle.id}`}
                       onClick={() => doAction("resume", cycle.id)}
@@ -308,7 +363,7 @@ export function CycleManagementPanel({
                       className="flex justify-start items-center gap-1.5"
                     >
                       {acting === `resume-${cycle.id}` ? null : <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />}
-                      Resume
+                      {ui("Resume")}
                     </Button>
                   )}
                 </div>

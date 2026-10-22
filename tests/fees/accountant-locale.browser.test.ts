@@ -19,7 +19,8 @@ const db = new PrismaClient(), password = "SyntheticAccountant497!";
 const schoolId = `acc497-${randomUUID()}`, campusId = randomUUID(), SCHOOL = "Synthetic Cedar Grammar School";
 const users = new Map<string, string>();
 let browser: Browser;
-const TABS = ["Types", "Groups", "Master", "Assign", "Discounts", "Carry Forward", "Fine Rules", "Legacy"];
+// role-ux §8.2 / M75: Fee setup sections are ViewTabs (role="tab", aria-selected) with sentence-case names.
+const TABS = ["Fee types", "Fee groups", "Amounts", "Class groups", "Discounts", "Carry forward", "Fine rules", "Class structures"];
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: SCHOOL, slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } as never });
@@ -43,24 +44,24 @@ for (const lang of ["ar", "ur"] as const) {
     if (secret) { await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
     const page = await ctx.newPage();
     await page.goto(`${base}/accountant?view=fee-structures`);
-    const first = page.getByRole("button", { name: translateUi("Types", lang) });
+    const first = page.getByRole("tab", { name: translateUi("Fee types", lang) });
     await first.waitFor({ timeout: 60_000 });
     assert.equal(await page.evaluate(() => document.documentElement.dir), "rtl");
     for (const tab of TABS) {
       const label = translateUi(tab, lang);
       assert.notEqual(label, tab, `${tab} has a ${lang} translation`);
-      assert.equal(await page.getByRole("button", { name: label, exact: true }).count(), 1, `${tab} shows as ${label}`);
-      assert.equal(await page.getByRole("button", { name: tab, exact: true }).count(), 0, `${tab} is not shown in English`);
+      assert.equal(await page.getByRole("tab", { name: label, exact: true }).count(), 1, `${tab} shows as ${label}`);
+      assert.equal(await page.getByRole("tab", { name: tab, exact: true }).count(), 0, `${tab} is not shown in English`);
     }
-    assert.equal(await first.getAttribute("aria-pressed"), "true");
+    assert.equal(await first.getAttribute("aria-selected"), "true");
     // Keyboard: focus Carry Forward and press Enter; it becomes the active tab.
-    const carry = page.getByRole("button", { name: translateUi("Carry Forward", lang), exact: true });
+    const carry = page.getByRole("tab", { name: translateUi("Carry forward", lang), exact: true });
     await carry.focus(); await page.keyboard.press("Enter");
-    assert.equal(await carry.getAttribute("aria-pressed"), "true");
-    assert.equal(await first.getAttribute("aria-pressed"), "false");
+    assert.equal(await carry.getAttribute("aria-selected"), "true");
+    assert.equal(await first.getAttribute("aria-selected"), "false");
     const text = await page.locator("body").innerText();
-    assert.ok(!/Finance Console/.test(text), "console branding is translated");
-    assert.ok(text.includes(translateUi("Finance Console", lang)));
+    assert.ok(!/Finance desk/.test(text), "console branding is translated");
+    assert.ok(text.includes(translateUi("Finance desk", lang)));
     for (const english of ["Integrations", "Identity and roster", "Improvement evidence", "Group policy"]) assert.ok(!text.includes(english), `sidebar has no untranslated "${english}"`);
     assert.ok(text.includes(SCHOOL), "the school's own name is shown verbatim");
     await page.screenshot({ path: `${evidence}/${lang}-fee-structures.png` });

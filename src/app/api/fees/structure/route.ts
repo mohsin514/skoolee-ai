@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -44,7 +45,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     const parsed = feeStructureSchema.safeParse(body);

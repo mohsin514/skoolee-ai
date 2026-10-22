@@ -12,15 +12,13 @@ import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { localeTag, minorUnits } from "@/lib/locale/package";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   AlertTriangle,
-  Banknote,
   CreditCard,
   FileText,
   Receipt,
   TrendingUp,
-  Users,
   Wallet,
 } from "lucide-react";
 import {
@@ -89,10 +87,13 @@ export function FinanceOverview({
   summary,
   campusLabel,
   onNavigate,
+  queue,
 }: {
   summary: FinanceSummary;
   campusLabel: string;
   onNavigate: (view: string) => void;
+  /** The landing view's one work queue ("what is waiting on you", role-ux §4.5.8), shown under the KPI tiles. */
+  queue?: ReactNode;
 }) {
   const tr = useUiText();
   const locale = useLocale();
@@ -144,9 +145,11 @@ export function FinanceOverview({
 
   return (
     <div className="space-y-5">
+      {/* Spotlight anchor for the accountant tour's first step (role-ux §9.4). */}
+      <div data-tour="accountant.today.summary">
       <CommandHero
         eyebrow={campusLabel}
-        title={tr("Finance command centre")}
+        title={tr("Fee collection")}
         heroValue={money(derived.collected)}
         heroLabel={tr("Collected against invoices raised")}
         heroCaption={
@@ -154,7 +157,7 @@ export function FinanceOverview({
             ? tr("{0} outstanding across {1} invoices for {2} students.", [money(derived.outstanding), derived.invoices, summary.studentsBilled])
             : tr("No invoices have been raised yet — generate the first run to start tracking collection.")
         }
-        heroAccent={<TrendingUp className="mb-2 h-7 w-7 text-emerald-400" aria-hidden />}
+        heroAccent={<TrendingUp className="mb-2 h-7 w-7 text-status-success-text" aria-hidden />}
         meters={[
           {
             label: tr("Invoices settled in full"),
@@ -169,12 +172,6 @@ export function FinanceOverview({
             max: derived.billed || 1,
             valueLabel: `${money(derived.collected)} / ${money(derived.billed)}`,
           },
-        ]}
-        pills={[
-          { icon: FileText, label: tr("Invoices"), value: derived.invoices, onClick: () => onNavigate("invoices") },
-          { icon: Wallet, label: tr("Payments"), value: summary.paymentCount, onClick: () => onNavigate("payments") },
-          { icon: AlertTriangle, label: tr("Past due"), value: summary.defaulters, onClick: () => onNavigate("fee-reports"), tone: summary.defaulters > 0 ? "critical" : "default" },
-          { icon: Banknote, label: tr("Payroll runs"), value: summary.payrollRuns, onClick: () => onNavigate("payroll") },
         ]}
         aside={
           derived.billed > 0 ? (
@@ -192,14 +189,17 @@ export function FinanceOverview({
           )
         }
       />
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {/* At most four KPI tiles on a landing screen; the sidebar already lists every section (role-ux §4.5.8). */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile icon={Receipt} label={tr("Collected")} value={money(derived.collected)} sub={tr("{0}% of billed", [derived.rate])} tone={derived.rate >= 70 ? "good" : "warning"} onClick={() => onNavigate("payments")} delay={80} />
         <StatTile icon={AlertTriangle} label={tr("Outstanding")} value={money(derived.outstanding)} sub={tr("Past due: {0}", [summary.defaulters])} tone={derived.outstanding > 0 ? "warning" : "good"} onClick={() => onNavigate("fee-reports")} delay={140} />
         <StatTile icon={FileText} label={tr("Invoices")} value={derived.invoices} sub={tr("Students billed: {0}", [summary.studentsBilled])} onClick={() => onNavigate("invoices")} delay={200} />
         <StatTile icon={Wallet} label={tr("Payments")} value={summary.paymentCount} sub={tr("Last twelve months")} onClick={() => onNavigate("payments")} delay={260} />
-        <StatTile icon={Banknote} label={tr("Payroll")} value={summary.payrollRuns} sub="Runs recorded" onClick={() => onNavigate("payroll")} delay={320} />
       </div>
+
+      {queue}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <InsightCard

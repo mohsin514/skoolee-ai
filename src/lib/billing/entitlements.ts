@@ -4,11 +4,15 @@ import { COMMERCIAL_CONTRACT, createPlanContract, getSchoolPlanContract, type Pl
 import type { PlanDetails } from "@/types";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { PlanType } from "@/types";
-import { CURRENCIES } from "@/lib/locale/package";
+import { CURRENCIES, type Language } from "@/lib/locale/package";
 import { currencyForCountry, countrySchema } from "@/lib/locale/country";
+import { LANGUAGE_COOKIE, parseLanguage } from "@/lib/locale/language-cookie";
+import { getLocalePackage } from "@/lib/locale/store";
+import { arabicP1Ui, urduP1Ui } from "@/lib/locale/role-ux/p1-messages";
+import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 
 type DbClient = typeof prisma | TxClient;
-type LimitMetric = "students" | "teachers" | "campuses";
+export type LimitMetric = "students" | "teachers" | "campuses";
 
 const ACTIVE_SCHOOL_STATUSES = new Set(["ACTIVE", "TRIAL"]);
 
@@ -17,19 +21,81 @@ export const PLAN_PERIOD_DAYS = 30;
 /** Days a school keeps working after its paid-through date before suspension. */
 export const GRACE_PERIOD_DAYS = 3;
 
-export class BillingAccessError extends Error {
-  status: number;
+export type BillingAccessCode = "SUBSCRIPTION_SUSPENDED" | "PLAN_LIMIT" | "PLAN_FEATURE";
 
-  constructor(message: string, status = 402) {
-    super(message);
-    this.status = status;
+/**
+ * Plan and suspension errors reach every role (toasts, inline errors), so the copy is neutral: it names who can act
+ * ("the account owner") and never links to billing or says "Upgrade" — payers already have Billing & plan in their
+ * navigation (§7.3 G51, D19). The machine `code` lets a client tell the three cases apart without parsing copy.
+ */
+export { SUBSCRIPTION_PAUSED_MESSAGE };
+export const PLAN_FEATURE_MESSAGE = "This feature is not part of the school's plan. The account owner can add it.";
+
+/**
+ * Plan-limit copy (G51, R11). One EN placeholder key per metric and number — `{0}` the plan name, `{1}` the limit — so
+ * the unit and its plural live in the key and AR/UR (role-ux p1 messages) carry their own grammar. The error carries the
+ * key and its values (`messageKey`, `params`, sent by `errorResponse`) for a client that formats it, and its message
+ * is already in the reader's language (`assertPlanCapacity`), so every toast and inline error reads translated.
+ */
+export const PLAN_LIMIT_MESSAGES: Record<LimitMetric, { one: string; many: string }> = {
+  students: { one: "{0} allows {1} student. The account owner can upgrade the plan.", many: "{0} allows {1} students. The account owner can upgrade the plan." },
+  teachers: { one: "{0} allows {1} teacher. The account owner can upgrade the plan.", many: "{0} allows {1} teachers. The account owner can upgrade the plan." },
+  campuses: { one: "{0} allows {1} campus. The account owner can upgrade the plan.", many: "{0} allows {1} campuses. The account owner can upgrade the plan." },
+};
+
+/** The plan-limit key and its values for one metric. */
+export function planLimitCopy(planName: string, limit: number, metric: LimitMetric) {
+  return { messageKey: PLAN_LIMIT_MESSAGES[metric][limit === 1 ? "one" : "many"], params: [planName, limit.toLocaleString("en-US")] };
+}
+
+/** Fills an EN key in `language`; names and numbers are bidi-isolated inside an RTL sentence (R7). */
+export function formatBillingMessage(messageKey: string, params: readonly string[] = [], language: Language = "en") {
+  const catalog = language === "ar" ? arabicP1Ui : language === "ur" ? urduP1Ui : undefined;
+  const template = catalog?.[messageKey] ?? messageKey;
+  return template.replace(/\{(\d+)\}/g, (match, index) => {
+    const value = params[Number(index)];
+    return value === undefined ? match : language === "en" ? value : `\u2068${value}\u2069`;
+  });
+}
+
+export function planLimitMessage(planName: string, limit: number, metric: LimitMetric, language: Language = "en") {
+  const { messageKey, params } = planLimitCopy(planName, limit, metric);
+  return formatBillingMessage(messageKey, params, language);
+}
+
+/**
+ * The reader's language for a server-built message: the language cookie (the signed-in person's own choice, written
+ * at sign-in and when they change it), else the school's default. Outside a request (workers, scripts, tests) the
+ * cookie is unavailable; any failure falls back to English, never to an error.
+ */
+async function readerLanguage(schoolId: string, client: DbClient): Promise<Language> {
+  try {
+    const { cookies } = await import("next/headers");
+    const chosen = parseLanguage((await cookies()).get(LANGUAGE_COOKIE)?.value);
+    if (chosen) return chosen;
+  } catch {
+    // Not inside a request.
+  }
+  try {
+    return (await getLocalePackage(schoolId, null, new Date(), null, client)).language;
+  } catch {
+    return "en";
   }
 }
 
-function limitLabel(metric: LimitMetric) {
-  if (metric === "students") return "student";
-  if (metric === "teachers") return "teacher";
-  return "campus";
+export class BillingAccessError extends Error {
+  status: number;
+  code?: BillingAccessCode;
+  /** The EN key of a message built from values (plan limits) and those values, for a client that formats it. */
+  messageKey?: string;
+  params?: string[];
+
+  constructor(message: string, status = 402, code?: BillingAccessCode, copy?: { messageKey: string; params: string[] }) {
+    super(message);
+    this.status = status;
+    if (code) this.code = code;
+    if (copy) { this.messageKey = copy.messageKey; this.params = copy.params; }
+  }
 }
 
 async function currentUsage(client: DbClient, schoolId: string, metric: LimitMetric) {
@@ -90,7 +156,7 @@ export async function assertSchoolOperational(schoolId: string, client: DbClient
   }
 
   if (!isSchoolOperational(school.status) || graceExpired) {
-    throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
+    throw new BillingAccessError(SUBSCRIPTION_PAUSED_MESSAGE, 402, "SUBSCRIPTION_SUSPENDED");
   }
 
   return school;
@@ -114,7 +180,7 @@ export async function assertPlanCapacity({
 
   if (!school) throw new BillingAccessError("School not found", 404);
   if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
-    throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
+    throw new BillingAccessError(SUBSCRIPTION_PAUSED_MESSAGE, 402, "SUBSCRIPTION_SUSPENDED");
   }
 
   const plan = normalizePlan(school.plan);
@@ -124,11 +190,9 @@ export async function assertPlanCapacity({
 
   const current = await currentUsage(client, schoolId, metric);
   if (current + increment > limit) {
-    const label = limitLabel(metric);
-    throw new BillingAccessError(
-      `${contract.name} allows ${limit.toLocaleString()} ${label}${limit === 1 ? "" : "s"}. Upgrade to add more.`,
-      402
-    );
+    const copy = planLimitCopy(contract.name, limit, metric);
+    const language = await readerLanguage(schoolId, client);
+    throw new BillingAccessError(formatBillingMessage(copy.messageKey, copy.params, language), 402, "PLAN_LIMIT", copy);
   }
 
   return { plan, limit, current };
@@ -142,13 +206,13 @@ export async function assertFeatureEnabled(schoolId: string, feature: PlanFeatur
 
   if (!school) throw new BillingAccessError("School not found", 404);
   if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
-    throw new BillingAccessError("Subscription suspended. Open billing to update your plan or payment method.", 402);
+    throw new BillingAccessError(SUBSCRIPTION_PAUSED_MESSAGE, 402, "SUBSCRIPTION_SUSPENDED");
   }
 
   const plan = normalizePlan(school.plan);
   const contract = getSchoolPlanContract(plan, school.commercialContract);
   if (!contract[feature]) {
-    throw new BillingAccessError(`${contract.name} does not include this feature. Upgrade to continue.`, 403);
+    throw new BillingAccessError(PLAN_FEATURE_MESSAGE, 403, "PLAN_FEATURE");
   }
 
   return { plan, feature };

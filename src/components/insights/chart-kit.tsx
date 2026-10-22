@@ -16,6 +16,10 @@ import { INK, compact } from "./palette";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+
+/** Small caps labels. Arabic and Urdu are connected scripts: no case change and no letter spacing (R8). */
+const CAPS = "uppercase tracking-wider rtl:normal-case rtl:tracking-normal";
 
 
 /* ─── Card shell ─────────────────────────────────────────── */
@@ -51,6 +55,7 @@ export function InsightCard({
   delay = 0,
   children,
 }: InsightCardProps) {
+  const t = useUiText();
   const [showTable, setShowTable] = useState(false);
   const headingId = useId();
 
@@ -84,8 +89,8 @@ export function InsightCard({
           {table ? (
             <IconButton
               variant="default"
-              label={showTable ? "Show chart" : "Show table"}
-              tooltip={showTable ? "Show chart" : "Show the numbers as a table"}
+              label={t(showTable ? "Show chart" : "Show table")}
+              tooltip={t(showTable ? "Show chart" : "Show the numbers as a table")}
               onClick={() => setShowTable((v) => !v)}
               aria-pressed={showTable}
             >
@@ -104,6 +109,7 @@ export function InsightCard({
 
 /** The WCAG-clean twin of a chart. Numbers align, so they get tabular figures. */
 export function DataTable({ columns, rows }: TableTwin) {
+  const { number } = useLocaleFormat();
   if (rows.length === 0) return <EmptyChart label="Nothing to tabulate yet" />;
   return (
     <div className="max-h-[300px] overflow-auto custom-scrollbar rounded-2xl border border-edge/25">
@@ -115,7 +121,8 @@ export function DataTable({ columns, rows }: TableTwin) {
                 key={c}
                 scope="col"
                 className={cn(
-                  "px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle",
+                  "px-3 py-2 text-2xs font-semibold text-ink-subtle",
+                  CAPS,
                   i > 0 && "text-end",
                 )}
               >
@@ -135,7 +142,7 @@ export function DataTable({ columns, rows }: TableTwin) {
                     c > 0 && "text-end tabular-nums",
                   )}
                 >
-                  {typeof cell === "number" ? cell.toLocaleString() : cell}
+                  {typeof cell === "number" ? <bdi>{number(cell, 2)}</bdi> : cell}
                 </td>
               ))}
             </tr>
@@ -161,12 +168,13 @@ interface VizTooltipProps {
 }
 
 export function VizTooltip({ active, payload, label, unit = "", format, titleFor }: VizTooltipProps) {
+  const { number } = useLocaleFormat();
   if (!active || !payload?.length) return null;
   const heading = titleFor ? titleFor(label, payload) : String(label ?? "");
   return (
-    <div className="pointer-events-none rounded-2xl border border-edge/30 bg-white/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(120,70,180,0.22)] backdrop-blur">
+    <div className="pointer-events-none rounded-2xl border border-edge/30 bg-card/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(120,70,180,0.22)] backdrop-blur">
       {heading ? (
-        <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{heading}</p>
+        <p className={cn("mb-1.5 text-2xs font-semibold text-ink-subtle", CAPS)}>{heading}</p>
       ) : null}
       <ul className="space-y-1">
         {payload.map((entry: any, i: number) => {
@@ -181,7 +189,7 @@ export function VizTooltip({ active, payload, label, unit = "", format, titleFor
               />
               <span className="text-2xs font-bold text-ink-muted">{name}</span>
               <span className="ms-auto text-2xs font-bold text-ink-strong tabular-nums">
-                {format ? format(value, String(name), entry) : `${value.toLocaleString()}${unit}`}
+                <bdi>{format ? format(value, String(name), entry) : `${number(value, 2)}${unit}`}</bdi>
               </span>
             </li>
           );
@@ -202,15 +210,16 @@ export interface LegendItem {
 /** Present whenever a chart carries two or more series — identity is never
  *  left to colour-matching alone. */
 export function SeriesLegend({ items, className }: { items: LegendItem[]; className?: string }) {
+  const { number } = useLocaleFormat();
   return (
     <ul className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5", className)}>
       {items.map((item) => (
         <li key={item.label} className="flex items-center gap-1.5">
           <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: item.color }} />
-          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{item.label}</span>
+          <span className={cn("text-2xs font-semibold text-ink-subtle", CAPS)}>{item.label}</span>
           {item.value !== undefined ? (
             <span className="text-2xs font-bold text-ink-strong tabular-nums">
-              {typeof item.value === "number" ? item.value.toLocaleString() : item.value}
+              <bdi>{typeof item.value === "number" ? number(item.value, 2) : item.value}</bdi>
             </span>
           ) : null}
         </li>
@@ -240,9 +249,9 @@ export function HeroFigure({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-2xs font-semibold uppercase tracking-wider text-white/55">{label}</p>
+      <p className={cn("text-2xs font-semibold text-white/55", CAPS)}>{label}</p>
       <div className="mt-2 flex flex-wrap items-end gap-3">
-        <span className="text-5xl font-extrabold leading-none tracking-tight text-white sm:text-6xl">{value}</span>
+        <bdi className="text-5xl font-extrabold leading-none tracking-tight text-white sm:text-6xl">{value}</bdi>
         {accent}
       </div>
       {caption ? <p className="mt-3 text-2xs font-medium leading-relaxed text-white/55">{caption}</p> : null}
@@ -276,7 +285,8 @@ export function Meter({
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <span
           className={cn(
-            "truncate text-2xs font-semibold uppercase tracking-wider",
+            "truncate text-2xs font-semibold",
+            CAPS,
             onDark ? "text-white/55" : "text-ink-subtle",
           )}
         >
@@ -288,7 +298,7 @@ export function Meter({
             onDark ? "text-white" : "text-ink-strong",
           )}
         >
-          {valueLabel ?? `${Math.round(pct)}%`}
+          <bdi>{valueLabel ?? `${Math.round(pct)}%`}</bdi>
         </span>
       </div>
       <div
@@ -324,6 +334,7 @@ export function RadialGauge({
   color?: string;
   size?: number;
 }) {
+  const t = useUiText();
   const stroke = 12;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
@@ -339,7 +350,7 @@ export function RadialGauge({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         role="img"
-        aria-label={`${label}: ${Math.round(clamped)} percent`}
+        aria-label={t("{0}: {1} percent", [label, Math.round(clamped)])}
         className="-rotate-[225deg]"
       >
         <circle
@@ -369,7 +380,7 @@ export function RadialGauge({
           {Math.round(clamped)}
           <span className="text-lg">%</span>
         </span>
-        <span className="mt-1 px-4 text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-subtle">
+        <span className={cn("mt-1 px-4 text-2xs font-semibold leading-tight text-ink-subtle", CAPS)}>
           {label}
         </span>
         {sublabel ? <span className="mt-0.5 text-2xs font-medium text-ink-subtle">{sublabel}</span> : null}
@@ -449,18 +460,19 @@ export function StatTile({
   onClick?: () => void;
   delay?: number;
 }) {
+  const t = useUiText();
   const toneChip: Record<string, string> = {
     brand: "bg-brand-50 text-primary",
-    good: "bg-emerald-50 text-emerald-700",
-    warning: "bg-amber-50 text-amber-700",
-    critical: "bg-rose-50 text-rose-700",
+    good: "bg-status-success-surface text-status-success-text",
+    warning: "bg-status-warning-surface text-status-warning-text",
+    critical: "bg-status-error-surface text-status-error-text",
     dark: "bg-ink-strong text-white",
   };
   const toneGlow: Record<string, string> = {
     brand: "bg-primary/18",
-    good: "bg-emerald-500/18",
-    warning: "bg-amber-500/18",
-    critical: "bg-rose-500/18",
+    good: "bg-status-success-text/18",
+    warning: "bg-status-warning-text/18",
+    critical: "bg-status-error-text/18",
     dark: "bg-ink-strong/18",
   };
 
@@ -468,7 +480,7 @@ export function StatTile({
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
+          <p className={cn("mb-2 text-2xs font-semibold text-ink-subtle", CAPS)}>{label}</p>
           {/* A long word ("Enterprise") does not fit the tile at 3xl and was
               getting clipped by the icon, so the type steps down instead. */}
           <p
@@ -477,9 +489,9 @@ export function StatTile({
               typeof value === "string" && value.length > 8 ? "text-xl" : "text-3xl",
             )}
           >
-            {typeof value === "number" ? compact(value) : value}
+            <bdi>{typeof value === "number" ? compact(value) : value}</bdi>
           </p>
-          {sub ? <p className="mt-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p> : null}
+          {sub ? <p className={cn("mt-2 text-2xs font-semibold text-ink-subtle", CAPS)}>{sub}</p> : null}
         </div>
         <div className="relative shrink-0">
           <div
@@ -497,7 +509,7 @@ export function StatTile({
           (usually all zeroes) is dropped rather than drawn. */}
       {trend && trend.length > 1 && new Set(trend).size > 1 ? (
         <div className="mt-3">
-          <Sparkline points={trend} color={trendColor ?? "#8127cf"} label={`${label} trend`} width={120} />
+          <Sparkline points={trend} color={trendColor ?? "#8127cf"} label={t("{0} trend", [label])} width={120} />
         </div>
       ) : null}
       {meter ? (
@@ -505,7 +517,7 @@ export function StatTile({
           <Meter
             value={meter.value}
             max={meter.max}
-            label={meter.label ?? "Used"}
+            label={meter.label ?? t("Used")}
             color={meter.color ?? "#8127cf"}
           />
         </div>
@@ -548,14 +560,15 @@ export function SingleFigure({
   color: string;
   note?: string;
 }) {
+  const { number } = useLocaleFormat();
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 text-center">
-      <span className="text-5xl font-extrabold leading-none tracking-tight text-ink-strong">
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </span>
+      <bdi className="text-5xl font-extrabold leading-none tracking-tight text-ink-strong">
+        {typeof value === "number" ? number(value, 2) : value}
+      </bdi>
       <span className="flex items-center gap-1.5">
         <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-        <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</span>
+        <span className={cn("text-2xs font-semibold text-ink-subtle", CAPS)}>{label}</span>
       </span>
       {note ? <p className="max-w-56 text-2xs font-medium leading-relaxed text-ink-subtle">{note}</p> : null}
     </div>
@@ -564,10 +577,12 @@ export function SingleFigure({
 
 /* ─── Empty ──────────────────────────────────────────────── */
 
+/** `label` is an EN UI key (or already-translated text); it is translated here. */
 export function EmptyChart({ label = "No data for this period yet" }: { label?: string }) {
+  const t = useUiText();
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center">
-      <EmptyState size="sm" icon={BarChart3} title={label} />
+      <EmptyState size="sm" icon={BarChart3} title={t(label)} />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { withSchedulingResourceWrite } from "@/lib/academic/resource-write";
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // GET    /api/academic/calendar?campusId=            → { weekends: number[], holidays: [...] }
 // PATCH  /api/academic/calendar { days: [1..7] }     → replace the campus weekend set
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "edit");
 
     const body = await req.json();
@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "add");
 
     const body = await req.json();
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "delete");
 
     const { searchParams } = new URL(req.url);

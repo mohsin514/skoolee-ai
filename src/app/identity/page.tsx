@@ -1,5 +1,11 @@
-import { IdentityAdmin } from "@/components/identity/identity-admin";
+import { redirect } from "next/navigation";
+import { requirePageSession } from "@/lib/auth/require-page-session";
+import { orphanRouteTarget } from "@/lib/navigation/legacy-redirects";
 
-export const metadata = { title: "Identity and roster" };
+export const dynamic = "force-dynamic";
 
-export default function Page() { return <main className="mx-auto w-full min-w-0 max-w-5xl space-y-4 p-4 sm:p-6"><IdentityAdmin /></main>; }
+/** SPEC §6.3 — sign-in and roster sync belong to the institution authority's settings (Settings › Identity / School settings › Identity). */
+export default async function IdentityPage() {
+  const user = await requirePageSession();
+  redirect(orphanRouteTarget("identity", user)); // outside try/catch
+}

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db/prisma";
 import { normalizePlan } from "@/config/plans";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
+import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 import { sendEmailMessage } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import {
@@ -284,7 +285,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
       : null;
   const subscriptionBlockedReason =
     school && !isSchoolOperational(school.status)
-      ? "Subscription suspended. Open billing to update your plan or payment method."
+      ? SUBSCRIPTION_PAUSED_MESSAGE
       : null;
   const planBlockedReason =
     school && !getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).whatsappEnabled

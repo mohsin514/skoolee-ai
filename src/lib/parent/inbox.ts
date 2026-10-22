@@ -62,7 +62,7 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
   for (const trip of await guardianTrips(guardianUserId, schoolId, [child.id], now)) {
     const mine = trip.myAnswer;
     const state: InboxState = !trip.canSign ? "UPDATE" : mine ? (trip.status === "PARTIAL" ? "WAITING" : "COMPLETED") : trip.deadlinePassed ? "EXPIRED" : "ACTION";
-    items.push({ ...base, id: `trip:${trip.tripId}:${child.id}`, kind: "TRIP_CONSENT", state, title: trip.version.title, detail: `v${trip.version.version}${trip.earlierAnswer ? " · changed" : ""}`, dueAt: trip.version.respondBy.toISOString(), overdue: false, at: trip.version.publishedAt.toISOString(), href: `/parent/attendance${linkQuery}`, completedByOther: !mine && trip.answeredByOther, receipt: mine?.receiptCode ?? null });
+    items.push({ ...base, id: `trip:${trip.tripId}:${child.id}`, kind: "TRIP_CONSENT", state, title: trip.version.title, detail: `v${trip.version.version}${trip.earlierAnswer ? " · changed" : ""}`, dueAt: trip.version.respondBy.toISOString(), overdue: false, at: trip.version.publishedAt.toISOString(), href: `/parent/activities${linkQuery}`, completedByOther: !mine && trip.answeredByOther, receipt: mine?.receiptCode ?? null });
   }
 
   // SKO-420: meetings that need a new time, and shared follow-up actions this family owns.
@@ -71,8 +71,8 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
       prisma.meetingBooking.findMany({ where: { schoolId, studentId: child.id, guardianUserId, status: "RESCHEDULE_NEEDED" }, select: { id: true, startsAt: true, updatedAt: true } }),
       prisma.meetingAction.findMany({ where: { schoolId, studentId: child.id, ownerRole: "FAMILY", ownerUserId: guardianUserId, booking: { followUp: { sharedAt: { not: null } } }, OR: [{ status: "OPEN" }, { completedAt: { gte: new Date(now.getTime() - 30 * DAY) } }] }, select: { id: true, text: true, dueDate: true, status: true, completedAt: true, createdAt: true }, orderBy: { dueDate: "asc" }, take: 10 }),
     ]);
-    for (const row of moves) items.push({ ...base, id: `meeting:${row.id}`, kind: "MEETING_RESCHEDULE", state: "ACTION", title: "MEETING", detail: null, dueAt: row.startsAt.toISOString(), overdue: false, at: row.updatedAt.toISOString(), href: `/parent/timetable${linkQuery}`, completedByOther: false, receipt: null });
-    for (const row of actions) items.push({ ...base, id: `meeting-action:${row.id}`, kind: "MEETING_ACTION", state: row.status === "DONE" ? "COMPLETED" : "ACTION", title: row.text, detail: row.dueDate, dueAt: `${row.dueDate}T23:59:59Z`, overdue: row.status !== "DONE" && row.dueDate < today, at: (row.completedAt ?? row.createdAt).toISOString(), href: `/parent/timetable${linkQuery}`, completedByOther: false, receipt: null });
+    for (const row of moves) items.push({ ...base, id: `meeting:${row.id}`, kind: "MEETING_RESCHEDULE", state: "ACTION", title: "MEETING", detail: null, dueAt: row.startsAt.toISOString(), overdue: false, at: row.updatedAt.toISOString(), href: `/parent/meetings${linkQuery}`, completedByOther: false, receipt: null });
+    for (const row of actions) items.push({ ...base, id: `meeting-action:${row.id}`, kind: "MEETING_ACTION", state: row.status === "DONE" ? "COMPLETED" : "ACTION", title: row.text, detail: row.dueDate, dueAt: `${row.dueDate}T23:59:59Z`, overdue: row.status !== "DONE" && row.dueDate < today, at: (row.completedAt ?? row.createdAt).toISOString(), href: `/parent/meetings${linkQuery}`, completedByOther: false, receipt: null });
   }
 
   if (permissions.finances) {

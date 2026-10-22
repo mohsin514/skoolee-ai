@@ -11,6 +11,8 @@ import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { wallTimeInstants } from "@/lib/locale/events";
 import { currencyForCountry } from "@/lib/locale/country";
 import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage, type Language } from "@/lib/locale/package";
+import { kindFor, type InstitutionKind } from "@/lib/auth/institution";
+import { getInstitutionKind } from "@/lib/auth/institution-server";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { withExamCalendarChange } from "@/lib/academic/calendar-bookings";
 import { getLocalePackage } from "@/lib/locale/store";
@@ -24,16 +26,19 @@ async function session() {
     const user = await prisma.user.findFirst({ where: { id: auth.userId, schoolId: auth.schoolId, isActive: true }, select: { id: true, schoolId: true, campusId: true, role: true, preferredLanguage: true } });
     if (!user) throw new Error("permission");
     await assertSchoolOperational(user.schoolId);
-    return user;
+    // The kind comes from the resolved session (§1.1); authority is never inferred from campus counts.
+    return { ...user, institutionKind: auth.institutionKind as InstitutionKind | undefined, isInstitutionOwner: auth.isInstitutionOwner };
   });
 }
+// §7.3 G13: school-scope language and region belong to the institution authority (`canManageSchool`); a campus
+// operator changes only the keys the authority delegated to their own campus, and the principal none
+// (`assertDelegatedChanges`). Both rules live once in src/lib/locale/package.ts, covered by tests/locale/package.test.ts.
 async function context(user: Awaited<ReturnType<typeof session>>) {
   const campuses = await prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true, localeDelegatedFields: true } });
-  const school = await prisma.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { registrationKind: true } });
-  // Explicit registration kind owns the hierarchy; campus counts never imply ownership.
-  const grouped = school.registrationKind !== "STANDALONE";
-  const scopeCount = grouped ? 2 : 1;
-  return { campuses, grouped, scopeCount, canManage: canManageSchool(user.role, scopeCount) };
+  // The resolved session carries the kind; the one shared lookup (§1.1a) answers only when it does not.
+  const grouped = (kindFor(user) ?? await getInstitutionKind(user.schoolId)) === "GROUP";
+  const canManage = canManageSchool(user);
+  return { campuses, grouped, canManage };
 }
 export async function getLocaleSettings() {
   const user = await session();
@@ -75,16 +80,16 @@ export async function previewLocaleChange(input: unknown) {
   if (change.settings.country && !change.settings.currency) change.settings.currency = currencyForCountry(change.settings.country);
   const user = await session();
   return runWithTenantContext(user, async () => {
-    const { campuses, scopeCount } = await context(user);
+    const { campuses, canManage } = await context(user);
     const campus = change.campusId ? campuses.find((c) => c.id === change.campusId) : null;
     if (change.campusId && !campus) throw new Error("permission");
-    assertDelegatedChanges(user.role, user.campusId, change.campusId, scopeCount, campus?.localeDelegatedFields || [], change.settings);
+    assertDelegatedChanges(user, user.campusId, change.campusId, campus?.localeDelegatedFields || [], change.settings);
     const effectiveAt = new Date(`${change.effectiveDate}T00:00:00Z`);
     if (effectiveAt.getTime() <= Date.now()) throw new Error("futureDate");
     const before = await getLocalePackage(user.schoolId, change.campusId, effectiveAt);
     const school = await getLocalePackage(user.schoolId, null, effectiveAt);
     let settings = change.settings;
-    if (campus && !canManageSchool(user.role, scopeCount)) {
+    if (campus && !canManage) {
       const existing = await prisma.localePolicy.findFirst({ where: { schoolId: user.schoolId, campusId: campus.id, status: "ACTIVE", effectiveAt: { lte: effectiveAt } }, orderBy: { effectiveAt: "desc" } });
       const retained = Object.fromEntries(Object.entries(localePatchSchema.parse(existing?.settings || {})).filter(([key]) => !campus.localeDelegatedFields.includes(key)));
       settings = { ...retained, ...settings };
@@ -113,10 +118,8 @@ export async function applyLocaleChange(token: string) {
       const current = await tx.user.findFirst({ where: { id: user.id, schoolId: user.schoolId, isActive: true } });
       if (!current || current.role !== user.role || current.campusId !== user.campusId) throw new Error("permission");
       const campusRows = await tx.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, localeDelegatedFields: true } });
-      const school = await tx.school.findUniqueOrThrow({ where: { id: user.schoolId }, select: { registrationKind: true } });
-      const scopeCount = school.registrationKind === "STANDALONE" ? 1 : 2;
       const campus = campusRows.find((c) => c.id === change.campusId);
-      assertDelegatedChanges(current.role, current.campusId, change.campusId, scopeCount, campus?.localeDelegatedFields || [], change.settings);
+      assertDelegatedChanges({ role: current.role, institutionKind: user.institutionKind, isInstitutionOwner: current.isInstitutionOwner }, current.campusId, change.campusId, campus?.localeDelegatedFields || [], change.settings);
       const affectedCampuses = campusRows.filter(item => !change.campusId || item.id === change.campusId).map(item => item.id).sort();
       for (const id of affectedCampuses) await lockTimetableCampus(tx as TxClient, user.schoolId, id, true);
       const record = await withExamCalendarChange(tx as TxClient, user.schoolId, affectedCampuses, new Date(preview.effectiveAt), () =>

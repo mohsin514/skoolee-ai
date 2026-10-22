@@ -61,7 +61,8 @@ export async function createPortalSession(
   // the payment-method flow instead of the full self-service portal.
   const session = await requireStripe().billingPortal.sessions.create({
     customer: customerId,
-    return_url: `${appUrl()}/dashboard/billing`,
+    // §6.2: every provider return lands on /billing, which resolves the payer's own Billing & plan view.
+    return_url: `${appUrl()}/billing`,
     flow_data: { type: "payment_method_update" },
   });
   return session.url;
@@ -162,8 +163,10 @@ export async function createCheckoutSessionWithTransfer(
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl()}/dashboard/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl()}/dashboard/billing?canceled=true`,
+    // §6.2: /billing resolves the payer's own Billing & plan view and keeps these parameters. The session id
+    // placeholder must stay literal (Stripe substitutes it), so this query is not built with URLSearchParams.
+    success_url: `${appUrl()}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl()}/billing?${new URLSearchParams({ canceled: "true" })}`,
     client_reference_id: schoolId,
     allow_promotion_codes: true,
     metadata: { schoolId, plan, commercialContract: contractMetadata, subscriptionChangeRequestId: changeRequestId },

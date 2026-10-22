@@ -163,9 +163,8 @@ test("principal builder renders at desktop, tablet, and mobile sizes with RTL an
     await context.addCookies([{ name: "skoolee_token", value: users.get("PRINCIPAL")!.token, domain: "127.0.0.1", path: "/", httpOnly: true, secure: false, sameSite: "Lax" }]);
     const page = await context.newPage();
     await page.goto(new URL("/principal?view=academic-model", appUrl).toString(), { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(1500);
-    await page.getByText("تعلیمی امور").first().click({ timeout: 20_000 });
-    await page.getByText("نصاب اور تعلیمی ادوار").first().click({ timeout: 20_000 });
+    // `academic-model` is a registry alias: the Academic console opens Curriculum & grading → Curriculum directly.
+    await page.waitForURL(/view=academic-rules/, { timeout: 20_000 });
     await page.getByText("تعلیمی ماڈل بنائیں").waitFor({ timeout: 20_000 });
     assert.equal(await page.locator("html").getAttribute("dir"), "rtl");
     assert.equal(await page.locator("html").getAttribute("lang"), "ur");

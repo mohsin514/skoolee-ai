@@ -59,8 +59,7 @@ after(async () => {
 test("scan the member, scan the copy, return it twice — availability changes once (EN desktop)", async () => {
   const page = await (await context("librarian")).newPage();
   await page.goto(`${base}/librarian?view=library`);
-  await page.getByRole("button", { name: "Library" }).first().click({ timeout: 30_000 }).catch(() => undefined);
-  const desk = page.locator('section[aria-labelledby="lending-desk"]');
+  const desk = page.locator("section[data-lending-desk]");
   await desk.waitFor({ timeout: 60_000 });
   const scan = desk.getByLabel("Scan a member card or a copy");
   await scan.fill("ST-104"); await scan.press("Enter");
@@ -88,7 +87,7 @@ test("scan the member, scan the copy, return it twice — availability changes o
 test("the desk reads right to left on a phone (AR)", async () => {
   const page = await (await context("librarian-ar", { width: 390, height: 844 })).newPage();
   await page.goto(`${base}/librarian?view=library`);
-  const desk = page.locator('section[aria-labelledby="lending-desk"]');
+  const desk = page.locator("section[data-lending-desk]");
   await desk.waitFor({ timeout: 60_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
   const scan = desk.getByLabel("امسح بطاقة عضو أو نسخة كتاب");

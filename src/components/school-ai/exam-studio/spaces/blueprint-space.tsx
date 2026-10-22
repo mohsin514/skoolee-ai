@@ -72,7 +72,7 @@ export default function BlueprintSpace({ language, scope, records, capabilities,
       <label className="grid min-w-64 flex-1 gap-1 text-sm font-semibold">{t.paper}<Select aria-label={t.paper} value={paper.id} onChange={event => { setSelected(event.target.value); setNotice(null); }}>{papers.map(record => <option key={record.id} value={record.id}>{record.title} · v{record.version} · {record.status}</option>)}</Select></label>
       <Button variant="outline" onClick={() => openTool?.("curriculum")}>{t.openEditor}</Button>
     </div>
-    {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}><bdi dir="auto">{notice.text}</bdi></p>}
+    {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}><bdi dir="auto">{notice.text}</bdi></p>}
     {!formSetId ? <section className="sk-panel space-y-3 p-5">
       <p className="text-sm">{paper.status === "DRAFT" ? t.createHint : t.draftOnly}</p>
       {paper.status === "DRAFT" && capabilities.canCreate && <div className="flex flex-wrap gap-2">

@@ -8,7 +8,8 @@ import { calculateInvoiceAmounts, invoiceMonthDates, MAX_INVOICE_MINOR } from "@
 import { generateInvoicesSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -23,7 +24,8 @@ function generateInvoiceNumber(campusId: string, year: number, sequence: number)
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     const parsed = generateInvoicesSchema.safeParse(body);

@@ -113,7 +113,7 @@ export function columnsForRole(role: ExamCycleRole): BoardColumn[] {
       c.key === "PLANNING"
         ? { ...c, title: "Not Started", hint: "Create and open a test" }
         : c.key === "REVIEW"
-          ? { ...c, title: "Sent to Office", hint: "Marks locked and submitted" }
+          ? { ...c, title: "Locked", hint: "Marks locked; your principal releases results" }
           : { ...c },
     );
   }
@@ -155,9 +155,10 @@ export function nextAction(
         ? { type: "patch", status: "MARKS_ENTRY", label: "Start Entering Marks" }
         : { type: "open", label: "Set Dates" };
     case "MARKS_ENTRY":
-      return { type: "lock", label: isTeacher ? "Submit to Office" : "Lock Marks" };
+      // G30: a teacher locks their own quiz or class test; the API used to refuse every teacher lock.
+      return { type: "lock", label: "Lock Marks" };
     case "LOCKED":
-      // Review and publish are office-only decisions.
+      // Review and publish are the academic lead's decisions (G31).
       return isTeacher ? null : { type: "patch", status: "PRINCIPAL_REVIEWED", label: "Approve" };
     case "PRINCIPAL_REVIEWED":
       return isTeacher ? null : { type: "patch", status: "PUBLISHED", label: "Release Results" };
@@ -252,7 +253,7 @@ export function evaluateMove(
     case "MARKS": {
       if (from === "REVIEW") {
         if (isTeacher) {
-          return { ok: false, reason: "The office decides when locked marks come back to you." };
+          return { ok: false, reason: "Your principal decides when locked marks come back to you." };
         }
         return { ok: true, kind: "reject", label: "Send marks back" };
       }
@@ -285,14 +286,15 @@ export function evaluateMove(
       return {
         ok: true,
         kind: "lock",
-        label: isTeacher ? "Submit to office" : "Lock marks",
-        confirm:
-          "Locking generates the report cards and stops teachers editing these marks. You can still send them back afterwards.",
+        label: "Lock marks",
+        confirm: isTeacher
+          ? "Locking stops further edits to these marks and sends the results to your principal for release."
+          : "Locking generates the report cards and stops teachers editing these marks. You can still send them back afterwards.",
       };
     }
 
     case "PUBLISHED": {
-      if (isTeacher) return { ok: false, reason: "Only the school office releases results." };
+      if (isTeacher) return { ok: false, reason: "Your principal releases results." };
       if (exam.status === "LOCKED") {
         return {
           ok: false,

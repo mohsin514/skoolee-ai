@@ -4,12 +4,17 @@ import { PathwayPanel } from "@/components/pathways/pathway-panel";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Tooltip } from "@/components/ui/tooltip";
+import { IconButton } from "@/components/ui/icon-button";
+import { Menu } from "@/components/ui/menu";
+import Link from "next/link";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { LearningActions } from "@/components/learning/learning-actions";
+import { csvCell } from "@/lib/csv";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import {
-  CalendarCheck, FileText, LayoutGrid, MessageCircle, Phone, Table2, Users, X,
+  CalendarCheck, Download, FileText, LayoutGrid, MessageCircle, MoreHorizontal, Phone, Table2, Users, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
@@ -22,14 +27,15 @@ import {
   useWorkspacePrefs,
 } from "@/components/shared-admin/workspace";
 import { cn } from "@/lib/utils";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { useTeacherData } from "../teacher-data-context";
 import {
   classLabel, StudentDetailModal, StudentsSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 
 export default function TeacherStudentsPage() {
+  const ui = useUiText();
   const { data, loading, error, refetch } = useTeacherData();
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [prefs, patchPrefs] = useWorkspacePrefs("teacher-students", {
     view: "cards",
@@ -61,10 +67,10 @@ export default function TeacherStudentsPage() {
   const todayCounts = useMemo(() => {
     const scope = classFilter ? allStudents.filter((s) => s.class?.id === classFilter) : allStudents;
     return {
-      PRESENT: scope.filter((s) => s.todayAttendance === "PRESENT").length,
-      ABSENT: scope.filter((s) => s.todayAttendance === "ABSENT").length,
-      LEAVE: scope.filter((s) => s.todayAttendance === "LEAVE").length,
-      UNMARKED: scope.filter((s) => !s.todayAttendance).length,
+      PRESENT: scope.filter((s) => todayBucket(s.todayAttendance) === "PRESENT").length,
+      ABSENT: scope.filter((s) => todayBucket(s.todayAttendance) === "ABSENT").length,
+      LEAVE: scope.filter((s) => todayBucket(s.todayAttendance) === "LEAVE").length,
+      UNMARKED: scope.filter((s) => todayBucket(s.todayAttendance) === "UNMARKED").length,
     };
   }, [allStudents, classFilter]);
 
@@ -72,9 +78,7 @@ export default function TeacherStudentsPage() {
     let list = allStudents;
     if (classFilter) list = list.filter((s) => s.class?.id === classFilter);
     if (todayFilter) {
-      list = list.filter((s) =>
-        todayFilter === "UNMARKED" ? !s.todayAttendance : s.todayAttendance === todayFilter,
-      );
+      list = list.filter((s) => todayBucket(s.todayAttendance) === todayFilter);
     }
     if (search) {
       const q = search.toLowerCase();
@@ -104,21 +108,25 @@ export default function TeacherStudentsPage() {
   if (loading && !data) return <StudentsSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
+  const exportCsv = () => {
+    const rows = [[ui("Pupil"), ui("Roll number"), ui("Class"), ui("Today"), ui("Guardian"), ui("Phone")]];
+    // Today's status in words (translated), never the stored enum (R7).
+    for (const st of filtered) rows.push([st.fullName || "", st.rollNo || "", classLabel(st.class) || "", todayLabel(ui, st.todayAttendance), st.guardianName || "", st.guardianPhone || ""]);
+    // UTF-8 BOM so Arabic and Urdu names open correctly in spreadsheet apps.
+    const blob = new Blob(["\uFEFF" + rows.map((r) => r.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "my-students.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <TeacherPage
-      tone="students"
       icon={Users}
-      eyebrow="Student Directory"
-      title="My Students"
-      /* The filter list marks out-of-cycle classes, so a bare "across N
-         classes" total silently disagreed with it. Call the split out. */
-      summary={
-        <>
-          {allStudents.length} student{allStudents.length !== 1 ? "s" : ""} across {classHubs.length} class
-          {classHubs.length !== 1 ? "es" : ""}
-          {outOfCycleCount > 0 ? ` · ${outOfCycleCount} outside the active cycle` : ""}
-        </>
-      }
+      title="Students"
+      description={outOfCycleCount > 0
+        ? ui("{0} pupils across {1} classes · {2} outside the active cycle", [allStudents.length, classHubs.length, outOfCycleCount])
+        : ui("{0} pupils across {1} classes", [allStudents.length, classHubs.length])}
+      secondaryActions={filtered.length ? [{ id: "export", label: "Export", icon: Download, onClick: exportCsv }] : []}
     >
       <div className="space-y-3">
 
@@ -138,19 +146,19 @@ export default function TeacherStudentsPage() {
           <SearchField
             value={search}
             onChange={setSearch}
-            placeholder="Name, roll no or guardian…"
+            placeholder={ui("Name, roll number or guardian…")}
           />
           <ToolbarSelect
             value={classFilter}
             onChange={setClassFilter}
-            label="Class"
+            label={ui("Class")}
             options={[
-              ["", "All classes"],
+              ["", ui("All classes")],
               ...classHubs.map(
                 (cls: any) =>
                   [
                     cls.id,
-                    `${classLabel(cls)}${cls.inActiveCycle === false ? " (outside active cycle)" : ""}`,
+                    `${classLabel(cls)}${cls.inActiveCycle === false ? ` ${ui("(outside active cycle)")}` : ""}`,
                   ] as [string, string],
               ),
             ]}
@@ -158,12 +166,12 @@ export default function TeacherStudentsPage() {
           <ToolbarSelect
             value={prefs.sortKey}
             onChange={(v) => patchPrefs({ sortKey: v })}
-            label="Sort"
+            label={ui("Sort")}
             options={[
-              ["roll", "Roll no"],
-              ["name", "Name"],
-              ["class", "Class"],
-              ["grade", "Latest grade"],
+              ["roll", ui("Roll number")],
+              ["name", ui("Name")],
+              ["class", ui("Class")],
+              ["grade", ui("Latest grade")],
             ]}
           />
           <SortDirButton
@@ -171,21 +179,21 @@ export default function TeacherStudentsPage() {
             onToggle={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
           />
           <span aria-live="polite" className="text-xs font-medium text-ink-subtle">
-            <span data-numeric className="tabular-nums">{filtered.length}</span> student{filtered.length !== 1 ? "s" : ""}
+            {ui("{0} pupils", [filtered.length])}
           </span>
         </WorkspaceToolbar>
 
         {/* Today's roll call as filter chips. The directory already knows who is
             in; making that clickable turns "who do I chase up?" into one tap. */}
         <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="today-filter-label">
-          <span id="today-filter-label" className="sk-eyebrow">Today</span>
+          <span id="today-filter-label" className="sk-eyebrow">{ui("Today")}</span>
           {/* The dot carries each status colour; the label still says it. */}
           {([
-            ["", "Everyone", allStudents.length, null],
-            ["PRESENT", "Present", todayCounts.PRESENT, "bg-emerald-500"],
-            ["ABSENT", "Absent", todayCounts.ABSENT, "bg-rose-500"],
-            ["LEAVE", "Leave", todayCounts.LEAVE, "bg-amber-500"],
-            ["UNMARKED", "Unmarked", todayCounts.UNMARKED, "bg-ink-faint"],
+            ["", ui("Everyone"), allStudents.length, null],
+            ["PRESENT", ui("Present"), todayCounts.PRESENT, "bg-status-success-text"],
+            ["ABSENT", ui("Absent"), todayCounts.ABSENT, "bg-status-error-text"],
+            ["LEAVE", ui("Leave"), todayCounts.LEAVE, "bg-status-warning-text"],
+            ["UNMARKED", ui("Unmarked"), todayCounts.UNMARKED, "bg-ink-faint"],
           ] as [string, string, number, string | null][]).map(([key, label, count, dot]) => (
             <Button className="justify-start" variant="choice" size="sm"
               key={key || "all"}
@@ -195,7 +203,7 @@ export default function TeacherStudentsPage() {
             >
               {dot ? <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", dot)} /> : null}
               {label}
-              <span data-numeric className="tabular-nums text-ink-subtle">{count}</span>
+              <bdi data-numeric className="tabular-nums text-ink-subtle">{count}</bdi>
             </Button>
           ))}
         </div>
@@ -211,7 +219,7 @@ export default function TeacherStudentsPage() {
             columns={[
               {
                 key: "name",
-                label: "Student",
+                label: ui("Pupil"),
                 render: (st: any) => (
                   <div className="flex items-center gap-2.5">
                     <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-edge/30 bg-brand-50">
@@ -220,7 +228,7 @@ export default function TeacherStudentsPage() {
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold text-ink-strong">{st.fullName}</span>
                       <span className="block text-xs text-ink-subtle tabular-nums">
-                        {st.rollNo || "No roll"}
+                        {st.rollNo || ui("No roll number")}
                       </span>
                     </span>
                   </div>
@@ -228,14 +236,14 @@ export default function TeacherStudentsPage() {
               },
               {
                 key: "class",
-                label: "Class",
+                label: ui("Class"),
                 render: (st: any) => (
                   <span className="text-sm font-medium text-ink">{classLabel(st.class)}</span>
                 ),
               },
               {
                 key: "grade",
-                label: "Latest grade",
+                label: ui("Latest grade"),
                 align: "center",
                 render: (st: any) => {
                   const report = st.reportCards?.[0];
@@ -246,41 +254,45 @@ export default function TeacherStudentsPage() {
                   ) : (
                     <span className="text-xs text-ink-subtle">
                       <span aria-hidden="true">—</span>
-                      <span className="sr-only">No grade yet</span>
+                      <span className="sr-only">{ui("No grade yet")}</span>
                     </span>
                   );
                 },
               },
               {
                 key: "today",
-                label: "Today",
+                label: ui("Today"),
                 align: "center",
                 render: (st: any) => <TodayChip status={st.todayAttendance} />,
               },
               {
                 key: "guardian",
-                label: "Guardian",
+                label: ui("Guardian"),
                 secondary: true,
                 render: (st: any) => (
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-ink">{st.guardianName || "Not linked"}</p>
-                    {/* A phone number on a screen a teacher uses on a phone
-                        should dial. Printing it as inert text meant copying it
-                        out by hand every time a guardian had to be called. */}
+                    <p className="truncate text-sm font-medium text-ink"><bdi>{st.guardianName || ui("Not linked")}</bdi></p>
                     {st.guardianPhone ? (
-                      <Tooltip content={`Call ${st.guardianName || "guardian"}`}>
-                        <a
-                          href={`tel:${String(st.guardianPhone).replace(/\s+/g, "")}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex max-w-full items-center gap-1 truncate text-xs font-semibold text-primary hover:underline"
-                        >
-                          <Phone aria-hidden="true" className="h-3 w-3 shrink-0" />
-                          <span dir="ltr" className="truncate tabular-nums">{st.guardianPhone}</span>
-                        </a>
-                      </Tooltip>
+                      <p className="truncate text-xs text-ink-subtle"><bdi dir="ltr" className="tabular-nums">{st.guardianPhone}</bdi></p>
                     ) : (
-                      <p className="truncate text-xs text-ink-subtle">No phone</p>
+                      <p className="truncate text-xs text-ink-subtle">{ui("No phone")}</p>
                     )}
+                  </div>
+                ),
+              },
+              {
+                /* §4.4b teacher · Students: one inline row action — a message on the school record (D6) — and the
+                   rest (a call, the report card, the register) in the row overflow, as on the cards (§4.5.2). */
+                key: "actions",
+                label: ui("Actions"),
+                align: "end",
+                render: (st: any) => (
+                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <Link href="/messages" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                      <MessageCircle aria-hidden="true" />
+                      {ui("Message guardian")}
+                    </Link>
+                    <StudentRowMenu student={st} />
                   </div>
                 ),
               },
@@ -291,10 +303,6 @@ export default function TeacherStudentsPage() {
             {filtered.map((student: any) => {
               const report = student.reportCards?.[0];
               const avatar = student.profileImageUrl;
-              const phone = student.guardianPhone ? String(student.guardianPhone).replace(/\s+/g, "") : "";
-              const whatsapp = student.guardianWhatsapp
-                ? String(student.guardianWhatsapp).replace(/[^\d+]/g, "")
-                : phone;
               return (
                 /* The card was one big <button>, so nothing inside it could be a
                    control of its own — calling a guardian or opening a report
@@ -315,11 +323,11 @@ export default function TeacherStudentsPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate text-base font-bold text-ink-strong transition-colors group-hover:text-primary">
-                          {student.fullName}
+                          <bdi>{student.fullName}</bdi>
                         </h3>
                         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                           <span className="text-xs text-ink-subtle tabular-nums">
-                            {student.rollNo || "No roll"}
+                            {student.rollNo || ui("No roll number")}
                           </span>
                           <span aria-hidden="true" className="text-xs text-ink-faint">|</span>
                           <span className="truncate text-xs font-semibold text-primary">
@@ -334,25 +342,25 @@ export default function TeacherStudentsPage() {
 
                     <div className="mb-4 grid grid-cols-2 gap-2">
                       <div className="rounded-xl bg-brand-50/70 px-3 py-2">
-                        <p className="sk-eyebrow">Latest grade</p>
+                        <p className="sk-eyebrow">{ui("Latest grade")}</p>
                         <p data-numeric className="text-sm font-bold tabular-nums text-primary">
                           {report ? report.grade || `${Math.round(report.percentage || 0)}%` : "—"}
                         </p>
                       </div>
                       <div className="rounded-xl bg-brand-50/70 px-3 py-2">
-                        <p className="sk-eyebrow">Status</p>
+                        <p className="sk-eyebrow">{ui("Status")}</p>
                         {/* Stored casing varies ("active" / "ACTIVE"), which
                             rendered raw as lowercase text among title-cased UI. */}
-                        <p className={`text-sm font-bold capitalize ${(student.status || "").toUpperCase() === "ACTIVE" ? "text-emerald-700" : "text-ink-subtle"}`}>
-                          {(student.status || "Active").toLowerCase()}
+                        <p className={`text-sm font-bold ${(student.status || "ACTIVE").toUpperCase() === "ACTIVE" ? "text-status-success-text" : "text-ink-subtle"}`}>
+                          {(student.status || "ACTIVE").toUpperCase() === "ACTIVE" ? ui("Active") : ui("Inactive")}
                         </p>
                       </div>
                     </div>
 
                     {student.guardianName ? (
                       <div className="rounded-xl bg-muted/50 px-3 py-2">
-                        <p className="sk-eyebrow mb-1">Guardian</p>
-                        <p className="truncate text-sm font-medium text-ink-strong">{student.guardianName}</p>
+                        <p className="sk-eyebrow mb-1">{ui("Guardian")}</p>
+                        <p className="truncate text-sm font-medium text-ink-strong"><bdi>{student.guardianName}</bdi></p>
                         {student.guardianPhone ? (
                           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-ink-subtle">
                             <Phone aria-hidden="true" className="h-3 w-3 shrink-0" />
@@ -363,75 +371,14 @@ export default function TeacherStudentsPage() {
                     ) : null}
                   </Button>
 
-                  {/* Everything a teacher actually does next, without leaving: four
-                      equal tiles, links and buttons alike. A missing number
-                      disables its tile and the tooltip says why. */}
-                  <div className="mt-4 grid grid-cols-4 gap-1.5 border-t border-edge/15 pt-3">
-                    {phone ? (
-                      <Tooltip content={`Call ${student.guardianName || "guardian"}`}>
-                        <a href={`tel:${phone}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), ACTION_TILE)}>
-                          <Phone aria-hidden="true" />
-                          Call
-                        </a>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip content="No guardian phone on file">
-                        <span tabIndex={0} className="flex min-w-0">
-                          <Button size="sm" variant="secondary" type="button" disabled className={cn("w-full", ACTION_TILE)}>
-                            <Phone aria-hidden="true" />
-                            Call
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    )}
-                    {whatsapp ? (
-                      <Tooltip content={`Message ${student.guardianName || "guardian"} on WhatsApp`}>
-                        <a
-                          href={`https://wa.me/${whatsapp.replace(/^\+/, "")}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), ACTION_TILE)}
-                        >
-                          <MessageCircle aria-hidden="true" />
-                          Chat
-                        </a>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip content="No guardian number on file">
-                        <span tabIndex={0} className="flex min-w-0">
-                          <Button size="sm" variant="secondary" type="button" disabled className={cn("w-full", ACTION_TILE)}>
-                            <MessageCircle aria-hidden="true" />
-                            Chat
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    )}
-                    <Tooltip content={`Open ${student.fullName}'s report card`}>
-                      <Button size="sm" variant="secondary"
-                        type="button"
-                        onClick={() =>
-                          router.push(
-                            `/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${encodeURIComponent(student.class?.id || "")}`,
-                          )
-                        }
-                        className={ACTION_TILE}
-                      >
-                        <FileText aria-hidden="true" />
-                        Report
-                      </Button>
-                    </Tooltip>
-                    <Tooltip content={`Mark attendance for ${classLabel(student.class)}`}>
-                      <Button size="sm" variant="secondary"
-                        type="button"
-                        onClick={() =>
-                          router.push(`/teacher/attendance?classId=${encodeURIComponent(student.class?.id || "")}`)
-                        }
-                        className={ACTION_TILE}
-                      >
-                        <CalendarCheck aria-hidden="true" />
-                        Attend
-                      </Button>
-                    </Tooltip>
+                  {/* One inline action — a message on the school record (D6) — and the rest in the
+                      row overflow: a call, the report card and the register (§4.5.2). */}
+                  <div className="mt-4 flex items-center gap-2 border-t border-border-subtle pt-3">
+                    <Link href="/messages" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1")}>
+                      <MessageCircle aria-hidden="true" />
+                      {ui("Message guardian")}
+                    </Link>
+                    <StudentRowMenu student={student} />
                   </div>
                 </div>
               );
@@ -443,11 +390,11 @@ export default function TeacherStudentsPage() {
                 clear it leaves them to hunt for the two controls themselves. */}
             <EmptyState
               icon={Users}
-              title="No students found"
-              description={search || classFilter || todayFilter ? "Try adjusting your search or filter" : "No students are assigned to your classes yet"}
+              title={ui("No pupils found")}
+              description={search || classFilter || todayFilter ? ui("Try adjusting your search or filter.") : ui("No pupils are assigned to your classes yet.")}
               action={search || classFilter || todayFilter ? (
                 <Button variant="secondary" type="button" onClick={() => { setSearch(""); setClassFilter(""); setTodayFilter(""); }}>
-                  <X aria-hidden="true" /> Clear filters
+                  <X aria-hidden="true" /> {ui("Clear filters")}
                 </Button>
               ) : undefined}
             />
@@ -463,34 +410,71 @@ export default function TeacherStudentsPage() {
           onClose={() => setSelectedStudent(null)}
         />
       ) : null}
-      <PathwayPanel />
+      {/* M65: the support plans teachers propose for their pupils live with the pupils. */}
+      <section aria-label={ui("Learning actions")} className="mt-6">
+        <LearningActions />
+      </section>
+      <div className="mt-6"><PathwayPanel /></div>
     </TeacherPage>
   );
 }
 
 
-/** The footer action tiles on a student card: icon over a short label. */
-const ACTION_TILE = "min-w-0 flex-col gap-1 px-1 py-2 text-xs";
-
-/** Today's attendance, rendered where the teacher is already looking. */
+/**
+ * Today's attendance, rendered where the teacher is already looking. Every register status has its own word
+ * (late, part day and excused days are not "Unmarked").
+ */
 const TODAY_TONE: Record<string, { label: string; variant: NonNullable<BadgeProps["variant"]> }> = {
   PRESENT: { label: "In today", variant: "success" },
+  LATE: { label: "Late today", variant: "warning" },
+  PARTIAL: { label: "Part day", variant: "info" },
   ABSENT: { label: "Absent today", variant: "danger" },
+  EXCUSED: { label: "Excused absence", variant: "info" },
   LEAVE: { label: "On leave", variant: "warning" },
 };
 
-function TodayChip({ status }: { status?: string | null }) {
+/** The filter chip a status counts under: in school (present, late, part day), absent, away with leave, unmarked. */
+function todayBucket(status?: string | null): "PRESENT" | "ABSENT" | "LEAVE" | "UNMARKED" {
+  if (status === "PRESENT" || status === "LATE" || status === "PARTIAL") return "PRESENT";
+  if (status === "ABSENT") return "ABSENT";
+  if (status === "LEAVE" || status === "EXCUSED") return "LEAVE";
+  return "UNMARKED";
+}
+
+function todayLabel(ui: (key: string, values?: unknown[]) => string, status?: string | null) {
   const tone = status ? TODAY_TONE[status] : null;
-  if (!tone) {
-    return (
-      <Badge variant="neutral" dot>
-        Unmarked
-      </Badge>
-    );
-  }
+  return tone ? ui(tone.label) : ui("Unmarked");
+}
+
+function TodayChip({ status }: { status?: string | null }) {
+  const ui = useUiText();
+  const tone = status ? TODAY_TONE[status] : null;
   return (
-    <Badge variant={tone.variant} dot>
-      {tone.label}
+    <Badge variant={tone?.variant ?? "neutral"} dot>
+      {todayLabel(ui, status)}
     </Badge>
+  );
+}
+
+/** The row overflow for one pupil: call the guardian (tel:), the report card and the register — each only when offered. */
+function StudentRowMenu({ student }: { student: any }) {
+  const ui = useUiText();
+  const router = useRouter();
+  const access = useConsoleAccess();
+  const phone = student.guardianPhone ? String(student.guardianPhone).replace(/\s+/g, "") : "";
+  const classId = encodeURIComponent(student.class?.id || "");
+  const items = [
+    ...(phone ? [{ id: "call", label: "Call guardian", icon: Phone, href: `tel:${phone}` }] : []),
+    ...(access.leafVisible("teacher", "report-cards") ? [{ id: "report", label: "Report card", icon: FileText, onSelect: () => router.push(`/teacher/reports?studentId=${encodeURIComponent(student.id)}&classId=${classId}`) }] : []),
+    ...(access.leafVisible("teacher", "attendance") ? [{ id: "attendance", label: "Attendance", icon: CalendarCheck, onSelect: () => router.push(`/teacher/attendance?classId=${classId}`) }] : []),
+  ];
+  if (!items.length) return null;
+  return (
+    <Menu
+      label="More actions"
+      align="end"
+      trigger={<IconButton size="sm" variant="ghost" label={ui("More actions for {0}", [student.fullName])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+      items={items}
+    />
   );
 }

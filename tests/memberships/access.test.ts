@@ -46,9 +46,17 @@ for(const role of INVITABLE_ROLES) test(`${role}: actual invitation acceptance, 
  await assert.rejects(()=>runWithTenantContext({schoolId:school},()=>assertInitialInstitutionSetup({...actor,onboardingComplete:false})));
  const status=await request(account.id,'/api/auth/session');assert.equal(status.status,200,await status.text());
  const setup=await request(account.id,'/onboarding');assert.equal(setup.status,307);assert.ok(setup.headers.get('location')?.endsWith(ROLE_DASHBOARD_PATHS[role]));
+ // G10/G44: /subscription → /billing; a family is sent home by the proxy; a staff non-payer sees who manages it.
+ const family=role==='PARENT'||role==='STUDENT';
  const workspace=await request(account.id,'/subscription');
- if(workspace.status===307) assert.ok(workspace.headers.get('location')?.endsWith('/403'));
- else assert.match(await workspace.text(), /NEXT_REDIRECT;replace;\/403|url=\/403/);
+ const target=family?ROLE_DASHBOARD_PATHS[role]:'/billing';
+ if(workspace.status===307) assert.ok(workspace.headers.get('location')?.endsWith(target),`${role}: ${workspace.headers.get('location')}`);
+ else assert.match(await workspace.text(), new RegExp(`NEXT_REDIRECT;replace;${target.replace('/','\\/')}|url=${target.replace('/','\\/')}`));
+ if(!family){
+  const hub=await request(account.id,'/billing');assert.equal(hub.status,200,`${role}: /billing renders the managed-by notice`);
+  assert.doesNotMatch(await hub.text(),new RegExp(`${owner}@example`),'never the payer\'s email');
+  assert.equal((await request(account.id,'/api/billing')).status,403,`${role}: no subscription snapshot`);
+ }
  const purchase=await request(account.id,'/api/stripe/checkout',{plan:'PRO',billingPeriod:'monthly'});assert.equal(purchase.status,403,await purchase.text());
  const replay=acceptInvite(tokens.get(role)!, 'Synthetic219Password');await assert.rejects(()=>replay);
 });
@@ -73,9 +81,12 @@ test('expired and cancelled links cannot create accounts or disclose scope',asyn
   const response=await fetch(`http://127.0.0.1:3219/api/invite/status?token=${token}`);const result=await response.json();assert.equal(result.status,status);assert.equal(result.institutionName,undefined);
  }
 });
-test('owner invitation creation uses explicit delegation; student administrative delegation is rejected',async()=> {
- const response=await request(owner,'/api/staff',{email:`new-${school}@example.invalid`,role:'ACCOUNTANT',campusId:campus,canPurchaseSubscription:true});assert.equal(response.status,201,await response.text());
- const row=await raw.staffInvitation.findFirstOrThrow({where:{email:`new-${school}@example.invalid`}});assert.equal(row.canPurchaseSubscription,true);assert.equal(row.canManageMemberships,false);
+test('purchasing is never delegated through an invitation (G7); plain invitations work; student delegation is rejected',async()=> {
+ const refused=await request(owner,'/api/staff',{email:`new-${school}@example.invalid`,role:'ACCOUNTANT',campusId:campus,canPurchaseSubscription:true});assert.equal(refused.status,400,await refused.clone().text());
+ assert.equal((await refused.json()).error,'Subscription purchasing can only be shared with another group admin, from People & access.');
+ assert.equal(await raw.staffInvitation.count({where:{email:`new-${school}@example.invalid`}}),0,'nothing is saved');
+ const response=await request(owner,'/api/staff',{email:`new-${school}@example.invalid`,role:'ACCOUNTANT',campusId:campus});assert.equal(response.status,201,await response.text());
+ const row=await raw.staffInvitation.findFirstOrThrow({where:{email:`new-${school}@example.invalid`}});assert.equal(row.canPurchaseSubscription,false);assert.equal(row.canManageMemberships,false);
  const forbidden=await request(owner,'/api/staff',{email:`student-${school}@example.invalid`,role:'STUDENT',campusId:campus,canPurchaseSubscription:true});assert.equal(forbidden.status,400);
 });
 test('rank changes do not alter permissions; owner records cannot be reassigned',async()=> {
@@ -114,9 +125,33 @@ test('multiple memberships require explicit password-verified institution select
  const selected=await login({email,password,schoolId:foreign});assert.equal(selected.status,200);assert.equal((await selected.json()).user.schoolId,foreign);
  const invalid=await login({email,password,schoolId:randomUUID()});assert.equal(invalid.status,401);
 });
-test('purchasing delegation grants only explicit purchasing workspace, not tuition data',async()=> {
+test('purchasing is delegated only to another group admin (G7/G7b); a teacher can never pay or read the subscription',async()=> {
  const id=accepted.get('TEACHER')!;
- const change=await request(owner,'/api/memberships',{userId:id,role:'TEACHER',campusId:second,canPurchaseSubscription:true,canManageMemberships:false,isActive:true,expectedVersion:1,reviewed:true},'PUT');assert.equal(change.status,200,await change.text());
- const workspace=await request(id,'/subscription');assert.equal(workspace.status,200);
- const billing=await request(id,'/api/billing');assert.equal(billing.status,200);const result=await billing.json();assert.equal(result.billing.canPurchaseSubscription,true);assert.deepEqual(result.feeStructures,[]);
+ const change=await request(owner,'/api/memberships',{userId:id,role:'TEACHER',campusId:second,canPurchaseSubscription:true,canManageMemberships:false,isActive:true,expectedVersion:1,reviewed:true},'PUT');assert.equal(change.status,400,await change.clone().text());
+ assert.equal((await change.json()).error,'Subscription purchasing can only be shared with another group admin, from People & access.');
+ assert.equal((await raw.user.findUniqueOrThrow({where:{id}})).canPurchaseSubscription,false);
+ assert.equal((await request(id,'/api/billing')).status,403,'no subscription snapshot for a teacher');
+ const promote=await request(owner,'/api/memberships',{userId:id,role:'SUPER_ADMIN',campusId:second,canPurchaseSubscription:false,canManageMemberships:false,isActive:true,expectedVersion:1,reviewed:true},'PUT');assert.equal(promote.status,400,'no role change to group admin from People & access');
+ // Another group admin: a flag-only change. Role and campus are repeated as stored (G7b): a group admin's campus is null.
+ const deputy=randomUUID();
+ await raw.user.create({data:{id:deputy,schoolId:school,campusId:null,email:`deputy-${school}@example.invalid`,fullName:'Synthetic second group admin',role:'SUPER_ADMIN',onboardingComplete:true}});
+ assert.equal((await request(deputy,'/api/billing')).status,403,'a flagless group admin does not pay');
+ const moved=await request(owner,'/api/memberships',{userId:deputy,role:'SUPER_ADMIN',campusId:campus,canPurchaseSubscription:true,canManageMemberships:false,isActive:true,expectedVersion:0,reviewed:true},'PUT');assert.equal(moved.status,403,'a group admin is never pinned to a campus here');
+ const grant=await request(owner,'/api/memberships',{userId:deputy,role:'SUPER_ADMIN',campusId:null,canPurchaseSubscription:true,canManageMemberships:false,isActive:true,expectedVersion:0,reviewed:true},'PUT');assert.equal(grant.status,200,await grant.text());
+ const stored=await raw.user.findUniqueOrThrow({where:{id:deputy}});assert.deepEqual([stored.role,stored.campusId,stored.canPurchaseSubscription],['SUPER_ADMIN',null,true]);
+ const snapshot=await request(deputy,'/api/billing');assert.equal(snapshot.status,200,await snapshot.clone().text());assert.equal((await snapshot.json()).billing.canPurchaseSubscription,true);
+ const hub=await request(deputy,'/billing');
+ if(hub.status===307) assert.ok(hub.headers.get('location')?.endsWith('/super?view=billing'),'the payer lands on their own Billing & plan');
+ else assert.match(await hub.text(),/NEXT_REDIRECT;replace;\/super\?view=billing|url=\/super\?view=billing/);
+});
+test('turning a delegation on needs two-step sign-in, and the refusal says so with a code (F28)',async()=> {
+ const id=accepted.get('ACCOUNTANT')!;
+ const user=await raw.user.findUniqueOrThrow({where:{id}});
+ // A group admin who deferred enrolment (no factor yet): plain staffing works, turning a delegation on does not.
+ const deferred=randomUUID();
+ await raw.user.create({data:{id:deferred,schoolId:school,campusId:null,email:`deferred-${school}@example.invalid`,fullName:'Synthetic deferred group admin',role:'SUPER_ADMIN',onboardingComplete:true}});
+ const token=await new SignJWT({mfaVerified:'deferred',userId:deferred,schoolId:school,campusId:null,role:'SUPER_ADMIN',onboardingComplete:true,accessVersion:0}).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime('1h').sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+ await raw.loginSession.create({data:{schoolId:school,userId:deferred,tokenHash:hashSessionToken(token),expiresAt:new Date(Date.now()+3600_000)}});
+ const response=await fetch('http://127.0.0.1:3219/api/memberships',{method:'PUT',redirect:'manual',headers:{cookie:`skoolee_token=${token}`,'content-type':'application/json'},body:JSON.stringify({userId:id,role:'ACCOUNTANT',campusId:user.campusId,canPurchaseSubscription:false,canManageMemberships:true,isActive:true,expectedVersion:user.accessVersion,reviewed:true})});
+ assert.equal(response.status,403);assert.deepEqual(await response.json(),{error:'Turn on two-step sign-in before you delegate purchasing or membership management.',code:'MFA_REQUIRED'});
 });

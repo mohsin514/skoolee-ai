@@ -8,7 +8,7 @@ import { getDisplayLocale } from "@/lib/locale/display";
 // anyone with several tabs open tell these dashboards apart. The root layout
 // supplies the "%s | SkooleeAI" template.
 export const metadata: Metadata = {
-  title: "Receptionist",
+  title: "Front desk",
 };
 
 export default async function ReceptionistLayout({ children }: { children: React.ReactNode }) {

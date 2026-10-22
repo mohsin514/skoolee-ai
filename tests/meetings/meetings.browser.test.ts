@@ -221,7 +221,7 @@ test("screens: family booking with both clocks (EN, mobile, Arabic) and the teac
   const teacher = await context("teacher");
   await call(teacher, "post", "/api/meetings", { action: "window", localDate: D2, startTime: "16:00", endTime: "16:45", slotMinutes: 15, mode: "EITHER", location: "Room 4", cancellationPolicy: policy });
   const ctx = await context("parentS", { timezoneId: "Europe/London" }), page = await ctx.newPage();
-  await page.goto(`${base}/parent/timetable`);
+  await page.goto(`${base}/parent/meetings`);
   await page.locator("[data-family-meetings] [data-meeting-slot]").first().waitFor();
   await page.locator("[data-family-meetings]").scrollIntoViewIfNeeded();
   await shot(page, "01-family-slots-en");
@@ -231,14 +231,14 @@ test("screens: family booking with both clocks (EN, mobile, Arabic) and the teac
   await shot(page, "02-family-review-en");
   await page.close();
   const mobile = await (await context("parentS", { viewport: { width: 390, height: 844 } })).newPage();
-  await mobile.goto(`${base}/parent/timetable`);
+  await mobile.goto(`${base}/parent/meetings`);
   await mobile.locator("[data-family-meetings] [data-meeting-conflict]").first().waitFor();
   await mobile.locator("[data-family-meetings]").scrollIntoViewIfNeeded();
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, "no sideways scroll at phone width");
   await shot(mobile, "03-family-needs-new-time-mobile");
   await mobile.close();
   const ar = await (await context("parent-ar")).newPage();
-  await ar.goto(`${base}/parent/timetable`);
+  await ar.goto(`${base}/parent/meetings`);
   await ar.locator("[data-family-meetings] [data-meeting-slot]").first().waitFor();
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
   await ar.locator("[data-family-meetings]").scrollIntoViewIfNeeded();

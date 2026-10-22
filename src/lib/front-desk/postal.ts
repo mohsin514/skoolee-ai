@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { deliverNotification } from "@/lib/notifications/in-app";
+import { ownerCandidates } from "./phone-calls";
 
 // SKO-464: the postal and courier register. An item is tracked to a handoff, not to a log entry:
 // incoming items go RECEIVED → ASSIGNED → COLLECTED, outgoing PREPARED → DISPATCHED → DELIVERED, and
@@ -13,7 +14,9 @@ import { deliverNotification } from "@/lib/notifications/in-app";
 // a tracking number alone is never delivery. Corrections keep the values they replaced; nothing is deleted.
 
 export const CLOSED = ["COLLECTED", "DELIVERED"];
-const OWNER_ROLES = ["SUPER_ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "RECEPTIONIST"];
+// role-ux G40 / C29: the front desk and the campus admins own front-office work. The principal (academic) and the
+// super admin (governance) are never owners, and ADMIN — the campus operator of a single school — is.
+export const OWNER_ROLES = ["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const CORRECTABLE = ["fromName", "toName", "courier", "referenceNo", "note", "handedTo"] as const;
 const LIMITS: Record<(typeof CORRECTABLE)[number], number> = { fromName: 120, toName: 120, courier: 60, referenceNo: 80, note: 500, handedTo: 120 };
@@ -42,7 +45,7 @@ const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(valu
 const comparable = (reference: string) => reference.replace(/[\s-]/g, "").toLowerCase();
 
 async function validOwner(db: TxClient, user: AuthUser, campusId: string, ownerId: string) {
-  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: OWNER_ROLES as never[] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
+  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: OWNER_ROLES as never[] }, campusId }, select: { id: true } });
   if (!owner) throw new ApiError("Choose an active front-desk or leadership colleague in this campus as the owner.", 400);
 }
 
@@ -183,6 +186,8 @@ export async function listItems(user: AuthUser, campusId: string, filters: { vie
     prisma.postalRecord.findMany({ where: { campusId, schoolId: user.schoolId, status: { notIn: CLOSED } }, select: { direction: true, status: true, ownerId: true } }),
   ]);
   return {
+    // Owner candidates for the pickers (G40): campus admins and receptionists of this campus.
+    owners: await ownerCandidates(user, campusId),
     data: rows.map(({ requestHash: _hash, idempotencyKey: _key, fileKey: _file, ...row }) => row),
     counts: {
       awaitingCollection: active.filter(row => row.direction === "RECEIVE").length,

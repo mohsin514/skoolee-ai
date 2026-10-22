@@ -9,6 +9,8 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOverlayMessages } from "@/hooks/use-overlay-messages";
 import { ModalSurface, useModalSurface, type ModalSize } from "./modal";
+import { Button } from "./button";
+import { IconButton } from "./icon-button";
 
 /**
  * The trigger/content compound API, for the handful of screens written against
@@ -21,7 +23,10 @@ import { ModalSurface, useModalSurface, type ModalSize } from "./modal";
  * — under the account dropdowns, which sit at `z-[999]`.
  *
  * `Modal` is the better starting point for anything new; this stays for the
- * call sites that compose their own header.
+ * call sites that compose their own header. It is a thin adapter: every part
+ * below renders on `ModalSurface` (the same shell `Modal` uses) and on the
+ * shared `Button`, so it cannot drift from the one dialog API (§8.1 R2). New
+ * imports of `DialogContent` are counted by the check:ui ratchet.
  */
 
 interface DialogContextType {
@@ -73,12 +78,13 @@ function DialogTrigger({
   }
 
   return (
-    <button type="button" onClick={() => setOpen(true)}>
+    <Button type="button" variant="outline" onClick={() => setOpen(true)}>
       {children}
-    </button>
+    </Button>
   );
 }
 
+/** @deprecated Use `Modal` (or `ModalSurface` for a custom sheet). Kept as an adapter for existing call sites. */
 function DialogContent({
   children,
   className,
@@ -132,15 +138,16 @@ function DialogBody({ children }: { children: React.ReactNode }) {
         <div className="mx-auto h-1.5 w-11 rounded-full bg-ink-strong/15" aria-hidden />
       </div>
 
-      <button
-        type="button"
-        className="absolute end-4 top-4 z-20 rounded-xl p-2 text-ink-subtle transition-all hover:bg-brand-50 hover:text-primary"
+      <IconButton
+        label={copy.close}
+        tooltip={copy.closeEscape}
+        size="sm"
+        className="absolute end-4 top-4 z-20 text-ink-subtle"
         onClick={requestClose}
         disabled={!dismissible}
       >
-        <X className="h-4 w-4" />
-        <span className="sr-only">{copy.close}</span>
-      </button>
+        <X aria-hidden="true" />
+      </IconButton>
 
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-6">
         {children}
@@ -168,9 +175,9 @@ function DialogClose({
   }
 
   return (
-    <button type="button" onClick={close} disabled={!dismissible}>
+    <Button type="button" variant="outline" onClick={close} disabled={!dismissible}>
       {children}
-    </button>
+    </Button>
   );
 }
 

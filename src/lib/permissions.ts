@@ -56,7 +56,12 @@ const DEFAULT_MATRIX: Record<PermissionModule, PermissionFlags> = {
   dormitory: { canView: true, canAdd: true, canEdit: true, canDelete: true },
 };
 
-export const DEFAULT_PERMISSIONS: Record<UserRole, Record<PermissionModule, PermissionFlags>> = {
+/**
+ * Role defaults as shipped until the role-ux cut-over (§7.4), kept verbatim. A stored `role_permissions` row whose
+ * four flags equal this table and that was last written before `ROLE_DEFAULTS_V2_EFFECTIVE` is a seeded copy of
+ * the old default, not a decision anyone made, so `moduleFlags` answers with the V2 default instead.
+ */
+export const LEGACY_DEFAULT_PERMISSIONS_V1: Record<UserRole, Record<PermissionModule, PermissionFlags>> = {
   APP_OWNER: DEFAULT_MATRIX,
   SUPER_ADMIN: DEFAULT_MATRIX,
   CAMPUS_ADMIN: DEFAULT_MATRIX,
@@ -180,6 +185,103 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, Record<PermissionModule, Perm
   },
 };
 
+/**
+ * Role defaults (V2, §7.4): each seat starts with the modules its console uses. PRINCIPAL is academic (no fees,
+ * payroll, admissions, accounts, library, front desk or campus logistics); ACCOUNTANT owns payroll preparation;
+ * RECEPTIONIST owns admissions intake and has no fee counter (D12); LIBRARIAN applies for leave like other staff.
+ * CAMPUS_ADMIN/ADMIN keep the full matrix; APP_OWNER/SUPER_ADMIN are fixed. Authorities may still grant more
+ * through the permissions editor — a row saved after the cut-over is honoured as is (D13).
+ */
+export const DEFAULT_PERMISSIONS: Record<UserRole, Record<PermissionModule, PermissionFlags>> = {
+  APP_OWNER: DEFAULT_MATRIX,
+  SUPER_ADMIN: DEFAULT_MATRIX,
+  CAMPUS_ADMIN: DEFAULT_MATRIX,
+  ADMIN: DEFAULT_MATRIX,
+  PRINCIPAL: {
+    students: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    fees: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    payroll: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    leave: { canView: true, canAdd: true, canEdit: true, canDelete: false },
+    attendance: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    timetable: { canView: true, canAdd: true, canEdit: true, canDelete: true },
+    exams: { canView: true, canAdd: true, canEdit: true, canDelete: true },
+    reports: { canView: true, canAdd: true, canEdit: true, canDelete: true },
+    staff: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    admissions: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    accounts: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    ai: { canView: true, canAdd: true, canEdit: true, canDelete: false },
+    library: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    "front-desk": { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    transport: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    inventory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    dormitory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+  },
+  TEACHER: LEGACY_DEFAULT_PERMISSIONS_V1.TEACHER,
+  PARENT: LEGACY_DEFAULT_PERMISSIONS_V1.PARENT,
+  STUDENT: LEGACY_DEFAULT_PERMISSIONS_V1.STUDENT,
+  ACCOUNTANT: {
+    students: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    fees: { canView: true, canAdd: true, canEdit: true, canDelete: false },
+    payroll: { canView: true, canAdd: true, canEdit: false, canDelete: false },
+    leave: { canView: true, canAdd: true, canEdit: false, canDelete: false },
+    attendance: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    timetable: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    exams: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    reports: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    staff: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    admissions: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    accounts: { canView: true, canAdd: true, canEdit: true, canDelete: false },
+    ai: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    library: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    "front-desk": { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    transport: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    inventory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    dormitory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+  },
+  LIBRARIAN: {
+    students: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    fees: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    payroll: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    leave: { canView: true, canAdd: true, canEdit: false, canDelete: false },
+    attendance: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    timetable: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    exams: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    reports: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    staff: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    admissions: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    accounts: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    ai: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    library: { canView: true, canAdd: true, canEdit: true, canDelete: true },
+    "front-desk": { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    transport: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    inventory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    dormitory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+  },
+  RECEPTIONIST: {
+    students: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    fees: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    payroll: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    leave: { canView: true, canAdd: true, canEdit: false, canDelete: false },
+    attendance: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    timetable: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    exams: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    reports: { canView: true, canAdd: false, canEdit: false, canDelete: false },
+    staff: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    admissions: { canView: true, canAdd: true, canEdit: true, canDelete: false },
+    accounts: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    ai: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    library: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    "front-desk": { canView: true, canAdd: true, canEdit: true, canDelete: true },
+    transport: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    inventory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+    dormitory: { canView: false, canAdd: false, canEdit: false, canDelete: false },
+  },
+};
+
+/** Rows last written before this instant that still equal the V1 default follow the V2 default (§7.4).
+ *  The orchestrator sets the real deploy date at integration. */
+export const ROLE_DEFAULTS_V2_EFFECTIVE = new Date("2026-10-26T00:00:00.000Z");
+
 export function isFixedPermissionRole(role: UserRole | string | null | undefined) {
   return role === "APP_OWNER" || role === "SUPER_ADMIN";
 }
@@ -192,14 +294,32 @@ export function defaultFlagsForRole(role: UserRole | string | null | undefined, 
   return flags ?? { canView: false, canAdd: false, canEdit: false, canDelete: false };
 }
 
-export function moduleFlags(overrides: { module: string; canView: boolean; canAdd: boolean; canEdit: boolean; canDelete: boolean }[] | null | undefined, role: string, module: string): PermissionFlags {
+export type PermissionRow = { module: string; canView: boolean; canAdd: boolean; canEdit: boolean; canDelete: boolean; updatedAt?: Date | null };
+
+function sameFlags(a: PermissionFlags, b: PermissionFlags) {
+  return a.canView === b.canView && a.canAdd === b.canAdd && a.canEdit === b.canEdit && a.canDelete === b.canDelete;
+}
+
+/**
+ * Code-level cut-over (§7.4, no data rewrite): a stored row is "not customised" when its four flags equal the V1
+ * default for that role and module and it was last written before `ROLE_DEFAULTS_V2_EFFECTIVE` (or the caller did
+ * not select `updatedAt`). Such a row is a seeded copy of the old default, so the V2 default applies.
+ */
+export function isLegacyDefaultRow(row: PermissionRow, role: string, module: string): boolean {
+  if (!Object.hasOwn(LEGACY_DEFAULT_PERMISSIONS_V1, role)) return false;
+  const legacy = LEGACY_DEFAULT_PERMISSIONS_V1[role as UserRole][module as PermissionModule];
+  if (!legacy || !sameFlags(row, legacy)) return false;
+  const written = row.updatedAt instanceof Date ? row.updatedAt.getTime() : Number.NaN;
+  return Number.isNaN(written) || written < ROLE_DEFAULTS_V2_EFFECTIVE.getTime();
+}
+
+export function moduleFlags(overrides: PermissionRow[] | null | undefined, role: string, module: string): PermissionFlags {
   if (!Object.hasOwn(DEFAULT_PERMISSIONS, role) || !(PERMISSION_MODULES as readonly string[]).includes(module)) return { canView: false, canAdd: false, canEdit: false, canDelete: false };
   if (isFixedPermissionRole(role)) return { canView: true, canAdd: true, canEdit: true, canDelete: true };
   const override = overrides?.find((o) => o.module === module);
   const base = defaultFlagsForRole(role, module);
-  return override
-    ? { canView: override.canView, canAdd: override.canAdd, canEdit: override.canEdit, canDelete: override.canDelete }
-    : base;
+  if (!override || isLegacyDefaultRow(override, role, module)) return base;
+  return { canView: override.canView, canAdd: override.canAdd, canEdit: override.canEdit, canDelete: override.canDelete };
 }
 
 // ────────────────────────────────────────────────────────────
@@ -213,7 +333,7 @@ export async function loadPermissionMap(schoolId: string, role: string, db: Perm
     if (!Object.hasOwn(DEFAULT_PERMISSIONS, role)) return new Map(PERMISSION_MODULES.map(module => [module, defaultFlagsForRole(null, module)]));
     const rows = await db.rolePermission.findMany({
       where: { schoolId, role: role as UserRole },
-      select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true },
+      select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true, updatedAt: true },
     });
     const map = new Map<string, PermissionFlags>();
     for (const mod of PERMISSION_MODULES) {

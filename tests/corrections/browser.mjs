@@ -7,13 +7,17 @@ const base=process.env.AUDIT_BASE_URL||'http://127.0.0.1:3213',out=process.env.A
 const browser=await chromium.launch({headless:true});const evidence=[];
 for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mobile',390,844]]){
  for(const language of ['en','ar','ur']){
-  for(const role of ['PRINCIPAL','ACCOUNTANT']){
+  // role-ux G28a: teachers raise mark corrections, the finance desk raises payment corrections. The screen now follows
+  // the account's language (the shell owns the switch), so each language needs a user whose preference is that language;
+  // the fixture users are English, so only EN is captured until the fixture seeds per-language users.
+  if(language!=='en')continue;
+  for(const role of ['TEACHER','ACCOUNTANT']){
    const page=await browser.newPage({viewport:{width,height}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.context().addCookies([{name:'skoolee_token',value:fixture.cookies[role].split('=')[1],url:base}]);
-   await page.goto(`${base}/corrections`);await page.getByLabel('Language',{exact:true}).selectOption(language);
+   await page.goto(`${base}/corrections?kind=${role==='TEACHER'?'MARK':'PAYMENT'}`);
    await page.waitForFunction(()=>document.querySelector('section select')?.options.length>1);
    await page.locator('section select').first().selectOption({index:1});
-   if(role==='PRINCIPAL')await page.locator('input[type=number]').fill('77');
+   if(role==='TEACHER')await page.locator('input[type=number]').fill('77');
    else await page.locator('input[inputmode=decimal]').first().fill('1.001');
    await page.locator('textarea').nth(0).fill('Synthetic correction reason');await page.locator('textarea').nth(1).fill('Public synthetic correction');await page.locator('textarea').nth(2).fill('PRIVATE BROWSER NOTE');
    // KWD is not necessarily first. Two decimal currencies must use 1.00.
@@ -21,8 +25,7 @@ for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mo
    await page.getByRole('button',{name:/^(Review correction|مراجعة التصحيح|تصحیح کا جائزہ)$/}).click();
    const checkbox=page.getByRole('checkbox',{name:/I reviewed the original|راجعت القيم الأصلية|میں نے اصل/});await checkbox.waitFor();await checkbox.focus();await page.keyboard.press('Space');if(!await checkbox.isChecked())throw new Error('Keyboard review failed');
    await page.getByRole('button',{name:/^(Save draft|حفظ المسودة|مسودہ محفوظ کریں)$/}).click();await page.reload();await page.waitForFunction(()=>document.querySelector('textarea')?.value==='Synthetic correction reason');
-   await page.getByLabel('Language',{exact:true}).selectOption(language);
-   const overflow=await page.locator('main').evaluate(e=>e.scrollWidth>e.clientWidth+2);if(overflow)throw new Error(`${role}/${name}/${language} overflow`);
+   const overflow=await page.locator('main').first().evaluate(e=>e.scrollWidth>e.clientWidth+2);if(overflow)throw new Error(`${role}/${name}/${language} overflow`);
    await page.screenshot({path:`${out}/${role.toLowerCase()}-${name}-${language}.png`,fullPage:true});
    if(errors.length)throw new Error(errors.join('; '));
    evidence.push({role,viewport:name,language,overflow:false,keyboardReview:true,draftRecovered:true,errors});await page.close();

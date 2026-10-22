@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Copy, Plus } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame, PanelTitle } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { FIELD_TYPES, IDENTITY_FIELDS, IDENTITY_KEYS, answerProblems, label, starterDefinition, visibleDocuments, visibleFields, type Answers, type FieldDef, type FormDefinition, type Language } from "@/lib/admissions/form-rules";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,11 +41,34 @@ async function send(method: string, body: Record<string, unknown>) {
 }
 const errorText = (ui: Ui, failure: unknown) => failure instanceof TypeError ? ui("The connection failed before the server answered. Nothing was lost; try again.") : ui(failure instanceof Error ? failure.message : "The change was not saved.");
 
-export function AdmissionsDesk() {
+/**
+ * The admissions desk (SKO-398). Hosted inside a console view whose PageHeader carries the title and tabs:
+ * admin `admissions` passes `section="applications"` or `section="forms"`; the front desk passes
+ * `showForms={false}` and `canDecide={false}` (it moves applications forward; the campus admin offers and
+ * enrols, §2.2 #51). Without `section` the desk keeps its own Applications · Forms switch.
+ *
+ * A console whose PageHeader carries "Enter an application" passes `entryInHeader`, sends the `enter-application`
+ * command, and learns from `onPublishedForms` whether a published form exists (the action is disabled until one
+ * does, with the reason).
+ */
+export function AdmissionsDesk({ showForms = true, canDecide = true, section, entryInHeader = false, command, onPublishedForms }: {
+  showForms?: boolean;
+  canDecide?: boolean;
+  section?: "applications" | "forms";
+  /** The hosting PageHeader carries "Enter an application"; the desk does not repeat it above the list. */
+  entryInHeader?: boolean;
+  /** Header command: `enter-application` opens the staff entry dialog. */
+  command?: { id: string; nonce: number } | null;
+  /** How many forms are published (the header action is disabled while there are none). */
+  onPublishedForms?: (count: number) => void;
+} = {}) {
   const ui = useUiText();
-  const [tab, setTab] = useState<"applications" | "forms">("applications");
+  const [tabState, setTab] = useState<"applications" | "forms">(section ?? "applications");
+  const tab = section ?? (showForms ? tabState : "applications");
   const [forms, setForms] = useState<Form[]>([]), [owners, setOwners] = useState<Person[]>([]), [classes, setClasses] = useState<ClassOption[]>([]);
   const loadForms = useCallback(async () => { const response = await fetch("/api/admissions?forms=1", { cache: "no-store" }); const json = await response.json().catch(() => ({})); if (response.ok && json.success) setForms(json.data); }, []);
+  const publishedCount = forms.filter((form) => form.currentVersion > 0).length;
+  useEffect(() => { onPublishedForms?.(publishedCount); }, [publishedCount, onPublishedForms]);
   useEffect(() => {
     const timer = setTimeout(() => void loadForms(), 0);
     void fetch("/api/admissions?owners=1", { cache: "no-store" }).then(r => r.json()).then(json => json.success && setOwners(json.data)).catch(() => undefined);
@@ -53,15 +76,14 @@ export function AdmissionsDesk() {
     return () => clearTimeout(timer);
   }, [loadForms]);
   return <div className="sk-panel space-y-4 p-5" data-admissions-desk>
-    <PanelTitle icon={ClipboardList} title={ui("Admissions")} />
-    <div className="flex gap-1 rounded-2xl bg-muted p-1" role="tablist" aria-label={ui("Admissions")}>
+    {!section && showForms ? <div className="flex gap-1 rounded-2xl bg-muted p-1" role="tablist" aria-label={ui("Admissions")}>
       {(["applications", "forms"] as const).map(value => <Button key={value} role="tab" aria-selected={tab === value} data-selected={tab === value} variant="choice" size="sm" className="flex-1" onClick={() => setTab(value)}>{value === "applications" ? ui("Applications") : ui("Application forms")}</Button>)}
-    </div>
-    {tab === "applications" ? <Pipeline forms={forms} owners={owners} classes={classes} /> : <FormsTab forms={forms} onChanged={() => void loadForms()} />}
+    </div> : null}
+    {tab === "applications" ? <Pipeline forms={forms} owners={owners} classes={classes} canDecide={canDecide} entryInHeader={entryInHeader} command={command} /> : <FormsTab forms={forms} onChanged={() => void loadForms()} />}
   </div>;
 }
 
-function Pipeline({ forms, owners, classes }: { forms: Form[]; owners: Person[]; classes: ClassOption[] }) {
+function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }: { forms: Form[]; owners: Person[]; classes: ClassOption[]; canDecide: boolean; entryInHeader: boolean; command?: { id: string; nonce: number } | null }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [rows, setRows] = useState<Row[]>([]), [counts, setCounts] = useState({ active: 0, unassigned: 0, overdue: 0, mine: 0 });
@@ -82,12 +104,19 @@ function Pipeline({ forms, owners, classes }: { forms: Form[]; owners: Person[];
   }, [view, status, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
   const published = forms.filter(form => form.currentVersion > 0);
+  // The PageHeader's "Enter an application" (one command per nonce; ignored until a form is published).
+  const handledCommand = useRef(0);
+  useEffect(() => {
+    if (!command || command.nonce === handledCommand.current) return;
+    handledCommand.current = command.nonce;
+    if (command.id === "enter-application" && published.length) setCreating(true);
+  }, [command, published.length]);
   return <div className="space-y-4">
     <p className="flex flex-wrap gap-3 text-sm font-bold" aria-live="polite" data-admission-counts>
       <span>{ui("Active: {0}", [counts.active])}</span>
       <span>{ui("Assigned to me: {0}", [counts.mine])}</span>
-      <span className={counts.unassigned ? "text-amber-800" : ""} data-unassigned={counts.unassigned}>{ui("Unassigned: {0}", [counts.unassigned])}</span>
-      <span className={counts.overdue ? "text-rose-700" : ""} data-overdue={counts.overdue}>{ui("Follow-up overdue: {0}", [counts.overdue])}</span>
+      <span className={counts.unassigned ? "text-status-warning-text" : ""} data-unassigned={counts.unassigned}>{ui("Unassigned: {0}", [counts.unassigned])}</span>
+      <span className={counts.overdue ? "text-status-error-text" : ""} data-overdue={counts.overdue}>{ui("Follow-up overdue: {0}", [counts.overdue])}</span>
     </p>
     <div className="flex flex-wrap items-end gap-3">
       <div className="grid flex-1 gap-3 sm:grid-cols-3">
@@ -95,21 +124,21 @@ function Pipeline({ forms, owners, classes }: { forms: Form[]; owners: Person[];
         <FormField name="admission-filter-status" label={ui("Stage")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="">{ui("Any stage")}</option>{["SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED", "ENROLLED", "DECLINED", "REJECTED", "WITHDRAWN", "DRAFT"].map(value => <option key={value} value={value}>{statusLabel(ui, value)}</option>)}</Select></FormField>
         <FormField name="admission-filter-q" label={ui("Search reference, child or phone")}><Input value={q} onChange={event => setQ(event.target.value)} /></FormField>
       </div>
-      {(() => { const enter = <Button onClick={() => setCreating(true)} disabled={!published.length}><Plus className="size-4" aria-hidden="true" />{ui("Enter an application")}</Button>; return published.length ? enter : <Tooltip content={ui("Publish an application form first.")}><span tabIndex={0} className="inline-flex">{enter}</span></Tooltip>; })()}
+      {entryInHeader ? null : (() => { const enter = <Button onClick={() => setCreating(true)} disabled={!published.length}><Plus className="size-4" aria-hidden="true" />{ui("Enter an application")}</Button>; return published.length ? enter : <Tooltip content={ui("Publish an application form first.")}><span tabIndex={0} className="inline-flex">{enter}</span></Tooltip>; })()}
     </div>
-    {loading && !rows.length ? <p role="status" className="text-sm text-ink-muted">{ui("Loading applications…")}</p>
+    {loading && !rows.length ? <SkeletonList rows={4} label={ui("Loading applications…")} />
       : loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => void load()} />
       : !rows.length ? <p className="rounded-2xl bg-muted p-4 text-sm" data-admissions-empty>{view === "mine" && !status && !q ? ui("Nothing needs your action. Unassigned applications are under Unassigned.") : ui("No applications match these filters. Share a published form's link with families, or enter an application.")}</p>
       : <ul className="space-y-2" aria-label={ui("Applications")}>{rows.map(row => <li key={row.id} className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 text-sm ${row.overdue ? "border-status-error-border bg-status-error-surface/40" : "border-border"}`} data-application={row.reference} data-application-status={row.status}>
         <div className="min-w-0 flex-1 space-y-0.5">
           <p className="font-bold"><bdi dir="ltr">{row.reference}</bdi> · <bdi>{row.childName || ui("(name not given yet)")}</bdi></p>
           <p className="text-xs text-ink-muted"><bdi>{row.formVersion.form.name}</bdi> · {ui("Form version {0}", [row.formVersion.version])}{row.channel === "STAFF" ? ` · ${ui("Entered by staff")}` : ""}{row.lastFamilyContact ? <> · {ui("Last family contact")} <bdi>{dateTime(row.lastFamilyContact)}</bdi></> : null}</p>
-          <p className="text-xs text-ink-muted">{row.owner ? <>{ui("Owner")}: <bdi>{row.owner.fullName}</bdi></> : <span className="font-bold text-amber-800">{ui("Unassigned")}</span>}{row.nextContactAt ? <> · <span className={row.overdue ? "font-bold text-rose-800" : ""}>{ui("Next contact")} <bdi>{dateTime(row.nextContactAt)}</bdi></span></> : null}</p>
+          <p className="text-xs text-ink-muted">{row.owner ? <>{ui("Owner")}: <bdi>{row.owner.fullName}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{row.nextContactAt ? <> · <span className={row.overdue ? "font-bold text-status-error-text" : ""}>{ui("Next contact")} <bdi>{dateTime(row.nextContactAt)}</bdi></span></> : null}</p>
         </div>
         <span className="rounded-lg bg-muted px-2 py-0.5 text-2xs font-bold">{statusLabel(ui, row.status)}</span>
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Review application {0}", [row.reference])}>{ui("Review")}</Button>
       </li>)}</ul>}
-    {openId ? <ReviewDialog id={openId} owners={owners} classes={classes} onClose={() => { setOpenId(null); void load(); }} /> : null}
+    {openId ? <ReviewDialog id={openId} owners={owners} classes={classes} canDecide={canDecide} onClose={() => { setOpenId(null); void load(); }} /> : null}
     {creating ? <EntryDialog forms={published} onClose={() => setCreating(false)} onCreated={id => { setCreating(false); setOpenId(id); void load(); }} /> : null}
   </div>;
 }
@@ -137,17 +166,17 @@ function EntryDialog({ forms, onClose, onCreated }: { forms: Form[]; onClose: ()
     try { const json = await send("POST", { action: "start", formId, answers: childName.trim() ? { childName: childName.trim() } : {} }); toast.success(ui("Application {0} started. Complete it, attach documents and send it for the family.", [json.data.reference])); onCreated(json.data.id); }
     catch (failure) { setError(errorText(ui, failure)); } finally { setBusy(false); }
   };
-  return <ModalFrame title={ui("Enter an application")} eyebrow={ui("Admissions")} subtitle={ui("For a family applying in person or by phone. The same form version and rules apply.")} onClose={onClose}>
+  return <Modal title={ui("Enter an application")} eyebrow={ui("Admissions")} subtitle={ui("For a family applying in person or by phone. The same form version and rules apply.")} onClose={onClose}>
     <div className="space-y-3">
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="entry-form" label={ui("Form")}><Select value={formId} onChange={event => setFormId(event.target.value)}>{forms.map(form => <option key={form.id} value={form.id}>{form.name} · v{form.currentVersion}</option>)}</Select></FormField>
       <FormField name="entry-child" label={ui("Child's full name")}><Input value={childName} onChange={event => setChildName(event.target.value)} /></FormField>
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{ui("Cancel")}</Button><Button onClick={() => void create()} loading={busy}>{ui("Start application")}</Button></div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
-function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Person[]; classes: ClassOption[]; onClose: () => void }) {
+function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string; owners: Person[]; classes: ClassOption[]; canDecide: boolean; onClose: () => void }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [detail, setDetail] = useState<Detail | null>(null), [loadError, setLoadError] = useState("");
@@ -181,8 +210,10 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
   const stageButtons: [string, string, string][] = !detail ? [] : ([
     ["review", ui("Start review"), "SUBMITTED"], ["offer", ui("Offer a place"), "UNDER_REVIEW,WAITLISTED"], ["waitlist", ui("Waitlist"), "UNDER_REVIEW,OFFERED"],
     ["record-acceptance", ui("Record acceptance"), "OFFERED"], ["record-decline", ui("Record decline"), "OFFERED"], ["reject", ui("Do not offer"), "SUBMITTED,UNDER_REVIEW,WAITLISTED"], ["withdraw", ui("Withdraw"), "DRAFT,SUBMITTED,UNDER_REVIEW,INFO_REQUESTED,OFFERED,WAITLISTED,ACCEPTED"],
-  ] as [string, string, string][]).filter(([, , from]) => from.split(",").includes(detail.status));
-  return <ModalFrame title={detail ? ui("Application {0}", [detail.reference]) : ui("Application")} eyebrow={ui("Admissions")} size="lg" onClose={onClose} dirty={Boolean(officeNote || familyMessage || reason)}>
+  ] as [string, string, string][]).filter(([action, , from]) => from.split(",").includes(detail.status)
+    // The front desk moves an application forward; offers, refusals and acceptances are the campus admin's (§2.2 #51).
+    && (canDecide || ["review", "withdraw"].includes(action)));
+  return <Modal title={detail ? ui("Application {0}", [detail.reference]) : ui("Application")} eyebrow={ui("Admissions")} size="lg" onClose={onClose} dirty={Boolean(officeNote || familyMessage || reason)}>
     {loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => { setLoadError(""); void load(); }} /> : !detail || !definition ? <SkeletonList rows={4} label={ui("Loading application…")} /> : <div className="space-y-4" data-application-review={detail.reference}>
       {error ? <Alert tone="danger" compact data-review-error>{error}</Alert> : null}
       <p className="text-sm font-bold" data-review-status={detail.status}>{statusLabel(ui, detail.status)} · <bdi>{detail.formVersion.form.name}</bdi> · {ui("Form version {0}", [detail.formVersion.version])}{detail.enquiry ? <> · {ui("From enquiry")} <bdi>{detail.enquiry.name}</bdi> ({detail.enquiry.source})</> : null}</p>
@@ -202,19 +233,19 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
         {visibleDocuments(definition, detail.answers).map(document => {
           const files = detail.documents.filter(file => file.key === document.key);
           return <div key={document.key} className="flex flex-wrap items-center gap-2" data-review-document={document.key} data-present={files.length > 0}>
-            <span className={files.length ? "text-emerald-800" : document.required ? "font-bold text-rose-700" : "text-ink-muted"}>{files.length ? "✓" : document.required ? "✗" : "·"} {label(document.label, "en")}{document.required ? "" : ` (${ui("optional")})`}</span>
+            <span className={files.length ? "text-status-success-text" : document.required ? "font-bold text-status-error-text" : "text-ink-muted"}>{files.length ? "✓" : document.required ? "✗" : "·"} {label(document.label, "en")}{document.required ? "" : ` (${ui("optional")})`}</span>
             {files.map(file => <a key={file.id} className="text-xs font-bold text-primary underline" href={`/api/admissions?document=${encodeURIComponent(file.id)}`}><bdi>{file.fileName}</bdi></a>)}
             {["DRAFT", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "OFFERED", "WAITLISTED", "ACCEPTED"].includes(detail.status) ? <label className="cursor-pointer text-xs text-primary">{ui("Attach")}<input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void uploadFile(document.key, file); }} /></label> : null}
           </div>;
         })}
-        {detail.missing.length ? <p className="text-xs font-bold text-rose-700" data-review-missing>{ui("Missing: {0}", [detail.missing.join(", ")])}</p> : null}
+        {detail.missing.length ? <p className="text-xs font-bold text-status-error-text" data-review-missing>{ui("Missing: {0}", [detail.missing.join(", ")])}</p> : null}
       </section>
       {staffDraft ? <div className="space-y-2 rounded-xl border border-border p-3">
         <label className="flex items-start gap-2 text-sm"><Checkbox checked={consent} onChange={event => setConsent(event.target.checked)} />{ui("The family has read and agreed to this statement:")} {label(definition.consent, "en")}</label>
         <Button disabled={busy || !consent} onClick={() => void run({ action: "staff-submit", consent: true }, ui("Application sent."))}>{ui("Send on the family's behalf")}</Button>
       </div> : null}
 
-      {hasDuplicates ? <section className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm" aria-label={ui("Possible duplicates")} data-duplicates>
+      {hasDuplicates ? <section className="space-y-1 rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm" aria-label={ui("Possible duplicates")} data-duplicates>
         <p className="font-bold">{ui("Possible duplicates")}</p>
         {detail.duplicates.students.map(student => <p key={student.id} data-duplicate-student={student.id}>{ui("Pupil")}: <bdi>{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi> · <bdi>{student.className}</bdi>{student.dateOfBirth ? <> · <bdi dir="ltr">{student.dateOfBirth}</bdi></> : null}{student.archived ? ` · ${ui("archived")}` : ""}</p>)}
         {detail.duplicates.applications.map(other => <p key={other.id}>{ui("Application")}: <bdi dir="ltr">{other.reference}</bdi> · <bdi>{other.childName}</bdi> · {statusLabel(ui, other.status)}</p>)}
@@ -237,7 +268,8 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
         </div>
       </section> : null}
 
-      {detail.status === "ACCEPTED" ? <section className="space-y-2 rounded-xl border-2 border-primary/30 p-3" aria-label={ui("Enrol")} data-convert>
+      {detail.status === "ACCEPTED" && !canDecide ? <Alert tone="info" compact live="off">{ui("Your campus admin enrols accepted applications.")}</Alert> : null}
+      {detail.status === "ACCEPTED" && canDecide ? <section className="space-y-2 rounded-xl border-2 border-primary/30 p-3" aria-label={ui("Enrol")} data-convert>
         <p className="text-sm font-bold">{ui("Enrol the child")}</p>
         <p className="text-xs text-ink-muted">{ui("This creates the pupil record once. Guardian sign-in invitations are sent separately from the pupil's record and can be retried there.")}</p>
         {hasDuplicates ? <fieldset className="space-y-1 text-sm"><legend className="text-xs font-bold">{ui("This child may already be on the school's records. Choose:")}</legend>
@@ -253,15 +285,15 @@ function ReviewDialog({ id, owners, classes, onClose }: { id: string; owners: Pe
       </section> : null}
 
       <section aria-label={ui("History")}>
-        <p className="mb-2 text-xs font-semibold uppercase text-ink-subtle">{ui("History")}</p>
+        <p className="mb-2 text-xs font-semibold ltr:uppercase text-ink-subtle">{ui("History")}</p>
         <ol className="space-y-1.5 text-xs" data-application-history>{detail.events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
-          <p className="font-bold">{eventLabel(ui, event.kind)}{event.toStatus ? ` → ${statusLabel(ui, event.toStatus)}` : ""} · <bdi>{dateTime(event.createdAt)}</bdi> · {event.actorName ? <bdi>{event.actorName}</bdi> : ui("Family")}</p>
+          <p className="font-bold">{eventLabel(ui, event.kind)}{event.toStatus ? <> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {statusLabel(ui, event.toStatus)}</> : null} · <bdi>{dateTime(event.createdAt)}</bdi> · {event.actorName ? <bdi>{event.actorName}</bdi> : ui("Family")}</p>
           {event.officeNote ? <p className="whitespace-pre-wrap"><span className="font-bold">{ui("Office note")}:</span> <bdi>{event.officeNote}</bdi></p> : null}
           {event.familyMessage ? <p className="whitespace-pre-wrap text-primary"><span className="font-bold">{ui("To family")}:</span> <bdi>{event.familyMessage}</bdi></p> : null}
         </li>)}</ol>
       </section>
     </div>}
-  </ModalFrame>;
+  </Modal>;
 }
 
 function FormsTab({ forms, onChanged }: { forms: Form[]; onChanged: () => void }) {
@@ -307,9 +339,9 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
     try { await send("POST", { action: "save-form", id: form?.id, name, definition }); toast.success(ui("Draft saved. Publish it when it is ready for families.")); onSaved(); }
     catch (failure) { setError(errorText(ui, failure)); } finally { setBusy(false); }
   };
-  return <ModalFrame title={form ? ui("Edit application form") : ui("New application form")} eyebrow={ui("Admissions")} size="lg" onClose={onClose} dirty>
+  return <Modal title={form ? ui("Edit application form") : ui("New application form")} eyebrow={ui("Admissions")} size="lg" onClose={onClose} dirty>
     <div className="space-y-4" data-form-editor>
-      {error ? <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700" data-form-error>{error}</p> : null}
+      {error ? <p role="alert" className="rounded-xl border border-status-error-border bg-status-error-surface px-3 py-2 text-xs font-bold text-status-error-text" data-form-error>{error}</p> : null}
       <FormField name="form-name" label={ui("Form name")}><Input value={name} maxLength={120} onChange={event => setName(event.target.value)} /></FormField>
       <p className="text-xs text-ink-muted">{ui("Write each question in English and, where families need it, in Arabic and Urdu. Publishing freezes a version; applications already started keep the version they began with.")}</p>
       <ol className="space-y-3">{definition.fields.map((field, index) => <li key={index} className="space-y-2 rounded-xl border border-border p-3" data-editor-field={field.key}>
@@ -348,5 +380,5 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
       <FormField name="form-consent" label={ui("Consent statement (English)")}><Textarea rows={2} value={definition.consent.en} onChange={event => setDefinition(current => ({ ...current, consent: { ...current.consent, en: event.target.value } }))} /></FormField>
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} disabled={busy}>{busy ? ui("Saving…") : ui("Save draft")}</Button></div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }

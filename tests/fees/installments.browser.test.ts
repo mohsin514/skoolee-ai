@@ -79,13 +79,15 @@ test("a colleague approves in the invoice dialog; the family then sees the sched
   const ctx = await context("bursar"), page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/admin?view=fees`);
-  await page.getByRole("button", { name: "Invoices", exact: true }).first().click({ timeout: 30_000 });
-  await page.getByRole("button", { name: "View Details" }).first().click({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Invoices", exact: true }).first().click({ timeout: 30_000 }); // FeesPanel sections are ViewTabs; the campus admin approves plans in the invoice drawer (role-ux §3.1)
+  await page.getByRole("button", { name: "View details" }).first().click({ timeout: 30_000 });
   const panel = page.locator('[data-installment-panel="proposed"]');
   await panel.waitFor({ timeout: 15_000 });
   assert.match(await panel.innerText(), /waiting for your approval/);
   await shot(page, "installment-plan-approve-en-1440");
   await panel.getByRole("button", { name: "Approve plan" }).click();
+  // Approving a schedule is confirmed (role-ux R3); the confirm button repeats the verb.
+  await page.getByRole("dialog", { name: "Approve this instalment plan?" }).getByRole("button", { name: "Approve plan" }).click();
   await page.locator('[data-installment-panel="active"]').waitFor();
   assert.equal((await db.paymentPlan.findUniqueOrThrow({ where: { id: planId } })).approvedById, users.get("bursar")!.id);
   assert.deepEqual(errors, []); await ctx.close();

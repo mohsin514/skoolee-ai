@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
     if (!intent) throw new ApiError("Checkout was not found.", 404);
 
     if (!user.onboardingComplete) await runWithTenantContext(setupTenantContext(user), () => assertSetupPurchaser(user));
-    else if (!user.isInstitutionOwner && !canPurchaseSubscription(user)) {
+    // After setup the institution authority's own subscription right decides (G6): the owner flag alone is never
+    // enough (an ADMIN owner inside a school group is a campus operator).
+    else if (!canPurchaseSubscription(user)) {
       throw new ApiError("Subscription purchasing is not delegated to this account.", 403);
     }
     if (intent.userId !== user.userId && !canPurchaseSubscription(user)) {

@@ -17,6 +17,9 @@ import { AttendanceSkeleton, StudentErrorState } from "@/components/student/stud
 import { StatCard } from "@/components/student/student-ui";
 import { useStudentData } from "../student-data-context";
 
+/** Register statuses as words (EN keys; the same labels the class register uses). */
+const STATUS_WORD: Record<string, string> = { PRESENT: "Present", LATE: "Late", PARTIAL: "Part day", ABSENT: "Absent", EXCUSED: "Excused absence", LEAVE: "Approved leave" };
+
 export default function StudentAttendancePage() {
   const tr = useUiText();
   const locale = useLocale();
@@ -106,11 +109,14 @@ export default function StudentAttendancePage() {
 
   return (
     <StudentPage
-      tone="attendance"
       icon={CalendarCheck}
-      eyebrow={<>{stats.total ? tr("Overall: {0}% · Days recorded: {1}", [stats.rate, stats.total]) : tr("No attendance data yet")}</>}
-      title={tr("My Attendance")}
-      summary={<>{`${data.user.className} · ${data.user.campusName}`}</>}
+      title="Attendance"
+      description="Your attendance this year, month by month."
+      status={
+        <Badge variant={isAtRisk ? "warning" : "neutral"} size="sm" dot>
+          {stats.total ? tr("Overall: {0}% · Days recorded: {1}", [stats.rate, stats.total]) : tr("No attendance data yet")}
+        </Badge>
+      }
     >
       <div className="space-y-3">
         {isAtRisk && (
@@ -121,7 +127,7 @@ export default function StudentAttendancePage() {
         )}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard icon={CalendarDays} label={tr("Total Days")} value={stats.total} sub={tr("School days recorded")} delay={40} />
+          <StatCard icon={CalendarDays} label={tr("Total days")} value={stats.total} sub={tr("School days recorded")} delay={40} />
           <StatCard icon={CheckCircle2} label={tr("Present")} value={stats.present} sub={`${stats.total ? Math.round((stats.present / stats.total) * 100) : 0}% ${tr("of total")}`} tone="green" ring={stats.total ? Math.round((stats.present / stats.total) * 100) : null} delay={80} />
           <StatCard icon={X} label={tr("Absent")} value={stats.absent} sub={consecutiveAbsences > 0 ? tr("Consecutive: {0}", [consecutiveAbsences]) : tr("No consecutive")} tone="rose" delay={120} />
           <StatCard icon={Clock} label={tr("Leave")} value={stats.leave} sub={tr("Approved leaves")} tone="amber" delay={160} />
@@ -134,7 +140,7 @@ export default function StudentAttendancePage() {
                 <CalendarDays className="size-4" />
               </span>
               <div className="min-w-0">
-                <h2 id="attendance-calendar-title" className="truncate text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Monthly Calendar"}</UiText></h2>
+                <h2 id="attendance-calendar-title" className="truncate text-sm font-bold tracking-tight text-ink-strong">{tr("Monthly calendar")}</h2>
                 <p className="flex items-center gap-0.5 text-xs text-ink-subtle">
                   <span className="tabular-nums">{monthStats.rate ?? 0}<UiText>{"% this month"}</UiText></span>
                   <InfoTip content={tr("Days attended as a share of this month's counted school days, using your school's attendance rule.")} />
@@ -171,26 +177,22 @@ export default function StudentAttendancePage() {
 
           <div className="grid grid-cols-7 gap-1">
             {Array.from({length:7}, (_, index) => new Intl.DateTimeFormat(localeTag(locale), {weekday:"short",timeZone:"UTC"}).format(new Date(Date.UTC(2024,0,7+(locale.weekStartsOn+index)%7)))).map(d => (
-              <div key={d} className="truncate py-2 text-center text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{d}</div>
+              <div key={d} className="truncate py-2 text-center text-2xs font-semibold text-ink-subtle">{d}</div>
             ))}
             {calendarDays.map((cell, i) => {
               if (!cell) return <div key={`empty-${i}`} />;
               const status = cell.record?.status;
-              const label = `${monthLabel} ${cell.day} — ${
-                status === "PRESENT"
-                  ? tr("Present")
-                  : status === "ABSENT"
-                    ? tr("Absent")
-                    : status === "LEAVE"
-                      ? tr("Approved leave")
-                      : tr("No record")
-              }`;
+              // Every register status reads as a translated word (late, part day and excused were "No record").
+              const statusText = status ? tr(STATUS_WORD[status] ?? "No record") : tr("No record");
+              const label = `${monthLabel} ${cell.day} — ${statusText}`;
               const bg = status === "PRESENT"
-                ? "bg-emerald-50 border-emerald-200/50 text-emerald-700"
+                ? "bg-status-success-surface border-status-success-border text-status-success-text"
                 : status === "ABSENT"
-                ? "bg-rose-50 border-rose-200/50 text-rose-700"
-                : status === "LEAVE"
-                ? "bg-amber-50 border-amber-200/50 text-amber-700"
+                ? "bg-status-error-surface border-status-error-border text-status-error-text"
+                : status === "LEAVE" || status === "EXCUSED"
+                ? "bg-status-warning-surface border-status-warning-border text-status-warning-text"
+                : status === "LATE" || status === "PARTIAL"
+                ? "bg-status-info-surface border-status-info-border text-status-info-text"
                 : "bg-muted/30 border-transparent text-ink-subtle";
               return (
                 <div
@@ -202,8 +204,8 @@ export default function StudentAttendancePage() {
                 >
                   <span className="text-xs font-bold tabular-nums">{cell.day}</span>
                   {status && (
-                    <span className="text-3xs font-semibold uppercase tracking-wider mt-0.5">
-                      {tr(status).slice(0,1)}
+                    <span className="mt-0.5 text-3xs font-semibold">
+                      {statusText.slice(0, 1)}
                     </span>
                   )}
                 </div>
@@ -214,7 +216,7 @@ export default function StudentAttendancePage() {
 
         <section aria-labelledby="attendance-history-title">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <h2 id="attendance-history-title" className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Attendance History"}</UiText></h2>
+            <h2 id="attendance-history-title" className="text-sm font-bold tracking-tight text-ink-strong">{tr("Attendance history")}</h2>
             <span className="text-xs tabular-nums text-ink-subtle">
               {tr("Days recorded: {0}", [stats.total])}</span>
           </div>
@@ -257,13 +259,14 @@ function AttendanceRow({ entry }: { entry: any }) {
     ABSENT: { label: tr("Absent"), variant: "danger" },
     LEAVE: { label: tr("Leave"), variant: "warning" },
   };
-  const cfg: { label: string; variant: "success" | "danger" | "warning" | "secondary" } = statusConfig[entry.status] || { label: entry.status, variant: "secondary" };
+  // Late, part-day and excused days show their word too, never the raw register value.
+  const cfg: { label: string; variant: "success" | "danger" | "warning" | "secondary" } = statusConfig[entry.status] || { label: tr(STATUS_WORD[entry.status] ?? "No record"), variant: "secondary" };
 
   return (
     <div className="sk-panel flex min-w-0 items-center justify-between gap-3 px-3 py-3 shadow-xs sm:px-5">
       <div className="flex min-w-0 items-center gap-3 sm:gap-4">
         <div className="flex w-10 shrink-0 flex-col items-center">
-          <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{dayName}</span>
+          <span className="text-2xs font-semibold text-ink-subtle">{dayName}</span>
           <span className="text-sm font-bold tabular-nums text-ink-strong">{new Intl.NumberFormat(localeTag(locale)).format(date.getUTCDate())}</span>
         </div>
         <div aria-hidden="true" className="h-8 w-px shrink-0 bg-edge/15" />
@@ -271,7 +274,7 @@ function AttendanceRow({ entry }: { entry: any }) {
           <p className="text-sm font-medium text-ink">{formatted}</p>
           {entry.notes && <p className="break-words text-xs text-ink-muted">{entry.notes}</p>}
           {entry.marker?.fullName && (
-            <p className="truncate text-xs text-ink-subtle"><UiText>{"Marked by"}</UiText>{entry.marker.fullName}</p>
+            <p className="truncate text-xs text-ink-subtle">{tr("Marked by {0}", [entry.marker.fullName])}</p>
           )}
         </div>
       </div>

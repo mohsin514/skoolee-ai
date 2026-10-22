@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { getLocalePackage } from "@/lib/locale/store";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // PATCH /api/payroll/lines
 // body (edit): { id, basic?, allowances?, deductions?, bonus? } — DRAFT lines only, net recomputed
@@ -13,7 +13,7 @@ import { ApiError, assertPermission, canManageOperations, errorResponse, require
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "payroll", "edit");
     const body = await req.json();
 

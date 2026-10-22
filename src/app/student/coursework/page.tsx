@@ -2,6 +2,7 @@
 
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { useMemo } from "react";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Award, BookOpen, MapPin, TrendingUp, UserRound } from "lucide-react";
 import { Panel, PanelHeading, StatCard } from "@/components/student/student-ui";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ const EXAM_STATUS: Record<string, { label: string; variant: "success" | "warning
 };
 
 export default function CourseworkPage() {
+  const ui = useUiText();
   const { data, loading, error, refetch } = useStudentData();
 
   const averages = useMemo(() => {
@@ -42,11 +44,9 @@ export default function CourseworkPage() {
 
   return (
     <StudentPage
-      tone="classes"
       icon={BookOpen}
-      eyebrow={<>{`${user.subjects.length} subjects enrolled`}</>}
-      title="Coursework & Performance"
-      summary="Your subjects, teachers, and academic progress."
+      title="My class & subjects"
+      description="Your class, subjects and teachers, with every mark you have received."
     >
       <div className="space-y-3">
         {/* Moved here when the duplicate "Schedule" page was retired — this is
@@ -58,21 +58,21 @@ export default function CourseworkPage() {
                 <MapPin className="size-4" />
               </div>
               <div className="min-w-0">
-                <p className="sk-eyebrow">Current Class</p>
-                <p className="truncate text-base font-bold text-ink-strong">{user.className}</p>
+                <p className="sk-eyebrow">{ui("Current class")}</p>
+                <p className="truncate text-base font-bold text-ink-strong"><bdi>{user.className}</bdi></p>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="min-w-0 rounded-2xl border border-border-subtle bg-surface-subtle p-3">
-                <p className="sk-eyebrow">Class Teacher</p>
-                <p className="mt-1.5 truncate text-sm font-semibold text-ink-strong">{user.classTeacher?.fullName || "Not assigned"}</p>
+                <p className="sk-eyebrow">{ui("Class teacher")}</p>
+                <p className="mt-1.5 truncate text-sm font-semibold text-ink-strong">{user.classTeacher?.fullName ? <bdi>{user.classTeacher.fullName}</bdi> : ui("Not assigned")}</p>
                 {user.classTeacher?.email && (
                   <p dir="ltr" className="mt-0.5 truncate text-start text-xs text-ink-subtle">{user.classTeacher.email}</p>
                 )}
               </div>
               <div className="min-w-0 rounded-2xl border border-border-subtle bg-surface-subtle p-3">
-                <p className="sk-eyebrow">Enrolled Subjects</p>
-                <p className="mt-1.5 text-sm font-semibold tabular-nums text-ink-strong">{user.subjects.length} {user.subjects.length === 1 ? "subject" : "subjects"}</p>
+                <p className="sk-eyebrow">{ui("Enrolled subjects")}</p>
+                <p className="mt-1.5 text-sm font-semibold tabular-nums text-ink-strong">{user.subjects.length === 1 ? ui("1 subject") : ui("{0} subjects", [user.subjects.length])}</p>
                 <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-muted">
                   {user.subjects?.length ? user.subjects.map((s: any) => s.name).join(", ") : "—"}
                 </p>
@@ -82,39 +82,39 @@ export default function CourseworkPage() {
 
           <div className="sk-panel min-w-0 p-4">
             <div className="mb-3 flex min-w-0 items-center gap-2.5">
-              <div aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <div aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-status-success-surface text-status-success-text">
                 <UserRound className="size-4" />
               </div>
               <div className="min-w-0">
-                <p className="sk-eyebrow">Roll Number</p>
-                <p className="truncate text-base font-bold text-ink-strong">{user.rollNo || "—"}</p>
+                <p className="sk-eyebrow">{ui("Roll number")}</p>
+                <p className="truncate text-base font-bold text-ink-strong"><bdi>{user.rollNo || "—"}</bdi></p>
               </div>
             </div>
             <dl className="space-y-2 text-sm">
               <div className="flex min-w-0 justify-between gap-3">
-                <dt className="shrink-0 font-medium text-ink-muted">Name</dt>
-                <dd className="min-w-0 truncate font-semibold text-ink-strong">{user.fullName}</dd>
+                <dt className="shrink-0 font-medium text-ink-muted">{ui("Name")}</dt>
+                <dd className="min-w-0 truncate font-semibold text-ink-strong"><bdi>{user.fullName}</bdi></dd>
               </div>
               <div className="flex min-w-0 justify-between gap-3">
-                <dt className="shrink-0 font-medium text-ink-muted">Campus</dt>
-                <dd className="min-w-0 truncate font-semibold text-ink-strong">{user.campusName}</dd>
+                <dt className="shrink-0 font-medium text-ink-muted">{ui("Campus")}</dt>
+                <dd className="min-w-0 truncate font-semibold text-ink-strong"><bdi>{user.campusName}</bdi></dd>
               </div>
             </dl>
           </div>
         </div>
 
         <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
-          <StatCard icon={BookOpen} label="Subjects" value={user.subjects.length} sub="Enrolled" />
+          <StatCard icon={BookOpen} label={ui("Subjects")} value={user.subjects.length} sub={ui("Enrolled")} />
           <StatCard
             icon={Award}
-            label="Average"
+            label={ui("Average")}
             value={`${averages.overall}%`}
-            sub={user.marks.length ? `From ${user.marks.length} ${user.marks.length === 1 ? "score" : "scores"}` : "No marks yet"}
+            sub={user.marks.length ? ui("From {0} scores", [user.marks.length]) : ui("No marks yet")}
             tone="green"
             ring={user.marks.length ? averages.overall : undefined}
           />
-          <StatCard icon={TrendingUp} label="Best score" value={`${averages.best}%`} sub={averages.best >= 80 ? "Excellent" : averages.best >= 60 ? "Good" : "Needs work"} tone="purple" />
-          <StatCard icon={BookOpen} label="Exams" value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub="Attempted" tone="rose" />
+          <StatCard icon={TrendingUp} label={ui("Best score")} value={`${averages.best}%`} sub={averages.best >= 80 ? ui("Excellent") : averages.best >= 60 ? ui("Good") : ui("Needs work")} tone="purple" />
+          <StatCard icon={BookOpen} label={ui("Exams")} value={new Set(user.marks.map((m: any) => m.exam?.id)).size} sub={ui("Attempted")} tone="rose" />
         </div>
 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-5 xl:gap-4">
@@ -122,8 +122,8 @@ export default function CourseworkPage() {
             <Panel>
               <PanelHeading
                 icon={BookOpen}
-                title="Subjects & Teachers"
-                sub={`${user.subjects.length} enrolled`}
+                title={ui("Subjects & teachers")}
+                sub={ui("{0} enrolled", [user.subjects.length])}
               />
               {user.subjects.length ? (
                 <div className="space-y-2">
@@ -134,7 +134,7 @@ export default function CourseworkPage() {
                       <SubjectCard
                         key={subject.id}
                         name={subject.name}
-                        teacher={subject.teacher?.fullName || user.classTeacher?.fullName || "Teacher pending"}
+                        teacher={subject.teacher?.fullName || user.classTeacher?.fullName || ui("Teacher pending")}
                         totalMarks={subject.totalMarks || 100}
                         score={score}
                       />
@@ -145,8 +145,8 @@ export default function CourseworkPage() {
                 <EmptyState
                   size="sm"
                   icon={BookOpen}
-                  title="No subjects yet"
-                  description="Subjects appear here once the office adds them to your section."
+                  title={ui("No subjects yet")}
+                  description={ui("Subjects appear here once the office adds them to your section.")}
                 />
               )}
             </Panel>
@@ -154,8 +154,8 @@ export default function CourseworkPage() {
             <Panel>
               <PanelHeading
                 icon={TrendingUp}
-                title="Academic Performance"
-                sub="Your five most recent scores"
+                title={ui("Recent scores")}
+                sub={ui("Your five most recent scores")}
                 tone="green"
               />
               {user.marks.length > 0 ? (
@@ -163,7 +163,7 @@ export default function CourseworkPage() {
                   {user.marks.slice(0, 5).map((mark: any) => (
                     <PerfBar
                       key={mark.id}
-                      label={mark.subject?.name || "Subject"}
+                      label={mark.subject?.name || ui("Subject")}
                       exam={mark.exam?.title}
                       score={Math.round((mark.marksObtained / (mark.subject?.totalMarks || 100)) * 100)}
                     />
@@ -173,8 +173,8 @@ export default function CourseworkPage() {
                 <EmptyState
                   size="sm"
                   icon={TrendingUp}
-                  title="No marks yet"
-                  description="Your scores appear here once teachers publish marks for this cycle."
+                  title={ui("No marks yet")}
+                  description={ui("Your scores appear here once teachers publish marks for this cycle.")}
                 />
               )}
             </Panel>
@@ -183,10 +183,10 @@ export default function CourseworkPage() {
           <div className="min-w-0 xl:col-span-3">
             <section aria-labelledby="all-marks-title" className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: "200ms" }}>
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border-subtle px-4 py-3">
-                <h2 id="all-marks-title" className="text-sm font-bold tracking-tight text-ink-strong">All Marks</h2>
+                <h2 id="all-marks-title" className="text-sm font-bold tracking-tight text-ink-strong">{ui("All marks")}</h2>
                 {user.marks.length > 0 && (
                   <span className="text-xs tabular-nums text-ink-subtle">
-                    {user.marks.length} entr{user.marks.length === 1 ? "y" : "ies"}
+                    {ui("{0} entries", [user.marks.length])}
                   </span>
                 )}
               </div>
@@ -194,10 +194,10 @@ export default function CourseworkPage() {
                 <Table className="min-w-[480px]" containerClassName="rounded-none border-0">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead className="px-3 text-center">Score</TableHead>
+                      <TableHead>{ui("Subject")}</TableHead>
+                      <TableHead className="px-3 text-center">{ui("Score")}</TableHead>
                       <TableHead className="px-3 text-center">%</TableHead>
-                      <TableHead className="text-end">Status</TableHead>
+                      <TableHead className="text-end">{ui("Status")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -207,9 +207,9 @@ export default function CourseworkPage() {
                       return (
                         <TableRow key={mark.id}>
                           <TableCell className="px-4 py-3">
-                            <p className="text-sm font-semibold text-ink-strong">{mark.subject?.name}</p>
+                            <p className="text-sm font-semibold text-ink-strong"><bdi>{mark.subject?.name}</bdi></p>
                             <p className="mt-0.5 text-xs text-ink-subtle">
-                              {mark.exam?.title || "Exam"}
+                              {mark.exam?.title ? <bdi>{mark.exam.title}</bdi> : ui("Exam")}
                             </p>
                           </TableCell>
                           <TableCell className="whitespace-nowrap px-3 py-3 text-center tabular-nums">
@@ -223,7 +223,7 @@ export default function CourseworkPage() {
                           </TableCell>
                           <TableCell className="px-4 py-3 text-end">
                             <Badge variant={status?.variant ?? "secondary"} size="sm" dot>
-                              {status?.label ?? (mark.exam?.status || "Entered")}
+                              {ui(status?.label ?? "Entered")}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -235,8 +235,8 @@ export default function CourseworkPage() {
                 <EmptyState
                   size="sm"
                   icon={BookOpen}
-                  title="No marks recorded yet"
-                  description="Marks appear here as teachers publish each exam."
+                  title={ui("No marks recorded yet")}
+                  description={ui("Marks appear here as teachers publish each exam.")}
                 />
               )}
             </section>
@@ -248,14 +248,15 @@ export default function CourseworkPage() {
 }
 
 
-const SCORE_TEXT: Record<ScoreTone, string> = { success: "text-emerald-700", warning: "text-amber-700", danger: "text-rose-700" };
+const SCORE_TEXT: Record<ScoreTone, string> = { success: "text-status-success-text", warning: "text-status-warning-text", danger: "text-status-error-text" };
 
 function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teacher: string; totalMarks: number; score: number | null }) {
+  const ui = useUiText();
   return (
-    <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle px-3 py-3 transition-colors duration-200 hover:border-border-subtle-hover hover:bg-white sm:px-4">
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle px-3 py-3 transition-colors duration-200 hover:border-border-subtle-hover hover:bg-card sm:px-4">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-ink-strong">{name}</p>
-        <p className="mt-0.5 truncate text-xs text-ink-subtle">{teacher}</p>
+        <p className="truncate text-sm font-semibold text-ink-strong"><bdi>{name}</bdi></p>
+        <p className="mt-0.5 truncate text-xs text-ink-subtle"><bdi>{teacher}</bdi></p>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
         {score !== null && (
@@ -264,7 +265,7 @@ function SubjectCard({ name, teacher, totalMarks, score }: { name: string; teach
           </span>
         )}
         <Badge variant="outline" size="sm" className="tabular-nums">
-          {totalMarks} marks
+          {ui("{0} marks", [totalMarks])}
         </Badge>
       </div>
     </div>
@@ -280,8 +281,8 @@ function PerfBar({ label, exam, score }: { label: string; exam?: string; score: 
     <div className="min-w-0">
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
         <span className="min-w-0 truncate text-sm font-semibold text-ink-strong">
-          {label}
-          {exam ? <span className="ms-1.5 text-xs font-normal text-ink-subtle">{exam}</span> : null}
+          <bdi>{label}</bdi>
+          {exam ? <bdi className="ms-1.5 text-xs font-normal text-ink-subtle">{exam}</bdi> : null}
         </span>
         <span className={`shrink-0 text-xs font-bold tabular-nums ${SCORE_TEXT[tone]}`}>{score}%</span>
       </div>

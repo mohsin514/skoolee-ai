@@ -18,7 +18,9 @@ import {
   Mail,
   MessageSquare,
   FileText,
+  MoreHorizontal,
 } from "lucide-react";
+import { Menu } from "@/components/ui/menu";
 import { toast } from "@/components/ui/toast";
 import { PanelTitle } from "@/components/shared-admin";
 import { DormitoryAllocations } from "./dormitory-allocations";
@@ -27,12 +29,15 @@ import { ComplaintsDesk } from "./complaints-desk";
 import { PhoneCallLog } from "./phone-call-log";
 import { PostalRegister } from "./postal-register";
 import { CertificatesDesk } from "./certificates-desk";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
-import { formatPKR } from "@/components/fees/fee-utils";
+import { forwardCommand, usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
+import { SectionPicker } from "./console-page";
 import { useValidatedForm } from "@/lib/hooks/use-validated-form";
 import { serverFieldErrors } from "@/lib/validators/client";
 import { apiErrorMessage } from "@/lib/errors";
+import { roleLabel } from "@/lib/roles";
 import {
   bookCategorySchema,
   bookFormSchema,
@@ -69,6 +74,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
 import { RidersPlanner, TripsPlanner } from "@/components/transport/transport";
+import { downloadCSV } from "@/lib/csv";
 
 
 /* ─── tiny helpers ─── */
@@ -85,8 +91,11 @@ const thCls =
 const tdCls = "px-3 py-2.5 text-sm font-medium text-ink-strong";
 
 const TXN_KIND_LABEL: Record<string, string> = { RECEIVE: "Received", SELL: "Sold", ISSUE: "Issued", RETURN: "Returned" };
+/** What each stock movement is called in the add row (EN UI keys). */
+const TXN_KIND_OPTION: Record<string, string> = { RECEIVE: "Receive", SELL: "Sell", ISSUE: "Issue", RETURN: "Return" };
+const VEHICLE_MODEL_LABEL: Record<string, string> = { BUS: "Bus", VAN: "Van", CAR: "Car", OTHER: "Other" };
 
-function EmptyRow({ cols, text, state, onRetry }: { cols: number; text?: string; state?: "loading" | "error"; onRetry?: () => void }) {
+function EmptyRow({ cols, text, hint, state, onRetry }: { cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
   const ui = useUiText();
   return (
     <tr>
@@ -100,26 +109,34 @@ function EmptyRow({ cols, text, state, onRetry }: { cols: number; text?: string;
             onRetry={onRetry}
           />
         ) : (
-          <EmptyState size="sm" title={ui(text ?? "Nothing here yet")} description={ui("Use the form above to add the first record.")} />
+          <EmptyState size="sm" title={ui(text ?? "Nothing here yet")} description={hint ? ui(hint) : undefined} />
         )}
       </td>
     </tr>
   );
 }
 
+/**
+ * The row's overflow menu (role-ux §4.5.2–3): destructive actions never sit inline in a row. "Delete" is the last,
+ * danger-toned item and is confirmed (R3: consequence, "Keep editing" to back out).
+ */
 function DeleteBtn({ onClick, loading }: { onClick: () => void; loading: boolean }) {
   const ui = useUiText();
   const [asking, setAsking] = useState(false);
   return (
     <>
-      <IconButton label={ui("Delete")} variant="destructive" size="md" onClick={() => setAsking(true)} disabled={loading} loading={loading}>
-        <Trash2 aria-hidden="true" />
-      </IconButton>
+      <Menu
+        label="More actions"
+        align="end"
+        items={[{ id: "delete", label: "Delete", icon: Trash2, tone: "danger", disabled: loading, onSelect: () => setAsking(true) }]}
+        trigger={<IconButton label={ui("More actions")} variant="ghost" loading={loading} data-row-actions><MoreHorizontal aria-hidden="true" /></IconButton>}
+      />
       <ConfirmAction
         open={asking}
         title={ui("Delete this record?")}
         description={ui("This permanently deletes the record. This cannot be undone.")}
         confirmLabel={ui("Delete")}
+        cancelLabel={ui("Keep editing")}
         tone="danger"
         busy={loading}
         onConfirm={() => { setAsking(false); onClick(); }}
@@ -148,7 +165,16 @@ function OpField({
   children: React.ReactNode;
 }) {
   const fieldName = useId();
-  return <FormField name={fieldName} label={label} error={error} className={width}>{children}</FormField>;
+  const ui = useUiText();
+  // Labels are EN UI keys; translated here so every inline add row follows the display language (role-ux R11).
+  return <FormField name={fieldName} label={ui(label)} error={error} className={width}>{children}</FormField>;
+}
+
+/** Money in the campus currency from the school's locale package (role-ux R7/F23 — never a hard-coded "Rs"). */
+function useCampusMoney() {
+  const { money } = useLocaleFormat();
+  const { currency } = useLocale();
+  return (minor: number) => money(minor, currency);
 }
 
 /**
@@ -187,33 +213,96 @@ async function submitTo(
   return false;
 }
 
+/**
+ * A header "Export" for a module list (role-ux §4.4b): fetches the list the open section shows and saves it as a
+ * CSV (BOM included, cells guarded against formula injection). Nothing to export → a translated notice, not an
+ * empty file; a failed read → an error toast (the result of the viewer's own action).
+ */
+async function exportList(
+  ui: ReturnType<typeof useUiText>,
+  url: string,
+  filename: string,
+  header: string[],
+  toRow: (row: any) => unknown[],
+) {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok || !json.success) throw new Error();
+    const rows: any[] = Array.isArray(json.data) ? json.data : [];
+    if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+    downloadCSV(`${filename}-${new Date().toISOString().slice(0, 10)}`, [header, ...rows.map(toRow)]);
+  } catch {
+    toast.error(ui("The export could not be prepared. Check your connection, then try again."));
+  }
+}
+
+/** Section switcher for a module panel: one row of choice buttons (the only tab row on its screen). */
+function SectionChoices<T extends string>({ items, value, onChange, label, dataAttr }: { items: ReadonlyArray<{ id: T; label: string }>; value: T; onChange: (id: T) => void; label: string; dataAttr?: string }) {
+  const ui = useUiText();
+  return (
+    <div role="group" aria-label={ui(label)} className="flex max-w-full flex-wrap gap-1 rounded-xl bg-surface-sunken p-1">
+      {items.map((item) => (
+        <Button aria-pressed={value === item.id} variant="choice" size="sm" key={item.id} onClick={() => onChange(item.id)} {...(dataAttr ? { [dataAttr]: item.id } : {})}>
+          {ui(item.label)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════════════════════════
    MODULE 14-A — TRANSPORT
    ════════════════════════════════════════════════════════════════ */
 
-export function TransportPanel() {
-  const [tab, setTab] = useState<"routes" | "vehicles" | "riders" | "trips">("routes");
+export type TransportTab = "routes" | "vehicles" | "riders" | "trips";
+const TRANSPORT_TABS: { id: TransportTab; label: string }[] = [
+  { id: "routes", label: "Routes" },
+  { id: "vehicles", label: "Vehicles" },
+  { id: "riders", label: "Riders & stops" },
+  { id: "trips", label: "Trips" },
+];
+
+/**
+ * Transport (routes, vehicles, riders, trips). `hideHeader` makes the panel the page body under a console's
+ * PageHeader (§4.4b admin · Transport: **Add route** · Vehicles · Export): no card or title of its own and no
+ * in-panel "Add route". `command` "add-route" opens the add-route row on Routes, "vehicles" opens Vehicles, and
+ * "export" saves the open list (vehicles on Vehicles, routes otherwise) as CSV.
+ */
+export function TransportPanel({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
+  const [tab, setTab] = useState<TransportTab>("routes");
+  // A forwarded header command reaches only the section it is for; changing section drops it.
+  const [forwarded, setForwarded] = useState<{ tab: TransportTab; command: PanelCommand } | null>(null);
+  const select = (next: TransportTab) => { setTab(next); setForwarded(null); };
+  usePanelCommand(command, {
+    "add-route": () => { setTab("routes"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "routes", command: copy } : null); },
+    vehicles: () => select("vehicles"),
+    export: () => tab === "vehicles"
+      ? void exportList(ui, "/api/transport/vehicles", "transport-vehicles", ["Number", "Type", "Capacity", "Driver", "Phone"], (v) => [v.number, v.model ?? "", v.capacity ?? "", v.driverName ?? "", v.driverPhone ?? ""])
+      : void exportList(ui, "/api/transport/routes", "transport-routes", ["Route", "Description", "Fare", "Vehicles"], (r) => [r.title, r.description ?? "", r.fare != null ? campusMoney(r.fare) : "", r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0]),
+  });
+  const choices = <SectionChoices label="Transport sections" items={TRANSPORT_TABS} value={tab} onChange={select} dataAttr="data-transport-tab" />;
   return (
     <div className="space-y-5">
-      <div className={cardCls}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <PanelTitle icon={Bus} title="Transport Management" />
-          <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-surface-sunken p-1">
-            {(["routes", "vehicles", "riders", "trips"] as const).map((t) => (
-              <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="" data-transport-tab={t}>
-                {t === "routes" ? "Routes" : t === "vehicles" ? "Vehicles" : t === "riders" ? "Riders & stops" : "Trips"}
-              </Button>
-            ))}
+      <div className={hideHeader ? "space-y-5" : cardCls}>
+        {hideHeader ? choices : (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <PanelTitle icon={Bus} title={ui("Transport")} />
+            {choices}
           </div>
-        </div>
+        )}
         {/* SKO-437: riders, stops and dated trips with a frozen manifest. */}
-        {tab === "routes" ? <RoutesTab /> : tab === "vehicles" ? <VehiclesTab /> : tab === "riders" ? <RidersPlanner /> : <TripsPlanner />}
+        {tab === "routes" ? <RoutesTab hideAdd={hideHeader} command={forwarded?.tab === "routes" ? forwarded.command : null} /> : tab === "vehicles" ? <VehiclesTab /> : tab === "riders" ? <RidersPlanner /> : <TripsPlanner />}
       </div>
     </div>
   );
 }
 
-function RoutesTab() {
+function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: PanelCommand | null }) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -237,7 +326,7 @@ function RoutesTab() {
     initialValues: { title: "", description: "", fare: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/transport/routes", values, form))) return;
-      toast.success("Route added");
+      toast.success(ui("Route added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -250,40 +339,45 @@ function RoutesTab() {
       const r = await fetch(`/api/transport/routes?id=${id}`, { method: "DELETE" });
       const j = await r.json();
       if (!j.success) throw new Error(j.error);
-      toast.success("Route removed"); load();
+      toast.success(ui("Route removed.")); load();
     } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
+  usePanelCommand(command, { "add-route": () => setShowAdd(true) });
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Route</BrandButton>
-      </div>
+      {hideAdd ? null : (
+        <div className="mb-4 flex justify-end">
+          <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add route")}</BrandButton>
+        </div>
+      )}
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Route Name" error={form.errors.title}>
-            <SystemInput className={`${inputCls} w-44`} {...form.field("title")} placeholder="Route A" />
+            <SystemInput className={`${inputCls} w-44`} {...form.field("title")} placeholder={ui("Route A")} />
           </OpField>
           <OpField label="Description" error={form.errors.description} width="flex-1">
-            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder="Stops, timings…" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder={ui("Stops, timings…")} />
           </OpField>
           {/* The stored value is paisa (the schema multiplies by 100 on save),
               so the unit has to be on the label — otherwise "500" is ambiguous. */}
-          <OpField label="Fare (Rs)" error={form.errors.fare}>
+          <OpField label="Fare" error={form.errors.fare}>
             <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("fare")} placeholder="0" />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          {/* Opened from the PageHeader, the row needs its own way out (the in-panel toggle is hidden). */}
+          {hideAdd ? <Button variant="ghost" onClick={() => { setShowAdd(false); form.reset(); }}>{ui("Cancel")}</Button> : null}
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.title}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
-                <td className={tdCls}>{r.fare != null ? formatPKR(r.fare) : "—"}</td>
+                <td className={tdCls}>{r.fare != null ? campusMoney(r.fare) : "—"}</td>
                 <td className={tdCls}>{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
@@ -296,6 +390,7 @@ function RoutesTab() {
 }
 
 function VehiclesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -320,7 +415,7 @@ function VehiclesTab() {
     initialValues: { number: "", model: "BUS", capacity: "40", driverName: "", driverPhone: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/transport/vehicles", values, form))) return;
-      toast.success("Vehicle added");
+      toast.success(ui("Vehicle added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -333,14 +428,14 @@ function VehiclesTab() {
       const r = await fetch(`/api/transport/vehicles?id=${id}`, { method: "DELETE" });
       const j = await r.json();
       if (!j.success) throw new Error(j.error);
-      toast.success("Vehicle removed"); load();
+      toast.success(ui("Vehicle removed.")); load();
     } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
     <>
       <div className="mb-4 flex justify-end">
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Vehicle</BrandButton>
+        <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add vehicle")}</BrandButton>
       </div>
       {showAdd && (
         <div className={addBoxCls}>
@@ -351,7 +446,7 @@ function VehiclesTab() {
             <SystemSelect className={`${inputCls} w-28`} {...form.field("model")}>
               {VEHICLE_MODELS.map((value) => (
                 <option key={value} value={value}>
-                  {value.charAt(0) + value.slice(1).toLowerCase()}
+                  {ui(VEHICLE_MODEL_LABEL[value] ?? value)}
                 </option>
               ))}
             </SystemSelect>
@@ -365,17 +460,17 @@ function VehiclesTab() {
           <OpField label="Driver Phone" error={form.errors.driverPhone}>
             <SystemInput className={`${inputCls} w-32`} inputMode="tel" {...form.field("driverPhone")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" /> : rows.map((v: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
               <tr key={v.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{v.number}</td>
-                <td className={tdCls}>{v.model || "—"}</td>
+                <td className={tdCls}>{v.model ? ui(VEHICLE_MODEL_LABEL[v.model] ?? v.model) : "—"}</td>
                 <td className={tdCls}>{v.capacity ?? "—"}</td>
                 <td className={tdCls}>{v.driverName || "—"}</td>
                 <td className={tdCls}>{v.driverPhone || "—"}</td>
@@ -393,29 +488,47 @@ function VehiclesTab() {
    MODULE 14-B — DORMITORY
    ════════════════════════════════════════════════════════════════ */
 
-export function DormitoryPanel() {
+export type DormitoryTab = "allocations" | "types" | "rooms";
+const DORMITORY_TABS: { id: DormitoryTab; label: string }[] = [
+  { id: "allocations", label: "Allocations" },
+  { id: "types", label: "Room types" },
+  { id: "rooms", label: "Rooms" },
+];
+
+/**
+ * Hostel (allocations, room types, rooms). `hideHeader` makes the panel the page body under a console's PageHeader
+ * (§4.4b admin · Hostel: **Allocate bed** · Rooms): no card or title of its own and no in-panel "Allocate student".
+ * `command` "allocate-bed" opens the allocation dialog on Allocations (once the rooms are loaded) and "rooms"
+ * opens Rooms.
+ */
+export function DormitoryPanel({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
-  const [tab, setTab] = useState<"allocations" | "types" | "rooms">("allocations");
+  const [tab, setTab] = useState<DormitoryTab>("allocations");
+  const [forwarded, setForwarded] = useState<{ tab: DormitoryTab; command: PanelCommand } | null>(null);
+  const select = (next: DormitoryTab) => { setTab(next); setForwarded(null); };
+  usePanelCommand(command, {
+    "allocate-bed": () => { setTab("allocations"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "allocations", command: copy } : null); },
+    rooms: () => select("rooms"),
+    "add-room-type": () => { setTab("types"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "types", command: copy } : null); },
+  });
+  const choices = <SectionChoices label="Hostel sections" items={DORMITORY_TABS} value={tab} onChange={select} />;
   return (
-    <div className={cardCls}>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        {/* "Hostel" in the sidebar; the page said "Dormitory". Same thing, two
-            names, on the same screen. */}
-        <PanelTitle icon={Building2} title={ui("Hostel Management")} />
-        <div className="flex max-w-full flex-wrap gap-1 rounded-xl bg-surface-sunken p-1">
-          {(["allocations", "types", "rooms"] as const).map((t) => (
-            <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
-              {ui(t === "allocations" ? "Allocations" : t === "types" ? "Room Types" : "Rooms")}
-            </Button>
-          ))}
+    <div className={hideHeader ? "space-y-5" : cardCls}>
+      {hideHeader ? choices : (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          {/* "Hostel" in the sidebar; the page said "Dormitory". Same thing, two
+              names, on the same screen. */}
+          <PanelTitle icon={Building2} title={ui("Hostel management")} />
+          {choices}
         </div>
-      </div>
-      {tab === "allocations" ? <DormitoryAllocations /> : tab === "types" ? <DormRoomTypesTab /> : <DormRoomsTab />}
+      )}
+      {tab === "allocations" ? <DormitoryAllocations hideAllocate={hideHeader} command={forwarded?.tab === "allocations" ? forwarded.command : null} /> : tab === "types" ? <DormRoomTypesTab hideAdd={hideHeader} command={forwarded?.tab === "types" ? forwarded.command : null} /> : <DormRoomsTab />}
     </div>
   );
 }
 
-function DormRoomTypesTab() {
+function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: PanelCommand | null } = {}) {
+  const campusMoney = useCampusMoney();
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -436,7 +549,7 @@ function DormRoomTypesTab() {
     initialValues: { name: "", description: "", costPerTerm: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/dormitory/room-types", values, form))) return;
-      toast.success("Room type added");
+      toast.success(ui("Room type added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -448,32 +561,34 @@ function DormRoomTypesTab() {
     try { const r = await fetch(`/api/dormitory/room-types?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
+  usePanelCommand(command, { "add-room-type": () => setShowAdd(true) });
+
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Type</BrandButton></div>
+      {hideAdd ? null : <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add room type")}</BrandButton></div>}
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} placeholder="Single" />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} placeholder={ui("Single")} />
           </OpField>
-          <OpField label="Cost/Term (Rs)" error={form.errors.costPerTerm}>
+          <OpField label="Cost per term" error={form.errors.costPerTerm}>
             <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("costPerTerm")} placeholder="0" />
           </OpField>
           <OpField label="Description" error={form.errors.description} width="flex-1">
-            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder="Occupancy, facilities…" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder={ui("Occupancy, facilities…")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
-                <td className={tdCls}>{r.costPerTerm ? formatPKR(r.costPerTerm) : "—"}</td>
+                <td className={tdCls}>{r.costPerTerm ? campusMoney(r.costPerTerm) : "—"}</td>
                 <td className={tdCls}>{r._count?.rooms ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
@@ -486,6 +601,7 @@ function DormRoomTypesTab() {
 }
 
 function DormRoomsTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -513,7 +629,7 @@ function DormRoomsTab() {
     initialValues: { number: "", roomTypeId: "", capacity: "4" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/dormitory/rooms", values, form))) return;
-      toast.success("Room added");
+      toast.success(ui("Room added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -522,12 +638,12 @@ function DormRoomsTab() {
 
   const del = async (id: string) => {
     setDeleting(id);
-    try { const r = await fetch(`/api/dormitory/rooms?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Room removed"); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
+    try { const r = await fetch(`/api/dormitory/rooms?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Room removed.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
   };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Room</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add room")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Room #" error={form.errors.number}>
@@ -535,27 +651,27 @@ function DormRoomsTab() {
           </OpField>
           <OpField label="Type" error={form.errors.roomTypeId}>
             <SystemSelect className={`${inputCls} w-32`} {...form.field("roomTypeId")}>
-              <option value="">Select…</option>
+              <option value="">{ui("Select…")}</option>
               {types.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </SystemSelect>
           </OpField>
           <OpField label="Capacity" error={form.errors.capacity}>
             <SystemInput className={`${inputCls} w-20`} type="number" min={1} max={50} {...form.field("capacity")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.number}</td>
                 <td className={tdCls}>{r.roomType?.name || "—"}</td>
                 <td className={tdCls}>{r.capacity}</td>
                 <td className={tdCls}>{r.occupied ?? 0} / {r.capacity}{r.upcoming ? ` (+${r.upcoming})` : ""}</td>
-                <td className={tdCls}>{r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available"}</td>
+                <td className={tdCls}>{ui(r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available")}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
               </tr>
             ))}
@@ -570,31 +686,64 @@ function DormRoomsTab() {
    MODULE 14-C — LIBRARY
    ════════════════════════════════════════════════════════════════ */
 
-export function LibraryPanel() {
-  const [tab, setTab] = useState<"books" | "members" | "issues" | "categories">("books");
+export type LibraryTab = "books" | "members" | "issues" | "categories";
+const LIBRARY_TABS: { id: LibraryTab; label: string }[] = [
+  { id: "books", label: "Titles" },
+  { id: "members", label: "Members" },
+  { id: "issues", label: "Issues" },
+  { id: "categories", label: "Categories" },
+];
+
+/** Catalogue sections the librarian console shows as its PageHeader tabs (the Issues tab is retired, M84). */
+export const CATALOGUE_TABS = LIBRARY_TABS.filter((item) => item.id !== "issues");
+/** The PageHeader primary for each catalogue section and the command it sends (EN UI keys; §4.4 "Add book"). */
+export const CATALOGUE_CREATE: Record<Exclude<LibraryTab, "issues">, { id: string; label: string }> = {
+  books: { id: "add-book", label: "Add book" },
+  members: { id: "add-member", label: "Add member" },
+  categories: { id: "add-category", label: "Add category" },
+};
+
+/**
+ * Catalogue and members. `hideIssues` removes the old Issues tab (role-ux M84/F24): issuing, renewing and returning
+ * live on the lending desk (`LendingDesk`), which handles copies, fines and reader cards correctly. `command`
+ * "add-book" opens the add-book row from the console's PageHeader (`hideHeader` drops the panel title and the
+ * in-panel Add book button, and the panel becomes the page body: no card of its own).
+ *
+ * One tab row per screen (§3.1): the librarian console renders the sections as its PageHeader tabs
+ * (`sectionNav="none"`); under another tab row (the campus admin's Library › Catalogue) they are a section picker.
+ */
+export function LibraryPanel({ hideIssues = false, hideHeader = false, command, tab: wanted, onTabChange, sectionNav = "picker" }: { hideIssues?: boolean; hideHeader?: boolean; command?: PanelCommand | null; tab?: string | null; onTabChange?: (tab: LibraryTab) => void; sectionNav?: "picker" | "none" } = {}) {
+  const ui = useUiText();
+  const items = LIBRARY_TABS.filter((item) => !(hideIssues && item.id === "issues"));
+  const [localTab, setLocalTab] = useState<LibraryTab>("books");
+  const tab: LibraryTab = items.some((item) => item.id === wanted) ? (wanted as LibraryTab) : onTabChange ? "books" : localTab;
+  // A forwarded header command reaches only the section it is for; changing section drops it.
+  const [forwarded, setForwarded] = useState<{ tab: LibraryTab; command: PanelCommand } | null>(null);
+  const select = (next: LibraryTab) => { setLocalTab(next); onTabChange?.(next); setForwarded(null); };
+  const forwardTo = (target: LibraryTab) => { select(target); const copy = forwardCommand(command); setForwarded(copy ? { tab: target, command: copy } : null); };
+  usePanelCommand(command, { "add-book": () => forwardTo("books"), "add-member": () => forwardTo("members"), "add-category": () => forwardTo("categories") });
+  const commandFor = (target: LibraryTab) => (forwarded?.tab === target ? forwarded.command : null);
+  const picker = sectionNav === "picker" ? <SectionPicker label="Catalogue section" items={items} value={tab} onChange={select} /> : null;
   return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={BookOpen} title="Library Management" />
-        <div className="flex gap-1 rounded-xl bg-surface-sunken p-1">
-          {(["books", "members", "issues", "categories"] as const).map((t) => (
-            <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </Button>
-          ))}
+    <div className={hideHeader ? "space-y-5" : cardCls}>
+      {hideHeader ? picker : (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <PanelTitle icon={BookOpen} title={ui("Catalogue and members")} />
+          {picker}
         </div>
-      </div>
-      {tab === "books" ? <BooksTab /> : tab === "members" ? <MembersTab /> : tab === "issues" ? <IssuesTab /> : <BookCategoriesTab />}
+      )}
+      {tab === "books" ? <BooksTab command={commandFor("books")} hideAdd={hideHeader} /> : tab === "members" ? <MembersTab command={commandFor("members")} hideAdd={hideHeader} /> : tab === "issues" ? <IssuesTab /> : <BookCategoriesTab command={commandFor("categories")} hideAdd={hideHeader} />}
     </div>
   );
 }
 
-function BookCategoriesTab() {
+function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelCommand | null; hideAdd?: boolean }) {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  usePanelCommand(command, { "add-category": () => setShowAdd(true) });
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -611,7 +760,7 @@ function BookCategoriesTab() {
     initialValues: { name: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/library/categories", values, form))) return;
-      toast.success("Category added");
+      toast.success(ui("Category added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -625,18 +774,18 @@ function BookCategoriesTab() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Category</BrandButton></div>
+      {hideAdd ? null : <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add category")}</BrandButton></div>}
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} placeholder="Fiction" />
+            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} placeholder={ui("Fiction")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Name", "Books", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Titles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -652,7 +801,7 @@ function BookCategoriesTab() {
   );
 }
 
-function BooksTab() {
+function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null; hideAdd?: boolean }) {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -682,13 +831,14 @@ function BooksTab() {
     initialValues: { title: "", author: "", isbn: "", categoryId: "", copiesTotal: "1" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/library/books", values, form))) return;
-      toast.success("Book added");
+      toast.success(ui("Book added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
+  usePanelCommand(command, { "add-book": () => setShowAdd(true) });
   const del = async (id: string) => {
     setDeleting(id);
     try { const r = await fetch(`/api/library/books?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
@@ -699,9 +849,9 @@ function BooksTab() {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <InputGroup className="relative">
           <Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <SystemInput className={`${inputCls} w-64 ps-9`} placeholder="Search books…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <SystemInput className={`${inputCls} w-64 ps-9`} placeholder={ui("Search books…")} aria-label={ui("Search books")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </InputGroup>
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Book</BrandButton>
+        {hideAdd ? null : <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add book")}</BrandButton>}
       </div>
       {showAdd && (
         <div className={addBoxCls}>
@@ -716,19 +866,19 @@ function BooksTab() {
           </OpField>
           <OpField label="Category" error={form.errors.categoryId}>
             <SystemSelect className={`${inputCls} w-32`} {...form.field("categoryId")}>
-              <option value="">None</option>
+              <option value="">{ui("None")}</option>
               {cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </SystemSelect>
           </OpField>
           <OpField label="Copies" error={form.errors.copiesTotal}>
             <SystemInput className={`${inputCls} w-20`} type="number" min={0} {...form.field("copiesTotal")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} text="No books yet" /> : rows.map((b: any) => (
               <tr key={b.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -748,12 +898,94 @@ function BooksTab() {
   );
 }
 
-function MembersTab() {
+type Reader = { id: string; fullName: string; detail: string };
+
+/**
+ * Finds a library reader by name (F24) without depending on who may message whom (P8-05): learners come from the
+ * campus roster (`/api/students`, the librarian's read access to student records, §2.2 #27) and only those with a
+ * sign-in can be members; staff come from the staff directory as a second, best-effort source. A failed search says
+ * so in place with a retry (R4) instead of reading as "no one found".
+ */
+function PersonPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const ui = useUiText();
+  const { language } = useLocale();
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<Reader[]>([]);
+  const [picked, setPicked] = useState<{ id: string; fullName: string } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setFound([]); setFailed(false); return; }
+    let live = true;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setFailed(false);
+      const learners = fetch(`/api/students?${new URLSearchParams({ search: q, limit: "8" })}`, { cache: "no-store" })
+        .then(async (r) => { const j = await r.json().catch(() => null); if (!r.ok || !j?.success) throw new Error("students"); return j.data as Array<{ fullName: string; rollNo?: string | null; class?: { name: string; section: string | null } | null; studentUser?: { id: string; isActive: boolean } | null }>; })
+        .then((rows) => rows.filter((row) => row.studentUser?.id && row.studentUser.isActive !== false).map((row): Reader => ({ id: row.studentUser!.id, fullName: row.fullName, detail: [ui("Student"), [row.class?.name, row.class?.section].filter(Boolean).join(" ")].filter(Boolean).join(" · ") })));
+      // Staff readers: best effort (a school may limit the directory); learners never depend on it.
+      const staff = fetch(`/api/chat/directory?${new URLSearchParams({ q, limit: "8" })}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => ((j?.success ? j.contacts : []) as Array<{ id: string; fullName: string; role: string; campusName: string | null }>).filter((person) => person.role !== "STUDENT" && person.role !== "PARENT").map((person): Reader => ({ id: person.id, fullName: person.fullName, detail: roleLabel(person.role, language) })))
+        .catch(() => [] as Reader[]);
+      void Promise.allSettled([learners, staff]).then(([a, b]) => {
+        if (!live) return;
+        const people = [...(a.status === "fulfilled" ? a.value : []), ...(b.status === "fulfilled" ? b.value : [])];
+        const unique = people.filter((person, index) => people.findIndex((other) => other.id === person.id) === index);
+        setFound(unique);
+        setFailed(a.status === "rejected" && unique.length === 0);
+        setSearching(false);
+      });
+    }, 250);
+    return () => { live = false; clearTimeout(timer); };
+  }, [query, attempt, ui, language]);
+  if (picked && picked.id === value) {
+    return (
+      <div className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-edge/40 bg-card px-3 py-2 text-sm">
+        <bdi className="font-semibold text-ink-strong">{picked.fullName}</bdi>
+        <Button type="button" size="sm" variant="ghost" onClick={() => { setPicked(null); onChange(""); setQuery(""); }}>{ui("Change")}</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      <SystemInput className={`${inputCls} w-full`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={ui("Type a name")} aria-label={ui("Find a reader by name")} />
+      {query.trim().length >= 2 ? (
+        failed ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-status-error-text">
+            <span>{ui("Readers could not be searched. Check your connection and try again.")}</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>{ui("Try again")}</Button>
+          </div>
+        ) : found.length ? (
+          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-edge/30 bg-card p-1" aria-label={ui("Matching people")}>
+            {found.map((person) => (
+              <li key={person.id}>
+                <Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-start font-normal" onClick={() => { setPicked({ id: person.id, fullName: person.fullName }); onChange(person.id); }}>
+                  <span className="min-w-0">
+                    <bdi className="block font-semibold text-ink-strong">{person.fullName}</bdi>
+                    <span className="block text-xs text-ink-muted"><bdi>{person.detail}</bdi></span>
+                  </span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-ink-muted" role="status">{ui(searching ? "Searching…" : "No one found. Check the spelling; a learner needs a sign-in before joining the library.")}</p>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | null; hideAdd?: boolean }) {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  usePanelCommand(command, { "add-member": () => setShowAdd(true) });
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -770,7 +1002,7 @@ function MembersTab() {
     initialValues: { userId: "", memberNo: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/library/members", values, form))) return;
-      toast.success("Member added");
+      toast.success(ui("Member added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -784,21 +1016,21 @@ function MembersTab() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Member</BrandButton></div>
+      {hideAdd ? null : <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add member")}</BrandButton></div>}
       {showAdd && (
         <div className={addBoxCls}>
-          <OpField label="User ID" error={form.errors.userId}>
-            <SystemInput className={`${inputCls} w-64`} {...form.field("userId")} placeholder="Paste user ID" />
+          <OpField label="Reader" error={form.errors.userId} width="w-full sm:w-72">
+            <PersonPicker value={String(form.values.userId ?? "")} onChange={(id) => form.setValue("userId", id)} />
           </OpField>
           <OpField label="Member No" error={form.errors.memberNo}>
             <SystemInput className={`${inputCls} w-32`} {...form.field("memberNo")} placeholder="LM-001" />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
               <tr key={m.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -816,6 +1048,7 @@ function MembersTab() {
 }
 
 function IssuesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -842,7 +1075,7 @@ function IssuesTab() {
     initialValues: { bookId: "", memberId: "", dueAt: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/library/issues", values, form))) return;
-      toast.success("Book issued");
+      toast.success(ui("Book issued."));
       setShowAdd(false);
       form.reset();
       load();
@@ -853,19 +1086,19 @@ function IssuesTab() {
     try {
       const r = await fetch("/api/library/issues", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "return" }) });
       const j = await r.json(); if (!j.success) throw new Error(j.error);
-      toast.success("Book returned"); load();
+      toast.success(ui("Book returned.")); load();
     } catch (e: any) { toast.error(e); }
   };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Issue Book</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Issue book")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Book" error={form.errors.bookId}>
             <SystemSelect className={`${inputCls} w-48`} {...form.field("bookId")}>
-              <option value="">Select…</option>
-              {books.filter((b: any) => b.copiesAvailable > 0).map((b: any) => <option key={b.id} value={b.id}>{b.title} ({b.copiesAvailable} avail)</option>)}
+              <option value="">{ui("Select…")}</option>
+              {books.filter((b: any) => b.copiesAvailable > 0).map((b: any) => <option key={b.id} value={b.id}>{b.title} ({ui("{0} available", [b.copiesAvailable])})</option>)}
             </SystemSelect>
           </OpField>
           <OpField label="Member" error={form.errors.memberId}>
@@ -873,19 +1106,19 @@ function IssuesTab() {
                 have — the list was therefore always empty and no member could
                 be picked. */}
             <SystemSelect className={`${inputCls} w-48`} {...form.field("memberId")}>
-              <option value="">Select…</option>
+              <option value="">{ui("Select…")}</option>
               {members.map((m: any) => <option key={m.id} value={m.id}>{m.user?.fullName || m.memberNo || m.userId}</option>)}
             </SystemSelect>
           </OpField>
           <OpField label="Due Date" error={form.errors.dueAt}>
             <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Issuing…" : "Issue"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Issuing…") : ui("Issue")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
               <tr key={i.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -893,8 +1126,8 @@ function IssuesTab() {
                 <td className={tdCls}>{i.member?.user?.fullName || i.memberId}</td>
                 <td className={tdCls}>{new Date(i.issueDate).toLocaleDateString()}</td>
                 <td className={tdCls}>{i.dueDate ? new Date(i.dueDate).toLocaleDateString() : "—"}</td>
-                <td className={tdCls}><Badge size="sm" dot variant={i.returnDate ? "success" : "warning"}>{i.returnDate ? "Returned" : "Issued"}</Badge></td>
-                <td className={tdCls}>{!i.returnDate && <Button variant="secondary" size="sm" onClick={() => returnBook(i.id)} ><RotateCcw className="me-1 inline h-3 w-3" />Return</Button>}</td>
+                <td className={tdCls}><Badge size="sm" dot variant={i.returnDate ? "success" : "warning"}>{ui(i.returnDate ? "Returned" : "Issued")}</Badge></td>
+                <td className={tdCls}>{!i.returnDate && <Button variant="secondary" size="sm" onClick={() => returnBook(i.id)} ><RotateCcw className="me-1 inline h-3 w-3" aria-hidden="true" />{ui("Return")}</Button>}</td>
               </tr>
             ))}
           </tbody>
@@ -908,21 +1141,44 @@ function IssuesTab() {
    MODULE 14-D — INVENTORY
    ════════════════════════════════════════════════════════════════ */
 
-export function InventoryPanel() {
-  const [tab, setTab] = useState<"items" | "transactions" | "stores" | "suppliers" | "categories">("items");
+export type InventoryTab = "items" | "transactions" | "stores" | "suppliers" | "categories";
+const INVENTORY_TABS: { id: InventoryTab; label: string }[] = [
+  { id: "items", label: "Items" },
+  { id: "transactions", label: "Transactions" },
+  { id: "stores", label: "Stores" },
+  { id: "suppliers", label: "Suppliers" },
+  { id: "categories", label: "Categories" },
+];
+
+/**
+ * Stock: items, movements, stores, suppliers and categories. `hideHeader` drops the panel's card and title (use it
+ * when the panel is the page body; under another section — the campus admin's purchase requests — pass `command`
+ * only and keep the titled card). `command` (§4.4b admin · Inventory: Receive goods · Export) "receive-goods" opens
+ * a Receive movement on Transactions; "export" saves the movements on Transactions, the stock list otherwise.
+ */
+export function InventoryPanel({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
+  const { date: formatDate } = useLocaleFormat();
+  const [tab, setTab] = useState<InventoryTab>("items");
+  const [forwarded, setForwarded] = useState<{ tab: InventoryTab; command: PanelCommand } | null>(null);
+  const select = (next: InventoryTab) => { setTab(next); setForwarded(null); };
+  usePanelCommand(command, {
+    "receive-goods": () => { setTab("transactions"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "transactions", command: copy } : null); },
+    export: () => tab === "transactions"
+      ? void exportList(ui, "/api/inventory/transactions", "stock-movements", ["Date", "Kind", "Item", "Store", "Qty", "Unit price", "Supplier", "Note"], (t) => [formatDate(t.createdAt), TXN_KIND_LABEL[t.kind] ?? t.kind, t.item?.name ?? t.itemId, t.store?.name ?? t.storeId, t.quantity, t.unitPrice != null ? campusMoney(t.unitPrice) : "", t.supplier?.name ?? "", t.note ?? ""])
+      : void exportList(ui, "/api/inventory/items", "stock", ["Name", "Category", "Unit", "Total stock"], (r) => [r.name, r.category?.name ?? "", r.unit ?? "", (r.stock || []).reduce((sum: number, st: any) => sum + (st.quantity || 0), 0)]),
+  });
+  const choices = <SectionChoices label="Inventory sections" items={INVENTORY_TABS} value={tab} onChange={select} />;
   return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Package} title="Inventory / POS" />
-        <div className="flex gap-1 rounded-xl bg-surface-sunken p-1">
-          {(["items", "transactions", "stores", "suppliers", "categories"] as const).map((t) => (
-            <Button aria-pressed={tab === t} variant="choice" size="sm" key={t} onClick={() => setTab(t)} className="">
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </Button>
-          ))}
+    <div className={hideHeader ? "space-y-5" : cardCls}>
+      {hideHeader ? choices : (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <PanelTitle icon={Package} title={ui("Inventory")} />
+          {choices}
         </div>
-      </div>
-      {tab === "items" ? <ItemsTab /> : tab === "transactions" ? <TransactionsTab /> : tab === "stores" ? <StoresTab /> : tab === "suppliers" ? <SuppliersTab /> : <ItemCategoriesTab />}
+      )}
+      {tab === "items" ? <ItemsTab /> : tab === "transactions" ? <TransactionsTab command={forwarded?.tab === "transactions" ? forwarded.command : null} /> : tab === "stores" ? <StoresTab /> : tab === "suppliers" ? <SuppliersTab /> : <ItemCategoriesTab />}
     </div>
   );
 }
@@ -945,7 +1201,7 @@ function ItemCategoriesTab() {
     initialValues: { name: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/inventory/categories", values, form))) return;
-      toast.success("Category added");
+      toast.success(ui("Category added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -956,18 +1212,18 @@ function ItemCategoriesTab() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Category</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add category")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
             <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -1000,7 +1256,7 @@ function StoresTab() {
     initialValues: { name: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/inventory/stores", values, form))) return;
-      toast.success("Store added");
+      toast.success(ui("Store added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -1011,18 +1267,18 @@ function StoresTab() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Store</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add store")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name} width="flex-1">
-            <SystemInput className={`${inputCls} w-full`} {...form.field("name")} placeholder="Main Store" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("name")} placeholder={ui("Main store")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -1055,7 +1311,7 @@ function SuppliersTab() {
     initialValues: { name: "", phone: "", email: "", address: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/inventory/suppliers", values, form))) return;
-      toast.success("Supplier added");
+      toast.success(ui("Supplier added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -1066,7 +1322,7 @@ function SuppliersTab() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Supplier</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add supplier")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
@@ -1081,12 +1337,12 @@ function SuppliersTab() {
           <OpField label="Address" error={form.errors.address} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("address")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -1129,7 +1385,7 @@ function ItemsTab() {
     initialValues: { name: "", categoryId: "", unit: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/inventory/items", values, form))) return;
-      toast.success("Item added");
+      toast.success(ui("Item added."));
       setShowAdd(false);
       form.reset();
       load();
@@ -1141,8 +1397,8 @@ function ItemsTab() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Item</BrandButton>
+        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
+        <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add item")}</BrandButton>
       </div>
       {showAdd && (
         <div className={addBoxCls}>
@@ -1150,17 +1406,17 @@ function ItemsTab() {
             <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
           <OpField label="Category" error={form.errors.categoryId}>
-            <SystemSelect className={`${inputCls} w-32`} {...form.field("categoryId")}><option value="">None</option>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</SystemSelect>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("categoryId")}><option value="">{ui("None")}</option>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Unit" error={form.errors.unit}>
-            <SystemInput className={`${inputCls} w-24`} {...form.field("unit")} placeholder="pcs" />
+            <SystemInput className={`${inputCls} w-24`} {...form.field("unit")} placeholder={ui("pcs")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No items" /> : rows.map((r: any) => {
               const totalStock = (r.stock || []).reduce((s: number, st: any) => s + (st.quantity || 0), 0);
@@ -1178,7 +1434,9 @@ function ItemsTab() {
   );
 }
 
-function TransactionsTab() {
+function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -1205,56 +1463,58 @@ function TransactionsTab() {
     initialValues: { itemId: "", storeId: "", supplierId: "", kind: "RECEIVE", quantity: "1", unitPrice: "", note: "" },
     onSubmit: async (values) => {
       if (!(await submitTo("/api/inventory/transactions", values, form))) return;
-      toast.success("Transaction recorded");
+      toast.success(ui("Transaction recorded."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
+  // "Receive goods" from the PageHeader: a Receive movement, ready for the item, store and quantity.
+  usePanelCommand(command, { "receive-goods": () => { form.setValues({ kind: "RECEIVE" }); setShowAdd(true); } });
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>New Transaction</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("New transaction")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Kind" error={form.errors.kind}>
             <SystemSelect className={`${inputCls} w-28`} {...form.field("kind")}>
-              {ITEM_TRANSACTION_KINDS.map((k) => <option key={k} value={k}>{k.charAt(0) + k.slice(1).toLowerCase()}</option>)}
+              {ITEM_TRANSACTION_KINDS.map((k) => <option key={k} value={k}>{ui(TXN_KIND_OPTION[k] ?? k)}</option>)}
             </SystemSelect>
           </OpField>
           <OpField label="Item" error={form.errors.itemId}>
-            <SystemSelect className={`${inputCls} w-40`} {...form.field("itemId")}><option value="">Select…</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</SystemSelect>
+            <SystemSelect className={`${inputCls} w-40`} {...form.field("itemId")}><option value="">{ui("Select…")}</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Store" error={form.errors.storeId}>
-            <SystemSelect className={`${inputCls} w-36`} {...form.field("storeId")}><option value="">Select…</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
+            <SystemSelect className={`${inputCls} w-36`} {...form.field("storeId")}><option value="">{ui("Select…")}</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Qty" error={form.errors.quantity}>
             <SystemInput className={`${inputCls} w-20`} type="number" min={1} {...form.field("quantity")} />
           </OpField>
-          <OpField label="Unit Price (Rs)" error={form.errors.unitPrice}>
+          <OpField label="Unit price" error={form.errors.unitPrice}>
             <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("unitPrice")} placeholder="0" />
           </OpField>
           <OpField label="Supplier" error={form.errors.supplierId}>
-            <SystemSelect className={`${inputCls} w-36`} {...form.field("supplierId")}><option value="">None</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
+            <SystemSelect className={`${inputCls} w-36`} {...form.field("supplierId")}><option value="">{ui("None")}</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Note" error={form.errors.note} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-edge/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
             {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
               <tr key={t.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><Badge size="sm" dot variant={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{TXN_KIND_LABEL[t.kind] ?? t.kind}</Badge></td>
+                <td className={tdCls}><Badge size="sm" dot variant={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{ui(TXN_KIND_LABEL[t.kind] ?? t.kind)}</Badge></td>
                 <td className={tdCls}>{t.item?.name || t.itemId}</td>
                 <td className={tdCls}>{t.store?.name || t.storeId}</td>
                 <td className={tdCls}>{t.quantity}</td>
-                <td className={tdCls}>{t.unitPrice != null ? formatPKR(t.unitPrice) : "—"}</td>
+                <td className={tdCls}>{t.unitPrice != null ? campusMoney(t.unitPrice) : "—"}</td>
                 <td className={tdCls}>{t.supplier?.name || "—"}</td>
                 <td className={tdCls}>{t.note || "—"}</td>
               </tr>

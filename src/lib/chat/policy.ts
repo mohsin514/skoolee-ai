@@ -15,7 +15,8 @@
 // ─────────────────────────────────────────────────────────────────
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { isCampusAdminRole, type UserRole } from "@/lib/roles";
+import type { UserRole } from "@/lib/roles";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 
 /** School leadership. Reaches everyone inside its campus scope. */
@@ -314,9 +315,13 @@ export function canCreateAnnouncement(role: UserRole) {
   return isLeadership(role);
 }
 
-/** Who may change the school-wide messaging policy. */
-export function canManageChatSettings(role: UserRole) {
-  return role === "SUPER_ADMIN" || isCampusAdminRole(role) || role === "PRINCIPAL";
+/**
+ * Who may change the school-wide messaging policy (§7.3 G52). There is one ChatSetting row per school, so only the
+ * institution authority — the group admin, or the school admin of a single school — writes it. Everyone keeps
+ * reading it.
+ */
+export function canManageChatSettings(user: Pick<AuthUser, "role"> & Partial<Pick<AuthUser, "institutionKind" | "isInstitutionOwner">>) {
+  return isInstitutionAuthority(user);
 }
 
 /**

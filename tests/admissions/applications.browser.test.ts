@@ -63,7 +63,7 @@ before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Lotus Admissions School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Lotus Clifton"], [otherCampusId, "Lotus Gulshan"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Karachi" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Prep", section: "A", academicYear: 2026 } });
-  const lead = await user("lead", "PRINCIPAL"); await user("desk", "RECEPTIONIST"); await user("other", "PRINCIPAL", otherCampusId); await user("teacher", "TEACHER"); await user("parent", "PARENT");
+  const lead = await user("lead", "CAMPUS_ADMIN"); await user("desk", "RECEPTIONIST"); await user("other", "CAMPUS_ADMIN", otherCampusId); // role-ux G37: decisions are the campus admin's await user("teacher", "TEACHER"); await user("parent", "PARENT");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Karachi", currency: "PKR" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   // An existing pupil with the same name and date of birth as one applicant (a possible duplicate).
   await db.student.create({ data: { schoolId, campusId, classId, fullName: "Synthetic Child Hamza Ali", rollNo: "P-1", gender: "MALE", dateOfBirth: new Date("2019-06-01T00:00:00Z"), enrollmentDate: new Date("2025-04-01Z") } });
@@ -223,15 +223,16 @@ test("conversion creates one pupil on retry; a possible duplicate needs an expli
   assert.equal((await db.admissionQuery.findUniqueOrThrow({ where: { id: enquiry.id } })).status, "CONVERTED", "the enquiry is closed with the pupil");
 });
 
-test("a receptionist's delegated admissions grant works, and stops the moment it is revoked", async () => {
+test("the front desk edits admissions intake by default, never decides, and stops the moment the grant is revoked", async () => {
   const desk = await context("desk"), lead = await context("lead");
   const enquiry = await (await desk.request.post(`${base}/api/admission-queries`, { data: { name: "Synthetic Walk-in Mother", phone: "+92 333 0001112", source: "WALK_IN" } })).json();
-  assert.equal((await desk.request.patch(`${base}/api/admission-queries`, { data: { id: enquiry.data.id, followUp: { note: "Synthetic: called back" } } })).status(), 403, "no edit grant yet");
-  const grant = await db.rolePermission.create({ data: { schoolId, role: "RECEPTIONIST", module: "admissions", canView: true, canAdd: true, canEdit: true, canDelete: false } });
-  assert.equal((await desk.request.patch(`${base}/api/admission-queries`, { data: { id: enquiry.data.id, followUp: { note: "Synthetic: called back" } } })).status(), 200, "the grant works on the enquiry API");
+  // role-ux §7.4 / F29: RECEPTIONIST admissions defaults to view, add and edit.
+  assert.equal((await desk.request.patch(`${base}/api/admission-queries`, { data: { id: enquiry.data.id, followUp: { note: "Synthetic: called back" } } })).status(), 200, "intake is the front desk's by default");
   const app = await db.admissionApplication.findFirstOrThrow({ where: { schoolId, status: "INFO_REQUESTED" } }).catch(() => null) ?? await db.admissionApplication.findFirstOrThrow({ where: { schoolId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } });
   assert.equal((await staffAct(desk, { id: app.id, version: app.version, action: "note", officeNote: "Synthetic: desk note" })).status(), 200, "and on applications");
-  await db.rolePermission.update({ where: { id: grant.id }, data: { canEdit: false } });
+  assert.equal((await staffAct(desk, { id: app.id, version: (await row(app.reference)).version, action: "offer", officeNote: "Synthetic: offer" })).status(), 403, "offers are the campus admin's decision (G37)");
+  // A customised row (not equal to the legacy default) is honoured as is: view only.
+  await db.rolePermission.create({ data: { schoolId, role: "RECEPTIONIST", module: "admissions", canView: true, canAdd: false, canEdit: false, canDelete: false } });
   const fresh = await row(app.reference);
   assert.equal((await staffAct(desk, { id: app.id, version: fresh.version, action: "note", officeNote: "Synthetic: after revoke" })).status(), 403, "revoked immediately");
   assert.equal((await desk.request.patch(`${base}/api/admission-queries`, { data: { id: enquiry.data.id, followUp: { note: "Synthetic: after revoke" } } })).status(), 403);
@@ -276,10 +277,10 @@ test("an Arabic family completes the form on a phone: required items are marked,
   await ctx.close();
 });
 
-test("the principal reviews an application against its form version with possible duplicates and the enrol step", async () => {
+test("the campus admin reviews an application against its form version with possible duplicates and the enrol step", async () => {
   const lead = await context("lead"), page = await lead.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(`${base}/principal?view=applications`);
+  await page.goto(`${base}/admin?view=admissions&tab=applications`);
   const desk = page.locator("[data-admissions-desk]");
   await desk.getByLabel("Show").selectOption("all", { timeout: 30_000 });
   await desk.locator("[data-application]").first().waitFor({ timeout: 15_000 });
@@ -291,8 +292,9 @@ test("the principal reviews an application against its form version with possibl
   await review.locator('[data-review-document="birthCertificate"][data-present="true"]').waitFor();
   await shot(page, "admissions-review-en-1440");
   await page.getByRole("dialog").getByRole("button", { name: "Close" }).first().click().catch(() => undefined);
-  await desk.getByRole("tab", { name: "Application forms" }).click();
-  await desk.locator("[data-admission-form]").first().waitFor();
+  // role-ux §3.1: the form designer is its own Admissions tab for campus operations.
+  await page.goto(`${base}/admin?view=admissions&tab=forms`);
+  await page.locator("[data-admission-form]").first().waitFor({ timeout: 30_000 });
   await shot(page, "admissions-forms-en-1440");
   assert.deepEqual(errors, []);
   await page.close();

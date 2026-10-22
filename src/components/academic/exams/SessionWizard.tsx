@@ -8,15 +8,15 @@ import {
   GraduationCap,
   School,
   Sparkles,
-  Users,
 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Field, inputClass, selectClass } from "@/components/academic/exams/shared";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * Create one exam for every class in a single pass (§80).
@@ -78,6 +78,7 @@ export function SessionWizard({
   onClose: () => void;
   onCreated: (sessionId: string) => void;
 }) {
+  const ui = useUiText();
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -106,7 +107,7 @@ export function SessionWizard({
         // them — so start with everything that has subjects already ticked.
         setSelected(new Set(list.filter((c) => countsOf(c).subjects > 0).map((c) => c.id)));
       } catch {
-        if (!cancelled) toast.error("Could not load classes");
+        if (!cancelled) toast.error(ui("Could not load classes"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -165,8 +166,8 @@ export function SessionWizard({
   const withoutSubjects = chosen.filter((c) => countsOf(c).subjects === 0);
 
   const submit = async () => {
-    if (!title.trim()) return toast.error("Give the exam a title");
-    if (selected.size === 0) return toast.error("Pick at least one class");
+    if (!title.trim()) return toast.error(ui("Give the exam a title"));
+    if (selected.size === 0) return toast.error(ui("Pick at least one class"));
     setBusy(true);
     try {
       const res = await fetch("/api/academic/exam-sessions", {
@@ -184,16 +185,14 @@ export function SessionWizard({
         }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "Could not create the exam");
+      if (!res.ok || !json.success) throw new Error(json.error || "");
 
       const skipped: string[] = json.skipped ?? [];
-      toast.success(
-        `${json.created} class${json.created === 1 ? "" : "es"} scheduled` +
-          (skipped.length ? ` · ${skipped.length} already had this exam` : ""),
-      );
+      const created = ui(json.created === 1 ? "1 class scheduled" : "{0} classes scheduled", [json.created]);
+      toast.success(skipped.length ? ui("{0} · {1} already had this exam", [created, skipped.length]) : created);
       onCreated(json.session.id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not create the exam");
+      toast.error(friendlyErrorMessage(e, ui("Could not create the exam")));
     } finally {
       setBusy(false);
     }
@@ -201,9 +200,9 @@ export function SessionWizard({
 
   return (
     <Modal
-      title="Schedule an exam"
-      eyebrow="Exams & Results"
-      subtitle="One announcement, one exam per class. Dates and rooms come next."
+      title={ui("Schedule an exam")}
+      eyebrow={ui("Exams & results")}
+      subtitle={ui("One announcement, one exam per class. Dates and rooms come next.")}
       icon={Sparkles}
       tone="violet"
       size="lg"
@@ -212,15 +211,16 @@ export function SessionWizard({
       footer={
         <ModalActions
           busy={busy}
-          busyLabel="Scheduling…"
-          actionLabel={`Schedule for ${selected.size} class${selected.size === 1 ? "" : "es"}`}
+          busyLabel={ui("Scheduling…")}
+          actionLabel={ui(selected.size === 1 ? "Schedule for 1 class" : "Schedule for {0} classes", [selected.size])}
+          cancelLabel={ui("Cancel")}
           onCancel={onClose}
           onAction={submit}
           blockedReason={
             selected.size === 0
-              ? "Pick at least one class to sit this exam."
+              ? ui("Pick at least one class to sit this exam.")
               : !title.trim()
-              ? "Give the exam a title."
+              ? ui("Give the exam a title.")
               : null
           }
         />
@@ -229,8 +229,8 @@ export function SessionWizard({
       <div className="space-y-5">
         {/* ── What kind of exam ─────────────────────────────────────────── */}
         <div>
-          <p className="mb-2 ps-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-            What kind of exam
+          <p className="mb-2 ps-0.5 text-xs font-semibold text-ink-subtle">
+            {ui("What kind of exam")}
           </p>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {TYPES.map((t) => {
@@ -251,27 +251,27 @@ export function SessionWizard({
                   <span
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
-                      active ? "bg-primary text-white" : "bg-brand-100 text-primary",
+                      active ? "bg-primary text-primary-foreground" : "bg-brand-100 text-primary",
                     )}
+                    aria-hidden="true"
                   >
                     <t.icon className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-bold text-ink-strong">{t.label}</span>
+                    <span className="block text-sm font-bold text-ink-strong">{ui(t.label)}</span>
                     <span className="mt-0.5 block text-2xs font-semibold leading-snug text-ink-muted">
-                      {t.blurb}
+                      {ui(t.blurb)}
                     </span>
                   </span>
                   {active ? (
-                    <Check className="absolute right-3 top-3 h-4 w-4 text-primary" />
+                    <Check aria-hidden="true" className="absolute end-3 top-3 h-4 w-4 text-primary" />
                   ) : null}
                 </Button>
               );
             })}
           </div>
           <p className="mt-2 ps-0.5 text-2xs font-semibold text-ink-subtle">
-            Quizzes and class tests are created by teachers for their own subjects — they
-            never need a date sheet or a seating plan.
+            {ui("Quizzes and class tests are created by teachers for their own subjects — they never need a date sheet or a seating plan.")}
           </p>
         </div>
 
@@ -281,7 +281,7 @@ export function SessionWizard({
             <SystemSelect className={selectClass} value={term} onChange={(e) => setTerm(e.target.value)}>
               {TERMS.map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {ui(t)}
                 </option>
               ))}
             </SystemSelect>
@@ -319,8 +319,8 @@ export function SessionWizard({
         {/* ── Which classes ─────────────────────────────────────────────── */}
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <p className="ps-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-              Which classes sit it
+            <p className="ps-0.5 text-xs font-semibold text-ink-subtle">
+              {ui("Which classes sit it")}
             </p>
             <div className="ms-auto flex gap-1.5">
               <Button variant="secondary"
@@ -328,14 +328,14 @@ export function SessionWizard({
                 onClick={() => setSelected(new Set(classes.map((c) => c.id)))}
                 className="px-2.5 py-1"
               >
-                All
+                {ui("All")}
               </Button>
               <Button variant="secondary"
                 type="button"
                 onClick={() => setSelected(new Set())}
                 className="px-2.5 py-1"
               >
-                None
+                {ui("None")}
               </Button>
             </div>
           </div>
@@ -350,8 +350,8 @@ export function SessionWizard({
             <EmptyState
               size="sm"
               icon={School}
-              title={`No classes for ${academicYear} yet`}
-              description="Create classes for this academic year first, then schedule the exam."
+              title={ui("No classes for {0} yet", [academicYear])}
+              description={ui("Create classes for this academic year first, then schedule the exam.")}
             />
           ) : (
             <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-edge/20 bg-surface-subtle p-2.5 custom-scrollbar">
@@ -373,15 +373,15 @@ export function SessionWizard({
                             ? ""
                             : "",
                         )}
-                        aria-label={`Select all sections of ${name}`}
+                        aria-label={ui("Select all sections of {0}", [name])}
                       >
-                        {allOn ? <Check className="h-3 w-3" /> : null}
-                        {someOn ? <span className="h-1.5 w-1.5 rounded-sm bg-primary" /> : null}
+                        {allOn ? <Check aria-hidden="true" className="h-3 w-3" /> : null}
+                        {someOn ? <span aria-hidden="true" className="h-1.5 w-1.5 rounded-sm bg-primary" /> : null}
                       </Button>
-                      <School className="h-3.5 w-3.5 shrink-0 text-primary" />
-                      <span className="text-xs font-bold text-ink-strong">{name}</span>
+                      <School aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <bdi className="text-xs font-bold text-ink-strong">{name}</bdi>
                       <span className="text-2xs font-bold text-ink-subtle">
-                        {rows.length} section{rows.length === 1 ? "" : "s"}
+                        {ui(rows.length === 1 ? "{0} section" : "{0} sections", [rows.length])}
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-1.5 ps-7">
@@ -400,13 +400,9 @@ export function SessionWizard({
                               n.subjects === 0 && "",
                             ))}
                           >
-                            {labelOf(row)}
+                            <bdi>{labelOf(row)}</bdi>
                             <span className="text-xs font-normal text-ink-subtle tabular-nums">
-                              {n.students} students · {n.subjects} subjects
-                            </span>
-                            <span className="flex items-center gap-0.5 text-2xs font-bold opacity-70">
-                              <Users className="h-2.5 w-2.5" />
-                              {n.students}
+                              {ui("{0} students · {1} subjects", [n.students, n.subjects])}
                             </span>
                           </Button>
                         );
@@ -421,25 +417,21 @@ export function SessionWizard({
 
         {/* ── What this will create ─────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl bg-gradient-to-r from-brand-100 to-surface-subtle px-4 py-3">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
-            This creates
+          <p className="text-xs font-semibold text-primary">
+            {ui("This creates")}
           </p>
           <p className="text-xs font-bold text-ink-strong">
-            <span className="tabular-nums">{selected.size}</span> exam
-            {selected.size === 1 ? "" : "s"}
+            {ui(selected.size === 1 ? "{0} exam" : "{0} exams", [selected.size])}
           </p>
           <p className="text-xs font-bold text-ink-strong">
-            <span className="tabular-nums">{totals.papers}</span> paper
-            {totals.papers === 1 ? "" : "s"} to date
+            {ui(totals.papers === 1 ? "{0} paper to date" : "{0} papers to date", [totals.papers])}
           </p>
           <p className="text-xs font-bold text-ink-strong">
-            <span className="tabular-nums">{totals.students}</span> candidate
-            {totals.students === 1 ? "" : "s"} to seat
+            {ui(totals.students === 1 ? "{0} candidate to seat" : "{0} candidates to seat", [totals.students])}
           </p>
           {withoutSubjects.length > 0 ? (
-            <p className="w-full text-2xs font-bold text-amber-600">
-              {withoutSubjects.map(labelOf).join(", ")} {withoutSubjects.length === 1 ? "has" : "have"}{" "}
-              no subjects, so {withoutSubjects.length === 1 ? "it" : "they"} will be skipped.
+            <p className="w-full text-2xs font-bold text-status-warning-text">
+              {ui(withoutSubjects.length === 1 ? "{0} has no subjects, so it will be skipped." : "{0} have no subjects, so they will be skipped.", [withoutSubjects.map(labelOf).join(", ")])}
             </p>
           ) : null}
         </div>

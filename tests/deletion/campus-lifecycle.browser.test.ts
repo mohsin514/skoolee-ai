@@ -99,7 +99,8 @@ test("an empty campus archives with a reason, keeps its history, and restores; a
   await dialog(page).getByRole("button", { name: "Restore campus" }).click();
   await dialog(page).getByText("An active campus already uses this name").waitFor();
   assert.ok((await db.campus.findUniqueOrThrow({ where: { id: annexArchived } })).archivedAt, "nothing changed on a clash");
-  await dialog(page).getByRole("button", { name: "Cancel" }).click();
+  // R3: the restore confirmation's way out is "Keep editing" (campus-lifecycle sets it), never "Cancel".
+  await dialog(page).getByRole("button", { name: "Keep editing" }).click();
   await page.locator(`[data-archived-campus="${empty}"]`).getByRole("button", { name: "Restore" }).click();
   await dialog(page).getByRole("button", { name: "Restore campus" }).click();
   await page.locator(`[data-archive-campus="${empty}"]`).waitFor();

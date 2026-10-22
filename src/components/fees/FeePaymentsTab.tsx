@@ -9,7 +9,7 @@ import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CURRENCIES } from "@/lib/locale/package";
-import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -30,9 +30,11 @@ import {
 import { toast } from "@/components/ui/toast";
 import { Alert } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { downloadPdfFile } from "@/lib/download";
-import type { PaymentRecord } from "./fee-types";
+import type { PanelCommand, PaymentRecord } from "./fee-types";
+import { ErrorState } from "@/components/ui/error-state";
 import {
   API,
   classLabel,
@@ -42,6 +44,7 @@ import {
   paisaToRupees,
   rupeesToPaisa,
   paymentMethodLabel,
+  usePanelCommand,
 } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -57,7 +60,7 @@ function invoiceStatusVariant(status: string): BadgeProps["variant"] {
 }
 
 const METHODS = [
-  { value: "", label: "All Methods" },
+  { value: "", label: "All methods" },
   { value: "cash", label: "Cash" },
   { value: "bank_transfer", label: "Bank Transfer" },
   { value: "card", label: "Card" },
@@ -65,9 +68,21 @@ const METHODS = [
   { value: "cheque", label: "Cheque" },
 ];
 
-export function FeePaymentsTab({ campusId }: { campusId?: string }) {
+export type PaymentsSection = "payments" | "bank-import" | "reconciliation";
+
+/**
+ * Collect: payments, receipts, bank statement import and reconciliation (role-ux §3.1 accountant · payments).
+ * `section` shows one of the three (the accountant's in-view tabs); without it everything shows on one page
+ * (FeesPanel). `hideHeader` hands the title and actions to the console's PageHeader; `command` runs
+ * "record-payment", "bank-import" or "export" from there.
+ */
+export function FeePaymentsTab({ campusId, command, hideHeader = false, section }: { campusId?: string; command?: PanelCommand | null; hideHeader?: boolean; section?: PaymentsSection }) {
   const [reconciliationVersion, setReconciliationVersion] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const show = (part: PaymentsSection) => !section || section === part;
  const { date: formatDate, money: formatPKR } = useLocaleFormat();
+  // Amounts before an invoice is chosen are in the campus currency (locale package, R7).
+  const { currency: campusCurrency } = useLocale();
   const tr = useUiText();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +99,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
 
   const loadPayments = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const params = new URLSearchParams();
       if (campusId) params.set("campusId", campusId);
@@ -100,9 +116,12 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         setPayments(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      toast.error(tr("Failed to load payments"));
+      // Shown in place with a retry (role-ux R4), never a toast.
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -118,7 +137,7 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
   };
 
   const handleExportCSV = () => {
-    if (payments.length === 0) return;
+    if (payments.length === 0) { toast.info(tr("Nothing to export yet.")); return; }
     const rows = payments.map((p) => ({
       "Receipt #": p.receiptNo ?? "",
       Student: p.student.fullName,
@@ -134,17 +153,39 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
     exportCSV(rows, `payments-${new Date().toISOString().split("T")[0]}`);
   };
 
+  // "Record payment" may arrive with a view change (Today → Collect), so it runs at once; an export waits for
+  // the list it exports.
+  usePanelCommand(command, {
+    "record-payment": () => setShowPayment(true),
+    "bank-import": () => setShowBankImport(true),
+  });
+  usePanelCommand(command, { export: handleExportCSV }, !loading);
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Payments"}</UiText></h3>
-        <div className="flex flex-wrap items-center gap-2">
-          <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExportCSV}><UiText>{"Export"}</UiText></BrandButton>
-          <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={() => setShowBankImport(true)}><UiText>{"Bank Import"}</UiText></BrandButton>
-          <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowPayment(true)}><UiText>{"Record Payment"}</UiText></BrandButton>
+      {hideHeader ? null : (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="text-lg font-bold text-ink-strong"><UiText>{"Payments"}</UiText></h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={handleExportCSV}><Download className="size-4" aria-hidden="true" /><UiText>{"Export"}</UiText></Button>
+            <Button variant="outline" onClick={() => setShowBankImport(true)}><Upload className="size-4" aria-hidden="true" /><UiText>{"Import bank statement"}</UiText></Button>
+            <Button onClick={() => setShowPayment(true)}><Plus className="size-4" aria-hidden="true" /><UiText>{"Record payment"}</UiText></Button>
+          </div>
         </div>
-      </div>
+      )}
 
+      {show("bank-import") && section === "bank-import" ? (
+        <div className="sk-panel">
+          <EmptyState
+            icon={Landmark}
+            title={tr("Import a bank statement")}
+            description={tr("Upload the CSV your bank provides. Every row is validated and reviewed before anything is saved, and only exact invoice references match automatically.")}
+            action={<Button onClick={() => setShowBankImport(true)}><Upload className="size-4" aria-hidden="true" />{tr("Import bank statement")}</Button>}
+          />
+        </div>
+      ) : null}
+
+      {show("payments") ? <>
       <div className="flex flex-wrap items-center gap-2">
         <SystemSelect
           value={methodFilter}
@@ -186,10 +227,10 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-2xs font-bold text-ink-subtle">{tr("Payments")}: {total}</p>
+      <p className="text-2xs font-bold text-ink-subtle">{tr(total === 1 ? "{0} payment" : "{0} payments", [total])}</p>
 
       {loading ? (
-        <div className="sk-panel overflow-hidden animate-skeleton-in">
+        <div className="sk-panel overflow-hidden animate-skeleton-in" role="status" aria-label={tr("Loading payments")}>
           <div className="grid grid-cols-[1fr_120px_100px_100px_100px_100px] gap-3 px-5 py-3 bg-muted/50">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-3 rounded-full bg-border-subtle/40 skeleton-shimmer" />
@@ -207,11 +248,18 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
             </div>
           ))}
         </div>
+      ) : loadFailed ? (
+        <ErrorState
+          title={tr("Payments could not be loaded")}
+          description={tr("Check your connection and try again.")}
+          onRetry={() => void loadPayments()}
+        />
       ) : payments.length === 0 ? (
         <EmptyState
           icon={Wallet}
           title={tr("No payments found")}
           description={tr("Record a payment or adjust your filters.")}
+          action={<Button onClick={() => setShowPayment(true)}><Plus className="size-4" aria-hidden="true" />{tr("Record payment")}</Button>}
         />
       ) : (
         <>
@@ -283,7 +331,8 @@ export function FeePaymentsTab({ campusId }: { campusId?: string }) {
       )}
 
       <div className="mt-6"><AdjustmentsQueue version={reconciliationVersion} /></div>
-      <div className="mt-6"><ReconciliationsPanel campusId={campusId} version={reconciliationVersion} onPosted={() => void loadPayments()} /></div>
+      </> : null}
+      {show("reconciliation") ? <div className={section ? undefined : "mt-6"}><ReconciliationsPanel campusId={campusId} version={reconciliationVersion} onPosted={() => void loadPayments()} showEmpty={section === "reconciliation"} /></div> : null}
 
       {showBankImport && (
         <BankImportModal
@@ -305,7 +354,8 @@ function PaymentModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
- const { money: formatPKR } = useLocaleFormat();
+  const { money: formatPKR } = useLocaleFormat();
+  const { currency: campusCurrency } = useLocale();
   const tr = useUiText();
   const [searchQuery, setSearchQuery] = useState("");
   const [studentsList, setStudentsList] = useState<any[]>([]);
@@ -320,6 +370,8 @@ function PaymentModal({
   const [referenceNumber, setReferenceNumber] = useState("");
   const [searching, setSearching] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+  // A failed invoice load is shown in place with a retry, never as "no pending dues" (R4).
+  const [invoicesFailed, setInvoicesFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<"search" | "payment" | "receipt">("search");
   const [receipt, setReceipt] = useState<any>(null);
@@ -364,12 +416,15 @@ function PaymentModal({
 
   const loadStudentInvoices = async (studentId: string, student: any) => {
     setLoadingInvoices(true);
+    setInvoicesFailed(false);
+    setInvoices([]);
     setSelectedStudent(student);
     setStudentsList([]);
     try {
       const res = await fetch(`${API}/student/${studentId}`);
       const json = await res.json();
-      if (json.success) {
+      if (!json.success) setInvoicesFailed(true);
+      else {
         const all = json.data.invoiceHistory || [];
         const unpaid = all.filter((i: any) => i.status !== "PAID");
         setInvoices(unpaid.map((i: any) => ({ ...i, balanceDue: i.amountDue - i.amountPaid })));
@@ -380,13 +435,13 @@ function PaymentModal({
         }
       }
     } catch {
-      toast.error(tr("Failed to load invoices"));
+      setInvoicesFailed(true);
     } finally {
       setLoadingInvoices(false);
     }
   };
 
-  const currency = invoices.find((invoice) => invoice.id === selectedInvoiceId)?.currency || "PKR";
+  const currency = invoices.find((invoice) => invoice.id === selectedInvoiceId)?.currency || campusCurrency;
   const collectKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   const handleRecordPayment = async () => {
@@ -452,7 +507,7 @@ function PaymentModal({
 
   return (
     <Modal
-      title={tr("Record Payment")}
+      title={tr("Record payment")}
       eyebrow={tr("Fees")}
       subtitle={tr("Find the student, pick the invoice, then take the payment.")}
       icon={Banknote}
@@ -468,10 +523,10 @@ function PaymentModal({
         {step === "receipt" && receipt ? (
           <div className="space-y-5">
             <div className="text-center">
-              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
-                <Banknote className="h-7 w-7 text-green-600" />
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-status-success-surface">
+                <Banknote className="h-7 w-7 text-status-success-text" aria-hidden="true" />
               </div>
-              <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Payment Successful"}</UiText></h3>
+              <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Payment successful"}</UiText></h3>
               <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Receipt #"}</UiText>{receipt.receiptNumber}</p>
             </div>
             <div className="rounded-2xl bg-brand-50/40 px-4 py-4 border border-edge/10 space-y-3">
@@ -501,7 +556,7 @@ function PaymentModal({
               )}
               {receipt.creditAmount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Carried Credit"}</UiText></span>
+                  <span className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Carried credit"}</UiText></span>
                   <span className="text-sm font-bold text-primary">{formatPKR(receipt.creditAmount, receipt.currency)}</span>
                 </div>
               )}
@@ -524,14 +579,14 @@ function PaymentModal({
               <BrandButton variant="soft" className="flex-1 h-12" onClick={onSaved}><UiText>{"Close"}</UiText></BrandButton>
               <BrandButton className="flex-1 h-12" onClick={handleDownloadPdf} loading={downloadingPdf}>
                 {!downloadingPdf && <Printer className="w-4 h-4" aria-hidden="true" />}
-                {downloadingPdf ? tr("Preparing PDF...") : tr("Download Receipt")}
+                {downloadingPdf ? tr("Preparing PDF...") : tr("Download receipt")}
               </BrandButton>
             </div>
           </div>
         ) : step === "search" ? (
           <div className="space-y-4">
             <div>
-              <label className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Find Student"}</UiText></label>
+              <label className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Find student"}</UiText></label>
               <div className="flex gap-2">
                 <SystemInput
                   type="text"
@@ -575,31 +630,38 @@ function PaymentModal({
                 ))}
               </div>
             )}
-            {!loadingInvoices && selectedStudent && invoices.length === 0 && (
+            {!loadingInvoices && selectedStudent && invoicesFailed && (
+              <ErrorState
+                title={tr("This student's invoices could not be loaded")}
+                description={tr("Check your connection and try again.")}
+                onRetry={() => void loadStudentInvoices(selectedStudent.id, selectedStudent)}
+              />
+            )}
+            {!loadingInvoices && selectedStudent && !invoicesFailed && invoices.length === 0 && (
               <div className="rounded-2xl bg-status-success-surface px-4 py-5 border border-status-success-border text-center">
                 <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-status-success-surface">
                   <Banknote className="h-5 w-5 text-status-success-text" aria-hidden="true" />
                 </div>
-                <p className="text-sm font-bold text-status-success-text"><UiText>{"All Paid"}</UiText></p>
-                <p className="text-xs font-medium text-status-success-text/80 mt-0.5">{selectedStudent.fullName}<UiText>{"has no pending dues"}</UiText></p>
-                <Button variant="link" onClick={() => { setSelectedStudent(null); setStudentsList([]); }} className="mt-3 hover:underline"><UiText>{"Search Again"}</UiText></Button>
+                <p className="text-sm font-bold text-status-success-text"><UiText>{"All paid"}</UiText></p>
+                <p className="text-xs font-medium text-status-success-text/80 mt-0.5">{tr("{0} has no pending dues.", [selectedStudent.fullName])}</p>
+                <Button variant="link" onClick={() => { setSelectedStudent(null); setStudentsList([]); }} className="mt-3 hover:underline"><UiText>{"Search again"}</UiText></Button>
               </div>
             )}
             {invoices.length > 0 && !loadingInvoices && (
               <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Select Invoice"}</UiText></p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Select invoice"}</UiText></p>
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                   {invoices.map((inv) => (
                     <label key={inv.id} className={`flex items-center gap-3 rounded-2xl px-4 py-3 border cursor-pointer transition-colors ${selectedInvoiceId === inv.id ? "border-primary/30 bg-brand-50" : "border-edge/10 bg-muted/50 hover:border-primary/20"}`}>
                       <input type="radio" name="invoice" value={inv.id} checked={selectedInvoiceId === inv.id} onChange={() => { setSelectedInvoiceId(inv.id); setAmount(String(paisaToRupees(inv.amountDue - inv.amountPaid, inv.currency))); setReferenceNumber(inv.invoiceNumber || ""); }} className="accent-primary" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-ink-strong">{inv.invoiceNumber || "Invoice"}</p>
+                        <p className="text-xs font-bold text-ink-strong">{inv.invoiceNumber || tr("Invoice")}</p>
                         <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{inv.dueDate} · {formatPKR(inv.amountDue, inv.currency)}</p>
                       </div>
                       <Badge variant={invoiceStatusVariant(inv.status)} size="sm" dot>{tr(inv.status)}</Badge>
                     </label>
                   ))}
-                  <BrandButton className="w-full" onClick={() => setStep("payment")}><UiText>{"Continue to Payment"}</UiText></BrandButton>
+                  <BrandButton className="w-full" onClick={() => setStep("payment")}><UiText>{"Continue to payment"}</UiText></BrandButton>
                 </div>
               </div>
             )}
@@ -610,14 +672,14 @@ function PaymentModal({
               const sel = invoices.find((i) => i.id === selectedInvoiceId);
               return sel ? (
                 <div className="rounded-2xl bg-brand-50/40 px-4 py-3 border border-edge/10">
-                  <p className="text-xs font-bold text-ink-strong">{sel.invoiceNumber || "Invoice"}</p>
+                  <p className="text-xs font-bold text-ink-strong">{sel.invoiceNumber || tr("Invoice")}</p>
                   <p className="text-2xs font-bold text-ink-subtle"><UiText>{"Due:"}</UiText>{sel.dueDate} · {formatPKR(sel.amountDue, sel.currency)}</p>
                 </div>
               ) : null;
             })()}
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Amount") } (<bdi>{currency}</bdi>)</span>
-              <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
+              <SystemInput type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={tr("e.g. 5000")} className={inputClass} />
             </label>
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
               <label>
@@ -630,16 +692,16 @@ function PaymentModal({
               </label>
             </div>
             <label>
-              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment Date"}</UiText></span>
+              <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Payment date"}</UiText></span>
               <SystemInput type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className={inputClass} />
             </label>
             <label>
               <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Method"}</UiText></span>
               <SystemSelect value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputClass}>
                 <option value="CASH"><UiText>{"Cash"}</UiText></option>
-                <option value="BANK"><UiText>{"Bank Transfer"}</UiText></option>
+                <option value="BANK"><UiText>{"Bank transfer"}</UiText></option>
                 <option value="CHEQUE"><UiText>{"Cheque"}</UiText></option>
-                <option value="MOBILE_WALLET"><UiText>{"Mobile Wallet"}</UiText></option>
+                <option value="MOBILE_WALLET"><UiText>{"Mobile wallet"}</UiText></option>
                 <option value="SAFEPAY"><UiText>{"SafePay / Card"}</UiText></option>
               </SystemSelect>
             </label>
@@ -676,7 +738,8 @@ function BankImportModal({
 }) {
   const tr = useUiText();
   const { money } = useLocaleFormat();
-  const [currency, setCurrency] = useState("USD");
+  // The campus currency from the locale package (R7: never a hard-coded default); refined for the chosen campus.
+  const [currency, setCurrency] = useState<string>(useLocale().currency);
   useEffect(() => { void getFinancialLocale(campusId).then((locale) => setCurrency(locale.currency)).catch(() => {}); }, [campusId]);
   const [file, setFile] = useState<File | null>(null);
   const [accountName, setAccountName] = useState("");
@@ -758,12 +821,24 @@ function BankImportModal({
   const committed = batch && ["COMMITTED", "PARTIAL", "REVERSED"].includes(batch.state);
 
   return (
-    <Modal title={tr("Import Bank Statement")} eyebrow={tr("Fees")}
+    <>
+    <ConfirmAction
+      open={Boolean(confirmReverse && reversal?.eligible)}
+      tone="danger"
+      title={tr("Reverse this import?")}
+      description={tr("This marks the pending reconciliation reversed and retains its receipt. The reversal cannot be undone.")}
+      confirmLabel={tr("Reverse batch")}
+      cancelLabel={tr("Keep editing")}
+      busy={busy}
+      onConfirm={() => void reverse()}
+      onCancel={() => setConfirmReverse(false)}
+    />
+    <Modal title={tr("Import bank statement")} eyebrow={tr("Fees")}
       subtitle={tr("Upload and validate first. Only reviewed rows are saved to the reconciliation receipt.")}
       icon={Landmark} size="md" onClose={onClose}
       footer={committed ? <div className="flex w-full gap-2">
         {batch.state !== "REVERSED" && <BrandButton variant="soft" className="h-12 flex-1" onClick={() => void checkReversal()}>{tr("Check reversal")}</BrandButton>}
-        {reversal?.eligible && !confirmReverse && <BrandButton className="h-12 flex-1" onClick={() => setConfirmReverse(true)}>{tr("Reverse batch")}</BrandButton>}
+        {reversal?.eligible ? <Button variant="outline" className="h-12 flex-1 text-destructive" onClick={() => setConfirmReverse(true)}>{tr("Reverse batch")}</Button> : null}
       </div> : batch?.state === "STAGED" ? <BrandButton className="w-full h-12" onClick={() => void commit()} loading={busy} disabled={batch.summary.accepted < 1}>
         {!busy && <Landmark className="w-4 h-4" aria-hidden="true" />}
         {busy ? tr("Committing...") : tr("Commit {0} selected transactions", [batch.summary.accepted])}
@@ -775,17 +850,16 @@ function BankImportModal({
         {committed ? <Alert tone="success" live="polite" title={batch.state === "REVERSED" ? tr("Batch reversed") : tr("Batch receipt")}><div className="space-y-3">
           <p>{tr("{0} transactions committed; {1} matched; {2} unmatched.", [batch.receipt?.summary?.committed || 0, batch.receipt?.summary?.matched || 0, batch.receipt?.summary?.unmatched || 0])}</p>
           <p className="font-mono text-xs" dir="ltr">{batch.id}</p>
-          {reversal && <div className="rounded-xl bg-white p-3 text-sm"><p className="font-bold">{reversal.eligible ? tr("Reversal is eligible") : tr("Reversal is blocked")}</p><p>{tr(reversal.action)}</p>{reversal.dependencies?.map((item: string) => <p key={item} className="text-status-error-text">{item}</p>)}</div>}
-          {confirmReverse && reversal?.eligible && <Alert tone="warning" live="off" compact actions={<><BrandButton variant="soft" onClick={() => setConfirmReverse(false)}>{tr("Cancel")}</BrandButton><Button variant="destructive" type="button" loading={busy} onClick={() => void reverse()}>{tr("Reverse batch")}</Button></>}>{tr("This marks the pending reconciliation reversed and retains its receipt.")}</Alert>}
+          {reversal && <div className="rounded-xl bg-card p-3 text-sm"><p className="font-bold">{reversal.eligible ? tr("Reversal is eligible") : tr("Reversal is blocked")}</p><p>{tr(reversal.action)}</p>{reversal.dependencies?.map((item: string) => <p key={item} className="text-status-error-text">{item}</p>)}</div>}
         </div></Alert> : <>
           <label className="block text-sm">{tr("Currency")}<SystemSelect aria-label={tr("Currency")} className="mt-1 w-full" value={currency} onChange={(event) => setCurrency(event.target.value)}>{CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}</SystemSelect></label>
-          <label><span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account Name")}</span><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School Savings Account")} className="w-full" /></label>
+          <label><span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("Account name")}</span><SystemInput type="text" value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder={tr("School savings account")} className="w-full" /></label>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
             <label className="text-sm">{tr("From")}<SystemInput type="date" value={statementFrom} onChange={(event) => setStatementFrom(event.target.value)} className="mt-1 w-full" /></label>
             <label className="text-sm">{tr("To")}<SystemInput type="date" value={statementTo} onChange={(event) => setStatementTo(event.target.value)} className="mt-1 w-full" /></label>
           </div>
-          <div><label className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("CSV File")}</label><label className="relative flex h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-edge/20 bg-brand-50/20   ">
-            <input aria-label={tr("Choose CSV File")} type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
+          <div><label className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1">{tr("CSV file")}</label><label className="relative flex h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-edge/20 bg-brand-50/20   ">
+            <input aria-label={tr("Choose CSV file")} type="file" accept=".csv,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" />
             {file ? <div className="text-center"><FileText className="mx-auto mb-1 h-6 w-6 text-primary" /><p className="text-xs font-bold">{file.name}</p><p className="text-2xs">{(file.size / 1024).toFixed(1)} KB</p></div> : <div className="text-center"><Upload className="mx-auto mb-1 h-6 w-6 text-primary" /><p className="text-xs font-bold">{tr("Click to upload CSV")}</p><p className="text-2xs">{tr("transaction_date,amount,description")}</p></div>}
           </label></div>
           {batch?.state === "STAGED" && <>
@@ -799,5 +873,6 @@ function BankImportModal({
         </>}
       </div>
     </Modal>
+    </>
   );
 }

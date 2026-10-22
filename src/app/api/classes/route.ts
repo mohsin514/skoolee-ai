@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import { classSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  canLeadAcademics,
+  canManageCampusOps,
   errorResponse,
   assertStaffRole,
   requireAuthUser,
@@ -15,6 +16,18 @@ import { authorizeAssignment, updateClassWithTeacherAssignment } from "@/lib/api
 import { effectiveDate, findDuplicateClass, isIdentityConflict, recordTeachingAssignment } from "@/lib/academic/structure";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
+
+/** Fields of a class PATCH that are academic staffing decisions (the principal's job); everything else
+ *  (name, section, year, capacity, room, restore) is campus operations (§7.6). */
+const ACADEMIC_CLASS_FIELDS = new Set(["id", "campusId", "classTeacherId", "teacherId", "teachingMode", "effectiveFrom"]);
+function isAcademicOnlyClassPatch(body: Record<string, unknown>) {
+  return body.action === undefined && Object.keys(body).every((key) => ACADEMIC_CLASS_FIELDS.has(key));
+}
+/** True when the PATCH changes academic staffing at all (a mixed body needs both seats). */
+const STAFFING_FIELDS = ["classTeacherId", "teacherId", "teachingMode"] as const;
+function touchesStaffing(body: Record<string, unknown>) {
+  return STAFFING_FIELDS.some((key) => body[key] !== undefined);
+}
 
 async function assertTeacherInCampus(teacherId: string | null | undefined, campusId: string, schoolId: string) {
   if (!teacherId) return null;
@@ -74,7 +87,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Classes are set up by your campus admin.", 403);
 
     const body = await req.json();
     const parsed = classSchema.safeParse(body);
@@ -156,9 +169,19 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-
     const body = await req.json();
+    // Class and subject teachers and the teaching mode are academic staffing — the academic lead's (§2.2 #26:
+    // PR O, a campus operator only while the campus has no principal, SA —; §0.3 rule 4). Renaming, re-sectioning,
+    // re-yearing or restoring a class is campus operations.
+    if (!body || typeof body !== "object") throw new ApiError("Invalid class update", 400);
+    // A body that also renames, re-years or restores needs campus operations; one that also assigns teachers
+    // needs the academic lead — a mixed body needs both, so bundling never widens either seat.
+    if (!isAcademicOnlyClassPatch(body) && !canManageCampusOps(user)) {
+      throw new ApiError("Only your campus admin can change a class's name, section or year.", 403);
+    }
+    if ((touchesStaffing(body) || isAcademicOnlyClassPatch(body)) && !(await canLeadAcademics(user, user.campusId))) {
+      throw new ApiError("Your principal assigns class teachers and the teaching mode.", 403);
+    }
     const { id } = body;
     if (!id) throw new ApiError("Class id is required", 400);
 
@@ -203,7 +226,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Classes are archived by your campus admin.", 403);
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

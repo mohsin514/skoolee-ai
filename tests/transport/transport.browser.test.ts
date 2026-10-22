@@ -49,8 +49,8 @@ const crew = (key: string, tripId: string, data: Record<string, unknown>) => tri
 const id = (key: string) => users.get(key)!.id;
 const student = async (key: string, name: string, campus = north) => { ids[key] = randomUUID(); await db.student.create({ data: { id: ids[key], schoolId, campusId: campus, classId: campus === north ? classId : ids.southClass, fullName: name, rollNo: String(500 + Object.keys(ids).length), gender: "FEMALE", status: "active", enrollmentDate: new Date("2026-04-01Z") } as never }); };
 const relate = async (guardianKey: string, studentKey: string, attendance = true) => {
-  const rel = await db.guardianRelationship.create({ data: { schoolId, campusId: north, studentId: ids[studentKey], guardianUserId: id(guardianKey), createdByUserId: id("principal"), fullName: `Synthetic ${guardianKey}`, email: users.get(guardianKey)!.email, relationship: "Mother", status: "ACTIVE", verifiedAt: new Date() } });
-  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: rel.id, createdByUserId: id("principal"), reason: "Synthetic transport fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance, finances: false, communication: true, pickup: true } } });
+  const rel = await db.guardianRelationship.create({ data: { schoolId, campusId: north, studentId: ids[studentKey], guardianUserId: id(guardianKey), createdByUserId: id("campusAdmin"), fullName: `Synthetic ${guardianKey}`, email: users.get(guardianKey)!.email, relationship: "Mother", status: "ACTIVE", verifiedAt: new Date() } });
+  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: rel.id, createdByUserId: id("campusAdmin"), reason: "Synthetic transport fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance, finances: false, communication: true, pickup: true } } });
 };
 const trip = (key: string, tripId: string) => call(key, "get", `/api/transport/trips?id=${tripId}`);
 const status = async (tripId: string, studentKey: string) => (await db.tripPassenger.findFirstOrThrow({ where: { tripId, studentId: ids[studentKey] } })).status;
@@ -58,7 +58,7 @@ const status = async (tripId: string, studentKey: string) => (await db.tripPasse
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Transport School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: TZ } as never });
   for (const [cid, name] of [[north, "Cedar North"], [south, "Cedar South"]]) { await db.campus.create({ data: { id: cid, schoolId, name, regId: cid, city: "Lahore" } }); await db.academicCycle.create({ data: { schoolId, campusId: cid, label: "2026", academicYear: 2026, status: "ACTIVE" } }); }
-  await user("principal", "PRINCIPAL"); await user("attendant", "RECEPTIONIST"); await user("attendant2", "LIBRARIAN"); await user("teacher", "TEACHER"); await user("southPrincipal", "PRINCIPAL", south);
+  await user("campusAdmin", "CAMPUS_ADMIN"); // role-ux §7.6: campus operations (the principal is academic and holds none of this) await user("attendant", "RECEPTIONIST"); await user("attendant2", "LIBRARIAN"); await user("teacher", "TEACHER"); await user("southAdmin", "CAMPUS_ADMIN", south);
   await user("attendant-ar", "RECEPTIONIST", north, "ar"); await user("mother", "PARENT"); await user("noAttendance", "PARENT"); await user("otherParent", "PARENT");
   await db.class.create({ data: { id: classId, schoolId, campusId: north, name: "Grade 3", section: "C", academicYear: 2026 } });
   ids.southClass = randomUUID(); await db.class.create({ data: { id: ids.southClass, schoolId, campusId: south, name: "Grade 3", section: "S", academicYear: 2026 } });
@@ -72,63 +72,63 @@ before(async () => {
 after(async () => { await browser?.close(); await db.school.delete({ where: { id: schoolId } }).catch(() => undefined); await db.$disconnect(); });
 
 test("routes, fleet and riders: capacity and campus are enforced and a refused change leaves the route as it was", async () => {
-  assert.equal((await call("principal", "post", "/api/transport/vehicles", { number: "BUS-00", capacity: 0 })).status, 400, "capacity must be 1–200");
-  const bus = await call("principal", "post", "/api/transport/vehicles", { number: "BUS-04", model: "BUS", capacity: 3, driverName: "Synthetic Driver", driverPhone: "03001234567" });
+  assert.equal((await call("campusAdmin", "post", "/api/transport/vehicles", { number: "BUS-00", capacity: 0 })).status, 400, "capacity must be 1–200");
+  const bus = await call("campusAdmin", "post", "/api/transport/vehicles", { number: "BUS-04", model: "BUS", capacity: 3, driverName: "Synthetic Driver", driverPhone: "03001234567" });
   assert.equal(bus.status, 200, bus.body); ids.bus = bus.json.data.id;
-  ids.van = (await call("principal", "post", "/api/transport/vehicles", { number: "VAN-02", model: "VAN", capacity: 8 })).json.data.id;
-  ids.southVan = (await call("southPrincipal", "post", "/api/transport/vehicles", { number: "VAN-S1", capacity: 8 })).json.data.id;
-  ids.route = (await call("principal", "post", "/api/transport/routes", { title: "North Loop", fare: 0 })).json.data.id;
-  ids.route2 = (await call("principal", "post", "/api/transport/routes", { title: "East Loop", fare: 0 })).json.data.id;
+  ids.van = (await call("campusAdmin", "post", "/api/transport/vehicles", { number: "VAN-02", model: "VAN", capacity: 8 })).json.data.id;
+  ids.southVan = (await call("southAdmin", "post", "/api/transport/vehicles", { number: "VAN-S1", capacity: 8 })).json.data.id;
+  ids.route = (await call("campusAdmin", "post", "/api/transport/routes", { title: "North Loop", fare: 0 })).json.data.id;
+  ids.route2 = (await call("campusAdmin", "post", "/api/transport/routes", { title: "East Loop", fare: 0 })).json.data.id;
   assert.equal((await riders("teacher", { action: "assign", routeId: ids.route, studentId: ids.aisha })).status, 403, "coordinators only");
-  assert.equal((await riders("principal", { action: "assign", routeId: ids.route, studentId: ids.aisha })).status, 409, "a vehicle with seats first");
-  const cross = await call("principal", "patch", "/api/transport/routes", { id: ids.route, vehicleIds: [ids.bus, ids.southVan] });
+  assert.equal((await riders("campusAdmin", { action: "assign", routeId: ids.route, studentId: ids.aisha })).status, 409, "a vehicle with seats first");
+  const cross = await call("campusAdmin", "patch", "/api/transport/routes", { id: ids.route, vehicleIds: [ids.bus, ids.southVan] });
   assert.equal(cross.status, 400, "another campus's vehicle is refused");
   assert.equal(await db.routeVehicle.count({ where: { routeId: ids.route } }), 0, "the route is unchanged");
-  assert.equal((await riders("principal", { action: "vehicles", routeId: ids.route, vehicleIds: [ids.bus] })).status, 200);
-  assert.equal((await riders("principal", { action: "vehicles", routeId: ids.route2, vehicleIds: [ids.van] })).status, 200);
-  const stop = await riders("principal", { action: "stop", routeId: ids.route, name: "Canal Gate", sequence: 1 });
+  assert.equal((await riders("campusAdmin", { action: "vehicles", routeId: ids.route, vehicleIds: [ids.bus] })).status, 200);
+  assert.equal((await riders("campusAdmin", { action: "vehicles", routeId: ids.route2, vehicleIds: [ids.van] })).status, 200);
+  const stop = await riders("campusAdmin", { action: "stop", routeId: ids.route, name: "Canal Gate", sequence: 1 });
   assert.equal(stop.status, 201); ids.stop = stop.json.data.id;
-  assert.equal((await riders("principal", { action: "stop", routeId: ids.route, name: "Canal Gate", sequence: 2 })).status, 409);
+  assert.equal((await riders("campusAdmin", { action: "stop", routeId: ids.route, name: "Canal Gate", sequence: 2 })).status, 409);
   // Another campus's pupil is either invisible (campus scoping) or refused as cross-campus — never assigned.
-  assert.ok([400, 404].includes((await riders("principal", { action: "assign", routeId: ids.route, studentId: ids.southKid })).status), "cross-campus rider is refused");
+  assert.ok([400, 404].includes((await riders("campusAdmin", { action: "assign", routeId: ids.route, studentId: ids.southKid })).status), "cross-campus rider is refused");
   assert.equal((await db.student.findUniqueOrThrow({ where: { id: ids.southKid } })).transportRouteId, null);
-  for (const k of ["aisha", "bilal", "chen"]) assert.equal((await riders("principal", { action: "assign", routeId: ids.route, studentId: ids[k], stopId: ids.stop })).status, 200);
-  const full = await riders("principal", { action: "assign", routeId: ids.route, studentId: ids.dana });
+  for (const k of ["aisha", "bilal", "chen"]) assert.equal((await riders("campusAdmin", { action: "assign", routeId: ids.route, studentId: ids[k], stopId: ids.stop })).status, 200);
+  const full = await riders("campusAdmin", { action: "assign", routeId: ids.route, studentId: ids.dana });
   assert.equal(full.status, 409); assert.match(full.json.error ?? "", /full \(3 of 3 seats\)/);
-  assert.equal((await call("principal", "patch", "/api/transport/vehicles", { id: ids.bus, capacity: 2 })).status, 409, "cannot shrink below the riders");
-  assert.equal((await call("principal", "patch", "/api/transport/vehicles", { id: ids.bus, active: false })).status, 409, "cannot deactivate the only vehicle of a full route");
-  assert.equal((await call("principal", "patch", "/api/transport/vehicles", { id: ids.bus, capacity: -4 })).status, 400);
+  assert.equal((await call("campusAdmin", "patch", "/api/transport/vehicles", { id: ids.bus, capacity: 2 })).status, 409, "cannot shrink below the riders");
+  assert.equal((await call("campusAdmin", "patch", "/api/transport/vehicles", { id: ids.bus, active: false })).status, 409, "cannot deactivate the only vehicle of a full route");
+  assert.equal((await call("campusAdmin", "patch", "/api/transport/vehicles", { id: ids.bus, capacity: -4 })).status, 400);
   assert.equal((await db.vehicle.findUniqueOrThrow({ where: { id: ids.bus } })).capacity, 3);
-  for (const k of ["dana", "emil"]) assert.equal((await riders("principal", { action: "assign", routeId: ids.route2, studentId: ids[k] })).status, 200);
-  const detail = await call("principal", "get", `/api/transport/riders?routeId=${ids.route}`);
+  for (const k of ["dana", "emil"]) assert.equal((await riders("campusAdmin", { action: "assign", routeId: ids.route2, studentId: ids[k] })).status, 200);
+  const detail = await call("campusAdmin", "get", `/api/transport/riders?routeId=${ids.route}`);
   assert.deepEqual([detail.json.data.seats, detail.json.data.riders.length, detail.json.data.riders[0].stopId], [3, 3, ids.stop]);
 });
 
 test("publishing freezes the manifest; route and fleet edits afterwards do not rewrite it; amendments are recorded", async () => {
-  assert.equal((await trips("principal", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: "2020-01-01", attendantId: id("attendant") })).status, 400, "no past days");
-  assert.equal((await trips("principal", { action: "publish", routeId: ids.route, vehicleId: ids.van, direction: "PM", serviceDate: today, attendantId: id("attendant") })).status, 400, "the vehicle must be on the route");
-  assert.equal((await trips("principal", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: today, attendantId: id("southPrincipal") })).status, 400, "attendant from this campus");
-  const pub = await trips("principal", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: today, attendantId: id("attendant"), label: "North · PM-12" });
+  assert.equal((await trips("campusAdmin", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: "2020-01-01", attendantId: id("attendant") })).status, 400, "no past days");
+  assert.equal((await trips("campusAdmin", { action: "publish", routeId: ids.route, vehicleId: ids.van, direction: "PM", serviceDate: today, attendantId: id("attendant") })).status, 400, "the vehicle must be on the route");
+  assert.equal((await trips("campusAdmin", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: today, attendantId: id("southAdmin") })).status, 400, "attendant from this campus");
+  const pub = await trips("campusAdmin", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: today, attendantId: id("attendant"), label: "North · PM-12" });
   assert.equal(pub.status, 201, pub.body); ids.t1 = pub.json.data.id;
   assert.equal(pub.json.data.expected, 3);
-  assert.equal((await trips("principal", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: today, attendantId: id("attendant") })).status, 409, "one trip per route, day and run");
-  ids.t2 = (await trips("principal", { action: "publish", routeId: ids.route2, vehicleId: ids.van, direction: "PM", serviceDate: today, attendantId: id("attendant2"), label: "East · PM-07" })).json.data.id;
+  assert.equal((await trips("campusAdmin", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "PM", serviceDate: today, attendantId: id("attendant") })).status, 409, "one trip per route, day and run");
+  ids.t2 = (await trips("campusAdmin", { action: "publish", routeId: ids.route2, vehicleId: ids.van, direction: "PM", serviceDate: today, attendantId: id("attendant2"), label: "East · PM-07" })).json.data.id;
   // Edits after publication: the rider leaves the route and the bus is renamed — the trip keeps both.
-  assert.equal((await riders("principal", { action: "unassign", studentId: ids.chen })).status, 200);
-  assert.equal((await call("principal", "patch", "/api/transport/vehicles", { id: ids.bus, number: "BUS-04R" })).status, 200);
-  const t = await trip("principal", ids.t1);
+  assert.equal((await riders("campusAdmin", { action: "unassign", studentId: ids.chen })).status, 200);
+  assert.equal((await call("campusAdmin", "patch", "/api/transport/vehicles", { id: ids.bus, number: "BUS-04R" })).status, 200);
+  const t = await trip("campusAdmin", ids.t1);
   assert.deepEqual([t.json.data.trip.vehicleNumber, t.json.data.passengers.map((p: { name: string }) => p.name).sort()], ["BUS-04", ["Synthetic Aisha Khan", "Synthetic Bilal Khan", "Synthetic Chen Li"]], "the published manifest is unchanged");
   assert.equal((await trips("attendant", { action: "amend", tripId: ids.t1, change: "add", studentId: ids.farah, reason: "x" })).status, 403, "crews cannot amend");
-  assert.equal((await trips("principal", { action: "amend", tripId: ids.t1, change: "add", studentId: ids.farah, reason: "" })).status, 400, "a reason is required");
-  const add = await trips("principal", { action: "amend", tripId: ids.t1, change: "add", studentId: ids.farah, reason: "Staying with grandmother this week" });
+  assert.equal((await trips("campusAdmin", { action: "amend", tripId: ids.t1, change: "add", studentId: ids.farah, reason: "" })).status, 400, "a reason is required");
+  const add = await trips("campusAdmin", { action: "amend", tripId: ids.t1, change: "add", studentId: ids.farah, reason: "Staying with grandmother this week" });
   assert.deepEqual([add.status, add.json.data.overflow], [200, true], "4 riders on 3 seats opens an exception");
   const overflow = await db.tripException.findFirstOrThrow({ where: { tripId: ids.t1, kind: "CAPACITY_OVERFLOW" } });
-  assert.equal(overflow.ownerId, id("principal"), "the exception has an owner");
-  assert.equal(await db.notification.count({ where: { userId: id("principal"), type: "TRANSPORT_EXCEPTION" } }), 0, "no self-notice for the actor");
-  assert.equal((await trips("principal", { action: "amend", tripId: ids.t1, change: "remove", studentId: ids.farah, reason: "Grandmother collecting by car" })).status, 200);
+  assert.equal(overflow.ownerId, id("campusAdmin"), "the exception has an owner");
+  assert.equal(await db.notification.count({ where: { userId: id("campusAdmin"), type: "TRANSPORT_EXCEPTION" } }), 0, "no self-notice for the actor");
+  assert.equal((await trips("campusAdmin", { action: "amend", tripId: ids.t1, change: "remove", studentId: ids.farah, reason: "Grandmother collecting by car" })).status, 200);
   const removed = await db.tripPassenger.findFirstOrThrow({ where: { tripId: ids.t1, studentId: ids.farah } });
   assert.deepEqual([removed.status, removed.source], ["REMOVED", "AMENDMENT"], "the amendment row is kept, not deleted");
-  assert.equal((await trips("principal", { action: "resolve", id: overflow.id, resolution: "Rider removed by amendment; 3 seats for 3" })).status, 200);
+  assert.equal((await trips("campusAdmin", { action: "resolve", id: overflow.id, resolution: "Rider removed by amendment; 3 seats for 3" })).status, 200);
   assert.deepEqual((await db.tripEvent.findMany({ where: { tripId: ids.t1 }, orderBy: { recordedAt: "asc" } })).map(e => e.kind), ["PUBLISHED", "AMENDED_ADD", "AMENDED_REMOVE", "EXCEPTION_RESOLVED"]);
 });
 
@@ -160,19 +160,19 @@ test("boarding: actor, student, trip and time; replays change nothing; one trip 
   assert.deepEqual([p.status, p.boardedById, p.boardedAt?.toISOString()], ["BOARDED", id("attendant"), queuedAt], "the device's time is kept");
   assert.equal(await db.tripEvent.count({ where: { tripId: ids.t1, kind: "BOARDED", studentId: ids.aisha } }), 1);
   // Aisha added to the East trip and boarded there while still on board North.
-  assert.equal((await trips("principal", { action: "amend", tripId: ids.t2, change: "add", studentId: ids.aisha, reason: "Going to aunt's house today" })).status, 200);
+  assert.equal((await trips("campusAdmin", { action: "amend", tripId: ids.t2, change: "add", studentId: ids.aisha, reason: "Going to aunt's house today" })).status, 200);
   const second = await crew("attendant2", ids.t2, { action: "board", studentId: ids.aisha });
   assert.deepEqual([second.status, second.json.code], [409, "DOUBLE_BOARDING"]);
   assert.equal(await db.tripPassenger.count({ where: { studentId: ids.aisha, status: "BOARDED" } }), 1, "never on board two vehicles");
   const ex = await db.tripException.findFirstOrThrow({ where: { tripId: ids.t2, kind: "DOUBLE_BOARDING", studentId: ids.aisha } });
-  assert.equal(ex.ownerId, id("principal"));
-  assert.equal(await db.notification.count({ where: { userId: id("principal"), type: "TRANSPORT_EXCEPTION" } }), 1, "the owner is told");
+  assert.equal(ex.ownerId, id("campusAdmin"));
+  assert.equal(await db.notification.count({ where: { userId: id("campusAdmin"), type: "TRANSPORT_EXCEPTION" } }), 1, "the owner is told");
   // The coordinator confirms she is on East: North's record is settled, then East boards.
-  assert.equal((await trips("principal", { action: "resolve", id: ex.id, outcome: "RELEASE_OTHER_TRIP", resolution: "Called North attendant: Aisha got off before departure and walked to East bus" })).status, 200);
+  assert.equal((await trips("campusAdmin", { action: "resolve", id: ex.id, outcome: "RELEASE_OTHER_TRIP", resolution: "Called North attendant: Aisha got off before departure and walked to East bus" })).status, 200);
   assert.equal(await status(ids.t1, "aisha"), "TRANSFERRED");
   assert.equal((await crew("attendant2", ids.t2, { action: "board", studentId: ids.aisha })).status, 200);
   // Two vehicles boarding the same child at the same instant: exactly one wins.
-  assert.equal((await trips("principal", { action: "amend", tripId: ids.t1, change: "add", studentId: ids.emil, reason: "Synthetic race check" })).status, 200);
+  assert.equal((await trips("campusAdmin", { action: "amend", tripId: ids.t1, change: "add", studentId: ids.emil, reason: "Synthetic race check" })).status, 200);
   const [r1, r2] = await Promise.all([crew("attendant", ids.t1, { action: "board", studentId: ids.emil }), crew("attendant2", ids.t2, { action: "board", studentId: ids.emil })]);
   assert.deepEqual([r1.status, r2.status].sort(), [200, 409], JSON.stringify([r1.json, r2.json]));
   assert.equal(await db.tripPassenger.count({ where: { studentId: ids.emil, status: "BOARDED" } }), 1);
@@ -200,15 +200,15 @@ test("normal closure reconciles first and needs a signed empty-vehicle check; em
   const blocked = await trips("attendant", { action: "close", tripId: ids.t1 });
   assert.equal(blocked.status, 409); assert.match(blocked.json.error ?? "", /still need a handover/);
   assert.equal((await crew("attendant", ids.t1, { action: "vehicle-check", empty: true, signature: "Synthetic attendant" })).status, 409, "a student is still recorded on board");
-  const t = (await trip("principal", ids.t1)).json.data;
+  const t = (await trip("campusAdmin", ids.t1)).json.data;
   // Emil's race went to one vehicle or the other; either way two riders are unresolved here.
   const emilOnNorth = (await status(ids.t1, "emil")) === "BOARDED";
   assert.deepEqual([t.counts.unresolved, t.counts.handedOver], [2, 1], "Chen on board and Emil unresolved");
   assert.ok(t.counts.openExceptions >= 2, "missing recipient and unlisted passenger at least");
   for (const e of t.exceptions.filter((x: { status: string }) => x.status === "OPEN")) {
     const r = e.kind === "MISSING_RECIPIENT"
-      ? await trips("principal", { action: "resolve", id: e.id, outcome: "HANDED_OVER_CONFIRMED", receiverName: "Synthetic Office Manager", resolution: "Returned to school; collected by office manager" })
-      : await trips("principal", { action: "resolve", id: e.id, resolution: e.kind === "UNLISTED_PASSENGER" ? "Cousin not on roster; dropped back at school gate with staff" : "Confirmed on East bus" });
+      ? await trips("campusAdmin", { action: "resolve", id: e.id, outcome: "HANDED_OVER_CONFIRMED", receiverName: "Synthetic Office Manager", resolution: "Returned to school; collected by office manager" })
+      : await trips("campusAdmin", { action: "resolve", id: e.id, resolution: e.kind === "UNLISTED_PASSENGER" ? "Cousin not on roster; dropped back at school gate with staff" : "Confirmed on East bus" });
     assert.equal(r.status, 200, r.body);
   }
   if (emilOnNorth) assert.equal((await crew("attendant", ids.t1, { action: "handover", studentId: ids.emil, receiverType: "STAFF", receiverUserId: id("teacher") })).status, 200);
@@ -223,8 +223,8 @@ test("normal closure reconciles first and needs a signed empty-vehicle check; em
   // East: one handed over… and Dana never seen. Emergency closure needs a reason and leaves exceptions.
   assert.equal((await crew("attendant2", ids.t2, { action: "handover", studentId: ids.aisha, receiverType: "GUARDIAN", receiverUserId: id("mother"), identityChecked: true })).status, 200);
   assert.equal((await trips("attendant2", { action: "emergency-close", tripId: ids.t2, reason: "x" })).status, 403, "coordinators only");
-  assert.equal((await trips("principal", { action: "emergency-close", tripId: ids.t2, reason: "" })).status, 400);
-  const em = await trips("principal", { action: "emergency-close", tripId: ids.t2, reason: "Vehicle breakdown on canal road; escalated to principal and police; pupils moved by staff car" });
+  assert.equal((await trips("campusAdmin", { action: "emergency-close", tripId: ids.t2, reason: "" })).status, 400);
+  const em = await trips("campusAdmin", { action: "emergency-close", tripId: ids.t2, reason: "Vehicle breakdown on canal road; escalated to principal and police; pupils moved by staff car" });
   assert.equal(em.status, 200);
   const t2 = await db.transportTrip.findUniqueOrThrow({ where: { id: ids.t2 } });
   assert.equal(t2.status, "CLOSED_EMERGENCY");
@@ -232,7 +232,7 @@ test("normal closure reconciles first and needs a signed empty-vehicle check; em
   const unresolved = await db.tripPassenger.findMany({ where: { tripId: ids.t2, status: { in: ["EXPECTED", "BOARDED"] } } });
   assert.ok(unresolved.some(p => p.studentId === ids.dana));
   assert.deepEqual(open.map(e => e.studentId).sort(), unresolved.map(p => p.studentId).sort(), "every unresolved rider has an owned exception");
-  assert.ok(open.every(e => e.ownerId === id("principal")));
+  assert.ok(open.every(e => e.ownerId === id("campusAdmin")));
 });
 
 test("families see only their own child's status today — no other riders, crew or phone", async () => {
@@ -247,10 +247,10 @@ test("families see only their own child's status today — no other riders, crew
 
 test("screens: coordinator planner, crew manifest, handover, offline queue and replay, closure, phone, Arabic", async () => {
   // A fresh morning trip on North for the crew screens.
-  for (const k of ["chen", "farah"]) await riders("principal", { action: "assign", routeId: ids.route, studentId: ids[k], stopId: ids.stop });
-  ids.t3 = (await trips("principal", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "AM", serviceDate: today, attendantId: id("attendant"), label: "North · AM-03" })).json.data.id;
-  const coord = await (await context("principal")).newPage();
-  await coord.goto(`${base}/principal?view=transport`);
+  for (const k of ["chen", "farah"]) await riders("campusAdmin", { action: "assign", routeId: ids.route, studentId: ids[k], stopId: ids.stop });
+  ids.t3 = (await trips("campusAdmin", { action: "publish", routeId: ids.route, vehicleId: ids.bus, direction: "AM", serviceDate: today, attendantId: id("attendant"), label: "North · AM-03" })).json.data.id;
+  const coord = await (await context("campusAdmin")).newPage();
+  await coord.goto(`${base}/admin?view=transport`); // role-ux M54: transport lives in the campus console, not the Academic console
   await coord.locator('[data-transport-tab="riders"]').click();
   await coord.locator("[data-route-riders]").waitFor();
   await shot(coord, "01-coordinator-riders");

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps } from "@/lib/api/scope";
 import { isFamily, publishedReportsWhere, studentScope } from "@/lib/auth/policy";
 import type { AuthUser } from "@/lib/auth";
 
@@ -11,7 +11,7 @@ export function dateOnly(value: unknown): Date {
   return date;
 }
 export async function assertRegistrar(user: AuthUser) {
-  if (!canManageOperations(user)) throw new ApiError("Only authorized registrars manage enrollments", 403);
+  if (!canManageCampusOps(user)) throw new ApiError("Only authorized registrars manage enrollments", 403);
   await assertPermission(user, "students", "edit");
 }
 /** Counts and rows must share the same field-specific authority and publication rule. */

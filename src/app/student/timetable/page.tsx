@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { friendlyErrorMessage } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Calendar, Clock } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
@@ -26,6 +27,7 @@ interface ClassTimetableData {
 }
 
 export default function StudentTimetablePage() {
+  const ui = useUiText();
   const [data, setData] = useState<ClassTimetableData | null>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,17 +61,10 @@ export default function StudentTimetablePage() {
 
   return (
     <StudentPage
-      tone="timetable"
       icon={Clock}
-      eyebrow={<>{data ? `${data.slots.length} class slots scheduled` : "Weekly schedule"}</>}
-      title="Weekly Timetable"
-      summary={
-        <>
-          {data
-            ? `${data.className}${data.classSection ? ` · ${data.classSection}` : ""}`
-            : "Your class timetable"}
-        </>
-      }
+      title="Timetable"
+      description="Your week, lesson by lesson, and your exam date sheet."
+      status={data ? <bdi className="text-sm font-semibold text-ink-muted">{data.className}{data.classSection ? ` · ${data.classSection}` : ""}</bdi> : undefined}
     >
       <div className="space-y-3">
         {data ? (
@@ -78,8 +73,8 @@ export default function StudentTimetablePage() {
           <EmptyState
             icon={Calendar}
             className="sk-panel"
-            title="No timetable published"
-            description="Your class timetable appears here once the administration publishes it."
+            title={ui("No timetable published")}
+            description={ui("Your class timetable appears here once the administration publishes it.")}
           />
         )}
         <ExamDateSheet classId={data?.classId} />

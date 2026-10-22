@@ -12,7 +12,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { ModalFrame, PanelTitle } from "@/components/shared-admin";
+import { PanelTitle } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
+
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-466: on-site visitors first, overdue visits flagged, one-action check-out, duplicate check-in
@@ -23,7 +27,11 @@ type Duplicate = { id: string; toMeet: string | null; reference: string | null; 
 const STATUS_LABEL = { ON_SITE: "On site", LEFT: "Left", REFUSED: "Refused entry" } as const;
 const EMPTY = { name: "", purpose: "", toMeet: "", reference: "", phone: "", refusedReason: "" };
 
-export function VisitorRegister({ canManage = true }: { canManage?: boolean }) {
+/**
+ * `hideHeader` hands the title and actions to the console's PageHeader (primary "Check in visitor", secondaries
+ * "Record refused visitor" and "Export"); `command` "check-in" / "refuse" / "export" runs them from there.
+ */
+export function VisitorRegister({ canManage = true, hideHeader = false, command }: { canManage?: boolean; hideHeader?: boolean; command?: PanelCommand | null }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [rows, setRows] = useState<Visit[]>([]), [counts, setCounts] = useState({ onSite: 0, overdue: 0, overdueHours: 4 });
@@ -89,15 +97,20 @@ export function VisitorRegister({ canManage = true }: { canManage?: boolean }) {
   };
 
   const exportParams = params(); exportParams.set("format", "csv");
-  return <div className="sk-panel space-y-4 p-5" data-visitor-register>
-    <div className="flex flex-wrap items-center justify-between gap-3">
+  usePanelCommand(command, {
+    "check-in": () => { if (canManage) { setMode("check-in"); setFormError(""); setDuplicates([]); } },
+    refuse: () => { if (canManage) { setMode("refuse"); setFormError(""); setDuplicates([]); } },
+    export: () => window.location.assign(`/api/front-desk/visitors?${exportParams}`),
+  });
+  return <div className={hideHeader ? "space-y-4" : "sk-panel space-y-4 p-5"} data-visitor-register>
+    {hideHeader ? null : <div className="flex flex-wrap items-center justify-between gap-3">
       <PanelTitle icon={Eye} title={ui("Visitor register")} />
       <div className="flex flex-wrap gap-2">
         <a className={buttonVariants({ variant: "outline" })} href={`/api/front-desk/visitors?${exportParams}`}><Download className="size-4" aria-hidden="true" />{ui("Export (CSV)")}</a>
         {canManage ? <Button onClick={() => { setMode("check-in"); setFormError(""); setDuplicates([]); }}><LogIn className="size-4" aria-hidden="true" />{ui("Check in visitor")}</Button> : null}
-        {canManage ? <Button variant="secondary" onClick={() => { setMode("refuse"); setFormError(""); setDuplicates([]); }}><ShieldAlert className="size-4" aria-hidden="true" />{ui("Record refused visitor")}</Button> : null}
+        {canManage ? <Button variant="outline" onClick={() => { setMode("refuse"); setFormError(""); setDuplicates([]); }}><ShieldAlert className="size-4" aria-hidden="true" />{ui("Record refused visitor")}</Button> : null}
       </div>
-    </div>
+    </div>}
     <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-ink-strong" aria-live="polite" data-visitor-counts>
       <span data-on-site={counts.onSite}>{ui("On site now: {0}", [counts.onSite])}</span>
       {counts.overdue ? <span className="text-status-warning-text" data-overdue={counts.overdue}>{ui("Still on site after {0} hours: {1}", [counts.overdueHours, counts.overdue])}</span> : null}
@@ -179,7 +192,7 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
     } catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The correction was not saved.")); } finally { setBusy(false); }
   };
   const update = (field: keyof typeof fields) => (event: { target: { value: string } }) => setFields(current => ({ ...current, [field]: event.target.value }));
-  return <ModalFrame title={ui("Correct visit of {0}", [visit.name])} eyebrow={ui("Visitor register")} subtitle={ui("The original values stay in the audit history.")} onClose={onClose} dirty={Boolean(reason)}>
+  return <Modal title={ui("Correct visit of {0}", [visit.name])} eyebrow={ui("Visitor register")} subtitle={ui("The original values stay in the audit history.")} onClose={onClose} dirty={Boolean(reason)}>
     <div className="space-y-3" data-visitor-correct>
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="correct-name" label={ui("Visitor name")}><Input value={fields.name} onChange={update("name")} /></FormField>
@@ -191,5 +204,5 @@ function CorrectVisit({ visit, onClose, onDone }: { visit: Visit; onClose: () =>
       <FormField name="correct-reason" label={ui("Reason for the correction")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} loading={busy}>{ui("Save correction")}</Button></div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }

@@ -172,7 +172,7 @@ test("the accountant filters the ledger, corrects an entry from the dialog and r
   const page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/accountant?view=accounts`);
-  await page.getByRole("button", { name: "Expense", exact: true }).click({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Expense", exact: true }).click({ timeout: 30_000 });
   const panel = page.locator('[data-ledger-panel="EXPENSE"]');
   const row = panel.locator(`[data-ledger-row="${created.data.id}"]`);
   await row.waitFor({ timeout: 30_000 });
@@ -190,7 +190,7 @@ test("the accountant filters the ledger, corrects an entry from the dialog and r
   await page.waitForFunction(`document.querySelectorAll('[data-ledger-panel="EXPENSE"] [data-ledger-row]').length === 1 && document.querySelector('[data-ledger-panel="EXPENSE"] [data-ledger-source="PAYROLL"]') !== null`, undefined, { timeout: 15_000 });
   assert.equal(await panel.locator("[data-ledger-total]").getAttribute("data-ledger-total"), "300000");
   await shot(page, "ledger-expense-filtered-en-1440");
-  await page.getByRole("button", { name: "Profit", exact: true }).click();
+  await page.getByRole("tab", { name: "Profit", exact: true }).click();
   const totals = page.locator("[data-profit-totals]");
   await totals.waitFor({ timeout: 15_000 });
   assert.deepEqual([await totals.getAttribute("data-income"), await totals.getAttribute("data-expense")], ["85000", "300000"]);
@@ -206,7 +206,7 @@ test("Arabic accountant at phone width reads the report right-to-left without ov
   await page.waitForLoadState("networkidle");
   if (!page.url().includes("view=accounts")) await page.goto(`${base}/accountant?view=accounts`);
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
-  await page.getByRole("button", { name: "الأرباح", exact: true }).click({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "الأرباح", exact: true }).click({ timeout: 30_000 });
   await page.locator("[data-profit-basis]").waitFor({ timeout: 15_000 });
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
   await shot(page, "ledger-profit-ar-390");

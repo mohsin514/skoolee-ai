@@ -14,6 +14,10 @@ import { AI_STAGE_OF, fillAi, getAiWorkflowsCopy, type AiStageKey } from "./ai-w
  * on the one most useful next step (decide the waiting drafts, else start the first workflow), the role's
  * workflows grouped as a journey (Understand → Plan → Write → Review) with why each matters and a Start that
  * selects it in the composer, then the composer, the review queue and the recent drafts.
+ *
+ * `hideHeading` (host-owned mode, §4.3/§4.4): a console view whose PageHeader already carries the title and the
+ * one primary ("New request") passes it — the hero's eyebrow and headline are dropped (no second page title) and
+ * the spotlight's action is demoted to an outline control, so the screen keeps exactly one primary.
  */
 type Insight = { id: string; feature: string; title?: string | null; summary?: string | null };
 type ReviewItem = { id: string; title: string; feature: string; status: string };
@@ -24,12 +28,16 @@ const STAGES: { key: AiStageKey; icon: LucideIcon }[] = [
   { key: "write", icon: PenLine },
   { key: "review", icon: ClipboardCheck },
 ];
-const COMPOSER_INPUT = "sk-ai-flow-context";
+/** The composer's text field; a console's "New request" primary focuses it (§4.4b "AI assistant"). */
+export const AI_COMPOSER_INPUT_ID = "sk-ai-flow-context";
+const COMPOSER_INPUT = AI_COMPOSER_INPUT_ID;
 
 export function AiWorkflowsHome({
-  title, features, insights, reviewItems, onComplete, campusId, canReview = true, drafts,
+  title, features, insights, reviewItems, onComplete, campusId, canReview = true, drafts, hideHeading = false,
 }: {
   title: string;
+  /** The hosting PageHeader owns the title and the primary action. */
+  hideHeading?: boolean;
   features: AIFeatureOption[];
   insights?: Insight[] | null;
   /** Omit (undefined) for a role that does not approve drafts. */
@@ -64,11 +72,13 @@ export function AiWorkflowsHome({
   return (
     <div lang={language} dir={rtl ? "rtl" : "ltr"} className="sk-ai-flows">
       {/* ── Hero ── */}
-      <header className="sk-launch-hero">
+      <header className="sk-launch-hero" data-compact={hideHeading || undefined}>
         <div className="min-w-0 space-y-3">
-          <p className="sk-eyebrow text-primary">{c.eyebrow} · {c.titles[title] ?? title}</p>
-          <h2 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{c.headline}</h2>
-          <p className="max-w-[60ch] text-sm leading-relaxed text-ink-muted">{c.intro}</p>
+          {hideHeading ? null : <>
+            <p className="sk-eyebrow text-primary">{c.eyebrow} · {c.titles[title] ?? title}</p>
+            <h2 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{c.headline}</h2>
+            <p className="max-w-[60ch] text-sm leading-relaxed text-ink-muted">{c.intro}</p>
+          </>}
           <p className="flex items-start gap-1.5 text-xs font-semibold text-status-success-text"><ShieldCheck aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{c.privacy}</p>
           {access.allows("schoolAi") ? <Link href="/ai" className={buttonVariants({ variant: "link", className: "h-auto gap-1 p-0" })}><Sparkles aria-hidden="true" className="size-4" />{c.workspace}</Link> : null}
         </div>
@@ -94,7 +104,7 @@ export function AiWorkflowsHome({
             <p className="text-xl font-bold text-ink-strong">{fillAi(c.reviewTitle, review.length)}</p>
             <p className="text-sm text-ink-muted">{c.reviewWhy}</p>
           </div>
-          <a href="#ai-review" className={buttonVariants({ variant: "default", className: "shrink-0 gap-2" })}>{c.reviewOpen} <ForwardArrow /></a>
+          <a href="#ai-review" className={buttonVariants({ variant: hideHeading ? "outline" : "default", className: "shrink-0 gap-2" })}>{c.reviewOpen} <ForwardArrow /></a>
         </section>
       ) : first ? (
         <section aria-labelledby="ai-next" className="sk-launch-spotlight">
@@ -103,7 +113,7 @@ export function AiWorkflowsHome({
             <p className="text-xl font-bold text-ink-strong">{fillAi(c.startTitle, label(first))}</p>
             <p className="text-sm text-ink-muted">{why(first)}</p>
           </div>
-          <Button type="button" className="shrink-0 gap-2" onClick={() => start(first.feature)}>{c.start} <ForwardArrow /></Button>
+          <Button type="button" variant={hideHeading ? "outline" : "default"} className="shrink-0 gap-2" onClick={() => start(first.feature)}>{c.start} <ForwardArrow /></Button>
         </section>
       ) : null}
 
@@ -131,7 +141,7 @@ export function AiWorkflowsHome({
                         </p>
                         <p className="text-xs leading-relaxed text-ink-muted">{why(option)}</p>
                       </div>
-                      <Button type="button" size="sm" variant={active ? "default" : "outline"} className="gap-1.5 justify-self-start" onClick={() => start(option.feature)}
+                      <Button type="button" size="sm" variant={active && !hideHeading ? "default" : "outline"} aria-pressed={active} className="gap-1.5 justify-self-start" onClick={() => start(option.feature)}
                         aria-label={`${c.start}: ${label(option)}`}>{c.start} <ForwardArrow /></Button>
                     </li>
                   );
@@ -175,7 +185,7 @@ export function AiWorkflowsHome({
               <ul className="grid gap-2">
                 {shownDrafts.map(insight => (
                   <li key={insight.id} className="sk-ai-flow-draft">
-                    <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{c.features[insight.feature]?.label ?? insight.feature.replaceAll("_", " ")}</p>
+                    <p className="text-xs font-semibold text-primary">{c.features[insight.feature]?.label ?? insight.feature.replaceAll("_", " ")}</p>
                     {insight.title ? <p className="text-sm font-bold text-ink-strong">{insight.title}</p> : null}
                     {insight.summary ? <p className="whitespace-pre-line text-xs leading-relaxed text-ink-muted">{insight.summary}</p> : null}
                   </li>

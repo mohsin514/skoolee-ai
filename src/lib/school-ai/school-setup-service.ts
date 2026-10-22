@@ -16,6 +16,7 @@ import { assertFinanceOperationsAccess } from "./finance-operations-service";
 import { previewMigrationCutover, previewSetupEnrollment } from "./school-setup-lifecycle";
 import { assertApprovalRole, assertSchoolAiAccess, assertWorkspacePermission, loadWorkspacePermissionSnapshot, resolveWorkspaceCampus, SchoolAiError } from "./access";
 import { workspaceRequestHash } from "./repository";
+import { membershipAuthority } from "@/lib/membership-access";
 import { schoolSetupProposalSchema, type SchoolSetupPreview, type SchoolSetupResult, type SchoolSetupOptions, type SchoolSetupProposal, type SetupProvenance } from "./school-setup";
 type RecordWithCampus = SchoolAiRecord & { campusId: string };
 const fail = (code: string) => { throw new SchoolAiError("Review the setup identities and existing school records.", 409, code); };
@@ -30,6 +31,11 @@ export async function assertSchoolSetupAccess(user: AuthUser, db: TxClient = pri
   await assertSchoolAiAccess(user, "view", grants); await assertSchoolAiAccess(user, "edit", grants);
   for (const moduleName of ["timetable", "staff", "students"] as const) { await assertWorkspacePermission(user, moduleName, "view", grants); await assertWorkspacePermission(user, moduleName, moduleName === "students" ? "edit" : "add", grants); }
   await assertSchoolOperational(user.schoolId, db); return actor;
+}
+/** Membership authority for staff invitations prepared through AI setup (G7b): the institution authority, or a
+ *  campus-scoped `canManageMemberships` delegate. The owner flag alone never grants it. */
+function setupMembership(user: AuthUser, actor: { role: AuthUser["role"]; campusId: string | null; isInstitutionOwner: boolean; canManageMemberships: boolean }) {
+  return membershipAuthority({ role: actor.role, institutionKind: user.institutionKind, isInstitutionOwner: actor.isInstitutionOwner, canManageMemberships: actor.canManageMemberships, campusId: actor.campusId });
 }
 export async function assertSchoolSetupRecordAccess(user: AuthUser, recordId: string, db: TxClient = prisma, originalVersion?: number) {
   await assertSchoolSetupAccess(user, db);
@@ -53,7 +59,7 @@ export async function getSchoolSetupOptions(user: AuthUser, requestedCampusId?: 
       prisma.academicCycle.findMany({ where: { schoolId: user.schoolId, campusId, status: "ACTIVE" }, select: { academicYear: true, label: true }, orderBy: { academicYear: "asc" }, take: 101 }),
       prisma.holiday.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { fromDate: "asc" }, take: 501 }),
     ]);
-    return { campusId, students: students.slice(0, 500).map(row => ({ id: row.id, label: `${row.fullName} · ${row.admissionNo || row.rollNo}` })), classes: classes.slice(0, 500).map(row => ({ id: row.id, campusId: row.campusId, teacherId: row.classTeacherId, teacherName: teachers.find(teacher => teacher.id === row.classTeacherId)?.fullName ?? null, teachingMode: row.teachingMode, label: `${row.campus.name} · ${row.name} ${row.section || ""} · ${row.academicYear}` })), subjects: subjects.slice(0, 1000).map(row => ({ id: row.id, label: `${row.name} · ${row.class.name} ${row.class.section || ""} · ${row.class.academicYear}`, classId: row.classId, teacherId: row.teacherId, teacherName: teachers.find(teacher => teacher.id === row.teacherId)?.fullName ?? null })), teachers: teachers.slice(0, 500).map(row => ({ id: row.id, label: row.fullName })), academicYears: cycles.slice(0, 100).map(row => ({ id: String(row.academicYear), label: `${row.label} · ${row.academicYear}` })), holidays: holidays.slice(0, 500).map(row => ({ id: row.id, label: `${row.name} · ${row.fromDate.toISOString().slice(0,10)}–${row.toDate.toISOString().slice(0,10)}`, name: row.name, fromDate: row.fromDate.toISOString().slice(0,10), toDate: row.toDate.toISOString().slice(0,10) })), sources: sources.slice(0, 100).map(row => ({ id: row.id, label: row.title })), canInviteStaff: actor.isInstitutionOwner || actor.canManageMemberships, truncated: students.length > 500 || classes.length > 500 || sources.length > 100 || subjects.length > 1000 || teachers.length > 500 || cycles.length > 100 || holidays.length > 500 };
+    return { campusId, students: students.slice(0, 500).map(row => ({ id: row.id, label: `${row.fullName} · ${row.admissionNo || row.rollNo}` })), classes: classes.slice(0, 500).map(row => ({ id: row.id, campusId: row.campusId, teacherId: row.classTeacherId, teacherName: teachers.find(teacher => teacher.id === row.classTeacherId)?.fullName ?? null, teachingMode: row.teachingMode, label: `${row.campus.name} · ${row.name} ${row.section || ""} · ${row.academicYear}` })), subjects: subjects.slice(0, 1000).map(row => ({ id: row.id, label: `${row.name} · ${row.class.name} ${row.class.section || ""} · ${row.class.academicYear}`, classId: row.classId, teacherId: row.teacherId, teacherName: teachers.find(teacher => teacher.id === row.teacherId)?.fullName ?? null })), teachers: teachers.slice(0, 500).map(row => ({ id: row.id, label: row.fullName })), academicYears: cycles.slice(0, 100).map(row => ({ id: String(row.academicYear), label: `${row.label} · ${row.academicYear}` })), holidays: holidays.slice(0, 500).map(row => ({ id: row.id, label: `${row.name} · ${row.fromDate.toISOString().slice(0,10)}–${row.toDate.toISOString().slice(0,10)}`, name: row.name, fromDate: row.fromDate.toISOString().slice(0,10), toDate: row.toDate.toISOString().slice(0,10) })), sources: sources.slice(0, 100).map(row => ({ id: row.id, label: row.title })), canInviteStaff: setupMembership(user, actor).canManage, truncated: students.length > 500 || classes.length > 500 || sources.length > 100 || subjects.length > 1000 || teachers.length > 500 || cycles.length > 100 || holidays.length > 500 };
   });
 }
 export async function previewSchoolSetup(user: AuthUser, record: RecordWithCampus, db: TxClient): Promise<SchoolSetupPreview> {
@@ -75,7 +81,8 @@ export async function previewSchoolSetup(user: AuthUser, record: RecordWithCampu
       rows.push({ index, label: `${row.timeType} ${row.periodNumber} · ${row.startTime}–${row.endTime}`, disposition: match ? "KEEP" : "CREATE", ...(match ? { existingId: match.id } : {}) });
     } facts = existing;
   } else if (proposal.action === "STAFF") {
-    if (!actor.isInstitutionOwner && !actor.canManageMemberships) throw new SchoolAiError("Only authorized membership managers can prepare staff invitations.", 403, "SETUP_MEMBERSHIP_REQUIRED");
+    const membership = setupMembership(user, actor);
+    if (!membership.canManage) throw new SchoolAiError("Only authorized membership managers can prepare staff invitations.", 403, "SETUP_MEMBERSHIP_REQUIRED");
     // Invitation capacity and identities belong to the school, including when
     // two different campus administrators prepare batches at the same time.
     await lockSchoolMemberships(db, user.schoolId);
@@ -93,7 +100,7 @@ export async function previewSchoolSetup(user: AuthUser, record: RecordWithCampu
     const [usage] = await db.$queryRaw<Array<{ count: bigint }>>`SELECT ((SELECT count(*) FROM users WHERE school_id=${user.schoolId} AND role='TEACHER' AND is_active=true) + (SELECT count(*) FROM staff_invitations WHERE school_id=${user.schoolId} AND role='TEACHER' AND status='pending')) AS count`;
     const added = rows.filter(item => item.disposition === "CREATE" && proposal.rows[item.index].role === "TEACHER").length;
     if (contract.maxTeachers >= 0 && Number(usage.count) + added > contract.maxTeachers) return fail("SETUP_TEACHER_LIMIT");
-    facts = { existing, invitations, school, teacherCount: Number(usage.count), membership: { owner: actor.isInstitutionOwner, delegated: actor.canManageMemberships } };
+    facts = { existing, invitations, school, teacherCount: Number(usage.count), membership: { owner: membership.authority, delegated: membership.delegate } };
   } else if (proposal.action === "GUARDIANS") {
     const studentIds = [...new Set(proposal.rows.map(row => row.studentId))], students = await db.student.findMany({ where: { ...where, id: { in: studentIds }, archivedAt: null }, select: { id: true, fullName: true } });
     if (students.length !== studentIds.length) return fail("SETUP_STUDENT_UNAVAILABLE");

@@ -165,8 +165,7 @@ test("screens: device-only saves survive a restart, sync once, conflicts in cont
   // A fresh class B register for the Arabic-language teacher on a phone.
   const ctx = await context("teacher-ar", { width: 390, height: 844 });
   const page = await ctx.newPage();
-  await page.goto(`${base}/teacher/attendance`);
-  await page.locator('[data-attendance-tab="offline"]').click();
+  await page.goto(`${base}/teacher/attendance?tab=offline`);
   await page.locator("[data-offline-register]").waitFor();
   await page.locator("[data-offline-class]").selectOption(classB);
   const bPupil = randomUUID();
@@ -186,8 +185,7 @@ test("screens: device-only saves survive a restart, sync once, conflicts in cont
   await ctx.setOffline(false);
   const again = await ctx.newPage();
   await again.route("**/api/offline", r => r.request().method() === "POST" ? r.abort() : r.continue());
-  await again.goto(`${base}/teacher/attendance`);
-  await again.locator('[data-attendance-tab="offline"]').click();
+  await again.goto(`${base}/teacher/attendance?tab=offline`);
   await again.locator("[data-offline-class]").selectOption(classB);
   await again.locator(`[data-offline-row="${bPupil}"][data-offline-state="LOCAL"]`).waitFor();
   assert.equal(await again.locator("[data-offline-pending]").getAttribute("data-offline-pending"), "1");
@@ -195,15 +193,13 @@ test("screens: device-only saves survive a restart, sync once, conflicts in cont
   await again.locator("[data-offline-sync]").click();
   await again.locator(`[data-offline-row="${bPupil}"][data-offline-state="ACCEPTED"]`).waitFor();
   await again.reload();
-  await again.locator('[data-attendance-tab="offline"]').click();
   await again.waitForTimeout(1500);
   assert.equal(await db.offlineOperation.count({ where: { schoolId, studentId: bPupil } }), 1, "accepted once across restarts");
   assert.equal((await row(bPupil))!.status, "ABSENT");
   await again.close();
   // Conflict in context on desktop for the English teacher.
   const t = await (await context("teacher")).newPage();
-  await t.goto(`${base}/teacher/attendance`);
-  await t.locator('[data-attendance-tab="offline"]').click();
+  await t.goto(`${base}/teacher/attendance?tab=offline`);
   await t.locator("[data-offline-prepare]").click();
   await t.locator(`[data-offline-row="${pupils.zain}"]`).waitFor();
   await call("lead", "post", "/api/attendance/register", { classId: classA, date: today, entries: [{ studentId: pupils.zain, status: "LATE", knownStatus: "PRESENT", arrivalTime: "10:05" }] });
@@ -215,21 +211,25 @@ test("screens: device-only saves survive a restart, sync once, conflicts in cont
   await shot(t, "02-conflict-review");
   await t.locator("[data-offline-keep]").click();
   await t.locator("[data-offline-resolve]").waitFor({ state: "detached" });
-  // Sign-out with unsynced work: the warning appears and cancelling keeps the session.
+  // Sign-out with unsynced work: the shared ConfirmAction (an alertdialog, not a browser dialog) warns, and
+  // "Keep editing" keeps the session.
   await t.locator(`[data-offline-row="${pupils.amna}"] [data-offline-mark="PRESENT"]`).click();
   await t.route("**/api/offline", r => r.abort());
-  let warned = "";
-  t.once("dialog", d => { warned = d.message(); void d.dismiss(); });
+  const warning = t.getByRole("alertdialog", { name: "Sign out with unsynced changes?" });
   await t.getByRole("button", { name: "Account menu" }).first().click();
   await t.getByRole("menuitem", { name: "Sign out" }).click();
-  await t.waitForTimeout(500);
-  assert.match(warned, /1 changes on this device are not synced yet/, "sign-out warns about unsynced work");
-  assert.equal(new URL(t.url()).pathname, "/teacher/attendance", "cancelling keeps the session");
+  await warning.waitFor();
+  assert.match(await warning.innerText(), /1 changes on this device are not synced yet/, "sign-out warns about unsynced work");
   await shot(t, "03-pending-before-sign-out");
+  await warning.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await warning.waitFor({ state: "detached" });
+  assert.equal(new URL(t.url()).pathname, "/teacher/attendance", "keeping editing keeps the session");
+  assert.notEqual(await t.evaluate(() => localStorage.getItem("sk-offline-v1")), null, "the device copy stays until sign-out is confirmed");
   // Confirming follows the shared-device policy: the device copy is removed.
-  t.once("dialog", d => void d.accept());
   if (!(await t.locator('[role="menu"]').count())) await t.getByRole("button", { name: "Account menu" }).first().click();
   await t.getByRole("menuitem", { name: "Sign out" }).click();
+  await warning.waitFor();
+  await warning.getByRole("button", { name: "Sign out", exact: true }).click();
   await t.waitForURL(/\/login/);
   assert.equal(await t.evaluate(() => localStorage.getItem("sk-offline-v1")), null, "offline registers and unsynced marks cleared on sign-out");
   await t.close();

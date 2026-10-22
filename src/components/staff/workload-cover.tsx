@@ -11,6 +11,7 @@ import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonTable, SkeletonList } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-399: workload for a named week (definition shown), and absence cover with each candidate's reasons.
@@ -82,16 +83,16 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
       {weekError ? <ErrorState variant="panel" description={weekError} onRetry={() => void loadWeek()} retryLabel={ui("Retry")} />
         : !rows ? <div role="status" aria-label={ui("Loading workload…")}><SkeletonTable /></div>
         : !rows.length ? <EmptyState size="sm" icon={CalendarClock} title={ui("No teachers in this campus yet.")} />
-        : <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-xs" data-workload-table>
+        : <Table className="min-w-[640px] text-xs" data-workload-table>
           <caption className="sr-only">{ui("Teaching workload")}</caption>
-          <thead><tr className="text-ink-subtle">{["Teacher", "Teaching periods", "Cover duties", "Invigilation", "Leave days", "Capacity", "Load"].map(head => <th key={head} scope="col" className="px-2 py-1.5 text-start">{ui(head)}</th>)}</tr></thead>
-          <tbody>{rows.map(row => <tr key={row.id} className="border-t border-border" data-workload-row={row.id} data-over={row.overCapacity}>
-            <th scope="row" className="px-2 py-1.5 text-start font-bold"><bdi>{row.name}</bdi>{row.rank ? <span className="block font-normal text-ink-muted"><bdi>{row.rank}</bdi>{row.department ? <> · <bdi>{row.department}</bdi></> : null}</span> : null}</th>
-            <td className="px-2 tabular-nums">{row.teaching}</td><td className="px-2 tabular-nums">{row.coverDuties}</td><td className="px-2 tabular-nums">{row.invigilations}</td><td className="px-2 tabular-nums">{row.leaveDays}</td>
-            <td className="px-2"><Input aria-label={ui("Contracted periods per week for {0}", [row.name])} className="h-8 w-28" type="number" min={0} max={80} defaultValue={row.capacity ?? ""} placeholder={ui("Unknown")} onBlur={event => { if (event.target.value !== String(row.capacity ?? "")) void saveCapacity(row, event.target.value); }} /></td>
-            <td className={`px-2 font-semibold tabular-nums ${row.overCapacity ? "text-rose-700" : ""}`}>{row.percent === null ? ui("{0} periods (capacity unknown)", [row.load]) : ui("{0} of {1} ({2}%)", [row.load, row.capacity!, row.percent])}</td>
-          </tr>)}</tbody>
-        </table></div>}
+          <TableHeader><TableRow>{["Teacher", "Teaching periods", "Cover duties", "Invigilation", "Leave days", "Capacity", "Load"].map(head => <TableHead key={head} className="px-3">{ui(head)}</TableHead>)}</TableRow></TableHeader>
+          <TableBody>{rows.map(row => <TableRow key={row.id} data-workload-row={row.id} data-over={row.overCapacity}>
+            <th scope="row" className="px-3 py-2 text-start font-bold text-ink-strong"><bdi>{row.name}</bdi>{row.rank ? <span className="block font-normal text-ink-muted"><bdi>{row.rank}</bdi>{row.department ? <> · <bdi>{row.department}</bdi></> : null}</span> : null}</th>
+            <TableCell className="px-3 py-2 tabular-nums">{row.teaching}</TableCell><TableCell className="px-3 py-2 tabular-nums">{row.coverDuties}</TableCell><TableCell className="px-3 py-2 tabular-nums">{row.invigilations}</TableCell><TableCell className="px-3 py-2 tabular-nums">{row.leaveDays}</TableCell>
+            <TableCell className="px-3 py-2"><Input aria-label={ui("Contracted periods per week for {0}", [row.name])} className="w-28" type="number" min={0} max={80} defaultValue={row.capacity ?? ""} placeholder={ui("Unknown")} onBlur={event => { if (event.target.value !== String(row.capacity ?? "")) void saveCapacity(row, event.target.value); }} /></TableCell>
+            <TableCell className={`px-3 py-2 font-semibold tabular-nums ${row.overCapacity ? "text-status-error-text" : ""}`}>{row.percent === null ? ui("{0} periods (capacity unknown)", [row.load]) : ui("{0} of {1} ({2}%)", [row.load, row.capacity!, row.percent])}</TableCell>
+          </TableRow>)}</TableBody>
+        </Table>}
     </section>
 
     <section className="sk-panel space-y-3 p-5" aria-labelledby="cover-title">
@@ -111,9 +112,9 @@ export function WorkloadCover({ campusId }: { campusId?: string }) {
             {lesson.candidates.map(candidate => <label key={candidate.id} className={`flex items-start gap-2 rounded-xl px-2 py-1.5 text-xs ${candidate.eligible ? "" : "opacity-70"}`} data-candidate={candidate.id} data-eligible={candidate.eligible}>
               <input type="radio" name={`cover-${lesson.slotId}`} disabled={!candidate.eligible} checked={choice[lesson.slotId] === candidate.id} onChange={() => setChoice(prev => ({ ...prev, [lesson.slotId]: candidate.id }))} />
               <span className="min-w-0"><span className="font-semibold"><bdi>{candidate.name}</bdi></span>
-                {candidate.reasons.map(reason => <span key={reason} className="ms-1 text-emerald-700">· {ui(reason)}</span>)}
-                {candidate.conflicts.map(reason => <span key={reason} className="ms-1 text-rose-700">· {ui(reason)}</span>)}
-                {candidate.warnings.map(reason => <span key={reason} className="ms-1 text-amber-800">· {ui(reason)}</span>)}</span>
+                {candidate.reasons.map(reason => <span key={reason} className="ms-1 text-status-success-text">· {ui(reason)}</span>)}
+                {candidate.conflicts.map(reason => <span key={reason} className="ms-1 text-status-error-text">· {ui(reason)}</span>)}
+                {candidate.warnings.map(reason => <span key={reason} className="ms-1 text-status-warning-text">· {ui(reason)}</span>)}</span>
             </label>)}
           </fieldset>
         </li>)}</ul>}

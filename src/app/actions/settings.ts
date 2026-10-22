@@ -1,6 +1,7 @@
 'use server'
 
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, type AuthUser } from "@/lib/auth";
+import { isGroupConsole, isInstitutionAuthority } from "@/lib/auth/institution";
 
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -27,20 +28,25 @@ import {
 // Who may edit what
 //
 // School details are the identity of the whole institution — the name and
-// logo print on every campus's report cards — so they belong to whoever owns
-// the institution:
+// logo print on every campus's report cards — so they belong to the
+// institution authority (§7.3 G13):
 //
-//   SUPER_ADMIN   the group owner                      → yes
-//   ADMIN         a standalone school's owner          → yes, but only while
-//                 the school really is a single campus; an ADMIN sitting in a
-//                 multi-campus group is a branch admin, not the group owner
-//   everyone else                                      → no
+//   SUPER_ADMIN   in a school group                    → yes
+//   ADMIN         in a single (standalone) school      → yes
+//   everyone else (a campus admin in a group, an ADMIN sitting in a group,
+//   a principal)                                       → no
+//
+// The answer comes from the institution kind on the resolved session, never
+// from counting campuses.
 //
 // Campus details belong to whoever administers that campus:
 //
 //   SUPER_ADMIN            → any campus inside their own school
 //   CAMPUS_ADMIN / ADMIN   → their own campus only, never a sibling's
 //   everyone else          → no
+//
+// Archiving and restoring campuses is a school-group act (a single school has
+// one campus, and LAST_ACTIVE_CAMPUS still blocks archiving it).
 //
 // PRINCIPAL is deliberately excluded from both. It is an academic authority,
 // and this is account administration — a principal editing the campus record
@@ -51,12 +57,8 @@ import {
 // already-issued documents disagreeing with the record.
 // ─────────────────────────────────────────────────────────────────
 
-interface Session {
-  userId: string;
-  schoolId: string;
-  campusId: string | null;
-  role: string;
-}
+/** The full resolved user (K-B5): authority predicates need the institution kind, which a stripped session lacks. */
+type Session = AuthUser;
 
 async function requireSession(): Promise<Session> {
   const cookieStore = await cookies();
@@ -71,12 +73,7 @@ async function requireSession(): Promise<Session> {
   enterTenantContext({ schoolId, userId: payload.userId, campusId: payload.campusId, role: payload.role });
   await assertSchoolOperational(schoolId);
 
-  return {
-    userId: String(payload.userId),
-    schoolId,
-    campusId: payload.campusId ? String(payload.campusId) : null,
-    role: String(payload.role),
-  };
+  return payload;
 }
 
 /**
@@ -90,14 +87,10 @@ function assertStaffViewer(session: Session) {
   }
 }
 
-/** School-identity edits: the group owner, or a genuine standalone owner. */
-async function assertCanEditSchool(session: Session) {
-  if (session.role === "SUPER_ADMIN") return;
-  if (session.role === "ADMIN") {
-    const campusCount = await prisma.campus.count({ where: { schoolId: session.schoolId } });
-    if (campusCount <= 1) return;
-  }
-  throw new Error("Only the institution owner can change school details.");
+/** School-identity edits: the institution authority only (G13). */
+function assertCanEditSchool(session: Session) {
+  if (isInstitutionAuthority(session)) return;
+  throw new Error("Only the institution administrator can change school details.");
 }
 
 /** Campus edits: the group owner for any campus, an admin for their own. */
@@ -172,8 +165,7 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
   ]);
   if (!school) throw new Error("School not found.");
 
-  const canEditSchool =
-    session.role === "SUPER_ADMIN" || (session.role === "ADMIN" && campuses.length <= 1);
+  const canEditSchool = isInstitutionAuthority(session);
 
   const editableCampusIds =
     session.role === "SUPER_ADMIN"
@@ -186,7 +178,7 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
 
   return {
     canEditSchool,
-    canArchiveCampuses: session.role === "SUPER_ADMIN",
+    canArchiveCampuses: isGroupConsole(session),
     editableCampusIds,
     school: {
       revision: recordRevision(school),
@@ -265,7 +257,7 @@ const AUDIT_FIELDS = (diff: Diff, side: "from" | "to") => Object.fromEntries(Obj
 
 export async function updateSchoolDetails(input: SchoolDetailsInput) {
   const session = await requireSession();
-  await assertCanEditSchool(session);
+  assertCanEditSchool(session);
 
   const name = input.name === undefined ? undefined : requiredText(input.name, "School name");
   const city = input.city === undefined ? undefined : requiredText(input.city, "City");
@@ -413,8 +405,9 @@ async function campusArchiveImpact(db: TxClient, schoolId: string, campusId: str
   return { campusId, name: campus.name, counts: { activeStudents, activeClasses, staff, openInvoices, pendingOnlinePayments, queuedRuns }, blockers };
 }
 
+/** Archive / restore a campus: the group admin of a school group (G13). */
 function assertInstitutionOwner(session: Session) {
-  if (session.role !== "SUPER_ADMIN") throw new Error("Only the institution owner can archive or restore a campus.");
+  if (!isGroupConsole(session)) throw new Error("Only the group admin can archive or restore a campus.");
 }
 
 export async function previewCampusArchive(campusId: string): Promise<CampusArchivePreview> {

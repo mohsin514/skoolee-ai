@@ -1,8 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FlaskConical } from "lucide-react";
+import { ClipboardPlus, Download, FlaskConical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Badge as UiBadge } from "@/components/ui/badge";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ErrorState } from "@/components/ui/error-state";
+import { Modal } from "@/components/ui/modal";
+import { PageHeader } from "@/components/ui/page-header";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +18,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/components/ui/toast";
+import { PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
+import { cn } from "@/lib/utils";
 
 // SKO-430: pilot charter, comparable observations, evidence-state measures and claim review in the
 // owner console. Figures always show their denominator; withheld percentages show the reason.
@@ -50,14 +60,17 @@ export function PilotEvidence() {
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [creating, setCreating] = useState(false);
+  // §4.4b: "Add evidence" opens one dialog for an observation or a measure on the selected pilot.
+  const [adding, setAdding] = useState<"observation" | "measure" | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [exported, setExported] = useState<Exported | null>(null);
 
   const load = useCallback(async () => {
-    try { const data = await call("/api/owner/pilots"); setPilots(data.pilots); setOwners(data.owners); setError(null); }
-    catch (e) { setError(ui((e as Error).message)); }
-  }, [ui]);
+    try { const data = await call("/api/owner/pilots"); setPilots(data.pilots); setOwners(data.owners); setLoadFailed(false); }
+    catch { setLoadFailed(true); }
+  }, []);
   const loadDetail = useCallback(async (id: string) => {
     try { setDetail(await call(`/api/owner/pilots/${id}`)); setError(null); } catch (e) { setError(ui((e as Error).message)); }
   }, [ui]);
@@ -68,39 +81,65 @@ export function PilotEvidence() {
     if (!selected) return false;
     try {
       await call(`/api/owner/pilots/${selected}`, { method: "POST", body: JSON.stringify({ action, data }) });
-      setNotice(ui(success)); setError(null);
+      // R4: the result of the operator's own action is one translated toast; a refusal stays inline.
+      toast.success(ui(success)); setError(null);
       await Promise.all([loadDetail(selected), load()]);
       return true;
-    } catch (e) { setError(ui((e as Error).message)); setNotice(null); return false; }
+    } catch (e) { setError(ui((e as Error).message)); return false; }
+  };
+  const exportClaims = async () => {
+    setExporting(true);
+    try { setExported(await call("/api/owner/pilots/export")); setError(null); if (selected) await loadDetail(selected); }
+    catch (e) { setError(ui((e as Error).message)); }
+    finally { setExporting(false); }
   };
 
+  const newPilot = { id: "new-pilot", label: "New pilot", icon: Plus, onClick: () => setCreating(true) };
+  const exportAction = { id: "export-claims", label: "Export approved claims", icon: Download, onClick: () => void exportClaims(), loading: exporting };
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-bold text-ink"><FlaskConical className="h-5 w-5" aria-hidden /> {ui("Pilot evidence")}</h2>
-          <p className="mt-1 max-w-2xl text-sm text-ink-muted">{ui("Measured pilot results only. Targets, self-reports and synthetic demos are labelled and never counted as results.")}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={async () => { try { setExported(await call("/api/owner/pilots/export")); setError(null); if (selected) await loadDetail(selected); } catch (e) { setError(ui((e as Error).message)); } }}>{ui("Export approved claims")}</Button>
-          <Button onClick={() => setCreating((v) => !v)} aria-expanded={creating}>{ui(creating ? "Close" : "New pilot")}</Button>
-        </div>
-      </div>
-      <div aria-live="polite" className="space-y-2">
-        {error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm font-semibold text-destructive">{error}</p> : null}
-        {notice ? <p role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{notice}</p> : null}
-      </div>
-      {creating ? <PilotForm owners={owners} onCreated={async (id) => { setCreating(false); setNotice(ui("Pilot charter saved.")); await load(); setSelected(id); }} onError={(m) => setError(ui(m))} /> : null}
+    // The scrolling body of the shell's one page card (addendum 2026-10-22).
+    <div className={cn("custom-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY)}>
+      <PageHeader
+        eyebrow="Platform operations"
+        title="Pilot evidence"
+        description="Measured pilot results only. Targets, self-reports and synthetic demos are labelled and never counted as results."
+        // One primary: "Add evidence" for the pilot in view (§4.4b); with no pilot open, starting one is the first job.
+        primaryAction={detail ? { id: "add-evidence", label: "Add evidence", icon: ClipboardPlus, onClick: () => setAdding("observation") } : newPilot}
+        secondaryActions={detail ? [newPilot, exportAction] : [exportAction]}
+      />
+      {error ? <Alert tone="danger" compact onDismiss={() => setError(null)}>{error}</Alert> : null}
+      {creating ? (
+        <Modal title={ui("New pilot")} subtitle={ui("Record the charter first, then a baseline, before reporting any impact.")} icon={FlaskConical} size="lg" onClose={() => setCreating(false)}>
+          <PilotForm owners={owners} onCreated={async (id) => { setCreating(false); toast.success(ui("Pilot charter saved.")); await load(); setSelected(id); }} onError={(m) => setError(ui(m))} />
+        </Modal>
+      ) : null}
+      {adding && detail ? (
+        <Modal title={ui("Add evidence")} subtitle={<bdi>{detail.pilot.name}</bdi>} icon={ClipboardPlus} size="lg" onClose={() => setAdding(null)}>
+          <div className="space-y-4">
+            <div role="group" aria-label={ui("Kind of evidence")} className="flex flex-wrap gap-2">
+              <Button type="button" variant="choice" size="sm" aria-pressed={adding === "observation"} onClick={() => setAdding("observation")}>{ui("Observation")}</Button>
+              <Button type="button" variant="choice" size="sm" aria-pressed={adding === "measure"} onClick={() => setAdding("measure")}>{ui("Measure")}</Button>
+            </div>
+            <p className="text-sm text-ink-muted">{adding === "observation"
+              ? ui("One timed task by one participant, as baseline or follow-up. Pairs are compared by participant, task and difficulty.")
+              : ui("A correctness sample, adoption, support, cost or commercial figure, with its denominator and how it was measured.")}</p>
+            {adding === "observation"
+              ? <ObservationForm key="observation" pilot={detail.pilot} onSubmit={async (data) => { const ok = await act("observation", data, "Observation recorded."); if (ok) setAdding(null); return ok; }} />
+              : <MeasureForm key="measure" pilot={detail.pilot} onSubmit={async (data) => { const ok = await act("measure", data, "Measure recorded."); if (ok) setAdding(null); return ok; }} />}
+          </div>
+        </Modal>
+      ) : null}
       {exported ? <ExportView exported={exported} onClose={() => setExported(null)} /> : null}
 
-      {pilots === null ? <p role="status" className="text-sm text-ink-muted">{ui("Loading pilots…")}</p>
-        : pilots.length === 0 ? <EmptyState size="sm" icon={FlaskConical} title={ui("No pilots yet")} description={ui("Record a charter, then a baseline, before reporting any impact.")} action={<Button onClick={() => setCreating(true)}>{ui("New pilot")}</Button>} />
+      {loadFailed && pilots === null ? <div className="sk-panel"><ErrorState title={ui("Pilots did not load")} description={ui("Check your connection and try again.")} onRetry={() => void load()} /></div>
+        : pilots === null ? <SkeletonList rows={3} label={ui("Loading pilots…")} />
+        : pilots.length === 0 ? <div className="sk-panel"><EmptyState size="sm" icon={FlaskConical} title={ui("No pilots yet")} description={ui("Record a charter, then a baseline, before reporting any impact.")} primaryAction={newPilot} /></div>
         : (
-          <ul className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {pilots.map((pilot) => (
               <li key={pilot.id}>
-                <Button variant="ghost" type="button" onClick={() => setSelected(pilot.id === selected ? null : pilot.id)} aria-pressed={pilot.id === selected}
-                  className={`w-full rounded-2xl border p-4 text-start transition ${pilot.id === selected ? "border-primary bg-brand-50" : "border-border bg-white hover:border-primary/50"}`}>
+                <Button variant="choice" type="button" onClick={() => setSelected(pilot.id === selected ? null : pilot.id)} aria-pressed={pilot.id === selected}
+                  className="h-auto w-full flex-col items-start rounded-2xl p-4 text-start font-normal">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-ink"><bdi>{pilot.name}</bdi></span>
                     <Badge>{ui(STATUS_LABEL[pilot.status] ?? pilot.status)}</Badge>
@@ -119,9 +158,10 @@ export function PilotEvidence() {
   );
 }
 
+/** Evidence-state chip on the shared Badge (tokens, not raw palette colours). */
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "warn" | "good" | "bad" }) {
-  const cls = tone === "warn" ? "bg-amber-100 text-amber-900" : tone === "good" ? "bg-emerald-100 text-emerald-900" : tone === "bad" ? "bg-rose-100 text-rose-900" : "bg-surface-muted text-ink";
-  return <span className={`rounded-full px-2 py-0.5 text-2xs font-bold ${cls}`}>{children}</span>;
+  const variant = tone === "warn" ? "warning" : tone === "good" ? "success" : tone === "bad" ? "danger" : "neutral";
+  return <UiBadge size="sm" variant={variant}>{children}</UiBadge>;
 }
 
 function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullName: string }[]; onCreated: (id: string) => void; onError: (message: string) => void }) {
@@ -130,7 +170,7 @@ function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullN
   const [busy, setBusy] = useState(false);
   const set = (key: string, value: string | boolean) => setForm((f) => ({ ...f, [key]: value }));
   return (
-    <form className="mb-6 grid gap-3 rounded-2xl border border-border p-4 md:grid-cols-2" onSubmit={async (e) => {
+    <form className="grid gap-3 md:grid-cols-2" onSubmit={async (e) => {
       e.preventDefault(); if (busy) return; setBusy(true);
       try {
         const pilot = await call("/api/owner/pilots", { method: "POST", body: JSON.stringify({ name: form.name, country: form.country.toUpperCase(), curriculum: form.curriculum, language: form.language, useCase: form.useCase, startsOn: form.startsOn, endsOn: form.endsOn || null,
@@ -138,7 +178,6 @@ function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullN
         onCreated(pilot.id);
       } catch (err) { onError((err as Error).message); } finally { setBusy(false); }
     }}>
-      <h3 className="font-bold text-ink md:col-span-2">{ui("Pilot charter")}</h3>
       <FormField name="pilot-f1" label={ui("Pilot name")} required><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></FormField>
       <FormField name="pilot-f2" label={ui("Measurement owner")} required><Select value={form.measurementOwnerId} onChange={(e) => set("measurementOwnerId", e.target.value)}>{owners.map((o) => <option key={o.id} value={o.id}>{o.fullName}</option>)}</Select></FormField>
       <FormField name="pilot-f3" label={ui("Country code")} hint={ui("Two letters, for example PK, SA or AE.")} required><Input dir="ltr" maxLength={2} value={form.country} onChange={(e) => set("country", e.target.value)} /></FormField>
@@ -172,12 +211,13 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
   const [consent, setConsent] = useState(pilot.consentReference ?? "");
   const [permission, setPermission] = useState(pilot.caseStudyPermission);
   const [permissionRef, setPermissionRef] = useState(pilot.permissionReference ?? "");
+  const [excluding, setExcluding] = useState<Observation | null>(null);
   const findingKeys = [...findings.time.map((f) => f.key), ...findings.correctness.flatMap((c) => [c.extraction.key, c.final.key]), ...findings.other.map((f) => f.key)];
   return (
-    <section className="mt-6 space-y-6" aria-labelledby="pilot-detail-heading">
-      <div className="rounded-2xl border border-border p-4">
-        <h3 id="pilot-detail-heading" className="text-base font-bold text-ink"><bdi>{pilot.name}</bdi></h3>
-        {pilot.synthetic ? <p className="mt-1 text-sm font-semibold text-amber-800">{ui("Synthetic demonstration: excluded from every finding, claim and export.")}</p> : null}
+    <section className="space-y-6" aria-labelledby="pilot-detail-heading">
+      <div className="sk-panel p-4 sm:p-6">
+        <h2 id="pilot-detail-heading" className="text-base font-bold text-ink"><bdi>{pilot.name}</bdi></h2>
+        {pilot.synthetic ? <p className="mt-1 text-sm font-semibold text-status-warning-text">{ui("Synthetic demonstration: excluded from every finding, claim and export.")}</p> : null}
         <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div><dt className="text-xs font-bold text-ink-muted">{ui("Cohort")}</dt><dd dir="ltr"><bdi>{pilot.country} · {pilot.curriculum} · {pilot.language} · {pilot.useCase}</bdi></dd></div>
           <div><dt className="text-xs font-bold text-ink-muted">{ui("Dates")}</dt><dd dir="ltr">{pilot.startsOn.slice(0, 10)} → {pilot.endsOn?.slice(0, 10) ?? ui("open")}</dd></div>
@@ -197,7 +237,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
       </div>
 
       <div>
-        <h4 className="mb-2 font-bold text-ink">{ui("Task time: baseline vs follow-up")}</h4>
+        <h3 className="mb-2 font-bold text-ink">{ui("Task time: baseline vs follow-up")}</h3>
         <p className="mb-2 text-xs text-ink-muted">{ui("Task time = active time + review and correction time, paired by participant, task and difficulty. Elapsed time is shown separately.")}</p>
         <div className="overflow-x-auto">
           <Table>
@@ -221,22 +261,17 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
       </div>
 
       <div>
-        <h4 className="mb-2 font-bold text-ink">{ui("Correctness samples")}</h4>
+        <h3 className="mb-2 font-bold text-ink">{ui("Correctness samples")}</h3>
         <p className="mb-2 text-xs text-ink-muted">{ui("Extraction accuracy and final approved accuracy are separate measures and are never combined.")}</p>
         <MeasureTable rows={findings.correctness.flatMap((c) => [c.extraction, c.final])} />
       </div>
       <div>
-        <h4 className="mb-2 font-bold text-ink">{ui("Adoption, support, cost and commercial evidence")}</h4>
+        <h3 className="mb-2 font-bold text-ink">{ui("Adoption, support, cost and commercial evidence")}</h3>
         <MeasureTable rows={findings.other} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <ObservationForm pilot={pilot} onSubmit={(data) => act("observation", data, "Observation recorded.")} />
-        <MeasureForm pilot={pilot} onSubmit={(data) => act("measure", data, "Measure recorded.")} />
-      </div>
-
       <div>
-        <h4 className="mb-2 font-bold text-ink">{ui("Observations")}</h4>
+        <h3 className="mb-2 font-bold text-ink">{ui("Observations")}</h3>
         <p className="mb-2 text-xs text-ink-muted">{ui("Participants are pseudonyms. Participant-level rows stay in this console and are never exported.")}</p>
         <div className="overflow-x-auto">
           <Table>
@@ -247,7 +282,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
                 <TableCell><bdi>{o.participant}</bdi></TableCell><TableCell><bdi>{o.task}</bdi> <span className="text-xs text-ink-muted">(<bdi>{o.difficulty}</bdi>)</span></TableCell>
                 <TableCell>{minutes(o.activeSeconds, fmt)} + {minutes(o.correctionSeconds, fmt)}</TableCell>
                 <TableCell className="text-xs">{o.synthetic ? ui("Synthetic") : o.excludedReason ? <>{ui("Excluded")}: <bdi>{o.excludedReason}</bdi></> : o.completed ? ui("Included") : ui("Not completed")}</TableCell>
-                <TableCell>{!o.excludedReason && !o.synthetic ? <Button size="sm" variant="ghost" onClick={() => { const reason = window.prompt(ui("Why exclude this observation?")); if (reason) void act("exclude", { observationId: o.id, reason }, "Observation excluded."); }} aria-label={ui("Exclude observation by {0}", [o.participant])}>{ui("Exclude")}</Button> : null}</TableCell>
+                <TableCell>{!o.excludedReason && !o.synthetic ? <Button size="sm" variant="ghost" onClick={() => setExcluding(o)} aria-label={ui("Exclude observation by {0}", [o.participant])}>{ui("Exclude")}</Button> : null}</TableCell>
               </TableRow>
             ))}</TableBody>
           </Table>
@@ -255,6 +290,18 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
       </div>
 
       <ClaimsPanel claims={claims} findingKeys={findingKeys} act={act} />
+      {/* F16: the exclusion reason is asked in a confirmation, never a browser prompt. */}
+      <ConfirmAction
+        open={Boolean(excluding)}
+        tone="warning"
+        title={ui("Exclude this observation?")}
+        description={ui("It stays on record with your reason but no longer counts in any finding, claim or export.")}
+        confirmLabel={ui("Exclude")}
+        cancelLabel={ui("Keep editing")}
+        requireReason={{ label: ui("Why exclude this observation?"), minLength: 5 }}
+        onCancel={() => setExcluding(null)}
+        onConfirm={(reason?: string) => { const target = excluding; if (!target || !reason?.trim()) return; void act("exclude", { observationId: target.id, reason: reason.trim() }, "Observation excluded.").then(() => setExcluding(null)); }}
+      />
     </section>
   );
 }
@@ -296,14 +343,13 @@ function ObservationForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: R
   const set = (key: string, value: string | boolean) => setF((cur) => ({ ...cur, [key]: value }));
   const secs = (v: string) => (v.trim() === "" ? null : Math.round(Number(v) * 60));
   return (
-    <form className="grid gap-3 rounded-2xl border border-border p-4 sm:grid-cols-2" onSubmit={async (e) => {
+    <form className="grid gap-3 sm:grid-cols-2" aria-label={ui("Record observation")} onSubmit={async (e) => {
       e.preventDefault(); if (busy) return; setBusy(true);
       const ok = await onSubmit({ workflow: f.workflow, phase: f.phase, participant: f.participant, task: f.task, difficulty: f.difficulty, activeSeconds: secs(f.active), correctionSeconds: secs(f.correction), elapsedSeconds: secs(f.elapsed),
         completed: f.completed, failureNote: f.failureNote || null, source: f.source, synthetic: pilot.synthetic, observedOn: f.observedOn });
       if (ok) setF({ ...blank, workflow: f.workflow, phase: f.phase, observedOn: f.observedOn });
       setBusy(false);
     }}>
-      <h4 className="font-bold text-ink sm:col-span-2">{ui("Record observation")}</h4>
       <FormField name="pilot-f16" label={ui("Workflow")} required><Select value={f.workflow} onChange={(e) => set("workflow", e.target.value)}>{pilot.workflows.map((w) => <option key={w.key} value={w.key}>{w.key}</option>)}</Select></FormField>
       <FormField name="pilot-f17" label={ui("Phase")} required><Select value={f.phase} onChange={(e) => set("phase", e.target.value)}>{Object.entries(PHASE_LABEL).map(([k, v]) => <option key={k} value={k}>{ui(v)}</option>)}</Select></FormField>
       <FormField name="pilot-f18" label={ui("Participant pseudonym")} hint={ui("For example T-03. Never a name, email or phone.")} required><Input dir="ltr" value={f.participant} onChange={(e) => set("participant", e.target.value)} /></FormField>
@@ -316,7 +362,7 @@ function ObservationForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: R
       <FormField name="pilot-f25" label={ui("Source")} required><Select value={f.source} onChange={(e) => set("source", e.target.value)}><option value="OBSERVED">{ui("Observed")}</option><option value="TELEMETRY">{ui("Telemetry")}</option><option value="SELF_REPORTED">{ui("Self-reported")}</option></Select></FormField>
       <label className="flex items-center gap-2 text-sm"><Checkbox checked={f.completed} onChange={(e) => set("completed", e.target.checked)} /> {ui("Task completed")}</label>
       {!f.completed ? <FormField name="pilot-f26" label={ui("What happened")} required><Input value={f.failureNote} onChange={(e) => set("failureNote", e.target.value)} /></FormField> : null}
-      <div className="sm:col-span-2"><Button type="submit" disabled={busy}>{ui("Record observation")}</Button></div>
+      <div className="flex justify-end sm:col-span-2"><Button type="submit" loading={busy} disabled={busy} className="w-full sm:w-auto">{ui("Record observation")}</Button></div>
     </form>
   );
 }
@@ -329,14 +375,13 @@ function MeasureForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: Recor
   const set = (key: string, value: string | boolean) => setF((cur) => ({ ...cur, [key]: value }));
   const num = (v: string) => (v.trim() === "" ? null : Number(v));
   return (
-    <form className="grid gap-3 rounded-2xl border border-border p-4 sm:grid-cols-2" onSubmit={async (e) => {
+    <form className="grid gap-3 sm:grid-cols-2" aria-label={ui("Record measure")} onSubmit={async (e) => {
       e.preventDefault(); if (busy) return; setBusy(true);
       const ok = await onSubmit({ kind: f.kind, workflow: f.kind.startsWith("CORRECTNESS") ? f.workflow : null, periodStart: f.periodStart, periodEnd: f.periodEnd, value: f.state === "UNKNOWN" ? null : num(f.value), denominator: num(f.denominator),
         unit: f.unit, state: f.state, method: f.method, reference: f.reference || null, includesFailedCalls: f.includesFailedCalls, synthetic: pilot.synthetic });
       if (ok) setF({ ...blank, kind: f.kind, periodStart: f.periodStart, periodEnd: f.periodEnd });
       setBusy(false);
     }}>
-      <h4 className="font-bold text-ink sm:col-span-2">{ui("Record measure")}</h4>
       <FormField name="pilot-f27" label={ui("Measure")} required><Select value={f.kind} onChange={(e) => set("kind", e.target.value)}>{Object.entries(KIND_LABEL).map(([k, v]) => <option key={k} value={k}>{ui(v)}</option>)}</Select></FormField>
       {f.kind.startsWith("CORRECTNESS") ? <FormField name="pilot-f28" label={ui("Workflow")} required><Select value={f.workflow} onChange={(e) => set("workflow", e.target.value)}>{pilot.workflows.map((w) => <option key={w.key} value={w.key}>{w.key}</option>)}</Select></FormField> : <div />}
       <FormField name="pilot-f29" label={ui("Period start")} required><Input type="date" value={f.periodStart} onChange={(e) => set("periodStart", e.target.value)} /></FormField>
@@ -348,7 +393,7 @@ function MeasureForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: Recor
       <FormField name="pilot-f35" label={ui("Method")} required><Textarea value={f.method} onChange={(e) => set("method", e.target.value)} /></FormField>
       <FormField name="pilot-f36" label={ui("Reference")} hint={ui("Human-reviewed reference, invoice or source record.")}><Input value={f.reference} onChange={(e) => set("reference", e.target.value)} /></FormField>
       {f.kind === "SERVING_COST" ? <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox checked={f.includesFailedCalls} onChange={(e) => set("includesFailedCalls", e.target.checked)} /> {ui("Includes failed, retried and abandoned provider calls")}</label> : null}
-      <div className="sm:col-span-2"><Button type="submit" disabled={busy}>{ui("Record measure")}</Button></div>
+      <div className="flex justify-end sm:col-span-2"><Button type="submit" loading={busy} disabled={busy} className="w-full sm:w-auto">{ui("Record measure")}</Button></div>
     </form>
   );
 }
@@ -361,7 +406,7 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
   const [notes, setNotes] = useState<Record<string, string>>({});
   return (
     <div className="space-y-3">
-      <h4 className="font-bold text-ink">{ui("External claims")}</h4>
+      <h3 className="font-bold text-ink">{ui("External claims")}</h3>
       <p className="text-xs text-ink-muted">{ui("A target is not a result. A claim is approved against the exact evidence it cites; if that evidence changes, the claim becomes stale and is blocked from export.")}</p>
       <form className="grid gap-3 rounded-2xl border border-border p-4 md:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault();
@@ -380,8 +425,8 @@ function ClaimsPanel({ claims, findingKeys, act }: { claims: Claim[]; findingKey
             {claim.identifiable ? <Badge tone="warn">{ui("Identifies the school")}</Badge> : null}
           </div>
           <p className="mt-2 text-sm font-semibold text-ink"><bdi>{claim.statement}</bdi></p>
-          {!claim.support.supported ? <p className="mt-1 text-xs text-rose-800">{ui("Not supported")}: {ui(claim.support.reason ?? "")}</p> : null}
-          {claim.exportBlockedBy ? <p className="mt-1 text-xs text-rose-800">{ui("Blocked from export")}: {ui(claim.exportBlockedBy)}</p> : null}
+          {!claim.support.supported ? <p className="mt-1 text-xs text-status-error-text">{ui("Not supported")}: {ui(claim.support.reason ?? "")}</p> : null}
+          {claim.exportBlockedBy ? <p className="mt-1 text-xs text-status-error-text">{ui("Blocked from export")}: {ui(claim.exportBlockedBy)}</p> : null}
           {claim.reviewNote ? <p className="mt-1 text-xs text-ink-muted">{ui("Review note")}: <bdi>{claim.reviewNote}</bdi></p> : null}
           {claim.status !== "WITHDRAWN" ? (
             <div className="mt-3 flex flex-wrap items-end gap-2">
@@ -401,7 +446,7 @@ function ExportView({ exported, onClose }: { exported: Exported; onClose: () => 
   return (
     <div className="mb-6 rounded-2xl border border-border p-4" role="region" aria-label={ui("Export of approved claims")}>
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-bold text-ink">{ui("Export of approved claims")}</h3>
+        <h2 className="font-bold text-ink">{ui("Export of approved claims")}</h2>
         <Button size="sm" variant="ghost" onClick={onClose}>{ui("Close")}</Button>
       </div>
       <p className="mt-1 text-xs text-ink-muted">{ui("{0} statements exported · {1} excluded", [exported.statements.length, exported.excluded.length])}</p>
@@ -412,7 +457,7 @@ function ExportView({ exported, onClose }: { exported: Exported; onClose: () => 
           <ul className="mt-1 list-disc ps-5 text-xs">{s.limitations.map((l) => <li key={l}><bdi>{l}</bdi></li>)}</ul>
         </li>
       ))}</ul>
-      {exported.excluded.length ? <ul className="mt-3 space-y-1 text-xs text-rose-800">{exported.excluded.map((x) => <li key={x.claimId}><bdi>{x.pilot}</bdi>: {ui(x.reason)}</li>)}</ul> : null}
+      {exported.excluded.length ? <ul className="mt-3 space-y-1 text-xs text-status-error-text">{exported.excluded.map((x) => <li key={x.claimId}><bdi>{x.pilot}</bdi>: {ui(x.reason)}</li>)}</ul> : null}
     </div>
   );
 }

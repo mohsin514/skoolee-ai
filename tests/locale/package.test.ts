@@ -30,10 +30,23 @@ test("only validated calendars and timezones can be activated", () => {
  assert.throws(() => localePackageSchema.parse({ ...defaultLocale, weekend: [1, 1] })); assert.equal(resolvePackage({ language: "ar" }, { timezone: "Asia/Riyadh" }, "en").language, "en");
 });
 test("role and campus delegation deny vendor, sibling, and nondelegated writes", () => {
- for (const role of ["APP_OWNER", "TEACHER", "STUDENT", "PARENT", "ACCOUNTANT", "HR", "LIBRARIAN"]) assert.throws(() => assertDelegatedChanges(role, "a", null, 2, [], { language: "ar" }));
- assert.doesNotThrow(() => assertDelegatedChanges("SUPER_ADMIN", null, null, 2, [], { language: "ar" })); assert.doesNotThrow(() => assertDelegatedChanges("ADMIN", "a", null, 1, [], { language: "ar" }));
- assert.throws(() => assertDelegatedChanges("ADMIN", "a", null, 2, [], { language: "ar" })); assert.doesNotThrow(() => assertDelegatedChanges("PRINCIPAL", "a", "a", 2, ["language"], { language: "ar" }));
- assert.throws(() => assertDelegatedChanges("PRINCIPAL", "a", "b", 2, ["language"], { language: "ar" })); assert.throws(() => assertDelegatedChanges("PRINCIPAL", "a", "a", 2, ["language"], { currency: "SAR" }));
+ type Actor = Parameters<typeof assertDelegatedChanges>[0];
+ const as = (role: string, extra: Partial<Actor> = {}) => ({ role, ...extra }) as Actor;
+ for (const role of ["APP_OWNER", "TEACHER", "STUDENT", "PARENT", "ACCOUNTANT", "HR", "LIBRARIAN"]) assert.throws(() => assertDelegatedChanges(as(role), "a", null, [], { language: "ar" }));
+ // School scope: the institution authority only (G13) — the group admin of a group, the school admin of a single school.
+ assert.doesNotThrow(() => assertDelegatedChanges(as("SUPER_ADMIN", { institutionKind: "GROUP" }), null, null, [], { language: "ar" }));
+ assert.doesNotThrow(() => assertDelegatedChanges(as("ADMIN", { institutionKind: "STANDALONE" }), "a", null, [], { language: "ar" }));
+ assert.throws(() => assertDelegatedChanges(as("ADMIN", { institutionKind: "GROUP" }), "a", null, [], { language: "ar" }), "an ADMIN inside a group is a campus operator");
+ assert.throws(() => assertDelegatedChanges(as("SUPER_ADMIN", { institutionKind: "STANDALONE" }), null, null, [], { language: "ar" }), "anomaly fails closed");
+ assert.throws(() => assertDelegatedChanges(as("SUPER_ADMIN"), null, null, [], { language: "ar" }), "unknown kind without the owner flag fails closed");
+ // Campus scope: a campus operator changes only delegated keys on its own campus.
+ assert.doesNotThrow(() => assertDelegatedChanges(as("CAMPUS_ADMIN", { institutionKind: "GROUP" }), "a", "a", ["language"], { language: "ar" }));
+ assert.throws(() => assertDelegatedChanges(as("CAMPUS_ADMIN", { institutionKind: "GROUP" }), "a", "b", ["language"], { language: "ar" }));
+ assert.throws(() => assertDelegatedChanges(as("CAMPUS_ADMIN", { institutionKind: "GROUP" }), "a", "a", ["language"], { currency: "SAR" }));
+ // The principal is academic: no locale writes, delegated or not (G13).
+ assert.throws(() => assertDelegatedChanges(as("PRINCIPAL", { institutionKind: "GROUP" }), "a", "a", ["language"], { language: "ar" }));
+ assert.throws(() => assertDelegatedChanges(as("PRINCIPAL", { institutionKind: "GROUP" }), "a", "b", ["language"], { language: "ar" }));
+ assert.throws(() => assertDelegatedChanges(as("PRINCIPAL", { institutionKind: "GROUP" }), "a", "a", ["language"], { currency: "SAR" }));
 });
 test("enabled workflow catalogs have complete nonempty coverage and shared sample values", () => {
  assert.deepEqual(Object.keys(catalogs.ar).sort(), Object.keys(catalogs.en).sort());

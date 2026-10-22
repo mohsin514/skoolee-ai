@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
   const [digest, setDigest] = useState<Digest | null>(null), [busy, setBusy] = useState(false), [editing, setEditing] = useState<Entry | null>(null), [preview, setPreview] = useState<Entry | null>(null);
   const [draft, setDraft] = useState<{ texts: Record<string, string>; removed: string[]; step: { objective: string; minutes: string; materials: string; alternative: string } | null; skipped: boolean }>({ texts: {}, removed: [], step: null, skipped: false });
   const [scheduleAt, setScheduleAt] = useState("");
+  const [confirmSend, setConfirmSend] = useState(false);
   const refresh = useCallback(async (id: string) => setDigest(await call(`/api/digests/${id}`, "GET")), []);
   const prepare = async () => { setBusy(true); try { const d = await call("/api/digests", "POST", { classId, week }); await refresh(d.id); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   useEffect(() => { setDigest(null); }, [classId, week]);
@@ -85,11 +87,23 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
         {approved ? <>
           <FormField name="digest-at" label={ui("Send at")}><Input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)} /></FormField>
           <Button variant="outline" disabled={busy || !scheduleAt} onClick={() => void act({ action: "schedule", at: new Date(scheduleAt).toISOString() }, "Scheduled.")} data-digest-schedule>{ui("Schedule")}</Button>
-          <Button disabled={busy} onClick={() => void act({ action: "send" }, "Sent.")} data-digest-send>{ui("Send now")}</Button>
+          <Button disabled={busy} onClick={() => setConfirmSend(true)} data-digest-send>{ui("Send now")}</Button>
         </> : null}
       </div>
     </> : null}
-    {editing ? <ModalFrame title={editing.studentName} eyebrow={ui("Weekly family update")} subtitle={ui("Each statement keeps its source. You can reword or remove it.")} onClose={() => setEditing(null)} wide>
+    {/* F16: sending reaches every family in the class at once and cannot be recalled. */}
+    <ConfirmAction
+      open={confirmSend && Boolean(digest)}
+      tone="primary"
+      title={ui("Send the weekly update?")}
+      description={ui("Every family in this class receives version {0} now. A sent update cannot be recalled; a later change needs a new version.", [String(digest?.version ?? "")])}
+      confirmLabel={ui("Send update")}
+      cancelLabel={ui("Keep editing")}
+      busy={busy}
+      onCancel={() => setConfirmSend(false)}
+      onConfirm={() => { setConfirmSend(false); void act({ action: "send" }, "Sent."); }}
+    />
+    {editing ? <Modal size="lg" title={editing.studentName} eyebrow={ui("Weekly family update")} subtitle={ui("Each statement keeps its source. You can reword or remove it.")} onClose={() => setEditing(null)}>
       <div className="space-y-3" data-digest-editor>
         {editing.content.statements.filter(s => !draft.removed.includes(s.id)).map(s => <div key={s.id} className="flex items-end gap-2"><FormField name={`st-${s.id}`} label={ui("From: {0}", [s.sourceLabel === "attendance" ? ui("Attendance this week") : s.sourceLabel])} className="flex-1"><Input value={draft.texts[s.id] ?? ""} onChange={e => setDraft({ ...draft, texts: { ...draft.texts, [s.id]: e.target.value } })} /></FormField><Button size="sm" variant="secondary" onClick={() => setDraft({ ...draft, removed: [...draft.removed, s.id] })}>{ui("Remove")}</Button></div>)}
         {!editing.content.statements.length ? <p className="text-sm text-ink-muted">{ui("Nothing was released for this child this week. You can add a home activity or leave the child out.")}</p> : null}
@@ -103,8 +117,8 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
         <label className="flex items-center gap-2 text-sm"><Checkbox checked={draft.skipped} onChange={e => setDraft({ ...draft, skipped: e.target.checked })} data-digest-skip /> {ui("Leave this child out this week")}</label>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Cancel")}</Button><Button disabled={busy} onClick={() => void saveEdit()} data-digest-save>{ui("Save")}</Button></div>
       </div>
-    </ModalFrame> : null}
-    {preview ? <ModalFrame title={ui("Family view")} eyebrow={preview.studentName} onClose={() => setPreview(null)}><DigestCard ui={ui} weekStart={digest?.weekStart ?? ""} content={preview.content} reviewedBy={null} formatDate={date} /></ModalFrame> : null}
+    </Modal> : null}
+    {preview ? <Modal size="sm" title={ui("Family view")} eyebrow={preview.studentName} onClose={() => setPreview(null)}><DigestCard ui={ui} weekStart={digest?.weekStart ?? ""} content={preview.content} reviewedBy={null} formatDate={date} /></Modal> : null}
   </section>;
 }
 

@@ -6,13 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { Users } from "lucide-react";
 
 // SKO-405: the class register. Unmarked is shown as its own state and nothing is assumed from it;
@@ -30,7 +32,7 @@ type Draft = { status: Status | null; arrivalTime: string; departureTime: string
 type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
 
 export const statusLabel = (ui: Ui, status: string | null) => status ? ({ PRESENT: ui("Present"), LATE: ui("Late"), PARTIAL: ui("Part day"), ABSENT: ui("Absent"), EXCUSED: ui("Excused absence"), LEAVE: ui("Leave"), UNMARKED: ui("Unmarked") } as Record<string, string>)[status] ?? status : ui("Unmarked");
-const tone: Record<Status, string> = { PRESENT: "aria-checked:bg-emerald-50 aria-checked:text-emerald-700 aria-checked:border-emerald-300", LATE: "aria-checked:bg-amber-50 aria-checked:text-amber-700 aria-checked:border-amber-300", PARTIAL: "aria-checked:bg-sky-50 aria-checked:text-sky-700 aria-checked:border-sky-300", ABSENT: "aria-checked:bg-rose-50 aria-checked:text-rose-700 aria-checked:border-rose-300", EXCUSED: "aria-checked:bg-violet-50 aria-checked:text-violet-700 aria-checked:border-violet-300", LEAVE: "aria-checked:bg-amber-50 aria-checked:text-amber-800 aria-checked:border-amber-300" };
+const tone: Record<Status, string> = { PRESENT: "aria-checked:bg-status-success-surface aria-checked:text-status-success-text aria-checked:border-status-success-border", LATE: "aria-checked:bg-status-warning-surface aria-checked:text-status-warning-text aria-checked:border-status-warning-border", PARTIAL: "aria-checked:bg-status-info-surface aria-checked:text-status-info-text aria-checked:border-status-info-border", ABSENT: "aria-checked:bg-status-error-surface aria-checked:text-status-error-text aria-checked:border-status-error-border", EXCUSED: "aria-checked:bg-status-brand-surface aria-checked:text-primary aria-checked:border-status-brand-border", LEAVE: "aria-checked:bg-status-warning-surface aria-checked:text-status-warning-text aria-checked:border-status-warning-border" };
 
 export function ClassRegister({ classes, initialClassId }: { classes: { id: string; label: string }[]; initialClassId?: string }) {
   const ui = useUiText();
@@ -87,8 +89,8 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
       <FormField name="register-date" label={ui("Date")}><Input type="date" value={date} max={data?.today} onChange={event => setDate(event.target.value)} /></FormField>
       {data ? <Badge variant={submitted ? "success" : "warning"} dot data-register-state>{submitted ? ui("Submitted") : ui("Not submitted")}</Badge> : null}
     </div>
-    {loadError ? <p role="alert" className="rounded-xl border border-status-error-border bg-status-error-surface px-3 py-2 text-sm font-medium text-status-error-text">{loadError}</p> : null}
-    {loading && !data ? <p className="text-sm text-ink-muted">{ui("Loading register…")}</p> : null}
+    {loadError ? <ErrorState title={ui("Couldn't load the register")} description={loadError} onRetry={() => void load()} /> : null}
+    {loading && !data && !loadError ? <SkeletonList rows={5} label={ui("Loading register…")} /> : null}
     {data ? <>
       <div className="flex flex-wrap gap-2 text-xs font-semibold tabular-nums" data-register-counts>
         {["UNMARKED", ...STATUSES].map(key => <span key={key} className={cn("rounded-full border px-3 py-1", key === "UNMARKED" && counts.UNMARKED ? "border-status-warning-border bg-status-warning-surface text-status-warning-text" : "border-edge/30")} data-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></span>)}
@@ -105,11 +107,13 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
           </div> : null}
         </li>; })}
       </ul>}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      {/* §4.4b: "Submit register" stays in reach on a long register — the action bar sticks to the bottom of the
+          page's scroll area (above the mobile navigation) instead of sitting below the last pupil. */}
+      <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 rounded-b-[inherit] border-t border-border-subtle bg-card/95 px-5 py-3 backdrop-blur" data-register-actions>
         {missingTime ? <p className="me-auto text-xs font-semibold text-status-error-text" role="alert">{ui("Add the time for {0}.", [missingTime.name])}</p> : null}
         {!submitted && counts.UNMARKED ? <Button variant="secondary" onClick={fillPresent} data-fill-present>{ui("Mark unmarked present")}</Button> : null}
         {!submitted ? <Button variant="outline" disabled={!changed.length || saving || Boolean(missingTime)} onClick={() => void save({ submit: false })} data-save-register>{ui("Save")}</Button> : null}
-        <Button disabled={saving || Boolean(missingTime) || (submitted && !changed.length)} onClick={() => setReviewOpen(true)} data-review-register>{submitted ? ui("Review correction") : ui("Review and submit")}</Button>
+        <Button disabled={saving || Boolean(missingTime) || (submitted && !changed.length)} onClick={() => setReviewOpen(true)} data-review-register data-tour="teacher.attendance.submit">{submitted ? ui("Review correction") : ui("Review and submit")}</Button>
       </div>
     </> : null}
     {reviewOpen && data ? <ReviewDialog ui={ui} listNames={names => new Intl.ListFormat(localeTag(locale), { type: "conjunction" }).formatToParts(names).map((part, index) => part.type === "element" ? <bdi key={index}>{part.value}</bdi> : part.value)} submitted={submitted} counts={counts} unmarked={entries.filter(entry => !drafts[entry.studentId]?.status)} changed={changed.map(entry => ({ name: entry.name, from: entry.status, to: drafts[entry.studentId].status }))} className={data.class.name} date={formatDate(data.date)} saving={saving} onClose={() => setReviewOpen(false)} onConfirm={reason => void save({ submit: !submitted, reason })} /> : null}
@@ -120,7 +124,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
 function ReviewDialog({ ui, listNames, submitted, counts, unmarked, changed, className, date, saving, onClose, onConfirm }: { ui: Ui; listNames: (names: string[]) => ReactNode; submitted: boolean; counts: Record<string, number>; unmarked: Entry[]; changed: { name: string; from: string | null; to: string | null }[]; className: string; date: string; saving: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
   const [reason, setReason] = useState("");
   const blocked = !submitted && unmarked.length > 0;
-  return <ModalFrame title={submitted ? ui("Correct a submitted register") : ui("Review the register")} eyebrow={ui("Attendance")} subtitle={ui("{0} on {1}", [className, date])} onClose={onClose}>
+  return <Modal size="sm" title={submitted ? ui("Correct a submitted register") : ui("Review the register")} eyebrow={ui("Attendance")} subtitle={ui("{0} on {1}", [className, date])} onClose={onClose}>
     <div className="space-y-3" data-register-review>
       <ul className="grid grid-cols-2 gap-1 text-sm tabular-nums">{["UNMARKED", ...STATUSES].map(key => <li key={key} data-review-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></li>)}</ul>
       {blocked ? <Alert tone="warning" live="assertive" data-review-unmarked title={ui("These pupils are unmarked. Mark each one before submitting:")}><p>{listNames(unmarked.map(entry => entry.name))}</p></Alert> : null}
@@ -133,11 +137,11 @@ function ReviewDialog({ ui, listNames, submitted, counts, unmarked, changed, cla
         <Button disabled={saving || blocked || (submitted && reason.trim().length < 5)} onClick={() => onConfirm(reason.trim())} data-confirm-register>{submitted ? ui("Save correction") : ui("Submit register")}</Button>
       </div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function ConflictDialog({ ui, conflicts, saving, onClose, onKeepMine }: { ui: Ui; conflicts: Conflict[]; saving: boolean; onClose: () => void; onKeepMine: (ids: string[]) => void }) {
-  return <ModalFrame title={ui("Someone else changed these pupils")} eyebrow={ui("Attendance")} subtitle={ui("Your marks for them were not saved. Choose which to keep.")} onClose={onClose}>
+  return <Modal size="sm" title={ui("Someone else changed these pupils")} eyebrow={ui("Attendance")} subtitle={ui("Your marks for them were not saved. Choose which to keep.")} onClose={onClose}>
     <div className="space-y-3" data-register-conflicts>
       <ul className="space-y-2 text-sm">{conflicts.map(row => <li key={row.studentId} data-conflict={row.studentId}><p className="font-bold"><bdi>{row.name}</bdi></p><p>{ui("Now: {0} (by {1}). Yours: {2}.", [statusLabel(ui, row.current), row.markedBy ?? ui("unknown"), statusLabel(ui, row.yours)])}</p></li>)}</ul>
       <div className="flex justify-end gap-2">
@@ -145,7 +149,7 @@ function ConflictDialog({ ui, conflicts, saving, onClose, onKeepMine }: { ui: Ui
         <Button disabled={saving} onClick={() => onKeepMine(conflicts.map(row => row.studentId))} data-keep-mine>{ui("Use my marks")}</Button>
       </div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 type QueueData = { unexplainedAbsences: { attendanceId: string; date: string; studentName: string; className: string }[]; explanations: { id: string; status: string; reason: string; proposedStatus: string; arrivalTime: string | null; reviewNote: string | null; date: string; currentStatus: string; version: number; studentName: string; className: string }[]; openRegisters: { id: string; date: string; classId: string }[] };
@@ -190,12 +194,12 @@ export function AttendanceExceptions() {
       </section>
       <section data-queue-open><h4 className="text-sm font-semibold text-ink-strong">{ui("Registers not submitted ({0})", [String(data.openRegisters.length)])}</h4></section>
     </> : null}
-    {deciding ? <ModalFrame title={deciding.action === "accept" ? ui("Accept the explanation") : deciding.action === "reject" ? ui("Do not accept the explanation") : ui("Ask for clarification")} eyebrow={ui("Attendance")} subtitle={deciding.action === "accept" ? ui("The day's mark is corrected and the change is kept in its history.") : ui("The day's mark stays as it is.")} onClose={() => setDeciding(null)}>
+    {deciding ? <Modal size="sm" title={deciding.action === "accept" ? ui("Accept the explanation") : deciding.action === "reject" ? ui("Do not accept the explanation") : ui("Ask for clarification")} eyebrow={ui("Attendance")} subtitle={deciding.action === "accept" ? ui("The day's mark is corrected and the change is kept in its history.") : ui("The day's mark stays as it is.")} onClose={() => setDeciding(null)}>
       <div className="space-y-3" data-decide-dialog>
         <FormField name="decision-note" label={deciding.action === "accept" ? ui("Note (optional)") : ui("Message to the family")}><Textarea value={note} maxLength={500} onChange={event => setNote(event.target.value)} /></FormField>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "accept" && note.trim().length < 2} onClick={() => void decide()} data-confirm-decision>{ui("Confirm")}</Button></div>
       </div>
-    </ModalFrame> : null}
+    </Modal> : null}
   </div>;
 }
 
@@ -232,7 +236,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
       {row.explanation ? <span className="text-xs font-bold" data-explanation-state={row.explanation.status}>{explanationLabel(row.explanation.status)}{row.explanation.reviewNote ? <>: {row.explanation.reviewNote}</> : null}</span> : null}
       {canExplain ? <Button size="sm" variant="outline" onClick={() => setOpen(row)} data-explain>{ui("Explain")}</Button> : null}
     </li>; })}</ul>
-    {open ? <ModalFrame title={ui("Explain this day")} eyebrow={ui("Attendance")} subtitle={ui("The school reviews your explanation before the record changes.")} onClose={() => setOpen(null)}>
+    {open ? <Modal size="sm" title={ui("Explain this day")} eyebrow={ui("Attendance")} subtitle={ui("The school reviews your explanation before the record changes.")} onClose={() => setOpen(null)}>
       <div className="space-y-3" data-explain-dialog>
         {error ? <p role="alert" className="rounded-xl border border-status-error-border bg-status-error-surface px-3 py-2 text-xs font-medium text-status-error-text">{error}</p> : null}
         <FormField name="explain-kind" label={ui("What happened")}><Select value={form.proposedStatus} onChange={event => setForm({ ...form, proposedStatus: event.target.value })}><option value="EXCUSED">{ui("My child was absent for a reason")}</option><option value="LATE">{ui("My child arrived late")}</option></Select></FormField>
@@ -240,7 +244,7 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
         <FormField name="explain-reason" label={ui("Explanation")}><Textarea value={form.reason} maxLength={1000} onChange={event => setForm({ ...form, reason: event.target.value })} /></FormField>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(null)}>{ui("Cancel")}</Button><Button disabled={busy || form.reason.trim().length < 5 || form.proposedStatus === "LATE" && !form.arrivalTime} onClick={() => void send()} data-send-explanation>{ui("Send")}</Button></div>
       </div>
-    </ModalFrame> : null}
+    </Modal> : null}
   </div>;
 }
 

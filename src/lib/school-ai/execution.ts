@@ -12,7 +12,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { schoolAiTransaction as transaction } from "./transaction";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
-import { assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
+import { allowedSchoolAiOperations, assertApprovalRole, assertSchoolAiAccess, assertWorkspaceDomainPermission, assertWorkspaceSubject, loadWorkspacePermissionSnapshot, SchoolAiError, type WorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema, validateCurriculumApproval, type CurriculumData } from "./assessment";
 import { workspaceRequestHash } from "./repository";
 import { applyAcademicSetup, previewAcademicSetup } from "./academic-setup-service";
@@ -106,7 +106,13 @@ export function buildCurriculumImportPreview(record: { id: string; version: numb
   return { ...preview, previewHash: workspaceRequestHash({ preview, curriculum, existing: existing.map((topic) => ({ ...topic, updatedAt: topic.updatedAt.toISOString() })) }) };
 }
 
-function hasToolPermission(permissions: WorkspacePermissionSnapshot, operation: SchoolAiOperation) {
+/** G42: allow-list ∩ matrix. `allowed` is `allowedSchoolAiOperations(user, campusId)` — the per-role, per-seat
+ *  list of tools this user may run at all; the permission matrix then decides the module grants. */
+function hasToolPermission(permissions: WorkspacePermissionSnapshot, operation: SchoolAiOperation, allowed: ReadonlySet<string>) {
+  if (!allowed.has(operation)) return false;
+  return hasMatrixToolPermission(permissions, operation);
+}
+function hasMatrixToolPermission(permissions: WorkspacePermissionSnapshot, operation: SchoolAiOperation) {
   if (operation === "operations.record_risk_decision") return Boolean(permissions.get("attendance")?.canView && permissions.get("students")?.canView || permissions.get("timetable")?.canView && permissions.get("leave")?.canView || permissions.get("exams")?.canView && permissions.get("reports")?.canView);
   if (operation === "setup.apply_changes") return permissions.get("timetable")?.canView && permissions.get("timetable")?.canAdd && permissions.get("staff")?.canView && permissions.get("staff")?.canAdd && permissions.get("students")?.canView && permissions.get("students")?.canEdit;
   if (operation === "academics.transition_year") return permissions.get("exams")?.canView && permissions.get("exams")?.canEdit;
@@ -120,11 +126,21 @@ function hasToolPermission(permissions: WorkspacePermissionSnapshot, operation: 
   if (operation === "communications.queue_announcement") return permissions.get("students")?.canView && permissions.get("students")?.canEdit;
   return operation === "timetable.create_draft" ? permissions.get("timetable")?.canView && permissions.get("timetable")?.canAdd : permissions.get("exams")?.canEdit && permissions.get("exams")?.canView && (operation !== "academics.setup_year" || permissions.get("students")?.canView && permissions.get("students")?.canAdd);
 }
+/** Names who runs a tool the allow-list refused, in the words of the seat that owns it. */
+function toolRefusal(role: string, operation: SchoolAiOperation) {
+  if (role === "SUPER_ADMIN") return "Campus tools are run by each campus's own team.";
+  if (operation === "finance.apply_operation" || operation === "fees.generate_invoices") return "Fee and finance tools belong to your finance desk.";
+  if (role === "PRINCIPAL") return "This tool belongs to your campus admin.";
+  return "Your principal runs this academic tool.";
+}
+/** The single choke point for the execute route, previews, listings and queued runs (G42 [K-B2]). */
 async function authorize(user: AuthUser, operation: SchoolAiOperation = "curriculum.import_topics", snapshot?: WorkspacePermissionSnapshot, db?: TxClient) {
   assertApprovalRole(user); // Mirrors the existing syllabus management boundary.
   const permissions = snapshot ?? await loadWorkspacePermissionSnapshot(user);
   await assertSchoolAiAccess(user, "edit", permissions);
-  if (!hasToolPermission(permissions, operation)) throw new SchoolAiError("Your current permissions do not allow this operation.", 403, "PERMISSION_DENIED");
+  const allowed = await allowedSchoolAiOperations(user, user.campusId);
+  if (!allowed.has(operation)) throw new SchoolAiError(toolRefusal(user.role, operation), 403, "PERMISSION_DENIED");
+  if (!hasToolPermission(permissions, operation, allowed)) throw new SchoolAiError("Your current permissions do not allow this operation.", 403, "PERMISSION_DENIED");
   await assertSchoolOperational(user.schoolId, db);
 }
 export async function assertSchoolAiOperationAccess(user: AuthUser, operation: SchoolAiOperation, db: TxClient) {
@@ -339,7 +355,13 @@ export async function listSchoolAiExecutions(user: AuthUser, id: string): Promis
     await assertWorkspaceDomainPermission(user,record.kind as import("./types").WorkspaceKind,record.data as Record<string,unknown>,"view",permissions);
     const proposal = (record.data as { proposal?: { operation?: string } }).proposal;
     const operation = executionOperationSchema.safeParse(proposal?.operation);
-    await authorize(user, record.kind === "WORKFLOW" && operation.success ? operation.data : "curriculum.import_topics", permissions);
+    const recordOperation = record.kind === "WORKFLOW" && operation.success ? operation.data : "curriculum.import_topics";
+    // G42: a reader whose seat never runs this tool (the group admin drafting set-up, for one) has no receipt it could
+    // see — the loop below drops every row outside the allow-list — so its history is empty, not a 403 that would
+    // show a failure beside a draft it may review. Preview and execute still refuse it in authorize().
+    const tools = await allowedSchoolAiOperations(user, user.campusId);
+    if (!tools.has(recordOperation)) return [];
+    await authorize(user, recordOperation, permissions);
     if (operation.success && operation.data === "setup.apply_changes") await assertSchoolSetupRecordAccess(user,id,prisma);
     if (operation.success && operation.data === "finance.apply_operation") await assertFinanceOperationsAccess(user, prisma);
     if (operation.success && isSchoolOperationsOperation(operation.data)) await assertSchoolOperationsAccess(user, operation.data, prisma, record.campusId ?? "");
@@ -347,7 +369,7 @@ export async function listSchoolAiExecutions(user: AuthUser, id: string): Promis
     if (operation.success && operation.data === "exams.create_session_plan") await assertExamSessionPlanAccess(user, prisma, record.campusId ?? undefined);
     const rows=await prisma.schoolAiExecution.findMany({where:{recordId:id,schoolId:user.schoolId,...(user.role!=="SUPER_ADMIN"?{campusId:user.campusId??""}:{})},orderBy:{createdAt:"desc"},take:50});
     const allowed:AnySchoolAiExecutionReceipt[]=[];
-    for(const item of rows){const operation=executionOperationSchema.safeParse(item.operation);if(!operation.success||!hasToolPermission(permissions,operation.data))continue;
+    for(const item of rows){const operation=executionOperationSchema.safeParse(item.operation);if(!operation.success||!hasToolPermission(permissions,operation.data,tools))continue;
       if(operation.data==="operations.record_risk_decision"){const revision=await prisma.schoolAiRevision.findFirst({where:{schoolId:user.schoolId,recordId:id,version:item.recordVersion},select:{data:true}});if(!revision)continue;try{await assertWorkspaceDomainPermission(user,"WORKFLOW",revision.data as Record<string,unknown>,"view",permissions);}catch(error){if(error instanceof SchoolAiError&&error.status===403)continue;throw error;}}
       if(operation.data==="setup.apply_changes"){try{await assertSchoolSetupRecordAccess(user,id,prisma,item.recordVersion);}catch(error){if(error instanceof SchoolAiError&&[403,404].includes(error.status))continue;throw error;}}
       allowed.push(receipt(item));

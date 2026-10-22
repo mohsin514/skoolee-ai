@@ -14,7 +14,10 @@ import { evaluate, type Assumptions, type BaselineData, type Result } from "./en
  * with a named owner; approving it re-checks live resources and changes nothing operational.
  */
 
-const PLANNERS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"];
+/** Campus planning (baselines, scenarios, handoffs) belongs to campus operations (M56); the academic lead keeps a
+ *  read-only planner, so the principal reads the overview but never writes, proposes or owns a handoff. */
+const PLANNERS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN"];
+const READERS = [...PLANNERS, "PRINCIPAL"];
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
@@ -24,8 +27,8 @@ function parse<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
   return result.data;
 }
 function assert(cond: boolean, message: string, status = 403): asserts cond { if (!cond) throw new ApiError(message, status); }
-async function scope(user: AuthUser, campusId?: string | null) {
-  assert(PLANNERS.includes(user.role), "Planning access is required; operational records remain unchanged.");
+async function scope(user: AuthUser, campusId?: string | null, roles: readonly string[] = PLANNERS) {
+  assert(roles.includes(user.role), "Planning access is required; operational records remain unchanged.");
   return resolveCampusId(user, campusId);
 }
 
@@ -181,7 +184,7 @@ export async function decideHandoff(user: AuthUser, id: string, raw: unknown) {
 }
 
 export async function planningOverview(user: AuthUser, campusId?: string | null) {
-  const campus = await scope(user, campusId);
+  const campus = await scope(user, campusId, READERS);
   const [baselines, scenarios, handoffs, leaders, live] = await Promise.all([
     prisma.planningBaseline.findMany({ where: { campusId: campus }, orderBy: { version: "desc" }, take: 10 }),
     prisma.planningScenario.findMany({ where: { campusId: campus }, orderBy: { createdAt: "desc" }, take: 30 }),

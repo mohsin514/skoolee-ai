@@ -12,7 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { ModalFrame, PanelTitle } from "@/components/shared-admin";
+import { PanelTitle } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
+import { downloadCSV } from "@/lib/csv";
+
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-464: the postal and courier register. The queue opens on items still awaiting a handoff; closing an
@@ -20,7 +25,9 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 // and the history keeps the values they replaced.
 
 type Ui = ReturnType<typeof useUiText>;
-type Owner = { id: string; fullName: string };
+type Owner = { id: string; fullName: string; role?: string };
+// role-ux G40: only the front desk and campus admins own front-office work; the server refuses anyone else.
+const OWNER_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"]);
 type Status = "RECEIVED" | "ASSIGNED" | "COLLECTED" | "PREPARED" | "DISPATCHED" | "DELIVERED";
 type Item = { id: string; itemCode: string; direction: "RECEIVE" | "DISPATCH"; status: Status; date: string; fromName: string | null; toName: string | null; courier: string | null; referenceNo: string | null; note: string | null; owner: Owner | null; ownerId: string | null; handedTo: string | null; closedAt: string | null; version: number };
 type HistoryEvent = { id: string; kind: string; changes: Record<string, unknown> | null; note: string | null; createdAt: string; actorName: string | null; ownerName: string | null };
@@ -37,7 +44,11 @@ async function send(method: string, body: Record<string, unknown>) {
   return json;
 }
 
-export function PostalRegister() {
+/**
+ * `hideHeader` hands the title and "Record item" to the console's PageHeader; `command` "record-item" opens intake
+ * and "export" saves the items the filters show as CSV (§4.4b Front desk · Export), once loaded.
+ */
+export function PostalRegister({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
   const [rows, setRows] = useState<Item[]>([]), [counts, setCounts] = useState({ awaitingCollection: 0, toDispatch: 0, inTransit: 0, unassigned: 0, mine: 0 });
@@ -56,16 +67,29 @@ export function PostalRegister() {
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the postal register for this campus.") : json.error || ui("Postal items could not be loaded."));
       setRows(json.data); setCounts(json.counts);
+      // Owner candidates come with the list (G40: campus admins incl. a single school's admin, and receptionists).
+      if (Array.isArray(json.owners)) setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)));
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Postal items could not be loaded.")); } finally { setLoading(false); }
   }, [view, direction, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
-  useEffect(() => { void fetch("/api/front-desk/postal?owners=1", { cache: "no-store" }).then(r => r.json()).then(json => json.success && setOwners(json.data)).catch(() => undefined); }, []);
+  usePanelCommand(command, { "record-item": () => setIntakeOpen(true) });
+  usePanelCommand(command, {
+    export: () => {
+      if (loadError) return;
+      if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      const STATUS_EN: Record<Status, string> = { RECEIVED: "Awaiting an owner", ASSIGNED: "Awaiting collection", COLLECTED: "Collected", PREPARED: "To dispatch", DISPATCHED: "In transit", DELIVERED: "Delivered" };
+      downloadCSV(`post-${todayText()}`, [
+        ["Code", "Direction", "Date", "Sender", "Recipient", "Courier", "Reference", "Status", "Owner", "Handed to"],
+        ...rows.map(row => [row.itemCode, row.direction === "RECEIVE" ? "Incoming" : "Outgoing", row.date.slice(0, 10), row.fromName ?? "", row.toName ?? "", row.courier ?? "", row.referenceNo ?? "", STATUS_EN[row.status], row.owner?.fullName ?? "", row.handedTo ?? ""]),
+      ]);
+    },
+  }, !loading);
 
-  return <div className="sk-panel space-y-4 p-5" data-postal-register>
-    <div className="flex flex-wrap items-center justify-between gap-3">
+  return <div className={hideHeader ? "space-y-4" : "sk-panel space-y-4 p-5"} data-postal-register>
+    {hideHeader ? null : <div className="flex flex-wrap items-center justify-between gap-3">
       <PanelTitle icon={Mail} title={ui("Post and couriers")} />
       <Button onClick={() => setIntakeOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Record item")}</Button>
-    </div>
+    </div>}
     <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-ink-strong" aria-live="polite" data-postal-counts>
       <span>{ui("Awaiting collection: {0}", [counts.awaitingCollection])}</span>
       <span>{ui("To dispatch: {0}", [counts.toDispatch])}</span>
@@ -117,14 +141,14 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your details are kept; retrying will not record the item twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  if (receipt) return <ModalFrame title={ui("Item recorded")} eyebrow={ui("Post and couriers")} onClose={onDone}>
+  if (receipt) return <Modal title={ui("Item recorded")} eyebrow={ui("Post and couriers")} onClose={onDone}>
     <div className="space-y-3" data-postal-receipt={receipt}>
       <p className="text-sm">{ui("Write this code on the item: {0}", [receipt])}</p>
       <p className="text-xs text-ink-muted">{form.direction === "RECEIVE" ? ui("It stays in the queue until someone collects it.") : ui("It stays in the queue until it is dispatched and delivery is confirmed.")}</p>
       <div className="flex justify-end"><Button onClick={onDone}>{ui("Done")}</Button></div>
     </div>
-  </ModalFrame>;
-  return <ModalFrame title={ui("Record item")} eyebrow={ui("Post and couriers")} subtitle={ui("Record only what is needed to hand the item over.")} onClose={onClose} dirty={Boolean(form.toName || form.referenceNo || form.note)}>
+  </Modal>;
+  return <Modal title={ui("Record item")} eyebrow={ui("Post and couriers")} subtitle={ui("Record only what is needed to hand the item over.")} onClose={onClose} dirty={Boolean(form.toName || form.referenceNo || form.note)}>
     <div className="space-y-3" data-postal-intake>
       {error ? <Alert tone="danger" compact data-postal-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -139,7 +163,7 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
       <FormField name="postal-owner" label={ui("Owner responsible for the handoff (optional)")}><Select value={form.ownerId} onChange={set("ownerId")}><option value="">{ui("No owner yet")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
       <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Record item")}</Button></div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: Owner[]; onClose: () => void; onChanged: () => void }) {
@@ -168,7 +192,7 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
     if (reason.trim().length < 5) { setError(ui("Give a reason for the correction (at least 5 characters).")); return; }
     void run({ action: "correct", fields: changed, reason }, ui("Correction saved. The original values stay in the history."));
   };
-  return <ModalFrame title={ui("Postal item {0}", [item.itemCode])} eyebrow={ui("Post and couriers")} size="lg" onClose={onClose} dirty={Boolean(note || handedTo || reason)}>
+  return <Modal title={ui("Postal item {0}", [item.itemCode])} eyebrow={ui("Post and couriers")} size="lg" onClose={onClose} dirty={Boolean(note || handedTo || reason)}>
     <div className="space-y-4" data-postal-item={item.itemCode}>
       {error ? <Alert tone="danger" compact data-postal-item-error>{error}</Alert> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Item details")}>
@@ -199,7 +223,7 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
           }}>{item.direction === "RECEIVE" ? ui("Record collection") : ui("Confirm delivery")}</Button>
         </fieldset> : null}
       </> : null}
-      {correcting ? <fieldset className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/40 p-3" data-postal-correction>
+      {correcting ? <fieldset className="space-y-2 rounded-xl border border-status-warning-border bg-status-warning-surface p-3" data-postal-correction>
         <legend className="px-1 text-xs font-bold">{ui("Correct this item")}</legend>
         <div className="grid gap-3 sm:grid-cols-2">
           {(["toName", "fromName", "courier", "referenceNo", ...(closed ? ["handedTo"] : [])] as (keyof typeof fields)[]).map(field => <FormField key={field} name={`postal-correct-${field}`} label={fieldLabel(ui, field)}><Input value={fields[field]} dir={field === "referenceNo" ? "ltr" : undefined} onChange={event => setFields(current => ({ ...current, [field]: event.target.value }))} /></FormField>)}
@@ -219,5 +243,5 @@ function ItemDialog({ item, owners, onClose, onChanged }: { item: Item; owners: 
           </li>)}</ol>}
       </section>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }

@@ -1,6 +1,6 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, assertPermission, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertPermission, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { applyEnrollment, applyWithdrawal, assertRegistrar, dateOnly } from "@/lib/students/enrollment";
 import { calculateWeightedGrade } from "@/lib/academic/grade-calculator";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
@@ -246,7 +246,11 @@ export async function loadRollover(user: AuthUser, campusId: string, requestedYe
     ...base, destinations: destinations.map(d => ({ ...d, incoming: incoming.get(d.id) ?? 0 })), eligible: rows.length,
     plan: { id: plan.id, version: plan.version, status: plan.status, effectiveDate: plan.effectiveDate.toISOString().slice(0, 10), classMap: map,
       approvedVersion: plan.approvedVersion, approvedAt: plan.approvedAt, approvalCurrent: plan.approvedVersion === plan.version && plan.status !== "DRAFT",
-      canApprove: plan.status === "DRAFT" && !blockers.length && !withIssues && pending.length > 0, canExecute: plan.approvedVersion === plan.version && (["APPROVED", "PAUSED"].includes(plan.status) || (plan.status === "EXECUTING" && !leaseActive)) && pending.some(r => r.executionStatus === "PENDING") },
+      canApprove: plan.status === "DRAFT" && !blockers.length && !withIssues && pending.length > 0,
+      // G35b: whether this viewer holds the academic-lead seat that approves the plan (the principal, or a
+      // campus operator only while the campus has no principal). The campus console hides Approve otherwise.
+      viewerApproves: await canLeadAcademics(user, plan.campusId),
+      canExecute: plan.approvedVersion === plan.version && (["APPROVED", "PAUSED"].includes(plan.status) || (plan.status === "EXECUTING" && !leaseActive)) && pending.some(r => r.executionStatus === "PENDING") },
     blockers, needsDecision: learners.filter(l => l.issues.length && l.decision === "NEEDS_REVIEW").length, withIssues,
     counts: { decisions: count("decision"), execution: statuses }, learners, reconciliation,
     events: events.map(e => ({ id: e.id, version: e.version, kind: e.kind, at: e.createdAt, detail: e.detail })),
@@ -254,8 +258,15 @@ export async function loadRollover(user: AuthUser, campusId: string, requestedYe
 }
 
 export async function approvePlan(user: AuthUser, campusId: string, planId: string, version: number) {
-  await assertRegistrar(user);
+  // G35b: the campus office prepares, maps, decides and runs promotion; approving the plan is the academic
+  // lead's act (the principal, or a campus operator only while the campus has no principal). Approval changes
+  // no student record itself (the office runs the batches), so it needs students.view — the principal's V2
+  // default (§7.4) — never students.edit. The seat is checked before the plan is loaded, so a refused caller
+  // learns nothing about plan ids, and again on the plan's own campus.
+  await assertPermission(user, "students", "view");
+  if (!(await canLeadAcademics(user, campusId))) throw new ApiError("Your principal approves the promotion plan.", 403);
   const plan = await getPlan(user, planId);
+  if (!(await canLeadAcademics(user, plan.campusId))) throw new ApiError("Your principal approves the promotion plan.", 403);
   const view = await loadRollover(user, campusId, plan.sourceYear);
   if (!view.plan || view.plan.id !== planId) throw new ApiError("Rollover plan not found", 404);
   if (plan.version !== version) throw new ApiError("Approval must name the current plan version. Reload and review again.", 409);

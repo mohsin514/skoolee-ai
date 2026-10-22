@@ -3,13 +3,15 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { stopSupportGrant } from "@/lib/owner/support-access";
 import { prisma as basePrisma } from "@/lib/db/prisma";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const actor = await requireAuthUser();
-    if (actor.role !== "SUPER_ADMIN") throw new ApiError("Only a school group administrator can review support access", 403);
+    // G11: the institution authority reviews vendor support access in either kind of school (path kept for compatibility).
+    if (!isInstitutionAuthority(actor)) throw new ApiError("Only the institution administrator can review support access.", 403);
     const grants = await prisma.supportGrant.findMany({
       where: { schoolId: actor.schoolId, status: { in: ["pending", "active", "emergency_review"] } },
       include: { incident: { select: { reference: true, purpose: true, impact: true, status: true } } },
@@ -22,7 +24,8 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const actor = await requireAuthUser();
-    if (actor.role !== "SUPER_ADMIN" || actor.mfaVerified !== true) throw new ApiError("A school group administrator with verified MFA must approve support access", 403);
+    if (!isInstitutionAuthority(actor)) throw new ApiError("Only the institution administrator can review support access.", 403);
+    if (actor.mfaVerified !== true) return Response.json({ error: "Turn on two-step sign-in before you review support access.", code: "MFA_REQUIRED" }, { status: 403 });
     const { grantId, decision, evidence } = await req.json();
     if (typeof grantId !== "string" || !["approve", "reject", "review", "revoke"].includes(decision)) throw new ApiError("Invalid support review", 400);
     const grant = await prisma.supportGrant.findFirst({ where: { id: grantId, schoolId: actor.schoolId } });

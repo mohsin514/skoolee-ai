@@ -7,11 +7,13 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 
-// SKO-401 on the isolated app with synthetic records: search covers only the reader's school, campus and
-// (for teachers) classes, before counting; exact identifiers rank first and survive a name change; Arabic
-// spelling variants match; archived and merged records need an explicit filter or open the surviving record;
-// a revoked permission removes a record type on the next search; the URL restores the search; an older
-// response never overwrites a newer one; families cannot use it.
+// SKO-401 on the isolated app with synthetic records: search covers only the reader's school and campus, before
+// counting; exact identifiers rank first and survive a name change; Arabic spelling variants match; archived and
+// merged records need an explicit filter or open the surviving record; a revoked permission removes a record type on
+// the next search; the URL restores the search; an older response never overwrites a newer one.
+// G47/C13 contract: record search belongs to campus operators, the principal and the front desk. The group admin,
+// teachers, accountants and librarians get 403 "Record search is not part of your workspace." (and an AccessNotice
+// on /search, never a Retry); families get 403; every result opens in the searcher's own console.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.SEARCH_TEST_APP || "http://localhost:3107";
@@ -52,6 +54,7 @@ before(async () => {
   for (const [id, name] of [[campusA, "Cypress North"], [campusB, "Cypress South"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Lahore" } });
   await user("lead", "PRINCIPAL"); await user("leadB", "PRINCIPAL", campusB); await user("owner", "SUPER_ADMIN", null); const teacher = await user("teacher", "TEACHER");
   await user("desk", "RECEPTIONIST"); await user("parent", "PARENT"); await user("lead-ar", "PRINCIPAL", campusA, "ar");
+  await user("ops", "CAMPUS_ADMIN"); await user("accountant", "ACCOUNTANT"); await user("librarian", "LIBRARIAN");
   await db.class.create({ data: { id: class7, schoolId, campusId: campusA, name: "Grade 7", section: "B", academicYear: 2026, classTeacherId: teacher } });
   await db.class.create({ data: { id: class8, schoolId, campusId: campusA, name: "Grade 8", section: "A", academicYear: 2026 } });
   await db.class.create({ data: { id: class7old, schoolId, campusId: campusA, name: "Grade 7", section: "B", academicYear: 2025 } });
@@ -71,14 +74,14 @@ before(async () => {
 after(async () => { await browser?.close(); await db.student.updateMany({ where: { schoolId }, data: { consolidatedIntoId: null } }).catch(() => undefined); await db.school.delete({ where: { id: schoolId } }).catch(() => undefined); await db.$disconnect(); });
 
 test("same-name pupils stay in their campus; an exact identifier ranks first and survives a name change", async () => {
-  const lead = await context("lead"), owner = await context("owner");
+  const lead = await context("lead"), leadB = await context("leadB");
   const scoped = students((await search(lead, { q: "ahmad raza" })).data);
   assert.deepEqual(scoped.rows.map(row => row.id), [pupils.ahmadA], "campus South is never counted for a campus North principal");
   assert.equal(scoped.total, 1);
-  const all = students((await search(owner, { q: "Ahmad Raza", types: "student" })).data);
-  assert.equal(all.total, 2);
-  assert.notDeepEqual(all.rows[0].context, all.rows[1].context, "namesakes are told apart by class, campus and year");
-  assert.equal(students((await search(owner, { q: "Ahmad Raza", campus: campusB })).data).rows[0].id, pupils.ahmadB);
+  const south = students((await search(leadB, { q: "Ahmad Raza", types: "student" })).data);
+  assert.deepEqual(south.rows.map(row => row.id), [pupils.ahmadB], "and campus North never for campus South");
+  assert.notDeepEqual(scoped.rows[0].context, south.rows[0].context, "namesakes are told apart by class, campus and year");
+  assert.equal(students((await search(leadB, { q: "Ahmad Raza", campus: campusA })).data).rows[0]?.id, pupils.ahmadB, "a campus filter never widens a campus-pinned reader");
   const exact = students((await search(lead, { q: "N-701" })).data);
   assert.equal(exact.rows[0].id, pupils.ahmadA); assert.equal(exact.rows[0].exact, true);
   await db.student.update({ where: { id: pupils.ahmadA }, data: { fullName: "Synthetic Ahmad Raza Qureshi" } });
@@ -95,7 +98,9 @@ test("Arabic spelling variants match; archived and merged records need an explic
   const merged = students((await search(lead, { q: "ADM-2025-OLD-0851", status: "all" })).data);
   assert.equal(merged.rows[0].id, pupils.survivor, "an old identifier opens the surviving record");
   assert.match(merged.rows[0].note ?? "", /merged into Synthetic Survivor Hina/);
-  assert.equal(merged.rows[0].href, `/pupils/${pupils.survivor}`);
+  assert.equal(merged.rows[0].href, `/principal?view=students&student=${pupils.survivor}`, "the principal opens the academic console's read-only record");
+  const ops = students((await search(await context("ops"), { q: "ADM-2025-OLD-0851", status: "all" })).data);
+  assert.equal(ops.rows[0].href, `/pupils/${pupils.survivor}`, "a campus operator opens the pupil record page");
 });
 
 test("filters combine with AND, types with OR, and a single type pages through every result", async () => {
@@ -112,14 +117,17 @@ test("filters combine with AND, types with OR, and a single type pages through e
   assert.equal(new Set([...page1.rows, ...page2.rows].map(row => row.id)).size, 30, "stable ordering: no repeats across pages");
 });
 
-test("teachers see only the classes they teach; families, unrelated roles and revoked permissions see nothing", async () => {
-  const teacher = await context("teacher"), parent = await context("parent"), desk = await context("desk"), lead = await context("lead");
-  const taught = (await search(teacher, { q: "Synthetic" })).data;
-  assert.deepEqual(students(taught).rows.map(row => row.id), [pupils.ahmadA], "only Grade 7 B pupils");
-  assert.equal(students((await search(teacher, { q: "Bulk Pupil" })).data).total, 0, "pupils of another class are not counted");
-  assert.ok(!taught.allowedTypes.includes("application") && !taught.allowedTypes.includes("staff"));
+test("record search is refused outside its roles; reception sees applications only; revoked permissions see nothing", async () => {
+  const parent = await context("parent"), desk = await context("desk"), lead = await context("lead");
+  for (const key of ["owner", "teacher", "accountant", "librarian"]) {
+    const response = await (await context(key)).request.get(`${base}/api/search?${new URLSearchParams({ q: "Synthetic" })}`);
+    assert.equal(response.status(), 403, `${key} has no record search`);
+    assert.equal((await response.json()).error, "Record search is not part of your workspace.", key);
+  }
   assert.equal((await search(parent, { q: "Synthetic" })).status, 403);
-  assert.ok(!(await search(desk, { q: "Synthetic" })).data.allowedTypes.includes("staff"), "reception has no staff directory");
+  const reception = (await search(desk, { q: "Synthetic" })).data;
+  assert.ok(reception.allowedTypes.every(type => type === "application"), `reception searches applications only (${reception.allowedTypes.join(",")})`);
+  assert.equal(students(reception).total, 0, "no pupil records at the front desk");
   assert.equal(students((await search(lead, { q: "N-701" })).data).total, 1);
   const grant = await db.rolePermission.create({ data: { schoolId, role: "PRINCIPAL", module: "students", canView: false, canAdd: false, canEdit: false, canDelete: false } });
   const revoked = (await search(lead, { q: "N-701" })).data;
@@ -149,13 +157,48 @@ test("the search page restores from the URL, drops stale answers, and opens the 
   await page.getByRole("button", { name: /Remove filter Year 2026/ }).click();
   await page.waitForURL(url => !url.searchParams.has("year"));
   await page.locator(`[data-search-result="${pupils.ahmadA}"]`).click();
-  await page.waitForURL(`**/pupils/${pupils.ahmadA}`);
+  // The principal opens the pupil inside the academic console (G47), never another console's page.
+  await page.waitForURL(url => url.pathname === "/principal" && url.searchParams.get("view") === "students" && url.searchParams.get("student") === pupils.ahmadA);
   await page.goBack();
   await page.waitForURL(url => url.pathname === "/search" && url.searchParams.get("class") === class7);
   assert.equal(await input.inputValue(), "Synthetic", "Back restores the query");
   await page.goto(`${base}/search?q=Nobody%20Here&types=student&class=${class7}`);
   await page.locator("[data-search-empty]").filter({ hasText: /Filters in use/ }).waitFor();
   await shot(page, "search-empty-filters-en-1440");
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("campus operators open every result type in their own console", async () => {
+  const ops = await context("ops");
+  const found = (await search(ops, { q: "Synthetic" })).data;
+  assert.ok(students(found).rows.length > 0);
+  for (const row of students(found).rows) assert.equal(row.href, `/pupils/${row.id}`);
+  const classes = (await search(ops, { q: "Grade 7", types: "class" })).data.groups[0];
+  for (const row of classes.rows) assert.equal(row.href, `/admin?view=students&class=${row.id}`);
+  const staff = (await search(ops, { q: "Synthetic", types: "staff" })).data.groups[0];
+  assert.ok(staff.rows.length > 0);
+  for (const row of staff.rows) assert.ok(["/admin?view=teachers", "/admin?view=staff-hierarchy"].includes(row.href), row.href);
+  assert.ok(!staff.rows.some(row => row.context.includes("Group admin")), "the group admin is not campus staff");
+});
+
+test("the principal's staff search lists teachers only, since the academic console opens teachers only", async () => {
+  const staff = (await search(await context("lead"), { q: "Synthetic", types: "staff" })).data.groups[0];
+  assert.ok(staff.rows.length > 0);
+  for (const row of staff.rows) assert.equal(row.href, "/principal?view=teachers");
+  assert.ok(staff.rows.every(row => row.title === "Synthetic teacher"), staff.rows.map(row => row.title).join(","));
+});
+
+test("a role without record search sees an access notice on /search, never a Retry", async () => {
+  const page = await (await context("teacher")).newPage(), errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto(`${base}/search?q=Synthetic`);
+  await page.waitForLoadState("networkidle");
+  // P2 may send these roles home instead (§6.3); either way they never see a retry loop.
+  if (new URL(page.url()).pathname === "/search") {
+    await page.getByText("Record search is not part of your workspace.").first().waitFor({ timeout: 15_000 });
+    assert.equal(await page.getByRole("button", { name: "Retry" }).count(), 0);
+  }
   assert.deepEqual(errors, []);
   await page.close();
 });

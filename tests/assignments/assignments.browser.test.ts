@@ -108,8 +108,9 @@ after(async () => { await browser?.close(); store.close(); await raw.school.dele
 
 test("a teacher writes instructions and a rubric, previews the exact audience and releases", async () => {
   const { ctx, page, errors } = await open("teacher", "/teacher/assignments");
-  await page.getByRole("heading", { name: "Assignments" }).first().waitFor();
-  await page.getByRole("button", { name: "Create assignment" }).click();
+  // The teacher's page is "Homework" (registry label) and its one primary is "Create homework" (§4.4).
+  await page.getByRole("heading", { level: 1, name: "Homework", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Create homework" }).click();
   const form = page.getByRole("form", { name: "Assignment" });
   await form.getByLabel("Title").fill(TITLE);
   await form.getByLabel("Subject").selectOption({ label: "Science" });
@@ -146,7 +147,8 @@ test("a learner submits text and a file; a network retry returns the same receip
   await openAssignment(page);
   await page.getByRole("textbox", { name: "Your answer" }).fill("Light plants grew 4 cm taller than shade plants over ten days.");
   await page.getByText("Saved on this device only. It is not on the server yet.").waitFor();
-  await page.getByLabel("Attach a file").setInputFiles({ name: "bean-data.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 bean growth table") });
+  // The visible control is the shared "Choose file" button; the hidden picker it opens takes the file.
+  await page.locator("[data-assignment-file]").setInputFiles({ name: "bean-data.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 bean growth table") });
   await page.getByText(/Uploaded and checked/).waitFor();
   // The first submit reaches the server but the response is lost on the way back.
   let dropped = false;

@@ -271,9 +271,11 @@ test("screens: release report with objectives, live measurements, policy change 
   await page.locator("[data-follow-up]").waitFor();
   const active = page.locator("[data-active-policy]").filter({ hasText: "report batch contention" });
   await active.locator("[data-policy-revert]").click();
-  await page.locator("[data-revert-reason]").fill("Synthetic incident closed");
-  await page.locator("[data-revert-save]").click();
-  await page.locator("[data-revert-form]").waitFor({ state: "detached" });
+  // §8.1 R3: the revert is a shared ConfirmAction with a typed reason (role-ux P4).
+  const confirmRevert = page.getByRole("dialog", { name: "Revert this policy change?" });
+  await confirmRevert.getByLabel("Why revert this change?").fill("Synthetic incident closed");
+  await confirmRevert.getByRole("button", { name: "Revert", exact: true }).click();
+  await confirmRevert.waitFor({ state: "detached" });
   await page.locator("[data-active-policy]").filter({ hasText: "report batch contention" }).waitFor({ state: "detached" });
   await shot(page, "03-after-revert-follow-up");
   await ctx.close();
@@ -283,7 +285,7 @@ test("screens: release report with objectives, live measurements, policy change 
   await arPage.goto(`${base}/owner?view=capacity`);
   await arPage.locator("[data-capacity]").waitFor({ timeout: 60_000 }).catch(async e => { await shot(arPage, "00-debug-ar"); throw e; });
   assert.equal(await arPage.evaluate(() => document.documentElement.dir), "rtl");
-  assert.match(await arPage.locator("[data-capacity] h2").innerText(), /السعة/);
+  assert.match(await arPage.locator("[data-capacity] h1").innerText(), /السعة/);
   assert.equal(await arPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, "no horizontal page scroll on a phone");
   await shot(arPage, "04-operator-ar-phone");
   await ar.close();

@@ -7,7 +7,6 @@ import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  AlertTriangle,
   BarChart3,
   CreditCard,
   Download,
@@ -15,10 +14,14 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { BrandButton, EmptyState } from "@/components/role-dashboard";
+import { EmptyState } from "@/components/role-dashboard";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ErrorState } from "@/components/ui/error-state";
+import { SectionPicker } from "@/components/operations/console-page";
 import type {
   CollectionReport,
   DefaulterRecord,
+  PanelCommand,
   PaymentMethodBreakdown,
 } from "./fee-types";
 import {
@@ -27,69 +30,82 @@ import {
   exportCSV,
   formatPKR,
   paisaToRupees,
+  forwardCommand,
   paymentMethodLabel,
+  usePanelCommand,
 } from "./fee-utils";
 
-type ReportTab = "defaulters" | "collection" | "methods";
+export type ReportTab = "defaulters" | "collection" | "methods";
+/** Reports & reminders sections (also the accountant's PageHeader tabs). */
+export const REPORT_TABS: { id: ReportTab; label: string }[] = [
+  { id: "defaulters", label: "Defaulters" },
+  { id: "collection", label: "Collection" },
+  { id: "methods", label: "Payment methods" },
+];
 
-export function FeeReportsTab({ campusId }: { campusId?: string }) {
+/**
+ * Reports & reminders (role-ux §4.4 accountant · Reports & reminders: primary "Send reminders", secondary
+ * "Export CSV"). `readOnly` is a campus admin following collection without the finance desk: reports only, no
+ * reminders. `tab`/`onTabChange` let the console persist the report as `?tab=`; `command` runs
+ * "send-reminders" or "export" from the PageHeader, which then owns those buttons (`hideHeader`).
+ */
+export function FeeReportsTab({ campusId, readOnly = false, command, hideHeader = false, tab, onTabChange, sectionNav = "picker" }: { campusId?: string; readOnly?: boolean; command?: PanelCommand | null; hideHeader?: boolean; tab?: string | null; onTabChange?: (tab: ReportTab) => void; sectionNav?: "picker" | "none" }) {
  const tr = useUiText();
   const [currency, setCurrency] = useState("");
-  const [subTab, setSubTab] = useState<ReportTab>("defaulters");
-
-  const TABS: { key: ReportTab; label: string; icon: typeof Users }[] = [
-    { key: "defaulters", label: tr("Defaulters"), icon: AlertTriangle },
-    { key: "collection", label: tr("Collection"), icon: BarChart3 },
-    { key: "methods", label: tr("Payment Methods"), icon: CreditCard },
-  ];
+  const [localTab, setLocalTab] = useState<ReportTab>("defaulters");
+  const subTab: ReportTab = REPORT_TABS.some((item) => item.id === tab) ? (tab as ReportTab) : onTabChange ? "defaulters" : localTab;
+  // A header command for another report first opens the report it belongs to. Changing report (here or in the
+  // console's PageHeader tabs) drops it, so a report opened later never replays an old command.
+  // Each forwarded command is tagged with the report it is for and reaches only that report.
+  const [forwarded, setForwarded] = useState<{ report: ReportTab; command: PanelCommand } | null>(null);
+  const select = (next: ReportTab) => { setLocalTab(next); onTabChange?.(next); setForwarded(null); };
+  const forward = (report: ReportTab) => { const copy = forwardCommand(command); setForwarded(copy ? { report, command: copy } : null); };
+  usePanelCommand(command, {
+    "send-reminders": () => { select("defaulters"); forward("defaulters"); },
+    export: () => forward(subTab),
+  });
+  const commandFor = (report: ReportTab) => (forwarded?.report === report ? forwarded.command : null);
 
   return (
-    <div className="space-y-5"><CurrencySelect value={currency} onChange={setCurrency} />
-      <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Reports"}</UiText></h3>
-
-      <div className="flex items-center gap-1 rounded-2xl bg-muted p-1">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <Button aria-pressed={subTab === tab.key} variant="choice"
-              key={tab.key}
-              type="button"
-              onClick={() => setSubTab(tab.key)}
-              className={"justify-start " + (`flex items-center gap-1.5 px-3 py-1.5 ${
-                ""
-              } `)}
-            >
-              <Icon className="w-3 h-3" />
-              {tab.label}
-            </Button>
-          );
-        })}
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        {hideHeader ? null : <h2 className="text-lg font-bold text-ink-strong"><UiText>{"Reports"}</UiText></h2>}
+        <CurrencySelect value={currency} onChange={setCurrency} />
       </div>
+      {/* One tab row per screen (§3.1): the accountant console shows these as PageHeader tabs ("none"); inside the
+          campus admin's Fees tabs they are a report picker. */}
+      {sectionNav === "picker" ? <SectionPicker label="Report" items={REPORT_TABS} value={subTab} onChange={select} /> : null}
 
-      {subTab === "defaulters" && <DefaultersReport campusId={campusId} currency={currency} />}
-      {subTab === "collection" && <CollectionSummary campusId={campusId} currency={currency} />}
+      {subTab === "defaulters" && <DefaultersReport campusId={campusId} currency={currency} readOnly={readOnly} command={commandFor("defaulters")} showToolbar={!hideHeader} />}
+      {subTab === "collection" && <CollectionSummary campusId={campusId} currency={currency} command={commandFor("collection")} showToolbar={!hideHeader} />}
       {subTab === "methods" && <MethodBreakdown campusId={campusId} currency={currency} />}
     </div>
   );
 }
 
-function DefaultersReport({ campusId, currency }: { campusId?: string; currency: string }) {
+function DefaultersReport({ campusId, currency, readOnly = false, command, showToolbar = true }: { campusId?: string; currency: string; readOnly?: boolean; command?: PanelCommand | null; showToolbar?: boolean }) {
  const { money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [defaulters, setDefaulters] = useState<DefaulterRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [remindingId, setRemindingId] = useState<string | null>(null);
+  const [confirmAll, setConfirmAll] = useState(false);
+  const [sendingAll, setSendingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/defaulters?${params}`);
       const json = await res.json();
       if (json.success) setDefaulters(json.data);
+      else setFailed(true);
     } catch {
-      toast.error(tr("Failed to load defaulters"));
+      // Shown in place with a retry (role-ux R4).
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -120,8 +136,25 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
     }
   };
 
+  // One reminder per family, sent one after another so a failure names the families it missed.
+  const remindAll = async () => {
+    setSendingAll(true);
+    let sent = 0, failedCount = 0;
+    for (const d of defaulters) {
+      try {
+        const res = await fetch(`${API}/remind`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: d.studentId }) });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.success) sent += 1; else failedCount += 1;
+      } catch { failedCount += 1; }
+    }
+    setSendingAll(false);
+    setConfirmAll(false);
+    if (failedCount) toast.warning(tr("{0} reminders sent; {1} could not be sent. Try those again from their rows.", [sent, failedCount]));
+    else toast.success(tr("{0} reminders sent.", [sent]));
+  };
+
   const handleExport = () => {
-    if (defaulters.length === 0) return;
+    if (defaulters.length === 0) { toast.info(tr("Nothing to export yet.")); return; }
     const rows = defaulters.map((d) => ({
       Student: d.studentName,
       "Roll No": d.rollNo ?? "",
@@ -137,6 +170,25 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
     }));
     exportCSV(rows, `defaulters-${new Date().toISOString().split("T")[0]}`);
   };
+
+  usePanelCommand(command, {
+    "send-reminders": () => { if (!readOnly && defaulters.length) setConfirmAll(true); else if (!defaulters.length) toast.info(tr("No families are behind on payments.")); },
+    export: handleExport,
+  }, !loading && !failed);
+
+  const confirmDialog = (
+    <ConfirmAction
+      open={confirmAll}
+      busy={sendingAll}
+      tone="primary"
+      title={tr("Send fee reminders to {0} families?", [defaulters.length])}
+      description={tr("Each family with an overdue balance gets one reminder through their usual channel. Families are not told about other families.")}
+      confirmLabel={tr("Send reminders")}
+      cancelLabel={tr("Keep editing")}
+      onConfirm={() => void remindAll()}
+      onCancel={() => setConfirmAll(false)}
+    />
+  );
 
   if (loading) {
     return (
@@ -155,6 +207,10 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
     );
   }
 
+  if (failed) {
+    return <ErrorState title={tr("Defaulters could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
+  }
+
   if (defaulters.length === 0) {
     return (
       <EmptyState
@@ -167,14 +223,20 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold text-ink-muted tabular-nums">
-          {tr("Defaulters")}: {defaulters.length}
+          {tr("Defaulters")}: <bdi>{defaulters.length}</bdi>
         </p>
-        <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}><UiText>{"Export CSV"}</UiText></BrandButton>
+        {showToolbar ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={handleExport}><Download className="size-4" aria-hidden="true" /><UiText>{"Export"}</UiText></Button>
+            {readOnly ? null : <Button onClick={() => setConfirmAll(true)}><UiText>{"Send reminders"}</UiText></Button>}
+          </div>
+        ) : null}
       </div>
 
-      <div className="sk-panel sk-rise overflow-x-auto">
+      <div className="sk-panel sk-rise overflow-x-auto" data-tour="accountant.reports.remind">
         <div className="min-w-[760px]">
         <div className="grid grid-cols-[1fr_120px_100px_100px_80px_80px_110px] gap-3 px-5 py-3 bg-muted/50 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
           <span><UiText>{"Student"}</UiText></span>
@@ -212,15 +274,17 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
                 {d.daysOverdue}d
               </Badge>
               <p className="text-xs font-bold text-ink-muted">{d.overdueInvoices}</p>
-              <Button variant="default"
-                type="button"
-                onClick={() => handleRemind(d.studentId)}
-                disabled={remindingId !== null}
-                loading={remindingId === d.studentId}
-                className="px-3 py-1.5"
-              >
-                {tr("Send reminder")}
-              </Button>
+              {readOnly ? <span /> : (
+                <Button variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => handleRemind(d.studentId)}
+                  disabled={remindingId !== null || sendingAll}
+                  loading={remindingId === d.studentId}
+                >
+                  {tr("Send reminder")}
+                </Button>
+              )}
             </div>
           ))}
         </div>
@@ -230,22 +294,25 @@ function DefaultersReport({ campusId, currency }: { campusId?: string; currency:
   );
 }
 
-function CollectionSummary({ campusId, currency }: { campusId?: string; currency: string }) {
+function CollectionSummary({ campusId, currency, command, showToolbar = true }: { campusId?: string; currency: string; command?: PanelCommand | null; showToolbar?: boolean }) {
  const { money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [data, setData] = useState<CollectionReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
       if (json.success) setData(json.data.byClass);
+      else setFailed(true);
     } catch {
-      toast.error(tr("Failed to load collection report"));
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -256,7 +323,7 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
   }, [load]);
 
   const handleExport = () => {
-    if (data.length === 0) return;
+    if (data.length === 0) { toast.info(tr("Nothing to export yet.")); return; }
     const rows = data.map((d) => ({
       Class: d.className,
       Students: d.totalStudents,
@@ -267,6 +334,7 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
     }));
     exportCSV(rows, `collection-${new Date().toISOString().split("T")[0]}`);
   };
+  usePanelCommand(command, { export: handleExport }, !loading && !failed);
 
   if (loading) {
     return (
@@ -290,6 +358,10 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
         </div>
       </div>
     );
+  }
+
+  if (failed) {
+    return <ErrorState title={tr("The collection report could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   if (data.length === 0) {
@@ -318,7 +390,7 @@ function CollectionSummary({ campusId, currency }: { campusId?: string; currency
         <p className="text-2xs font-bold text-ink-subtle">
           {data.length}<UiText>{"Classes"}</UiText>
         </p>
-        <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExport}><UiText>{"Export CSV"}</UiText></BrandButton>
+        {showToolbar ? <Button variant="outline" onClick={handleExport}><Download className="size-4" aria-hidden="true" /><UiText>{"Export"}</UiText></Button> : null}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -390,17 +462,20 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
   const tr = useUiText();
   const [data, setData] = useState<PaymentMethodBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setFailed(false);
     try {
       const params = new URLSearchParams(currency ? { currency } : {});
       if (campusId) params.set("campusId", campusId);
       const res = await fetch(`${API}/reports/collection?${params}`);
       const json = await res.json();
       if (json.success) setData(json.data.byMethod);
+      else setFailed(true);
     } catch {
-      toast.error(tr("Failed to load payment method data"));
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -427,6 +502,10 @@ function MethodBreakdown({ campusId, currency }: { campusId?: string; currency: 
         </div>
       </div>
     );
+  }
+
+  if (failed) {
+    return <ErrorState title={tr("Payment method data could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   if (data.length === 0) {

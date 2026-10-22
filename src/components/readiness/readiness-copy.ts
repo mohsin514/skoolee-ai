@@ -1,6 +1,7 @@
 const en = {
   title: "School readiness", intro: "Finish the required setup, reconcile what you imported and rehearse the first class before going live.",
-  loading: "Checking readiness…", failed: "Readiness could not be loaded. Refresh to try again.", saved: "Saved.",
+  loading: "Checking readiness…", failed: "Readiness could not be loaded. Check your connection and try again.", saved: "Saved.", failedTitle: "Readiness could not be loaded", denied: "School readiness is managed by the implementation lead. Follow-ups assigned to you appear here.",
+  confirmTitle: "Approve go-live?", confirmBody: "Your school is marked live and you are recorded as the approver, with the time, every check and each open follow-up. Nobody is notified. This cannot be undone; open follow-ups stay on this page until they are done.",
   statusSetup: "Setup in progress", statusReady: "Live — approved", approvedBy: "Approved", mode: "Adoption", modes: { EXAM_STUDIO: "Exam Studio alongside current systems", FULL_OPERATIONS: "Full school operations" },
   localeSummary: "Country · timezone · currency", next: "Next required step", open: "Open", allRequiredDone: "All required checks are complete.",
   required: "Required before going live", optional: "Optional — can follow go-live", passed: "Done", pending: "To do",
@@ -30,13 +31,14 @@ const en = {
   approveBlocked: "Complete the required checks first.", outstanding: "open follow-ups will be recorded",
   optionalTasks: { logo: "Upload the school logo", contact: "Add school phone or website", sessionDates: "Confirm academic session dates", principals: "Name a principal for every campus", feesPayroll: "Configure fees and payroll", roster: "Complete the pupil roster", curriculum: "Map the curriculum" } as Record<string, string>,
   assignedToYou: "Assigned to you",
-  aiSetup: "Guided AI setup", myTasks: "Your setup tasks", myTasksHelp: "The implementation lead assigned these to you.",
+  aiSetup: "Set up your school with AI", myTasks: "Your setup tasks", myTasksHelp: "The implementation lead assigned these to you.",
 };
 export type ReadinessCopy = typeof en;
 
 const ar: ReadinessCopy = {
   title: "جاهزية المدرسة", intro: "أكمل الإعداد المطلوب، وطابق ما استوردته، وتدرّب على أول صف قبل التشغيل الفعلي.",
-  loading: "جارٍ فحص الجاهزية…", failed: "تعذّر تحميل الجاهزية. حدّث الصفحة للمحاولة مجدداً.", saved: "تم الحفظ.",
+  loading: "جارٍ فحص الجاهزية…", failed: "تعذّر تحميل الجاهزية. تحقّق من اتصالك وحاول مرة أخرى.", saved: "تم الحفظ.", failedTitle: "تعذّر تحميل الجاهزية", denied: "يدير مسؤول التنفيذ جاهزية المدرسة. تظهر هنا المتابعات المسندة إليك.",
+  confirmTitle: "اعتماد التشغيل الفعلي؟", confirmBody: "تُعلَّم مدرستك كمُشغَّلة فعلياً وتُسجَّل معتمِداً مع الوقت وكل فحص وكل متابعة مفتوحة. لا يُرسَل أي إشعار. لا يمكن التراجع عن ذلك؛ وتبقى المتابعات المفتوحة في هذه الصفحة حتى إنجازها.",
   statusSetup: "الإعداد جارٍ", statusReady: "تشغيل فعلي — معتمد", approvedBy: "اعتُمد", mode: "طريقة الاستخدام", modes: { EXAM_STUDIO: "استوديو الاختبارات بجانب الأنظمة الحالية", FULL_OPERATIONS: "تشغيل المدرسة بالكامل" },
   localeSummary: "الدولة · المنطقة الزمنية · العملة", next: "الخطوة المطلوبة التالية", open: "فتح", allRequiredDone: "اكتملت كل الفحوص المطلوبة.",
   required: "مطلوب قبل التشغيل", optional: "اختياري — يمكن بعد التشغيل", passed: "مكتمل", pending: "مطلوب",
@@ -66,12 +68,13 @@ const ar: ReadinessCopy = {
   approveBlocked: "أكمل الفحوص المطلوبة أولاً.", outstanding: "متابعات مفتوحة ستُسجّل",
   optionalTasks: { logo: "رفع شعار المدرسة", contact: "إضافة هاتف المدرسة أو موقعها", sessionDates: "تأكيد تواريخ العام الدراسي", principals: "تعيين مدير لكل فرع", feesPayroll: "إعداد الرسوم والرواتب", roster: "استكمال سجل الطلاب", curriculum: "ربط المنهج" },
   assignedToYou: "مُسندة إليك",
-  aiSetup: "الإعداد الموجّه بالذكاء الاصطناعي", myTasks: "مهام الإعداد الخاصة بك", myTasksHelp: "أسندها إليك مسؤول التنفيذ.",
+  aiSetup: "أعدّ مدرستك بالذكاء الاصطناعي", myTasks: "مهام الإعداد الخاصة بك", myTasksHelp: "أسندها إليك مسؤول التنفيذ.",
 };
 
 const ur: ReadinessCopy = {
   title: "اسکول کی تیاری", intro: "لائیو ہونے سے پہلے ضروری سیٹ اپ مکمل کریں، درآمد شدہ ڈیٹا کا موازنہ کریں اور پہلی کلاس کی مشق کریں۔",
-  loading: "تیاری جانچی جا رہی ہے…", failed: "تیاری لوڈ نہ ہو سکی۔ دوبارہ کوشش کے لیے صفحہ تازہ کریں۔", saved: "محفوظ ہو گیا۔",
+  loading: "تیاری جانچی جا رہی ہے…", failed: "تیاری لوڈ نہ ہو سکی۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔", saved: "محفوظ ہو گیا۔", failedTitle: "تیاری لوڈ نہ ہو سکی", denied: "اسکول کی تیاری نفاذ کے ذمہ دار کے پاس ہے۔ آپ کو سونپے گئے فالو اپ یہاں دکھائی دیتے ہیں۔",
+  confirmTitle: "لائیو کی منظوری دیں؟", confirmBody: "آپ کا اسکول لائیو قرار پاتا ہے اور آپ وقت، ہر جانچ اور ہر کھلے فالو اپ کے ساتھ منظور کنندہ کے طور پر درج ہوتے ہیں۔ کسی کو اطلاع نہیں بھیجی جاتی۔ یہ واپس نہیں ہو سکتا؛ کھلے فالو اپ مکمل ہونے تک اسی صفحے پر رہتے ہیں۔",
   statusSetup: "سیٹ اپ جاری ہے", statusReady: "لائیو — منظور شدہ", approvedBy: "منظوری", mode: "استعمال کا طریقہ", modes: { EXAM_STUDIO: "موجودہ نظاموں کے ساتھ ایگزام اسٹوڈیو", FULL_OPERATIONS: "مکمل اسکول آپریشنز" },
   localeSummary: "ملک · ٹائم زون · کرنسی", next: "اگلا ضروری قدم", open: "کھولیں", allRequiredDone: "تمام ضروری جانچیں مکمل ہیں۔",
   required: "لائیو ہونے سے پہلے ضروری", optional: "اختیاری — لائیو کے بعد بھی", passed: "مکمل", pending: "باقی",
@@ -101,7 +104,7 @@ const ur: ReadinessCopy = {
   approveBlocked: "پہلے ضروری جانچیں مکمل کریں۔", outstanding: "کھلے فالو اپ درج ہوں گے",
   optionalTasks: { logo: "اسکول کا لوگو اپ لوڈ کریں", contact: "اسکول کا فون یا ویب سائٹ شامل کریں", sessionDates: "تعلیمی سیشن کی تاریخوں کی تصدیق کریں", principals: "ہر کیمپس کے لیے پرنسپل مقرر کریں", feesPayroll: "فیس اور تنخواہیں ترتیب دیں", roster: "طلبہ کا رول مکمل کریں", curriculum: "نصاب کی نقشہ بندی کریں" },
   assignedToYou: "آپ کو تفویض",
-  aiSetup: "اے آئی رہنمائی والا سیٹ اپ", myTasks: "آپ کے سیٹ اپ کام", myTasksHelp: "عمل درآمد کے سربراہ نے یہ آپ کو تفویض کیے ہیں۔",
+  aiSetup: "اے آئی سے اپنا اسکول سیٹ اپ کریں", myTasks: "آپ کے سیٹ اپ کام", myTasksHelp: "عمل درآمد کے سربراہ نے یہ آپ کو تفویض کیے ہیں۔",
 };
 
 export function getReadinessCopy(language: string): ReadinessCopy {

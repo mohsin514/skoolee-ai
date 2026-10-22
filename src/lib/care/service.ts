@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, assertStaffRole, canManageOperations, isFamilyRole } from "@/lib/api/scope";
+import { ApiError, assertStaffRole, canManageCampusOps, isFamilyRole } from "@/lib/api/scope";
 import { guardianRelationshipAuthorityWhere } from "@/lib/parent/guardian-query";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 
@@ -116,7 +116,7 @@ const names = async (schoolId: string, ids: (string | null | undefined)[]) => {
 
 /** What this person may open. Says nothing about whether any record exists. */
 export async function workspaces(user: AuthUser) {
-  const out: Record<string, unknown> = { canConfigure: canManageOperations(user), canReport: !isFamilyRole(user), canEmergency: { CLINIC: !isFamilyRole(user), SAFEGUARDING: canManageOperations(user) } };
+  const out: Record<string, unknown> = { canConfigure: canManageCampusOps(user), canReport: !isFamilyRole(user), canEmergency: { CLINIC: !isFamilyRole(user), SAFEGUARDING: canManageCampusOps(user) } };
   for (const domain of DOMAINS) {
     const m = await membership(user, domain);
     const s = m ? await setting(user.schoolId, m.campusId, domain) : null;
@@ -140,7 +140,7 @@ export async function findStudents(user: AuthUser, q: string) {
 // ─── Settings and memberships (campus leaders) ───────────────────────────
 
 function leader(user: AuthUser) {
-  if (!canManageOperations(user)) throw new ApiError("Only campus leaders configure confidential workspaces.", 403);
+  if (!canManageCampusOps(user)) throw new ApiError("Only campus leaders configure confidential workspaces.", 403);
 }
 
 export async function settings(user: AuthUser, campusIdParam?: string | null) {
@@ -619,7 +619,7 @@ export async function exportClinic(user: AuthUser, studentId: string) {
 export async function openEmergency(user: AuthUser, body: Record<string, unknown>) {
   assertStaffRole(user);
   const domain = domainOf(body.domain);
-  if (domain === "SAFEGUARDING" && !canManageOperations(user)) return deny(user, { domain, recordType: "EMERGENCY_ACCESS" }, "Only a campus leader can open emergency safeguarding access.");
+  if (domain === "SAFEGUARDING" && !canManageCampusOps(user)) return deny(user, { domain, recordType: "EMERGENCY_ACCESS" }, "Only a campus leader can open emergency safeguarding access.");
   const student = await prisma.student.findFirst({ where: { id: String(body.studentId ?? ""), schoolId: user.schoolId, archivedAt: null, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, select: { id: true, campusId: true } });
   if (!student) throw new ApiError("Choose a student at your campus.", 404);
   if (!(await setting(user.schoolId, student.campusId, domain))?.enabled) throw new ApiError("This confidential workspace has not been enabled for this campus.", 409);

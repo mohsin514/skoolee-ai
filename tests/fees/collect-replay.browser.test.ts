@@ -52,11 +52,11 @@ test("a collection whose response is lost replays the same receipt on retry and 
     return route.continue();
   });
   await page.goto(`${base}/accountant?view=payments`);
-  await page.getByRole("button", { name: "Record Payment" }).first().click({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Record payment" }).first().click({ timeout: 30_000 });
   await page.getByPlaceholder("Search by name or roll no...").fill("Tamarind");
   await page.getByPlaceholder("Search by name or roll no...").press("Enter");
   await page.getByRole("button", { name: /Synthetic Zara Tamarind/ }).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: "Continue to Payment" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Continue to payment" }).click({ timeout: 15_000 });
   await page.getByRole("button", { name: "Save & Generate Receipt" }).click();
   // The response was lost: the dialog says the outcome is unknown and offers to check, not to pay again.
   await page.locator('[data-collect-outcome="unknown"]').waitFor({ timeout: 15_000 });

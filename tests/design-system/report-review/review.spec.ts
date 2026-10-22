@@ -53,6 +53,6 @@ test('revoked write clears privileged data and requires fresh verification',asyn
 });
 test('stale approval refreshes changed content before another review',async({page})=>{
  let changed=false;await mount(page,'en',async route=>{if(route.request().method()==='POST'){changed=true;await route.fulfill({status:409,json:{error:'Version changed; review again'}});}else await route.fulfill({json:data(changed?'Changed pupil':'Pupil A')});});
- await page.getByRole('checkbox').check();await page.getByRole('textbox',{name:'Family-facing correction reason'}).fill('Corrected mark');await page.getByRole('button',{name:'Approve selected versions'}).click();
+ await page.getByRole('checkbox').check();await page.getByRole('textbox',{name:'Family-facing correction reason'}).fill('Corrected mark');await page.getByRole('button',{name:'Approve selected',exact:true}).click();
  await expect(page.getByText('Changed pupil',{exact:true})).toBeVisible();await expect(page.getByRole('checkbox')).not.toBeChecked();await expect(page.getByRole('status')).toContainText('Version changed');
 });

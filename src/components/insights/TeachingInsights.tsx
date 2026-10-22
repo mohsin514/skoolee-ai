@@ -10,7 +10,8 @@
  */
 
 import { useMemo } from "react";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { resultGradeLabel } from "@/lib/locale/result-grade";
 import { useCountLabel } from "@/components/locale/use-count-label";
 import { CalendarCheck, ClipboardList, GraduationCap, Users } from "lucide-react";
 import {
@@ -56,6 +57,7 @@ export function TeachingInsights({
   onNavigate,
 }: TeachingInsightsProps) {
   const ui = useUiText();
+  const gradeLabel = resultGradeLabel(useLocale().language);
   const count = useCountLabel();
   const derived = useMemo(() => {
     // Only papers that actually expect marks — a test with nothing to enter
@@ -78,10 +80,10 @@ export function TeachingInsights({
       .slice(0, 8);
 
     const register = [
-      { name: "Present", value: attendance.present, color: STATUS.good },
-      { name: "Absent", value: attendance.absent, color: STATUS.critical },
-      { name: "On leave", value: attendance.leave, color: STATUS.warning },
-      { name: "Not marked", value: attendance.unmarked, color: STATUS.neutral },
+      { key: "present", name: ui("Present"), value: attendance.present, color: STATUS.good },
+      { key: "absent", name: ui("Absent"), value: attendance.absent, color: STATUS.critical },
+      { key: "leave", name: ui("On leave"), value: attendance.leave, color: STATUS.warning },
+      { key: "unmarked", name: ui("Not marked"), value: attendance.unmarked, color: STATUS.neutral },
     ].filter((s) => s.value > 0);
 
     const rolls = classHubs
@@ -107,15 +109,15 @@ export function TeachingInsights({
       .map(([grade, count]) => ({ grade, count, color: GRADE_COLOR[grade] ?? "#918a95" }));
 
     return { markProgress, register, rolls, gradeRows };
-  }, [exams, attendance, classHubs, reportCards]);
+  }, [exams, attendance, classHubs, reportCards, ui]);
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
         <InsightCard
           icon={ClipboardList}
-          title="Marks still to enter"
-          subtitle="Papers with marks outstanding, least complete first"
+          title={ui("Marks still to enter")}
+          subtitle={ui("Papers with marks outstanding, least complete first")}
           className="xl:col-span-2"
           delay={80}
           actions={
@@ -124,11 +126,11 @@ export function TeachingInsights({
               onClick={() => onNavigate("/teacher/marks")}
 
             >
-              Enter marks
+              {ui("Enter marks")}
             </Button>
           }
           table={{
-            columns: ["Paper", "Entered", "Missing", "Complete %"],
+            columns: [ui("Paper"), ui("Entered"), ui("Missing"), ui("Complete %")],
             rows: derived.markProgress.map((m) => [m.label, m.Entered, m.Missing, m.percent]),
           }}
         >
@@ -152,12 +154,13 @@ export function TeachingInsights({
                     width={128}
                     tickFormatter={(v: string) => (v.length > 17 ? `${v.slice(0, 16)}…` : v)}
                   />
-                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" marks" />} />
+                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit={` ${ui("marks")}`} />} />
                   {/* 2px of surface separates the two segments — no stroke. */}
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Entered" stackId="marks" fill={SERIES[0]} stroke={INK.surface} strokeWidth={2} maxBarSize={22} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Entered" name={ui("Entered")} stackId="marks" fill={SERIES[0]} stroke={INK.surface} strokeWidth={2} maxBarSize={22} />
                   <Bar
                     {...NO_ENTRY_ANIMATION}
                     dataKey="Missing"
+                    name={ui("Missing")}
                     stackId="marks"
                     fill={STATUS.warning}
                     stroke={INK.surface}
@@ -170,8 +173,8 @@ export function TeachingInsights({
               <SeriesLegend
                 className="mt-3"
                 items={[
-                  { label: "Entered", color: SERIES[0] },
-                  { label: "Still missing", color: STATUS.warning },
+                  { label: ui("Entered"), color: SERIES[0] },
+                  { label: ui("Still missing"), color: STATUS.warning },
                 ]}
               />
             </>
@@ -182,7 +185,7 @@ export function TeachingInsights({
 
         <InsightCard
           icon={CalendarCheck}
-          title="Today's register"
+          title={ui("Today's register")}
           subtitle={ui("{0} in your classes", [count(attendance.total, "student")])}
           delay={140}
           actions={
@@ -191,11 +194,11 @@ export function TeachingInsights({
               onClick={() => onNavigate("/teacher/attendance")}
 
             >
-              Mark
+              {ui("Mark")}
             </Button>
           }
           table={{
-            columns: ["Status", "Students"],
+            columns: [ui("Status"), ui("Students")],
             rows: derived.register.map((r) => [r.name, r.value]),
           }}
         >
@@ -205,9 +208,9 @@ export function TeachingInsights({
               label={derived.register[0].name}
               color={derived.register[0].color}
               note={
-                derived.register[0].name === "Not marked"
+                ui(derived.register[0].key === "unmarked"
                   ? "Nobody has been marked today yet."
-                  : "Every student is in the same state today."
+                  : "Every student is in the same state today.")
               }
             />
           ) : derived.register.length > 1 ? (
@@ -231,7 +234,7 @@ export function TeachingInsights({
                       <Cell key={r.name} fill={r.color} />
                     ))}
                   </Pie>
-                  <Tooltip content={<VizTooltip unit=" students" />} />
+                  <Tooltip content={<VizTooltip unit={` ${ui("students")}`} />} />
                 </PieChart>
               </ResponsiveContainer>
               <SeriesLegend
@@ -248,8 +251,8 @@ export function TeachingInsights({
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <InsightCard
           icon={Users}
-          title="Class sizes"
-          subtitle="Students in each class you teach"
+          title={ui("Class sizes")}
+          subtitle={ui("Students in each class you teach")}
           delay={80}
           actions={
             <Button variant="link" size="sm"
@@ -257,10 +260,10 @@ export function TeachingInsights({
               onClick={() => onNavigate("/teacher/classes")}
 
             >
-              Classes
+              {ui("Classes")}
             </Button>
           }
-          table={{ columns: ["Class", "Students"], rows: derived.rolls.map((r) => [r.name, r.students]) }}
+          table={{ columns: [ui("Class"), ui("Students")], rows: derived.rolls.map((r) => [r.name, r.students]) }}
         >
           {derived.rolls.length > 0 ? (
             <ResponsiveContainer width="100%" height={Math.max(180, derived.rolls.length * 30 + 30)}>
@@ -268,8 +271,8 @@ export function TeachingInsights({
                 <CartesianGrid horizontal={false} stroke={INK.grid} />
                 <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} width={86} />
-                <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
+                <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit={` ${ui("students")}`} />} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name={ui("Students")} fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
                   <LabelList dataKey="students" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
@@ -281,10 +284,10 @@ export function TeachingInsights({
 
         <InsightCard
           icon={GraduationCap}
-          title="Grades you have awarded"
-          subtitle="Across your recent report cards"
+          title={ui("Grades you have awarded")}
+          subtitle={ui("Across your recent report cards")}
           delay={140}
-          table={{ columns: ["Grade", "Students"], rows: derived.gradeRows.map((g) => [g.grade, g.count]) }}
+          table={{ columns: [gradeLabel, ui("Students")], rows: derived.gradeRows.map((g) => [g.grade, g.count]) }}
         >
           {derived.gradeRows.length > 0 ? (
             <ResponsiveContainer width="100%" height={Math.max(180, 200)}>
@@ -292,8 +295,8 @@ export function TeachingInsights({
                 <CartesianGrid vertical={false} stroke={INK.grid} />
                 <XAxis dataKey="grade" tick={AXIS_TICK} axisLine={false} tickLine={false} interval={0} />
                 <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={26}>
+                <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit={` ${ui("students")}`} />} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name={ui("Students")} radius={[4, 4, 0, 0]} maxBarSize={26}>
                   {derived.gradeRows.map((g) => (
                     <Cell key={g.grade} fill={g.color} />
                   ))}

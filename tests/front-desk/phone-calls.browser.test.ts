@@ -49,7 +49,7 @@ const shot = async (page: Page, name: string) => { await page.evaluate("Promise.
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Palm Call School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Dubai", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Palm Creek"], [otherCampusId, "Palm Marina"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Dubai" } });
-  const lead = await user("lead", "PRINCIPAL"); await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40 await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Dubai", currency: "AED" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   await db.authAttempt.deleteMany({});
@@ -157,7 +157,7 @@ test("reception logs a call in the UI, keeps the draft when the save fails and r
   const panel = page.locator("[data-phone-log]");
   await panel.locator("[data-callback]").first().waitFor({ timeout: 30_000 });
   await shot(page, "phone-calls-queue-en-1440");
-  await panel.getByRole("button", { name: "Log call" }).click();
+  await page.getByRole("button", { name: "Log call" }).first().click(); // PageHeader primary (role-ux §4.4)
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Log call" }).click();
   await dialog.locator("[data-call-error]").waitFor();

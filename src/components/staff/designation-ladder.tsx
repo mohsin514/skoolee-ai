@@ -13,7 +13,7 @@
  * pulls a rank out from under the people holding it.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUp,
   Check,
@@ -26,7 +26,8 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -81,7 +82,12 @@ const emptyDraft = {
   description: "",
 };
 
-export function DesignationLadder({ campusId, onChanged }: { campusId?: string; onChanged?: () => void }) {
+/**
+ * `addRequest` (each change opens "New rank") and `hideAdd` let a console's PageHeader carry "Add rank" as the
+ * tab's primary action; "Use a preset" stays here as the in-panel alternative.
+ */
+export function DesignationLadder({ campusId, onChanged, addRequest, hideAdd = false }: { campusId?: string; onChanged?: () => void; addRequest?: number; hideAdd?: boolean }) {
+  const ui = useUiText();
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [institutionType, setInstitutionType] = useState("SCHOOL");
@@ -93,6 +99,12 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
   const [pendingRemoval, setPendingRemoval] = useState<Designation | null>(null);
   const [removing, setRemoving] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const lastAddRequest = useRef(addRequest);
+  useEffect(() => {
+    if (addRequest === undefined || addRequest === lastAddRequest.current) return;
+    lastAddRequest.current = addRequest;
+    setDraft({ ...emptyDraft });
+  }, [addRequest]);
 
   const load = useCallback(async () => {
     try {
@@ -104,8 +116,9 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
       setInstitutionType(data.institutionType ?? "SCHOOL");
       setLoadError(false);
     } catch (error) {
+      // R4: the inline ErrorState below (with retry) is the only signal; no toast on top of it.
+      console.error(error);
       setLoadError(true);
-      toast.error(error instanceof Error ? error.message : "Could not load the rank ladder");
     } finally {
       setLoading(false);
     }
@@ -134,17 +147,17 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
         body: JSON.stringify({ preset: type, campusId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not apply the preset");
+      if (!res.ok) throw new Error(data.error || "");
       toast.success(
         data.designationsAdded === 0 && data.departmentsAdded === 0
           ? "Everything in that preset already exists here."
-          : `Added ${data.designationsAdded} rank(s) and ${data.departmentsAdded} unit(s).`
+          : ui("Added {0} ranks and {1} units.", [data.designationsAdded, data.departmentsAdded])
       );
       setShowPresets(false);
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not apply the preset");
+      toast.error(friendlyErrorMessage(error, ui("Could not apply the preset. Please try again.")));
     } finally {
       setApplying(null);
     }
@@ -153,7 +166,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
   const save = async () => {
     if (!draft) return;
     if (!draft.name.trim()) {
-      toast.error("Give the rank a name");
+      toast.error(ui("Give the rank a name"));
       return;
     }
     setSaving(true);
@@ -176,13 +189,13 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save the rank");
-      toast.success(draft.id ? "Rank updated" : `${payload.name} added to the ladder`);
+      if (!res.ok) throw new Error(data.error || "");
+      toast.success(draft.id ? ui("Rank updated") : ui("{0} added to the ladder", [payload.name]));
       setDraft(null);
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save the rank");
+      toast.error(friendlyErrorMessage(error, ui("Could not save the rank. Please try again.")));
     } finally {
       setSaving(false);
     }
@@ -193,13 +206,13 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
     try {
       const res = await fetch(`/api/staff/designations?id=${designation.id}`, { method: "DELETE" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not remove the rank");
-      toast.success(data.message || `${designation.name} removed`);
+      if (!res.ok) throw new Error(data.error || "");
+      toast.success(data.message || ui("{0} removed", [designation.name]));
       setPendingRemoval(null);
       await load();
       onChanged?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove the rank");
+      toast.error(friendlyErrorMessage(error, ui("Could not remove the rank. Please try again.")));
     } finally {
       setRemoving(false);
     }
@@ -207,7 +220,7 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
 
   if (loading) {
     return (
-      <SkeletonRegion label="Loading the rank ladder…" className="space-y-3 py-2">
+      <SkeletonRegion label={ui("Loading the rank ladder…")} className="space-y-3 py-2">
         <SkeletonList rows={5} />
       </SkeletonRegion>
     );
@@ -216,8 +229,8 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
   if (loadError) {
     return (
       <ErrorState
-        title="The rank ladder did not load"
-        description="Could not load the rank ladder. Check your connection and try again."
+        title={ui("The rank ladder did not load")}
+        description={ui("Could not load the rank ladder. Check your connection and try again.")}
         onRetry={() => {
           setLoading(true);
           void load();
@@ -230,35 +243,36 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-ink-strong">Rank ladder</h3>
+          <h3 className="text-base font-bold text-ink-strong">{ui("Rank ladder")}</h3>
           <p className="mt-0.5 max-w-2xl text-sm font-normal leading-relaxed text-ink-muted">
-            Every rank your institution uses, most senior first. Nothing here is fixed — rename what you like,
-            reorder by changing the seniority number, and retire what you no longer use.
+            {ui("Every rank your institution uses, most senior first. Nothing here is fixed — rename what you like, reorder by changing the seniority number, and retire what you no longer use.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <BrandButton variant="soft" icon={<Sparkles className="h-4 w-4" />} onClick={() => setShowPresets(true)}>
-            Use a preset
+            {ui("Use a preset")}
           </BrandButton>
-          <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
-            Add rank
-          </BrandButton>
+          {hideAdd ? null : (
+            <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
+              {ui("Add rank")}
+            </BrandButton>
+          )}
         </div>
       </div>
 
       {designations.length === 0 ? (
         <EmptyState
           icon={Layers}
-          title="No ranks defined yet"
-          description="Ranks are what make the chart mean something — who is senior to whom, who can head a department, and what a promotion moves someone into. Start from a preset for your kind of institution, or build the ladder yourself."
+          title={ui("No ranks defined yet")}
+          description={ui("Ranks are what make the chart mean something — who is senior to whom, who can head a department, and what a promotion moves someone into. Start from a preset for your kind of institution, or build the ladder yourself.")}
           action={
             <BrandButton icon={<Sparkles className="h-4 w-4" />} onClick={() => setShowPresets(true)}>
-              Choose a preset
+              {ui("Choose a preset")}
             </BrandButton>
           }
           secondaryAction={
             <BrandButton variant="soft" icon={<Plus className="h-4 w-4" />} onClick={() => setDraft({ ...emptyDraft })}>
-              Add the first rank
+              {ui("Add the first rank")}
             </BrandButton>
           }
         />
@@ -269,9 +283,9 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
             if (ranks.length === 0) return null;
             return (
               <section key={track} className="space-y-2">
-                <h4 className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <h4 className="flex items-center gap-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                   <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
-                  {tone.label}
+                  {ui(tone.label)}
                   <span className="font-semibold normal-case tracking-normal tabular-nums">({ranks.length})</span>
                 </h4>
                 <ul className="space-y-1.5">
@@ -281,12 +295,12 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                       <li
                         key={d.id}
                         className={cn(
-                          "sk-hover-lift flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border bg-white px-3.5 py-3",
+                          "sk-hover-lift flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-2xl border bg-card px-3.5 py-3",
                           d.isActive ? "border-edge/40" : "border-dashed border-edge/60 opacity-60"
                         )}
                         style={{ borderInlineStartWidth: 4, borderInlineStartColor: tone.hex }}
                       >
-                        <Tooltip content="Seniority — lower is more senior">
+                        <Tooltip content={ui("Seniority — lower is more senior")}>
                         <span tabIndex={0} className="flex h-7 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-2xs font-bold tabular-nums text-ink-muted">
                           {d.level}
                         </span>
@@ -298,32 +312,32 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                             {d.shortName ? <span className="text-xs font-medium text-ink-muted">({d.shortName})</span> : null}
                             {d.isInstitutionHead ? (
                               <Badge variant="default" size="sm" className="gap-1">
-                                <Crown aria-hidden="true" className="h-2.5 w-2.5" /> Head of institution
+                                <Crown aria-hidden="true" className="h-2.5 w-2.5" /> {" "}{ui("Head of institution")}
                               </Badge>
                             ) : null}
                             {d.canHeadDepartment ? (
-                              <Badge variant="info" size="sm">Can head a unit</Badge>
+                              <Badge variant="info" size="sm">{ui("Can head a unit")}</Badge>
                             ) : null}
                             {!d.isActive ? (
-                              <Badge variant="neutral" size="sm" dot>Retired</Badge>
+                              <Badge variant="neutral" size="sm" dot>{ui("Retired")}</Badge>
                             ) : null}
                           </span>
                           <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs font-normal text-ink-subtle">
                             {promotesTo ? (
                               <span className="inline-flex items-center gap-1">
-                                <ArrowUp className="h-3 w-3" /> promotes to {promotesTo.name}
+                                <ArrowUp aria-hidden="true" className="h-3 w-3" /> {ui("promotes to {0}", [promotesTo.name])}
                               </span>
                             ) : null}
-                            {d.minYearsInRank ? <span>after ~{d.minYearsInRank}y</span> : null}
+                            {d.minYearsInRank ? <span>{ui("after about {0} years", [d.minYearsInRank])}</span> : null}
                             <span className="inline-flex items-center gap-1">
-                              <Users className="h-3 w-3" /> {d.staffCount} staff
+                              <Users aria-hidden="true" className="h-3 w-3" /> {ui("{0} staff", [d.staffCount])}
                             </span>
                           </span>
                         </span>
 
                         <span className="flex shrink-0 gap-1">
-                          <IconButton variant="secondary" size="sm"
-                            label={`Edit ${d.name}`}
+                          <IconButton variant="secondary"
+                            label={ui("Edit {0}", [d.name])}
                             onClick={() =>
                               setDraft({
                                 id: d.id,
@@ -341,8 +355,8 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                           >
                             <Pencil aria-hidden="true" />
                           </IconButton>
-                          <IconButton variant="destructive" size="sm"
-                            label={`Remove ${d.name}`}
+                          <IconButton variant="ghost" className="text-status-error-text actionable-hover:bg-status-error-surface actionable-hover:text-status-error-text"
+                            label={ui("Remove {0}", [d.name])}
                             onClick={() => setPendingRemoval(d)}
                           >
                             <Trash2 aria-hidden="true" />
@@ -361,24 +375,24 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
       <ConfirmAction
         open={pendingRemoval !== null}
         tone={pendingRemoval && pendingRemoval.staffCount > 0 ? "warning" : "danger"}
-        title={pendingRemoval ? (pendingRemoval.staffCount > 0 ? `Retire ${pendingRemoval.name}?` : `Delete ${pendingRemoval.name}?`) : ""}
+        title={pendingRemoval ? (pendingRemoval.staffCount > 0 ? ui("Retire {0}?", [pendingRemoval.name]) : ui("Delete {0}?", [pendingRemoval.name])) : ""}
         description={
           pendingRemoval && pendingRemoval.staffCount > 0
-            ? `${pendingRemoval.staffCount} staff hold this rank, so it will be retired rather than deleted — they keep it, and it simply stops being offered for new appointments.`
-            : "Nobody holds this rank, so it will be deleted outright."
+            ? ui("{0} staff hold this rank, so it will be retired rather than deleted — they keep it, and it simply stops being offered for new appointments.", [pendingRemoval.staffCount])
+            : ui("Nobody holds this rank, so it will be deleted outright.")
         }
-        confirmLabel={pendingRemoval && pendingRemoval.staffCount > 0 ? "Retire rank" : "Delete rank"}
+        confirmLabel={pendingRemoval && pendingRemoval.staffCount > 0 ? ui("Retire rank") : ui("Delete rank")}
         busy={removing}
-        onConfirm={() => pendingRemoval && remove(pendingRemoval)}
+        onConfirm={async () => { if (pendingRemoval) await remove(pendingRemoval); }}
         onCancel={() => setPendingRemoval(null)}
       />
 
       {/* ── Preset picker ────────────────────────────────── */}
       {showPresets ? (
         <Modal
-          title="Start from a preset"
-          eyebrow="Rank ladder"
-          subtitle="Pick the shape closest to your institution. Ranks you already have are left alone — a preset only adds what is missing."
+          title={ui("Start from a preset")}
+          eyebrow={ui("Rank ladder")}
+          subtitle={ui("Pick the shape closest to your institution. Ranks you already have are left alone — a preset only adds what is missing.")}
           icon={Sparkles}
           size="md"
           onClose={() => setShowPresets(false)}
@@ -405,13 +419,13 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                       <span className="text-sm font-semibold text-ink-strong">{preset.label}</span>
                       {institutionType === preset.type ? (
                         <Badge variant="default" size="sm" className="gap-1">
-                          <Check aria-hidden="true" className="h-2.5 w-2.5" /> Current
+                          <Check aria-hidden="true" className="h-2.5 w-2.5" /> {" "}{ui("Current")}
                         </Badge>
                       ) : null}
                     </span>
                     <span className="mt-1 block text-xs font-normal leading-relaxed text-ink-muted">{preset.blurb}</span>
                     <span className="mt-1.5 block text-xs font-medium tabular-nums text-ink-subtle">
-                      {preset.rankCount} ranks · {preset.departmentCount} units
+                      {ui("{0} ranks · {1} units", [preset.rankCount, preset.departmentCount])}
                     </span>
                   </span>
                 </Button>
@@ -424,43 +438,43 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
       {/* ── Rank editor ──────────────────────────────────── */}
       {draft ? (
         <Modal
-          title={draft.id ? `Edit ${draft.name || "rank"}` : "New rank"}
-          eyebrow="Rank ladder"
+          title={draft.id ? draft.name ? ui("Edit {0}", [draft.name]) : ui("Edit rank") : ui("New rank")}
+          eyebrow={ui("Rank ladder")}
           icon={Layers}
           size="md"
           onClose={() => setDraft(null)}
           footer={
             <ModalActions
               busy={saving}
-              busyLabel="Saving…"
-              actionLabel={draft.id ? "Save rank" : "Add rank"}
+              busyLabel={ui("Saving…")}
+              actionLabel={draft.id ? ui("Save rank") : ui("Add rank")}
               onCancel={() => setDraft(null)}
               onAction={save}
-              blockedReason={draft.name.trim() ? null : "Give the rank a name."}
+              blockedReason={draft.name.trim() ? null : ui("Give the rank a name.")}
             />
           }
         >
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <LabelledField label="Name" required>
-                <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Senior Teacher" />
+              <LabelledField label={ui("Name")} required>
+                <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={ui("e.g. Senior Teacher")} />
               </LabelledField>
-              <LabelledField label="Short name" hint="Shown on the chart when space is tight">
-                <Input value={draft.shortName} onChange={(e) => setDraft({ ...draft, shortName: e.target.value })} placeholder="e.g. Sr. Teacher" />
+              <LabelledField label={ui("Short name")} hint={ui("Shown on the chart when space is tight")}>
+                <Input value={draft.shortName} onChange={(e) => setDraft({ ...draft, shortName: e.target.value })} placeholder={ui("e.g. Sr. Teacher")} />
               </LabelledField>
-              <LabelledField label="Seniority" hint="Lower is more senior. Step by 10 so you can slot ranks in later.">
+              <LabelledField label={ui("Seniority")} hint={ui("Lower is more senior. Step by 10 so you can slot ranks in later.")}>
                 <Input type="number" min={1} max={999} value={draft.level} onChange={(e) => setDraft({ ...draft, level: Number(e.target.value) })} />
               </LabelledField>
-              <LabelledField label="Track">
+              <LabelledField label={ui("Track")}>
                 <Select value={draft.track} onChange={(e) => setDraft({ ...draft, track: e.target.value })}>
                   {Object.entries(TRACK_TONES).map(([key, tone]) => (
-                    <option key={key} value={key}>{tone.label}</option>
+                    <option key={key} value={key}>{ui(tone.label)}</option>
                   ))}
                 </Select>
               </LabelledField>
-              <LabelledField label="Promotes into" hint="Pre-fills the promote shortcut. Optional.">
+              <LabelledField label={ui("Promotes into")} hint={ui("Pre-fills the promote shortcut. Optional.")}>
                 <Select value={draft.promotesToId} onChange={(e) => setDraft({ ...draft, promotesToId: e.target.value })}>
-                  <option value="">Nothing — top of this track</option>
+                  <option value="">{ui("Nothing — top of this track")}</option>
                   {designations
                     .filter((d) => d.id !== draft.id)
                     .map((d) => (
@@ -468,12 +482,12 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
                     ))}
                 </Select>
               </LabelledField>
-              <LabelledField label="Usual years in rank" hint="Flags who is due. Blocks nothing.">
+              <LabelledField label={ui("Usual years in rank")} hint={ui("Flags who is due. Blocks nothing.")}>
                 <Input type="number" min={0} max={50} value={draft.minYearsInRank} onChange={(e) => setDraft({ ...draft, minYearsInRank: e.target.value })} placeholder="e.g. 4" />
               </LabelledField>
             </div>
 
-            <LabelledField label="Description" hint="What this rank is for. Shown to admins, not to staff.">
+            <LabelledField label={ui("Description")} hint={ui("What this rank is for. Shown to admins, not to staff.")}>
               <Textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </LabelledField>
 
@@ -481,14 +495,14 @@ export function DesignationLadder({ campusId, onChanged }: { campusId?: string; 
               <Toggle
                 checked={draft.canHeadDepartment}
                 onChange={(v) => setDraft({ ...draft, canHeadDepartment: v })}
-                label="Can head a department"
-                hint="Whether someone at this rank may be given charge of a unit. Headship is still assigned per department."
+                label={ui("Can head a department")}
+                hint={ui("Whether someone at this rank may be given charge of a unit. Headship is still assigned per department.")}
               />
               <Toggle
                 checked={draft.isInstitutionHead}
                 onChange={(v) => setDraft({ ...draft, isInstitutionHead: v })}
-                label="Head of the institution"
-                hint="The root of the org chart — Principal, Director, Vice Chancellor. Only one rank can hold this."
+                label={ui("Head of the institution")}
+                hint={ui("The root of the org chart — Principal, Director, Vice Chancellor. Only one rank can hold this.")}
               />
             </div>
           </div>

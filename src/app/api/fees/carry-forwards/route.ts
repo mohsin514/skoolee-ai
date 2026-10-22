@@ -2,7 +2,7 @@ import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeCarryForward: session-end balance moved to the next academic year.
 // Balance is paisa; positive = owed, negative = credit.
@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     if (!body.studentId) throw new ApiError("studentId required", 400);
@@ -82,7 +83,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "delete");
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) throw new ApiError("id required", 400);

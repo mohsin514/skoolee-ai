@@ -191,8 +191,7 @@ test("resolve needs the work performed; the requester confirms or reopens and fi
 
 test("screens: new request (EN, phone), queue, team detail with internal marker, requester view in Arabic", async () => {
   const phone = await (await context("teacher", { width: 390, height: 844 })).newPage();
-  await phone.goto(`${base}/service-desk`);
-  await phone.locator("[data-sd-tab=new]").click();
+  await phone.goto(`${base}/service-desk?tab=new`); // Help → "Report a problem" deep link (role-ux §4.2)
   await phone.locator("[data-sd-new] input").first().fill("Wifi not working");
   await phone.locator("[data-sd-new] textarea").first().fill("The wifi in the staff room drops every few minutes.");
   await phone.waitForFunction(() => (document.querySelector("[data-sd-category]") as HTMLSelectElement | null)?.value !== "");
@@ -201,14 +200,12 @@ test("screens: new request (EN, phone), queue, team detail with internal marker,
   await shot(phone, "01-new-request-suggested-phone");
   await phone.close();
   const lead = await (await context("coordinator")).newPage();
-  await lead.goto(`${base}/service-desk`);
-  await lead.locator("[data-sd-tab=queue]").click();
+  await lead.goto(`${base}/service-desk?tab=queue`);
   await lead.locator("[data-sd-queue] [data-sd-row]").first().waitFor();
   await shot(lead, "02-queue-unassigned-first");
   await lead.close();
   const tech = await (await context("itTech")).newPage();
-  await tech.goto(`${base}/service-desk`);
-  await tech.locator("[data-sd-tab=queue]").click();
+  await tech.goto(`${base}/service-desk?tab=queue`);
   await tech.locator("[data-sd-queue] [data-sd-row]").first().click();
   await tech.locator("[data-sd-detail] [data-sd-visibility=INTERNAL]").first().waitFor();
   await shot(tech, "03-team-detail-internal-marked");

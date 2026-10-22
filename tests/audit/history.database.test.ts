@@ -23,7 +23,8 @@ async function school() {
   const person = async (role: AuthUser["role"], campusId: string | null): Promise<AuthUser> => {
     const userId = randomUUID(), email = `${userId}@example.invalid`;
     await db.user.create({ data: { id: userId, email, password: "x", fullName: `Synthetic ${role}`, role, schoolId, campusId, isActive: true, onboardingComplete: true } });
-    return { userId, email, role, schoolId, campusId, accessVersion: 0 };
+    // The resolved principal always carries the institution kind (role-ux §1.1); this synthetic school is a group.
+    return { userId, email, role, schoolId, campusId, accessVersion: 0, institutionKind: "GROUP" };
   };
   return { schoolId, campuses, owner: await person("SUPER_ADMIN", null), campusAdmin: await person("CAMPUS_ADMIN", campuses[0]), principal: await person("PRINCIPAL", campuses[1]), teacher: await person("TEACHER", campuses[0]) };
 }
@@ -48,7 +49,8 @@ test("history is limited to the principal's current school and campus; forged sc
   assert.deepEqual(await ids(a.owner), [rows.c0.id, rows.c1.id, rows.c2.id, rows.wide.id].sort());
   assert.deepEqual(await ids(a.owner, { campusId: a.campuses[1] }), [rows.c1.id]);
   assert.deepEqual(await ids(a.campusAdmin), [rows.c0.id]);
-  assert.deepEqual(await ids(a.principal), [rows.c1.id]);
+  // G12: the principal is academic only and has no activity log.
+  await assert.rejects(() => ctx(a.principal, () => listAuditHistory(a.principal, {})), { status: 403 });
   await assert.rejects(() => ctx(a.campusAdmin, () => listAuditHistory(a.campusAdmin, { campusId: a.campuses[1] })), { status: 403 });
   await assert.rejects(() => ctx(a.owner, () => listAuditHistory(a.owner, { campusId: b.campuses[0] })), { status: 403 });
   await assert.rejects(() => ctx(a.teacher, () => listAuditHistory(a.teacher, {})), { status: 403 });
@@ -104,4 +106,5 @@ test("export is scoped, minimized, formula-safe, recorded once per request key a
   await assert.rejects(() => exportFor(s.campusAdmin, randomUUID()), { status: 403 });
   assert.equal((await exportFor(s.owner, randomUUID())).rows >= 2, true, "the school-wide owner exports every campus");
   assert.throws(() => auditHistoryScope(s.teacher), { status: 403 });
+  assert.throws(() => auditHistoryScope(s.principal), { status: 403 });
 });

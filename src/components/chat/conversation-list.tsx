@@ -95,14 +95,17 @@ export function ConversationList({ onNewChat }: { onNewChat: () => void }) {
               </span>
             </div>
 
-            <Button variant="default" size="sm"
-              type="button"
-              onClick={onNewChat}
-              className="shrink-0"
-            >
-              <SquarePen className="relative h-3.5 w-3.5" />
-              <span className="relative">{ui("New")}</span>
-            </Button>
+            {/* The empty "All" list carries its own call to action; the head never repeats it. */}
+            {isLoadingList || conversations.length > 0 || filter !== "all" ? (
+              <Button variant="default" size="sm"
+                type="button"
+                onClick={onNewChat}
+                className="shrink-0"
+              >
+                <SquarePen className="relative h-3.5 w-3.5" aria-hidden="true" />
+                <span className="relative">{ui("New message")}</span>
+              </Button>
+            ) : null}
           </div>
 
           <InputGroup surfaceClassName="bg-card" className="relative">
@@ -305,7 +308,7 @@ function EmptyList({
           filter === "all" ? (
             <Button variant="default" size="sm" type="button" onClick={onNewChat}>
               <SquarePen className="h-3.5 w-3.5" aria-hidden="true" />
-              {ui("Start a conversation")}
+              {ui("New message")}
             </Button>
           ) : undefined
         }

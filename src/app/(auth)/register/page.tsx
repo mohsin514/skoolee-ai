@@ -87,6 +87,8 @@ interface InputFieldProps {
 interface TypeOptionProps {
   value: RegistrationType;
   active: boolean;
+  /** With no choice yet, the first option takes the group's single tab stop. */
+  focusable?: boolean;
   onClick: () => void;
   title: string;
   desc: string;
@@ -120,6 +122,13 @@ const en = {
       caption: "Unused AI credits expire at the calendar month reset.",
     },
   } as Record<RegistrationType, PanelCopy>,
+  /** Before a choice: neutral, so neither structure reads as the default (SPEC §8.2). */
+  panelChoose: {
+    headline: "Tell us how",
+    accent: "your school is run.",
+    body: "A school group has one group admin over several campuses; a single school has one school admin. Whoever signs up here owns the account and its billing.",
+    caption: "Staff, students and families are invited after setup.",
+  } as PanelCopy,
   eyebrow: "Plan your account",
   previewLight: "How your institution",
   previewStrong: "will appear.",
@@ -141,16 +150,17 @@ const en = {
   startFailed: "We couldn't start your registration. Please try again.",
   registrationFailed: "We couldn't create your account. Check your details and try again.",
   setupTitle: "How is your school set up?",
-  whoTitle: "Only a Super Admin, Admin or Principal signs up here",
-  whoBody: "Teachers, students, parents and staff are added later from the campus portal.",
+  whoTitle: "Only the person who will own the school's account signs up here",
+  whoBody: "Principals, teachers, office staff, students and families are invited later from your workspace.",
   setupIntro: "Choose the option that best describes your institution.",
   institutionType: "Institution type",
   groupTitle: "Multi-Campus School Group",
   groupDesc: "One school with multiple campuses or branches.",
   singleTitle: "Single Campus School",
   singleDesc: "One school, one location — quick and simple.",
-  groupNote: "You'll sign in as Super Admin and add each campus during setup.",
-  singleNote: "You'll sign in as Campus Admin — your single campus is created for you.",
+  groupNote: "You'll be the group admin and the account owner; a group admin manages billing for every campus.",
+  singleNote: "You'll be the school admin and the account owner; you manage billing.",
+  chooseFirst: "Choose one option to continue.",
   continue: "Continue",
   haveAccount: "Already have an account?",
   logIn: "Log in",
@@ -233,6 +243,12 @@ const copy: Record<Language, RegisterCopy> = {
         caption: "تنتهي أرصدة الذكاء الاصطناعي غير المستخدمة عند بداية الشهر التقويمي.",
       },
     },
+    panelChoose: {
+      headline: "أخبرنا كيف",
+      accent: "تُدار مدرستك.",
+      body: "لمجموعة المدارس مدير مجموعة واحد يشرف على عدة فروع، وللمدرسة الواحدة مدير مدرسة واحد. ومن يسجّل هنا يملك الحساب وفوترته.",
+      caption: "يُدعى الموظفون والطلاب والأسر بعد الإعداد.",
+    },
     eyebrow: "خطّط لحسابك",
     previewLight: "هكذا ستبدو",
     previewStrong: "مؤسستك.",
@@ -254,16 +270,17 @@ const copy: Record<Language, RegisterCopy> = {
     startFailed: "تعذّر بدء التسجيل. حاول مرة أخرى.",
     registrationFailed: "تعذّر إنشاء حسابك. تحقّق من بياناتك وحاول مرة أخرى.",
     setupTitle: "كيف تُنظَّم مدرستك؟",
-    whoTitle: "يسجّل هنا المشرف العام أو المسؤول أو المدير فقط",
-    whoBody: "يُضاف المعلمون والطلاب وأولياء الأمور والموظفون لاحقاً من بوابة الفرع.",
+    whoTitle: "يسجّل هنا فقط من سيملك حساب المدرسة",
+    whoBody: "يُدعى المديرون الأكاديميون والمعلمون وموظفو المكتب والطلاب والأسر لاحقاً من مساحة عملك.",
     setupIntro: "اختر الخيار الذي يصف مؤسستك بشكل أفضل.",
     institutionType: "نوع المؤسسة",
     groupTitle: "مجموعة مدارس متعددة الفروع",
     groupDesc: "مدرسة واحدة بعدة فروع أو أقسام.",
     singleTitle: "مدرسة بفرع واحد",
     singleDesc: "مدرسة واحدة في موقع واحد — سريع وبسيط.",
-    groupNote: "ستسجّل الدخول كمسؤول أعلى وتضيف كل فرع أثناء الإعداد.",
-    singleNote: "ستسجّل الدخول كمسؤول الفرع — يُنشأ فرعك الوحيد تلقائياً.",
+    groupNote: "ستكون مدير المجموعة ومالك الحساب؛ ويدير مدير المجموعة الفوترة لجميع الفروع.",
+    singleNote: "ستكون مدير المدرسة ومالك الحساب؛ وأنت من يدير الفوترة.",
+    chooseFirst: "اختر أحد الخيارين للمتابعة.",
     continue: "متابعة",
     haveAccount: "لديك حساب بالفعل؟",
     logIn: "تسجيل الدخول",
@@ -342,6 +359,12 @@ const copy: Record<Language, RegisterCopy> = {
         caption: "غیر استعمال شدہ اے آئی کریڈٹس کیلنڈر مہینے کے آغاز پر ختم ہو جاتے ہیں۔",
       },
     },
+    panelChoose: {
+      headline: "ہمیں بتائیں",
+      accent: "آپ کا اسکول کیسے چلتا ہے۔",
+      body: "اسکول گروپ میں ایک ادارے کا منتظم کئی کیمپسز کی نگرانی کرتا ہے؛ ایک اسکول میں ایک اسکول منتظم ہوتا ہے۔ جو یہاں سائن اپ کرے وہی اکاؤنٹ اور اس کی بلنگ کا مالک ہوتا ہے۔",
+      caption: "عملہ، طلبہ اور خاندان سیٹ اپ کے بعد مدعو کیے جاتے ہیں۔",
+    },
     eyebrow: "اپنے اکاؤنٹ کی منصوبہ بندی کریں",
     previewLight: "آپ کا ادارہ",
     previewStrong: "یوں نظر آئے گا۔",
@@ -363,16 +386,17 @@ const copy: Record<Language, RegisterCopy> = {
     startFailed: "رجسٹریشن شروع نہیں ہو سکی۔ براہ کرم دوبارہ کوشش کریں۔",
     registrationFailed: "آپ کا اکاؤنٹ نہیں بن سکا۔ اپنی تفصیلات دیکھ کر دوبارہ کوشش کریں۔",
     setupTitle: "آپ کا اسکول کیسے منظم ہے؟",
-    whoTitle: "یہاں صرف سپر ایڈمن، ایڈمن یا پرنسپل سائن اپ کرتے ہیں",
-    whoBody: "اساتذہ، طلبہ، والدین اور عملہ بعد میں کیمپس پورٹل سے شامل کیے جاتے ہیں۔",
+    whoTitle: "یہاں صرف وہی سائن اپ کرے جو اسکول کے اکاؤنٹ کا مالک ہوگا",
+    whoBody: "تعلیمی سربراہ، اساتذہ، دفتری عملہ، طلبہ اور خاندان بعد میں آپ کی ورک اسپیس سے مدعو کیے جاتے ہیں۔",
     setupIntro: "وہ آپشن منتخب کریں جو آپ کے ادارے کو بہتر طور پر بیان کرے۔",
     institutionType: "ادارے کی قسم",
     groupTitle: "کثیر کیمپس اسکول گروپ",
     groupDesc: "ایک اسکول جس کے متعدد کیمپس یا شاخیں ہیں۔",
     singleTitle: "ایک کیمپس والا اسکول",
     singleDesc: "ایک اسکول، ایک مقام — جلد اور آسان۔",
-    groupNote: "آپ سپر ایڈمن کے طور پر سائن اِن کریں گے اور سیٹ اپ کے دوران ہر کیمپس شامل کریں گے۔",
-    singleNote: "آپ کیمپس ایڈمن کے طور پر سائن اِن کریں گے — آپ کا واحد کیمپس خود بخود بن جائے گا۔",
+    groupNote: "آپ ادارے کے منتظم اور اکاؤنٹ کے مالک ہوں گے؛ ادارے کا منتظم تمام کیمپسز کی بلنگ سنبھالتا ہے۔",
+    singleNote: "آپ اسکول منتظم اور اکاؤنٹ کے مالک ہوں گے؛ بلنگ آپ سنبھالیں گے۔",
+    chooseFirst: "جاری رکھنے کے لیے ایک آپشن منتخب کریں۔",
     continue: "جاری رکھیں",
     haveAccount: "پہلے سے اکاؤنٹ ہے؟",
     logIn: "سائن اِن",
@@ -472,7 +496,10 @@ export default function RegisterPage() {
     const done = () => { delete root.dataset.stepMorph; };
     if (transition?.finished) transition.finished.then(done, done); else done();
   }, [step]);
-  const [type, setType] = useState<RegistrationType>('school_group');
+  // No default: the choice decides who holds the account and billing, so it is always explicit (SPEC §8.2).
+  const [type, setType] = useState<RegistrationType | null>(null);
+  /** Steps 2–3 only render after a choice; the fallback just keeps their types simple. */
+  const chosen: RegistrationType = type ?? 'school_group';
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   /** Bumped with every new error so the mascot reacts to a repeat of the same message too. */
@@ -554,7 +581,7 @@ export default function RegisterPage() {
   }, []);
 
   useEffect(() => {
-    if (!draftReady.current || step === 3) return;
+    if (!draftReady.current || step === 3 || !type) return;
     saveRegisterDraft({
       type,
       name: formData.name,
@@ -621,6 +648,7 @@ export default function RegisterPage() {
     formData.acceptedTerms;
 
   const handleStep1 = () => {
+    if (!type) return;
     setStep(2);
     setTypeGlance(null);
     // Give the identity code a value the moment the type is known, so step 2
@@ -640,7 +668,7 @@ export default function RegisterPage() {
     setFormData((prev) => ({
       ...prev,
       autoId: auto,
-      regId: auto ? generateRegId(type) : '',
+      regId: auto ? generateRegId(chosen) : '',
     }));
   };
 
@@ -685,7 +713,7 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email.trim(),
-          registrationType: type,
+          registrationType: chosen,
         }),
       });
       const step1 = await step1Res.json();
@@ -716,11 +744,12 @@ export default function RegisterPage() {
       setStep(3);
     } catch (error) {
       // Server messages are shown as written; a network failure or a technical
-      // one (an HTML error page, a JSON parse error) becomes plain words.
+      // one (an HTML error page, a JSON parse error) becomes plain words. Shown
+      // once, in the focused inline alert beside the form (R4): a toast on top
+      // would repeat it and cover the submit button; the form keeps its values.
       const message = friendlyErrorMessage(error, t.registrationFailed);
       focusErrorPending.current = true;
       showError(message);
-      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -728,12 +757,12 @@ export default function RegisterPage() {
 
   const dialIso = dialPick ?? (WORLD_COUNTRIES.some(([iso]) => iso === countryIso) ? countryIso : "PK");
   const dialCode = dialCodeFor(dialIso);
-  const panel = t.panel[type];
-  const kicker = type === 'school_group' ? t.kickerGroup : t.kickerSingle;
+  const panel = type ? t.panel[type] : t.panelChoose;
+  const kicker = chosen === 'school_group' ? t.kickerGroup : t.kickerSingle;
   const email = formData.email.trim();
   const nextLines = [
     { icon: MailCheck, title: t.nextVerify },
-    { icon: Building2, title: type === 'school_group' ? t.nextGroup : t.nextSingle },
+    { icon: Building2, title: chosen === 'school_group' ? t.nextGroup : t.nextSingle },
     { icon: Users, title: t.nextInvite },
   ];
   const errorSignal = formError ? `${errorSeq}:${formError}` : null;
@@ -748,8 +777,10 @@ export default function RegisterPage() {
 
   /**
    * One cover per step, keyed so each step turns a fresh page (its arrival
-   * plays once). Step 1 pictures the chosen structure, step 2 previews the
-   * letterhead being typed, step 3 seals the welcome letter.
+   * plays once). Step 1 pictures the chosen structure — and, before a choice,
+   * both structures side by side in option order, so neither reads as the
+   * default (SPEC §8.2) — step 2 previews the letterhead being typed, step 3
+   * seals the welcome letter.
    */
   const cover = step === 1 ? (
     <AuthCover
@@ -757,7 +788,12 @@ export default function RegisterPage() {
       eyebrow={t.eyebrow}
       heading={{ light: panel.headline, strong: panel.accent, as: "h1" }}
       body={panel.body}
-      art={<CampusDiorama type={type} size="cover" />}
+      art={type ? <CampusDiorama type={type} size="cover" /> : (
+        <div data-diorama-choice className="grid max-w-[20rem] grid-cols-2 items-end gap-4">
+          <CampusDiorama type="school_group" size="cover" />
+          <CampusDiorama type="single_campus" size="cover" />
+        </div>
+      )}
       footnote={panel.caption}
     />
   ) : step === 2 ? (
@@ -846,7 +882,7 @@ export default function RegisterPage() {
               next?.focus();
               next?.click();
             }}>
-              <TypeOption value="school_group" active={type === 'school_group'} onClick={() => handleTypeChange('school_group')} title={t.groupTitle} desc={t.groupDesc} />
+              <TypeOption value="school_group" active={type === 'school_group'} focusable={type === null} onClick={() => handleTypeChange('school_group')} title={t.groupTitle} desc={t.groupDesc} />
               <TypeOption value="single_campus" active={type === 'single_campus'} onClick={() => handleTypeChange('single_campus')} title={t.singleTitle} desc={t.singleDesc} />
             </div>
 
@@ -854,12 +890,13 @@ export default function RegisterPage() {
                 politely when the choice changes. */}
             <p role="status" aria-live="polite" className="mb-5 flex items-start gap-2 px-1 text-xs leading-relaxed text-ink-muted">
               <Sparkles aria-hidden className="mt-0.5 size-3.5 shrink-0 text-primary" />
-              <span>{type === 'school_group' ? t.groupNote : t.singleNote}</span>
+              <span>{type === 'school_group' ? t.groupNote : type === 'single_campus' ? t.singleNote : t.chooseFirst}</span>
             </p>
 
             <Button
               type="button"
               onClick={handleStep1}
+              disabled={!type}
               className="sk-nudge-trigger mt-1 min-h-12 w-full"
             >
               {t.continue}
@@ -1014,7 +1051,7 @@ export default function RegisterPage() {
                       </div>
                     </div>
                     <FormField name="regId" id="regId" required error={regIdError} hint={t.regIdHint}>
-                    <InputGroup surfaceClassName="bg-white">
+                    <InputGroup surfaceClassName="bg-card">
                       <Hash aria-hidden data-field-affix="start" className="h-4 w-4 text-primary/40" />
                       <Input
                         id="regId"
@@ -1031,7 +1068,7 @@ export default function RegisterPage() {
                         <Tooltip content={t.generateId} describe={false}>
                           <FieldAction data-field-affix="end"
                             type="button"
-                            onClick={() => set('regId', generateRegId(type))}
+                            onClick={() => set('regId', generateRegId(chosen))}
                             aria-label={t.generateId}
                             className="text-ink-subtle"
                           >
@@ -1209,7 +1246,7 @@ export default function RegisterPage() {
                     <span
                       aria-hidden
                       className={`relative grid size-6 shrink-0 place-items-center rounded-lg text-xs font-bold tabular-nums shadow-sm ${
-                        i === 0 ? "bg-primary text-white" : "bg-white text-primary ring-1 ring-border-subtle"
+                        i === 0 ? "bg-primary text-primary-foreground" : "bg-card text-primary ring-1 ring-border-subtle"
                       }`}
                     >
                       {i + 1}
@@ -1247,16 +1284,16 @@ function StepRail({ step, labels, label: railLabel, stepOf, className = "mb-6" }
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-2xs font-bold tabular-nums transition-all duration-300 ${
                   done
-                    ? "bg-status-success-text text-white"
+                    ? "bg-status-success-text text-primary-foreground"
                     : active
-                    ? "bg-gradient-to-br from-primary to-brand-400 text-white shadow-md shadow-primary/25"
+                    ? "bg-gradient-to-br from-primary to-brand-400 text-primary-foreground shadow-md shadow-primary/25"
                     : "bg-edge/25 text-ink-subtle"
                 }`}
               >
                 {done ? <Check aria-hidden className="h-3 w-3" strokeWidth={3.5} /> : num}
               </span>
               <span
-                className={`hidden text-2xs font-semibold uppercase tracking-wider transition-colors sm:block ${
+                className={`sk-eyebrow hidden transition-colors sm:block ${
                   active ? "text-ink-strong" : done ? "text-status-success-text" : "text-ink-subtle"
                 }`}
               >
@@ -1287,19 +1324,19 @@ function StepRail({ step, labels, label: railLabel, stepOf, className = "mb-6" }
  * column.
  */
 /** One institution-type radio. Its tile draws the structure itself: three sealed campuses, or one. */
-function TypeOption({ value, active, onClick, title, desc }: TypeOptionProps) {
+function TypeOption({ value, active, focusable = false, onClick, title, desc }: TypeOptionProps) {
   return (
     <Button variant="choice"
       type="button"
       role="radio"
       aria-checked={active}
-      tabIndex={active ? 0 : -1}
+      tabIndex={active || focusable ? 0 : -1}
       onClick={onClick}
       data-option={value}
       className="relative group flex w-full items-center justify-start gap-4 overflow-hidden p-4 text-start sm:gap-4 sm:px-4 sm:py-3"
     >
       {/* Spans, not div/h3/p: a button may only hold phrasing content. */}
-      <span aria-hidden className={`grid shrink-0 place-items-center rounded-2xl p-1.5 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-primary to-brand-400 text-white shadow-lg shadow-primary/20' : 'bg-white text-ink-subtle shadow-xs group-hover:bg-primary/5 group-hover:text-primary'}`}>
+      <span aria-hidden className={`grid shrink-0 place-items-center rounded-2xl p-1.5 transition-all duration-200 group-hover:scale-105 ${active ? 'bg-gradient-to-br from-primary to-brand-400 text-primary-foreground shadow-lg shadow-primary/20' : 'bg-card text-ink-subtle shadow-xs group-hover:bg-primary/5 group-hover:text-primary'}`}>
         <CampusDiorama type={value} size="glyph" className="size-11 sm:size-9" />
       </span>
       {/* Only the title keeps clear of the check badge; the description runs
@@ -1309,7 +1346,7 @@ function TypeOption({ value, active, onClick, title, desc }: TypeOptionProps) {
         <span className="mt-1 block text-start text-xs font-normal leading-snug text-pretty text-ink-muted">{desc}</span>
       </span>
       {active && (
-        <motion.span aria-hidden initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute end-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-primary p-1 text-white shadow-md">
+        <motion.span aria-hidden initial={{ scale: 0 }} animate={{ scale: 1 }} className="absolute end-4 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 border-card bg-primary p-1 text-primary-foreground shadow-md">
           <CheckCircle className="h-3 w-3" />
         </motion.span>
       )}

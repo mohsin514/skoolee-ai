@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { toast } from "@/components/ui/toast";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, Loader2, Lock } from "lucide-react";
+import { ErrorState } from "@/components/ui/error-state";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { isInvalidSessionResponse, signOutInvalidSession } from "@/lib/auth/invalid-session";
 
 interface CycleContextValue {
@@ -18,6 +19,9 @@ interface CycleContextValue {
    */
   academicYear: number | null;
   loading: boolean;
+  /** The cycle could not be read (network or server). Never shown as "no active cycle" (R4). */
+  failed?: boolean;
+  retry?: () => void;
 }
 
 const CycleContext = createContext<CycleContextValue>({
@@ -49,11 +53,14 @@ export function CycleProvider({ children }: { children: ReactNode }) {
     academicYear: null,
     loading: true,
   });
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (attempt > 0) setState((s) => ({ ...s, loading: true, failed: false }));
         const res = await fetch("/api/academic-cycle");
         // A dead session must not be dressed up as "no active cycle" — that is
         // the screen users got stuck on, since it reads as an admin problem
@@ -71,21 +78,23 @@ export function CycleProvider({ children }: { children: ReactNode }) {
             cycleStatus: active?.status || (json.data?.[0]?.status || null),
             academicYear: active?.academicYear ?? null,
             loading: false,
+            failed: false,
           });
         }
       } catch {
-        if (!cancelled) setState((s) => ({ ...s, loading: false }));
-        toast.error("Failed to load academic cycle");
+        // R4: an inline error with retry (CycleGate), never a toast and never "Operations locked".
+        if (!cancelled) setState((s) => ({ ...s, loading: false, failed: true }));
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [attempt]);
 
-  return <CycleContext.Provider value={state}>{children}</CycleContext.Provider>;
+  return <CycleContext.Provider value={{ ...state, retry }}>{children}</CycleContext.Provider>;
 }
 
 export function CycleGate({ children }: { children: ReactNode }) {
-  const { hasActiveCycle, loading } = useCycleStatus();
+  const { hasActiveCycle, loading, failed, retry } = useCycleStatus();
+  const ui = useUiText();
 
   if (loading) {
     return (
@@ -107,21 +116,24 @@ export function CycleGate({ children }: { children: ReactNode }) {
     );
   }
 
+  if (failed) {
+    return <ErrorState title={ui("The academic year could not be checked")} description={ui("Check your connection and try again.")} onRetry={retry} />;
+  }
+
   if (!hasActiveCycle) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-rose-50 text-rose-400 shadow-sm mb-6">
+        <div aria-hidden="true" className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-status-error-surface text-status-error-text shadow-sm">
           <Lock className="h-10 w-10" />
         </div>
-        <h2 className="text-2xl font-bold text-ink-strong tracking-tight mb-2">Operations Locked</h2>
-        <p className="text-sm font-semibold text-ink-muted max-w-md leading-relaxed">
-          No academic cycle is currently active. Your admin needs to create and activate a cycle
-          before you can take attendance, enter marks, or generate reports.
+        <h2 className="mb-2 text-2xl font-bold tracking-tight text-ink-strong">{ui("No active academic year")}</h2>
+        <p className="max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
+          {ui("Attendance, marks and reports open once your campus admin creates and activates this year's academic year.")}
         </p>
-        <div className="mt-6 flex items-center gap-2 rounded-2xl border border-amber-200/50 bg-amber-50 px-5 py-3">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-          <span className="text-xs font-bold text-amber-700">
-            Contact your campus administrator to start the academic cycle.
+        <div className="mt-6 flex items-center gap-2 rounded-2xl border border-status-warning-border bg-status-warning-surface px-5 py-3">
+          <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-status-warning-text" />
+          <span className="text-xs font-bold text-status-warning-text">
+            {ui("Contact your campus admin to start the academic year.")}
           </span>
         </div>
       </div>

@@ -7,6 +7,7 @@ import { launchPlan } from "@/lib/onboarding/launch-plan";
 import { candidateExamBoundary } from "@/lib/school-ai/exam-boundary-service";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { needsInstitutionSetup } from "@/lib/onboarding/setup-routing";
+import { canOwnSubscription } from "@/lib/auth/institution";
 
 const headers = { "Cache-Control": "private, no-store" };
 
@@ -27,10 +28,14 @@ export async function GET() {
       getDisplayLocale(user),
       !account.onboardingComplete ? needsInstitutionSetup(user.userId, user.schoolId) : false,
     ]);
+    // The kind and the caller's own subscription right make the story kind-aware from the server (the standalone
+    // owner's "Review school" task, billing told only to the payer); unknown kind stays undefined and fails closed.
+    const institutionKind = user.institutionKind;
     return Response.json({ context: {
-      ...launchPlan({ role: user.role, campusId: user.campusId, onboardingComplete: account.onboardingComplete, institutionSetup, permissions }),
+      ...launchPlan({ role: user.role, campusId: user.campusId, onboardingComplete: account.onboardingComplete, institutionSetup, permissions, institutionKind }),
       userId: user.userId, role: user.role, fullName: account.fullName, schoolName: school?.name ?? "",
       campusName: campus?.name ?? null, language: locale.language, completed: Boolean(account.welcomeCompletedAt),
+      ...(institutionKind ? { institutionKind, billing: canOwnSubscription(user) } : {}),
     } }, { headers });
   } catch (error) { return errorResponse(error, "Unable to load your welcome guide."); }
 }

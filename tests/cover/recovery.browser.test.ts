@@ -193,7 +193,8 @@ test("screens: substitute's cover, owner's catch-up, coordinator follow-up, Arab
   await owner.close();
   const lead = await (await context("coordinator")).newPage();
   await lead.goto(`${base}/admin?view=staff-hierarchy`);
-  await lead.getByRole("button", { name: "Workload & cover" }).click({ timeout: 30_000 });
+  // Staff structure sections are ViewTabs now (role="tab"); each tab carries its tour anchor.
+  await lead.locator('[data-tour="page.tab.workload"]').click({ timeout: 30_000 });
   await lead.locator("[data-cover-follow-up] [data-follow-duty]").first().waitFor({ timeout: 30_000 });
   await lead.locator("[data-cover-follow-up]").scrollIntoViewIfNeeded();
   await shot(lead, "04-coordinator-follow-up-en");

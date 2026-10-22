@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { resultGradeLabel } from "@/lib/locale/result-grade";
 
 
 interface ClassSummary {
@@ -89,6 +91,9 @@ function generateRollNoPreview(targetName: string, targetSection: string | null,
 }
 
 export function AcademicYearPanel({ campusId }: { campusId?: string }) {
+  const ui = useUiText();
+  // SKO-496: a result grade is not the school level ("Grade" in the interface catalog).
+  const gradeLabel = resultGradeLabel(useLocale().language);
   const [yearGroups, setYearGroups] = useState<YearGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
@@ -119,7 +124,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/academic-year${qs}`);
       const json = await res.json();
       if (json.success) setYearGroups(json.data || []);
-    } catch { toast.error("Failed to load academic year data"); }
+    } catch { toast.error(ui("Academic year data could not be loaded")); }
     finally { setLoading(false); }
   }, [qs]);
 
@@ -169,7 +174,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
   const openPromotionWizard = (_sourceClassId?: string) => {
     const plan = document.getElementById("year-end-rollover");
     if (plan) { plan.scrollIntoView({ behavior: "smooth", block: "start" }); plan.focus(); return; }
-    toast.info("Promotion is reviewed as a year-end plan under Promote Students.");
+    toast.info(ui("Promotion is reviewed as a year-end plan under Promote Students."));
   };
 
   const loadStudentsFallback = useCallback(async (classId: string) => {
@@ -226,10 +231,10 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
   const handlePromote = useCallback(async () => {
     const toPromote = gradeResults.filter((g) => studentDecisions.get(g.studentId) === "promote");
-    if (toPromote.length === 0) { toast.error("No students selected for promotion"); return; }
-    if (!promoteTargetId) { toast.error("Select a target class"); return; }
+    if (toPromote.length === 0) { toast.error(ui("No students selected for promotion")); return; }
+    if (!promoteTargetId) { toast.error(ui("Select a target class")); return; }
     const srcClass = yearGroups.flatMap((yg) => yg.classes).find((c) => c.id === promoteSourceId);
-    if (!srcClass) { toast.error("Source class missing"); return; }
+    if (!srcClass) { toast.error(ui("The source class could not be found")); return; }
 
     setPromoting(true);
     try {
@@ -269,7 +274,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/academic-year/history?academicYear=${year}&classId=${classId}${campusId ? `&campusId=${campusId}` : ""}`);
       const json = await res.json();
       if (json.success) setHistoryRecords(json.data?.students || []);
-    } catch { toast.error("Failed to load history"); }
+    } catch { toast.error(ui("Year history could not be loaded")); }
     finally { setHistoryLoading(false); }
   }, [campusId]);
 
@@ -310,22 +315,22 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       <ConfirmAction
         open={confirmCloseYear !== null}
         tone="danger"
-        title={`Close academic year ${confirmCloseYear ?? ""}?`}
-        description="You can still view past year data after closing."
-        detail={<ul className="list-disc space-y-1 ps-5 text-sm text-ink-muted"><li>Save final grades to student history</li><li>Mark all classes as COMPLETED</li><li>Generate admission numbers for students without one</li></ul>}
-        confirmLabel="Close Year"
+        title={ui("Close academic year {0}?", [confirmCloseYear ?? ""])}
+        description={ui("You can still view past year data after closing.")}
+        detail={<ul className="list-disc space-y-1 ps-5 text-sm text-ink-muted"><li>{ui("Save final grades to student history")}</li><li>{ui("Mark all classes as completed")}</li><li>{ui("Generate admission numbers for students without one")}</li></ul>}
+        confirmLabel={ui("Close year")}
         busy={closing}
         onCancel={() => setConfirmCloseYear(null)}
         onConfirm={() => { const y = confirmCloseYear; setConfirmCloseYear(null); if (y !== null) void handleCloseYear(y); }}
       />
       <div className="flex flex-wrap gap-3">
         <BrandButton variant="dark" icon={<ArrowRight className="w-4 h-4 rtl:rotate-180" />} onClick={() => openPromotionWizard()}>
-          Promote Students
+          {ui("Promote students")}
         </BrandButton>
       </div>
 
       {yearGroups.length === 0 ? (
-        <EmptyState icon={Calendar} title="No Academic Years" description="Create classes with an academic year to get started." />
+        <EmptyState icon={Calendar} title={ui("No academic years")} description={ui("Create classes with an academic year to get started.")} />
       ) : (
         <div className="space-y-4">
           {yearGroups.map((yg, i) => (
@@ -341,13 +346,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     {yg.status === "COMPLETED" ? <CheckCircle2 className="h-6 w-6" /> : <Calendar className="h-6 w-6" />}
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-ink-strong">Academic Year {yg.year}</h3>
+                    <h3 className="text-lg font-bold text-ink-strong">{ui("Academic year {0}", [yg.year])}</h3>
                     <div className="flex items-center gap-3 mt-0.5">
                       <Badge size="sm" dot variant={yg.status === "COMPLETED" ? "success" : "info"}>
                         {yearStatusLabel(yg.status)}
                       </Badge>
-                      <span className="text-2xs font-semibold text-ink-muted">{yg.classes.length} classes</span>
-                      <span className="text-2xs font-semibold text-ink-muted">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
+                      <span className="text-2xs font-semibold text-ink-muted">{ui("{0} classes", [yg.classes.length])}</span>
+                      <span className="text-2xs font-semibold text-ink-muted">{ui("{0} students", [yg.classes.reduce((s, c) => s + c._count.students, 0)])}</span>
                     </div>
                   </div>
                 </div>
@@ -360,7 +365,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       onClick={(e: React.MouseEvent) => { e.stopPropagation(); setConfirmCloseYear(yg.year); }}
                       disabled={closing}
                     >
-                      Close Year
+                      {ui("Close year")}
                     </BrandButton>
                   )}
                   {expandedYear === yg.year ? <ChevronDown className="h-5 w-5 text-ink-subtle" /> : <ChevronRight className="h-5 w-5 text-ink-subtle" />}
@@ -386,15 +391,15 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <div className="grid grid-cols-3 gap-2 mb-3">
                           <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
                             <p className="text-sm font-bold text-primary">{cls._count.students}</p>
-                            <p className="text-3xs font-semibold uppercase text-ink-subtle">Students</p>
+                            <p className="text-3xs font-semibold text-ink-subtle">{ui("Students")}</p>
                           </div>
                           <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
                             <p className="text-sm font-bold text-ink-strong">{cls._count.subjects}</p>
-                            <p className="text-3xs font-semibold uppercase text-ink-subtle">Subjects</p>
+                            <p className="text-3xs font-semibold text-ink-subtle">{ui("Subjects")}</p>
                           </div>
                           <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
                             <p className="text-sm font-bold text-ink-strong">{cls._count.exams}</p>
-                            <p className="text-3xs font-semibold uppercase text-ink-subtle">Exams</p>
+                            <p className="text-3xs font-semibold text-ink-subtle">{ui("Exams")}</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -402,18 +407,18 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                             <>
                               <Button variant="secondary" size="sm" type="button" onClick={() => loadHistory(yg.year, cls.id)}
                                 className="flex-1 flex items-center justify-center gap-1.5">
-                                <History className="h-3.5 w-3.5" /> History
+                                <History className="h-3.5 w-3.5" />{" "}{ui("History")}
                               </Button>
                               <Button variant="secondary" size="sm" type="button" onClick={() => openPromotionWizard(cls.id)}
                                 className="flex-1 flex items-center justify-center gap-1.5">
-                                <ArrowRight className="h-3.5 w-3.5" /> Promote
+                                <ArrowRight className="h-3.5 w-3.5" />{" "}{ui("Promote")}
                               </Button>
                             </>
                           )}
                           {cls.status === "ACTIVE" && cls._count.students > 0 && (
                             <Button variant="secondary" size="sm" type="button" onClick={() => openPromotionWizard(cls.id)}
                               className="flex-1 flex items-center justify-center gap-1.5">
-                              <ArrowRight className="h-3.5 w-3.5" /> Promote
+                              <ArrowRight className="h-3.5 w-3.5" />{" "}{ui("Promote")}
                             </Button>
                           )}
                         </div>
@@ -430,7 +435,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       {/* ── History Modal ── */}
       {historyYear && historyClassId && (
         <Modal
-          title="Class History"
+          title={ui("Class history")}
           eyebrow={`Academic Year ${historyYear}`}
           icon={History}
           size="lg"
@@ -457,8 +462,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
               </div>
             ) : historyRecords.length > 0 ? (
               <div className="space-y-2">
-                <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  <span>#</span><span>Student</span><span>Admission No</span><span>Roll No</span><span>Grade</span><span>Status</span>
+                <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-2xs font-semibold text-ink-subtle">
+                  <span>#</span><span>{ui("Student")}</span><span>{ui("Admission no.")}</span><span>{ui("Roll no.")}</span><span>{gradeLabel}</span><span>{ui("Status")}</span>
                 </div>
                 {historyRecords.map((record, i) => (
                   <div key={record.id} className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 gap-y-1 items-center px-4 py-3 rounded-2xl hover:bg-brand-50/30 transition-colors">
@@ -471,7 +476,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         <p className="text-sm font-bold text-ink-strong truncate">{record.student.fullName}</p>
                         {record.student.class && (
                           <p className="text-2xs font-semibold text-ink-subtle">
-                            Now in: {record.student.class.name}{record.student.class.section ? ` - ${record.student.class.section}` : ""}
+                            {ui("Now in:")}{" "}{record.student.class.name}{record.student.class.section ? ` - ${record.student.class.section}` : ""}
                           </p>
                         )}
                       </div>
@@ -493,7 +498,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 ))}
               </div>
             ) : (
-              <EmptyState size="sm" icon={History} title="No history records" description="No student records were saved for this class in this academic year." />
+              <EmptyState size="sm" icon={History} title={ui("No history records")} description={ui("No student records were saved for this class in this academic year.")} />
             )}
         </Modal>
       )}
@@ -501,13 +506,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       {/* ── Promotion Wizard ── */}
       {showPromoteModal && (
         <Modal
-          title={
-            promoteStep === "source" ? "Select Source Class" :
-            promoteStep === "review" ? "Review Students & Results" :
-            promoteStep === "target" ? "Select Target & Preview" :
-            "Promotion Complete"
-          }
-          eyebrow="Student Promotion"
+          title={ui(
+            promoteStep === "source" ? "Select the source class" :
+            promoteStep === "review" ? "Review students and results" :
+            promoteStep === "target" ? "Select the target and preview" :
+            "Promotion complete"
+          )}
+          eyebrow={ui("Student promotion")}
           icon={GraduationCap}
           size="xl"
           onClose={closePromotionWizard}
@@ -528,10 +533,10 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       )}>
                         {isDone ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
                       </div>
-                      <span className={cn("text-2xs font-semibold uppercase tracking-wider hidden sm:block",
+                      <span className={cn("text-2xs font-semibold hidden sm:block",
                         isActive ? "text-primary" : isDone ? "text-status-success-text" : "text-ink-subtle"
                       )}>
-                        {step === "source" ? "Select Class" : step === "review" ? "Review" : "Promote"}
+                        {ui(step === "source" ? "Select class" : step === "review" ? "Review" : "Promote")}
                       </span>
                     </div>
                   );
@@ -543,7 +548,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {promoteStep === "source" && (
               <div className="space-y-4">
                 <p className="text-sm font-normal leading-relaxed text-ink-muted">
-                  Select the class whose students you want to promote. You can choose any class with students.
+                  {ui("Select the class whose students you want to promote. You can choose any class with students.")}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {allClasses.filter((c) => c._count.students > 0).map((cls) => (
@@ -556,24 +561,24 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-3 text-2xs font-semibold text-ink-muted">
-                        <span>{cls._count.students} students</span>
-                        <span>Year {cls.academicYear}</span>
+                        <span>{ui("{0} students", [cls._count.students])}</span>
+                        <span>{ui("Year {0}", [cls.academicYear])}</span>
                         <span>{cls.classTeacher?.fullName || "No teacher"}</span>
                       </div>
                     </Button>
                   ))}
                 </div>
                 {allClasses.filter((c) => c._count.students > 0).length === 0 && (
-                  <EmptyState size="sm" icon={Users} title="No classes with students found" description="Enrol students in a class for this year, then come back to promote them." />
+                  <EmptyState size="sm" icon={Users} title={ui("No classes with students found")} description={ui("Enrol students in a class for this year, then come back to promote them.")} />
                 )}
                 <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-edge/10">
-                  <BrandButton variant="soft" onClick={closePromotionWizard}>Cancel</BrandButton>
+                  <BrandButton variant="soft" onClick={closePromotionWizard}>{ui("Cancel")}</BrandButton>
                   <BrandButton variant="dark" disabled={!promoteSourceId} onClick={() => {
                     const src = allClasses.find((c) => c.id === promoteSourceId);
                     setPromoteStep("review");
                     loadGrades(promoteSourceId, src?.academicYear ?? new Date().getFullYear());
                   }}>
-                    Next <ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
+                    {ui("Next")}{" "}<ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
                   </BrandButton>
                 </div>
               </div>
@@ -587,7 +592,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <GraduationCap className="h-5 w-5 text-primary shrink-0" />
                     <div>
                       <p className="text-sm font-bold text-ink-strong">{clsLabel(sourceClass)}</p>
-                      <p className="text-2xs font-medium text-ink-muted">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
+                      <p className="text-2xs font-medium text-ink-muted">{ui("Year {0}", [sourceClass.academicYear])} · {ui("{0} students", [sourceClass._count.students])}</p>
                     </div>
                   </div>
                 )}
@@ -609,7 +614,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   <>
                     {gradeError && (
                       <Alert tone="warning" title={gradeError} live="polite">
-                        Grade data not available — students are listed below without scores. You can still select who to promote.
+                        {ui("Grade data not available — students are listed below without scores. You can still select who to promote.")}
                       </Alert>
                     )}
 
@@ -623,11 +628,11 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                               { label: "Passed", value: gradeResults.filter((g) => g.passed).length, tone: "bg-status-success-surface text-status-success-text" },
                               { label: "Failed", value: gradeResults.filter((g) => !g.passed).length, tone: "bg-status-error-surface text-status-error-text" },
                             ]),
-                            { label: "To Promote", value: studentsToPromote.length, tone: "bg-ink-strong text-white" },
+                            { label: "To promote", value: studentsToPromote.length, tone: "bg-primary text-primary-foreground" },
                           ].map((s) => (
                             <div key={s.label} className={cn("rounded-2xl px-4 py-3 text-center", s.tone)}>
                               <p className="text-xl font-bold tabular-nums">{s.value}</p>
-                              <p className="text-2xs font-semibold uppercase tracking-wider opacity-70">{s.label}</p>
+                              <p className="text-2xs font-semibold opacity-70">{s.label}</p>
                             </div>
                           ))}
                         </div>
@@ -637,7 +642,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                           <table className="w-full text-start">
                             <thead>
                               <tr className="border-b border-edge/10 bg-brand-50/30">
-                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">
                                   <SystemCheckbox
                                     checked={gradeResults.length > 0 && gradeResults.every((g) => studentDecisions.get(g.studentId) === "promote")}
                                     onChange={(e) => {
@@ -648,17 +653,17 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                     className="accent-primary h-4 w-4 rounded cursor-pointer"
                                   />
                                 </th>
-                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">#</th>
-                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Student</th>
-                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Roll No</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">#</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">{ui("Student")}</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">{ui("Roll no.")}</th>
                                 {!gradeError && (
                                   <>
-                                    <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">%</th>
-                                    <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Grade</th>
-                                    <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Status</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">%</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">{gradeLabel}</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">{ui("Status")}</th>
                                   </>
                                 )}
-                                <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Decision</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">{ui("Decision")}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -666,7 +671,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                 const decision = studentDecisions.get(g.studentId) || "promote";
                                 return (
                                   <tr key={g.studentId} className={cn("border-b border-edge/5 transition-colors",
-                                    !g.passed && !gradeError ? "bg-rose-50/30" : decision === "retain" ? "bg-amber-50/20" : "hover:bg-brand-50/20"
+                                    !g.passed && !gradeError ? "bg-status-error-surface/30" : decision === "retain" ? "bg-status-warning-surface/20" : "hover:bg-brand-50/20"
                                   )}>
                                     <td className="px-4 py-3">
                                       <SystemCheckbox  checked={decision === "promote"}
@@ -685,16 +690,16 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                       <>
                                         <td className="px-4 py-3 text-center">
                                           <span className={cn("text-sm font-bold",
-                                            g.overallPercentage >= 80 ? "text-emerald-600" : g.overallPercentage >= 50 ? "text-amber-600" : "text-rose-500"
+                                            g.overallPercentage >= 80 ? "text-status-success-text" : g.overallPercentage >= 50 ? "text-status-warning-text" : "text-status-error-text"
                                           )}>{Math.round(g.overallPercentage)}%</span>
                                         </td>
                                         <td className="px-4 py-3 text-center text-sm font-bold text-ink-strong">{g.overallGrade}</td>
                                         <td className="px-4 py-3 text-center">
-                                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider",
-                                            g.passed ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-500"
+                                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-semibold",
+                                            g.passed ? "bg-status-success-surface text-status-success-text" : "bg-status-error-surface text-status-error-text"
                                           )}>
                                             {g.passed ? <CheckCircle2 className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                                            {g.passed ? "Pass" : "Fail"}
+                                            {ui(g.passed ? "Pass" : "Fail")}
                                           </span>
                                         </td>
                                       </>
@@ -709,8 +714,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                                         className={cn("px-2 py-1",
                                           decision === "promote" ? "" : ""
                                         )}>
-                                        <option value="promote">Promote</option>
-                                        <option value="retain">Retain</option>
+                                        <option value="promote">{ui("Promote")}</option>
+                                        <option value="retain">{ui("Retain")}</option>
                                       </SystemSelect>
                                     </td>
                                   </tr>
@@ -721,17 +726,17 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         </div>
                       </>
                     ) : (
-                      <EmptyState size="sm" icon={Users} title="No students found in this class" description="Go back and choose a different source class." />
+                      <EmptyState size="sm" icon={Users} title={ui("No students found in this class")} description={ui("Go back and choose a different source class.")} />
                     )}
                   </>
                 )}
 
                 <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={() => setPromoteStep("source")}>
-                    Back
+                    {ui("Back")}
                   </BrandButton>
                   <BrandButton variant="dark" disabled={studentsToPromote.length === 0} onClick={() => setPromoteStep("target")}>
-                    Next — Select Target <ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
+                    {ui("Next: choose the target")}{" "}<ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
                   </BrandButton>
                 </div>
               </div>
@@ -744,26 +749,26 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   {/* Left: target selection */}
                   <div>
                     <label className="block mb-4">
-                      <span className="mb-1.5 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
+                      <span className="mb-1.5 block ps-2 text-2xs font-semibold text-ink-muted">{ui("Target class")}</span>
                       <SystemSelect value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
                         className="h-14 w-full px-4">
-                        <option value="">Select target class</option>
+                        <option value="">{ui("Select target class")}</option>
                         {activeClasses
                           .filter((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1)
                           .map((c) => (
-                            <option key={c.id} value={c.id}>{clsLabel(c)} ({c.academicYear}) — {c._count.students} existing</option>
+                            <option key={c.id} value={c.id}>{clsLabel(c)} ({c.academicYear}) — {ui("{0} existing", [c._count.students])}</option>
                           ))}
                       </SystemSelect>
                     </label>
 
                     {!activeClasses.some((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1) ? (
-                      <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-4 mb-3">
-                        <p className="text-xs font-bold text-amber-700">
+                      <div className="rounded-2xl border border-status-warning-border/40 bg-status-warning-surface p-4 mb-3">
+                        <p className="text-xs font-bold text-status-warning-text">
                           <AlertTriangle className="h-3.5 w-3.5 inline me-1" />
-                          No class exists for {sourceClass ? sourceClass.academicYear + 1 : "next year"} yet.
+                          {sourceClass ? ui("No class exists for {0} yet.", [sourceClass.academicYear + 1]) : ui("No class exists for next year yet.")}
                         </p>
-                        <p className="text-2xs font-semibold text-amber-700/70 mt-1">
-                          Create the destination class in the Academic Plan first, then promote into it.
+                        <p className="text-2xs font-semibold text-status-warning-text/70 mt-1">
+                          {ui("Create the destination class in the Academic Plan first, then promote into it.")}
                         </p>
                       </div>
                     ) : null}
@@ -771,34 +776,34 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     <div className="rounded-2xl border border-primary/15 bg-brand-50/60 p-4 mb-3">
                       <p className="text-2xs font-bold text-primary">
                         <Lock className="h-3.5 w-3.5 inline me-1" />
-                        Class changes are only allowed via promotion
+                        {ui("Class changes are only allowed via promotion")}
                       </p>
                       <p className="text-2xs font-semibold text-ink-muted mt-0.5">
-                        Moving a student mid-year is possible from the student profile, but year-end promotion records history and final results.
+                        {ui("Moving a student mid-year is possible from the student profile, but year-end promotion records history and final results.")}
                       </p>
                     </div>
 
                     {/* Summary */}
                     <div className="rounded-2xl bg-brand-50/50 border border-edge/10 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-ink-muted">Students to promote</span>
-                        <span className="text-sm font-bold text-emerald-600">{studentsToPromote.length}</span>
+                        <span className="text-xs font-semibold text-ink-muted">{ui("Students to promote")}</span>
+                        <span className="text-sm font-bold text-status-success-text">{studentsToPromote.length}</span>
                       </div>
                       {studentsToRetain.length > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink-muted">Students retained</span>
-                          <span className="text-sm font-bold text-amber-600">{studentsToRetain.length}</span>
+                          <span className="text-xs font-semibold text-ink-muted">{ui("Students retained")}</span>
+                          <span className="text-sm font-bold text-status-warning-text">{studentsToRetain.length}</span>
                         </div>
                       )}
                       {sourceClass && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink-muted">From</span>
+                          <span className="text-xs font-semibold text-ink-muted">{ui("From")}</span>
                           <span className="text-sm font-bold text-ink-strong">{clsLabel(sourceClass)} ({sourceClass.academicYear})</span>
                         </div>
                       )}
                       {targetClass && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink-muted">To</span>
+                          <span className="text-xs font-semibold text-ink-muted">{ui("To")}</span>
                           <span className="text-sm font-bold text-primary">{clsLabel(targetClass)} ({targetClass.academicYear})</span>
                         </div>
                       )}
@@ -807,16 +812,16 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                   {/* Right: roll number preview */}
                   <div>
-                    <p className="mb-1.5 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">New Roll Number Preview</p>
+                    <p className="mb-1.5 ps-2 text-2xs font-semibold text-ink-muted">{ui("New roll number preview")}</p>
                     {promoteTargetId && targetClass ? (
                       <div className="max-h-[400px] overflow-y-auto rounded-2xl border border-edge/10 custom-scrollbar">
                         <table className="w-full text-start">
                           <thead>
                             <tr className="border-b border-edge/10 bg-brand-50/30 sticky top-0">
-                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-ink-muted">Student</th>
-                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-ink-muted">Old Roll</th>
-                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-ink-muted text-center">→</th>
-                              <th className="px-3 py-2 text-2xs font-semibold uppercase text-primary">New Roll</th>
+                              <th className="px-3 py-2 text-2xs font-semibold text-ink-muted">{ui("Student")}</th>
+                              <th className="px-3 py-2 text-2xs font-semibold text-ink-muted">{ui("Old roll no.")}</th>
+                              <th className="px-3 py-2 text-2xs font-semibold text-ink-muted text-center">→</th>
+                              <th className="px-3 py-2 text-2xs font-semibold text-primary">{ui("New roll no.")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -835,21 +840,21 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                       </div>
                     ) : (
                       <div className="flex items-center justify-center h-[200px] rounded-2xl border border-dashed border-edge/20">
-                        <p className="text-xs font-bold text-ink-subtle">Select a target class to preview roll numbers</p>
+                        <p className="text-xs font-bold text-ink-subtle">{ui("Select a target class to preview roll numbers")}</p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {studentsToRetain.length > 0 && (
-                  <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-4">
-                    <p className="text-xs font-bold text-amber-700 mb-2">
+                  <div className="rounded-2xl border border-status-warning-border/40 bg-status-warning-surface p-4">
+                    <p className="text-xs font-bold text-status-warning-text mb-2">
                       <AlertTriangle className="h-3.5 w-3.5 inline me-1" />
-                      {studentsToRetain.length} student{studentsToRetain.length !== 1 ? "s" : ""} will be retained in {sourceClass ? clsLabel(sourceClass) : "current class"}
+                      {studentsToRetain.length === 1 ? ui("1 student will be retained in {0}", [sourceClass ? clsLabel(sourceClass) : ui("the current class")]) : ui("{0} students will be retained in {1}", [studentsToRetain.length, sourceClass ? clsLabel(sourceClass) : ui("the current class")])}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {studentsToRetain.map((g) => (
-                        <span key={g.studentId} className="rounded-full bg-amber-100 px-2.5 py-0.5 text-2xs font-bold text-amber-700">{g.studentName}</span>
+                        <span key={g.studentId} className="rounded-full bg-status-warning-surface px-2.5 py-0.5 text-2xs font-bold text-status-warning-text">{g.studentName}</span>
                       ))}
                     </div>
                   </div>
@@ -857,7 +862,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                 <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={() => setPromoteStep(gradeResults.length > 0 ? "review" : "source")}>
-                    Back
+                    {ui("Back")}
                   </BrandButton>
                   <BrandButton variant="dark" loading={promoting} disabled={promoting || !promoteTargetId || studentsToPromote.length === 0} onClick={handlePromote}>
                     {`Promote ${studentsToPromote.length} Students`}
@@ -870,13 +875,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {promoteStep === "confirm" && promotionResults && (
               <div className="space-y-6 text-center">
                 <div className="flex flex-col items-center gap-4 py-6">
-                  <div className="h-20 w-20 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+                  <div className="h-20 w-20 rounded-full bg-status-success-surface flex items-center justify-center">
+                    <CheckCircle2 className="h-10 w-10 text-status-success-text" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-ink-strong">Promotion Complete</h3>
+                    <h3 className="text-2xl font-bold text-ink-strong">{ui("Promotion complete")}</h3>
                     <p className="text-sm font-semibold text-ink-muted mt-2">
-                      {promotionResults.promoted} student{promotionResults.promoted !== 1 ? "s" : ""} promoted
+                      {promotionResults.promoted === 1 ? ui("1 student promoted") : ui("{0} students promoted", [promotionResults.promoted])}
                       {targetClass ? ` to ${clsLabel(targetClass)}` : ""}
                       {promotionResults.retained > 0 ? `, ${promotionResults.retained} retained` : ""}
                     </p>
@@ -884,22 +889,22 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                  <div className="rounded-2xl bg-emerald-50 p-4 text-center">
-                    <p className="text-3xl font-extrabold text-emerald-600">{promotionResults.promoted}</p>
-                    <p className="text-2xs font-semibold uppercase tracking-wider text-emerald-600/70 mt-1">Promoted</p>
+                  <div className="rounded-2xl bg-status-success-surface p-4 text-center">
+                    <p className="text-3xl font-extrabold text-status-success-text">{promotionResults.promoted}</p>
+                    <p className="text-2xs font-semibold text-status-success-text/70 mt-1">{ui("Promoted")}</p>
                   </div>
-                  <div className="rounded-2xl bg-amber-50 p-4 text-center">
-                    <p className="text-3xl font-extrabold text-amber-600">{promotionResults.retained}</p>
-                    <p className="text-2xs font-semibold uppercase tracking-wider text-amber-600/70 mt-1">Retained</p>
+                  <div className="rounded-2xl bg-status-warning-surface p-4 text-center">
+                    <p className="text-3xl font-extrabold text-status-warning-text">{promotionResults.retained}</p>
+                    <p className="text-2xs font-semibold text-status-warning-text/70 mt-1">{ui("Retained")}</p>
                   </div>
                 </div>
 
                 <p className="text-xs font-semibold text-ink-subtle">
-                  New roll numbers have been assigned automatically. Student history records have been saved.
+                  {ui("New roll numbers have been assigned automatically. Student history records have been saved.")}
                 </p>
 
                 <div className="flex justify-center gap-3 pt-4 border-t border-edge/10">
-                  <BrandButton variant="soft" onClick={closePromotionWizard}>Done</BrandButton>
+                  <BrandButton variant="soft" onClick={closePromotionWizard}>{ui("Done")}</BrandButton>
                   <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={() => {
                     setPromoteStep("source");
                     setPromoteSourceId("");
@@ -908,7 +913,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     setStudentDecisions(new Map());
                     setPromotionResults(null);
                   }}>
-                    Promote Another Class
+                    {ui("Promote another class")}
                   </BrandButton>
                 </div>
               </div>

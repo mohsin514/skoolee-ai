@@ -77,7 +77,7 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
         <div className="grid gap-1 sm:grid-cols-2">{students.map(student => <label key={student.id} className="flex items-center gap-2 text-sm"><Checkbox checked={chosen.includes(student.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, student.id] : previous.filter(id => id !== student.id))} /><bdi dir="auto">{student.fullName}</bdi></label>)}</div>
       </fieldset>
       <Button disabled={busy || !title.trim() || !chosen.length || !readiness || blockers > 0} onClick={() => void release()}>{t.roomRelease}</Button>
-      {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${message.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-status-error-border bg-status-error-surface text-status-error-text"}`} data-room-result><bdi dir="auto">{message.text}</bdi></p>}
+      {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${message.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`} data-room-result><bdi dir="auto">{message.text}</bdi></p>}
     </section>
     <section className="sk-panel space-y-2 p-5" aria-labelledby="room-delivered">
       <h3 id="room-delivered" className="font-semibold">{t.roomDelivered}</h3>

@@ -8,9 +8,10 @@ import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 import { prisma as appPrisma } from "../../src/lib/db/prisma";
 
-// SKO-456 on the isolated app: the canteen adds no navigation until a principal names its operators,
-// completes the checklist and enables it; a guardian orders the last meal and a second guardian finds
-// it sold out; the boarding warden's roll call shows a missing boarder and an overdue return.
+// SKO-456 on the isolated app: the canteen adds no navigation until the campus admin names its operators,
+// completes the checklist and enables it (packages are campus operations, §2.2 #19 / §7.6 — the principal no
+// longer manages them); a guardian orders the last meal and a second guardian finds it sold out; the boarding
+// warden's roll call (Hostel, campus console) shows a missing boarder and an overdue return.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.PACKAGES_TEST_APP || "http://localhost:3108";
@@ -46,7 +47,7 @@ before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Residential", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Cedar Residential", regId: campusId, city: "Riyadh" } });
   await db.academicCycle.create({ data: { schoolId, campusId, label: "2026", academicYear: 2026, status: "ACTIVE" } });
-  await user("principal", "PRINCIPAL"); await user("dietary", "TEACHER"); await user("parent-a", "PARENT"); await user("parent-b", "PARENT", "ar");
+  await user("principal", "PRINCIPAL"); await user("admin", "CAMPUS_ADMIN"); await user("dietary", "TEACHER"); await user("parent-a", "PARENT"); await user("parent-b", "PARENT", "ar");
   const classId = randomUUID();
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 8", section: "A", academicYear: 2026 } });
   for (const [k, name] of [["amal", "Synthetic Amal"], ["badr", "Synthetic Badr"], ["dana", "Synthetic Dana"]]) ids[k] = (await db.student.create({ data: { schoolId, campusId, classId, fullName: name, rollNo: k, gender: "FEMALE", status: "active" } })).id;
@@ -55,7 +56,7 @@ before(async () => {
   const room = await db.dormRoom.create({ data: { schoolId, campusId, roomTypeId: type.id, number: "C-1", capacity: 4 } });
   for (const s of ["amal", "badr", "dana"]) await db.dormAllocation.create({ data: { schoolId, campusId, roomId: room.id, studentId: ids[s], startDate: new Date("2026-01-01T00:00:00Z"), reason: "Synthetic boarder", createdById: users.get("principal")!.id } });
   const done = (items: string[]) => Object.fromEntries(items.map((i) => [i, { by: users.get("principal")!.id, at: new Date().toISOString(), note: "Validated with the house team" }]));
-  await db.campusPackage.create({ data: { schoolId, campusId, package: "BOARDING", status: "ENABLED", operators: { WARDEN: [users.get("principal")!.id], LEAVE_APPROVER: [users.get("principal")!.id] }, checklist: done(["missing_student_procedure", "leave_policy_validated", "roll_call_times", "night_supervision_rota"]), enabledById: users.get("principal")!.id, enabledAt: new Date() } });
+  await db.campusPackage.create({ data: { schoolId, campusId, package: "BOARDING", status: "ENABLED", operators: { WARDEN: [users.get("admin")!.id], LEAVE_APPROVER: [users.get("admin")!.id] }, checklist: done(["missing_student_procedure", "leave_policy_validated", "roll_call_times", "night_supervision_rota"]), enabledById: users.get("principal")!.id, enabledAt: new Date() } });
   await db.boardingLeave.create({ data: { schoolId, campusId, studentId: ids.badr, departAt: new Date(Date.now() - 7_200_000), expectedReturnAt: new Date(Date.now() - 3_600_000), destination: "Family visit", collectedBy: "Synthetic uncle", approvedById: users.get("principal")!.id, status: "OUT", departedAt: new Date(Date.now() - 7_000_000) } });
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
@@ -69,22 +70,26 @@ after(async () => {
 });
 
 test("the canteen adds navigation only after operators, checklist and enablement (EN desktop)", async () => {
-  const page = await (await context("principal")).newPage();
-  await page.goto(`${base}/principal?view=leadership`);
+  const page = await (await context("admin")).newPage();
+  // Campus setup › Packages (§3.1 admin `settings` tab `packages`).
+  await page.goto(`${base}/admin?view=settings&tab=packages`);
   const panel = page.locator('section[aria-labelledby="campus-packages"]');
   await panel.waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Operations" }).first().click();
-  await page.getByRole("button", { name: "Inventory", exact: true }).first().waitFor();
-  assert.equal(await page.getByRole("button", { name: "Canteen", exact: true }).count(), 0, "no canteen navigation while it is off");
+  await page.locator('[data-tour="shell.nav-group.services"]').first().click();
+  await page.locator('[data-tour="shell.nav.inventory"]').first().waitFor();
+  assert.equal(await page.locator('[data-tour="shell.nav.canteen"]').count(), 0, "no canteen navigation while it is off");
   const canteen = panel.locator("div.rounded-xl", { hasText: "Canteen · Off" });
   await canteen.getByRole("button", { name: "Enable package" }).isDisabled();
-  await canteen.getByLabel("Canteen manager").selectOption({ label: "Synthetic principal" });
+  await canteen.getByLabel("Canteen manager").selectOption({ label: "Synthetic admin" });
   await canteen.getByRole("button", { name: "Save" }).first().click();
-  await panel.getByText("Operator saved.").waitFor({ timeout: 30_000 });
+  await page.getByText("Operator saved.").first().waitFor({ timeout: 30_000 }); // a toast (R4), outside the panel
   const setup = panel.locator("div.rounded-xl", { hasText: /^Canteen · Setting up/u });
   await setup.getByLabel("Dietary lead").selectOption({ label: "Synthetic dietary" });
+  // The first "Operator saved." toast may still be on screen, so wait for this save's own response.
+  const dietarySaved = page.waitForResponse((r) => r.url().includes("/api/campus-packages") && r.request().method() === "POST");
   await setup.getByRole("button", { name: "Save" }).nth(1).click();
-  await panel.getByText("Operator saved.").waitFor();
+  assert.equal((await dietarySaved).ok(), true, "the dietary lead is saved");
+  await page.getByText("Operator saved.").first().waitFor();
   for (let i = 0; i < 4; i++) {
     const field = setup.getByLabel("How this was validated").first();
     await field.fill("Signed off by the operations lead");
@@ -92,10 +97,10 @@ test("the canteen adds navigation only after operators, checklist and enablement
     await page.waitForResponse((r) => r.url().includes("/api/campus-packages") && r.request().method() === "GET");
   }
   await setup.getByRole("button", { name: "Enable package" }).click();
-  await panel.getByText("Package enabled for this campus with the approved staff roles.").waitFor({ timeout: 30_000 });
+  await page.getByText("Package enabled for this campus with the approved staff roles.").first().waitFor({ timeout: 30_000 }); // toast (R4)
   await page.reload();
-  await page.getByRole("button", { name: "Operations" }).first().click();
-  await page.getByRole("button", { name: "Canteen", exact: true }).first().waitFor({ timeout: 60_000 });
+  await page.locator('[data-tour="shell.nav-group.services"]').first().click();
+  await page.locator('[data-tour="shell.nav.canteen"]').first().waitFor({ timeout: 60_000 });
   await panel.waitFor();
   await panel.evaluate((el) => el.scrollIntoView({ block: "start" }));
   await page.waitForTimeout(300);
@@ -104,16 +109,16 @@ test("the canteen adds navigation only after operators, checklist and enablement
 });
 
 test("a guardian orders the last meal once; the second guardian finds it sold out; retries replay", async () => {
-  const principal = await context("principal");
+  const manager = await context("admin");
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-  const added = await principal.request.post(`${base}/api/campus-packages`, { headers: { Origin: base }, data: { action: "menu-item", data: { serviceDate: tomorrow, name: "Chicken rice", price: 1500, currency: "SAR", capacity: 1, allergens: [] } } });
+  const added = await manager.request.post(`${base}/api/campus-packages`, { headers: { Origin: base }, data: { action: "menu-item", data: { serviceDate: tomorrow, name: "Chicken rice", price: 1500, currency: "SAR", capacity: 1, allergens: [] } } });
   assert.equal(added.status(), 200);
   const page = await (await context("parent-a")).newPage();
   await page.goto(`${base}/parent`);
   const panel = page.locator('section[aria-labelledby="family-canteen"]');
   await panel.waitFor({ timeout: 60_000 });
   await panel.getByRole("button", { name: "Order meal" }).first().click();
-  await panel.getByText("Order received.").waitFor({ timeout: 30_000 });
+  await page.getByText("Order received.").first().waitFor({ timeout: 30_000 }); // toast (R4)
   await panel.getByText("Sold out").first().waitFor();
   await page.close();
   const item = await db.canteenItem.findFirstOrThrow({ where: { schoolId, name: "Chicken rice" } });
@@ -126,8 +131,9 @@ test("a guardian orders the last meal once; the second guardian finds it sold ou
 });
 
 test("the warden's roll call highlights a missing boarder and an overdue return", async () => {
-  const page = await (await context("principal")).newPage();
-  await page.goto(`${base}/principal?view=dormitory`);
+  const page = await (await context("admin")).newPage();
+  // Boarding operations live with the campus console's Hostel view (the principal console has no hostel, M54).
+  await page.goto(`${base}/admin?view=dormitory`);
   const panel = page.locator('section[aria-labelledby="boarding-ops"]');
   await panel.waitFor({ timeout: 60_000 });
   await panel.getByLabel("Roll call time").fill("20:00");

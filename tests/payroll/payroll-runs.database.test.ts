@@ -16,7 +16,7 @@ const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
 if (database.hostname !== "127.0.0.1" || database.port !== "55438" || database.pathname !== "/postgres") throw new Error("Use only isolated PostgreSQL 55438.");
 const raw = new PrismaClient(), schoolId = `payroll-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID();
 const actor = (role: AuthUser["role"], campus = campusId): AuthUser => ({ userId: randomUUID(), schoolId, campusId: campus, role, email: `${randomUUID()}@example.invalid` });
-const principal = actor("PRINCIPAL"), campusAdmin = actor("CAMPUS_ADMIN"), accountant = actor("ACCOUNTANT"), teacherUser = actor("TEACHER"), otherAdmin = actor("CAMPUS_ADMIN", otherCampusId);
+const principal = actor("PRINCIPAL"), campusAdmin = actor("CAMPUS_ADMIN"), deputyAdmin = actor("CAMPUS_ADMIN"), accountant = actor("ACCOUNTANT"), teacherUser = actor("TEACHER"), otherAdmin = actor("CAMPUS_ADMIN", otherCampusId);
 const ctx = <T>(user: AuthUser, work: () => Promise<T>) => runWithTenantContext({ schoolId, campusId: user.campusId!, userId: user.userId, role: user.role }, work);
 const staff: Record<string, string> = {};
 let leaveTypeId = "";
@@ -24,6 +24,9 @@ let leaveTypeId = "";
 const policyA: PolicyRules = { id: "a", version: 1, packageLabel: "Calendar demo v1", currency: "SAR", prorationBasis: "CALENDAR_DAYS", leaveDivisor: "CALENDAR_DAYS", leaveYearStartMonth: 9, rounding: "HALF_UP" };
 const policyB: PolicyRules = { ...policyA, id: "b", packageLabel: "KSA-demo v2", prorationBasis: "FIXED_30", leaveDivisor: "FIXED_30", rounding: "DOWN" };
 const person = (over: Partial<EmployeeInput> = {}): EmployeeInput => ({ userId: "u", name: "Synthetic", role: "TEACHER", joiningDate: null, leavingDate: null, basic: 300_000, allowances: [], deductions: [], salarySource: "fixture", providerEmployeeId: "E1", leave: [], allocations: {}, adjustments: [], ...over });
+
+// Approving a run is a money decision with a typed reason (role-ux R3, §4.5.5; P8-10).
+const REASON = "Checked against attendance, leave and salary records.";
 
 test("proration follows the policy: February, a leap year, joining and leaving", () => {
   const joinFeb = person({ joiningDate: "2027-02-15" });
@@ -54,7 +57,7 @@ test("leave: overlapping requests count each day once, only days in the period, 
 before(async () => {
   await raw.school.create({ data: { id: schoolId, name: "Synthetic payroll school", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
   for (const id of [campusId, otherCampusId]) await raw.campus.create({ data: { id, schoolId, name: `Synthetic ${id.slice(0, 4)}`, regId: id, city: "Riyadh" } });
-  for (const user of [principal, campusAdmin, accountant, teacherUser, otherAdmin]) await raw.user.create({ data: { id: user.userId, schoolId, campusId: user.campusId, role: user.role, email: user.email, fullName: `Synthetic ${user.role}`, onboardingComplete: true } });
+  for (const user of [principal, campusAdmin, deputyAdmin, accountant, teacherUser, otherAdmin]) await raw.user.create({ data: { id: user.userId, schoolId, campusId: user.campusId, role: user.role, email: user.email, fullName: `Synthetic ${user.role}`, onboardingComplete: true } });
   for (const [key, basic] of [["amal", 1_000_000], ["badr", 800_000], ["dana", 50_000]] as const) {
     const id = randomUUID();
     staff[key] = id;
@@ -71,27 +74,34 @@ after(async () => {
 test("a run names entity, currency and policy version; exceptions block approval; the preparer cannot approve", async () => {
   await assert.rejects(() => ctx(accountant, () => prepareRun(accountant, { year: 2027, month: 3 })), /No payroll policy is in effect/);
   await assert.rejects(() => ctx(accountant, () => savePolicy(accountant, {})), { status: 403 });
-  await ctx(principal, () => savePolicy(principal, { entityName: "Synthetic Cedar School", currency: "SAR", effectiveFrom: "2026-09-01", packageLabel: "KSA-demo v1", scopeNote: "Demonstration rules; requires local validation before use.", prorationBasis: "CALENDAR_DAYS", leaveDivisor: "CALENDAR_DAYS", leaveYearStartMonth: 9, rounding: "HALF_UP" }));
-  await ctx(principal, () => savePolicy(principal, { entityName: "Synthetic Cedar School", currency: "SAR", effectiveFrom: "2027-03-01", packageLabel: "KSA-demo v2", scopeNote: "Demonstration rules; requires local validation before use.", prorationBasis: "FIXED_30", leaveDivisor: "FIXED_30", leaveYearStartMonth: 9, rounding: "HALF_UP" }));
-  await ctx(principal, () => saveProvider(principal, { code: "DEMOPAY", name: "Synthetic provider", currencies: ["PKR"], columns: [{ header: "EmpID", field: "providerEmployeeId" }, { header: "Net", field: "net" }, { header: "Ccy", field: "currency" }] }));
+  // role-ux G26: the principal is academic and holds neither payroll seat.
+  await assert.rejects(() => ctx(principal, () => savePolicy(principal, {})), { status: 403 });
+  await assert.rejects(() => ctx(principal, () => prepareRun(principal, { year: 2027, month: 3 })), { status: 403 });
+  await ctx(campusAdmin, () => savePolicy(campusAdmin, { entityName: "Synthetic Cedar School", currency: "SAR", effectiveFrom: "2026-09-01", packageLabel: "KSA-demo v1", scopeNote: "Demonstration rules; requires local validation before use.", prorationBasis: "CALENDAR_DAYS", leaveDivisor: "CALENDAR_DAYS", leaveYearStartMonth: 9, rounding: "HALF_UP" }));
+  await ctx(campusAdmin, () => savePolicy(campusAdmin, { entityName: "Synthetic Cedar School", currency: "SAR", effectiveFrom: "2027-03-01", packageLabel: "KSA-demo v2", scopeNote: "Demonstration rules; requires local validation before use.", prorationBasis: "FIXED_30", leaveDivisor: "FIXED_30", leaveYearStartMonth: 9, rounding: "HALF_UP" }));
+  await ctx(campusAdmin, () => saveProvider(campusAdmin, { code: "DEMOPAY", name: "Synthetic provider", currencies: ["PKR"], columns: [{ header: "EmpID", field: "providerEmployeeId" }, { header: "Net", field: "net" }, { header: "Ccy", field: "currency" }] }));
   const first = await ctx(accountant, () => prepareRun(accountant, { year: 2027, month: 3 }));
   assert.deepEqual([first.entityName, first.currency, first.policyVersion, first.version], ["Synthetic Cedar School", "SAR", 2, 1], "March uses the version effective from 1 March");
   const codes = (first.exceptions as { code: string }[]).map((e) => e.code).sort();
   assert.deepEqual(codes, ["MISSING_PROVIDER_ID", "MISSING_PROVIDER_ID", "MISSING_PROVIDER_ID", "NEGATIVE_NET", "UNSUPPORTED_CURRENCY"]);
-  await assert.rejects(() => ctx(campusAdmin, () => approveRun(campusAdmin, first.id)), /Resolve before approval/);
+  await assert.rejects(() => ctx(campusAdmin, () => approveRun(campusAdmin, first.id, REASON)), /Resolve before approval/);
 
-  await ctx(principal, () => saveProvider(principal, { code: "DEMOPAY", name: "Synthetic provider", currencies: ["SAR", "PKR"], columns: [{ header: "EmpID", field: "providerEmployeeId" }, { header: "Name", field: "name" }, { header: "Net", field: "net" }, { header: "Ccy", field: "currency" }, { header: "Ref", field: "reference" }] }));
+  await assert.rejects(() => ctx(accountant, () => saveProvider(accountant, { code: "DEMOPAY", name: "x", currencies: ["SAR"], columns: [] })), { status: 403 }, "the provider mapping is the approver's");
+  await ctx(campusAdmin, () => saveProvider(campusAdmin, { code: "DEMOPAY", name: "Synthetic provider", currencies: ["SAR", "PKR"], columns: [{ header: "EmpID", field: "providerEmployeeId" }, { header: "Name", field: "name" }, { header: "Net", field: "net" }, { header: "Ccy", field: "currency" }, { header: "Ref", field: "reference" }] }));
   for (const [key, code] of [["amal", "E-101"], ["badr", "E-102"], ["dana", "E-103"]]) await ctx(accountant, () => setEmployee(accountant, staff[key], { providerIds: { DEMOPAY: code } }));
   await ctx(accountant, () => addAdjustment(accountant, { userId: staff.dana, year: 2027, month: 3, kind: "EARNING", label: "Loan deferral", amount: 70_000, reason: "Loan instalment deferred to April by principal" }));
-  const second = await ctx(principal, () => prepareRun(principal, { year: 2027, month: 3 }));
+  const second = await ctx(deputyAdmin, () => prepareRun(deputyAdmin, { year: 2027, month: 3 }));
   assert.equal(second.version, 2);
   assert.equal((await raw.payrollCalculation.findUniqueOrThrow({ where: { id: first.id } })).status, "SUPERSEDED");
   assert.deepEqual(second.exceptions, []);
   for (const line of second.lines as { components: { kind: string; rule: string; source: string }[] }[]) for (const c of line.components) assert.ok(c.rule && c.source, "every amount names its rule and input");
-  await assert.rejects(() => ctx(principal, () => approveRun(principal, second.id)), /Another approver is required/);
-  await assert.rejects(() => ctx(otherAdmin, () => approveRun(otherAdmin, second.id)), { status: 404 }, "another entity's run is not visible");
+  await assert.rejects(() => ctx(deputyAdmin, () => approveRun(deputyAdmin, second.id, REASON)), /Another approver is required/);
+  await assert.rejects(() => ctx(principal, () => approveRun(principal, second.id, REASON)), { status: 403 }, "the principal never approves payroll");
+  await assert.rejects(() => ctx(accountant, () => approveRun(accountant, second.id, REASON)), { status: 403 }, "the finance desk never approves payroll");
+  await assert.rejects(() => ctx(otherAdmin, () => approveRun(otherAdmin, second.id, REASON)), { status: 404 }, "another entity's run is not visible");
   await assert.rejects(() => ctx(teacherUser, () => payrollOverview(teacherUser, { year: 2027, month: 3 })), { status: 403 }, "no salary preview without payroll access");
-  assert.equal((await ctx(campusAdmin, () => approveRun(campusAdmin, second.id))).status, "APPROVED");
+  await assert.rejects(() => ctx(campusAdmin, () => approveRun(campusAdmin, second.id)), { status: 400 }, "an approval without a typed reason is refused");
+  assert.equal((await ctx(campusAdmin, () => approveRun(campusAdmin, second.id, REASON))).status, "APPROVED");
 });
 
 test("a leave change after approval makes the export stale; the new version is approved again", async () => {
@@ -105,7 +115,7 @@ test("a leave change after approval makes the export stale; the new version is a
   const leave = badr.components.find((c) => c.code === "UNPAID_LEAVE")!;
   assert.equal(leave.amount, Math.round((800_000 / 30) * 2), "two unallocated days at the 30-day divisor of policy v2");
   assert.match(leave.source, /Approved leave/u);
-  await ctx(campusAdmin, () => approveRun(campusAdmin, next.id));
+  await ctx(campusAdmin, () => approveRun(campusAdmin, next.id, REASON));
 });
 
 test("submitting twice keeps one reference; rejected rows are corrected alone and accepted rows are never resent", async () => {
@@ -125,7 +135,7 @@ test("submitting twice keeps one reference; rejected rows are corrected alone an
   assert.deepEqual([correction.scopeUserIds, correction.correctionOfId, correction.status], [[staff.badr], calc.id, "DRAFT"]);
   assert.equal((correction.lines as unknown[]).length, 1, "the correction covers only the rejected row");
   await assert.rejects(() => ctx(accountant, () => submitRun(accountant, correction.id)), /Only an approved version/);
-  await ctx(campusAdmin, () => approveRun(campusAdmin, correction.id));
+  await ctx(campusAdmin, () => approveRun(campusAdmin, correction.id, REASON));
   const fix = await ctx(accountant, () => submitRun(accountant, correction.id));
   assert.notEqual(fix.submission.reference, a.submission.reference);
   assert.equal((fix.submission.rows as unknown[]).length, 1);

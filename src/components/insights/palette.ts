@@ -1,4 +1,4 @@
-import { minorUnits } from "@/lib/locale/package";
+import { defaultLocale, minorUnits } from "@/lib/locale/package";
 /**
  * Chart colour tokens.
  *
@@ -125,11 +125,11 @@ export function compact(value: number): string {
 
 /**
  * Invoice and payment amounts are stored in the minor unit (paisa). Every
- * family- and finance-facing screen divides before it prints — `formatPKR`
+ * family- and finance-facing screen divides before it prints — `formatMoney`
  * does it too — so the derivation layer converts once, here, and every chart
- * downstream works in whole rupees.
+ * downstream works in major units of the school's currency (never a hard-coded one, R7).
  */
-export function fromMinor(minor: number, currency = "PKR"): number {
+export function fromMinor(minor: number, currency: string = defaultLocale.currency): number {
   return (minor || 0) / 10 ** minorUnits(currency);
 }
 

@@ -104,25 +104,44 @@ test('teacher palette excludes unavailable sections, class actions and student i
   await search.fill('Grade 5'); await expect(dialog.getByRole('button', { name: /Attendance/ })).toBeVisible(); await expect(dialog.getByRole('button', { name: /Marks|Students/ })).toHaveCount(0);
   await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0);
 });
-test('new route is fenced before effects; a stale response cannot restore access', async ({ page }) => {
+// SPEC §3.2 / F11 + addendum 2026-10-22 §3: the access provider keeps the last confirmed map for the session and
+// revalidates in the background at most once a minute. A route change keeps the confirmed map on screen (no
+// skeleton flash) while the new one loads; the fresh answer decides.
+test('a route change inside the one-minute window reuses the confirmed map without asking again', async ({ page }) => {
+  await mount(page, 'en', true, true);
+  let requests = 0;
+  await page.route('**/api/navigation/access', route => { requests += 1; return route.fulfill({ json: { access: { reports: true, students: false } } }); });
+  await page.getByRole('button', { name: 'Synthetic route transition' }).click();
+  await expect(page.getByText('This workspace is not available with your current access. Choose an available section.')).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Checking workspace access' })).toHaveCount(0);
+  expect(requests).toBe(0);
+});
+test('a route change fences with the last confirmed map, never flashes the skeleton, and the fresh answer decides', async ({ page }) => {
   await mount(page, 'en', true, true); const field = page.getByRole('textbox', { name: 'Record name', exact: true }); await field.fill('Kept draft');
+  // Past the one-minute window, so the route change revalidates in the background.
+  await page.clock.install(); await page.clock.fastForward(61_000);
   let release: (() => void) | undefined;
   await page.route('**/api/navigation/access', async route => { await new Promise<void>(resolve => { release = resolve; }); await route.fulfill({ json: { access: { reports: true, students: false } } }); });
   await page.getByRole('button', { name: 'Synthetic route transition' }).click();
-  await expect(page.getByRole('status', { name: 'Checking workspace access' })).toBeVisible(); await expect(field).toBeHidden();
-  const frames = await page.evaluate(() => (window as unknown as { accessFrames: { pathname: string; status: string }[] }).accessFrames.filter(frame => frame.pathname === '/teacher/students')); expect(frames.length).toBeGreaterThan(0); expect(frames[0].status).toBe('loading');
+  // The confirmed map already says students is closed: the notice shows at once, the draft stays hidden.
+  await expect(page.getByText('This workspace is not available with your current access. Choose an available section.')).toBeVisible(); await expect(field).toBeHidden();
+  await expect(page.getByRole('status', { name: 'Checking workspace access' })).toHaveCount(0);
+  const frames = await page.evaluate(() => (window as unknown as { accessFrames: { pathname: string; status: string }[] }).accessFrames.filter(frame => frame.pathname === '/teacher/students'));
+  expect(frames.length).toBeGreaterThan(0); expect(frames.every(frame => frame.status === 'ready')).toBe(true);
   await expect.poll(() => Boolean(release)).toBe(true); release!();
   await expect(page.getByText('This workspace is not available with your current access. Choose an available section.')).toBeVisible(); await expect(field).toBeHidden();
   await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: true, students: false } } })); await page.goBack(); await expect(field).toHaveValue('Kept draft');
 });
-test('stalled access check offers retry and preserves the mounted draft', async ({ page }) => {
+test('a failed revalidation keeps the confirmed map and the mounted draft (no forced recovery screen)', async ({ page }) => {
   await mount(page, 'en', true, true); const field = page.getByRole('textbox', { name: 'Record name', exact: true }); await field.fill('Recoverable draft');
-  await page.clock.install(); let release: (() => void) | undefined;
-  await page.route('**/api/navigation/access', async route => { await new Promise<void>(resolve => { release = resolve; }); await route.fulfill({ json: { access: { reports: true } } }).catch(() => {}); });
-  await page.evaluate(() => window.dispatchEvent(new Event('focus'))); await expect(page.getByRole('status', { name: 'Checking workspace access' })).toBeVisible();
-  await page.clock.fastForward(10_050); await expect(page.getByRole('button', { name: 'Retry access check' })).toBeVisible(); await expect(field).toBeHidden();
-  release?.(); await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: true } } }));
-  await page.getByRole('button', { name: 'Retry access check' }).click(); await expect(field).toHaveValue('Recoverable draft');
+  await page.clock.install();
+  await page.route('**/api/navigation/access', route => route.fulfill({ status: 503, json: { error: 'Unavailable' } }));
+  // A window focus revalidates only once the confirmed map is five minutes old.
+  await page.clock.fastForward(301_000); await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.clock.fastForward(5_000);
+  await expect(page.getByRole('button', { name: 'Retry access check' })).toHaveCount(0);
+  await expect(page.getByRole('status', { name: 'Checking workspace access' })).toHaveCount(0);
+  await expect(field).toHaveValue('Recoverable draft'); await expect(field).toBeVisible();
 });
 test('URL workspace allowlist supports Back/Forward, refresh and forged-view fallback', async ({ page }) => {
   await mount(page); const tasks = page.locator('[aria-label="Synthetic equivalent workflows"]');
@@ -188,35 +207,31 @@ async function mountQueryAccess(page: Page) {
   await page.goto('http://navigation.test/principal?query-access=1'); await page.addStyleTag({ content: css }); await page.addScriptTag({ content: js });
   await expect(page.getByRole('heading', { name: 'Reports workspace' })).toBeVisible();
 }
-test('same-path workspace change fences cached records before effects and checks revoked access', async ({ page }) => {
+test('switching ?view= on the same path neither refetches access nor re-renders the skeleton (F11)', async ({ page }) => {
   await mountQueryAccess(page);
-  await page.getByRole('textbox', { name: 'Console draft' }).fill('Draft survives permission checks');
-  let release: (() => void) | undefined;
-  await page.route('**/api/navigation/access', async route => { await new Promise<void>(resolve => { release = resolve; }); await route.fulfill({ json: { access: { reports: true, fees: false } } }); });
+  await page.getByRole('textbox', { name: 'Console draft' }).fill('Draft survives view changes');
+  let requests = 0;
+  await page.route('**/api/navigation/access', route => { requests += 1; return route.fulfill({ json: { access: { reports: true, fees: true } } }); });
   await page.getByRole('navigation', { name: 'Primary navigation', exact: true }).getByRole('button', { name: 'Fees', exact: true }).click();
   await expect(page).toHaveURL(/view=fees/);
-  await expect(page.getByRole('status', { name: 'Checking workspace access' })).toBeVisible();
-  await expect(page.getByTestId('cached-fee-record')).toBeHidden();
-  const frames = await page.evaluate(() => (window as unknown as { queryAccessFrames: { view: string; status: string; fees: boolean; visible: boolean }[] }).queryAccessFrames.filter(frame => frame.view === 'fees'));
-  expect(frames.length).toBeGreaterThan(0); expect(frames[0]).toMatchObject({ status: 'loading', fees: false, visible: false });
-  await expect.poll(() => Boolean(release)).toBe(true); release!();
-  await expect(page.getByText('This workspace is not available with your current access. Choose an available section.')).toBeVisible();
-  await expect(page.getByTestId('cached-fee-record')).toBeHidden();
-  await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: true, fees: false } } }));
-  await page.goBack(); await expect(page.getByRole('textbox', { name: 'Console draft' })).toHaveValue('Draft survives permission checks');
+  await expect(page.getByRole('heading', { name: 'Fees workspace' })).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Checking workspace access' })).toHaveCount(0);
+  const frames = await page.evaluate(() => (window as unknown as { queryAccessFrames: { view: string; status: string }[] }).queryAccessFrames.filter(frame => frame.view === 'fees'));
+  expect(frames.length).toBeGreaterThan(0); expect(frames.every(frame => frame.status === 'ready')).toBe(true);
+  expect(requests).toBe(0);
+  await page.goBack(); await expect(page.getByRole('textbox', { name: 'Console draft' })).toHaveValue('Draft survives view changes');
 });
-test('same-path Back rechecks permissions and ignores an obsolete granting response', async ({ page }) => {
+test('a focus revalidation after the throttle applies a revoked map to the open view', async ({ page }) => {
   await mountQueryAccess(page);
-  const releases: (() => void)[] = []; let request = 0;
-  await page.route('**/api/navigation/access', async route => {
-    const current = ++request; await new Promise<void>(resolve => releases.push(resolve));
-    await route.fulfill({ json: { access: { reports: current === 1, fees: current === 1 } } }).catch(() => {});
-  });
-  await page.getByRole('navigation', { name: 'Primary navigation', exact: true }).getByRole('button', { name: 'Fees', exact: true }).click();
-  await expect.poll(() => releases.length).toBe(1); await page.goBack(); await expect.poll(() => releases.length).toBe(2);
-  releases[0](); await expect(page.getByRole('status', { name: 'Checking workspace access' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Reports workspace' })).toBeHidden();
-  releases[1](); await expect(page.getByText('This workspace is not available with your current access. Choose an available section.')).toBeVisible();
+  await page.clock.install();
+  await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: false, fees: false } } }));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByRole('heading', { name: 'Reports workspace' })).toBeVisible();
+  // Inside five minutes a focus changes nothing; after it the revoked map closes the open view at once.
+  await page.clock.fastForward(120_000); await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByRole('heading', { name: 'Reports workspace' })).toBeVisible();
+  await page.clock.fastForward(181_000); await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByText('This workspace is not available with your current access. Choose an available section.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Reports workspace' })).toBeHidden();
 });
 test('restored page rechecks revoked access without changing its URL', async ({ page }) => {

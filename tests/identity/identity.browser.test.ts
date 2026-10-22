@@ -15,6 +15,10 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // access versions apply to SSO sessions; outages leave password recovery and audited emergency access; roster
 // batches preview, bind, replay idempotently, keep namesakes apart, honour field ownership and conflicts, and
 // withdrawals revoke access while keeping records.
+// role-ux §7.3 G14: the identity connection, links and emergency access belong to the institution authority (the group
+// admin of a GROUP school); roster batches are reviewed by the authority or a campus operator (the principal no longer
+// reviews them, and campus operators have no identity screen, R-I13). `/identity` redirects the group admin to
+// Settings › Identity (§6.3) and sends everyone else home.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.IDENTITY_TEST_APP || "http://localhost:3107";
@@ -52,10 +56,10 @@ async function localMove(studentId: string, classId: string) {
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
   const from = await db.studentEnrollment.findFirstOrThrow({ where: { studentId, endDate: null, status: "ACTIVE" } });
   const pupil = await db.student.findUniqueOrThrow({ where: { id: studentId } });
-  const p = await call("principal", "post", "/api/students/enrollments", { action: "propose", studentId, effectiveDate: yesterday, fromEnrollmentId: from.id, targetClassId: classId, rollNo: pupil.rollNo, reason: "Synthetic local class change" });
+  const p = await call("campus", "post", "/api/students/enrollments", { action: "propose", studentId, effectiveDate: yesterday, fromEnrollmentId: from.id, targetClassId: classId, rollNo: pupil.rollNo, reason: "Synthetic local class change" });
   assert.ok(p.status < 300, p.body);
   const proposal = await db.enrollmentProposal.findFirstOrThrow({ where: { studentId, status: "PROPOSED" } });
-  const c = await call("principal", "post", "/api/students/enrollments", { action: "confirm", studentId, proposalId: proposal.id, reviewed: true, capacityChecked: true });
+  const c = await call("campus", "post", "/api/students/enrollments", { action: "confirm", studentId, proposalId: proposal.id, reviewed: true, capacityChecked: true });
   assert.ok(c.status < 300, c.body);
 }
 const idpMode = (m: string) => fetch(`${IDP}/_mode?m=${m}`).then(r => r.text());
@@ -78,12 +82,13 @@ async function sso(connectionId: string, claims: Record<string, unknown>) {
 }
 
 before(async () => {
-  for (const [sid, name] of [[schoolA, "Synthetic Cedar Group"], [schoolB, "Synthetic Oak School"]]) await db.school.create({ data: { id: sid, name, slug: sid, regId: sid, contactEmail: `${sid}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: "Asia/Karachi" } as never });
+  for (const [sid, name] of [[schoolA, "Synthetic Cedar Group"], [schoolB, "Synthetic Oak School"]]) await db.school.create({ data: { id: sid, name, slug: sid, regId: sid, contactEmail: `${sid}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: "Asia/Karachi", registrationKind: "GROUP" } as never });
   for (const [sid, cid, name] of [[schoolA, north, "Cedar North"], [schoolA, south, "Cedar South"], [schoolB, oakCampus, "Oak Main"]]) {
     await db.campus.create({ data: { id: cid, schoolId: sid, name, regId: cid, city: "Lahore" } });
     for (const section of ["A", "B"]) { const classId = randomUUID(); ids[`${name}-${section}`] = classId; await db.class.create({ data: { id: classId, schoolId: sid, campusId: cid, name: "Grade 4", section, academicYear: 2026 } }); }
   }
-  await user("owner", "SUPER_ADMIN"); await user("owner2", "SUPER_ADMIN"); await user("principal", "PRINCIPAL"); await user("principal-ar", "PRINCIPAL", { language: "ar" });
+  await user("owner", "SUPER_ADMIN"); await user("owner2", "SUPER_ADMIN"); await user("owner-ar", "SUPER_ADMIN", { language: "ar" });
+  await user("campus", "CAMPUS_ADMIN"); await user("principal", "PRINCIPAL");
   await user("teacher", "TEACHER", { email: "t.khan@cedar.example", name: "Synthetic Tariq Khan" });
   await user("namesake", "TEACHER", { email: "s.ali@cedar.example", name: "Synthetic Sara Ali" });
   await user("oakTeacher", "TEACHER", { school: schoolB, campus: oakCampus, email: "t.khan@cedar.example", name: "Synthetic Tariq Khan" });
@@ -100,7 +105,8 @@ before(async () => {
 after(async () => { await browser?.close(); idp?.kill(); for (const sid of [schoolA, schoolB]) await db.school.delete({ where: { id: sid } }).catch(() => undefined); await db.$disconnect(); });
 
 test("setup: group admins only, owner roles never mappable, issuer and metadata validated before enabling", async () => {
-  assert.equal((await idn("principal", { action: "save", name: "Synthetic Directory", issuer: IDP, clientId: "skoolee-cedar" })).status, 403, "campus reviewers cannot change group identity policy");
+  assert.equal((await idn("principal", { action: "save", name: "Synthetic Directory", issuer: IDP, clientId: "skoolee-cedar" })).status, 403, "the principal cannot change group identity policy");
+  assert.equal((await idn("campus", { action: "save", name: "Synthetic Directory", issuer: IDP, clientId: "skoolee-cedar" })).status, 403, "campus reviewers cannot change group identity policy");
   assert.equal((await idn("owner", { action: "save", name: "Synthetic Directory", issuer: IDP, clientId: "skoolee-cedar", roleMap: { "it-admins": "SUPER_ADMIN" } })).status, 400);
   assert.equal((await idn("owner", { action: "save", name: "Synthetic Directory", issuer: IDP, clientId: "skoolee-cedar", roleMap: { "it-admins": "APP_OWNER" } })).status, 400);
   const c = await idn("owner", { action: "save", name: "Synthetic Directory", issuer: IDP, clientId: "skoolee-cedar", clientSecret: "synthetic-client-secret", roleMap: { "staff-teachers": "TEACHER" }, fieldOwnership: { fullName: "SOURCE", className: "SOURCE", status: "SOURCE", admissionNo: "LOCAL" }, emergencyAdminIds: [id("owner2")] });
@@ -188,17 +194,18 @@ test("roster batches: preview first, stable ids, namesakes kept apart, idempoten
     { kind: "staff", externalId: "SIS-T-2", fullName: "Synthetic Tariq Khan", email: "t.khan@cedar.example", group: "staff-teachers", status: "active" },
     { kind: "staff", externalId: "SIS-T-3", fullName: "Synthetic Admin", email: "admin@cedar.example", group: "it-admins", status: "active" },
   ];
-  const b = await idn("principal", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-042", rows });
+  assert.equal((await idn("principal", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-042", rows })).status, 403, "G14: the principal no longer reviews roster batches");
+  const b = await idn("campus", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-042", rows });
   assert.equal(b.status, 201, b.body); ids.b1 = b.json.data.id;
-  const detail = await call("principal", "get", `/api/identity?view=batch&id=${ids.b1}`);
+  const detail = await call("campus", "get", `/api/identity?view=batch&id=${ids.b1}`);
   const byExt = Object.fromEntries(detail.json.data.changes.map((c: { externalId: string }) => [c.externalId, c]));
   assert.deepEqual([byExt["SIS-S-1"].action, byExt["SIS-S-2"].action], ["ADD", "ADD"], "namesakes are two people");
   assert.equal(byExt["SIS-S-9"].action, "UPDATE"); assert.equal(byExt["SIS-S-9"].note, "Matched by admission number.");
   assert.equal(byExt["SIS-T-2"].action, "CONFLICT", "an existing email is never adopted by a roster");
   assert.equal(byExt["SIS-T-3"].action, "ERROR", "an unmapped group grants nothing");
   assert.equal(await db.student.count({ where: { schoolId: schoolA, fullName: "Synthetic Sam Lee" } }), 0, "a preview changes nothing");
-  assert.equal((await idn("principal", { action: "apply", id: ids.b1, previewHash: "0".repeat(64) })).status, 409, "approval binds the preview");
-  const applied = await idn("principal", { action: "apply", id: ids.b1, previewHash: detail.json.data.previewHash });
+  assert.equal((await idn("campus", { action: "apply", id: ids.b1, previewHash: "0".repeat(64) })).status, 409, "approval binds the preview");
+  const applied = await idn("campus", { action: "apply", id: ids.b1, previewHash: detail.json.data.previewHash });
   assert.equal(applied.status, 200, applied.body);
   assert.deepEqual(applied.json.data.result, { applied: 4, skippedConflicts: 1, errors: 1, keptLocal: 0 });
   assert.equal(await db.student.count({ where: { schoolId: schoolA, fullName: "Synthetic Sam Lee" } }), 2);
@@ -207,11 +214,11 @@ test("roster batches: preview first, stable ids, namesakes kept apart, idempoten
   assert.deepEqual([staff.role, staff.password], ["TEACHER", null], "mapped role, no password: signs in through the provider");
   ids.newStaff = staff.id;
   // Replays: same id + same rows → same batch; apply again → nothing more; same id + other rows → refused.
-  const replay = await idn("principal", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-042", rows });
+  const replay = await idn("campus", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-042", rows });
   assert.deepEqual([replay.json.data.id, replay.json.data.replayed], [ids.b1, true]);
-  assert.equal((await idn("principal", { action: "apply", id: ids.b1, previewHash: detail.json.data.previewHash })).json.data.repeated, true);
+  assert.equal((await idn("campus", { action: "apply", id: ids.b1, previewHash: detail.json.data.previewHash })).json.data.repeated, true);
   assert.equal(await db.student.count({ where: { schoolId: schoolA, fullName: "Synthetic Sam Lee" } }), 2, "no duplicates");
-  assert.equal((await idn("principal", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-042", rows: rows.slice(0, 1) })).status, 409);
+  assert.equal((await idn("campus", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-042", rows: rows.slice(0, 1) })).status, 409);
   assert.equal(await db.rosterExternalId.count({ where: { connectionId: ids.conn } }), 6, "matched pupils are mapped too");
 });
 
@@ -223,22 +230,22 @@ test("withdrawal with a conflicting local class change: nothing destructive with
     { kind: "student", externalId: "SIS-P-1", fullName: "Synthetic Pupil P1", admissionNo: "ADM-11", className: "Grade 4", section: "A", status: "withdrawn" },
     { kind: "staff", externalId: "SIS-T-1", fullName: "Synthetic New Staff", email: "new.staff@cedar.example", group: "staff-teachers", status: "withdrawn" },
   ];
-  ids.b2 = (await idn("principal", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-043", rows })).json.data.id;
-  const d = await call("principal", "get", `/api/identity?view=batch&id=${ids.b2}`);
+  ids.b2 = (await idn("campus", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-043", rows })).json.data.id;
+  const d = await call("campus", "get", `/api/identity?view=batch&id=${ids.b2}`);
   const byExt = Object.fromEntries(d.json.data.changes.map((c: { externalId: string }) => [c.externalId, c]));
   assert.equal(byExt["SIS-P-1"].action, "CONFLICT");
   assert.deepEqual([byExt["SIS-T-1"].action, byExt["SIS-T-1"].destructive], ["WITHDRAW", true]);
   const before = await db.user.findUniqueOrThrow({ where: { id: ids.newStaff } });
-  const r = await idn("principal", { action: "apply", id: ids.b2, previewHash: d.json.data.previewHash });
+  const r = await idn("campus", { action: "apply", id: ids.b2, previewHash: d.json.data.previewHash });
   assert.deepEqual(r.json.data.result, { applied: 1, skippedConflicts: 1, errors: 0, keptLocal: 0 });
   const pupil = await db.student.findUniqueOrThrow({ where: { id: sam.localId } });
   assert.deepEqual([pupil.archivedAt, pupil.classId], [null, ids["Cedar North-B"]], "the local class change survives an undecided conflict");
   const after = await db.user.findUniqueOrThrow({ where: { id: ids.newStaff } });
   assert.deepEqual([after.isActive, after.accessVersion], [false, before.accessVersion + 1], "access revoked and sessions invalidated");
   // A later batch with an explicit decision applies the withdrawal; the pupil's record stays.
-  ids.b3 = (await idn("principal", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-044", rows: rows.slice(0, 1) })).json.data.id;
-  const d3 = await call("principal", "get", `/api/identity?view=batch&id=${ids.b3}`);
-  await idn("principal", { action: "apply", id: ids.b3, previewHash: d3.json.data.previewHash, decisions: { "student:SIS-P-1": "APPLY_SOURCE" } });
+  ids.b3 = (await idn("campus", { action: "batch", connectionId: ids.conn, externalBatchId: "ROSTER-044", rows: rows.slice(0, 1) })).json.data.id;
+  const d3 = await call("campus", "get", `/api/identity?view=batch&id=${ids.b3}`);
+  await idn("campus", { action: "apply", id: ids.b3, previewHash: d3.json.data.previewHash, decisions: { "student:SIS-P-1": "APPLY_SOURCE" } });
   const withdrawn = await db.student.findUniqueOrThrow({ where: { id: sam.localId } });
   assert.ok(withdrawn.archivedAt, "withdrawn by an accountable decision");
   assert.equal(withdrawn.archiveReason, "Withdrawn by roster sync");
@@ -264,8 +271,10 @@ test("provider outage: SSO refuses, password recovery works, emergency access di
 });
 
 test("screens: connection and link review, roster review with a conflict, school sign-in, Arabic and phone", async () => {
+  const settings = /\/super\?view=settings&tab=identity/;
   const o = await (await context("owner")).newPage();
   await o.goto(`${base}/identity`);
+  await o.waitForURL(settings);
   await o.locator('[data-identity-connection="Synthetic Directory"]').waitFor();
   assert.ok(!(await o.content()).includes("synthetic-client-secret"), "the secret is not in the page");
   await shot(o, "01-identity-connection");
@@ -273,14 +282,17 @@ test("screens: connection and link review, roster review with a conflict, school
   await sso(ids.conn, { sub: "synthetic-sub-004", email: "unknown@cedar.example", email_verified: true, name: "Synthetic Unknown" });
   const o2 = await (await context("owner")).newPage();
   await o2.goto(`${base}/identity`);
+  await o2.waitForURL(settings);
   await o2.locator('[data-link-request="synthetic-sub-004"] [data-link-review]').click();
   await o2.locator("[data-link-modal]").waitFor();
   await shot(o2, "02-link-review");
   await o2.close();
   const sam2 = await db.rosterExternalId.findFirstOrThrow({ where: { connectionId: ids.conn, externalId: "SIS-P-2" } });
   await localMove(sam2.localId, ids["Cedar North-B"]);
-  const p = await (await context("principal")).newPage();
+  // The roster review screen lives in the authority's settings; campus operators review batches through the API only.
+  const p = await (await context("owner")).newPage();
   await p.goto(`${base}/identity`);
+  await p.waitForURL(settings);
   await p.locator("[data-roster]").waitFor();
   await p.locator("[data-roster-batch-id]").fill("ROSTER-045");
   await p.locator("[data-roster-rows]").fill(JSON.stringify([{ kind: "student", externalId: "SIS-P-2", fullName: "Synthetic Pupil P2", admissionNo: "ADM-12", className: "Grade 4", section: "A", status: "withdrawn" }, { kind: "student", externalId: "SIS-S-7", fullName: "Synthetic Noor Shah", className: "Grade 4", section: "A", status: "active" }]));
@@ -293,16 +305,25 @@ test("screens: connection and link review, roster review with a conflict, school
   await s.locator('[data-sso-connection="Synthetic Directory"]').waitFor();
   await shot(s, "04-school-sign-in");
   await s.close();
-  const ar = await (await context("principal-ar")).newPage();
+  const ar = await (await context("owner-ar")).newPage();
   await ar.goto(`${base}/identity`);
+  await ar.waitForURL(settings);
   await ar.locator("[data-identity]").waitFor();
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
   await shot(ar, "05-identity-ar");
   await ar.close();
   const phone = await (await context("owner", { width: 390, height: 844 })).newPage();
   await phone.goto(`${base}/identity`);
+  await phone.waitForURL(settings);
   await phone.locator("[data-identity-connection]").first().waitFor();
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, "no sideways scroll at phone width");
   await shot(phone, "06-phone");
   await phone.close();
+  // Everyone else is sent home (§6.3), never to an identity screen they cannot use.
+  for (const [key, home] of [["principal", "/principal"], ["campus", "/admin"], ["teacher", "/teacher"]] as const) {
+    const page = await (await context(key)).newPage();
+    await page.goto(`${base}/identity`);
+    await page.waitForURL((target) => target.pathname === home);
+    await page.close();
+  }
 });

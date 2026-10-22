@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 
 // GET /api/payroll/report?campusId=&from=YYYY-MM&to=YYYY-MM
 // Runs + lines across a month range with totals per run and grand totals.
@@ -8,7 +8,7 @@ import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveC
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
 

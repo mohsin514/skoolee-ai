@@ -69,7 +69,9 @@ before(async () => {
   await campus(riyadh, "Crescent Riyadh", "SA", "SAR", ["Synthetic Layla Al-Harbi", "SYNTHETIC-REJECT Omar", "SYNTHETIC-TIMEOUT Sara"]);
   await campus(lahore, "Crescent Lahore", "PK", "PKR", ["Synthetic Ali Raza"]);
   await campus(toronto, "Crescent Kuwait", "KW", "KWD", ["Synthetic Maya Al-Sabah"]);
-  await user("finance1", "SUPER_ADMIN"); await user("finance2", "ACCOUNTANT"); await user("teacher", "TEACHER"); await user("finance-ar", "ACCOUNTANT", riyadh, "ar");
+  // role-ux G27: the tax identity spans campuses, so sign-off is the institution authority's (a second group admin
+  // here); finance1 drafts across campuses as the group admin (server break-glass), and the accountant never signs off.
+  await user("finance1", "SUPER_ADMIN"); await user("finance2", "SUPER_ADMIN"); await user("teacher", "TEACHER"); await user("finance-ar", "ACCOUNTANT", riyadh, "ar");
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
   browser = await chromium.launch({ headless: true });
@@ -116,6 +118,7 @@ test("activation needs identity, owner, dated evidence, a passing fixture run on
   assert.equal((await tax("finance1", activation(full))).status, 200);
   assert.equal((await tax("finance1", { action: "fixtures", id: ids.a1, fixtures: FIXTURES })).json.data.passed, true);
   assert.equal((await tax("finance1", { action: "approve", id: ids.a1 })).status, 403, "not by the preparer");
+  assert.equal((await tax("finance-ar", { action: "approve", id: ids.a1 })).status, 403, "never by the finance desk");
   const ok = await tax("finance2", { action: "approve", id: ids.a1 });
   assert.equal(ok.status, 200, ok.body);
   const a = await db.taxActivation.findUniqueOrThrow({ where: { id: ids.a1 } });

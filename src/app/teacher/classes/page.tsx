@@ -3,17 +3,22 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Tooltip, InfoTip } from "@/components/ui/tooltip";
+import { InfoTip } from "@/components/ui/tooltip";
+import { IconButton } from "@/components/ui/icon-button";
+import { Menu } from "@/components/ui/menu";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { useRouter } from "next/navigation";
-import { CalendarCheck, FileText, GraduationCap, Star, Users } from "lucide-react";
+import { CalendarCheck, Download, FileText, GraduationCap, MoreHorizontal, School, Star, Users } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import {
   classLabel, DashboardSkeleton, TeacherErrorState,
 } from "@/components/teacher/teacher-components";
 import { cn } from "@/lib/utils";
+import { csvCell } from "@/lib/csv";
 import { useTeacherData } from "../teacher-data-context";
 
 export default function TeacherClassesPage() {
+  const ui = useUiText();
   const router = useRouter();
   const { data, loading, error, refetch } = useTeacherData();
 
@@ -21,40 +26,61 @@ export default function TeacherClassesPage() {
   if (!data) return <TeacherErrorState error={error} onRetry={refetch} />;
 
   const classHubs = data?.classHubs || [];
+  const studentsIn = (classId: string) => (data.students || []).filter((s: any) => s.class?.id === classId);
+  const pendingMarksIn = (classId: string) => (data.activeExams || [])
+    .filter((e: any) => e.classId === classId)
+    .reduce((sum: number, e: any) => sum + (e.missingMarks || 0), 0);
+
+  /* §4.4b teacher · Classes: Export is the screen's one visible secondary (UTF-8 BOM so Arabic and
+     Urdu names open correctly in spreadsheet apps). */
+  const exportCsv = () => {
+    const rows = [[ui("Class"), ui("Your role"), ui("Students"), ui("Subjects"), ui("Pending marks")]];
+    for (const cls of classHubs) {
+      rows.push([
+        classLabel(cls) || "",
+        ui(cls.role || "Teacher"),
+        String(studentsIn(cls.id).length),
+        (cls.subjects || []).map((subject: any) => subject.name).join("; "),
+        String(pendingMarksIn(cls.id)),
+      ]);
+    }
+    const blob = new Blob(["\uFEFF" + rows.map((r) => r.map(csvCell).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "my-classes.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <TeacherPage
-      tone="classes"
-      icon={GraduationCap}
-      eyebrow="My Teaching Load"
-      title="My Classes"
-      summary="Every class assigned to you, with students and pending work"
+      icon={School}
+      title="Classes"
+      description="Every class assigned to you, with its pupils, subjects and marks still to enter."
+      secondaryActions={classHubs.length ? [{ id: "export", label: "Export", icon: Download, onClick: exportCsv }] : []}
     >
       <div className="space-y-3">
         {classHubs.length === 0 ? (
           <div className="sk-panel sk-enter">
             <EmptyState
               icon={GraduationCap}
-              title="No classes assigned yet"
-              description="Your classes appear here as soon as a school administrator assigns them to you. If you expected to see a class, ask your administrator to check your teaching assignments."
+              title={ui("No classes assigned yet")}
+              description={ui("Your classes appear here as soon as a school administrator assigns them to you. If you expected to see a class, ask your administrator to check your teaching assignments.")}
             />
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-bold text-ink-strong">Assigned classes</h2>
-              <Badge variant="neutral" size="sm" data-numeric>{classHubs.length} active</Badge>
+              <h2 className="text-base font-bold text-ink-strong">{ui("Assigned classes")}</h2>
+              <Badge variant="neutral" size="sm" data-numeric>{ui("{0} active", [classHubs.length])}</Badge>
             </div>
             <div className="sk-stagger grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {classHubs.map((cls: any) => {
-                const clsStudents = (data.students || []).filter((s: any) => s.class?.id === cls.id);
-                const clsExams = (data.activeExams || []).filter((e: any) => e.classId === cls.id);
-                const clsMissingMarks = clsExams.reduce((sum: number, e: any) => sum + (e.missingMarks || 0), 0);
+                const clsStudents = studentsIn(cls.id);
+                const clsMissingMarks = pendingMarksIn(cls.id);
                 return (
                   <div key={cls.id} className="sk-panel sk-hover-lift group min-w-0 p-4">
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="sk-eyebrow text-primary">{cls.role || "Teacher"}</p>
+                        <p className="text-xs font-semibold text-primary">{ui(cls.role || "Teacher")}</p>
                         <h3 className="mt-0.5 truncate text-base font-bold tracking-tight text-ink-strong transition-colors group-hover:text-primary">{classLabel(cls)}</h3>
                       </div>
                       <div aria-hidden="true" className="sk-icon-tile flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
@@ -63,18 +89,18 @@ export default function TeacherClassesPage() {
                     </div>
                     <div className="mb-3 grid grid-cols-3 gap-1.5">
                       <div className="rounded-xl bg-brand-50/70 px-2 py-1.5 text-center">
-                        <p className="text-base font-bold tabular-nums text-primary">{clsStudents.length}</p>
-                        <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Students</p>
+                        <p className="text-base font-bold tabular-nums text-primary"><bdi>{clsStudents.length}</bdi></p>
+                        <p className="truncate text-2xs font-semibold text-ink-subtle">{ui("Students")}</p>
                       </div>
                       <div className="rounded-xl bg-brand-50/70 px-2 py-1.5 text-center">
-                        <p className="text-base font-bold tabular-nums text-ink-strong">{cls.subjects?.length || 0}</p>
-                        <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Subjects</p>
+                        <p className="text-base font-bold tabular-nums text-ink-strong"><bdi>{cls.subjects?.length || 0}</bdi></p>
+                        <p className="truncate text-2xs font-semibold text-ink-subtle">{ui("Subjects")}</p>
                       </div>
                       <div className="rounded-xl bg-brand-50/70 px-2 py-1.5 text-center">
-                        <p className={cn("text-base font-bold tabular-nums", clsMissingMarks > 0 ? "text-rose-600" : "text-emerald-600")}>{clsMissingMarks}</p>
-                        <p className="inline-flex max-w-full items-center justify-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                          <span className="truncate">Pending</span>
-                          <InfoTip label="About pending marks" content="Marks not yet entered for this class's active assessments, added up across every assessment." />
+                        <p className={cn("text-base font-bold tabular-nums", clsMissingMarks > 0 ? "text-status-error-text" : "text-status-success-text")}><bdi>{clsMissingMarks}</bdi></p>
+                        <p className="inline-flex max-w-full items-center justify-center gap-0.5 text-2xs font-semibold text-ink-subtle">
+                          <span className="truncate">{ui("Pending")}</span>
+                          <InfoTip label={ui("About pending marks")} content={ui("Marks not yet entered for this class's active assessments, added up across every assessment.")} />
                         </p>
                       </div>
                     </div>
@@ -92,24 +118,22 @@ export default function TeacherClassesPage() {
                         link to the bare page, so tapping "Attendance" on Grade
                         5A landed on whichever class sorted first and the
                         teacher had to pick 5A again. */}
-                    <div className="grid grid-cols-2 gap-1.5 min-[400px]:grid-cols-4">
-                      {[
-                        { icon: CalendarCheck, label: "Attendance", href: "/teacher/attendance" },
-                        { icon: Star, label: "Marks", href: "/teacher/marks" },
-                        { icon: FileText, label: "Reports", href: "/teacher/reports" },
-                        { icon: Users, label: "Students", href: "/teacher/students" },
-                      ].map(({ icon: ActionIcon, label, href }) => (
-                        <Tooltip key={label} content={`${label} for ${classLabel(cls)}`}>
-                          <Button size="sm" variant="secondary"
-                            type="button"
-                            onClick={() => router.push(`${href}?classId=${encodeURIComponent(cls.id)}`)}
-                            className="min-w-0 flex-col justify-start px-1 text-xs"
-                          >
-                            <ActionIcon aria-hidden="true" className="h-3.5 w-3.5" />
-                            {label}
-                          </Button>
-                        </Tooltip>
-                      ))}
+                    <div className="flex items-center gap-2 border-t border-border-subtle pt-3">
+                      <Button size="sm" variant="outline" type="button" className="flex-1"
+                        onClick={() => router.push(`/teacher/attendance?classId=${encodeURIComponent(cls.id)}`)}>
+                        <CalendarCheck aria-hidden="true" />
+                        {ui("Take register")}
+                      </Button>
+                      <Menu
+                        label={ui("More actions")}
+                        align="end"
+                        trigger={<IconButton size="sm" variant="ghost" label={ui("More actions for {0}", [classLabel(cls)])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+                        items={[
+                          { id: "marks", label: "Marks", icon: Star, onSelect: () => router.push(`/teacher/marks?classId=${encodeURIComponent(cls.id)}`) },
+                          { id: "reports", label: "Report cards", icon: FileText, onSelect: () => router.push(`/teacher/reports?classId=${encodeURIComponent(cls.id)}`) },
+                          { id: "students", label: "Students", icon: Users, onSelect: () => router.push(`/teacher/students?classId=${encodeURIComponent(cls.id)}`) },
+                        ]}
+                      />
                     </div>
                   </div>
                 );

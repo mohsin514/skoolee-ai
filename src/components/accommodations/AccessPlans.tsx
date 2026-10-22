@@ -1,4 +1,5 @@
 "use client";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Lock } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
@@ -55,20 +56,20 @@ export function CoordinatorAccess() {
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const run = async (work: () => Promise<unknown>) => { setStatus(null); try { await work(); await load(); setStatus({ tone: "ok", text: t.saved }); return true; } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; } };
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
-  if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <p className="text-sm text-slate-600">{t.loading}</p>}</div>;
+  if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-5">
-    <section aria-labelledby="review-heading" className="rounded-xl border bg-white p-4 text-sm">
+    <section aria-labelledby="review-heading" className="rounded-xl border bg-card p-4 text-sm">
       <h2 id="review-heading" className="text-base font-semibold">{t.review}</h2>
-      {view.review.length ? <ul className="mt-2 grid gap-1">{view.review.map(row => <li key={row.planId}><span dir="auto">{row.fullName}</span> · {row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</li>)}</ul> : <p className="text-slate-600">{t.noReview}</p>}
+      {view.review.length ? <ul className="mt-2 grid gap-1">{view.review.map(row => <li key={row.planId}><span dir="auto">{row.fullName}</span> · {row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</li>)}</ul> : <p className="text-ink-muted">{t.noReview}</p>}
     </section>
     <label className="grid max-w-sm gap-1 text-xs font-semibold">{t.class}<Select value={view.classId ?? ""} onChange={event => { setClassId(event.target.value); setEditing(null); }}>{view.classes.map(row => <option key={row.id} value={row.id}>{row.name}{row.section ? ` ${row.section}` : ""}</option>)}</Select></label>
     <Status status={status} />
     <ul className="grid gap-3" aria-label={t.title}>{view.students.map(student => {
       const active = student.plans.find(plan => plan.status === "ACTIVE");
-      return <li key={student.id} className="rounded-xl border bg-white p-4">
+      return <li key={student.id} className="rounded-xl border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0"><p className="font-semibold" dir="auto">{student.fullName}</p>
-            {active ? <p className="text-xs text-slate-500">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-slate-500">{t.none}</p>}
+            {active ? <p className="text-xs text-ink-subtle">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-ink-subtle">{t.none}</p>}
           </div>
           <Button type="button" variant="outline" onClick={() => setEditing(editing?.id === student.id ? null : student)}>{active ? t.editPlan : t.newPlan}</Button>
         </div>
@@ -96,7 +97,7 @@ function PlanForm({ t, student, active, onCancel, onSubmit, onRevoke }: { t: Acc
     void onSubmit({ studentId: student.id, validFrom: text("validFrom"), validUntil: text("validUntil"), assessmentTypes: types, extraMinutes: numbers.extraMinutes, extraPercent: numbers.extraPercent, breakMinutes: numbers.breakMinutes, capabilities: { ...caps, assistiveTech: text("assistive").split(",").map(item => item.trim()).filter(Boolean).slice(0, 5) }, instructions: text("instructions"), expectedVersion: latest });
   };
   const number = (key: "extraMinutes" | "extraPercent" | "breakMinutes" | "base", label: string, max: number) => <label className="grid gap-1 text-xs font-semibold">{label}<Input type="number" min={key === "base" ? 1 : 0} max={max} value={numbers[key]} onChange={event => setNumbers(previous => ({ ...previous, [key]: Number(event.target.value) || 0 }))} /></label>;
-  return <form onSubmit={submit} aria-label={t.editPlan} className="mt-3 grid gap-3 rounded-xl border bg-slate-50 p-3 sm:grid-cols-2">
+  return <form onSubmit={submit} aria-label={t.editPlan} className="mt-3 grid gap-3 rounded-xl border bg-surface-subtle p-3 sm:grid-cols-2">
     <label className="grid gap-1 text-xs font-semibold">{t.validFrom}<Input type="date" name="validFrom" required defaultValue={active ? dayOf(active.validFrom) : today} /></label>
     <label className="grid gap-1 text-xs font-semibold">{t.validUntil}<Input type="date" name="validUntil" required defaultValue={active ? dayOf(active.validUntil) : today} /></label>
     <fieldset className="grid gap-1 text-xs sm:col-span-2"><legend className="font-semibold">{t.appliesTo}</legend><div className="flex flex-wrap gap-3">{(["EXAM", "ASSIGNMENT", "PRACTICE"] as const).map(type => <label key={type} className="flex min-h-8 items-center gap-2 text-sm"><Checkbox checked={types.includes(type)} onChange={event => setTypes(previous => event.target.checked ? [...previous, type] : previous.filter(item => item !== type))} />{t.types[type]}</label>)}</div></fieldset>
@@ -104,8 +105,8 @@ function PlanForm({ t, student, active, onCancel, onSubmit, onRevoke }: { t: Acc
     <fieldset className="grid gap-1 text-xs sm:col-span-2"><legend className="font-semibold">{t.preview}</legend><div className="flex flex-wrap gap-3">{(Object.keys(t.caps) as Array<keyof AccessCopy["caps"]>).map(key => <label key={key} className="flex min-h-8 items-center gap-2 text-sm"><Checkbox checked={caps[key]} onChange={event => setCaps(previous => ({ ...previous, [key]: event.target.checked }))} />{t.caps[key]}</label>)}</div></fieldset>
     <label className="grid gap-1 text-xs font-semibold">{t.submission}<Select value={caps.submissionMode} onChange={event => setCaps(previous => ({ ...previous, submissionMode: event.target.value as Capabilities["submissionMode"] }))}>{(Object.keys(t.submissionModes) as Array<Capabilities["submissionMode"]>).map(mode => <option key={mode} value={mode}>{t.submissionModes[mode]}</option>)}</Select></label>
     <label className="grid gap-1 text-xs font-semibold">{t.assistive}<Input name="assistive" maxLength={420} defaultValue={caps.assistiveTech.join(", ")} /></label>
-    <div className="grid gap-1 text-xs sm:col-span-2"><label className="grid gap-1 font-semibold">{t.instructions}<Textarea name="instructions" maxLength={500} rows={2} defaultValue={active?.instructions ?? ""} aria-describedby="access-instructions-help" className="rounded-md border px-3 py-2 text-sm font-normal" /></label><span id="access-instructions-help" className="text-slate-600">{t.instructionsHelp}</span></div>
-    <div className="space-y-2 rounded-lg border bg-white p-3 sm:col-span-2">{number("base", t.baseMinutes, 480)}<Breakdown t={t} effective={preview} /><p className="text-xs text-slate-600">{t.startedNote}</p></div>
+    <div className="grid gap-1 text-xs sm:col-span-2"><label className="grid gap-1 font-semibold">{t.instructions}<Textarea name="instructions" maxLength={500} rows={2} defaultValue={active?.instructions ?? ""} aria-describedby="access-instructions-help" className="rounded-md border px-3 py-2 text-sm font-normal" /></label><span id="access-instructions-help" className="text-ink-muted">{t.instructionsHelp}</span></div>
+    <div className="space-y-2 rounded-lg border bg-card p-3 sm:col-span-2">{number("base", t.baseMinutes, 480)}<Breakdown t={t} effective={preview} /><p className="text-xs text-ink-muted">{t.startedNote}</p></div>
     <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={!types.length}>{t.savePlan}</Button><Button type="button" variant="ghost" onClick={onCancel}>{t.cancel}</Button></div>
     {onRevoke && <div className="flex flex-wrap items-end gap-2 border-t pt-3 sm:col-span-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.revokeReason}<Input value={revokeReason} onChange={event => setRevokeReason(event.target.value)} maxLength={300} /></label><Button type="button" variant="outline" disabled={revokeReason.trim().length < 3} onClick={() => void onRevoke(revokeReason)}>{t.confirmRevoke}</Button></div>}
   </form>;
@@ -120,7 +121,7 @@ function SupportRecords({ t, planId, language }: { t: AccessCopy; planId: string
     <summary className="flex cursor-pointer items-center gap-2 font-semibold"><Lock className="h-4 w-4" aria-hidden />{t.support}</summary>
     <p className="mt-1 text-xs text-status-warning-text">{t.supportHelp}</p>
     {error && <p role="alert" className="text-status-error-text">{error}</p>}
-    {records && (records.length ? <ul className="mt-2 grid gap-1">{records.map(row => <li key={row.id} dir="auto">{new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(row.createdAt))} · {row.note}</li>)}</ul> : <p className="mt-2 text-slate-600">{t.noSupport}</p>)}
+    {records && (records.length ? <ul className="mt-2 grid gap-1">{records.map(row => <li key={row.id} dir="auto">{new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(row.createdAt))} · {row.note}</li>)}</ul> : <p className="mt-2 text-ink-muted">{t.noSupport}</p>)}
     <div className="mt-2 flex flex-wrap items-end gap-2"><label className="grid flex-1 gap-1 text-xs font-semibold">{t.note}<Input value={note} onChange={event => setNote(event.target.value)} maxLength={4000} /></label><Button type="button" variant="outline" disabled={note.trim().length < 3} onClick={() => void open({ note })}>{t.addNote}</Button></div>
   </details>;
 }
@@ -132,12 +133,12 @@ export function StaffAccess() {
   const [error, setError] = useState("");
   useEffect(() => { call("/api/accommodations?view=staff").then(data => setPlans(data.plans)).catch(cause => setError(cause instanceof Error ? cause.message : t.failed)); }, [t.failed]);
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
-  if (error) return <p role="alert" className="text-sm text-rose-800">{error}</p>;
-  if (!plans) return <p className="text-sm text-slate-600">{t.loading}</p>;
-  return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{plans.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-600">{t.noStaff}</p>
-    : <ul className="grid gap-3" aria-label={t.staffTitle}>{plans.map(({ student, plan }) => <li key={plan.id} className="space-y-2 rounded-xl border bg-white p-4">
+  if (error) return <p role="alert" className="text-sm text-status-error-text">{error}</p>;
+  if (!plans) return <SkeletonList rows={2} label={t.loading} />;
+  return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{plans.length === 0 ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-muted">{t.noStaff}</p>
+    : <ul className="grid gap-3" aria-label={t.staffTitle}>{plans.map(({ student, plan }) => <li key={plan.id} className="space-y-2 rounded-xl border bg-card p-4">
       <p className="font-semibold" dir="auto">{student.fullName}</p>
-      <p className="text-xs text-slate-500">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)} · {plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p>
+      <p className="text-xs text-ink-subtle">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)} · {plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p>
       <Capability t={t} plan={plan} />
       {plan.instructions && <p className="text-sm" dir="auto">{plan.instructions}</p>}
       <Breakdown t={t} effective={effectiveSettings({ baseMinutes: 45, type: plan.assessmentTypes[0], at: new Date(plan.validFrom), plan: asRow(plan) })} />
@@ -155,27 +156,27 @@ export function LearnerAccess() {
   const load = useCallback(async () => setView(await call("/api/accommodations?view=learner")), []);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const date = (value: string, time = false) => new Intl.DateTimeFormat(language, time ? { dateStyle: "medium", timeStyle: "short" } : { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
-  if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <p className="text-sm text-slate-600">{t.loading}</p>}</div>;
-  if (view.mode === "guardian") return <ul dir={rtl ? "rtl" : "ltr"} className="grid gap-3" aria-label={t.learnerTitle}>{view.children.map(child => <li key={child.fullName} className="space-y-2 rounded-xl border bg-white p-4">
+  if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
+  if (view.mode === "guardian") return <ul dir={rtl ? "rtl" : "ltr"} className="grid gap-3" aria-label={t.learnerTitle}>{view.children.map(child => <li key={child.fullName} className="space-y-2 rounded-xl border bg-card p-4">
     <p className="font-semibold" dir="auto">{child.fullName}</p>
-    {child.plan ? <><p className="text-xs text-slate-500">{t.validity} {date(child.plan.validFrom)} – {date(child.plan.validUntil)} · {child.plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p><Capability t={t} plan={child.plan} /><p className="text-sm">{child.plan.extraMinutes || child.plan.extraPercent ? `${t.extraMinutes}: ${child.plan.extraMinutes}${child.plan.extraPercent ? ` + ${child.plan.extraPercent}%` : ""}` : t.noExtra}</p></> : <p className="text-sm text-slate-600">{t.none}</p>}
+    {child.plan ? <><p className="text-xs text-ink-subtle">{t.validity} {date(child.plan.validFrom)} – {date(child.plan.validUntil)} · {child.plan.assessmentTypes.map(type => t.types[type]).join(", ")}</p><Capability t={t} plan={child.plan} /><p className="text-sm">{child.plan.extraMinutes || child.plan.extraPercent ? `${t.extraMinutes}: ${child.plan.extraMinutes}${child.plan.extraPercent ? ` + ${child.plan.extraPercent}%` : ""}` : t.noExtra}</p></> : <p className="text-sm text-ink-muted">{t.none}</p>}
   </li>)}</ul>;
   const plan = view.plan;
   const sample = view.exams[0]?.effective ?? (plan ? effectiveSettings({ baseMinutes: 45, type: "PRACTICE", at: new Date(), plan: { ...asRow(plan), assessmentTypes: [...plan.assessmentTypes, "PRACTICE"] } }) : null);
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-4">
     <Status status={status} />
-    {!plan ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-600">{t.none}</p> : <>
-      <section className="space-y-2 rounded-xl border bg-white p-4">
+    {!plan ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-ink-muted">{t.none}</p> : <>
+      <section className="space-y-2 rounded-xl border bg-card p-4">
         <p className="text-lg font-bold">{sample && sample.extraMinutes + sample.breakMinutes > 0 ? fillAccess(t.includes, { n: sample.extraMinutes + sample.breakMinutes }) : t.noExtra}</p>
         <Capability t={t} plan={plan} />
-        <p className="text-xs text-slate-500">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)}</p>
+        <p className="text-xs text-ink-subtle">{t.validity} {date(plan.validFrom)} – {date(plan.validUntil)}</p>
       </section>
-      {view.exams.length > 0 && <section aria-labelledby="upcoming-heading" className="space-y-2 rounded-xl border bg-white p-4"><h2 id="upcoming-heading" className="font-semibold">{t.upcoming}</h2>
+      {view.exams.length > 0 && <section aria-labelledby="upcoming-heading" className="space-y-2 rounded-xl border bg-card p-4"><h2 id="upcoming-heading" className="font-semibold">{t.upcoming}</h2>
         <ul className="grid gap-3">{view.exams.map(exam => <li key={exam.id} className="space-y-1"><p className="text-sm font-semibold"><bdi>{exam.title}</bdi> · <bdi>{date(exam.startsAt, true)}</bdi></p><Breakdown t={t} effective={exam.effective} /></li>)}</ul></section>}
-      <section aria-labelledby="practice-heading" className="space-y-3 rounded-xl border bg-white p-4">
+      <section aria-labelledby="practice-heading" className="space-y-3 rounded-xl border bg-card p-4">
         <h2 id="practice-heading" className="font-semibold">{t.practice}</h2>
-        <p className="text-sm text-slate-600">{t.practiceHelp}</p>
-        <div className={`rounded-lg border p-4 ${plan.capabilities.largeText ? "text-2xl" : "text-base"} ${plan.capabilities.highContrast ? "bg-black text-white" : "bg-slate-50"}`}>{t.sample}</div>
+        <p className="text-sm text-ink-muted">{t.practiceHelp}</p>
+        <div className={`rounded-lg border p-4 ${plan.capabilities.largeText ? "text-2xl" : "text-base"} ${plan.capabilities.highContrast ? "bg-black text-white" : "bg-surface-subtle"}`}>{t.sample}</div>
         <p className="text-sm">{plan.rehearsedAt ? fillAccess(t.rehearsed, { date: date(plan.rehearsedAt, true) }) : t.notRehearsed}</p>
         <Button type="button" onClick={async () => { setStatus(null); try { await call("/api/accommodations", { op: "rehearse", planId: plan.id, baseMinutes: sample?.baseMinutes || 45 }); await load(); setStatus({ tone: "ok", text: t.saved }); } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); } }}>{t.works}</Button>
       </section>

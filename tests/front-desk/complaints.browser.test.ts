@@ -47,7 +47,7 @@ const shot = async (page: Page, name: string) => { await page.evaluate("Promise.
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Olive Case School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Dubai", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Olive Creek"], [otherCampusId, "Olive Marina"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Dubai" } });
-  const lead = await user("lead", "PRINCIPAL"); await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40: campus admins own front-office work; the principal does not await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER"); await user("parent", "PARENT");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Dubai", currency: "AED" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   await db.authAttempt.deleteMany({});
@@ -134,7 +134,8 @@ test("reception records a routine complaint and gets a receipt; the leader revie
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/receptionist?view=complaints`);
   const panel = page.locator("[data-complaints-desk]");
-  await panel.getByRole("button", { name: "Record complaint" }).click({ timeout: 30_000 });
+  // role-ux §4.4: "Record complaint" is the view's PageHeader primary, above the desk.
+  await page.getByRole("button", { name: "Record complaint" }).first().click({ timeout: 30_000 });
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Record complaint" }).click();
   await dialog.locator("[data-complaint-error]").waitFor();
@@ -152,7 +153,7 @@ test("reception records a routine complaint and gets a receipt; the leader revie
   await page.close();
 
   const lead = await context("lead"), leaderPage = await lead.newPage();
-  await leaderPage.goto(`${base}/principal?view=complaints`);
+  await leaderPage.goto(`${base}/admin?view=front-desk&tab=complaints`);
   const leaderPanel = leaderPage.locator("[data-complaints-desk]");
   await leaderPanel.locator('[data-confidential="true"]').waitFor({ timeout: 30_000 });
   await leaderPanel.locator('[data-confidential="true"]').getByRole("button", { name: /Open complaint/ }).click();

@@ -23,7 +23,8 @@ async function main(){
   if(["PARENT","STUDENT"].includes(role))assert.equal((await context.request.get(`${base}/api/students/enrollments?studentId=pupil-same-name`)).status(),404);
   // SKO-488: the parent link alone grants nothing; a missing, revoked or expired guardian grant is refused.
   if(role==="PARENT")for(const denied of ["pupil-ungranted","pupil-revoked","pupil-expired"])assert.equal((await context.request.get(`${base}/api/students/enrollments?studentId=${denied}`)).status(),404,`PARENT ${denied}`);
-  const canManage=["SUPER_ADMIN","ADMIN","CAMPUS_ADMIN","PRINCIPAL"].includes(role);
+  // §7.6: enrolment changes are registrar work (campus operations); the principal reads only.
+  const canManage=["SUPER_ADMIN","ADMIN","CAMPUS_ADMIN"].includes(role);
   if(!canManage)assert.equal((await context.request.post(`${base}/api/students/enrollments`,{data:{action:"propose",studentId:pupil}})).status(),403);
   if(role!=="SUPER_ADMIN")assert.equal((await context.request.post(`${base}/api/students/consolidation`,{data:{action:"preview",sourceId:pupil,targetId:"pupil-survivor"}})).status(),403);
   for(const language of ["en","ar","ur"] as const){

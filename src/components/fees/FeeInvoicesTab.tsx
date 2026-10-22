@@ -1,11 +1,13 @@
 "use client";
 
+import { UiSentence } from "@/components/operations/console-page";
+
 import { InstallmentPlanPanel } from "./installment-plan-panel";
 import { InvoiceAdjustmentsPanel } from "./adjustments-panel";
 import { Button } from "@/components/ui/button";
-import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -29,7 +31,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { downloadPdfFile } from "@/lib/download";
-import type { ClassOption, Invoice, InvoiceStatus } from "./fee-types";
+import type { ClassOption, Invoice, InvoiceStatus, PanelCommand } from "./fee-types";
 
 const INVOICE_TONE: Record<string, "success" | "warning" | "info" | "danger" | "neutral"> = { PAID: "success", PARTIAL: "warning", PENDING: "info", OVERDUE: "danger", CANCELLED: "neutral" };
 import {
@@ -40,6 +42,7 @@ import {
   formatPKR,
   paisaToRupees,
   paymentMethodLabel,
+  usePanelCommand,
 } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -54,7 +57,13 @@ const STATUSES: { value: string; label: string }[] = [
   { value: "CANCELLED", label: "Cancelled" },
 ];
 
-export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
+/**
+ * Invoices for one campus. `readOnly` is the campus admin who does not hold the finance desk: they follow
+ * invoices and decide refunds inside the invoice drawer, but generating, cancelling and requesting adjustments
+ * stay with the finance desk (role-ux §3.1). `hideHeader` lets a console's PageHeader own the title and the
+ * primary action; `command` runs "generate-invoices" or "export" from that header.
+ */
+export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader = false }: { campusId?: string; readOnly?: boolean; command?: PanelCommand | null; hideHeader?: boolean }) {
  const { date: formatDate, money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -66,11 +75,25 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
+  const { language } = useLocale();
+  // The last two years plus the next three months, newest first, named in the reader's language.
+  const monthOptions = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(language === "en" ? "en" : `${language}-u-nu-latn`, { month: "long", year: "numeric", timeZone: "UTC" });
+    const now = new Date();
+    return Array.from({ length: 27 }, (_, i) => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 3 - i, 1));
+      return { value: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`, label: fmt.format(d) };
+    });
+  }, [language]);
+  const formatCount = (n: number) => new Intl.NumberFormat(language === "en" ? "en" : `${language}-u-nu-latn`).format(n);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [detailInvoice, setDetailInvoice] = useState<any>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  // The invoice the drawer is showing; a failed load stays in the drawer with a retry (R4: never a toast).
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailFailed, setDetailFailed] = useState(false);
   const [showGenerate, setShowGenerate] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
 
@@ -99,8 +122,8 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         setLoadFailed(true);
       }
     } catch {
+      // Load failures are shown in place with a retry (role-ux R4), never as a toast.
       setLoadFailed(true);
-      toast.error(tr("Failed to load invoices"));
     } finally {
       setLoading(false);
     }
@@ -123,6 +146,13 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
     loadInvoices();
   }, [loadInvoices]);
 
+  // Deep link from the approvals queue: ?invoice=<id> opens that invoice's drawer once.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("invoice");
+    if (id) void viewDetail(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSearch = () => {
     setPage(1);
     setSearchQuery(searchInput);
@@ -130,20 +160,17 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
 
   const viewDetail = async (id: string) => {
     setDetailInvoice(null);
+    setDetailId(id);
+    setDetailFailed(false);
     setShowDetail(true);
     setLoadingDetail(true);
     try {
       const res = await fetch(`${API}/invoices/${id}`);
       const json = await res.json();
-      if (json.success) {
-        setDetailInvoice(json.data);
-      } else {
-        toast.error(tr("Failed to load invoice"));
-        setShowDetail(false);
-      }
+      if (json.success) setDetailInvoice(json.data);
+      else setDetailFailed(true);
     } catch {
-      toast.error(tr("Failed to load invoice details"));
-      setShowDetail(false);
+      setDetailFailed(true);
     } finally {
       setLoadingDetail(false);
     }
@@ -170,7 +197,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
   };
 
   const handleExportCSV = () => {
-    if (invoices.length === 0) return;
+    if (invoices.length === 0) { toast.info(tr("Nothing to export yet.")); return; }
     const rows = invoices.map((inv) => ({
       "Invoice #": inv.invoiceNumber,
       Student: inv.student.fullName,
@@ -187,15 +214,22 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
     exportCSV(rows, `invoices-${new Date().toISOString().split("T")[0]}`);
   };
 
+  // "Generate invoices" may arrive with a view change (Today → Invoices), so it runs at once; an export waits
+  // for the list it exports.
+  usePanelCommand(command, { "generate-invoices": () => { if (!readOnly) setShowGenerate(true); } });
+  usePanelCommand(command, { export: handleExportCSV }, !loading);
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Invoices"}</UiText></h3>
-        <div className="flex items-center gap-2">
-          <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={handleExportCSV}><UiText>{"Export"}</UiText></BrandButton>
-          <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowGenerate(true)}><UiText>{"Generate"}</UiText></BrandButton>
+      {hideHeader ? null : (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="text-lg font-bold text-ink-strong"><UiText>{"Invoices"}</UiText></h2>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportCSV}><Download className="size-4" aria-hidden="true" /><UiText>{"Export"}</UiText></Button>
+            {readOnly ? null : <Button onClick={() => setShowGenerate(true)}><Plus className="size-4" aria-hidden="true" /><UiText>{"Generate invoices"}</UiText></Button>}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-muted p-1">
@@ -219,19 +253,24 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
           onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}
           className=""
         >
-          <option value=""><UiText>{"All Classes"}</UiText></option>
+          <option value=""><UiText>{"All classes"}</UiText></option>
           {classes.map((c) => (
             <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
           ))}
         </SystemSelect>
 
-        <SystemInput
-          type="month"
+        <SystemSelect
           aria-label={tr("Month")}
+          title={tr("Month")}
           value={monthFilter}
           onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
           className=""
-        />
+        >
+          <option value="">{tr("Any month")}</option>
+          {monthOptions.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </SystemSelect>
 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
           <SystemInput
@@ -248,7 +287,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
         </div>
       </div>
 
-      <p className="text-xs font-medium text-ink-subtle">{tr("Invoices")}: <span className="tabular-nums">{total}</span></p>
+      <p className="text-xs font-medium text-ink-subtle">{tr(total === 1 ? "{0} invoice" : "{0} invoices", [formatCount(total)])}</p>
 
       {loading ? (
         <SkeletonTable rows={6} columns={7} label={tr("Loading invoices…")} />
@@ -263,7 +302,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
           icon={FileText}
           title={tr("No invoices found")}
           description={tr("Generate invoices or adjust your filters.")}
-          action={<Button onClick={() => setShowGenerate(true)}><Plus className="size-4" aria-hidden="true" />{tr("Generate Invoices")}</Button>}
+          action={readOnly ? undefined : <Button onClick={() => setShowGenerate(true)}><Plus className="size-4" aria-hidden="true" />{tr("Generate invoices")}</Button>}
         />
       ) : (
         <>
@@ -295,24 +334,17 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                     </p>
                   </div>
                   <p className="text-xs font-semibold tabular-nums text-ink-strong">{formatPKR(inv.totalAmount, inv.currency)}</p>
-                  <p className="text-xs font-semibold tabular-nums text-emerald-700">{formatPKR(inv.totalAmountPaid, inv.currency)}</p>
-                  <p className="text-xs font-semibold tabular-nums text-rose-700">{formatPKR(inv.balanceDue, inv.currency)}</p>
+                  <p className="text-xs font-semibold tabular-nums text-status-success-text">{formatPKR(inv.totalAmountPaid, inv.currency)}</p>
+                  <p className="text-xs font-semibold tabular-nums text-status-error-text">{formatPKR(inv.balanceDue, inv.currency)}</p>
                   <Badge size="sm" dot variant={INVOICE_TONE[inv.status] ?? "neutral"} className="w-fit">
                     {tr(inv.status)}
                   </Badge>
                   <div className="flex items-center gap-1 justify-end">
-                    <IconButton variant="secondary" size="sm" label={inv.status === "PAID" ? tr("View Receipt") : tr("View Details")}
+                    <IconButton variant="secondary" size="sm" label={inv.status === "PAID" ? tr("View receipt") : tr("View details")}
                       onClick={() => viewDetail(inv.id)}
                     >
                       {inv.status === "PAID" ? <Receipt aria-hidden="true" /> : <Eye aria-hidden="true" />}
                     </IconButton>
-                    {inv.status !== "PAID" && inv.status !== "CANCELLED" && inv.status !== "OVERDUE" && (
-                      <IconButton variant="secondary" size="sm" label={tr("Mark as Overdue")}
-                        onClick={() => handleStatusChange(inv.id, "OVERDUE")}
-                      >
-                        <AlertTriangle aria-hidden="true" />
-                      </IconButton>
-                    )}
                   </div>
                 </div>
               ))}
@@ -328,8 +360,7 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
                 className="justify-start flex items-center gap-1 px-3"
               >
                 <ChevronLeft className="w-3 h-3 rtl:rotate-180" aria-hidden="true" /><UiText>{"Prev"}</UiText></Button>
-              <span className="text-xs font-medium tabular-nums text-ink-muted"><UiText>{"Page"}</UiText>{page}<UiText>{"of"}</UiText>{totalPages}
-              </span>
+              <span className="text-xs font-medium tabular-nums text-ink-muted"><UiSentence text="Page {0} of {1}" values={[page, totalPages]} /></span>
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -345,8 +376,11 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
       {showDetail && (
         <InvoiceDetailModal
           invoice={detailInvoice}
+          readOnly={readOnly}
           loading={loadingDetail}
-          onClose={() => { setShowDetail(false); setDetailInvoice(null); }}
+          failed={detailFailed}
+          onRetry={() => { if (detailId) void viewDetail(detailId); }}
+          onClose={() => { setShowDetail(false); setDetailInvoice(null); setDetailFailed(false); }}
           onStatusChange={handleStatusChange}
         />
       )}
@@ -365,12 +399,18 @@ export function FeeInvoicesTab({ campusId }: { campusId?: string }) {
 
 function InvoiceDetailModal({
   invoice: inv,
+  readOnly = false,
   loading,
+  failed = false,
+  onRetry,
   onClose,
   onStatusChange,
 }: {
   invoice: any;
+  readOnly?: boolean;
   loading: boolean;
+  failed?: boolean;
+  onRetry?: () => void;
   onClose: () => void;
   onStatusChange: (id: string, status: "OVERDUE" | "CANCELLED") => void;
 }) {
@@ -397,24 +437,26 @@ function InvoiceDetailModal({
     <>
     <ConfirmAction
       open={confirmOverdue}
-      title={tr("Mark as Overdue")}
-      description={tr("Flag this invoice as overdue.")}
+      title={tr("Mark this invoice overdue?")}
+      description={tr("The invoice is flagged overdue and late-fee rules start to apply. You can still record payments against it.")}
+      cancelLabel={tr("Keep editing")}
       onConfirm={() => { setConfirmOverdue(false); onStatusChange(inv.id, "OVERDUE"); }}
       onCancel={() => setConfirmOverdue(false)}
       tone="warning"
-      confirmLabel={tr("Mark Overdue")}
+      confirmLabel={tr("Mark overdue")}
     />
     <ConfirmAction
       open={confirmCancel}
-      title={tr("Cancel Invoice")}
-      description={tr("This will cancel the invoice. This cannot be undone.")}
+      title={tr("Cancel this invoice?")}
+      description={tr("The family no longer owes this invoice and it cannot be reopened. An invoice with any payment recorded cannot be cancelled.")}
+      cancelLabel={tr("Keep editing")}
       onConfirm={() => { setConfirmCancel(false); onStatusChange(inv.id, "CANCELLED"); }}
       onCancel={() => setConfirmCancel(false)}
       tone="danger"
-      confirmLabel={tr("Cancel Invoice")}
+      confirmLabel={tr("Cancel invoice")}
     />
     <Modal
-      title={tr("Invoice Detail")}
+      title={tr("Invoice detail")}
       eyebrow={tr("Fees")}
       subtitle={inv ? `${inv.invoiceNumber} · ${inv.student?.fullName ?? ""}` : undefined}
       icon={Receipt}
@@ -422,7 +464,13 @@ function InvoiceDetailModal({
       onClose={onClose}
     >
 
-        {loading || !inv ? (
+        {failed && !loading ? (
+          <ErrorState
+            title={tr("This invoice could not be loaded")}
+            description={tr("Check your connection and try again.")}
+            onRetry={onRetry}
+          />
+        ) : loading || !inv ? (
           <div className="space-y-4 py-2 animate-skeleton-in">
             <div className="flex items-center justify-between">
               <div className="h-4 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
@@ -454,42 +502,42 @@ function InvoiceDetailModal({
             </div>
 
             {inv.status === "PAID" && inv.payments?.length > 0 && (
-              <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center">
-                <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
-                  <Receipt className="h-5 w-5 text-emerald-600" />
+              <div className="rounded-2xl bg-status-success-surface border border-status-success-border p-4 text-center">
+                <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-status-success-surface">
+                  <Receipt className="h-5 w-5 text-status-success-text" />
                 </div>
-                <p className="text-sm font-bold text-emerald-800"><UiText>{"Fully Paid"}</UiText></p>
-                <p className="text-2xs font-bold text-emerald-600/70 mt-0.5"><UiText>{"Receipt:"}</UiText>{inv.payments[0].receiptNo ?? "—"}
+                <p className="text-sm font-bold text-status-success-text"><UiText>{"Fully paid"}</UiText></p>
+                <p className="text-2xs font-bold text-status-success-text/70 mt-0.5"><UiText>{"Receipt:"}</UiText>{inv.payments[0].receiptNo ?? "—"}
                 </p>
               </div>
             )}
 
             <div className="rounded-2xl bg-muted/50 p-4 space-y-2">
-              <Row label={tr("Invoice Date")} value={formatDate(inv.invoiceDate)} />
-              <Row label={tr("Due Date")} value={formatDate(inv.dueDate)} />
+              <Row label={tr("Invoice date")} value={formatDate(inv.invoiceDate)} />
+              <Row label={tr("Due date")} value={formatDate(inv.dueDate)} />
               <div className="border-t border-edge/10 pt-2 mt-2" />
-              <Row label={tr("Monthly Fee")} value={formatPKR(inv.monthlyFee, inv.currency)} />
+              <Row label={tr("Monthly fee")} value={formatPKR(inv.monthlyFee, inv.currency)} />
               {inv.oneTimeFees > 0 && <Row label={tr("One-Time Fees")} value={formatPKR(inv.oneTimeFees, inv.currency)} />}
               <Row label={tr("Subtotal")} value={formatPKR(inv.subtotal, inv.currency)} />
-              {inv.discountAmount > 0 && <Row label={tr("Discount")} value={`-${formatPKR(inv.discountAmount, inv.currency)}`} className="text-emerald-600" />}
-              {Boolean(inv.carryForwardAmount) && <Row label={tr("Carry Forward")} value={formatPKR(inv.carryForwardAmount || 0, inv.currency)} />}
-              {inv.lateFeeAmount > 0 && <Row label={tr("Late Fee")} value={formatPKR(inv.lateFeeAmount, inv.currency)} className="text-rose-600" />}
+              {inv.discountAmount > 0 && <Row label={tr("Discount")} value={`-${formatPKR(inv.discountAmount, inv.currency)}`} className="text-status-success-text" />}
+              {Boolean(inv.carryForwardAmount) && <Row label={tr("Carry forward")} value={formatPKR(inv.carryForwardAmount || 0, inv.currency)} />}
+              {inv.lateFeeAmount > 0 && <Row label={tr("Late fee")} value={formatPKR(inv.lateFeeAmount, inv.currency)} className="text-status-error-text" />}
               {inv.taxAmount > 0 && <Row label={tr("Tax")} value={formatPKR(inv.taxAmount, inv.currency)} />}
               <div className="border-t border-edge/10 pt-2 mt-2" />
-              <Row label={tr("Total Amount")} value={formatPKR(inv.totalAmount, inv.currency)} bold />
-              <Row label={tr("Amount Paid")} value={formatPKR(inv.totalAmountPaid, inv.currency)} className="text-emerald-600" />
-              <Row label={tr("Balance Due")} value={formatPKR(inv.balanceDue, inv.currency)} className={inv.balanceDue > 0 ? "text-rose-600" : "text-emerald-600"} bold />
+              <Row label={tr("Total amount")} value={formatPKR(inv.totalAmount, inv.currency)} bold />
+              <Row label={tr("Amount paid")} value={formatPKR(inv.totalAmountPaid, inv.currency)} className="text-status-success-text" />
+              <Row label={tr("Balance due")} value={formatPKR(inv.balanceDue, inv.currency)} className={inv.balanceDue > 0 ? "text-status-error-text" : "text-status-success-text"} bold />
             </div>
 
             {inv.payments && inv.payments.length > 0 && (
               <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Payment Receipts"}</UiText></p>
+                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Payment receipts"}</UiText></p>
                 <div className="space-y-2">
                   {inv.payments.map((p: any) => (
-                    <div key={p.id} className="rounded-2xl bg-emerald-50/50 border border-emerald-100 px-4 py-3">
+                    <div key={p.id} className="rounded-2xl bg-status-success-surface border border-status-success-border px-4 py-3">
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-bold text-emerald-700">{formatPKR(p.amount, inv.currency)}</p>
-                        <span className="text-2xs font-semibold uppercase text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-lg">
+                        <p className="text-sm font-bold text-status-success-text">{formatPKR(p.amount, inv.currency)}</p>
+                        <span className="text-2xs font-semibold uppercase text-status-success-text bg-status-success-surface px-2 py-0.5 rounded-lg">
                           {p.receiptNo ?? "—"}
                         </span>
                       </div>
@@ -508,21 +556,22 @@ function InvoiceDetailModal({
               </div>
             )}
 
-            {inv.status !== "CANCELLED" && inv.status !== "PAID" && <InstallmentPlanPanel invoiceId={inv.id} currency={inv.currency} />}
-            {inv.status !== "CANCELLED" && <InvoiceAdjustmentsPanel invoice={inv} />}
-            {inv.status !== "PAID" && inv.status !== "CANCELLED" && (
-              <div className="flex gap-2 pt-2">
-                <BrandButton variant="soft" className="flex-1" onClick={() => setConfirmOverdue(true)}>
-                  <AlertTriangle className="w-4 h-4" /><UiText>{"Mark Overdue"}</UiText></BrandButton>
-                <BrandButton variant="danger" className="flex-1" onClick={() => setConfirmCancel(true)}>
-                  <XCircle className="w-4 h-4" /><UiText>{"Cancel"}</UiText></BrandButton>
+            {inv.status !== "CANCELLED" && inv.status !== "PAID" && <InstallmentPlanPanel invoiceId={inv.id} currency={inv.currency} canPropose={!readOnly} />}
+            {inv.status !== "CANCELLED" && <InvoiceAdjustmentsPanel invoice={inv} canRequest={!readOnly} />}
+            {!readOnly && inv.status !== "PAID" && inv.status !== "CANCELLED" && (
+              // Destructive work sits at the start of the footer, never painted as the primary (role-ux §4.5.3).
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button variant="outline" className="text-destructive" onClick={() => setConfirmCancel(true)}>
+                  <XCircle className="size-4" aria-hidden="true" /><UiText>{"Cancel invoice"}</UiText></Button>
+                {inv.status !== "OVERDUE" ? <Button variant="outline" onClick={() => setConfirmOverdue(true)}>
+                  <AlertTriangle className="size-4" aria-hidden="true" /><UiText>{"Mark overdue"}</UiText></Button> : null}
               </div>
             )}
 
             {inv.status === "PAID" && (
               <BrandButton variant="soft" className="w-full h-12" onClick={handleDownloadPdf} disabled={downloadingPdf}>
                 {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
-                {downloadingPdf ? tr("Preparing PDF...") : tr("Download Receipt")}
+                {downloadingPdf ? tr("Preparing PDF...") : tr("Download receipt")}
               </BrandButton>
             )}
           </div>
@@ -590,7 +639,7 @@ function GenerateInvoicesModal({
 
   return (
     <Modal
-      title={tr("Generate Invoices")}
+      title={tr("Generate invoices")}
       eyebrow={tr("Fees")}
       subtitle={tr("Raises one invoice per active student for the month you pick.")}
       icon={FileText}
@@ -599,7 +648,7 @@ function GenerateInvoicesModal({
       footer={
         <BrandButton className="w-full h-12" onClick={handleGenerate} disabled={generating} aria-busy={generating || undefined}>
           {generating ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <FileText className="w-4 h-4" aria-hidden="true" />}
-          {generating ? tr("Generating...") : tr("Generate Invoices")}
+          {generating ? tr("Generating...") : tr("Generate invoices")}
         </BrandButton>
       }
     >
@@ -611,7 +660,7 @@ function GenerateInvoicesModal({
           <label>
             <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Class (optional)"}</UiText></span>
             <SystemSelect value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={inputClass}>
-              <option value=""><UiText>{"All Classes"}</UiText></option>
+              <option value=""><UiText>{"All classes"}</UiText></option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}

@@ -82,7 +82,7 @@ export default function ControlRoomSpace({ language, scope, capabilities }: Stud
               {revising && <Button variant="ghost" onClick={() => setRevising(null)}>{t.cancel}</Button>}
             </div>
           </>}
-          {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}><bdi dir="auto">{notice.text}</bdi></p>}
+          {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}><bdi dir="auto">{notice.text}</bdi></p>}
         </section>
         <section aria-labelledby="issued-title" className="sk-panel space-y-2 p-5">
           <h3 id="issued-title" className="font-semibold">{t.issued}</h3>
@@ -148,6 +148,6 @@ function Supervise({ examId, board, language, canExtend, onChanged }: { examId: 
         <Button variant="outline" disabled={busy || !selected.length || reason.trim().length < 3 || !(Number(minutes) >= 1)} onClick={() => void extend()}>{t.addTime}</Button></>}
     </div>
     {canExtend && <p className="text-xs text-ink-subtle">{t.extraHint}</p>}
-    {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${message.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-status-error-border bg-status-error-surface text-status-error-text"}`} data-supervise-result><bdi dir="auto">{message.text}</bdi></p>}
+    {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${message.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`} data-supervise-result><bdi dir="auto">{message.text}</bdi></p>}
   </section>;
 }

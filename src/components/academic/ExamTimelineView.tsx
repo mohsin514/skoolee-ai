@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 import {
   classLabel,
   daysFromToday,
-  formatDayHeading,
   type ExamItem,
 } from "@/lib/academic/exam-pipeline";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import type { DetailTab } from "@/components/academic/ExamBoardCard";
 
 export interface ScheduleRow {
@@ -30,13 +30,24 @@ export interface ScheduleRow {
   } | null;
 }
 
-function relativeLabel(date: string): { text: string; tone: "past" | "today" | "soon" | "future" } {
+type Ui = (source: string, values?: unknown[]) => string;
+
+function relativeLabel(date: string, ui: Ui): { text: string; tone: "past" | "today" | "soon" | "future" } {
   const days = daysFromToday(date);
-  if (days === 0) return { text: "Today", tone: "today" };
-  if (days === 1) return { text: "Tomorrow", tone: "soon" };
-  if (days < 0) return { text: `${Math.abs(days)} day${days === -1 ? "" : "s"} ago`, tone: "past" };
-  if (days <= 7) return { text: `In ${days} days`, tone: "soon" };
-  return { text: `In ${days} days`, tone: "future" };
+  if (days === 0) return { text: ui("Today"), tone: "today" };
+  if (days === 1) return { text: ui("Tomorrow"), tone: "soon" };
+  if (days < 0) return { text: ui(days === -1 ? "{0} day ago" : "{0} days ago", [Math.abs(days)]), tone: "past" };
+  if (days <= 7) return { text: ui("In {0} days", [days]), tone: "soon" };
+  return { text: ui("In {0} days", [days]), tone: "future" };
+}
+
+/** The day heading in the viewer's language (R7: dates through Intl). */
+function dayHeading(date: string, language: string) {
+  try {
+    return new Intl.DateTimeFormat(language, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date(date));
+  } catch {
+    return date;
+  }
 }
 
 /**
@@ -53,6 +64,8 @@ export function ExamTimelineView({
   unscheduled: ExamItem[];
   onOpen: (examId: string, tab?: DetailTab) => void;
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   const days = useMemo(() => {
     const grouped = new Map<string, ScheduleRow[]>();
     rows.forEach((r) => {
@@ -76,8 +89,8 @@ export function ExamTimelineView({
     return (
       <EmptyState
         icon={CalendarDays}
-        title="Nothing is on the datesheet yet"
-        description="Open an exam and set its dates to see it here."
+        title={ui("Nothing is on the datesheet yet")}
+        description={ui("Open an exam and set its dates to see it here.")}
       />
     );
   }
@@ -85,12 +98,12 @@ export function ExamTimelineView({
   return (
     <div className="space-y-4">
       {days.map(({ date, papers }) => {
-        const rel = relativeLabel(date);
+        const rel = relativeLabel(date, ui);
         return (
           <section
             key={date}
             className={cn(
-              "overflow-hidden rounded-3xl border bg-white shadow-sm transition-opacity",
+              "overflow-hidden rounded-3xl border bg-card shadow-sm transition-opacity",
               rel.tone === "today"
                 ? "border-primary/40 ring-2 ring-primary/10"
                 : "border-edge/15",
@@ -103,18 +116,19 @@ export function ExamTimelineView({
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-2xl",
                     rel.tone === "today"
-                      ? "bg-primary text-white"
+                      ? "bg-primary text-primary-foreground"
                       : rel.tone === "past"
                         ? "bg-muted text-ink-subtle"
                         : "bg-brand-50 text-primary",
                   )}
+                  aria-hidden="true"
                 >
                   <CalendarDays className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-ink-strong">{formatDayHeading(date)}</p>
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    {papers.length} paper{papers.length > 1 ? "s" : ""}
+                  <p className="text-sm font-bold text-ink-strong">{dayHeading(date, language)}</p>
+                  <p className="text-xs font-semibold text-ink-subtle">
+                    {ui(papers.length > 1 ? "{0} papers" : "{0} paper", [papers.length])}
                   </p>
                 </div>
               </div>
@@ -150,23 +164,22 @@ export function ExamTimelineView({
                       className="sk-row-interactive justify-start flex w-full flex-wrap items-center gap-3 px-5 py-3 text-start"
                     >
                       <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-bold text-primary">
-                        <Clock className="h-3.5 w-3.5" />
+                        <Clock aria-hidden="true" className="h-3.5 w-3.5" />
                         {p.periodDefinition
-                          ? `${p.periodDefinition.startTime}`
-                          : "No time"}
+                          ? <bdi dir="ltr">{p.periodDefinition.startTime}</bdi>
+                          : ui("No time")}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-bold text-ink-strong">
-                          {p.subject?.name || "Paper"}
-                        </span>
-                        <span className="block text-xs text-ink-subtle">
+                        <bdi className="block text-sm font-bold text-ink-strong">
+                          {p.subject?.name || ui("Paper")}
+                        </bdi>
+                        <bdi className="block text-xs text-ink-subtle">
                           {classLabel(p.exam?.class)} · {p.exam?.title}
-                        </span>
+                        </bdi>
                       </span>
                       {p.periodDefinition ? (
                         <Badge variant="neutral" size="sm" className="tabular-nums">
-                          Period {p.periodDefinition.periodNumber} ·{" "}
-                          {p.periodDefinition.startTime}–{p.periodDefinition.endTime}
+                          {ui("Period {0} · {1}–{2}", [p.periodDefinition.periodNumber, p.periodDefinition.startTime, p.periodDefinition.endTime])}
                         </Badge>
                       ) : null}
                       {roomNames.length > 0 ? (
@@ -176,7 +189,7 @@ export function ExamTimelineView({
                         </Badge>
                       ) : (
                         <Badge variant="warning" size="sm">
-                          <MapPin className="h-3 w-3" aria-hidden="true" /> No room
+                          <MapPin className="h-3 w-3" aria-hidden="true" /> {ui("No room")}
                         </Badge>
                       )}
                     </Button>
@@ -192,10 +205,10 @@ export function ExamTimelineView({
         <section className="overflow-hidden rounded-3xl border border-dashed border-status-warning-border bg-status-warning-surface">
           <header className="border-b border-status-warning-border px-5 py-3">
             <p className="text-sm font-bold text-status-warning-text">
-              {unscheduled.length} exam{unscheduled.length > 1 ? "s" : ""} with no dates yet
+              {ui(unscheduled.length > 1 ? "{0} exams with no dates yet" : "{0} exam with no dates yet", [unscheduled.length])}
             </p>
             <p className="text-xs leading-relaxed text-status-warning-text">
-              These will not appear on the datesheet families see.
+              {ui("These will not appear on the datesheet families see.")}
             </p>
           </header>
           <ul className="divide-y divide-status-warning-border">
@@ -207,13 +220,13 @@ export function ExamTimelineView({
                   className="flex w-full items-center justify-between gap-3 px-5 py-3 text-start"
                 >
                   <span>
-                    <span className="block text-sm font-bold text-ink-strong">{e.title}</span>
+                    <bdi className="block text-sm font-bold text-ink-strong">{e.title}</bdi>
                     <span className="block text-xs text-ink-subtle">
                       {classLabel(e.class)} · {e.term} {e.academicYear}
                     </span>
                   </span>
                   <Badge variant="warning" className="shrink-0">
-                    Set dates
+                    {ui("Set dates")}
                   </Badge>
                 </Button>
               </li>

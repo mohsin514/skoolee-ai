@@ -1,30 +1,21 @@
 "use client";
 
 /**
- * The school-group owner's opening screen.
+ * The group admin's read-only picture of the network (Overview, below the attention list).
  *
- * An owner's job is comparison — which campus is carrying the group, which one
- * has a leadership hole, where the fee book is leaking — so almost everything
- * here is one campus against another on a shared scale, and the leadership
- * gaps are stated in words rather than left to a colour.
+ * An owner's job is comparison — which campus is carrying the group, which one has a leadership hole, where the
+ * fee book is leaking — so almost everything here is one campus against another on a shared scale, and the
+ * leadership gaps are stated in words rather than left to a colour.
+ *
+ * Read-only by design (M1, M9): no fees, billing or AI buttons. The fee book and its gauge stay as numbers;
+ * collecting and adjusting fees happens in each campus. The page owns the one heading (PageHeader), so this
+ * component renders no hero and no `<h1>`; ≤ 4 KPI tiles (§4.5.8).
  */
 
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag, minorUnits } from "@/lib/locale/package";
-import { useMemo, type ReactNode } from "react";
-import {
-  AlertTriangle,
-  Building2,
-  CheckCircle2,
-  CreditCard,
-  GraduationCap,
-  Receipt,
-  School,
-  Sparkles,
-  TrendingUp,
-  UserCog,
-  Users,
-} from "lucide-react";
+import { useMemo } from "react";
+import { AlertTriangle, Building2, CheckCircle2, GraduationCap, Receipt, School, TrendingUp, Users } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -39,11 +30,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getPlanLimits } from "@/config/plans";
-import { CommandHero } from "./CommandHero";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
-import { AXIS_TICK, GRADE_HIGH, GRADE_LOW, INK, NO_ENTRY_ANIMATION, RAMP_BRAND, SERIES, STATUS, compact, money } from "./palette";
+import { AXIS_TICK, GRADE_HIGH, GRADE_LOW, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
 import {
   campusFeeStack,
   campusRows,
@@ -53,36 +44,31 @@ import {
   gradeDistribution,
   latestReportCards,
   networkStudents,
-  ratio,
 } from "./metrics";
-import { Button } from "@/components/ui/button";
-
 
 interface NetworkOverviewProps {
   data: any;
+  /** Opens the campus detail (`?view=campuses&campus=<id>`). */
   onSelectCampus: (campus: any) => void;
-  onOpenBilling: () => void;
-  onOpenFees: () => void;
-  /** Scrolls to the AI panel already on the page. */
-  onOpenAI?: () => void;
-  /** Group-level buttons, rendered in the hero. */
-  actions?: ReactNode;
 }
 
-export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFees, onOpenAI, actions }: NetworkOverviewProps) {
+export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) {
+  const t = useUiText();
   const campuses: any[] = data?.campuses ?? [];
   const summary = data?.networkSummary ?? {};
 
   const locale = useLocale();
-  const currency = data?.currency ?? "PKR";
-  const money = (value: number) => new Intl.NumberFormat(localeTag(locale), {style:"currency",currency,minimumFractionDigits:minorUnits(currency),maximumFractionDigits:minorUnits(currency)}).format(value);
+  const tag = localeTag(locale);
+  // The school's own tuition currency from the loader; the locale package default when the loader has none.
+  const currency = data?.currency ?? locale.currency;
+  const number = useMemo(() => new Intl.NumberFormat(tag), [tag]);
+  const money = (value: number) => new Intl.NumberFormat(tag, { style: "currency", currency, minimumFractionDigits: minorUnits(currency), maximumFractionDigits: minorUnits(currency) }).format(value);
   const derived = useMemo(() => {
     const rows = campusRows(campuses);
     const students = networkStudents(campuses);
     const byStudents = [...rows].sort((a, b) => b.students - a.students);
     const billed = rows.reduce((sum, r) => sum + r.billed, 0);
     const collected = rows.reduce((sum, r) => sum + r.collected, 0);
-    const aiRows = [...rows].filter((r) => r.aiRuns > 0).sort((a, b) => b.aiRuns - a.aiRuns);
     const gaps = rows.filter((r) => !r.hasAdmin || !r.hasPrincipal);
 
     return {
@@ -93,108 +79,42 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
       collected,
       collectionRate: billed > 0 ? Math.round((collected / billed) * 100) : 0,
       feeStack: campusFeeStack(campuses),
-      enrolment: enrolmentTrend(students, 12),
+      enrolment: enrolmentTrend(students, 12, tag),
       grades: gradeDistribution(latestReportCards(students)),
-      aiRows,
       gaps,
       coverage: [...rows].sort(
         (a, b) => Number(a.hasAdmin) + Number(a.hasPrincipal) - (Number(b.hasAdmin) + Number(b.hasPrincipal)),
       ),
       leaderboard: [...rows].sort((a, b) => (b.average ?? -1) - (a.average ?? -1)),
     };
-  }, [data]);
+    // Recomputed when the loaded dashboard or the app language (month labels) changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, tag]);
 
-  const creditsUsed = data?.billing?.aiCreditsUsed ?? 0;
-  const creditsLimit = data?.billing?.aiCreditsLimit ?? 0;
-  // Same source of truth as the billing banner, so the two never disagree.
-  const planName = getPlanLimits(data?.billing?.plan || "FREE").name;
+  const open = (id: string) => {
+    const full = campuses.find((c: any) => c.id === id);
+    if (full) onSelectCampus(full);
+  };
+  const feeLabel = (key: string) => t(key);
 
   return (
-    <div className="space-y-6">
-      <CommandHero
-        eyebrow={`${data?.schoolName ?? "School"} group`}
-        title="Network command centre"
-        heroValue={compact(summary.totalStudents ?? 0)}
-        heroLabel="Students across the group"
-        heroCaption={
-          campuses.length > 0
-            ? `${campuses.length} ${campuses.length === 1 ? "campus" : "campuses"}, ${(summary.totalClasses ?? 0).toLocaleString()} classes and ${(summary.totalStaff ?? 0).toLocaleString()} staff accounts. Average roll ${derived.averageRoll.toLocaleString()} per campus.`
-            : "No campuses yet — create the first one to start assigning admins and principals."
-        }
-        heroAccent={<TrendingUp className="mb-2 h-7 w-7 text-emerald-400" aria-hidden />}
-        meters={[
-          {
-            label: "Campuses with an admin",
-            value: campuses.length - (summary.adminGaps ?? 0),
-            max: campuses.length || 1,
-            valueLabel: `${campuses.length - (summary.adminGaps ?? 0)} / ${campuses.length}`,
-            color: (summary.adminGaps ?? 0) === 0 ? STATUS.good : STATUS.warning,
-          },
-          {
-            label: "Campuses with a principal",
-            value: campuses.length - (summary.principalGaps ?? 0),
-            max: campuses.length || 1,
-            valueLabel: `${campuses.length - (summary.principalGaps ?? 0)} / ${campuses.length}`,
-            color: (summary.principalGaps ?? 0) === 0 ? STATUS.good : STATUS.warning,
-          },
-          {
-            label: "AI credits used",
-            value: creditsUsed,
-            max: creditsLimit || 1,
-            valueLabel: `${compact(creditsUsed)} / ${compact(creditsLimit)}`,
-            color: creditsLimit > 0 && creditsUsed / creditsLimit > 0.85 ? STATUS.critical : "#c795f0",
-          },
-        ]}
-        pills={[
-          { icon: CreditCard, label: planName, value: data?.billing?.status ?? "TRIAL", onClick: onOpenBilling, tone: data?.billing?.status === "SUSPENDED" ? "critical" : "default" },
-          { icon: Sparkles, label: "AI runs", value: summary.totalAiRuns ?? 0, onClick: onOpenAI },
-          { icon: Receipt, label: "Unpaid invoices", value: (summary.pendingInvoices ?? 0) + (summary.partialInvoices ?? 0), onClick: onOpenFees, tone: (summary.pendingInvoices ?? 0) > 0 ? "warning" : "default" },
-          { icon: UserCog, label: "Pending invites", value: summary.pendingInvites ?? 0, tone: (summary.pendingInvites ?? 0) > 0 ? "warning" : "default" },
-        ]}
-        actions={actions}
-        aside={
-          derived.billed > 0 ? (
-            <RadialGauge
-              value={derived.collectionRate}
-              label="Fees collected"
-              sublabel={`${money(derived.collected)} of ${money(derived.billed)}`}
-              color={derived.collectionRate >= 70 ? STATUS.good : derived.collectionRate >= 40 ? STATUS.warning : STATUS.critical}
-            />
-          ) : (
-            <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
-              <Receipt className="h-7 w-7 text-edge" aria-hidden />
-              <p className="mt-2 px-2 text-2xs font-medium leading-tight text-ink-subtle">No invoices raised yet</p>
-            </div>
-          )
-        }
-      />
-
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
-        <StatTile
-          icon={CreditCard}
-          label="Plan"
-          value={planName}
-          sub={data?.billing?.status ?? "TRIAL"}
-          tone={data?.billing?.status === "SUSPENDED" ? "critical" : "brand"}
-          meter={creditsLimit > 0 ? { value: creditsUsed, max: creditsLimit, label: "AI credits" } : undefined}
-          onClick={onOpenBilling}
-          delay={80}
-        />
-        <StatTile icon={Building2} label="Campuses" value={campuses.length} sub={`${derived.gaps.length} needing leadership`} tone={derived.gaps.length > 0 ? "warning" : "brand"} delay={140} />
-        <StatTile icon={GraduationCap} label="Students" value={summary.totalStudents ?? 0} sub={`Average ${derived.averageRoll} per campus`} tone="good" delay={200} />
-        <StatTile icon={Users} label="Teachers" value={summary.totalTeachers ?? 0} sub={`${ratio(summary.totalStudents ?? 0, summary.totalTeachers ?? 0)} students`} delay={260} />
-        <StatTile icon={School} label="Classes" value={summary.totalClasses ?? 0} sub={`${(summary.totalSubjects ?? 0).toLocaleString()} subjects`} delay={320} />
+    <div className="space-y-6" data-network-overview>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile icon={GraduationCap} label={t("Students")} value={summary.totalStudents ?? 0} sub={t("Average {0} per campus", [number.format(derived.averageRoll)])} tone="good" delay={80} />
+        <StatTile icon={Building2} label={t("Campuses")} value={campuses.length} sub={t("{0} needing leadership", [number.format(derived.gaps.length)])} tone={derived.gaps.length > 0 ? "warning" : "brand"} delay={140} />
+        <StatTile icon={Users} label={t("Teachers")} value={summary.totalTeachers ?? 0} sub={summary.totalTeachers ? t("≈{0} students per teacher", [number.format(Math.round((summary.totalStudents ?? 0) / summary.totalTeachers))]) : t("No teachers yet")} delay={200} />
+        <StatTile icon={School} label={t("Classes")} value={summary.totalClasses ?? 0} sub={t("{0} subjects", [number.format(summary.totalSubjects ?? 0)])} delay={260} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
           icon={Building2}
-          title="Roll by campus"
-          subtitle="Students on the register at each campus"
+          title={t("Roll by campus")}
+          subtitle={t("Students on the register at each campus")}
           className="xl:col-span-2"
           delay={120}
           table={{
-            columns: ["Campus", "Students", "Classes", "Teachers"],
+            columns: [t("Campus"), t("Students"), t("Classes"), t("Teachers")],
             rows: derived.byStudents.map((c) => [c.name, c.students, c.classes, c.teachers]),
           }}
         >
@@ -206,60 +126,53 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} width={104} />
                   <ReferenceLine x={derived.averageRoll} stroke={INK.axis} strokeWidth={1} />
-                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name="Students" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit={` ${t("students")}`} />} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="students" name={t("Students")} fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={22}>
                     <LabelList dataKey="students" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
               <p className="mt-3 text-2xs font-medium text-ink-subtle">
-                The vertical rule marks the group average of {derived.averageRoll.toLocaleString()} students per campus.
+                {t("The vertical rule marks the group average of {0} students per campus.", [number.format(derived.averageRoll)])}
               </p>
             </>
           ) : (
-            <EmptyChart label="No campuses yet" />
+            <EmptyChart label={t("No campuses yet")} />
           )}
         </InsightCard>
 
         <InsightCard
           icon={AlertTriangle}
-          title="Leadership coverage"
-          subtitle="Who is in post at each campus"
+          title={t("Leadership coverage")}
+          subtitle={t("Who is in post at each campus")}
           delay={180}
           table={{
-            columns: ["Campus", "Admin", "Principal"],
-            rows: derived.coverage.map((c) => [c.name, c.hasAdmin ? "In post" : "Vacant", c.hasPrincipal ? "In post" : "Vacant"]),
+            columns: [t("Campus"), t("Campus admin"), t("Principal")],
+            rows: derived.coverage.map((c) => [c.name, c.hasAdmin ? t("In post") : t("Vacant"), c.hasPrincipal ? t("In post") : t("Vacant")]),
           }}
         >
           {derived.rows.length > 0 ? (
             <ul className="max-h-[300px] space-y-2 overflow-y-auto custom-scrollbar pe-1">
-              {derived.coverage.map((campus, i) => (
-                <li key={campus.id} className="sk-rise" style={{ animationDelay: `${i * 50}ms` }}>
-                  <Button variant="outline"
-                    type="button"
-                    onClick={() => {
-                      const full = campuses.find((c: any) => c.id === campus.id);
-                      if (full) onSelectCampus(full);
-                    }}
-                    className="flex w-full items-center justify-between gap-3 text-start"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-ink-strong">{campus.name}</p>
-                      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                        {campus.city || "—"} · {campus.teachers} teachers
-                      </p>
-                    </div>
+              {derived.coverage.map((campus) => (
+                <li key={campus.id}>
+                  <Button variant="outline" type="button" onClick={() => open(campus.id)} className="flex h-auto w-full items-center justify-between gap-3 py-2.5 text-start">
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-bold text-ink-strong"><bdi>{campus.name}</bdi></span>
+                      <span className="block text-2xs font-semibold text-ink-subtle">
+                        <bdi>{campus.city || "—"}</bdi> · {t("{0} teachers", [number.format(campus.teachers)])}
+                      </span>
+                    </span>
                     {/* Icon + word, never colour alone. */}
-                    <div className="flex shrink-0 gap-1.5">
-                      <CoverageChip label="Admin" filled={campus.hasAdmin} />
-                      <CoverageChip label="Head" filled={campus.hasPrincipal} />
-                    </div>
+                    <span className="flex shrink-0 gap-1.5">
+                      <CoverageChip label={t("Admin")} filled={campus.hasAdmin} />
+                      <CoverageChip label={t("Principal")} filled={campus.hasPrincipal} />
+                    </span>
                   </Button>
                 </li>
               ))}
             </ul>
           ) : (
-            <EmptyChart label="No campuses yet" />
+            <EmptyChart label={t("No campuses yet")} />
           )}
         </InsightCard>
       </div>
@@ -267,21 +180,12 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
           icon={Receipt}
-          title="Fee book by campus"
-          subtitle="Invoiced amount, split by status"
+          title={t("Fee book by campus")}
+          subtitle={t("Invoiced amount, split by status. Each campus collects its own fees.")}
           className="xl:col-span-2"
           delay={120}
-          actions={
-            <Button variant="link" size="sm"
-              type="button"
-              onClick={onOpenFees}
-
-            >
-              Open fees
-            </Button>
-          }
           table={{
-            columns: ["Campus", "Paid", "Part paid", "Pending", "Overdue"],
+            columns: [t("Campus"), t("Paid"), t("Part paid"), t("Pending"), t("Overdue")],
             rows: derived.feeStack.map((c) => [
               c.name,
               Math.round(c.Paid),
@@ -304,7 +208,7 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                       {...NO_ENTRY_ANIMATION}
                       key={key}
                       dataKey={key}
-                      name={key}
+                      name={feeLabel(key)}
                       stackId="fees"
                       fill={FEE_STACK_COLOR[key]}
                       // 2px of surface between segments does the separating.
@@ -316,50 +220,38 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   ))}
                 </BarChart>
               </ResponsiveContainer>
-              <SeriesLegend
-                className="mt-3"
-                items={FEE_STACK_KEYS.map((key) => ({ label: key, color: FEE_STACK_COLOR[key] }))}
-              />
+              <SeriesLegend className="mt-3" items={FEE_STACK_KEYS.map((key) => ({ label: feeLabel(key), color: FEE_STACK_COLOR[key] }))} />
             </>
           ) : (
-            <EmptyChart label="No invoices raised anywhere in the group yet" />
+            <EmptyChart label={t("No invoices raised anywhere in the group yet")} />
           )}
         </InsightCard>
 
-        <InsightCard
-          icon={Sparkles}
-          title="AI usage by campus"
-          subtitle="Runs recorded to date"
-          delay={180}
-          table={{ columns: ["Campus", "Runs"], rows: derived.aiRows.map((c) => [c.name, c.aiRuns]) }}
-        >
-          {derived.aiRows.length > 0 ? (
-            <ResponsiveContainer width="100%" height={Math.max(200, derived.aiRows.length * 34 + 40)}>
-              <BarChart data={derived.aiRows} layout="vertical" margin={{ top: 4, right: 40, bottom: 4, left: 4 }} barCategoryGap="26%">
-                <CartesianGrid horizontal={false} stroke={INK.grid} />
-                <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} width={84} />
-                <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" runs" />} />
-                <Bar {...NO_ENTRY_ANIMATION} dataKey="aiRuns" name="Runs" fill={RAMP_BRAND[2]} radius={[0, 4, 4, 0]} maxBarSize={20}>
-                  <LabelList dataKey="aiRuns" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart label="No AI runs recorded yet" />
-          )}
+        <InsightCard icon={Receipt} title={t("Fees collected")} subtitle={t("Across every campus, to date")} delay={180}>
+          <div className="flex min-h-[220px] items-center justify-center">
+            {derived.billed > 0 ? (
+              <RadialGauge
+                value={derived.collectionRate}
+                label={t("Fees collected")}
+                sublabel={t("{0} of {1}", [money(derived.collected), money(derived.billed)])}
+                color={derived.collectionRate >= 70 ? STATUS.good : derived.collectionRate >= 40 ? STATUS.warning : STATUS.critical}
+              />
+            ) : (
+              <EmptyChart label={t("No invoices raised yet")} />
+            )}
+          </div>
         </InsightCard>
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <InsightCard
           icon={TrendingUp}
-          title="Group roll growth"
-          subtitle="Students on the register, month by month"
+          title={t("Group roll growth")}
+          subtitle={t("Students on the register, month by month")}
           className="xl:col-span-2"
           delay={120}
           table={{
-            columns: ["Month", "Joined", "On register"],
+            columns: [t("Month"), t("Joined"), t("On register")],
             rows: derived.enrolment.map((m) => [m.label, m.joined, m.total]),
           }}
         >
@@ -374,21 +266,14 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                 </defs>
                 <CartesianGrid vertical={false} stroke={INK.grid} />
                 <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={12} />
-                {/* Headroom, so a flat or still-climbing line is not drawn
-                    along the very top edge of the plot. */}
-                <YAxis
-                  domain={[0, (dataMax: number) => Math.ceil((dataMax || 1) * 1.1)]}
-                  tick={AXIS_TICK}
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit=" students" />} />
+                {/* Headroom, so a flat or still-climbing line is not drawn along the very top edge of the plot. */}
+                <YAxis domain={[0, (dataMax: number) => Math.ceil((dataMax || 1) * 1.1)]} tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit={` ${t("students")}`} />} />
                 <Area
                   {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="total"
-                  name="On register"
+                  name={t("On register")}
                   stroke={SERIES[0]}
                   strokeWidth={2}
                   fill="url(#networkRollWash)"
@@ -398,16 +283,16 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart label="Roll growth appears once students have been admitted over more than one month" />
+            <EmptyChart label={t("Roll growth appears once students have been admitted over more than one month")} />
           )}
         </InsightCard>
 
         <InsightCard
           icon={GraduationCap}
-          title="Grades across the group"
-          subtitle="Latest report card per student"
+          title={t("Grades across the group")}
+          subtitle={t("Latest report card per student")}
           delay={180}
-          table={{ columns: ["Grade", "Students"], rows: derived.grades.map((g) => [g.grade, g.count]) }}
+          table={{ columns: [t("Grade"), t("Students")], rows: derived.grades.map((g) => [g.grade, g.count]) }}
         >
           {derived.grades.length > 0 ? (
             <>
@@ -416,8 +301,8 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   <CartesianGrid vertical={false} stroke={INK.grid} />
                   <XAxis dataKey="grade" tick={AXIS_TICK} axisLine={false} tickLine={false} interval={0} />
                   <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" students" />} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Students" radius={[4, 4, 0, 0]} maxBarSize={26}>
+                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit={` ${t("students")}`} />} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name={t("Students")} radius={[4, 4, 0, 0]} maxBarSize={26}>
                     {derived.grades.map((g) => (
                       <Cell key={g.grade} fill={g.color} />
                     ))}
@@ -425,93 +310,52 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <SeriesLegend
-                className="mt-3"
-                items={[
-                  { label: "Higher grades", color: GRADE_HIGH[1] },
-                  { label: "Lower grades", color: GRADE_LOW[1] },
-                ]}
-              />
+              <SeriesLegend className="mt-3" items={[{ label: t("Higher grades"), color: GRADE_HIGH[1] }, { label: t("Lower grades"), color: GRADE_LOW[1] }]} />
             </>
           ) : (
-            <EmptyChart label="No graded report cards anywhere in the group yet" />
+            <EmptyChart label={t("No graded report cards anywhere in the group yet")} />
           )}
         </InsightCard>
       </div>
 
       {derived.rows.length > 0 ? (
-        <InsightCard icon={School} title="Campus scorecard" subtitle="Every campus, side by side · reports shown as cards / exams" delay={120}>
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[880px] border-collapse text-start">
-              <thead>
-                <tr className="border-b border-edge/30">
-                  {["Campus", "Students", "Classes", "Teachers", "Average", "Collected", "Reports", "Messages", "AI runs", ""].map((h, i) => (
-                    <th
-                      key={h || i}
-                      scope="col"
-                      className={`px-3 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle ${i > 0 && i < 9 ? "text-end" : ""}`}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {derived.leaderboard.map((campus) => (
-                  <tr key={campus.id} className="border-b border-edge/20 transition-colors hover:bg-brand-50/40">
-                    <td className="px-3 py-2.5">
-                      <p className="text-xs font-bold text-ink-strong">{campus.name}</p>
-                      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{campus.city || "—"}</p>
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-bold text-ink-strong tabular-nums">
-                      {campus.students.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
-                      {campus.classes.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
-                      {campus.teachers.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-medium tabular-nums">
-                      {campus.average === null ? (
-                        <span className="text-ink-subtle">—</span>
-                      ) : (
-                        <span className={campus.average >= 40 ? "text-status-success-text" : "text-status-error-text"}>{campus.average}%</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
-                      {campus.billed > 0 ? `${campus.collectionRate}%` : "—"}
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
-                      {campus.reportCards.toLocaleString()}
-                      <span className="text-ink-subtle"> / {campus.exams.toLocaleString()}</span>
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
-                      {campus.messagesSent.toLocaleString()}
-                      {campus.messageIssues > 0 ? (
-                        <span className="text-status-error-text"> · {campus.messageIssues} failed</span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2.5 text-end text-xs font-medium text-ink-muted tabular-nums">
-                      {campus.aiRuns.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2.5 text-end">
-                      <Button variant="default" size="sm"
-                        type="button"
-                        onClick={() => {
-                          const full = campuses.find((c: any) => c.id === campus.id);
-                          if (full) onSelectCampus(full);
-                        }}
-
-                      >
-                        Manage
-                      </Button>
-                    </td>
-                  </tr>
+        <InsightCard icon={School} title={t("Campus scorecard")} subtitle={t("Every campus, side by side · reports shown as cards / exams")} delay={120}>
+          <Table containerClassName="overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
+            <TableHeader>
+              <TableRow>
+                {[t("Campus"), t("Students"), t("Classes"), t("Teachers"), t("Average"), t("Collected"), t("Reports"), t("Messages"), t("AI runs")].map((h, i) => (
+                  <TableHead key={h} className={i > 0 ? "text-end" : undefined}>{h}</TableHead>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                <TableHead><span className="sr-only">{t("Open")}</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {derived.leaderboard.map((campus) => (
+                <TableRow key={campus.id}>
+                  <TableCell>
+                    <p className="text-xs font-bold text-ink-strong"><bdi>{campus.name}</bdi></p>
+                    <p className="text-2xs font-semibold text-ink-subtle"><bdi>{campus.city || "—"}</bdi></p>
+                  </TableCell>
+                  <TableCell className="text-end text-xs font-bold tabular-nums text-ink-strong"><bdi>{number.format(campus.students)}</bdi></TableCell>
+                  <TableCell className="text-end text-xs tabular-nums text-ink-muted"><bdi>{number.format(campus.classes)}</bdi></TableCell>
+                  <TableCell className="text-end text-xs tabular-nums text-ink-muted"><bdi>{number.format(campus.teachers)}</bdi></TableCell>
+                  <TableCell className="text-end text-xs tabular-nums">
+                    {campus.average === null ? <span className="text-ink-subtle">—</span> : <bdi className={campus.average >= 40 ? "text-status-success-text" : "text-status-error-text"}>{campus.average}%</bdi>}
+                  </TableCell>
+                  <TableCell className="text-end text-xs tabular-nums text-ink-muted">{campus.billed > 0 ? <bdi>{campus.collectionRate}%</bdi> : "—"}</TableCell>
+                  <TableCell className="text-end text-xs tabular-nums text-ink-muted"><bdi>{number.format(campus.reportCards)} / {number.format(campus.exams)}</bdi></TableCell>
+                  <TableCell className="text-end text-xs tabular-nums text-ink-muted">
+                    <bdi>{number.format(campus.messagesSent)}</bdi>
+                    {campus.messageIssues > 0 ? <span className="text-status-error-text"> · {t("{0} failed", [number.format(campus.messageIssues)])}</span> : null}
+                  </TableCell>
+                  <TableCell className="text-end text-xs tabular-nums text-ink-muted"><bdi>{number.format(campus.aiRuns)}</bdi></TableCell>
+                  <TableCell className="text-end">
+                    <Button variant="outline" size="sm" type="button" onClick={() => open(campus.id)} aria-label={t("Open {0}", [campus.name])}>{t("Open")}</Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </InsightCard>
       ) : null}
     </div>
@@ -519,12 +363,13 @@ export function NetworkOverview({ data, onSelectCampus, onOpenBilling, onOpenFee
 }
 
 function CoverageChip({ label, filled }: { label: string; filled: boolean }) {
+  const t = useUiText();
   const Icon = filled ? CheckCircle2 : AlertTriangle;
   return (
     <Badge variant={filled ? "success" : "warning"} size="sm" className="gap-1">
       <Icon className="h-3 w-3" aria-hidden />
       {label}
-      <span className="sr-only">{filled ? " in post" : " vacant"}</span>
+      <span className="sr-only">{filled ? t("in post") : t("vacant")}</span>
     </Badge>
   );
 }

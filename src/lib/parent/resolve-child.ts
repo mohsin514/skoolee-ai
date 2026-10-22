@@ -4,7 +4,6 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
-import { verifyParentToken } from "@/lib/parent/token";
 import { currentGuardianRelationship, type GuardianPermissions } from "@/lib/parent/guardian-access";
 
 /**
@@ -40,19 +39,16 @@ export type ResolvedParentScope = {
   schoolId: string;
   relationshipId: string | null;
   permissions: GuardianPermissions;
-  /** Empty for token links, which are scoped to a single child by design. */
+  /** The signed-in guardian's children (empty when nothing resolved). */
   children: ParentChild[];
 };
 
+/**
+ * Parent portal capability links (`?token=`) are retired (D14): minting answers 410 and the portal requires a signed-in
+ * guardian, so a `token` parameter is ignored here and never stands in for a session. A link minted before the
+ * retirement therefore no longer opens anything.
+ */
 export async function resolveParentScope(req: NextRequest): Promise<ResolvedParentScope> {
-  const token = req.nextUrl.searchParams.get("token");
-  if (token) {
-    const result = await verifyParentToken(token);
-    if (!result) return { studentId: null, schoolId: "", relationshipId: null, permissions: { learningRecords: false, attendance: false, finances: false, communication: false, pickup: false, consents: { medicalTreatment: false, fieldTrips: false, mediaPublication: false, offsiteTravel: false } }, children: [] };
-    // No session on a token link — the token itself supplies the tenant.
-    return { studentId: result.studentId, schoolId: result.schoolId, relationshipId: result.relationshipId, permissions: result.permissions, children: [] };
-  }
-
   const user = await getAuthUser();
   const empty = { learningRecords: false, attendance: false, finances: false, communication: false, pickup: false, consents: { medicalTreatment: false, fieldTrips: false, mediaPublication: false, offsiteTravel: false } };
   if (!user || user.role !== "PARENT") return { studentId: null, schoolId: "", relationshipId: null, permissions: empty, children: [] };
@@ -76,7 +72,7 @@ export async function resolveParentScope(req: NextRequest): Promise<ResolvedPare
   return { studentId: children[0].id, schoolId: user.schoolId, relationshipId: access.id, permissions: access.permissions, children };
 }
 
-/** Callback keeps capability-token tenant context alive through every query. */
+/** Runs the callback with the guardian's school as tenant context for every query. */
 export async function withParentScope<T>(req: NextRequest, fn: (scope: ResolvedParentScope) => Promise<T>): Promise<T> {
   const scope = await resolveParentScope(req);
   if (!scope.studentId) throw new AccessDenied("student", "view", { schoolId: scope.schoolId });

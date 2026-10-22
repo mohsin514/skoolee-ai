@@ -16,6 +16,7 @@ import { assertPlanCapacity, assertSchoolOperational } from "@/lib/billing/entit
 import { notify } from "@/lib/notifications/in-app";
 import { InviteSchema } from "@/lib/staff/invitation-schema";
 import { createStaffInvitation, isCompatibleInviteRole } from "@/lib/staff/invitation-write";
+import { membershipAuthority } from "@/lib/membership-access";
 
 
 
@@ -89,8 +90,8 @@ async function getRequestBaseUrl() {
 
 export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
   const session = await getAuthUser();
-  const canInvite = session && (session.isInstitutionOwner || session.canManageMemberships);
-  if (!canInvite) {
+  // G7b: the institution authority (by role and kind) or a campus delegate; never the owner flag alone.
+  if (!session || !membershipAuthority(session).canManage) {
     throw new ApiError('Forbidden', 403);
   }
   await assertSchoolOperational(session.schoolId);
@@ -135,9 +136,10 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
 
 export async function removeStaff(userId: string) {
   const session = await getAuthUser();
-  if (!session || (!session.isInstitutionOwner && !session.canManageMemberships)) {
+  if (!session || !membershipAuthority(session).canManage) {
     throw new ApiError('Forbidden', 403);
   }
+  const { authority } = membershipAuthority(session);
   await assertSchoolOperational(session.schoolId);
   if (!(await authRateLimit(`invite-admin:${session.userId}`, { limit: 20, windowMs: 300_000 })).ok) throw new ApiError("Wait five minutes before trying again", 429);
 
@@ -154,16 +156,16 @@ export async function removeStaff(userId: string) {
     throw new ApiError("Staff member not found", 404);
   }
 
-  if (!session.isInstitutionOwner && target.campusId !== session.campusId) {
+  if (!authority && target.campusId !== session.campusId) {
     throw new ApiError("Staff member is outside your campus", 403);
   }
 
   if (target.isInstitutionOwner) {
-    throw new ApiError("The campus owner account cannot be revoked", 403);
+    throw new ApiError("The account owner cannot be removed", 403);
   }
 
-  if (!session.isInstitutionOwner && (target.canManageMemberships || target.canPurchaseSubscription || isCampusAdminRole(target.role))) {
-    throw new ApiError("Only an owner can revoke delegated administrators", 403);
+  if (!authority && (target.canManageMemberships || target.canPurchaseSubscription || isCampusAdminRole(target.role) || target.role === "PRINCIPAL" || target.role === "SUPER_ADMIN")) {
+    throw new ApiError("Only the institution administrator can remove campus leaders and delegated administrators", 403);
   }
   await prisma.$transaction(async tx => {
     await tx.user.update({ where: { id: userId }, data: { isActive: false, accessVersion: { increment: 1 } } });
@@ -176,7 +178,10 @@ export async function removeStaff(userId: string) {
     campusId: target.campusId,
     actorId: session.userId,
     actorName: session.fullName,
+    staffId: target.id,
     staffName: target.fullName,
+    // The removed person's role routes a principal/campus-admin vacancy to the institution authority (P9 staffing()).
+    roleName: target.role,
   });
 
   return { success: true };
@@ -184,7 +189,7 @@ export async function removeStaff(userId: string) {
 
 export async function cancelInvitation(inviteId: string) {
   const session = await getAuthUser();
-  if (!session || (!session.isInstitutionOwner && !session.canManageMemberships)) {
+  if (!session || !membershipAuthority(session).canManage) {
     throw new ApiError('Forbidden', 403);
   }
   await assertSchoolOperational(session.schoolId);
@@ -199,7 +204,7 @@ export async function cancelInvitation(inviteId: string) {
     throw new ApiError("Invitation not found", 404);
   }
 
-  if (!session.isInstitutionOwner && invite.campusId !== session.campusId) {
+  if (!membershipAuthority(session).authority && invite.campusId !== session.campusId) {
     throw new ApiError("Invitation is outside your campus", 403);
   }
 
@@ -213,7 +218,7 @@ export async function cancelInvitation(inviteId: string) {
 
 export async function resendInvitation(inviteId: string) {
   const session = await getAuthUser();
-  if (!session || (!session.isInstitutionOwner && !session.canManageMemberships)) {
+  if (!session || !membershipAuthority(session).canManage) {
     throw new ApiError('Forbidden', 403);
   }
   await assertSchoolOperational(session.schoolId);
@@ -228,7 +233,7 @@ export async function resendInvitation(inviteId: string) {
     throw new ApiError("Invitation not found", 404);
   }
 
-  if (!session.isInstitutionOwner && invite.campusId !== session.campusId) {
+  if (!membershipAuthority(session).authority && invite.campusId !== session.campusId) {
     throw new ApiError("Invitation is outside your campus", 403);
   }
 
@@ -353,7 +358,8 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
-            canPurchaseSubscription: invite.canPurchaseSubscription,
+            // G7: an invitable role is never an authority, so a purchase flag would be inert; never carry it.
+            canPurchaseSubscription: false,
             canManageMemberships: invite.canManageMemberships,
             isInstitutionOwner: false,
             accessVersion: existingUser ? existingUser.accessVersion + 1 : 0,
@@ -387,7 +393,8 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
             role: invite.role,
             campusId: invite.campusId,
             schoolId: campus.schoolId,
-            canPurchaseSubscription: invite.canPurchaseSubscription,
+            // G7: an invitable role is never an authority, so a purchase flag would be inert; never carry it.
+            canPurchaseSubscription: false,
             canManageMemberships: invite.canManageMemberships,
             isInstitutionOwner: false,
             accessVersion: 0,
@@ -494,7 +501,7 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
     }
 
     }
-    await tx.auditLog.create({ data: { tableName: "membership", recordId: acceptedUser.id, userId: acceptedUser.id, newValue: { action: "invitation.accepted", role: invite.role, campusId: invite.campusId, isInstitutionOwner: false, canPurchaseSubscription: invite.canPurchaseSubscription, canManageMemberships: invite.canManageMemberships } } });
+    await tx.auditLog.create({ data: { tableName: "membership", recordId: acceptedUser.id, userId: acceptedUser.id, newValue: { action: "invitation.accepted", role: invite.role, campusId: invite.campusId, isInstitutionOwner: false, canPurchaseSubscription: false, canManageMemberships: invite.canManageMemberships } } });
     return acceptedUser;
   }));
 

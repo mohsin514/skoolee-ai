@@ -9,6 +9,7 @@ import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { normalizePlan } from "@/config/plans";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { InviteSchema, type StaffInvitationInput } from "./invitation-schema";
+import { inviteDecision, membershipAuthority } from "@/lib/membership-access";
 import { z } from "zod";
 export function isCompatibleInviteRole(existingRole: string, inviteRole: string) {
   if (inviteRole === "CAMPUS_ADMIN") {
@@ -34,19 +35,19 @@ export async function createStaffInvitation(user: AuthUser, input: StaffInvitati
   return schoolAiTransaction(user, async tx => {
     await lockSchoolMemberships(tx, user.schoolId);
     const actor = await tx.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true, isInstitutionOwner: true, canManageMemberships: true } });
-    if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion || !actor.isInstitutionOwner && !actor.canManageMemberships) throw new ApiError("Membership authority changed. Sign in again.", 403);
+    // G7b: authority is the institution authority (role + kind from the resolved session), re-read here with the
+    // live role, campus and flags; the owner flag alone no longer decides it.
+    const session = { ...user, isInstitutionOwner: actor?.isInstitutionOwner ?? false, canManageMemberships: actor?.canManageMemberships ?? false };
+    if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion || !membershipAuthority(session).canManage) throw new ApiError("Membership authority changed. Sign in again.", 403);
     const grants = await tx.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role } }), flags = moduleFlags(grants, user.role, "staff");
     if (!flags.canView || !flags.canAdd) throw new ApiError("Staff invitation permission is required.", 403);
     await assertSchoolOperational(user.schoolId, tx);
-    const session = { ...user, isInstitutionOwner: actor.isInstitutionOwner, canManageMemberships: actor.canManageMemberships };
   // Honour an explicitly supplied campusId (e.g. inviting the admin/principal for a
   // newly created campus). Fall back to the caller's own campus only when omitted.
   const targetCampusId = valid.campusId || session.campusId;
 
-  // Non-super callers may only invite staff into their own campus.
-  if (!session.isInstitutionOwner && targetCampusId !== session.campusId) {
-    throw new ApiError("You can only invite staff to your own campus", 403);
-  }
+  const decision = inviteDecision(session, { role: valid.role, campusId: targetCampusId, canPurchaseSubscription: valid.canPurchaseSubscription, canManageMemberships: valid.canManageMemberships });
+  if (!decision.ok) throw new ApiError(decision.error, decision.status, decision.code); // code: MFA_REQUIRED (F28)
 
   if (!targetCampusId) throw new ApiError('Campus ID is required', 400);
 
@@ -57,16 +58,8 @@ export async function createStaffInvitation(user: AuthUser, input: StaffInvitati
   if (!targetCampus) throw new ApiError('Campus not found', 404);
   if (targetCampus.schoolId !== session.schoolId) throw new ApiError('Campus is outside your school', 403);
 
-  const canInviteStandaloneAdmin = session.isInstitutionOwner === true;
-  if ((valid.canPurchaseSubscription || valid.canManageMemberships) && !session.isInstitutionOwner) {
-    throw new ApiError("Only an institution owner can delegate purchasing or membership management", 403);
-  }
-  if (["PARENT", "STUDENT"].includes(valid.role) && (valid.canPurchaseSubscription || valid.canManageMemberships)) {
-    throw new ApiError("Family memberships cannot receive administrative delegations", 400);
-  }
-  if (valid.role === "CAMPUS_ADMIN" && !session.isInstitutionOwner) {
-    throw new ApiError("Only an institution owner can invite campus administrators", 403);
-  }
+  // The authority may add a deputy campus admin beside an existing one; everyone else respects one per campus.
+  const canInviteStandaloneAdmin = membershipAuthority(session).authority;
 
   // FINDING-D: identity is tenant-scoped, so an invite only cares whether this
   // address already has an account AT THIS SCHOOL. Globally, the same person may
@@ -151,7 +144,8 @@ export async function createStaffInvitation(user: AuthUser, input: StaffInvitati
       expiresAt,
       profile: valid.profile ?? Prisma.JsonNull,
       invitedBy: session.fullName || session.email,
-      canPurchaseSubscription: valid.canPurchaseSubscription ?? false,
+      // G7: purchasing is never delegated through an invitation (no invitable role is an authority role).
+      canPurchaseSubscription: false,
       canManageMemberships: valid.canManageMemberships ?? false,
     }
   });

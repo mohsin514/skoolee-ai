@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCards } from "@/components/ui/skeleton";
 
 // SKO-453: capacity and staffing scenarios against a dated baseline. Assumptions sit beside results,
 // bottlenecks are explained and linked, costs are estimates, and nothing live is changed.
@@ -33,16 +35,22 @@ async function call(url: string, init?: RequestInit) {
   return json.data;
 }
 
-const blank = { name: "", classCap: "30", grade: "", intake: "0", subject: "", periods: "", roomType: "LAB", addType: "", addCount: "1", addSeats: "30", teacherId: "", teacherPeriods: "", newSubject: "", newPeriods: "", currency: "SAR", tLow: "", tHigh: "", rLow: "", rHigh: "" };
+const blank = { name: "", classCap: "30", grade: "", intake: "0", subject: "", periods: "", roomType: "LAB", addType: "", addCount: "1", addSeats: "30", teacherId: "", teacherPeriods: "", newSubject: "", newPeriods: "", currency: "", tLow: "", tHigh: "", rLow: "", rHigh: "" };
 
-export function ScenarioPlanner() {
+/**
+ * `readOnly` (M56: the principal reads the campus admin's planning): no baseline, scenario, handoff or decision
+ * controls — scenarios, comparisons, findings and the exported planning note stay readable.
+ */
+export function ScenarioPlanner({ readOnly = false }: { readOnly?: boolean } = {}) {
   const ui = useUiText();
   const { number, dateTime } = useLocaleFormat();
+  // R7: cost estimates default to the school's own currency, never a hard-coded one.
+  const locale = useLocale();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState(blank);
+  const [form, setForm] = useState(() => ({ ...blank, currency: locale.currency ?? "" }));
   const [selected, setSelected] = useState<string | null>(null);
   const [compare, setCompare] = useState<string[]>([]);
   const [handoff, setHandoff] = useState({ ownerId: "", note: "" });
@@ -55,7 +63,9 @@ export function ScenarioPlanner() {
     catch (e) { setError(ui((e as Error).message)); setNotice(null); return null; }
     finally { setBusy(false); }
   };
-  if (!data) return <section className="sk-panel p-4"><p role="status" className="text-sm text-ink-subtle">{error ?? ui("Evaluating room, workload and schedule constraints…")}</p></section>;
+  // R4/R5: a load failure is an inline ErrorState with retry; loading is a layout-shaped skeleton.
+  if (!data && error) return <section aria-labelledby="scenario-planner" className="sk-panel p-4"><h2 id="scenario-planner" className="sr-only">{ui("Capacity and staffing scenarios")}</h2><ErrorState title={ui("Scenarios could not be loaded")} description={error} onRetry={() => void load()} /></section>;
+  if (!data) return <section aria-labelledby="scenario-planner" className="sk-panel p-4"><h2 id="scenario-planner" className="sr-only">{ui("Capacity and staffing scenarios")}</h2><div role="status" aria-label={ui("Evaluating room, workload and schedule constraints…")}><SkeletonCards /></div></section>;
 
   const baseline = data.baselines[0] ?? null;
   const set = (key: keyof typeof blank) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -81,6 +91,7 @@ export function ScenarioPlanner() {
       <div>
         <h2 id="scenario-planner" className="text-lg font-bold">{ui("Capacity and staffing scenarios")}</h2>
         <p className="text-sm font-semibold text-ink-subtle">{ui("Scenario only · live records unchanged")}</p>
+        {readOnly ? <p className="mt-1 text-sm text-ink-muted">{ui("Read only. Your campus admin takes baselines, runs scenarios and proposes plans.")}</p> : null}
       </div>
       <div aria-live="polite">
         {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
@@ -90,12 +101,12 @@ export function ScenarioPlanner() {
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3 text-sm">
         {baseline ? <span>{ui("Baseline {0} · taken {1}", [baseline.version, dateTime(baseline.takenAt)])} · {ui("{0} teaching days × {1} periods", [baseline.data.teachingDays, baseline.data.periodsPerDay])}</span> : <span>{ui("Create a scenario from a dated school baseline.")}</span>}
         {baseline && !data.latestIsCurrent ? <span role="alert" className="font-semibold text-status-error-text">{ui("Live records changed since this baseline. Take a new baseline to plan on current data.")}</span> : null}
-        <Button type="button" variant={baseline && data.latestIsCurrent ? "secondary" : "default"} disabled={busy} onClick={() => void post({ action: "baseline", data: {} }, "Baseline taken.")}>{baseline ? ui("Take new baseline") : ui("Take baseline")}</Button>
+        {readOnly ? null : <Button type="button" variant={baseline && data.latestIsCurrent ? "secondary" : "default"} disabled={busy} onClick={() => void post({ action: "baseline", data: {} }, "Baseline taken.")}>{baseline ? ui("Take new baseline") : ui("Take baseline")}</Button>}
         {baseline?.missing.length ? <ul className="w-full text-xs text-status-error-text" aria-label={ui("Missing inputs")}>{baseline.missing.map((m, i) => <li key={i}><bdi>{m.detail}</bdi></li>)}</ul> : null}
       </div>
 
-      {baseline ? (
-        <form className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-4" onSubmit={async (e) => { e.preventDefault(); const r = await post({ action: "save", data: { baselineId: baseline.id, name: form.name, assumptions: assumptions() } }, "Scenario evaluated."); if (r) { setSelected(r.id); setForm(blank); } }}>
+      {baseline && !readOnly ? (
+        <form className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-4" onSubmit={async (e) => { e.preventDefault(); const r = await post({ action: "save", data: { baselineId: baseline.id, name: form.name, assumptions: assumptions() } }, "Scenario evaluated."); if (r) { setSelected(r.id); setForm({ ...blank, currency: form.currency }); } }}>
           <h3 className="font-semibold md:col-span-4">{ui("New scenario")}</h3>
           <FormField name="sc-name" label={ui("Scenario name")}><Input value={form.name} onChange={set("name")} /></FormField>
           <FormField name="sc-cap" label={ui("Class cap (students)")}><Input inputMode="numeric" dir="ltr" value={form.classCap} onChange={set("classCap")} /></FormField>
@@ -175,15 +186,15 @@ export function ScenarioPlanner() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" disabled={busy} onClick={() => void post({ action: "duplicate", id: current.id }, "Scenario duplicated.")}>{ui("Duplicate scenario")}</Button>
-            {baseline && current.baselineId !== baseline.id ? <Button type="button" variant="secondary" disabled={busy} onClick={() => void post({ action: "refresh", id: current.id }, "Scenario copied onto the newest baseline; the original is kept.")}>{ui("Refresh onto newest baseline")}</Button> : null}
+            {readOnly ? null : <Button type="button" variant="secondary" disabled={busy} onClick={() => void post({ action: "duplicate", id: current.id }, "Scenario duplicated.")}>{ui("Duplicate scenario")}</Button>}
+            {!readOnly && baseline && current.baselineId !== baseline.id ? <Button type="button" variant="secondary" disabled={busy} onClick={() => void post({ action: "refresh", id: current.id }, "Scenario copied onto the newest baseline; the original is kept.")}>{ui("Refresh onto newest baseline")}</Button> : null}
             <a className="self-center text-sm underline" download={`${current.name}.txt`} href={`data:text/plain;charset=utf-8,${encodeURIComponent(note(current))}`}>{ui("Export planning note")}</a>
           </div>
-          <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void post({ action: "handoff", id: current.id, data: handoff }, "Planning handoff proposed for review."); }}>
+          {readOnly ? null : <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void post({ action: "handoff", id: current.id, data: handoff }, "Planning handoff proposed for review."); }}>
             <FormField name="ho-owner" label={ui("Plan owner")}><Select value={handoff.ownerId} onChange={(e) => setHandoff((h) => ({ ...h, ownerId: e.target.value }))}><option value="">{ui("Choose an owner")}</option>{data.leaders.map((l) => <option key={l.id} value={l.id}>{l.fullName}</option>)}</Select></FormField>
             <FormField name="ho-note" label={ui("What should happen next")} className="min-w-64 flex-1"><Input value={handoff.note} onChange={(e) => setHandoff((h) => ({ ...h, note: e.target.value }))} /></FormField>
             <Button type="submit" disabled={busy}>{ui("Propose planning handoff")}</Button>
-          </form>
+          </form>}
         </div>
       ) : null}
 
@@ -194,7 +205,7 @@ export function ScenarioPlanner() {
             <div key={h.id} className="rounded-lg border border-border p-2">
               <p><bdi>{data.scenarios.find((s) => s.id === h.scenarioId)?.name}</bdi> · {ui(HANDOFF[h.status] ?? h.status)} · {ui("Owner")}: <bdi>{data.leaders.find((l) => l.id === h.ownerId)?.fullName ?? "—"}</bdi></p>
               <ul className="text-xs text-ink-subtle">{h.items.map((i, k) => <li key={k}><bdi>{i.detail}</bdi>{i.estimate ? ` · ${i.estimate}` : ""}</li>)}</ul>
-              {h.status === "PROPOSED" && h.proposedById !== data.userId ? (
+              {!readOnly && h.status === "PROPOSED" && h.proposedById !== data.userId ? (
                 <div className="mt-1 flex gap-2">
                   <Button type="button" size="sm" disabled={busy} onClick={() => void post({ action: "decide", id: h.id, data: { decision: "APPROVE" } }, "Plan approved. Nothing live was changed.")}>{ui("Approve plan")}</Button>
                   <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => void post({ action: "decide", id: h.id, data: { decision: "REJECT" } }, "Plan not approved.")}>{ui("Do not approve")}</Button>

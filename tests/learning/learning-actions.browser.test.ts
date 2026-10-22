@@ -165,7 +165,8 @@ test("the learning actions panel reads clearly in English and Arabic", async () 
   assert.deepEqual(errors, []);
   await page.close();
   const ar = await (await context("leader-ar", { width: 390, height: 844 })).newPage();
-  await ar.goto(`${base}/admin?view=overview`);
+  // The academic lead's queue is its own view now (registry leaf "learning-actions"; this campus has no principal).
+  await ar.goto(`${base}/admin?view=learning-actions`);
   await ar.locator("[data-learning-actions] [data-action]").first().waitFor({ timeout: 30_000 });
   assert.equal(await ar.evaluate("document.documentElement.dir"), "rtl");
   await ar.locator("[data-learning-actions]").scrollIntoViewIfNeeded();

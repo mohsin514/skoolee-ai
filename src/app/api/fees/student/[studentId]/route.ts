@@ -4,7 +4,6 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  canManageOperations,
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";

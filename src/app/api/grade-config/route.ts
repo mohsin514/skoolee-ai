@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { normalizeWeightMode } from "@/lib/academic/grade-calculator";
-import { ApiError, assertPermission, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertPermission, canLeadAcademics } from "@/lib/api/scope";
 import { assertWritable, recordProvenance } from "@/lib/group-policy/service";
 
 /**
@@ -215,9 +215,11 @@ export async function POST(request: NextRequest) {
     // Grading weights and the passing bar decide who passes the year, so only
     // the office may touch them. This route previously accepted any signed-in
     // user, which let a teacher — or a student — rewrite their own pass mark.
-    if (!canManageOperations(session)) {
+    // G34: grading rules are the academic lead's decision — the principal, or a campus operator only while
+    // the campus has no principal.
+    if (!(await canLeadAcademics(session, session.campusId))) {
       return NextResponse.json(
-        { error: "Only admins and principals can change grading rules" },
+        { error: "Grading rules are set by your principal." },
         { status: 403 },
       );
     }

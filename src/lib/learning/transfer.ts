@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canManageAcademics, canManageCampusOps } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
@@ -41,8 +41,11 @@ const json = (value: unknown) => value as Prisma.InputJsonValue;
 const today = () => new Date().toISOString().slice(0, 10);
 const words = (value: string) => new Set(value.toLowerCase().normalize("NFKC").split(/[^\p{L}\p{N}]+/u).filter(w => w.length > 3));
 
-function assertStaff(user: AuthUser) {
-  if (!canManageOperations(user) && user.role !== "TEACHER") throw new ApiError("Learning transfer is for school staff.", 403);
+/** §7.6: transfer cases are registrar work (campus operations) plus the learner's teachers; the principal
+ *  keeps read access for academic oversight (`/pupils/[id]` PR read). */
+function assertStaff(user: AuthUser, access: "read" | "write" = "write") {
+  const office = access === "read" ? canManageAcademics(user) : canManageCampusOps(user);
+  if (!office && user.role !== "TEACHER") throw new ApiError("Learning transfer is for school staff.", 403);
 }
 
 /** The learner must be on the caller's campus; a teacher must teach them. Unknown ids reveal nothing. */
@@ -113,7 +116,7 @@ export async function importTransfer(user: AuthUser, raw: unknown) {
 
 /** Staff view. Without current consent the evidence is withheld: only the case shell and what is missing. */
 export async function getTransfer(user: AuthUser, caseId: string) {
-  assertStaff(user);
+  assertStaff(user, "read");
   return schoolAiTransaction(user, async tx => {
     const row = await loadCase(tx, user, caseId);
     const state = rights(row);
@@ -144,7 +147,7 @@ export async function getTransfer(user: AuthUser, caseId: string) {
 }
 
 export async function listTransfers(user: AuthUser, studentId: string) {
-  assertStaff(user);
+  assertStaff(user, "read");
   return schoolAiTransaction(user, async tx => {
     await learner(tx, user, studentId);
     const rows = await tx.learningTransferCase.findMany({ where: { schoolId: user.schoolId, studentId }, orderBy: { createdAt: "desc" }, take: 20 });

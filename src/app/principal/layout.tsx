@@ -5,8 +5,8 @@ import { PrincipalDataProvider } from "./principal-data-context";
 
 export const metadata: Metadata = {
   // §7.3: every route needs a distinct <title>. The root layout supplies
-  // the "%s | SkooleeAI" template, so this renders as "Principal | SkooleeAI".
-  title: "Principal",
+  // the "%s | SkooleeAI" template, so this renders as "Academic console | SkooleeAI" (§1.5 console names).
+  title: "Academic console",
 };
 
 export default async function PrincipalLayout({ children }: { children: React.ReactNode }) {

@@ -3,6 +3,7 @@ import type { AdmissionApplication, Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, assertModuleRead, assertPermission, assertStaffRole } from "@/lib/api/scope";
+import { isCampusOperator } from "@/lib/auth/institution";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { assertPlanCapacity } from "@/lib/billing/entitlements";
@@ -36,6 +37,16 @@ const asDefinition = (value: unknown) => value as FormDefinition;
 // ─── Forms (staff) ───────────────────────────────────────────
 
 async function canEdit(user: AuthUser) { assertStaffRole(user); await assertPermission(user, "admissions", "edit"); }
+/**
+ * role-ux G37: intake (enter, answers, staff submit, request info, notes, owners) is admissions.edit — the front
+ * desk's work. Decisions (offer, waitlist, reject, the family's acceptance or decline), enrolment and the form
+ * designer belong to the campus admin; the receptionist moves applications forward and never decides them.
+ */
+async function canDecide(user: AuthUser, what: string) {
+  await canEdit(user);
+  if (!isCampusOperator(user)) throw new ApiError(`Only your campus admin can ${what}.`, 403);
+}
+const DECISIONS = new Set(["offer", "waitlist", "reject", "record-acceptance", "record-decline"]);
 
 export async function listForms(user: AuthUser, campusId: string) {
   await canRead(user);
@@ -44,7 +55,7 @@ export async function listForms(user: AuthUser, campusId: string) {
 }
 
 export async function saveForm(user: AuthUser, campusId: string, body: Record<string, unknown>) {
-  await canEdit(user);
+  await canDecide(user, "edit admission forms");
   const name = text(body.name, "Form name", 2, 120);
   const definition = asDefinition(body.definition);
   const problems = definitionProblems(definition);
@@ -59,7 +70,7 @@ export async function saveForm(user: AuthUser, campusId: string, body: Record<st
 }
 
 export async function publishForm(user: AuthUser, campusId: string, id: string) {
-  await canEdit(user);
+  await canDecide(user, "publish admission forms");
   return schoolAiTransaction(user, async db => {
     const [locked] = await db.$queryRaw<{ id: string }[]>`SELECT id FROM admission_forms WHERE id = ${id} AND campus_id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
     const form = locked ? await db.admissionForm.findUnique({ where: { id } }) : null;
@@ -75,7 +86,7 @@ export async function publishForm(user: AuthUser, campusId: string, id: string) 
 }
 
 export async function setFormOpen(user: AuthUser, campusId: string, id: string, isOpen: boolean) {
-  await canEdit(user);
+  await canDecide(user, "open or close admission forms");
   const form = await prisma.admissionForm.findFirst({ where: { id, campusId, schoolId: user.schoolId } });
   if (!form) throw new ApiError("Admission form not found", 404);
   return prisma.admissionForm.update({ where: { id }, data: { isOpen } });
@@ -306,14 +317,16 @@ const TRANSITIONS: Record<string, { from: string[]; to: string }> = {
 };
 
 async function validOwner(db: TxClient, user: AuthUser, campusId: string, ownerId: string) {
-  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "RECEPTIONIST"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
-  if (!owner) throw new ApiError("Choose an active admissions or leadership colleague in this campus as the owner.", 400);
+  // The front desk and the campus admins own applications (role-ux §2.2 #50); never the principal or the group admin.
+  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"] }, campusId }, select: { id: true } });
+  if (!owner) throw new ApiError("Choose an active front-desk colleague or campus admin in this campus as the owner.", 400);
 }
 
 /** One staff action per call, checked against the version the person was looking at. */
 export async function actOnApplication(user: AuthUser, campusId: string, body: Record<string, unknown>) {
-  await canEdit(user);
   const action = String(body.action ?? "");
+  if (DECISIONS.has(action)) await canDecide(user, "decide an application");
+  else await canEdit(user);
   const result = await schoolAiTransaction(user, async db => {
     const id = String(body.id ?? "");
     const [locked] = await db.$queryRaw<{ id: string }[]>`SELECT id FROM admission_applications WHERE id = ${id} AND campus_id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
@@ -419,7 +432,7 @@ export async function staffUpload(user: AuthUser, campusId: string, id: string, 
  * explicit, recorded choice: enrol as a new pupil (with a reason) or link the existing pupil record.
  */
 export async function convertApplication(user: AuthUser, campusId: string, body: Record<string, unknown>) {
-  await canEdit(user);
+  await canDecide(user, "enrol a pupil");
   await assertPermission(user, "students", "add");
   const id = String(body.id ?? "");
   const outcome = await schoolAiTransaction(user, async db => {

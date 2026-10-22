@@ -18,7 +18,11 @@ export interface ErrorStateProps {
   description?: React.ReactNode;
   /** The caught error; only its digest (server reference) is ever shown. */
   error?: (Error & { digest?: string }) | null;
-  onRetry?: () => void;
+  /**
+   * Retry the failed load. A returned promise keeps the button busy until it settles; any other return value is
+   * ignored (so `() => refetch()` and `() => toast(...)` callers keep compiling).
+   */
+  onRetry?: () => unknown;
   retryLabel?: string;
   /** Extra actions, e.g. a link back to the dashboard. */
   action?: React.ReactNode;
@@ -31,6 +35,17 @@ export interface ErrorStateProps {
 
 export function ErrorState({ title, description, error, onRetry, retryLabel, action, variant = "panel", offline = false, className }: ErrorStateProps) {
   const tr = useUiText();
+  const [retrying, setRetrying] = React.useState(false);
+  const mounted = React.useRef(true);
+  React.useEffect(() => () => { mounted.current = false; }, []);
+  const retry = React.useCallback(() => {
+    if (!onRetry || retrying) return;
+    const result = onRetry();
+    if (result instanceof Promise || (typeof result === "object" && result !== null && typeof (result as PromiseLike<unknown>).then === "function")) {
+      setRetrying(true);
+      void Promise.resolve(result as PromiseLike<unknown>).catch(() => undefined).finally(() => { if (mounted.current) setRetrying(false); });
+    }
+  }, [onRetry, retrying]);
   const Icon = offline ? WifiOff : AlertTriangle;
   const reference = error?.digest;
   const page = variant === "page";
@@ -43,8 +58,8 @@ export function ErrorState({ title, description, error, onRetry, retryLabel, act
         className,
       )}
     >
-      {page ? <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-40 bg-[radial-gradient(60%_100%_at_50%_0%,rgb(239_68_68/0.10),transparent)]" /> : null}
-      <div aria-hidden="true" className={cn("mb-5 grid place-items-center rounded-[22px] border border-status-error-border bg-status-error-surface text-red-700 shadow-sm", page ? "size-16" : "size-14")}>
+      {page ? <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-40 bg-[radial-gradient(60%_100%_at_50%_0%,var(--status-error-surface),transparent)]" /> : null}
+      <div aria-hidden="true" className={cn("mb-5 grid place-items-center rounded-[22px] border border-status-error-border bg-status-error-surface text-status-error-text shadow-sm", page ? "size-16" : "size-14")}>
         <Icon className={page ? "size-7" : "size-6"} strokeWidth={2} />
       </div>
       <h2 className={cn("font-bold text-ink-strong", page ? "text-xl" : "text-lg")}>
@@ -56,9 +71,9 @@ export function ErrorState({ title, description, error, onRetry, retryLabel, act
       {onRetry || action ? (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           {onRetry ? (
-            <Button type="button" onClick={onRetry}>
-              <RefreshCw aria-hidden="true" />
-              {retryLabel ?? tr("Try again")}
+            <Button type="button" onClick={retry} loading={retrying}>
+              {retrying ? null : <RefreshCw aria-hidden="true" />}
+              {retrying ? tr("Retrying…") : retryLabel ?? tr("Try again")}
             </Button>
           ) : null}
           {action}

@@ -270,6 +270,13 @@ body {
 [class*="tracking-"]:lang(ur) {
   letter-spacing: normal;
 }
+/* Uppercase means nothing in Arabic or Urdu script, and it shouts the Latin
+   words mixed into them (names, "SkooleeAI", codes). SPEC §8.1 R8: no
+   uppercase for AR/UR, whatever utility or eyebrow class asked for it. */
+:lang(ar) .uppercase, :lang(ur) .uppercase,
+.uppercase:lang(ar), .uppercase:lang(ur) {
+  text-transform: none;
+}
 :lang(ar) h1, :lang(ar) h2, :lang(ar) h3,
 :lang(ur) h1, :lang(ur) h2, :lang(ur) h3 {
   letter-spacing: normal;
@@ -1240,11 +1247,18 @@ body::before {
     radial-gradient(64rem 38rem at 55% 115%, rgb(79 70 229 / 0.08), transparent 62%),
     radial-gradient(40rem 30rem at 100% 70%, rgb(156 72 234 / 0.06), transparent 65%);
 }
+/* The dot field (addendum 2026-10-22: clearly visible, still calm). Round dots of about 3px at a stronger alpha;
+   full strength under the header, then a quiet floor instead of nothing, so the canvas reads around the page card on
+   every screen height. Dark surfaces get a lighter lilac at a lower alpha. */
 body::after {
-  background-image: radial-gradient(rgb(129 39 207 / 0.14) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgb(129 39 207 / 0.26) 1.4px, transparent 1.9px);
   background-size: 22px 22px;
-  -webkit-mask-image: linear-gradient(to bottom, black, transparent 26rem);
-  mask-image: linear-gradient(to bottom, black, transparent 26rem);
+  -webkit-mask-image: linear-gradient(to bottom, black, rgb(0 0 0 / 0.5) 30rem, rgb(0 0 0 / 0.32));
+  mask-image: linear-gradient(to bottom, black, rgb(0 0 0 / 0.5) 30rem, rgb(0 0 0 / 0.32));
+}
+.dark body::after,
+body.dark::after {
+  background-image: radial-gradient(circle, rgb(196 170 222 / 0.2) 1.4px, transparent 1.9px);
 }
 
 @layer components {
@@ -1324,7 +1338,7 @@ body::after {
     text-transform: uppercase;
     color: var(--ink-subtle);
   }
-  :lang(ar) .sk-eyebrow, :lang(ur) .sk-eyebrow { letter-spacing: normal; font-size: 0.75rem; }
+  :lang(ar) .sk-eyebrow, :lang(ur) .sk-eyebrow { letter-spacing: normal; text-transform: none; font-size: 0.75rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2417,7 +2431,7 @@ html[data-step-direction="back"]::view-transition-new(sk-step-card) { animation-
   .sk-ai-flow-draft { display: grid; gap: .25rem; padding: .75rem 1rem; border-radius: var(--radius-control); border: 1px solid var(--border-subtle); background: var(--surface-subtle); }
   .sk-ai-flow-empty { padding: 1.25rem; border-radius: var(--radius-control); border: 1px dashed var(--brand-200); background: var(--status-brand-surface); font-size: var(--text-sm); color: var(--ink-muted); text-align: center; }
   #ai-workflows, #ai-composer, #ai-review, #ai-drafts { scroll-margin-block-start: 4.5rem; }
-  @media (prefers-reduced-motion: reduce) { .sk-ai-flow-card { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .sk-ai-flow-card { transition: none !important; } }
 
   /* ── Package chooser ("Decision Desk": PackageChooser, PackageCard, PackageVerdict, PackageReceipt) ── */
   .sk-chooser { container-type: inline-size; display: grid; min-width: 0; }
@@ -2780,4 +2794,32 @@ html:has(.sk-step-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom
   .sk-ink-cover { background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none; }
   .sk-ink-cover::before, .sk-ink-cover::after { display: none; }
   .sk-ink-heading strong { color: CanvasText; }
+}
+
+/* ═══ Spotlight tour (src/components/ui/spotlight.tsx, src/components/tour/*) ═══
+   Four panels dim and blur everything around the highlighted control; the ring uses the shared focus token
+   (never a focus: utility); the card is an ink-cover head over a paper footer. */
+@layer components {
+  .sk-tour-ring {
+    pointer-events: none;
+    outline: 3px solid var(--focus-color);
+    outline-offset: 0;
+    box-shadow: 0 0 0 6px var(--brand-100), 0 18px 48px -20px color-mix(in srgb, var(--brand-900) 60%, transparent);
+  }
+  .sk-tour-panel { -webkit-tap-highlight-color: transparent; }
+  .sk-tour-card-body { max-block-size: calc(100dvh - 1rem); overflow: hidden auto; overscroll-behavior: contain; }
+  /* The arrow takes the colour of the edge it sits on: ink when the card is below the control, paper when above. */
+  .sk-tour-arrow { background: var(--brand-900); }
+  .sk-tour-card[data-side="top"] .sk-tour-arrow { background: hsl(var(--card)); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sk-tour-panel { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-tour-ring, .sk-tour-card { transition: none; }
+}
+@media (forced-colors: active) {
+  .sk-tour-ring { forced-color-adjust: none; outline: 3px solid Highlight; box-shadow: none; }
+  .sk-tour-panel { forced-color-adjust: none; background: color-mix(in srgb, Canvas 60%, transparent); backdrop-filter: none; }
+  .sk-tour-arrow { forced-color-adjust: none; background: CanvasText; }
 }

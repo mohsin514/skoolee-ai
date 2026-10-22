@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, assertStaffRole, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, assertStaffRole, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { summarizeImportRows, type ImportRow } from "@/lib/imports/batch";
 import { isoDate } from "@/lib/imports/batch";
 import { studentSchema } from "@/lib/validators/schemas";
@@ -61,8 +61,8 @@ async function authorizedBatch(id: string, request: NextRequest, action: "view" 
   const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
   const batch = await findBatch(id, user.schoolId, campusId);
   if (!batch) throw new ApiError("Import batch not found", 404);
-  if (batch.kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-  if (action !== "view" && batch.kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+  if (batch.kind === "STUDENT_ROSTER" && !canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
+  if (action !== "view" && batch.kind === "STUDENT_ROSTER" && !canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
   if (batch.kind === "STUDENT_ROSTER") await assertRosterPermission(user, action);
   else await assertPermission(user, "fees", action);
   return { user, batch };

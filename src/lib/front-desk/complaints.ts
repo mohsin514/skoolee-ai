@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import type { TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageFrontDesk, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canManageCampusOps } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 
 // SKO-467: complaint cases. The original report (who, when, what) is never edited; assignment, notes,
@@ -11,16 +11,20 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 // they exist. Nothing is deleted.
 
 export const STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED"] as const;
-const OWNER_ROLES = ["SUPER_ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "RECEPTIONIST"];
+// role-ux G40 / C29: the front desk and the campus admins own front-office work. The principal (academic) and the
+// super admin (governance) are never owners, and ADMIN — the campus operator of a single school — is.
+export const OWNER_ROLES = ["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-export const isLeader = (user: AuthUser) => canManageOperations(user);
+export const isLeader = (user: AuthUser) => canManageCampusOps(user);
+/** Front-desk staff: the receptionist and the campus admins (never the principal). */
+const isFrontDesk = (user: AuthUser) => canManageCampusOps(user) || user.role === "RECEPTIONIST";
 /** Rows this user may know exist. Leaders see everything in the campus; others never see confidential cases they do not own. */
 export function visibleWhere(user: AuthUser): Prisma.ComplaintWhereInput {
   return isLeader(user) ? {} : { OR: [{ confidential: false }, { ownerId: user.userId }] };
 }
 function canAct(user: AuthUser, complaint: { confidential: boolean; ownerId: string | null }) {
-  return isLeader(user) || complaint.ownerId === user.userId || (!complaint.confidential && canManageFrontDesk(user));
+  return isLeader(user) || complaint.ownerId === user.userId || (!complaint.confidential && isFrontDesk(user));
 }
 
 const text = (value: unknown, label: string, min: number, max: number) => {
@@ -39,7 +43,7 @@ const day = (value: unknown, label: string) => {
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
 async function validOwner(db: TxClient, user: AuthUser, campusId: string, ownerId: string) {
-  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: OWNER_ROLES as never[] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
+  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: OWNER_ROLES as never[] }, campusId }, select: { id: true } });
   if (!owner) throw new ApiError("Choose an active front-desk or leadership colleague in this campus as the owner.", 400);
 }
 

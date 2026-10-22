@@ -4,21 +4,27 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertSharedModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createSafePayOrder } from "@/lib/payments/safepay";
 import { studentScope } from "@/lib/auth/policy";
-import { onlinePaymentAvailability, paymentReturnPath, publicOrderStatus } from "@/lib/fees/online-payment";
+import { ONLINE_PAYMENT_STAFF, onlinePaymentAvailability, paymentReturnPath, publicOrderStatus } from "@/lib/fees/online-payment";
 import { randomUUID } from "node:crypto";
+import { defaultLocale, formatMoney } from "@/lib/locale/package";
 
 // GET /api/fees/pay-online?invoiceId=… → whether online payment is possible for that invoice now
 // GET /api/fees/pay-online?ref=…       → the server's status for one of the caller's orders
 //
 // POST /api/fees/pay-online
 // body: { invoiceId }
-// Opens a SafePay session for the invoice's remaining balance. Accessible to
-// any authenticated user who "owns" the student: STUDENT (own profile),
-// PARENT (own child), or campus staff.
+// Opens a SafePay session for the invoice's remaining balance. Accessible to a
+// PARENT (own child) or campus staff. A learner sees their fees but never pays
+// (role-ux G44a / M101): the guardian does.
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    if (user.role === "STUDENT") throw new ApiError("Ask your parent or guardian to pay this invoice.", 403);
+    // Families pay their own invoices; among staff only the finance desk takes a payment on a family's behalf
+    // (role-ux G44b, P8-11). Everyone else is refused before an order exists, so no return link can point to a
+    // console the caller cannot open.
+    if (user.role !== "PARENT" && !ONLINE_PAYMENT_STAFF.includes(user.role)) throw new ApiError("Online payment is for families. Payments at the counter are recorded by the finance desk.", 403);
     await assertSharedModuleRead(user, "fees");
     const body = await req.json();
     if (!body.invoiceId) throw new ApiError("invoiceId required", 400);
@@ -110,7 +116,8 @@ export async function POST(req: NextRequest) {
     simUrl.searchParams.set("orderRef", orderRef);
     simUrl.searchParams.set("kind", "FEE");
     simUrl.searchParams.set("invoiceId", invoice.id);
-    simUrl.searchParams.set("amountLabel", `Rs ${(order.amount / 100).toLocaleString()}`);
+    // Money through the locale package (R7): the invoice's own currency and minor units, never a fixed "Rs".
+    simUrl.searchParams.set("amountLabel", formatMoney({ minor: order.amount, currency: invoice.currency }, defaultLocale));
     simUrl.searchParams.set("returnTo", returnPath);
 
     return Response.json({ success: true, method: "sandbox", url: simUrl.toString(), orderRef, returnPath });

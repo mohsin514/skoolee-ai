@@ -33,29 +33,98 @@ export function friendlyErrorMessage(error: unknown, fallback?: string): string 
   if (!text) return generic;
   if (NETWORK.test(text)) return say("We couldn't reach Skoolee. Check your connection and try again.");
   if (TECHNICAL.test(text) || STATUS_LINE.test(text) || text.length > 400) return generic;
-  return text;
+  // Server copy that has a catalog entry (plan limits, paused plan, ownership) reads in the reader's language.
+  return say(text);
+}
+
+/** Translates a plain-string message (or description); React nodes pass through untouched. */
+function translated<T>(message: T): T {
+  return (typeof message === "string" ? say(message) : message) as T;
+}
+
+function withDescription(data?: ExternalToast): ExternalToast | undefined {
+  if (!data || typeof data.description !== "string") return data;
+  return { ...data, description: say(data.description) };
+}
+
+/** First-strong isolate, so a name or number keeps its own direction inside an RTL sentence. */
+const isolate = (value: string) => `\u2068${value}\u2069`;
+
+function fill(template: string, ...values: string[]) {
+  return say(template).replace(/\{(\d+)\}/g, (match, index) => (index in values ? values[Number(index)] : match));
 }
 
 function error(message: unknown, data?: ExternalToast) {
   const normalized = typeof message === "string" || message instanceof Error || message == null
     ? friendlyErrorMessage(message)
     : (message as Message);
-  return sonner.error(normalized, { duration: 7000, ...data });
+  return sonner.error(normalized, { duration: 7000, ...withDescription(data) });
 }
 
 function warning(message: Message, data?: ExternalToast) {
-  return sonner.warning(message, { duration: 6000, ...data });
+  return sonner.warning(translated(message), { duration: 6000, ...withDescription(data) });
 }
 
 function success(message: Message, data?: ExternalToast) {
-  return sonner.success(message, { duration: 4000, ...data });
+  return sonner.success(translated(message), { duration: 4000, ...withDescription(data) });
 }
 
-const base = (message: Message, data?: ExternalToast) => sonner(message, data);
+function info(message: Message, data?: ExternalToast) {
+  return sonner.info(translated(message), { duration: 5000, ...withDescription(data) });
+}
 
-/** Sonner's toast, except `error` also accepts anything thrown (Error, unknown). */
-export type Toast = ((...args: Parameters<typeof sonner>) => ReturnType<typeof sonner>) & Omit<typeof sonner, "error"> & { error: typeof error };
+/* ── One-line helpers (§10.9): the same words for the same outcome everywhere ── */
 
-export const toast: Toast = Object.assign(base, sonner, { error, warning, success }) as Toast;
+/** Already-translated success line (no second translation pass). */
+const done = (text: string) => sonner.success(text, { duration: 4000 });
+
+/** "Saved" or "{what} saved". */
+function saved(what?: string) {
+  return done(what ? fill("{0} saved", say(what)) : say("Saved"));
+}
+
+/** "Deleted" or "{what} deleted". */
+function deleted(what?: string) {
+  return done(what ? fill("{0} deleted", say(what)) : say("Deleted"));
+}
+
+/** "Sent", "{what} sent" or "{what} sent to {to}" (the recipient is isolated for RTL). */
+function sent(what?: string, to?: string) {
+  if (what && to) return done(fill("{0} sent to {1}", say(what), isolate(to)));
+  return done(what ? fill("{0} sent", say(what)) : say("Sent"));
+}
+
+function copied() {
+  return done(say("Copied to clipboard"));
+}
+
+/**
+ * A failed action (not a failed load — loads render an inline ErrorState).
+ * Title names the action; a specific, human-readable server message becomes
+ * the description, a technical one is dropped.
+ */
+function actionFailed(action: string, cause: unknown) {
+  const detail = friendlyErrorMessage(cause, "");
+  return sonner.error(fill("Could not {0}. Try again.", say(action)), {
+    duration: 7000,
+    ...(detail ? { description: detail } : {}),
+  });
+}
+
+const base = (message: Message, data?: ExternalToast) => sonner(translated(message), withDescription(data));
+
+type Helpers = {
+  error: typeof error;
+  saved: typeof saved;
+  deleted: typeof deleted;
+  sent: typeof sent;
+  copied: typeof copied;
+  actionFailed: typeof actionFailed;
+};
+
+/** Sonner's toast, except `error` also accepts anything thrown (Error, unknown), string messages are translated, and the helpers above. */
+export type Toast = ((...args: Parameters<typeof sonner>) => ReturnType<typeof sonner>) & Omit<typeof sonner, "error"> & Helpers;
+
+export const toast: Toast = Object.assign(base, sonner, { error, warning, success, info, saved, deleted, sent, copied, actionFailed }) as Toast;
 
 export type { ExternalToast };

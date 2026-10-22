@@ -6,7 +6,7 @@ import { useDialogBehaviour } from "@/components/ui/modal";
 import { useRouter } from "next/navigation";
 import { CalendarCheck, CornerDownLeft, GraduationCap, Search, Star, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TEACHER_NAV } from "@/components/teacher/teacher-page";
+import { ROLE_NAV, isVisible, leaves } from "@/lib/navigation/role-nav";
 import { classLabel } from "@/components/teacher/teacher-components";
 import { TEACHER_PALETTE_EVENT } from "@/components/teacher/palette-bus";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -41,7 +41,7 @@ type Command = {
 export function TeacherCommandPalette({ data }: { data: any }) {
   const router = useRouter();
   const t = useUiText();
-  const { status, allowsHref } = useNavigationAccess();
+  const { status, allowsHref, access } = useNavigationAccess();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -74,14 +74,23 @@ export function TeacherCommandPalette({ data }: { data: any }) {
     const classHubs: any[] = data?.classHubs || [];
     const students: any[] = allowsHref("/teacher/students") ? data?.students || [] : [];
 
-    const nav: Command[] = TEACHER_NAV.filter(item => allowsHref(item.href)).map((item) => ({
-      id: `nav:${item.href}`,
-      label: t(item.label),
-      sub: t(item.group),
-      group: t("Go to"),
-      icon: item.icon,
-      href: item.href,
-    }));
+    // The same destinations the sidebar shows: the registry's teacher console (account menu included),
+    // filtered by the same visibility rules.
+    const nav = ROLE_NAV.teacher;
+    const groupLabel = new Map(nav.entries.flatMap((entry) => (entry.kind === "group" ? [[entry.id, entry.label] as const] : [])));
+    const navCommands: Command[] = leaves(nav)
+      .filter((leaf) => "href" in leaf.target && !leaf.hiddenInNav && isVisible(leaf.visible, access ?? {}))
+      .map((leaf) => {
+        const href = (leaf.target as { href: string }).href;
+        return {
+          id: `nav:${leaf.id}`,
+          label: t(leaf.label),
+          sub: leaf.group ? t(groupLabel.get(leaf.group) ?? "") : undefined,
+          group: t("Go to"),
+          icon: leaf.icon,
+          href,
+        };
+      });
 
     // Class actions carry the class through, the same way the class cards do,
     // so the destination opens on the class the teacher named.
@@ -100,7 +109,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
       ? students.slice(0, 400).map((st) => ({
           id: `person:${st.id}`,
           label: st.fullName,
-          sub: `${st.rollNo || t("No roll")} · ${classLabel(st.class)}`,
+          sub: `${st.rollNo || t("No roll number")} · ${classLabel(st.class)}`,
           group: t("Students"),
           icon: Users,
           href: `/teacher/students?classId=${encodeURIComponent(st.class?.id || "")}&q=${encodeURIComponent(st.fullName || "")}`,
@@ -108,8 +117,8 @@ export function TeacherCommandPalette({ data }: { data: any }) {
         }))
       : [];
 
-    return [...nav, ...classActions, ...studentCommands].filter(command => allowsHref(command.href));
-  }, [data, query, status, allowsHref, t]);
+    return [...navCommands, ...classActions, ...studentCommands].filter(command => allowsHref(command.href));
+  }, [data, query, status, allowsHref, access, t]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -198,7 +207,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
               return (
                 <div key={cmd.id}>
                   {newGroup ? (
-                    <p className="px-3 pb-1 pt-3 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                    <p className="px-3 pb-1 pt-3 text-2xs font-semibold text-ink-subtle">
                       {cmd.group}
                     </p>
                   ) : null}
@@ -234,7 +243,7 @@ export function TeacherCommandPalette({ data }: { data: any }) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-edge/15 bg-surface-subtle px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-edge/15 bg-surface-subtle px-4 py-2 text-2xs font-semibold text-ink-subtle">
           <span>↑↓ {t("Navigate")}</span>
           <span>↵ {t("Open")}</span>
           <span className="ms-auto">{t("Type 2+ letters to search students")}</span>

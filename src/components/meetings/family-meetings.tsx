@@ -6,7 +6,10 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 
@@ -55,8 +58,8 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
   const cancel = () => run(async () => { if (!cancelling) return; await call("/api/family/meetings", "POST", { action: "cancel", bookingId: cancelling.id, knownVersion: cancelling.version }); setCancelling(null); await load(); }, "Meeting cancelled. The teacher has been told.");
   const done = (actionId: string) => run(async () => { await call("/api/family/meetings", "POST", { action: "action-done", actionId }); await load(); }, "Marked as done.");
 
-  if (error) return <section className="sk-panel p-5" data-family-meetings><p className="text-sm text-rose-700">{error}</p><Button variant="outline" className="mt-2" onClick={() => void load()}>{ui("Try again")}</Button></section>;
-  if (!data) return <section className="sk-panel p-5" data-family-meetings aria-busy="true"><p className="text-sm text-ink-muted">{ui("Refreshing available times…")}</p></section>;
+  if (error) return <section className="sk-panel" data-family-meetings><ErrorState title={ui("Couldn't load meeting times")} description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /></section>;
+  if (!data) return <section className="sk-panel p-5" data-family-meetings aria-busy="true"><SkeletonList rows={3} label={ui("Refreshing available times…")} /></section>;
   const activeTeacher = moving?.teacherId ?? teacherId;
   const windows = data.windows.filter(w => w.teacherId === activeTeacher);
   const upcoming = data.bookings.filter(b => LIVE.includes(b.status)), past = data.bookings.filter(b => !LIVE.includes(b.status));
@@ -67,15 +70,15 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
 
     {upcoming.length ? <div className="space-y-2" data-meetings-upcoming>
       <p className="sk-eyebrow">{ui("Booked meetings")}</p>
-      {upcoming.map(b => <div key={b.id} className={cn("rounded-xl border p-3", b.status === "RESCHEDULE_NEEDED" ? "border-amber-300 bg-amber-50/60" : "border-edge/40 bg-white")} data-meeting={b.id} data-meeting-status={b.status}>
+      {upcoming.map(b => <div key={b.id} className={cn("rounded-xl border p-3", b.status === "RESCHEDULE_NEEDED" ? "border-status-warning-border bg-status-warning-surface" : "border-border-subtle bg-card")} data-meeting={b.id} data-meeting-status={b.status}>
         <p className="text-sm font-semibold text-ink-strong"><bdi>{b.teacherName}</bdi> · <bdi>{slotLabel({ localDate: b.local.date }, { start: b.local.time, end: b.local.end })}</bdi>{theirClock(b.startsAt) ? <span className="text-xs font-normal text-ink-muted"> (<bdi>{theirClock(b.startsAt)}</bdi>)</span> : null}</p>
         <p className="text-xs text-ink-muted">{b.mode === "REMOTE" ? ui("Remote meeting") : <>{ui("In person")}{b.location ? <> · <bdi>{b.location}</bdi></> : null}</>}{b.lastChange ? <> · {ui("Receipt v{0}", [String(b.lastChange.version)])}</> : null}</p>
-        {b.status === "RESCHEDULE_NEEDED" ? <p className="mt-1 text-xs font-bold text-amber-900" data-meeting-conflict>{b.conflictReason === "LEAVE" ? ui("The teacher is on leave at this time. Choose a new time.") : b.conflictReason === "TIMETABLE" ? ui("The teacher now teaches at this time. Choose a new time.") : ui("The teacher withdrew this time. Choose a new time.")}</p> : null}
+        {b.status === "RESCHEDULE_NEEDED" ? <p className="mt-1 text-xs font-bold text-status-warning-text" data-meeting-conflict>{b.conflictReason === "LEAVE" ? ui("The teacher is on leave at this time. Choose a new time.") : b.conflictReason === "TIMETABLE" ? ui("The teacher now teaches at this time. Choose a new time.") : ui("The teacher withdrew this time. Choose a new time.")}</p> : null}
         {b.mine ? <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant={b.status === "RESCHEDULE_NEEDED" ? "default" : "outline"} disabled={busy} onClick={() => { setMoving(b); setPicked(null); }} data-meeting-move>{ui("Choose a new time")}</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => setCancelling(b)} data-meeting-cancel>{ui("Cancel meeting")}</Button></div> : <p className="mt-1 text-xs text-ink-muted">{ui("Booked by another guardian.")}</p>}
       </div>)}
     </div> : null}
 
-    <div className="space-y-3" data-meetings-book>
+    <div id="book-a-meeting" className="scroll-mt-4 space-y-3" data-meetings-book>
       <p className="sk-eyebrow">{moving ? ui("Choose a new time with {0}", [moving.teacherName]) : ui("Book a meeting")}</p>
       {!data.teachers.length ? <p className="text-sm text-ink-muted">{ui("No teachers are linked to this child's class yet.")}</p> : <>
         {!moving ? <FormField name="meeting-teacher" label={ui("Teacher")}><Select value={teacherId} onChange={e => { setTeacherId(e.target.value); setPicked(null); }}>{data.teachers.map(t => <option key={t.id} value={t.id}>{t.name}{t.classTeacher ? ` · ${ui("Class teacher")}` : t.subjects.length ? ` · ${t.subjects.join(", ")}` : ""}</option>)}</Select></FormField> : <Button size="sm" variant="secondary" onClick={() => setMoving(null)}>{ui("Keep the current time")}</Button>}
@@ -93,12 +96,12 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
         {b.followUp ? <div className="mt-2 space-y-2" data-meeting-followup>
           <p className="text-sm"><bdi>{b.followUp.summary}</bdi></p>
           {b.actions.length ? <><p className="text-xs font-semibold text-ink-strong">{ui("{0} actions were agreed. Each has an owner and due date.", [String(b.actions.length)])}</p>
-            <ul className="space-y-1">{b.actions.map(a => <li key={a.id} className="flex flex-wrap items-center gap-2 text-sm" data-meeting-action={a.id} data-action-status={a.status}><span className={cn(a.status === "DONE" && "line-through opacity-70")}><bdi>{a.text}</bdi></span><span className="text-xs text-ink-muted">{a.ownerRole === "FAMILY" ? ui("Family") : ui("School")} · {ui("Due")} <bdi>{date(a.dueDate)}</bdi></span>{a.ownerRole === "FAMILY" && a.status === "OPEN" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void done(a.id)} data-action-done>{ui("Mark done")}</Button> : a.status === "DONE" ? <span className="text-xs font-bold text-emerald-700">{ui("Done")}</span> : null}</li>)}</ul></> : null}
+            <ul className="space-y-1">{b.actions.map(a => <li key={a.id} className="flex flex-wrap items-center gap-2 text-sm" data-meeting-action={a.id} data-action-status={a.status}><span className={cn(a.status === "DONE" && "line-through opacity-70")}><bdi>{a.text}</bdi></span><span className="text-xs text-ink-muted">{a.ownerRole === "FAMILY" ? ui("Family") : ui("School")} · {ui("Due")} <bdi>{date(a.dueDate)}</bdi></span>{a.ownerRole === "FAMILY" && a.status === "OPEN" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void done(a.id)} data-action-done>{ui("Mark done")}</Button> : a.status === "DONE" ? <span className="text-xs font-bold text-status-success-text">{ui("Done")}</span> : null}</li>)}</ul></> : null}
         </div> : null}
       </div>)}
     </div> : null}
 
-    {picked ? <ModalFrame title={ui("Review booking")} eyebrow={data.child.name} subtitle={teacherName(picked.window.teacherId)} onClose={() => setPicked(null)}>
+    {picked ? <Modal size="sm" title={ui("Review booking")} eyebrow={data.child.name} subtitle={teacherName(picked.window.teacherId)} onClose={() => setPicked(null)}>
       <div className="space-y-3" data-meeting-confirm>
         <p className="text-sm font-semibold text-ink-strong"><bdi>{slotLabel(picked.window, picked.slot)}</bdi></p>
         {theirClock(picked.slot.startsAt) ? <p className="text-xs text-ink-muted">{ui("On your device: {0}", [theirClock(picked.slot.startsAt) ?? ""])}</p> : null}
@@ -114,13 +117,23 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
         <p className="text-xs text-ink-muted">{ui("The slot is confirmed only after booking.")}</p>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setPicked(null)}>{ui("Back")}</Button><Button loading={busy} disabled={busy || !mode} onClick={() => void confirm()} data-meeting-book>{moving ? ui("Move meeting") : ui("Confirm booking")}</Button></div>
       </div>
-    </ModalFrame> : null}
+    </Modal> : null}
 
-    {cancelling ? <ModalFrame title={ui("Cancel meeting")} eyebrow={cancelling.teacherName} subtitle={slotLabel({ localDate: cancelling.local.date }, { start: cancelling.local.time, end: cancelling.local.end })} onClose={() => setCancelling(null)}>
-      <div className="space-y-3" data-meeting-cancel-dialog>
-        <Alert tone="neutral" compact live="off" title={ui("Changing or cancelling")}><bdi>{cancelling.cancellationPolicy}</bdi></Alert>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setCancelling(null)}>{ui("Keep the meeting")}</Button><Button disabled={busy} onClick={() => void cancel()} data-meeting-cancel-confirm>{ui("Cancel meeting")}</Button></div>
-      </div>
-    </ModalFrame> : null}
+    {/* Cancelling is destructive (§8.1 R3): one ConfirmAction naming the teacher, the slot and the school's policy. */}
+    <ConfirmAction
+      open={Boolean(cancelling)}
+      busy={busy}
+      tone="danger"
+      title={ui("Cancel this meeting?")}
+      description={cancelling ? ui("{0} is told straight away. You can book another time afterwards.", [cancelling.teacherName]) : ""}
+      detail={cancelling ? <div className="space-y-1" data-meeting-cancel-dialog>
+        <p className="text-sm font-semibold text-ink-strong"><bdi>{cancelling.teacherName}</bdi> · <bdi>{slotLabel({ localDate: cancelling.local.date }, { start: cancelling.local.time, end: cancelling.local.end })}</bdi></p>
+        {cancelling.cancellationPolicy ? <p className="text-xs leading-relaxed text-ink-muted"><span className="font-semibold text-ink">{ui("Changing or cancelling")}</span> · <bdi>{cancelling.cancellationPolicy}</bdi></p> : null}
+      </div> : null}
+      confirmLabel={ui("Cancel meeting")}
+      cancelLabel={ui("Keep the meeting")}
+      onConfirm={() => void cancel()}
+      onCancel={() => setCancelling(null)}
+    />
   </section>;
 }

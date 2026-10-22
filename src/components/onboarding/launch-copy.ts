@@ -1,5 +1,5 @@
 import type { Language } from "@/lib/locale/package";
-import type { LaunchJourney, LaunchTask } from "@/lib/onboarding/launch-plan";
+import type { Flagship, LaunchJourney, LaunchTask } from "@/lib/onboarding/launch-plan";
 
 const words = {
   eyebrow: ["YOUR FIRST CHAPTER", "فصلك الأول", "آپ کا پہلا باب"],
@@ -17,7 +17,8 @@ const words = {
   replay: ["Replay guide", "إعادة الدليل", "رہنمائی دوبارہ دیکھیں"],
   openGuide: ["Open my onboarding guide", "فتح دليل إعدادي", "میری آن بورڈنگ رہنمائی کھولیں"],
   loadingGuide: ["Loading your onboarding guide…", "جارٍ تحميل دليل إعدادك…", "آپ کی آن بورڈنگ رہنمائی لوڈ ہو رہی ہے…"],
-  replayHint: ["This guide is always here when you need it. Replaying never resets your saved work.", "هذا الدليل متاح دائمًا. إعادته لا تمسح عملك المحفوظ.", "یہ رہنمائی ہمیشہ دستیاب ہے۔ دوبارہ دیکھنے سے محفوظ کام حذف نہیں ہوگا۔"],
+  replayHint: ["Replay this guide any time from Help. Replaying never resets your saved work.", "أعد هذا الدليل في أي وقت من «المساعدة». إعادته لا تمسح عملك المحفوظ.", "یہ رہنمائی کسی بھی وقت «مدد» سے دوبارہ دیکھیں۔ دوبارہ دیکھنے سے محفوظ کام حذف نہیں ہوگا۔"],
+  showMeAround: ["Show me around", "خذني في جولة", "مجھے تعارفی دورہ کرائیں"],
   ready: ["Your next chapter", "خطوتك التالية", "آپ کا اگلا مرحلہ"],
   review: ["You stay in control", "القرار بيدك", "اختیار آپ کے پاس ہے"],
   reviewHint: ["AI prepares editable drafts. Review the details before approving changes, publishing or sending anything.", "يعدّ الذكاء الاصطناعي مسودات قابلة للتعديل. راجع التفاصيل قبل اعتماد التغييرات أو النشر أو الإرسال.", "اے آئی قابلِ ترمیم مسودے بناتا ہے۔ تبدیلی منظور کرنے، شائع کرنے یا بھیجنے سے پہلے تفصیلات دیکھیں۔"],
@@ -65,23 +66,25 @@ const words = {
   showcaseCompleteBody: ["Your introduction is complete. Continue to choose your first workflow, or replay the presentation whenever you like.", "اكتمل التعريف. تابع لاختيار أول سير عمل، أو أعد العرض وقتما تريد.", "تعارف مکمل ہوا۔ اپنا پہلا ورک فلو چنیں یا جب چاہیں تعارف دوبارہ دیکھیں۔"],
   publicCompleteBody: ["Create your account to begin. Owners set up their institution and first campus; invited staff, students and families follow their assigned role.", "أنشئ حسابك للبدء. يُعدّ المالكون المؤسسة والفرع الأول؛ ويتبع الموظفون والطلاب والأسر المدعوون أدوارهم المعيّنة.", "شروع کرنے کے لیے اکاؤنٹ بنائیں۔ مالکان ادارہ اور پہلا کیمپس تیار کرتے ہیں؛ مدعو عملہ، طلبہ اور خاندان اپنے مقررہ کردار سے آغاز کرتے ہیں۔"],
   nextStep: ["WHAT OPENS NEXT", "ما سيُفتح بعد ذلك", "اس کے بعد کیا کھلے گا"],
-  setupPath: ["Your path to a working campus", "طريقك إلى فرع جاهز", "آپ کے کیمپس کی تیاری کا راستہ"],
+  setupPath: ["Your path to launch with AI", "طريقك إلى الانطلاق بالذكاء الاصطناعي", "اے آئی کے ساتھ آغاز کا راستہ"],
   setupFoundation: ["Confirm your institution and campus", "أكد مؤسستك وفرعك", "ادارے اور کیمپس کی تصدیق کریں"],
-  setupInterview: ["Answer the campus interview and save progress", "أجب عن حوار الفرع واحفظ التقدم", "کیمپس کے سوالوں کے جواب دیں اور پیش رفت محفوظ کریں"],
-  setupDrafts: ["Generate plans, review drafts, then apply approved changes", "أنشئ الخطط وراجع المسودات ثم طبّق التغييرات المعتمدة", "منصوبے بنائیں، مسودے دیکھیں، پھر منظور شدہ تبدیلیاں لاگو کریں"],
+  setupInterview: ["Answer the setup questionnaire; your progress is saved", "أجب عن استبيان الإعداد؛ ويُحفظ تقدمك", "سیٹ اپ سوالنامے کے جواب دیں؛ آپ کی پیش رفت محفوظ رہتی ہے"],
+  setupDrafts: ["AI drafts the plans; you review them and approve what applies", "يُعدّ الذكاء الاصطناعي مسودات الخطط؛ وتراجعها وتعتمد ما يُطبَّق", "اے آئی منصوبوں کے مسودے بناتا ہے؛ آپ جائزہ لے کر منظور کرتے ہیں کہ کیا لاگو ہو"],
+  flagshipsTitle: ["What AI does for you here", "ما يقدّمه لك الذكاء الاصطناعي هنا", "یہاں اے آئی آپ کے لیے کیا کرتا ہے"],
   showcaseNext: ["Next scene", "المشهد التالي", "اگلا منظر"],
   fullscreen: ["Full screen", "ملء الشاشة", "مکمل اسکرین"],
   fullscreenExit: ["Exit full screen", "إنهاء ملء الشاشة", "مکمل اسکرین بند کریں"],
   fullscreenFailed: ["Full screen isn’t available here. The showcase will continue in this window.", "ملء الشاشة غير متاح هنا. سيستمر العرض في هذه النافذة.", "یہاں مکمل اسکرین دستیاب نہیں۔ شوکیس اسی ونڈو میں جاری رہے گا۔"],
+  // The public showcase: one scene for the school and its people, then one per flagship (addendum 2026-10-22).
   demoTitleOne: ["Your school. Brought to life.", "مدرستك تنبض بالحياة.", "آپ کا اسکول۔ ایک نئی زندگی۔"],
-  demoTitleTwo: ["Many roles. One shared beginning.", "أدوار متعددة. بداية مشتركة.", "کردار بہت سے۔ آغاز ایک۔"],
-  demoTitleThree: ["From the first idea to the next step.", "من الفكرة الأولى إلى الخطوة التالية.", "پہلے خیال سے اگلے قدم تک۔"],
-  demoBodyOne: ["Start with your campus, your people and your plans. Skoolee guides the way, one useful step at a time.", "ابدأ بفرعك وفريقك وخططك. يرشدك Skoolee خطوة مفيدة في كل مرة.", "کیمپس، ٹیم اور منصوبوں سے آغاز کریں۔ Skoolee ہر مفید قدم پر رہنمائی کرتا ہے۔"],
-  demoBodyTwo: ["A thoughtful welcome for owners, principals, teachers, students and families. Everyone gets a starting point that fits their role.", "ترحيب يناسب المالكين والمديرين والمعلمين والطلاب والأسر. لكل شخص نقطة بداية تناسب دوره.", "مالکان، پرنسپلز، اساتذہ، طلبہ اور خاندانوں کے لیے رہنمائی۔ ہر شخص کے کردار کے مطابق آغاز۔"],
-  demoBodyThree: ["Answer a few questions. Shape your campus plans with AI. Review the drafts, make them yours, then decide what goes live.", "أجب عن الأسئلة وشكّل خطط فرعك بالذكاء الاصطناعي. راجع المسودات وعدّلها ثم قرر ما يُعتمد.", "سوالوں کے جواب دیں، اے آئی سے کیمپس کے منصوبے بنائیں۔ مسودوں کا جائزہ لیں، ترمیم کریں اور پھر منظوری دیں۔"],
-  demoFeatureOne: ["Campus by campus", "فرعًا بعد فرع", "ہر کیمپس کے لیے"],
-  demoFeatureTwo: ["Made for every role", "لكل دور", "ہر کردار کے مطابق"],
-  demoFeatureThree: ["AI drafts. You decide.", "الذكاء يصيغ. وأنت تقرر.", "مسودہ اے آئی کا۔ فیصلہ آپ کا۔"],
+  demoTitleTwo: ["Set up your school with AI.", "أعدّ مدرستك بالذكاء الاصطناعي.", "اے آئی سے اپنا اسکول ترتیب دیں۔"],
+  demoTitleThree: ["Exams, built with AI.", "اختبارات يبنيها الذكاء الاصطناعي.", "اے آئی سے تیار امتحانات۔"],
+  demoBodyOne: ["One calm workspace for owners, principals, teachers, students and families. Everyone starts where their role begins.", "مساحة عمل هادئة واحدة للمالكين والمديرين والمعلمين والطلاب والأسر. يبدأ كل شخص من حيث يبدأ دوره.", "مالکان، پرنسپلز، اساتذہ، طلبہ اور خاندانوں کے لیے ایک پُرسکون ورک اسپیس۔ ہر شخص اپنے کردار کے مطابق آغاز کرتا ہے۔"],
+  demoBodyTwo: ["Answer one questionnaire and AI drafts your academic year, classes, calendar, timetable, fees and messages. You review every draft and decide what goes live.", "أجب عن استبيان واحد ليُعدّ الذكاء الاصطناعي مسودات العام الدراسي والصفوف والتقويم والجدول والرسوم والرسائل. تراجع كل مسودة وتقرر ما يُعتمد.", "ایک سوالنامے کے جواب دیں، اے آئی تعلیمی سال، جماعتوں، کیلنڈر، نظام الاوقات، فیس اور پیغامات کے مسودے بناتا ہے۔ آپ ہر مسودے کا جائزہ لے کر طے کرتے ہیں کہ کیا لاگو ہو۔"],
+  demoBodyThree: ["Exam Studio builds assessments from your material, delivers them securely, helps you mark and plans learning recovery.", "يبني استوديو الاختبارات التقييمات من موادك، ويقدّمها بأمان، ويساعدك في التصحيح، ويخطط لتعويض ما فات من التعلّم.", "ایگزام اسٹوڈیو آپ کے مواد سے جائزے تیار کرتا ہے، انہیں محفوظ طریقے سے لیتا ہے، جانچ میں مدد دیتا ہے اور تعلیمی کمی کی تلافی کا منصوبہ بناتا ہے۔"],
+  demoFeatureOne: ["Every role, one workspace", "كل الأدوار في مساحة واحدة", "ہر کردار، ایک ورک اسپیس"],
+  demoFeatureTwo: ["AI Workflows", "مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز"],
+  demoFeatureThree: ["Exam Studio", "استوديو الاختبارات", "ایگزام اسٹوڈیو"],
   interview: ["Tell me about your campus", "أخبرني عن فرعك", "اپنے کیمپس کے بارے میں بتائیں"],
   interviewHint: ["One answer at a time. Together, we’ll turn your plans into drafts you can review.", "إجابة واحدة في كل مرة. سنحوّل خططك إلى مسودات يمكنك مراجعتها.", "ایک وقت میں ایک جواب۔ ہم آپ کے منصوبوں کو قابلِ جائزہ مسودوں میں بدلیں گے۔"],
   confirmed: ["Confirmed answers", "الإجابات المؤكدة", "تصدیق شدہ جوابات"],
@@ -115,9 +118,9 @@ const tasks: Record<LaunchTask, readonly [string, string, string]> = {
   institution: ["Set up my institution", "إعداد مؤسستي", "میرا ادارہ ترتیب دیں"],
   campus: ["Review campus details", "مراجعة تفاصيل الفرع", "کیمپس کی تفصیلات دیکھیں"],
   profile: ["Set up my teacher profile", "إعداد ملف المعلم", "استاد کا پروفائل تیار کریں"],
-  aiSetup: ["Guide my campus setup with AI", "إعداد فرعي بالذكاء الاصطناعي", "اے آئی سے کیمپس ترتیب دیں"],
-  aiWorkspace: ["Explore AI workflows", "استعراض مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز دیکھیں"],
-  studio: ["Open AI Exam Studio", "فتح استوديو الاختبارات", "اے آئی ایگزام اسٹوڈیو کھولیں"],
+  aiSetup: ["Set up my campus with AI", "إعداد فرعي بالذكاء الاصطناعي", "اے آئی سے اپنا کیمپس ترتیب دیں"],
+  aiWorkspace: ["Open AI Workflows", "فتح مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز کھولیں"],
+  studio: ["Create an exam in Exam Studio", "إنشاء اختبار في استوديو الاختبارات", "ایگزام اسٹوڈیو میں امتحان بنائیں"],
   academics: ["Review academic setup", "مراجعة الإعداد الأكاديمي", "تعلیمی ترتیب دیکھیں"],
   timetable: ["Explore my timetable", "استعراض جدولي", "میرا ٹائم ٹیبل دیکھیں"],
   learning: ["Open my learning workspace", "فتح مساحة التعلم", "میری تعلیمی ورک اسپیس کھولیں"],
@@ -127,13 +130,22 @@ const tasks: Record<LaunchTask, readonly [string, string, string]> = {
   frontDesk: ["Open front desk", "فتح مكتب الاستقبال", "استقبالیہ کھولیں"],
   workspace: ["Explore my workspace", "استعراض مساحة عملي", "میری ورک اسپیس دیکھیں"],
 };
+/** The standalone owner's campus task opens School settings › Profile: it is the school's record, not a campus's. */
+const ownerSchoolTask = ["Review school details", "مراجعة بيانات المدرسة", "اسکول کی تفصیلات دیکھیں"] as const;
+/** The institution authority (group admin, standalone owner) sets up the school, not one campus. */
+const schoolSetupTask = ["Set up my school with AI", "إعداد مدرستي بالذكاء الاصطناعي", "اے آئی سے اپنا اسکول ترتیب دیں"] as const;
+const ownerSchoolTaskDetail = [
+  "Check the school's name, contact details, logo and language before starting plans.",
+  "راجع اسم المدرسة وبيانات التواصل والشعار واللغة قبل بدء الخطط.",
+  "منصوبے شروع کرنے سے پہلے اسکول کا نام، رابطے کی تفصیلات، لوگو اور زبان دیکھیں۔",
+] as const;
 const taskDetails: Record<LaunchTask, readonly [string, string, string]> = {
   institution: ["Confirm school details, choose your country and create the first campus. Then continue to the AI campus interview.", "أكد بيانات المدرسة واختر الدولة وأنشئ الفرع الأول، ثم تابع حوار إعداد الفرع بالذكاء الاصطناعي.", "اسکول کی تفصیلات، ملک اور پہلا کیمپس درج کریں، پھر اے آئی کیمپس گفتگو جاری رکھیں۔"],
   campus: ["Check campus records and contact details before starting campus-specific plans.", "راجع سجلات الفرع وبيانات التواصل قبل بدء خططه.", "کیمپس کے منصوبوں سے پہلے ریکارڈ اور رابطوں کی تفصیلات دیکھیں۔"],
   profile: ["Complete your contact details and teaching specialties. Your school assigns classes and subjects.", "أكمل بيانات التواصل والتخصصات؛ تعيّن مدرستك الصفوف والمواد.", "رابطے اور تدریسی مضامین مکمل کریں۔ جماعتیں اور مضامین اسکول مقرر کرتا ہے۔"],
-  aiSetup: ["Answer campus questions, save your progress, and generate a setup plan. Review proposed changes before applying them.", "أجب عن أسئلة الفرع واحفظ التقدم وأنشئ خطة إعداد. راجع التغييرات المقترحة قبل تطبيقها.", "کیمپس کے سوالوں کے جواب دیں، پیش رفت محفوظ کریں اور منصوبہ بنائیں۔ تبدیلی لاگو کرنے سے پہلے جائزہ لیں۔"],
-  aiWorkspace: ["Choose from the AI tools available to your role: academic plans, timetables, communications and more. Each tool explains what it needs.", "اختر أدوات الذكاء المتاحة لدورك: الخطط الأكاديمية والجداول والمراسلات وغيرها. توضح كل أداة متطلباتها.", "اپنے کردار کے مطابق تعلیمی منصوبے، ٹائم ٹیبل، پیغامات اور دوسرے اے آئی ٹولز چنیں۔ ہر ٹول اپنی ضروریات بتاتا ہے۔"],
-  studio: ["Choose an assigned subject, add source material and prepare an exam draft for review.", "اختر مادة معيّنة لك وأضف المصادر وأعد مسودة اختبار للمراجعة.", "مقررہ مضمون چنیں، ماخذ شامل کریں اور امتحان کا مسودہ جائزے کے لیے بنائیں۔"],
+  aiSetup: ["Answer the setup questionnaire and AI drafts your launch plan: academic year, classes, calendar, timetable, fees and messages. Nothing applies until it is reviewed and approved.", "أجب عن استبيان الإعداد ليُعدّ الذكاء الاصطناعي مسودة خطة الانطلاق: العام الدراسي والصفوف والتقويم والجدول والرسوم والرسائل. ولا يُطبَّق شيء قبل مراجعته واعتماده.", "سیٹ اپ سوالنامے کے جواب دیں، اے آئی آغاز کے منصوبے کا مسودہ بناتا ہے: تعلیمی سال، جماعتیں، کیلنڈر، نظام الاوقات، فیس اور پیغامات۔ جائزے اور منظوری سے پہلے کچھ لاگو نہیں ہوتا۔"],
+  aiWorkspace: ["Open AI Workflows and pick a workflow, such as timetables, exam sessions or announcements. You review every draft before it applies.", "افتح مسارات الذكاء الاصطناعي واختر مسارًا مثل الجداول أو جلسات الامتحانات أو الإعلانات. وتراجع كل مسودة قبل تطبيقها.", "اے آئی ورک فلوز کھولیں اور کوئی ورک فلو چنیں، جیسے نظام الاوقات، امتحانی سیشن یا اعلانات۔ ہر مسودہ لاگو ہونے سے پہلے آپ اس کا جائزہ لیتے ہیں۔"],
+  studio: ["Choose a subject, add your source material and AI builds the paper. Review it before it is delivered securely and marked.", "اختر مادة وأضف موادك المرجعية ليبني الذكاء الاصطناعي الورقة. راجعها قبل تقديمها بأمان وتصحيحها.", "مضمون چنیں، اپنا ماخذی مواد شامل کریں اور اے آئی پرچہ تیار کرتا ہے۔ محفوظ طریقے سے لینے اور جانچنے سے پہلے اس کا جائزہ لیں۔"],
   academics: ["Review grades, subjects and class structure for your campus.", "راجع الصفوف والمواد وبنية الفصول في فرعك.", "اپنے کیمپس کی جماعتیں، مضامین اور کلاسوں کی ترتیب دیکھیں۔"],
   timetable: ["See your assigned lessons and teaching schedule. Missing assignments are managed by your school.", "اطلع على حصصك وجدول التدريس؛ تدير المدرسة التكليفات الناقصة.", "اپنے مقررہ اسباق اور تدریسی اوقات دیکھیں۔ نامکمل ذمہ داریاں اسکول طے کرتا ہے۔"],
   learning: ["Open your timetable, teacher-assigned learning tasks and school updates.", "افتح جدولك ومهام التعلم التي يحددها المعلم وتحديثات المدرسة.", "ٹائم ٹیبل، استاد کے دیے ہوئے کام اور اسکول کی خبریں کھولیں۔"],
@@ -141,15 +153,34 @@ const taskDetails: Record<LaunchTask, readonly [string, string, string]> = {
   fees: ["Review campus fee records, outstanding balances and finance tasks.", "راجع سجلات رسوم الفرع والأرصدة المستحقة والمهام المالية.", "کیمپس کی فیس، بقایا اور مالی کام دیکھیں۔"],
   library: ["Open the catalogue, borrowing records and library member tools.", "افتح الفهرس وسجلات الاستعارة وأدوات أعضاء المكتبة.", "کتابوں کی فہرست، ادھار ریکارڈ اور اراکین کے ٹولز کھولیں۔"],
   frontDesk: ["Open visitor records, admissions enquiries and your daily front-desk tools.", "افتح سجلات الزوار واستفسارات القبول وأدوات الاستقبال اليومية.", "زائرین، داخلہ سوالات اور روزمرہ استقبالیہ کے ٹولز کھولیں۔"],
-  workspace: ["Continue to your role’s dashboard. You can replay this guide from the workspace.", "تابع إلى لوحة دورك. يمكنك إعادة هذا الدليل من مساحة العمل.", "اپنے کردار کے ڈیش بورڈ پر جائیں۔ ورک اسپیس سے رہنمائی دوبارہ کھول سکتے ہیں۔"],
+  workspace: ["Continue to your role’s workspace. You can replay this guide from Help.", "تابع إلى مساحة عمل دورك. يمكنك إعادة هذا الدليل من «المساعدة».", "اپنے کردار کی ورک اسپیس پر جائیں۔ «مدد» سے یہ رہنمائی دوبارہ دیکھ سکتے ہیں۔"],
 };
+/** The two flagships (addendum 2026-10-22): their names follow the sidebar; one truthful sentence each. */
+const flagships: Record<Flagship, { name: readonly [string, string, string]; pitch: readonly [string, string, string] }> = {
+  "ai-workflows": {
+    name: ["AI Workflows", "مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز"],
+    pitch: ["AI drafts your setup and routine work such as timetables and announcements; nothing applies until it is approved.", "يُعدّ الذكاء الاصطناعي مسودات الإعداد والأعمال الدورية مثل الجداول والإعلانات؛ ولا يُطبَّق شيء قبل اعتماده.", "اے آئی ترتیب اور نظام الاوقات و اعلانات جیسے معمول کے کاموں کے مسودے بناتا ہے؛ منظوری سے پہلے کچھ لاگو نہیں ہوتا۔"],
+  },
+  "exam-studio": {
+    name: ["Exam Studio", "استوديو الاختبارات", "ایگزام اسٹوڈیو"],
+    pitch: ["AI builds assessments from your material; deliver them securely, mark them and plan learning recovery.", "يبني الذكاء الاصطناعي الاختبارات من موادك؛ قدّمها بأمان وصحّحها وخطّط لتعويض ما فات من التعلّم.", "اے آئی آپ کے مواد سے جائزے تیار کرتا ہے؛ انہیں محفوظ طریقے سے لیں، جانچیں اور تعلیمی کمی کی تلافی کا منصوبہ بنائیں۔"],
+  },
+};
+
 export function launchCopy(language: Language) {
   const index = language === "ar" ? 1 : language === "ur" ? 2 : 0;
+  const scoped = (key: LaunchTask, school: boolean) => school && key === "campus" ? ownerSchoolTask : school && key === "aiSetup" ? schoolSetupTask : tasks[key];
   return {
     ...Object.fromEntries(Object.entries(words).map(([key, values]) => [key, values[index]])) as Record<keyof typeof words, string>,
     journey: (key: LaunchJourney) => journeys[key][index],
     preparation: (key: LaunchJourney) => preparations[key][index],
-    task: (key: LaunchTask) => tasks[key][index],
-    taskDetail: (key: LaunchTask) => taskDetails[key][index],
+    /**
+     * `school`: the task is the whole school's — the standalone owner's campus task is the school's own profile, and
+     * the institution authority (the group admin or the standalone owner) sets up the school, not one campus, with AI.
+     */
+    task: (key: LaunchTask, school = false) => scoped(key, school)[index],
+    taskDetail: (key: LaunchTask, school = false) => (school && key === "campus" ? ownerSchoolTaskDetail : taskDetails[key])[index],
+    flagshipName: (key: Flagship) => flagships[key].name[index],
+    flagshipPitch: (key: Flagship) => flagships[key].pitch[index],
   };
 }

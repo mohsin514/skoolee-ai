@@ -29,6 +29,7 @@ before(async () => {
   ids.supplier = (await raw.supplier.create({ data: { schoolId, campusId, name: "Synthetic Supplies" } })).id;
 });
 after(async () => {
+  await raw.auditLog.deleteMany({ where: { schoolId } });
   for (const m of [raw.assetService, raw.schoolAsset, raw.supplierInvoice, raw.goodsReceipt, raw.purchaseRequest, raw.purchaseBudget]) await (m as unknown as { deleteMany: (a: object) => Promise<unknown> }).deleteMany({ where: { schoolId } });
   await raw.school.deleteMany({ where: { id: schoolId } }); await raw.$disconnect(); await prisma.$disconnect();
 });
@@ -41,12 +42,25 @@ test("approval: budget shown before submitting, never by the requester, limit re
   const submitted = await ctx(teacher, () => submitRequest(teacher, draft.id, draft.version));
   assert.deepEqual([submitted.available, submitted.projectedAfter], [30000, 10000], "the budget impact is shown before approval");
   await assert.rejects(() => ctx(teacher, () => decideRequest(teacher, ids.order, { version: 2, decision: "APPROVE" })), { status: 403 });
-  await assert.rejects(() => ctx(campusAdmin, () => decideRequest(campusAdmin, ids.order, { version: 2, decision: "APPROVE" })), /above the approval limit/);
-  await ctx(principal, () => decideRequest(principal, ids.order, { version: 2, decision: "APPROVE" }));
+  // §7.6 [R-B4]: purchasing decisions are campus operations; the principal no longer approves, and the
+  // campus admin is a senior seat, so it may approve above the budget's approval limit (D4).
+  await assert.rejects(() => ctx(principal, () => decideRequest(principal, ids.order, { version: 2, decision: "APPROVE" })), { status: 403 });
+  await ctx(campusAdmin, () => decideRequest(campusAdmin, ids.order, { version: 2, decision: "APPROVE" }));
   assert.equal((await ctx(campusAdmin, () => budgetPosition(prisma, ids.budget))).committed, 20000);
   const second = await ctx(teacher, () => saveRequest(teacher, { budgetId: ids.budget, title: "Projectors", lines: [{ description: "Projector", quantity: 6, unitPrice: 2000 }] }))!;
   await ctx(teacher, () => submitRequest(teacher, second.id, second.version));
-  await assert.rejects(() => ctx(principal, () => decideRequest(principal, second.id, { version: 2, decision: "APPROVE" })), /2000 SAR above available budget/);
+  await assert.rejects(() => ctx(campusAdmin, () => decideRequest(campusAdmin, second.id, { version: 2, decision: "APPROVE" })), /2000 SAR above available budget/);
+});
+
+test("SD3: the campus's only campus admin may decide their own request, with a typed reason and an audit flag", async () => {
+  const own = await ctx(campusAdmin, () => saveRequest(campusAdmin, { budgetId: ids.budget, title: "Whiteboard markers", lines: [{ description: "Marker box", quantity: 2, unitPrice: 20 }] }))!;
+  await ctx(campusAdmin, () => submitRequest(campusAdmin, own.id, own.version));
+  await assert.rejects(() => ctx(campusAdmin, () => decideRequest(campusAdmin, own.id, { version: 2, decision: "APPROVE" })), /reason of at least 10 characters/);
+  await ctx(campusAdmin, () => decideRequest(campusAdmin, own.id, { version: 2, decision: "APPROVE", reason: "Only administrator on this campus this term" }));
+  const decided = await raw.purchaseRequest.findUniqueOrThrow({ where: { id: own.id } });
+  assert.equal(decided.status, "APPROVED");
+  assert.ok((decided.history as Array<{ selfApproved?: boolean }>).some((entry) => entry.selfApproved === true), "the history records a self-approval");
+  assert.equal(await raw.auditLog.count({ where: { schoolId, recordId: own.id, tableName: "purchase_requests" } }), 1);
 });
 
 test("changing an approved order's price withdraws the approval", async () => {

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
 import { assertPermission } from "@/lib/permissions";
 import { EMPTY_GUARDIAN_PERMISSIONS, parseGuardianPermissions } from "@/lib/parent/guardian-access";
@@ -47,7 +47,7 @@ function canonical(value: unknown): string {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "students", "view");
     const { id: studentId } = await params;
     const student = await prisma.student.findFirst({
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Guardian access is managed by your campus admin.", 403);
     await assertPermission(user, "students", "edit");
     const { id: studentId } = await params;
     const parsed = decisionSchema.safeParse(await req.json());

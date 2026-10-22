@@ -21,15 +21,15 @@ interface StatCardProps {
 
 const toneClass = {
   purple: "bg-brand-50 text-primary",
-  green: "bg-emerald-50 text-emerald-600",
-  rose: "bg-rose-50 text-berry",
-  dark: "bg-ink-strong text-white",
+  green: "bg-status-success-surface text-status-success-text",
+  rose: "bg-status-error-surface text-berry",
+  dark: "bg-ink-strong text-primary-foreground",
 };
 
 const toneGlowClass = {
   purple: "bg-primary/18",
-  green: "bg-emerald-500/18",
-  rose: "bg-rose-500/18",
+  green: "bg-status-success-border/40",
+  rose: "bg-status-error-border/40",
   dark: "bg-primary/14",
 };
 
@@ -101,7 +101,7 @@ export function StatCard({
   const className = cn(
     "sk-panel relative isolate overflow-hidden p-5 sm:p-6",
     entranceDelay > 0 && "sk-rise",
-    onClick && "group w-full cursor-pointer text-start transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(170,150,210,0.30),0_22px_50px_-16px_rgba(129,39,207,0.32)] active:scale-[0.99] motion-reduce:transform-none"
+    onClick && "group w-full cursor-pointer text-start transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-xl active:scale-[0.99] motion-reduce:transform-none"
   );
   const content = (
     <>
@@ -122,8 +122,8 @@ export function StatCard({
                   trend.direction === "flat"
                     ? "bg-surface-subtle text-ink-muted"
                     : (trend.positive ?? trend.direction === "up")
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-rose-50 text-rose-700",
+                      ? "bg-status-success-surface text-status-success-text"
+                      : "bg-status-error-surface text-status-error-text",
                 )}
               >
                 <span aria-hidden="true">{trend.direction === "up" ? "↑" : trend.direction === "down" ? "↓" : "→"}</span>

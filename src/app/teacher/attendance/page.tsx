@@ -1,9 +1,9 @@
 "use client";
-import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ViewTabs } from "@/components/ui/view-tabs";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, ListChecks, WifiOff } from "lucide-react";
+import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, GraduationCap } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { Select } from "@/components/ui/select";
 import { IconButton } from "@/components/ui/icon-button";
@@ -18,19 +18,33 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { AttendanceSkeleton, classLabel, TeacherErrorState, useTeacherData } from "@/components/teacher/teacher-components";
 import { AttendanceExceptions, ClassRegister } from "@/components/attendance/class-register";
 import { OfflineRegister } from "@/components/offline/offline-register";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { localeTag } from "@/lib/locale/package";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
 // SKO-405: marking is the dated class register (unmarked state, review before submit, conflict review and
 // reasoned corrections); Exceptions lists absences to follow up and family explanations to decide.
 type ViewTab = "marking" | "exceptions" | "monthly" | "offline";
+const VIEW_TABS: ViewTab[] = ["marking", "exceptions", "monthly", "offline"];
+const isViewTab = (value: string | null): value is ViewTab => VIEW_TABS.includes(value as ViewTab);
 
 export default function AttendancePage() {
   const ui = useUiText();
   const { data, loading, error, loadData } = useTeacherData();
-  const [activeTab, setActiveTab] = useState<ViewTab>("marking");
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  // The section is part of the URL (?tab=), so Back, a reload and a shared link keep it.
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTabState] = useState<ViewTab>(isViewTab(requestedTab) ? requestedTab : "marking");
+  const setActiveTab = (tab: ViewTab) => {
+    setActiveTabState(tab);
+    const next = new URLSearchParams(searchParams.toString());
+    if (tab === "marking") next.delete("tab"); else next.set("tab", tab);
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
   const [attendanceClassId, setAttendanceClassId] = useState("");
   const [monthlyData, setMonthlyData] = useState<any>(null);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
@@ -79,26 +93,22 @@ export default function AttendancePage() {
 
   return (
     <TeacherPage
-      tone="attendance"
       icon={CalendarCheck}
-      eyebrow={ui("Attendance")}
-      title={ui("Daily Attendance")}
-      summary={ui("Mark student attendance per class and date")}
-      actions={
-        <div role="group" aria-label={ui("Attendance views")} className="flex flex-wrap items-center gap-0.5 rounded-xl border border-edge/20 bg-surface-subtle p-1">
-          {([
-            { key: "marking" as ViewTab, label: ui("Mark"), icon: CalendarCheck },
-            { key: "exceptions" as ViewTab, label: ui("Exceptions"), icon: ListChecks },
-            { key: "monthly" as ViewTab, label: ui("Monthly"), icon: BarChart3 },
+      title="Attendance"
+      description="Mark and submit each class register, decide absence explanations and follow up absences."
+      tabs={
+        <ViewTabs
+          ariaLabel="Attendance sections"
+          value={activeTab}
+          onChange={(id) => setActiveTab(id as ViewTab)}
+          items={[
+            { id: "marking", label: "Mark" },
+            { id: "exceptions", label: "Exceptions" },
+            { id: "monthly", label: "Monthly" },
             // SKO-448: marking that keeps working without a connection.
-            { key: "offline" as ViewTab, label: ui("Offline"), icon: WifiOff },
-          ]).map(({ key, label, icon: Icon }) => (
-            <Button variant="choice" size="sm" key={key} type="button" onClick={() => setActiveTab(key)} aria-pressed={activeTab === key} className="shrink-0 justify-start whitespace-nowrap px-2.5" data-attendance-tab={key}>
-              <Icon aria-hidden="true" className="h-3.5 w-3.5" />
-              {label}
-            </Button>
-          ))}
-        </div>
+            { id: "offline", label: "Offline" },
+          ]}
+        />
       }
     >
       <div className="space-y-3">
@@ -138,9 +148,11 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
   monthlyFailed?: boolean; onRetry?: () => void;
 }) {
   const ui = useUiText();
+  const locale = useLocale();
+  // The month is named in the document's language (F23), not the browser's.
   const monthLabel = (() => {
     const [y, m] = selectedMonth.split("-").map(Number);
-    return new Date(y, m - 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    return new Date(y, m - 1).toLocaleDateString(localeTag(locale), { month: "long", year: "numeric" });
   })();
   const students: any[] = monthlyData?.students || [];
 
@@ -208,22 +220,22 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
               <p className="mt-0.5 text-xl font-bold tabular-nums text-ink-strong">{monthlyData.totalStudents}</p>
             </div>
             <div className="rounded-2xl border border-status-success-border bg-status-success-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-status-success-text">
+              <p className="flex items-center gap-0.5 text-2xs font-semibold text-status-success-text">
                 <span className="min-w-0 truncate">{ui("Average attendance")}</span>
                 <InfoTip className="-my-1" content={ui("The average of every student's attendance rate this month, counted with your school's attendance rule.")} />
               </p>
               <p className="mt-0.5 text-xl font-bold tabular-nums text-status-success-text">{monthlyData.classAveragePercentage}%</p>
             </div>
             <div className="rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-status-error-text">
+              <p className="flex items-center gap-0.5 text-2xs font-semibold text-status-error-text">
                 <span className="min-w-0 truncate">{ui("At risk")}</span>
                 <InfoTip className="-my-1" content={ui("Students below 75% attendance this month who have at least one day recorded.")} />
               </p>
               <p className="mt-0.5 text-xl font-bold tabular-nums text-status-error-text">{monthlyData.atRiskStudents?.length || 0}</p>
             </div>
             <div className="rounded-2xl border border-status-brand-border bg-status-brand-surface px-4 py-3.5 shadow-xs">
-              <p className="flex items-center gap-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
-                <span className="min-w-0 truncate">{ui("Total Days")}</span>
+              <p className="flex items-center gap-0.5 text-2xs font-semibold text-primary">
+                <span className="min-w-0 truncate">{ui("Total days")}</span>
                 <InfoTip className="-my-1" content={ui("Every present, absent and leave entry recorded for this class this month, added together.")} />
               </p>
               <p className="mt-0.5 text-xl font-bold tabular-nums text-primary">{monthlyData.summary ? monthlyData.summary.totalPresent + monthlyData.summary.totalAbsent + monthlyData.summary.totalLeave : 0}</p>
@@ -265,11 +277,11 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
           ) : (
             <div className="sk-panel overflow-hidden">
               <div className="hidden gap-3 bg-surface-subtle px-5 py-3 sm:grid sm:grid-cols-[1fr_80px_80px_80px_100px]">
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">{ui("Student")}</span>
-                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-status-success-text">{ui("Present")}</span>
-                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-status-error-text">{ui("Absent")}</span>
-                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-status-warning-text">{ui("Leave")}</span>
-                <span className="text-center text-2xs font-semibold uppercase tracking-wider text-primary">{ui("Rate")}</span>
+                <span className="text-2xs font-semibold text-ink-muted">{ui("Student")}</span>
+                <span className="text-center text-2xs font-semibold text-status-success-text">{ui("Present")}</span>
+                <span className="text-center text-2xs font-semibold text-status-error-text">{ui("Absent")}</span>
+                <span className="text-center text-2xs font-semibold text-status-warning-text">{ui("Leave")}</span>
+                <span className="text-center text-2xs font-semibold text-primary">{ui("Rate")}</span>
               </div>
               <div className="divide-y divide-muted">
                 {students.map((student: any) => (
@@ -278,7 +290,7 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                     student.percentage < 75 && "bg-status-error-surface/40"
                   )}>
                     <div className="col-span-4 flex min-w-0 items-center gap-3 sm:col-span-1">
-                      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-white bg-slate-50 shadow-sm">
+                      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border-2 border-card bg-surface-subtle shadow-sm">
                         <AvatarImage src={student.profileImageUrl} name={student.name} alt={student.name} initialsClassName="text-2xs" />
                       </div>
                       <div className="min-w-0">
@@ -287,19 +299,19 @@ function MonthlyReportView({ classHubs, attendanceClassId, setAttendanceClassId,
                       </div>
                     </div>
                     <p className="text-center text-sm font-bold tabular-nums text-status-success-text">
-                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Present")}</span>
+                      <span className="block text-2xs font-semibold text-ink-subtle sm:hidden">{ui("Present")}</span>
                       {student.present}
                     </p>
                     <p className="text-center text-sm font-bold tabular-nums text-status-error-text">
-                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Absent")}</span>
+                      <span className="block text-2xs font-semibold text-ink-subtle sm:hidden">{ui("Absent")}</span>
                       {student.absent}
                     </p>
                     <p className="text-center text-sm font-bold tabular-nums text-status-warning-text">
-                      <span className="block text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Leave")}</span>
+                      <span className="block text-2xs font-semibold text-ink-subtle sm:hidden">{ui("Leave")}</span>
                       {student.leave}
                     </p>
                     <div className="flex flex-col items-center justify-center gap-1 sm:flex-row sm:gap-2">
-                      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle sm:hidden">{ui("Rate")}</span>
+                      <span className="text-2xs font-semibold text-ink-subtle sm:hidden">{ui("Rate")}</span>
                       <Progress
                         className="hidden max-w-[60px] flex-1 sm:block"
                         size="sm"

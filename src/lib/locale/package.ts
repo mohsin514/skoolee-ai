@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { countrySchema, currencyForCountry } from "./country";
+import { isCampusOperator, isInstitutionAuthority, type InstitutionKind } from "@/lib/auth/institution";
+import type { UserRole } from "@/lib/roles";
 
 export const LANGUAGES = ["en", "ar", "ur"] as const;
 export type Language = typeof LANGUAGES[number];
@@ -39,6 +41,12 @@ export function formatInstant(value: string | Date, policy: LocalePackage): stri
   if (!Number.isFinite(instant.getTime())) throw new Error("instant");
   return new Intl.DateTimeFormat(localeTag(policy), { dateStyle: "long", timeStyle: "short", timeZone: policy.timezone }).format(instant);
 }
+/** The calendar date of an instant in the policy's timezone ("22 October 2026"), without the time. */
+export function formatInstantDate(value: string | Date, policy: LocalePackage): string {
+  const instant = new Date(value);
+  if (!Number.isFinite(instant.getTime())) throw new Error("instant");
+  return new Intl.DateTimeFormat(localeTag(policy), { dateStyle: "long", timeZone: policy.timezone }).format(instant);
+}
 export function minorUnits(currency: string): number {
   if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) throw new Error("currency");
   // Financial units are a versioned application contract, independent of runtime CLDR updates.
@@ -75,8 +83,18 @@ export function formatMoney(value: Money, policy: LocalePackage): string {
   // TypeScript's NumberFormat declaration predates string inputs.
   return new Intl.NumberFormat(localeTag(policy), { style: "currency", currency: value.currency, minimumFractionDigits: precision, maximumFractionDigits: precision }).format(exact as unknown as number);
 }
-export function canManageSchool(role: string, campusCount: number) { return role === "SUPER_ADMIN" || role === "ADMIN" && campusCount <= 1; }
-export function assertDelegatedChanges(role: string, ownCampus: string | null, targetCampus: string | null, count: number, delegated: string[], patch: Partial<LocalePackage>) {
-  if (canManageSchool(role, count)) return;
-  if (!targetCampus || ownCampus !== targetCampus || !["PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"].includes(role) || Object.keys(patch).some((key) => !delegated.includes(key))) throw new Error("permission");
+/** Who is changing the locale: the role plus the institution kind and owner flag the authority rule reads (§1.1). */
+export type LocaleActor = { role: UserRole; institutionKind?: InstitutionKind; isInstitutionOwner?: boolean; canPurchaseSubscription?: boolean };
+/**
+ * School-scope language and region belong to the institution authority (§2.1 #9, G13): the group admin of a school
+ * group, the school admin of a single school. Never decided by campus count.
+ */
+export function canManageSchool(user: LocaleActor) { return isInstitutionAuthority(user); }
+/**
+ * Campus-scope changes: the authority may change anything; a campus operator (CAMPUS_ADMIN / ADMIN) only the keys
+ * the school delegated, and only on their own campus. The principal is academic and never edits locale (G13).
+ */
+export function assertDelegatedChanges(user: LocaleActor, ownCampus: string | null, targetCampus: string | null, delegated: string[], patch: Partial<LocalePackage>) {
+  if (canManageSchool(user)) return;
+  if (!targetCampus || ownCampus !== targetCampus || !isCampusOperator(user) || Object.keys(patch).some((key) => !delegated.includes(key))) throw new Error("permission");
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { act, intake, isLeader, overdue, visibleWhere } from "@/lib/front-desk/complaints";
+import { ownerCandidates } from "@/lib/front-desk/phone-calls";
 import {
   ApiError,
   assertModuleRead,
@@ -14,7 +15,7 @@ import {
 // SKO-467 complaint cases.
 // GET   ?campusId=&status=&owner=me|unassigned&overdue=1&q=   → queue (minimum metadata, no narrative)
 // GET   ?id=                                                  → case detail with history (404 if not permitted)
-// GET   ?owners=1                                             → people who can own a case in this campus
+// GET   ?owners=1                                             → front-office owners on this campus (campus admins, ADMIN, receptionists; G40)
 // POST  {complainantName|anonymous, type, description, date, phone?, confidential?, ownerId?, dueDate?, idempotencyKey}
 // PATCH {id, version, action: assign|note|start|resolve|reopen, ...}
 // DELETE is not supported: complaints and their history are kept.
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     const scope = { campusId, schoolId: user.schoolId };
 
     if (params.get("owners")) {
-      const owners = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { in: ["CAMPUS_ADMIN", "PRINCIPAL", "RECEPTIONIST", "SUPER_ADMIN"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" } });
+      const owners = await ownerCandidates(user, campusId);
       return Response.json({ success: true, data: owners });
     }
 

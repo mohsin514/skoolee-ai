@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  canManageOperations,
+  canManageAcademics,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
@@ -19,12 +20,24 @@ const automationSchema = z.object({
   campusId: z.string().optional(),
 });
 
+/** What the academic lead may read: report and exam delivery to families ("Report delivery", §2.2 #44).
+ *  Fee reminders, announcements and inbound chats stay with campus operations. */
+const ACADEMIC_DELIVERY_SCOPE = {
+  OR: [
+    { templateKey: { in: ["REPORT_CARD_PUBLISHED", "REPORT_CARD_GENERATED", "EXAM_SCHEDULE", "MARKS_ENTRY_DEADLINE_NEAR"] } },
+    { relatedType: { in: ["REPORT_CARD", "EXAM"] } },
+  ],
+};
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
 
     const { searchParams } = new URL(req.url);
+    // Campus operations see the whole family-communication log; everyone else (the principal) only the
+    // academic delivery log. `scope=academic` lets an operator ask for the narrow view too.
+    const academicOnly = !canManageCampusOps(user) || searchParams.get("scope") === "academic";
     const status = searchParams.get("status");
     const channel = searchParams.get("channel");
     const studentId = searchParams.get("studentId");
@@ -35,7 +48,8 @@ export async function GET(req: NextRequest) {
     const historyScope = {
       schoolId: user.schoolId,
       ...(campusId ? { campusId } : {}),
-      ...await announcementHistoryRestriction(user),
+      // AND, not a spread: both the announcement boundary and the academic scope are OR clauses.
+      AND: [await announcementHistoryRestriction(user), ...(academicOnly ? [ACADEMIC_DELIVERY_SCOPE] : [])],
     };
 
     const communications = await prisma.parentCommunication.findMany({
@@ -69,6 +83,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({
       success: true,
+      scope: academicOnly ? "academic" : "office",
       communications,
       summary: summary.reduce<Record<string, number>>((acc, item) => {
         acc[item.status] = item._count._all;
@@ -83,7 +98,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    // The manual reminder run (fees, marks deadlines, report notices) is a campus-operations act (M46).
+    if (!canManageCampusOps(user)) throw new ApiError("Reminders are run by your campus admin.", 403);
 
     const body = await req.json();
     const parsed = automationSchema.safeParse(body);

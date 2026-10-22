@@ -4,15 +4,21 @@ import { isCurrentSessionRevoked } from "@/lib/auth/session-revocation";
 import { enterUnscoped } from "@/lib/db/tenant-context";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
+import { authorityRoleFor, canOwnSubscription, isCampusOperator, isInstitutionAuthority, kindFor } from "@/lib/auth/institution";
+import { getCampusSeats } from "@/lib/auth/seats";
+import { runUnscoped } from "@/lib/db/tenant-context";
 import { assertPermission as assertPermissionImpl, moduleFlags, type PermissionAction, type PermissionModule } from "@/lib/permissions";
 import { cookies } from "next/headers";
 
 export class ApiError extends Error {
   status: number;
+  /** Optional machine code for the client (for example "MFA_REQUIRED"); `errorResponse` adds it to the JSON body. */
+  code?: string;
 
-  constructor(message: string, status = 400) {
+  constructor(message: string, status = 400, code?: string) {
     super(message);
     this.status = status;
+    if (code) this.code = code;
   }
 }
 
@@ -100,7 +106,20 @@ export function errorResponse(error: unknown, fallback = "Request failed") {
   }
 
   if (error instanceof ApiError) {
-    return Response.json({ error: error.message }, { status: error.status });
+    return Response.json(error.code ? { error: error.message, code: error.code } : { error: error.message }, { status: error.status });
+  }
+
+  // Plan and suspension errors carry a machine code (G51) so clients can tell them apart without parsing copy; a
+  // message built from values (plan limits) also carries its EN key and the values, for a client that formats it.
+  if (error instanceof BillingAccessError) {
+    return Response.json({
+      error: error.message,
+      ...(error.code ? { code: error.code } : {}),
+      ...(error.messageKey ? { messageKey: error.messageKey, params: error.params ?? [] } : {}),
+    }, { status: error.status });
+  }
+  if (error instanceof Error && "status" in error && typeof error.status === "number" && "code" in error && error.code === "SUBSCRIPTION_SUSPENDED") {
+    return Response.json({ error: error.message, code: error.code }, { status: error.status });
   }
 
   if (error instanceof Error && "status" in error && typeof error.status === "number") {
@@ -148,7 +167,7 @@ export async function assertFeesRead(user: AuthUser) {
   assertStaffRole(user);
   // Financial records must stop being readable as soon as a grant is revoked;
   // the short-lived UI permission cache is not an authorization snapshot.
-  const rows = await prisma.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role, module: "fees" }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true } });
+  const rows = await prisma.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role, module: "fees" }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true, updatedAt: true } });
   if (!moduleFlags(rows, user.role, "fees").canView) throw new ApiError("Insufficient permissions: fees.view", 403);
 }
 
@@ -191,8 +210,51 @@ export async function assertSharedModuleRead(user: AuthUser, module: PermissionM
   await assertPermissionImpl(user, module, "view");
 }
 
-export function canManageOperations(user: AuthUser) {
+// ─────────────────────────────────────────────────────────────────
+// Purpose predicates (§1.3). Each names the seat it protects; the matrix
+// (`assertPermission`) is checked beside it, never instead of it.
+// ─────────────────────────────────────────────────────────────────
+
+/** Academic work in the office: classes, timetable drafts, exams, report delivery. SA, campus operators, PRINCIPAL. */
+export function canManageAcademics(user: AuthUser) {
   return user.role === "SUPER_ADMIN" || isCampusAdminRole(user.role) || user.role === "PRINCIPAL";
+}
+
+/** @deprecated Same answer as `canManageAcademics`. New call sites must choose a purpose predicate (§7.6). */
+export function canManageOperations(user: AuthUser) {
+  return canManageAcademics(user);
+}
+
+/** Campus operations (people, admissions, fees setup, transport, front office). PRINCIPAL never holds it (C31).
+ *  SUPER_ADMIN is audited break-glass only — no console offers it. */
+export function canManageCampusOps(user: AuthUser) {
+  return user.role === "SUPER_ADMIN" || isCampusOperator(user);
+}
+
+/** Tuition finance writes. Always paired with `assertPermission("fees" | "accounts", action)`. */
+export function canManageFinance(user: AuthUser) {
+  return canManageCampusOps(user) || user.role === "ACCOUNTANT";
+}
+
+/** The checker seat for money decisions (adjustments, payroll, payment corrections). */
+export function canApproveFinance(user: AuthUser) {
+  return canManageCampusOps(user);
+}
+
+/**
+ * Principal-reserved academic acts (results publish, report approval, grading rules, force-close).
+ * PRINCIPAL → true. A campus operator → true only while the campus has no active principal, and only on its own campus.
+ * Everyone else (SUPER_ADMIN included) → false.
+ */
+export async function canLeadAcademics(user: AuthUser, campusId?: string | null): Promise<boolean> {
+  if (user.role === "PRINCIPAL") return true;
+  if (!isCampusOperator(user)) return false;
+  const target = campusId ?? user.campusId;
+  // Campus operators are pinned to one campus and answer only for it. An operator with no campus (a legacy unpinned
+  // row) holds no desk anywhere — the same answer `capabilitiesFor` gives the nav (no scope widening, §7).
+  if (!user.campusId || target !== user.campusId) return false;
+  const seats = await getCampusSeats(user.schoolId, target);
+  return !seats.principal;
 }
 
 export function canManageLibrary(user: AuthUser) {
@@ -203,20 +265,52 @@ export function canManageFrontDesk(user: AuthUser) {
   return canManageOperations(user) || user.role === "RECEPTIONIST";
 }
 
+/** SaaS subscription purchase: the institution authority who owns the account, or an authority-role purchase delegate. */
 export function canPurchaseSubscription(user: AuthUser) {
-  if (["APP_OWNER", "STUDENT", "PARENT"].includes(user.role)) return false;
-  return user.isInstitutionOwner === true || user.canPurchaseSubscription === true;
+  return canOwnSubscription(user);
 }
 
+/** SaaS subscription management. Same predicate as purchase: tuition-finance roles, campus admins in a group and
+ *  stale flags on non-authority users never reach the institution-wide software contract (§7.2 G6). */
 export function canManageSubscription(user: AuthUser) {
-  // Tuition-finance roles are deliberately not subscription owners. Only the
-  // verified institutional owner or an owner-approved subscription delegate
-  // can change the institution-wide software contract.
-  return canPurchaseSubscription(user);
+  return canOwnSubscription(user);
 }
 
-export function canManageBilling(user: AuthUser) {
-  return user.role === "SUPER_ADMIN" || isCampusAdminRole(user.role);
+/** Families paying the school (tuition) — never the SaaS subscription. */
+export function canManageTuition(user: AuthUser) {
+  return canManageFinance(user);
+}
+
+/** @deprecated Renamed to `canManageTuition` (tuition is not "billing"). Kept for one release. */
+export const canManageBilling = canManageTuition;
+
+/**
+ * SD3 — sole checker (§2.5). True when `user` holds the checker seat for the record and **no other active user**
+ * holds it, so the maker may decide their own request with a typed reason:
+ * - finance / purchase: no other active CAMPUS_ADMIN/ADMIN pinned to the record's campus (SA and accountants never count);
+ * - tax / policy: no other active institution-authority user.
+ * Fails closed: unknown kind, missing campus or a user outside the seat → false.
+ */
+export async function soleChecker(kind: "finance" | "purchase" | "tax" | "policy", user: AuthUser, campusId: string | null): Promise<boolean> {
+  if (kind === "finance" || kind === "purchase") {
+    if (!isCampusOperator(user)) return false;
+    const target = campusId ?? user.campusId;
+    // Only the operator pinned to the record's campus can be its sole checker; an unpinned operator never is.
+    if (!user.campusId || target !== user.campusId) return false;
+    const others = await prisma.user.count({
+      where: { schoolId: user.schoolId, campusId: target, isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN"] }, id: { not: user.userId } },
+    });
+    return others === 0;
+  }
+  if (!isInstitutionAuthority(user)) return false;
+  const institutionKind = kindFor(user);
+  if (!institutionKind) return false;
+  const role = authorityRoleFor(institutionKind);
+  // Authority users may sit on any campus (or none); count them school-wide with an explicit school filter.
+  const others = await runUnscoped("count other institution authorities for SD3", () => prisma.user.count({
+    where: { schoolId: user.schoolId, role, isActive: true, id: { not: user.userId } },
+  }));
+  return others === 0;
 }
 
 export function canMarkAttendance(user: AuthUser) {

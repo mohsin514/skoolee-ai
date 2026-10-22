@@ -178,7 +178,8 @@ test("a scheduled digest is sent by the cron once", async () => {
 
 test("screens: teacher review and the family update in Arabic", async () => {
   const page = await (await context("teacher")).newPage();
-  await page.goto(`${base}/teacher/reports`);
+  // The weekly family update moved to Calendar & meetings (M66).
+  await page.goto(`${base}/teacher/calendar`);
   const review = page.locator("[data-digest-review]");
   await review.waitFor({ timeout: 30_000 });
   await review.locator('input[type="date"]').fill(ymd(thisWeek));

@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getEffectiveDisplayLocale } from "@/app/actions/locale";
 import { defaultLocale, formatMoney, formatDateOnly, formatInstant, localeTag, type LocalePackage } from "@/lib/locale/package";
 import { translateUi } from "@/lib/locale/ui-messages";
@@ -26,15 +26,16 @@ export function useUiText() { const { language } = useLocale(); return useCallba
 /** Only explicit interface copy enters this component; student names and authored content do not. */
 export function UiText({ children }: { children: string }) { const t = useUiText(); return <> {t(children)} </>; }
 
-/** Calendar/fee fields are date-only values; never reinterpret them in a time zone. */
+/** Calendar/fee fields are date-only values; never reinterpret them in a time zone.
+ *  Stable per locale: callers may list these formatters in hook dependencies without re-running every render. */
 export function useLocaleFormat() {
  const locale = useLocale();
- return {
+ return useMemo(() => ({
   money: (minor: number, currency = "PKR") => formatMoney({ minor, currency }, locale),
   date: (value: string | Date | null | undefined) => value ? formatDateOnly((value instanceof Date ? value.toISOString() : value).slice(0, 10), locale) : "—",
   // Date and time in the school's timezone and language (SKO-466 visitor arrivals and departures).
   dateTime: (value: string | Date | null | undefined) => value ? formatInstant(value, locale) : "—",
   // Plain numbers in the school's numbering system (SKO-461 evidence values).
   number: (value: number, maximumFractionDigits = 1) => new Intl.NumberFormat(localeTag(locale), { maximumFractionDigits }).format(value),
- };
+ }), [locale]);
 }

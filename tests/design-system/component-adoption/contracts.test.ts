@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import ts from 'typescript';
 
 type Control = { kind: string; attrs: Record<string, string> };
 type Baseline = { file: string; controls: Control[]; requests: string[] };
-const baseline = JSON.parse(readFileSync('tests/design-system/component-adoption/behavior-contracts.json','utf8')) as Baseline[];
+/** `CONTRACTS_FILE` points the test at another copy (used to rehearse update mode without touching the tracked baseline). */
+const CONTRACTS_PATH = process.env.CONTRACTS_FILE || 'tests/design-system/component-adoption/behavior-contracts.json';
+/**
+ * Update mode (K-B3): `UPDATE_CONTRACTS=1 node --import tsx --test tests/design-system/component-adoption/contracts.test.ts`
+ * rewrites behavior-contracts.json from the current tree, so the orchestrator can review one diff after the role
+ * re-architecture lands (§12 step 2b). Entries whose file no longer exists are dropped. The native-control assertion
+ * still runs on every remaining file; only the frozen request/control snapshot is refreshed.
+ */
+const UPDATE = process.env.UPDATE_CONTRACTS === '1';
 const attributes = new Set(['value','defaultValue','checked','defaultChecked','onChange','onClick','onSubmit','type','disabled','min','max','minLength','maxLength','required','readOnly','ref','name','form','accept','multiple','pattern','step','autoComplete','inputMode','formAction','action','id','role','tabIndex','aria-label','aria-labelledby','aria-describedby','aria-invalid','aria-required','aria-checked','aria-selected','aria-current','onKeyDown']);
 const aliases: Record<string,string> = {Button:'button',MotionButton:'button',FieldAction:'button',Input:'input',SystemInput:'input',Select:'select',SystemSelect:'select',Textarea:'textarea',SystemTextarea:'textarea',Checkbox:'input','motion.button':'button'};
 function inspect(file: string) {
@@ -31,6 +39,15 @@ function inspect(file: string) {
   ts.forEachChild(node,visit);
  }
  visit(source); return {controls,requests,native};
+}
+const stored = JSON.parse(readFileSync(CONTRACTS_PATH,'utf8')) as Baseline[];
+const baseline: Baseline[] = UPDATE
+ ? stored.filter(entry=>existsSync(entry.file)).map(entry=>{const {controls,requests}=inspect(entry.file);return {file:entry.file,controls,requests};})
+ : stored;
+if(UPDATE){
+ writeFileSync(CONTRACTS_PATH,JSON.stringify(baseline,null,2));
+ const dropped=stored.length-baseline.length;
+ console.log(`behavior-contracts.json rewritten: ${baseline.length} files${dropped?`, ${dropped} dropped (file no longer exists)`:''}`);
 }
 for(const before of baseline)test(`preserves request and native control contracts: ${before.file}`,()=>{
  const after=inspect(before.file);

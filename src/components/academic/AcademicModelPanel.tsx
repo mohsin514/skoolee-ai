@@ -6,9 +6,12 @@ import { IconButton } from "@/components/ui/icon-button";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AlertTriangle, ArrowDown, ArrowUp, BookOpen, Check, ChevronRight, CircleHelp, Copy, Plus, Save, Scale, Trash2 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
+import { ErrorState } from "@/components/ui/error-state";
+import { FormField } from "@/components/ui/form-field";
 import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { DEFAULT_ACADEMIC_MODEL, type AcademicModelConfiguration, type ResultPolicy, type RoundingRule } from "@/lib/academic/model-config";
@@ -75,7 +78,50 @@ function cloneTemplateConfiguration(template: ModelVersion, classes: ClassSectio
   return config;
 }
 
-export function AcademicModelPanel({ campusId, templatesOnly = false }: { campusId?: string; templatesOnly?: boolean }) {
+export interface AcademicModelPanelProps {
+  campusId?: string;
+  /** The group's curriculum templates (group console Group standards). */
+  templatesOnly?: boolean;
+  /**
+   * §4.3: the hosting page's PageHeader already names the view, so `hideHeading` swaps the dark hero for a
+   * compact toolbar (description + academic year). Each change of `requestCreate` starts a new draft (a new
+   * template version when `templatesOnly`) and moves focus to its title — the host's "New template version"
+   * primary action (§4.4, P4).
+   */
+  hideHeading?: boolean;
+  requestCreate?: number;
+  /**
+   * Host-owned header (§4.4b "Curriculum & grading": **Save** primary, Change history secondary): `hideActions`
+   * drops the in-panel "Save new draft" and "Approve" buttons; the host's PageHeader shows the one primary the
+   * workflow needs next (`onActionState().next`: save the edits as a draft, or approve the clean draft) and runs
+   * it through `command` (a new nonce runs once). `history` scrolls to the version list (the model's change history).
+   */
+  hideActions?: boolean;
+  command?: AcademicModelCommand;
+  onActionState?: (state: AcademicModelActionState) => void;
+  /**
+   * Sticky per-tab Save (§4.4, admin Campus setup): `hideSave` drops only "Save new draft" (Approve stays in the
+   * panel); the host's Save sends `command {id:"save"}`. `onDirtyChange(dirty, saving)` reports unsaved edits and a
+   * running save (`(false, false)` on unmount) — the same contract as YearSetupWizard and GradingRulesPanel.
+   */
+  hideSave?: boolean;
+  onDirtyChange?: (dirty: boolean, saving: boolean) => void;
+}
+
+export type AcademicModelCommand = { id: "save" | "approve" | "history"; nonce: number };
+export type AcademicModelActionState = {
+  next: "save" | "approve";
+  canSave: boolean; saveReason: string | null;
+  canApprove: boolean; approveReason: string | null;
+  busy: boolean; dirty: boolean;
+};
+
+const VERSION_TITLE_ID = "academic-model-version-title";
+const VERSIONS_ID = "academic-model-versions";
+/** Version statuses as translated words (R7: never a raw enum on screen). */
+const VERSION_STATUS: Record<string, string> = { DRAFT: "Draft", ACTIVE: "Active", TEMPLATE: "Approved", APPROVED: "Approved", RETIRED: "Retired", SUPERSEDED: "Replaced", ARCHIVED: "Archived" };
+
+export function AcademicModelPanel({ campusId, templatesOnly = false, hideHeading = false, requestCreate, hideActions = false, command, onActionState, hideSave = false, onDirtyChange }: AcademicModelPanelProps) {
   const tr = useUiText();
   const [year, setYear] = useState(new Date().getFullYear());
   const [classes, setClasses] = useState<ClassSection[]>([]);
@@ -90,6 +136,7 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
   const [effectiveTo, setEffectiveTo] = useState("");
   const [delegatedOverrideKeys, setDelegatedOverrideKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -112,6 +159,7 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = templatesOnly ? "templates=1" : new URLSearchParams({ academicYear: String(year), ...(campusId ? { campusId } : {}) }).toString();
       const response = await fetch(`/api/academic-models?${params}`);
@@ -122,7 +170,8 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
       setTemplates(templatesOnly ? json.templates ?? [] : json.templates ?? []);
       if (!templatesOnly && !cohort && json.classes?.length) setCohort(json.classes[0].name);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : tr("Could not load academic models"));
+      // R4: inline ErrorState with retry instead of a toast over an empty editor.
+      setLoadError(friendlyErrorMessage(error, tr("Could not load academic models")));
     } finally {
       setLoading(false);
     }
@@ -147,6 +196,24 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
     setCohort(name);
     resetDraft(name);
   };
+
+  // Host-owned "New template version" / "New draft": only a change of the counter fires.
+  const lastCreate = useRef(requestCreate);
+  const [focusTitle, setFocusTitle] = useState(0);
+  useEffect(() => {
+    if (requestCreate === undefined || requestCreate === lastCreate.current) return;
+    lastCreate.current = requestCreate;
+    resetDraft();
+    setFocusTitle((n) => n + 1);
+    // resetDraft reads the latest cohort/year from this render; the counter is the only trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestCreate]);
+  useEffect(() => {
+    if (!focusTitle) return;
+    const field = document.getElementById(VERSION_TITLE_ID);
+    field?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    (field as HTMLInputElement | null)?.focus({ preventScroll: true });
+  }, [focusTitle]);
 
   const chooseVersion = (version: ModelVersion) => {
     setSelected(version);
@@ -252,26 +319,70 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
     setPreview(null);
   };
 
+  // Header-driven save/approve/history (each nonce runs once) and the state the header needs to show them.
+  const canSave = !saving && Boolean(title.trim()) && (templatesOnly || Boolean(cohort));
+  const saveReason = title.trim() ? (templatesOnly || cohort ? null : "Choose a cohort first.") : "Give this version a title first.";
+  const canApprove = !saving && Boolean(selected) && Boolean(preview?.success) && !dirty && selected?.status === "DRAFT";
+  const approveReason = !preview ? "Review the impact before you approve this version." : !preview.success ? "Fix the problems the review found first." : null;
+  const next: AcademicModelActionState["next"] = selected?.status === "DRAFT" && !dirty ? "approve" : "save";
+  const actionKey = `${next}:${canSave}:${saveReason ?? ""}:${canApprove}:${approveReason ?? ""}:${saving || previewBusy}:${dirty}`;
+  useEffect(() => {
+    onActionState?.({ next, canSave, saveReason, canApprove, approveReason, busy: saving || previewBusy, dirty });
+    // actionKey captures every input; the callback identity may change on each host render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionKey]);
+  const dirtyListener = useRef(onDirtyChange);
+  useEffect(() => { dirtyListener.current = onDirtyChange; });
+  // A new version that has never been saved (no `selected`) counts as unsaved once it could be saved.
+  const unsaved = dirty || (!selected && canSave);
+  useEffect(() => { dirtyListener.current?.(unsaved, saving); }, [unsaved, saving]);
+  // Reads the latest listener at unmount (kept current by the effect above).
+  useEffect(() => () => dirtyListener.current?.(false, false), []);
+  const handledCommand = useRef<number | null>(command?.nonce ?? null); // seeded: a remount never replays the last command
+  useEffect(() => {
+    if (!command || handledCommand.current === command.nonce) return;
+    handledCommand.current = command.nonce;
+    if (command.id === "history") {
+      const list = document.getElementById(VERSIONS_ID);
+      list?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      list?.focus({ preventScroll: true });
+    } else if (command.id === "save" && canSave) void saveDraft();
+    else if (command.id === "approve" && canApprove) void approve();
+    // Only a new nonce runs a command.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command?.nonce]);
+
   if (loading) return <div className="space-y-4" aria-busy="true"><div className="h-24 animate-pulse rounded-3xl bg-muted"/><div className="h-72 animate-pulse rounded-3xl bg-muted"/></div>;
+  if (loadError && !classes.length && !versions.length) return <ErrorState title={tr("Could not load academic models")} description={loadError} onRetry={() => void load()} />;
 
   return (
     <div className="space-y-5" aria-live="polite">
-      <header className="rounded-[28px] bg-gradient-to-br from-ink-strong via-brand-950 to-brand-900 p-5 text-white shadow-lg sm:p-7">
-        <div className="flex flex-wrap items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10"><BookOpen className="h-5 w-5" aria-hidden="true" /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-white/60">{templatesOnly ? <UiText>School group</UiText> : <UiText>Academic setup</UiText>} · {templatesOnly ? <UiText>Shared rules</UiText> : year}</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight">{templatesOnly ? <UiText>Curriculum templates</UiText> : <UiText>Curriculum, grading &amp; terms</UiText>}</h2>
-            <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-white/70">{templatesOnly ? <UiText>Approve a version once for your school group, then let each campus adopt only the rules you delegate.</UiText> : <UiText>Set one version for a cohort and reporting period. Published reports keep their original grading snapshot.</UiText>}</p>
-          </div>
-          {!templatesOnly ? <label className="space-y-1 text-2xs font-semibold uppercase tracking-wider text-white/60"><span><UiText>Academic year</UiText></span><Input type="number" min={2000} max={2100} value={year} onChange={(event) => setYear(Number(event.target.value))} className="w-28" /></label> : null}
+      {hideHeading ? (
+        <div className="sk-panel flex flex-wrap items-end justify-between gap-3 p-4">
+          <p className="min-w-0 max-w-3xl flex-1 text-sm leading-relaxed text-ink-muted">{templatesOnly ? <UiText>Approve a version once for your school group, then let each campus adopt only the rules you delegate.</UiText> : <UiText>Set one version for a cohort and reporting period. Published reports keep their original grading snapshot.</UiText>}</p>
+          {!templatesOnly ? <FormField name="academic-model-year" label={tr("Academic year")}><Input type="number" min={2000} max={2100} value={year} onChange={(event) => setYear(Number(event.target.value))} className="w-28" /></FormField> : null}
         </div>
-      </header>
+      ) : (
+      // A calm section header on card tokens (R10: no dark hero inside the page card).
+      <header className="sk-panel p-5 sm:p-6">
+          <div className="flex flex-wrap items-start gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-status-brand-surface text-status-brand-text"><BookOpen className="h-5 w-5" aria-hidden="true" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-ink-muted">{templatesOnly ? <UiText>School group</UiText> : <UiText>Academic setup</UiText>} · {templatesOnly ? <UiText>Shared rules</UiText> : <bdi>{year}</bdi>}</p>
+              <h2 className="mt-1 text-xl font-bold tracking-tight text-ink-strong">{templatesOnly ? <UiText>Curriculum templates</UiText> : <UiText>Curriculum, grading &amp; terms</UiText>}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">{templatesOnly ? <UiText>Approve a version once for your school group, then let each campus adopt only the rules you delegate.</UiText> : <UiText>Set one version for a cohort and reporting period. Published reports keep their original grading snapshot.</UiText>}</p>
+            </div>
+            {!templatesOnly ? <FormField name="academic-model-year" label={tr("Academic year")}><Input type="number" min={2000} max={2100} value={year} onChange={(event) => setYear(Number(event.target.value))} className="w-28" /></FormField> : null}
+          </div>
+        </header>
+      )}
 
       {templatesOnly ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          {versions.map((version) => <Button aria-pressed={selected?.id === version.id} variant="choice" key={version.id} type="button" onClick={() => chooseVersion(version)} className={"justify-start " + (cn("p-4 text-start", ""))}><span className="flex items-center justify-between gap-3"><span className="font-bold text-ink-strong">{version.title}</span><span className="rounded-lg bg-muted px-2 py-1 text-2xs font-semibold uppercase text-ink-subtle">{version.status === "TEMPLATE" ? <UiText>Approved</UiText> : <UiText>Draft</UiText>} · v{version.version}</span></span><span className="mt-1 block text-xs text-ink-muted">{version.delegatedOverrideKeys.length ? tr("Delegated local changes: {0}", [version.delegatedOverrideKeys.length]) : <UiText>No local changes delegated</UiText>}{version.delegatedOverrideKeys.length ? ` · ${version.delegatedOverrideKeys.join(", ")}` : ""}</span></Button>)}
-          <Button variant="outline" type="button" onClick={() => resetDraft()} className="flex min-h-24 items-center justify-center gap-2"><Plus aria-hidden="true" className="h-4 w-4"/><UiText>Create a template version</UiText></Button>
+          {versions.map((version) => <Button aria-pressed={selected?.id === version.id} variant="choice" key={version.id} type="button" onClick={() => chooseVersion(version)} className={"justify-start " + (cn("p-4 text-start", ""))}><span className="flex items-center justify-between gap-3"><span className="font-bold text-ink-strong">{version.title}</span><span className="rounded-lg bg-muted px-2 py-1 text-2xs font-semibold text-ink-subtle">{version.status === "TEMPLATE" ? <UiText>Approved</UiText> : <UiText>Draft</UiText>} · <bdi>v{version.version}</bdi></span></span><span className="mt-1 block text-xs text-ink-muted">{version.delegatedOverrideKeys.length ? tr("Delegated local changes: {0}", [version.delegatedOverrideKeys.length]) : <UiText>No local changes delegated</UiText>}{version.delegatedOverrideKeys.length ? ` · ${version.delegatedOverrideKeys.join(", ")}` : ""}</span></Button>)}
+          {/* When the page header owns "New template version" (requestCreate), no second create tile competes with it. */}
+          {requestCreate === undefined ? <Button variant="outline" type="button" onClick={() => resetDraft()} className="flex min-h-24 items-center justify-center gap-2"><Plus aria-hidden="true" className="h-4 w-4"/><UiText>Create a template version</UiText></Button> : null}
+          {requestCreate !== undefined && versions.length === 0 ? <div className="sm:col-span-2"><EmptyState size="sm" icon={BookOpen} title={tr("No template versions yet")} description={tr("Use New template version to draft the first one for your school group.")} /></div> : null}
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(14rem,0.7fr)_minmax(0,2fr)]">
@@ -284,10 +395,10 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
               </Select>
               <p className="mt-2 text-2xs leading-relaxed text-ink-muted"><UiText>All sections with the same class name use the same version. Each section subject is mapped below.</UiText></p>
             </section>
-            {templates.length ? <section className="sk-panel p-4"><label htmlFor="academic-template" className="text-xs font-bold text-ink-strong"><UiText>Approved group template</UiText></label><Select id="academic-template" value={sourceTemplateId} onChange={(event) => addFromTemplate(event.target.value)} className="mt-2 w-full"><option value=""><UiText>Start with custom rules</UiText></option>{templates.map((template) => <option key={template.id} value={template.id}>{template.title} · v{template.version}</option>)}</Select>{selectedTemplate ? <p className="mt-2 flex gap-2 text-2xs leading-relaxed text-ink-muted"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600"/><span>{tr("Inherited rules from {0}", [selectedTemplate.title])}{` v${selectedTemplate.version}. Delegated exceptions: ${selectedTemplate.delegatedOverrideKeys.join(", ") || "none"}.`}</span></p> : null}</section> : null}
-            <section className="sk-panel p-2">
+            {templates.length ? <section className="sk-panel p-4"><label htmlFor="academic-template" className="text-xs font-bold text-ink-strong"><UiText>Approved group template</UiText></label><Select id="academic-template" value={sourceTemplateId} onChange={(event) => addFromTemplate(event.target.value)} className="mt-2 w-full"><option value=""><UiText>Start with custom rules</UiText></option>{templates.map((template) => <option key={template.id} value={template.id}>{template.title} · v{template.version}</option>)}</Select>{selectedTemplate ? <p className="mt-2 flex gap-2 text-2xs leading-relaxed text-ink-muted"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-success-text"/><span>{tr("Inherited rules from {0}", [selectedTemplate.title])} <bdi>v{selectedTemplate.version}</bdi>. {selectedTemplate.delegatedOverrideKeys.length ? tr("Delegated exceptions: {0}.", [selectedTemplate.delegatedOverrideKeys.join(", ")]) : tr("No delegated exceptions.")}</span></p> : null}</section> : null}
+            <section id={VERSIONS_ID} tabIndex={-1} className="sk-panel scroll-mt-4 p-2 outline-none">
               <div className="flex items-center justify-between px-2 py-2"><h3 className="text-xs font-bold text-ink-strong"><UiText>Versions</UiText></h3><span className="text-2xs font-bold text-ink-subtle">{candidateVersions.length}</span></div>
-              {candidateVersions.length ? <ul className="space-y-1">{candidateVersions.map((version) => <li key={version.id}><Button aria-pressed={selected?.id === version.id} variant="choice" type="button" onClick={() => chooseVersion(version)} className={"justify-start " + (cn("flex w-full items-center gap-2 px-3 py-2.5 text-start", ""))}><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-ink-strong">{version.title}</span><span className="mt-0.5 block text-2xs font-semibold text-ink-subtle">v{version.version} · {version.status} · {dateValue(version.effectiveFrom)}</span></span><ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle rtl:rotate-180"/></Button></li>)}</ul> : <p className="px-3 py-4 text-xs text-ink-muted"><UiText>No versions yet. Save a draft to begin.</UiText></p>}
+              {candidateVersions.length ? <ul className="space-y-1">{candidateVersions.map((version) => <li key={version.id}><Button aria-pressed={selected?.id === version.id} variant="choice" type="button" onClick={() => chooseVersion(version)} className={"justify-start " + (cn("flex w-full items-center gap-2 px-3 py-2.5 text-start", ""))}><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold text-ink-strong">{version.title}</span><span className="mt-0.5 block text-2xs font-semibold text-ink-subtle"><bdi>v{version.version}</bdi> · {tr(VERSION_STATUS[version.status] ?? "Draft")} · <bdi>{dateValue(version.effectiveFrom)}</bdi></span></span><ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle rtl:rotate-180"/></Button></li>)}</ul> : <p className="px-3 py-4 text-xs text-ink-muted"><UiText>No versions yet. Save a draft to begin.</UiText></p>}
               <Button variant="outline" type="button" onClick={() => resetDraft()} disabled={!cohort} className="mt-2 flex w-full items-center justify-center gap-2 px-3 py-2.5"><Plus aria-hidden="true" className="h-3.5 w-3.5"/><UiText>Start a new draft</UiText></Button>
             </section>
           </aside>
@@ -297,7 +408,7 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
               <section className="sk-panel p-4 sm:p-5">
                 <div className="mb-4 flex flex-wrap items-start gap-3"><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-ink-strong"><UiText>Academic model builder</UiText></h3><p className="mt-1 text-xs text-ink-muted"><UiText>Complex rules stay in focused forms, and each field works with a keyboard.</UiText></p></div>{selected?.status === "ACTIVE" ? <Button variant="outline" type="button" onClick={cloneActive} className="justify-start inline-flex items-center gap-2 px-3 py-2"><Copy className="h-3.5 w-3.5"/><UiText>Make a new version</UiText></Button> : null}</div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="space-y-1 text-xs font-semibold text-ink-muted"><span><UiText>Version title</UiText></span><Input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={100} className="w-full" /></label>
+                  <label className="space-y-1 text-xs font-semibold text-ink-muted"><span><UiText>Version title</UiText></span><Input id={VERSION_TITLE_ID} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={100} className="w-full" /></label>
                   {!templatesOnly ? <><label className="space-y-1 text-xs font-semibold text-ink-muted"><span><UiText>Effective from</UiText></span><Input aria-describedby="academic-effective-help" type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} className="w-full" /></label><label className="space-y-1 text-xs font-semibold text-ink-muted"><span><UiText>Effective through (optional)</UiText></span><Input type="date" value={effectiveTo} onChange={(event) => setEffectiveTo(event.target.value)} className="w-full" /></label><p id="academic-effective-help" className="text-2xs text-ink-muted sm:col-span-2"><UiText>New versions start on this date. Published reports keep the grading version already captured in their approval snapshot.</UiText></p></> : null}
                 </div>
                 {!templatesOnly ? <div className="mt-4 flex flex-wrap gap-2">{selectedClasses.map((cls) => <span key={cls.id} className="rounded-lg bg-brand-100 px-2.5 py-1 text-2xs font-bold text-primary">{cls.name} · {cls.section || <UiText>Unsectioned</UiText>}</span>)}</div> : null}
@@ -315,8 +426,8 @@ export function AcademicModelPanel({ campusId, templatesOnly = false }: { campus
 
               <section id="academic-model-progression" className="sk-panel scroll-mt-6 p-4 sm:p-5"><h3 className="text-sm font-bold text-ink-strong"><UiText>Progression and report rules</UiText></h3><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs font-semibold text-ink-muted"><span className="inline-flex items-center gap-1"><UiText>Progression pass threshold</UiText><InfoTip content={tr("Progression rule: the overall percentage a learner must reach, from 0 to 100.")} /></span><Input type="number" min={0} max={100} value={configuration.progression.passPercentage} onChange={(event) => updateProgression("passPercentage", Number(event.target.value))} className="w-full"/></label><label className="space-y-1 text-xs font-semibold text-ink-muted"><span className="inline-flex items-center gap-1"><UiText>Minimum attendance</UiText><InfoTip content={tr("Progression rule: the attendance percentage a learner must reach, from 0 to 100.")} /></span><Input type="number" min={0} max={100} value={configuration.progression.attendanceMinimum} onChange={(event) => updateProgression("attendanceMinimum", Number(event.target.value))} className="w-full"/></label></div><label className="mt-3 flex items-center gap-2 text-xs font-semibold"><Checkbox  checked={configuration.progression.conditionalPromotion} onChange={(event) => updateProgression("conditionalPromotion", event.target.checked)} className=""/><UiText>Allow conditional promotion review</UiText></label><div className="mt-3 flex flex-wrap gap-3 border-t border-edge/15 pt-3">{([["showComponentBreakdown", "Show component breakdown"], ["showAttendance", "Show attendance"], ["showRank", "Show rank"]] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-xs font-semibold"><Checkbox  checked={configuration.report[key]} onChange={(event) => setConfiguration((current) => ({ ...current, report: { ...current.report, [key]: event.target.checked } }))} className=""/>{tr(label)}</label>)}</div></section>
 
-              <section className="sk-panel p-4 sm:p-5"><div className="flex flex-wrap gap-2"><Button variant="dark" type="button" onClick={saveDraft} disabled={saving || !title.trim() || (!templatesOnly && !cohort)} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Save className="h-4 w-4"/><UiText>Save new draft</UiText></Button><Button variant="outline" type="button" onClick={() => void requestPreview("preview")} disabled={previewBusy || !selected || dirty || selected.status !== "DRAFT"} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Scale className="h-4 w-4"/><UiText>Review impact &amp; simulate</UiText></Button><Button variant="outline" type="button" onClick={() => void requestPreview("simulate")} disabled={previewBusy || !selected || dirty || selected.status !== "DRAFT"} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Scale className="h-4 w-4"/><UiText>Run sample calculation</UiText></Button><Button variant="default" type="button" onClick={() => void approve()} disabled={saving || !selected || !preview?.success || dirty || selected.status !== "DRAFT"} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Check className="h-4 w-4"/><UiText>{templatesOnly ? "Approve shared template" : "Approve and activate version"}</UiText></Button></div>{selected && dirty ? <p className="mt-3 flex items-center gap-2 text-2xs font-semibold text-amber-700"><AlertTriangle className="h-4 w-4"/><UiText>Save a new draft to include these edits in the review.</UiText></p> : null}
-                {preview ? <div className="mt-4 rounded-2xl border border-edge/20 bg-surface-subtle p-4"><div className="flex items-start gap-2"><span className={cn("mt-0.5 rounded-full p-1", preview.success ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>{preview.success ? <Check className="h-4 w-4"/> : <AlertTriangle className="h-4 w-4"/>}</span><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-ink-strong"><UiText>Configuration diff and impact</UiText></h3>{preview.changedSections?.length ? <p className="mt-1 text-xs text-ink-muted"><UiText>Changed rules</UiText>: {preview.changedSections.map((item) => tr(item)).join(", ")}</p> : null}</div></div>{preview.problems?.length ? <ul className="mt-3 space-y-2">{preview.problems.map((problem, i) => <li key={`${problem.code}-${i}`}><a href={problem.repairHref} className="flex gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 underline decoration-amber-400 underline-offset-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/>{problem.message}</a></li>)}</ul> : null}{preview.impact ? <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{([["students", "Students"], ["exams", "Existing exams"], ["publishedReports", "Published reports"], ["pendingReports", "Pending reports"]] as const).map(([key, label]) => <div key={key} className="rounded-xl bg-white p-3"><dt className="text-2xs font-bold text-ink-subtle">{tr(label)}</dt><dd className="mt-1 text-xl font-bold text-ink-strong">{preview.impact[key]}</dd></div>)}</dl> : null}<div className="mt-3 border-t border-edge/15 pt-3"><p className="text-xs font-bold text-ink-strong"><UiText>Sample learner</UiText> · {preview.simulation.overallPercentage}% · {preview.simulation.overallGrade} · {preview.simulation.passed ? <UiText>Pass</UiText> : <UiText>Review</UiText>}</p><ul className="mt-2 space-y-1">{preview.simulation.components.map((item, i) => <li key={i} className="flex flex-wrap justify-between gap-2 text-2xs text-ink-muted"><span>{item.message}</span><span className="font-bold tabular-nums">{item.contribution.toFixed(2)}</span></li>)}</ul></div></div> : null}
+              <section className="sk-panel p-4 sm:p-5"><div className="flex flex-wrap gap-2">{hideActions || hideSave ? null : <Button variant="outline" type="button" onClick={saveDraft} disabled={saving || !title.trim() || (!templatesOnly && !cohort)} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Save aria-hidden="true" className="h-4 w-4"/><UiText>Save new draft</UiText></Button>}<Button variant="outline" type="button" onClick={() => void requestPreview("preview")} disabled={previewBusy || !selected || dirty || selected.status !== "DRAFT"} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Scale className="h-4 w-4"/><UiText>Review impact &amp; simulate</UiText></Button><Button variant="outline" type="button" onClick={() => void requestPreview("simulate")} disabled={previewBusy || !selected || dirty || selected.status !== "DRAFT"} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Scale className="h-4 w-4"/><UiText>Run sample calculation</UiText></Button>{hideActions ? null : <Button variant="default" type="button" onClick={() => void approve()} disabled={saving || !selected || !preview?.success || dirty || selected.status !== "DRAFT"} className="inline-flex min-h-11 items-center justify-center gap-2 px-4"><Check aria-hidden="true" className="h-4 w-4"/><UiText>{templatesOnly ? "Approve shared template" : "Approve and activate version"}</UiText></Button>}</div>{selected && dirty ? <p className="mt-3 flex items-center gap-2 text-2xs font-semibold text-status-warning-text"><AlertTriangle aria-hidden="true" className="h-4 w-4"/><UiText>Save a new draft to include these edits in the review.</UiText></p> : null}
+                {preview ? <div className="mt-4 rounded-2xl border border-edge/20 bg-surface-subtle p-4"><div className="flex items-start gap-2"><span className={cn("mt-0.5 rounded-full p-1", preview.success ? "bg-status-success-surface text-status-success-text" : "bg-status-warning-surface text-status-warning-text")}>{preview.success ? <Check className="h-4 w-4"/> : <AlertTriangle className="h-4 w-4"/>}</span><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-ink-strong"><UiText>Configuration diff and impact</UiText></h3>{preview.changedSections?.length ? <p className="mt-1 text-xs text-ink-muted"><UiText>Changed rules</UiText>: {preview.changedSections.map((item) => tr(item)).join(", ")}</p> : null}</div></div>{preview.problems?.length ? <ul className="mt-3 space-y-2">{preview.problems.map((problem, i) => <li key={`${problem.code}-${i}`}><a href={problem.repairHref} className="flex gap-2 rounded-xl bg-status-warning-surface px-3 py-2 text-xs font-semibold text-status-warning-text underline underline-offset-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/>{problem.message}</a></li>)}</ul> : null}{preview.impact ? <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{([["students", "Students"], ["exams", "Existing exams"], ["publishedReports", "Published reports"], ["pendingReports", "Pending reports"]] as const).map(([key, label]) => <div key={key} className="rounded-xl bg-card p-3"><dt className="text-2xs font-bold text-ink-subtle">{tr(label)}</dt><dd className="mt-1 text-xl font-bold text-ink-strong">{preview.impact[key]}</dd></div>)}</dl> : null}<div className="mt-3 border-t border-edge/15 pt-3"><p className="text-xs font-bold text-ink-strong"><UiText>Sample learner</UiText> · {preview.simulation.overallPercentage}% · {preview.simulation.overallGrade} · {preview.simulation.passed ? <UiText>Pass</UiText> : <UiText>Review</UiText>}</p><ul className="mt-2 space-y-1">{preview.simulation.components.map((item, i) => <li key={i} className="flex flex-wrap justify-between gap-2 text-2xs text-ink-muted"><span>{item.message}</span><span className="font-bold tabular-nums">{item.contribution.toFixed(2)}</span></li>)}</ul></div></div> : null}
                 {simulation ? <div className="mt-4 rounded-2xl border border-edge/20 bg-surface-subtle p-4"><h3 className="text-sm font-bold text-ink-strong"><UiText>Sample calculation</UiText> · {simulation.overallPercentage}% · {simulation.overallGrade}</h3><ul className="mt-2 space-y-1">{simulation.components.map((item, i) => <li key={i} className="text-xs text-ink-muted">{item.message}</li>)}</ul></div> : null}
               </section>
             </> : null}

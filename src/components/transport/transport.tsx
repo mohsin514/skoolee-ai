@@ -6,11 +6,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MapPin, Users } from "lucide-react";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
 
 // SKO-437: route riders and stops, dated trips with a frozen manifest, and the crew's trip desk.
 // The desk shows unresolved riders first and uses large actions; every event carries the time it happened
@@ -105,7 +108,7 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
       <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="handedOver">{data.counts.handedOver}</p><p className="text-xs">{ui("Handed over")}</p></div>
       <div className="sk-panel p-3"><p className="text-2xl font-bold tabular-nums text-ink-strong" data-count="absent">{data.counts.absent}</p><p className="text-xs">{ui("Not travelling")}</p></div>
     </div>
-    {data.exceptions.some(e => e.status === "OPEN") ? <div className="sk-panel space-y-2 border-amber-400 p-3" data-trip-exceptions>
+    {data.exceptions.some(e => e.status === "OPEN") ? <div className="sk-panel space-y-2 border-status-warning-border p-3" data-trip-exceptions>
       <h3 className="font-bold">{data.exceptions.filter(e => e.status === "OPEN").length === 1 ? ui("One exception needs attention") : ui("{0} exceptions need attention", [String(data.exceptions.filter(e => e.status === "OPEN").length)])}</h3>
       {data.exceptions.filter(e => e.status === "OPEN").map(e => <div key={e.id} className="rounded-xl border px-3 py-2 text-sm" data-trip-exception={e.kind}>
         <p className="font-bold">{kindLabel(ui, e.kind)}{e.studentId ? <> · <bdi>{data.passengers.find(p => p.studentId === e.studentId)?.name ?? ""}</bdi></> : null}</p>
@@ -144,10 +147,10 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
         <Button size="lg" disabled={busy || !canClose} onClick={() => void lead({ action: "close" }, "Trip reconciled and vehicle check recorded.")} data-close>{ui("Close trip")}</Button>
         {!canClose ? <p className="text-xs text-ink-muted" data-close-blocked>{queue.length ? ui("Send the events saved on this device first.") : data.counts.unresolved ? ui("{0} students still need a handover or an absence.", [String(data.counts.unresolved)]) : data.counts.openExceptions ? ui("Resolve the open exceptions first.") : ui("Record the empty-vehicle check first.")}</p> : null}
       </div>
-      {data.lead ? <div className="space-y-2 rounded-xl border border-red-300 p-3" data-emergency-close><h3 className="font-bold">{ui("Emergency closure")}</h3><p className="text-xs text-ink-muted">{ui("Only after escalation. Every unresolved student becomes an exception you own.")}</p><Input value={emergency} onChange={e => setEmergency(e.target.value)} placeholder={ui("Escalation and reason")} aria-label={ui("Escalation and reason")} dir="auto" data-emergency-reason /><Button variant="destructive" disabled={busy || !emergency.trim()} onClick={() => void lead({ action: "emergency-close", reason: emergency }, "Trip closed in an emergency. Exceptions remain open.")} data-emergency-submit>{ui("Close in an emergency")}</Button></div> : null}
+      {data.lead ? <div className="space-y-2 rounded-xl border border-status-error-border p-3" data-emergency-close><h3 className="font-bold">{ui("Emergency closure")}</h3><p className="text-xs text-ink-muted">{ui("Only after escalation. Every unresolved student becomes an exception you own.")}</p><Input value={emergency} onChange={e => setEmergency(e.target.value)} placeholder={ui("Escalation and reason")} aria-label={ui("Escalation and reason")} dir="auto" data-emergency-reason /><Button variant="destructive" disabled={busy || !emergency.trim()} onClick={() => void lead({ action: "emergency-close", reason: emergency }, "Trip closed in an emergency. Exceptions remain open.")} data-emergency-submit>{ui("Close in an emergency")}</Button></div> : null}
     </div> : <div className="sk-panel p-4 text-sm" data-trip-closed>{t.status === "CLOSED" ? ui("Trip reconciled and vehicle check recorded.") : ui("Closed in an emergency: {0}", [t.emergencyReason ?? ""])}</div>}
     {data.lead && data.events.length ? <details className="sk-panel p-4 text-sm" data-trip-history><summary className="cursor-pointer font-bold">{ui("Event history")}</summary><ol className="mt-2 space-y-1">{data.events.map(e => <li key={e.id} data-trip-event={e.kind}><bdi>{dateTime(e.occurredAt)}</bdi> · {e.kind} · <bdi>{e.actor}</bdi>{e.studentId ? <> · <bdi>{data.passengers.find(p => p.studentId === e.studentId)?.name ?? ""}</bdi></> : null}{Math.abs(new Date(e.recordedAt).getTime() - new Date(e.occurredAt).getTime()) > 120_000 ? <> · {ui("received {0}", [dateTime(e.recordedAt)])}</> : null}</li>)}</ol></details> : null}
-    {hand ? <ModalFrame title={ui("Hand over {0}", [hand.name])} onClose={() => setHand(null)}>
+    {hand ? <Modal title={ui("Hand over {0}", [hand.name])} onClose={() => setHand(null)}>
       <div className="space-y-3" data-handover-form>
         <p className="text-sm"><bdi>{hand.name}</bdi> · <bdi>{t.label}</bdi></p>
         <FormField name="ho-type" label={ui("Received by")}><Select value={handForm.receiverType} onChange={e => setHandForm({ ...handForm, receiverType: e.target.value, receiverUserId: "" })} data-handover-type><option value="GUARDIAN">{ui("Guardian")}</option><option value="STAFF">{ui("School staff")}</option><option value="AUTHORIZED_ADULT">{ui("Authorised adult")}</option></Select></FormField>
@@ -156,14 +159,14 @@ export function TripView({ tripId, onBack }: { tripId: string; onBack?: () => vo
         {handForm.receiverType !== "STAFF" ? <label className="flex items-start gap-2 text-sm"><Checkbox checked={handForm.identityChecked} onChange={e => setHandForm({ ...handForm, identityChecked: e.target.checked })} data-handover-identity /><span>{ui("I checked their identity in line with the school's procedure.")}</span></label> : null}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setHand(null)}>{ui("Back")}</Button><Button disabled={busy || (handForm.receiverType === "AUTHORIZED_ADULT" ? !handForm.receiverName.trim() : !handForm.receiverUserId) || (handForm.receiverType !== "STAFF" && !handForm.identityChecked)} onClick={() => void send({ action: "handover", studentId: hand.studentId, ...handForm }, "Handover", "Handover recorded.").then(ok => ok && setHand(null))} data-handover-save>{ui("Confirm handover")}</Button></div>
       </div>
-    </ModalFrame> : null}
-    {absent ? <ModalFrame title={ui("{0} is not travelling", [absent.name])} onClose={() => setAbsent(null)}><div className="space-y-3" data-absent-form><FormField name="ab-reason" label={ui("Reason")}><Input value={absentReason} onChange={e => setAbsentReason(e.target.value)} dir="auto" data-absent-reason /></FormField><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setAbsent(null)}>{ui("Back")}</Button><Button disabled={busy || !absentReason.trim()} onClick={() => void send({ action: "absent", studentId: absent.studentId, reason: absentReason }, "Not travelling", "Recorded as not travelling.").then(ok => ok && setAbsent(null))} loading={busy} data-absent-save>{ui("Save")}</Button></div></div></ModalFrame> : null}
-    {report ? <ModalFrame title={kindLabel(ui, report.kind)} onClose={() => setReport(null)}><div className="space-y-3" data-report-form>{report.kind === "MISSING_CHILD" ? <Select value={report.kind} onChange={e => setReport({ ...report, kind: e.target.value })} aria-label={ui("What happened?")}><option value="MISSING_CHILD">{ui("Missing child")}</option></Select> : null}<FormField name="rp-note" label={ui("What happened?")} hint={ui("The coordinator owns this exception until it is resolved.")}><Input value={report.note} onChange={e => setReport({ ...report, note: e.target.value })} dir="auto" data-report-note /></FormField><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReport(null)}>{ui("Back")}</Button><Button disabled={busy || !report.note.trim()} onClick={() => void send({ action: "exception", ...report }, "Exception", "Exception reported to the coordinator.").then(ok => ok && setReport(null))} loading={busy} data-report-save>{ui("Report exception")}</Button></div></div></ModalFrame> : null}
-    {amendForm ? <ModalFrame title={amendForm.change === "add" ? ui("Add student by amendment") : ui("Remove by amendment")} onClose={() => setAmendForm(null)}><div className="space-y-3" data-amend-form>
+    </Modal> : null}
+    {absent ? <Modal title={ui("{0} is not travelling", [absent.name])} onClose={() => setAbsent(null)}><div className="space-y-3" data-absent-form><FormField name="ab-reason" label={ui("Reason")}><Input value={absentReason} onChange={e => setAbsentReason(e.target.value)} dir="auto" data-absent-reason /></FormField><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setAbsent(null)}>{ui("Back")}</Button><Button disabled={busy || !absentReason.trim()} onClick={() => void send({ action: "absent", studentId: absent.studentId, reason: absentReason }, "Not travelling", "Recorded as not travelling.").then(ok => ok && setAbsent(null))} loading={busy} data-absent-save>{ui("Save")}</Button></div></div></Modal> : null}
+    {report ? <Modal title={kindLabel(ui, report.kind)} onClose={() => setReport(null)}><div className="space-y-3" data-report-form>{report.kind === "MISSING_CHILD" ? <Select value={report.kind} onChange={e => setReport({ ...report, kind: e.target.value })} aria-label={ui("What happened?")}><option value="MISSING_CHILD">{ui("Missing child")}</option></Select> : null}<FormField name="rp-note" label={ui("What happened?")} hint={ui("The coordinator owns this exception until it is resolved.")}><Input value={report.note} onChange={e => setReport({ ...report, note: e.target.value })} dir="auto" data-report-note /></FormField><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReport(null)}>{ui("Back")}</Button><Button disabled={busy || !report.note.trim()} onClick={() => void send({ action: "exception", ...report }, "Exception", "Exception reported to the coordinator.").then(ok => ok && setReport(null))} loading={busy} data-report-save>{ui("Report exception")}</Button></div></div></Modal> : null}
+    {amendForm ? <Modal title={amendForm.change === "add" ? ui("Add student by amendment") : ui("Remove by amendment")} onClose={() => setAmendForm(null)}><div className="space-y-3" data-amend-form>
       {amendForm.change === "add" ? <><FormField name="am-q" label={ui("Student")}><Input value={q} onChange={e => setQ(e.target.value)} placeholder={ui("Type at least two letters of a name or roll number")} data-amend-search /></FormField>{students.length ? <Select value={amendForm.studentId} onChange={e => setAmendForm({ ...amendForm, studentId: e.target.value })} aria-label={ui("Student")} data-amend-student><option value="">{ui("Choose")}</option>{students.map(s => <option key={s.id} value={s.id}>{s.fullName}</option>)}</Select> : null}</> : <p className="text-sm"><bdi>{data.passengers.find(p => p.studentId === amendForm.studentId)?.name}</bdi></p>}
       <FormField name="am-reason" label={ui("Reason")} hint={ui("The original manifest is kept; this change is recorded with your name.")}><Input value={amendForm.reason} onChange={e => setAmendForm({ ...amendForm, reason: e.target.value })} dir="auto" data-amend-reason /></FormField>
       <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setAmendForm(null)}>{ui("Back")}</Button><Button disabled={busy || !amendForm.studentId || !amendForm.reason.trim()} onClick={() => void lead({ action: "amend", ...amendForm }, "Amendment recorded.").then(ok => ok && setAmendForm(null))} data-amend-save>{ui("Record amendment")}</Button></div>
-    </div></ModalFrame> : null}
+    </div></Modal> : null}
   </section>;
 }
 
@@ -185,10 +188,10 @@ export function TripDesk() {
   const load = useCallback(() => call("/api/transport/trips").then(d => { setData(d); setError(null); }).catch(e => setError(e.message)), []);
   useEffect(() => { if (!open) void load(); }, [load, open]);
   if (open) return <TripView tripId={open} onBack={() => setOpen(null)} />;
-  if (error) return <p className="sk-panel p-4 text-sm" data-trip-desk-error>{ui(error)}</p>;
-  if (!data) return <p className="text-sm text-ink-muted">{ui("Loading the latest manifest; boarding actions are unavailable.")}</p>;
+  if (error) return <div data-trip-desk-error><ErrorState description={ui(error)} onRetry={() => void load()} retryLabel={ui("Try again")} /></div>;
+  if (!data) return <SkeletonList rows={3} label={ui("Loading the latest manifest; boarding actions are unavailable.")} />;
   return <section className="min-w-0 space-y-3" data-trip-desk>
-    <header><h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("Today's trips")}</h1><p className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></p></header>
+    <PageHeader title="Today's trip" description="Board and drop off riders from the live manifest; families see each step." status={<span className="text-sm text-ink-muted"><bdi>{data.serviceDate}</bdi></span>} />
     {data.trips.length ? <TripList rows={data.trips} onOpen={setOpen} /> : <div className="sk-panel" data-trip-empty><EmptyState size="sm" title={ui("No trip assigned for today. Contact the transport coordinator.")} /></div>}
   </section>;
 }

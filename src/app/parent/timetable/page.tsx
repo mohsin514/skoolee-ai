@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "@/components/ui/toast";
 import { Clock, Lock } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
-import { ParentEmptyState, ParentTimetableSkeleton } from "@/components/parent/parent-components";
+import { ParentTimetableSkeleton } from "@/components/parent/parent-components";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
-import { FamilyMeetings } from "@/components/meetings/family-meetings";
+import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { useParentData } from "../parent-data-context";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
@@ -18,21 +18,20 @@ const DAYS = [
   { num: 4, short: "Thu" }, { num: 5, short: "Fri" }, { num: 6, short: "Sat" },
 ];
 
+/** Subject colours from the design tokens (R10), so the grid reads the same in every theme. */
 const COLORS = [
-  { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300" },
-  { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300" },
-  { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
-  { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
-  { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300" },
-  { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
-  { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300" },
-  { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300" },
+  { bg: "bg-status-brand-surface", text: "text-status-brand-text", border: "border-status-brand-border" },
+  { bg: "bg-status-info-surface", text: "text-status-info-text", border: "border-status-info-border" },
+  { bg: "bg-status-success-surface", text: "text-status-success-text", border: "border-status-success-border" },
+  { bg: "bg-status-warning-surface", text: "text-status-warning-text", border: "border-status-warning-border" },
+  { bg: "bg-status-error-surface", text: "text-status-error-text", border: "border-status-error-border" },
+  { bg: "bg-brand-100", text: "text-primary", border: "border-brand-200" },
+  { bg: "bg-surface-subtle", text: "text-ink-strong", border: "border-border-subtle" },
 ];
 
 export default function ParentTimetablePage() {
   const tr = useUiText();
-  const { token, selectedStudentId, children } = useParentData();
-  const meetingChildId = selectedStudentId ?? children[0]?.id ?? null;
+  const { selectedStudentId, data } = useParentData();
   const [timetableData, setTimetableData] = useState<any>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,11 +45,11 @@ export default function ParentTimetablePage() {
     setLoadError(null);
     try {
       const params = new URLSearchParams();
-      if (token) params.set("token", token);
       // Follow the child switcher, or a sibling's timetable would keep
       // showing the default child's schedule.
       if (selectedStudentId) params.set("studentId", selectedStudentId);
-      const res = await fetch(`/api/parent/timetable?${params}`);
+      const query = params.toString();
+      const res = await fetch(`/api/parent/timetable${query ? `?${query}` : ""}`);
       const json = await res.json();
       if (json.success) {
         setTimetableData(json.data);
@@ -59,11 +58,11 @@ export default function ParentTimetablePage() {
         setLoadError(res.status === 403 ? "denied" : "failed");
       }
     } catch {
+      // Reported once, inline, by the ErrorState below (R4) — not also as a toast.
       setLoadError("failed");
-      toast.error(tr("Could not load the timetable. Please try again."));
     }
     setLoading(false);
-  }, [token, selectedStudentId, tr]);
+  }, [selectedStudentId]);
 
   // Only render the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = DAYS.filter((d) => !weekendDays.includes(d.num));
@@ -106,17 +105,15 @@ export default function ParentTimetablePage() {
 
   return (
     <ParentPage
-      tone="timetable"
       icon={Clock}
-      eyebrow={<>{timetableData ? tr("{0} periods · {1}", [periods.length, visibleDays.map((d) => tr(d.short)).join("-")]) : tr("Weekly class schedule")}</>}
-      title={tr("Timetable")}
-      summary={tr("Your child’s weekly class schedule.")}
+      title="Timetable & exams"
+      description={data?.student?.fullName ? tr("{0}'s weekly class schedule, exam dates and the school calendar.", [`\u2068${data.student.fullName}\u2069`]) : tr("Your child’s weekly class schedule.")}
     >
       <div className="space-y-3">
         {loading ? (
           <ParentTimetableSkeleton weekendDays={weekendDays} />
         ) : loadError === "denied" ? (
-          <ParentEmptyState icon={Lock} title={tr("Timetable not shared")} description={tr("The school has not shared the timetable with this account. Contact the school office if you need it.")} />
+          <EmptyState size="sm" icon={Lock} title={tr("Timetable not shared")} description={tr("The school has not shared the timetable with this account. Contact the school office if you need it.")} />
         ) : loadError ? (
           <div className="sk-panel">
             <ErrorState onRetry={loadTimetable} />
@@ -128,7 +125,7 @@ export default function ParentTimetablePage() {
                 const c = colorMap.get(name);
                 return (
                   <span key={name} className={`inline-flex max-w-full items-center rounded-full border ${c?.border} ${c?.bg} px-2.5 py-1`}>
-                    <span className={`text-2xs font-semibold ${c?.text} [overflow-wrap:anywhere]`}>{name}</span>
+                    <bdi className={`text-2xs font-semibold ${c?.text} [overflow-wrap:anywhere]`}>{name}</bdi>
                   </span>
                 );
               })}
@@ -184,11 +181,11 @@ export default function ParentTimetablePage() {
             </div>
           </div>
         ) : (
-          <ParentEmptyState icon={Clock} title={tr("No timetable published")} description={tr("The class timetable will appear here once published by the school.")} />
+          <EmptyState size="sm" icon={Clock} title={tr("No timetable published")} description={tr("The class timetable will appear here once published by the school.")} />
         )}
-        <ExamDateSheet token={token || undefined} />
-        {/* SKO-420: book a teacher meeting (signed-in guardians; a link cannot book). */}
-        {!token && meetingChildId ? <div className="mt-6"><FamilyMeetings key={meetingChildId} studentId={meetingChildId} /></div> : null}
+        <ExamDateSheet />
+        {/* M96: the school calendar moved here from Home. Meetings moved to Meet a teacher (M92). */}
+        <AcademicCalendar readOnly role="PARENT" />
       </div>
     </ParentPage>
   );

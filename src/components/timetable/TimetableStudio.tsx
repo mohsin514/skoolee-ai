@@ -1,7 +1,7 @@
 "use client";
 import { InputGroup } from "@/components/ui/input-group";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -37,11 +37,12 @@ import { TimetableGrid, type GridDensity } from "./TimetableGrid";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { PublicationReview, PublicationStatus } from "./PublicationReview";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
@@ -155,10 +156,14 @@ const SUBJECT_COLORS: SubjectColor[] = [
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   BREAK: { bg: "bg-muted", text: "text-ink-muted", label: "Break" },
-  PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/60", label: "Prayer / Namaz" },
-  ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/60", label: "Assembly" },
-  ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
+  PRAYER: { bg: "bg-status-warning-surface/80", text: "text-status-warning-text/80", label: "Prayer / Namaz" },
+  ASSEMBLY: { bg: "bg-status-info-surface/80", text: "text-status-info-text/80", label: "Assembly" },
+  ACTIVITY: { bg: "bg-status-success-surface/80", text: "text-status-success-text/80", label: "Activity" },
 };
+
+
+/** Slot-type labels (EN UI keys; rendered through ui()). */
+const SLOT_TYPE_LABELS: Record<string, string> = { CLASS: "Class", BREAK: "Break", PRAYER: "Prayer", ASSEMBLY: "Assembly", ACTIVITY: "Activity" };
 
 interface ClassOption {
   id: string;
@@ -277,14 +282,15 @@ function PeriodConfigModal({
   return (
     <Modal
       title={ui("Configure Periods")}
-      eyebrow="Timetable Setup"
+      eyebrow={ui("Timetable setup")}
       subtitle={ui("Set start/end times and types for each period.")}
       icon={Clock}
       size="sm"
       onClose={onClose}
       footer={
         <ModalActions
-          actionLabel={isNew ? "Create Timetable" : "Save Periods"}
+          actionLabel={ui(isNew ? "Create timetable" : "Save periods")}
+          cancelLabel={ui("Cancel")}
           onCancel={onClose}
           onAction={() => onSave(localPeriods)}
         />
@@ -297,37 +303,39 @@ function PeriodConfigModal({
         <div className="space-y-3 pe-1">
           {localPeriods.map((p, i) => (
             <div key={i} className="flex items-center gap-2 rounded-2xl bg-muted p-3">
-              <span className="w-6 text-center text-2xs font-bold text-primary">P{p.period}</span>
+              <span className="w-8 text-center text-2xs font-bold text-primary" title={ui("Period {0}", [p.period])}>{ui("P{0}", [p.period])}</span>
               <SystemInput
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
+                aria-label={ui("Period {0} starts", [p.period])}
                 className="w-28 px-3 py-2"
               />
-              <span className="text-2xs font-bold text-ink-subtle">to</span>
+              <span className="text-2xs font-bold text-ink-subtle">{ui("to")}</span>
               <SystemInput
                 type="time"
                 value={p.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
+                aria-label={ui("Period {0} ends", [p.period])}
                 className="w-28 px-3 py-2"
               />
               <SystemSelect
                 value={p.type}
                 onChange={(e) => updatePeriod(i, "type", e.target.value)}
+                aria-label={ui("Period {0} type", [p.period])}
                 className="flex-1 px-3 py-2"
               >
-                <option value="CLASS">Class</option>
-                <option value="BREAK">Break</option>
-                <option value="PRAYER">Prayer</option>
-                <option value="ASSEMBLY">Assembly</option>
-                <option value="ACTIVITY">Activity</option>
+                {Object.entries(SLOT_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{ui(label)}</option>
+                ))}
               </SystemSelect>
               <Button variant="destructive" size="icon"
                 type="button"
                 onClick={() => removePeriod(i)}
+                aria-label={ui("Remove period {0}", [p.period])}
                 className="flex items-center justify-center"
               >
-                <X className="w-3.5 h-3.5" />
+                <X aria-hidden="true" className="w-3.5 h-3.5" />
               </Button>
             </div>
           ))}
@@ -336,7 +344,7 @@ function PeriodConfigModal({
             onClick={addPeriod}
             className="flex w-full items-center justify-center gap-2"
           >
-            <Plus className="w-4 h-4" />Add Period
+            <Plus aria-hidden="true" className="w-4 h-4" />{ui("Add period")}
           </Button>
         </div>
     </Modal>
@@ -396,7 +404,7 @@ function SlotEditorModal({
     return () => { cancelled = true; };
   }, [slot, activeTimetableId, campusId]);
 
-  const dayName = DAYS.find((d) => d.num === slot.dayOfWeek)?.full || "";
+  const dayName = ui(DAYS.find((d) => d.num === slot.dayOfWeek)?.full || "");
 
   useEffect(() => {
     if (subjectId && !teacherId) {
@@ -426,7 +434,7 @@ function SlotEditorModal({
   return (
     <Modal
       title={ui("{0} — Period {1}", [dayName, String(slot.periodNumber)])}
-      eyebrow="Edit Slot"
+      eyebrow={ui("Edit slot")}
       subtitle={`${slot.startTime} – ${slot.endTime}`}
       icon={Pencil}
       size="xs"
@@ -438,14 +446,14 @@ function SlotEditorModal({
             onClick={handleClear}
             className="flex justify-start items-center gap-1.5"
           >
-            <X className="w-3 h-3" />Clear
+            <X aria-hidden="true" className="w-3 h-3" />{ui("Clear")}
           </Button>
           <Button variant="default" size="sm"
             type="button"
             onClick={handleSave}
             className="flex justify-start items-center gap-1.5"
           >
-            <Check className="w-3.5 h-3.5" />Apply
+            <Check aria-hidden="true" className="w-3.5 h-3.5" />{ui("Apply")}
           </Button>
         </div>
       }
@@ -453,16 +461,16 @@ function SlotEditorModal({
 
         <div className="space-y-4">
           <div>
-            <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
-            <div className="flex gap-1 rounded-2xl bg-muted p-1">
-              {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
+            <p id="slot-type-label" className="text-xs font-semibold text-ink-muted mb-1.5 block">{ui("Slot type")}</p>
+            <div role="group" aria-labelledby="slot-type-label" className="flex flex-wrap gap-1 rounded-2xl bg-muted p-1">
+              {Object.entries(SLOT_TYPE_LABELS).map(([type, label]) => (
                 <Button aria-pressed={slotType === type} variant="choice" size="sm"
                   key={type}
                   type="button"
                   onClick={() => setSlotType(type)}
                   className="flex-1"
                 >
-                  {type}
+                  {ui(label)}
                 </Button>
               ))}
             </div>
@@ -471,7 +479,7 @@ function SlotEditorModal({
           {slotType === "CLASS" && (
             <>
               <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
+                <label className="text-xs font-semibold text-ink-muted mb-1.5 block">{ui("Subject")}</label>
                 <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
@@ -485,7 +493,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">
+                <label className="text-xs font-semibold text-ink-muted mb-1.5 block">
                   {ui("Teacher")} {loadingAvail && <><Loader2 aria-hidden="true" className="inline w-3 h-3 animate-spin" /><span role="status" className="sr-only">{ui("Checking availability")}</span></>}
                 </label>
                 <SystemSelect
@@ -504,7 +512,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">
+                <label className="text-xs font-semibold text-ink-muted mb-1.5 block">
                   {ui("Room (Optional)")} {loadingAvail && <Loader2 aria-hidden="true" className="inline w-3 h-3 animate-spin" />}
                 </label>
                 <SystemSelect
@@ -515,7 +523,7 @@ function SlotEditorModal({
                   <option value="">{ui("— No room —")}</option>
                   {freeRooms.map((r) => (
                     <option key={r.id} value={r.id}>
-                      {r.roomNumber}{r.capacity > 0 ? ` (${r.capacity} seats)` : ""}
+                      {r.capacity > 0 ? ui("{0} ({1} seats)", [r.roomNumber, r.capacity]) : r.roomNumber}
                     </option>
                   ))}
                 </SystemSelect>
@@ -543,6 +551,7 @@ function RoutinePrintGrid({
   days: GridDay[];
   cells: ({ label: string; sub: string; type: string } | null)[][];
 }) {
+  const ui = useUiText();
   return (
     <div className="routine-print">
       <style>{`
@@ -550,7 +559,7 @@ function RoutinePrintGrid({
         .routine-print h2 { font-size: 16px; font-weight: 800; margin: 0 0 12px; }
         .routine-print table { width: 100%; border-collapse: collapse; }
         .routine-print th, .routine-print td { border: 1px solid #ccc; padding: 6px 8px; font-size: 11px; text-align: center; vertical-align: top; }
-        .routine-print th { background: #f2eef5; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .routine-print th { background: #f2eef5; font-size: 10px; }
         .routine-print td.time { font-weight: 800; font-size: 10px; white-space: nowrap; }
         .routine-print .cell { font-weight: 700; }
         .routine-print .sub { font-weight: 400; color: #555; font-size: 9px; }
@@ -560,23 +569,23 @@ function RoutinePrintGrid({
       <table>
         <thead>
           <tr>
-            <th style={{ width: "90px" }}>Time</th>
+            <th style={{ width: "90px" }}>{ui("Time")}</th>
             {days.map((d) => (
-              <th key={d.num}>{d.short}</th>
+              <th key={d.num}>{ui(d.short)}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {periods.map((period, pi) => (
             <tr key={period.num}>
-              <td className="time">P{period.num}<br />{period.start}–{period.end}</td>
+              <td className="time">{ui("P{0}", [period.num])}<br />{period.start}–{period.end}</td>
               {cells.map((col, di) => {
                 const cell = col[pi];
                 if (!cell) return <td key={di} />;
                 const isSpecial = cell.type !== "CLASS";
                 return (
                   <td key={di} className={isSpecial ? "special" : undefined}>
-                    <div className="cell">{cell.label || (isSpecial ? cell.type : "")}</div>
+                    <div className="cell">{cell.label || (isSpecial ? ui(SLOT_TYPE_LABELS[cell.type] ?? cell.type) : "")}</div>
                     {cell.sub ? <div className="sub">{cell.sub}</div> : null}
                   </td>
                 );
@@ -590,7 +599,29 @@ function RoutinePrintGrid({
 }
 
 // ─── Main component ────────────────────────────────────────
-export function TimetableStudio({ campusId }: { campusId?: string }) {
+/**
+ * The timetable builder for the academic lead (SPEC §2.3 #57).
+ *
+ * `periodsHref` (SPEC §10.11, M28): the campus's daily periods are campus setup. Operators pass the link to
+ * their period setup (`/admin?view=settings&tab=periods`) and the empty state's "Configure periods" opens
+ * it; without it (the principal) the empty state shows a read-only note naming who sets the periods.
+ */
+/**
+ * Host-owned header (§4.4 / §4.4b "Timetable & cover": **Publish** when a draft exists, **Print** secondary,
+ * Unpublish in overflow): with `hideActions` the toolbar drops "Review and publish", "Unpublish" and "Print", and
+ * the host's PageHeader drives them through `command` (a new `nonce` runs it once). `onDraftState` reports whether
+ * the selected class has a draft and whether publishing is possible right now, so the header shows Publish only
+ * when there is something to publish and disables it (with its reason) while edits are unsaved.
+ */
+export type TimetableCommand = { id: "publish" | "print" | "unpublish"; nonce: number };
+export type TimetableDraftState = { hasDraft: boolean; published: boolean; canPublish: boolean; unsavedChanges: number };
+export function TimetableStudio({ campusId, periodsHref, hideActions = false, command, onDraftState }: {
+  campusId?: string;
+  periodsHref?: string;
+  hideActions?: boolean;
+  command?: TimetableCommand;
+  onDraftState?: (hasDraft: boolean, state: TimetableDraftState) => void;
+}) {
   const [timetables, setTimetables] = useState<TimetableData[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
@@ -672,8 +703,11 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
   const qp = campusId ? `?campusId=${campusId}` : "";
   const ui = useUiText();
 
+  // R4: a failed load is an inline ErrorState with retry, never a toast over an empty studio.
+  const [loadFailed, setLoadFailed] = useState(false);
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [ttRes, classRes, teacherRes, periodRes, roomRes, calRes] = await Promise.all([
         fetch(`/api/timetable${qp}`),
@@ -703,11 +737,11 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
         setTeachers(teacherList);
       }
     } catch {
-      toast.error(ui("Could not load timetables, classes or teachers. Check your connection and try again."));
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
-  }, [qp, campusId, ui]);
+  }, [qp, campusId]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -870,8 +904,12 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
     }
   };
 
-  const handleUnpublish = async () => {
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  // F16 / R2: like Delete, "Unpublish" first asks in a ConfirmAction; `unpublishTimetable` runs on confirm.
+  const handleUnpublish = () => { if (activeTimetable) setConfirmUnpublish(true); };
+  const unpublishTimetable = async () => {
     if (!activeTimetable) return;
+    setConfirmUnpublish(false);
     setPublishing(true);
     try {
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, {
@@ -946,6 +984,27 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
     }
   };
 
+  // Header commands (host-owned PageHeader): each nonce runs once.
+  const handledCommand = useRef<number | null>(command?.nonce ?? null); // seeded: a remount never replays the last command
+  const canPublishNow = Boolean(activeTimetable) && !changing && pendingChanges.size === 0 && viewMode === "class";
+  useEffect(() => {
+    if (!command || handledCommand.current === command.nonce) return;
+    handledCommand.current = command.nonce;
+    if (command.id === "print") window.print();
+    else if (command.id === "publish" && canPublishNow) setReviewOpen(true);
+    else if (command.id === "unpublish" && activeTimetable?.status === "PUBLISHED" && !changing) setConfirmUnpublish(true);
+    // Only a new nonce runs a command; state changes alone never re-run it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command?.nonce]);
+  const draftState = `${activeTimetable ? activeTimetable.status : "none"}:${canPublishNow}:${pendingChanges.size}`;
+  useEffect(() => {
+    if (!onDraftState) return;
+    const published = activeTimetable?.status === "PUBLISHED";
+    onDraftState(Boolean(activeTimetable) && !published, { hasDraft: Boolean(activeTimetable) && !published, published, canPublish: canPublishNow, unsavedChanges: pendingChanges.size });
+    // draftState captures every input; the callback identity may change on each host render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftState]);
+
   const teacherSlotMap = useMemo(() => {
     const map = new Map<string, { classLabel: string; day: number; period: number; subject: string; start: string; end: string }[]>();
     for (const tt of scope.resources) {
@@ -969,6 +1028,9 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
 
   const selectedTeacherSlots = selectedTeacherId ? teacherSlotMap.get(selectedTeacherId) || [] : [];
 
+  if (loadFailed && !loading) {
+    return <ErrorState title={ui("The timetable could not be loaded")} description={ui("Could not load timetables, classes or teachers. Check your connection and try again.")} onRetry={() => void loadData()} />;
+  }
   if (loading) {
     return <FullSkeleton periods={gridSkeletonPeriods} visibleDays={visibleDays} />;
   }
@@ -978,12 +1040,14 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
       {reviewOpen && activeTimetable ? <PublicationReview timetableId={activeTimetable.id} className={[activeTimetable.class.name, activeTimetable.class.section].filter(Boolean).join(" ")} onClose={() => setReviewOpen(false)} onPublished={() => { setReviewOpen(false); void loadData(); }} /> : null}
       <TimetableScopeControls year={scope.year} term={scope.term} years={scope.years} terms={scope.terms} disabled={changing} onYear={year => changeSelection(() => { scope.setYear(year); setSelectedClassId(null); })} onTerm={term => changeSelection(() => scope.setTerm(term))} />
       <ConfirmAction open={pendingSelection !== null} title={scopeCopy.changeTitle} description={scopeCopy.changeHint} confirmLabel={scopeCopy.discard} cancelLabel={scopeCopy.keep} onCancel={() => setPendingSelection(null)} onConfirm={finishSelection} />
+      {/* F16: unpublishing takes the timetable away from teachers, students and families. */}
+      <ConfirmAction open={confirmUnpublish} title={ui("Unpublish this timetable?")} description={ui("Teachers, students and families stop seeing it until you publish it again. Lessons, attendance and cover already recorded are kept.")} confirmLabel={ui("Unpublish")} cancelLabel={ui("Keep editing")} tone="warning" busy={publishing} onCancel={() => setConfirmUnpublish(false)} onConfirm={() => void unpublishTimetable()} />
       <ConfirmAction open={confirmDeleteTimetable} title={ui("Delete this timetable?")} description={ui("Its lessons are removed from this class's weekly schedule. Attendance and marks already recorded are not affected. A timetable with substitute history cannot be deleted.")} confirmLabel={ui("Delete timetable")} tone="danger" busy={deletingTimetable} onCancel={() => setConfirmDeleteTimetable(false)} onConfirm={() => void deleteTimetable()} />
       {addingPeriod && activeTimetable && <AddPeriodDialog key={activeTimetable.id} timetableId={activeTimetable.id} slots={activeTimetable.slots} definitions={periodDefs} weekendDays={weekendDays} onClose={() => setAddingPeriod(false)} onAdded={slot => { setTimetables(previous => previous.map(timetable => timetable.id === activeTimetable.id ? { ...timetable, slots: [...timetable.slots.filter(existing => existing.id !== slot.id), slot] } : timetable)); toast.success(addCopy.saved); }} />}
       {/* Toolbar: class picker, view tabs, publish */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-surface-subtle via-white to-brand-100 p-2 shadow-sm border border-edge/10">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-surface-subtle via-card to-brand-100 p-2 shadow-sm border border-edge/10">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <InputGroup surfaceClassName="bg-white" className="min-w-[240px] flex-1 sm:max-w-sm">
+          <InputGroup surfaceClassName="bg-card" className="min-w-[240px] flex-1 sm:max-w-sm">
             <SystemSelect
               value={selectedClassId || ""}
               onChange={(e) => { const id = e.target.value || null; changeSelection(() => setSelectedClassId(id)); }}
@@ -1006,7 +1070,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 );
               })}
             </SystemSelect>
-            <GraduationCap data-field-affix="start" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/50 pointer-events-none" />
+            <GraduationCap data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary/50 pointer-events-none" />
 
           </InputGroup>
         </div>
@@ -1018,38 +1082,40 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               onClick={() => setViewMode("class")}
               className="class"
             >
-              <Calendar className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Class
+              <Calendar aria-hidden="true" className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />{ui("Class")}
             </Button>
             <Button aria-pressed={viewMode === "teacher"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("teacher")}
               className="teacher"
             >
-              <User className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Teacher
+              <User aria-hidden="true" className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />{ui("Teacher")}
             </Button>
             <Button aria-pressed={viewMode === "room"} variant="choice" size="sm"
               type="button"
               onClick={() => setViewMode("room")}
               className="room"
             >
-              <DoorOpen className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Room
+              <DoorOpen aria-hidden="true" className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />{ui("Room")}
             </Button>
           </div>
 
-          {activeTimetable?.status === "PUBLISHED" ? <Button variant="secondary" size="sm" type="button" onClick={handleUnpublish} disabled={changing || publishing || viewMode !== "class"} data-unpublish>
+          {!hideActions && activeTimetable?.status === "PUBLISHED" ? <Button variant="secondary" size="sm" type="button" onClick={handleUnpublish} disabled={changing || publishing || viewMode !== "class"} data-unpublish>
             {ui("Unpublish")}
           </Button> : null}
-          <Button size="sm"
-            type="button"
-            onClick={() => setReviewOpen(true)}
-            disabled={!activeTimetable || changing || pendingChanges.size > 0 || viewMode !== "class"}
-            className="flex justify-start items-center gap-1.5"
-            loading={publishing}
-            data-review-publish
-          >
-            <Send aria-hidden="true" className="h-4 w-4" />
-            {ui("Review and publish")}
-          </Button>
+          {hideActions ? null : (
+            <Button size="sm"
+              type="button"
+              onClick={() => setReviewOpen(true)}
+              disabled={!activeTimetable || changing || pendingChanges.size > 0 || viewMode !== "class"}
+              className="flex justify-start items-center gap-1.5"
+              loading={publishing}
+              data-review-publish
+            >
+              <Send aria-hidden="true" className="h-4 w-4" />
+              {ui("Review and publish")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1098,14 +1164,15 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               title={ui("No timetable yet")}
               description={ui("Create a weekly schedule for this class with configurable period timings ({0})", [visibleDays.map((d) => d.short).join("–")])}
               action={<div className="flex flex-wrap items-center justify-center gap-3">
-                <Button variant="outline"
-                  type="button"
-                  onClick={() => { setCustomPeriods(defaultPeriods.map((p) => ({ ...p }))); setShowPeriodConfig(true); }}
-                  className="flex justify-start items-center gap-2"
-                >
-                  <Clock aria-hidden="true" className="w-4 h-4" />
-                  {ui("Configure Periods")}
-                </Button>
+                {/* M28: the campus's daily periods are defined once, in campus setup. */}
+                {periodsHref ? (
+                  <a href={periodsHref} className={buttonVariants({ variant: "outline" })}>
+                    <Clock aria-hidden="true" className="w-4 h-4" />
+                    {ui("Configure periods")}
+                  </a>
+                ) : (
+                  <p className="w-full text-sm text-ink-muted">{ui("Daily periods are set by your campus admin. A new timetable uses them.")}</p>
+                )}
                 <Button variant="default"
                   type="button"
                   onClick={() => handleCreateTimetable()}
@@ -1125,16 +1192,16 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
               {/* Action bar */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-2xs font-semibold uppercase tracking-wider ${
-                    activeTimetable.status === "PUBLISHED" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                  <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-2xs font-semibold ${
+                    activeTimetable.status === "PUBLISHED" ? "bg-status-success-surface text-status-success-text" : "bg-status-warning-surface text-status-warning-text"
                   }`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${activeTimetable.status === "PUBLISHED" ? "bg-emerald-500" : "bg-amber-400"}`} />
-                    {activeTimetable.status}
+                    <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
+                    {ui(activeTimetable.status === "PUBLISHED" ? "Published" : "Draft")}
                   </div>
                   <PublicationStatus timetableId={activeTimetable.id} refreshKey={`${activeTimetable.draftRevision}:${activeTimetable.status}:${activeTimetable.publishedAt ?? ""}`} />
                   {pendingChanges.size > 0 && (
-                    <span className="text-2xs font-bold text-amber-600 bg-amber-50 rounded-lg px-2 py-1">
-                      {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? "s" : ""}
+                    <span className="rounded-lg bg-status-warning-surface px-2 py-1 text-2xs font-bold text-status-warning-text">
+                      {pendingChanges.size === 1 ? ui("1 unsaved change") : ui("{0} unsaved changes", [pendingChanges.size])}
                     </span>
                   )}
                 </div>
@@ -1173,7 +1240,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     className="flex justify-start items-center gap-1.5"
                   >
                     {focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                    {focused ? "Exit Focus" : "Focus"}
+                    {ui(focused ? "Exit focus" : "Focus")}
                   </Button>
                   </Tooltip>
                   <Tooltip content={showLegend ? ui("Hide the subject legend") : ui("Show the subject legend")}>
@@ -1183,8 +1250,8 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     aria-pressed={showLegend}
                     className="flex justify-start items-center gap-1.5"
                   >
-                    <Palette className="h-3.5 w-3.5" />
-                    Legend
+                    <Palette aria-hidden="true" className="h-3.5 w-3.5" />
+                    {ui("Legend")}
                   </Button>
                   </Tooltip>
                   {activeTimetable.status !== "DRAFT" ? <Tooltip content={addCopy.draftOnly}><span tabIndex={0} className="inline-flex"><Button variant="outline" size="sm" disabled onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button></span></Tooltip> : <Button variant="outline" size="sm" disabled={changing || pendingChanges.size > 0} onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button>}
@@ -1198,21 +1265,23 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     }}
                     className="flex justify-start items-center gap-1.5"
                   >
-                    <Clock className="h-3.5 w-3.5" />Periods
+                    <Clock aria-hidden="true" className="h-3.5 w-3.5" />{ui("Periods")}
                   </Button>
-                  <Button variant="secondary" size="sm"
-                    type="button"
-                    onClick={() => window.print()}
-                    className="flex justify-start items-center gap-1.5"
-                  >
-                    <Printer className="h-3.5 w-3.5" />Print
-                  </Button>
+                  {hideActions ? null : (
+                    <Button variant="secondary" size="sm"
+                      type="button"
+                      onClick={() => window.print()}
+                      className="flex justify-start items-center gap-1.5"
+                    >
+                      <Printer aria-hidden="true" className="h-3.5 w-3.5" />{ui("Print")}
+                    </Button>
+                  )}
                   <Button variant="destructive" size="sm"
                     type="button"
                     onClick={handleDeleteTimetable}
                     className="flex justify-start items-center gap-1.5"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />Delete
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />{ui("Delete")}
                   </Button>
                   {pendingChanges.size > 0 && (
                     <Button variant="default" size="sm"
@@ -1223,7 +1292,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                       className="flex justify-start items-center gap-1.5"
                     >
                       <Check aria-hidden="true" className="h-3.5 w-3.5" />
-                      Save Changes
+                      {ui("Save changes")}
                     </Button>
                   )}
                 </div>
@@ -1238,13 +1307,13 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                     {subjects.map((s) => {
                       const c = subjectColorMap.get(s.id);
                       return (
-                        <Tooltip key={s.id} content={s.teacher ? `${s.name} — ${s.teacher.fullName}` : s.name}>
+                        <Tooltip key={s.id} content={s.teacher ? ui("{0} — {1}", [s.name, s.teacher.fullName]) : s.name}>
                         <span
                           tabIndex={0}
                           className={`flex max-w-[220px] items-center gap-1.5 rounded-xl ${c?.bg || "bg-surface-subtle"} px-3 py-1.5`}
                         >
-                          <span className={`h-2 w-2 shrink-0 rounded-full ${c?.dot || "bg-ink-faint"}`} />
-                          <span className={`truncate text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{s.name}</span>
+                          <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${c?.dot || "bg-ink-faint"}`} />
+                          <bdi className={`truncate text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{s.name}</bdi>
                           {s.teacher && (
                             <span className="ms-1 truncate text-2xs font-semibold text-ink-subtle">
                               {s.teacher.fullName}
@@ -1272,7 +1341,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 {/* LEFT: Subject palette */}
                 {showPalette ? (
                   <div className="relative lg:sticky lg:top-4 lg:max-h-[78vh]">
-                    <PaneToggle side="left" onClick={() => setShowPalette(false)} label="Hide subjects" />
+                    <PaneToggle side="left" onClick={() => setShowPalette(false)} label={ui("Hide subjects")} />
                     <SubjectPalette
                       subjects={subjects}
                       placedBySubject={placedBySubject}
@@ -1283,7 +1352,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   </div>
                 ) : (
                   <CollapsedPane
-                    label="Subjects"
+                    label={ui("Subjects")}
                     icon={BookOpen}
                     side="left"
                     onClick={() => setShowPalette(true)}
@@ -1293,7 +1362,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 {/* CENTER: Timetable grid */}
                 <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
                   {loading ? (
-                    <div className="p-4 text-center text-sm font-semibold text-ink-subtle">Loading slots…</div>
+                    <div role="status" className="p-4 text-center text-sm font-semibold text-ink-subtle">{ui("Loading slots…")}</div>
                   ) : (
                     <TimetableGrid
                       slots={activeTimetable.slots}
@@ -1315,7 +1384,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                 {/* RIGHT: Conflict panel */}
                 {showConflicts ? (
                   <div className="relative lg:sticky lg:top-4 lg:max-h-[78vh]">
-                    <PaneToggle side="right" onClick={() => setShowConflicts(false)} label="Hide checks" />
+                    <PaneToggle side="right" onClick={() => setShowConflicts(false)} label={ui("Hide checks")} />
                     <ConflictPanel
                       timetables={scope.resources}
                       activeTimetable={activeTimetable}
@@ -1330,7 +1399,7 @@ export function TimetableStudio({ campusId }: { campusId?: string }) {
                   </div>
                 ) : (
                   <CollapsedPane
-                    label="Checks"
+                    label={ui("Checks")}
                     icon={AlertTriangle}
                     side="right"
                     onClick={() => setShowConflicts(true)}
@@ -1441,10 +1510,10 @@ function PaneToggle({
       onClick={onClick}
       aria-label={label}
       className={`absolute top-2 z-10 hidden items-center justify-center lg:flex ${
-        side === "left" ? "right-2" : "left-2"
+        side === "left" ? "end-2" : "start-2"
       }`}
     >
-      <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+      <Icon aria-hidden="true" className="h-3.5 w-3.5 rtl:rotate-180" />
     </Button>
     </Tooltip>
   );
@@ -1469,10 +1538,10 @@ function CollapsedPane({
       onClick={onClick}
       className="hidden flex-col items-center gap-3 lg:flex lg:sticky lg:top-4 lg:max-h-[78vh]"
     >
-      <Chevron className="h-4 w-4 text-ink-subtle" />
-      <Icon className="h-4 w-4 text-primary" />
+      <Chevron aria-hidden="true" className="h-4 w-4 text-ink-subtle rtl:rotate-180" />
+      <Icon aria-hidden="true" className="h-4 w-4 text-primary" />
       <span
-        className="text-2xs font-semibold uppercase tracking-wider text-ink-muted"
+        className="text-2xs font-semibold text-ink-muted"
         style={{ writingMode: "vertical-rl" }}
       >
         {label}

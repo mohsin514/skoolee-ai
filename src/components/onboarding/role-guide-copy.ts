@@ -53,32 +53,34 @@ const narratives: Record<UserRole, Narrative> = {
       },
     ],
   },
+  // The ADMIN of a STANDALONE school: school admin and account owner in one person (two hats, SPEC §0.3 rule 3).
+  // An ADMIN inside a GROUP (legacy rows) is a campus operator and reads the CAMPUS_ADMIN story instead.
   ADMIN: {
-    title: ["Bring your school’s moving parts together.", "اجمع تفاصيل مدرستك في مكان واحد.", "اسکول کے تمام کاموں کو مربوط کریں۔"],
-    introduction: ["People, records and schedules meet at your desk. Start with your assigned campus and find the next task your team needs.", "يلتقي الأشخاص والسجلات والجداول عند مكتبك. ابدأ بفرعك المعيّن وحدد المهمة التالية لفريقك.", "افراد، ریکارڈ اور اوقات آپ کے دفتر سے جڑتے ہیں۔ اپنے مقررہ کیمپس سے آغاز کریں اور ٹیم کا اگلا ضروری کام دیکھیں۔"],
-    preparationTitle: ["Get the school details together", "اجمع بيانات المدرسة", "اسکول کی تفصیلات یکجا کریں"],
-    preparation: ["Check campus contacts, grade lists and term dates. Keep the staff information you need for school coordination ready.", "راجع جهات اتصال الفرع والصفوف وتواريخ الفصل. جهّز بيانات الموظفين اللازمة للتنسيق.", "کیمپس کے رابطے، جماعتیں اور تعلیمی تاریخیں دیکھیں۔ اسکول کے کاموں کے لیے متعلقہ عملے کی معلومات تیار رکھیں۔"],
-    scopeTitle: ["Coordinate within your assigned campus", "نسّق ضمن فرعك المعيّن", "اپنے مقررہ کیمپس میں انتظام کریں"],
-    scopeHint: ["Your tools follow your campus assignment and school permissions. If either is missing, ask the institution owner to check your access.", "تتبع أدواتك الفرع المعيّن وصلاحيات المدرسة. عند وجود نقص، اطلب من مالك المؤسسة مراجعة صلاحياتك.", "سہولتیں مقررہ کیمپس اور اسکول کی اجازت کے مطابق ہیں۔ کمی ہو تو ادارے کے مالک سے رسائی چیک کروائیں۔"],
+    title: ["Your school. Run from one desk.", "مدرستك. تُدار من مكتب واحد.", "آپ کا اسکول۔ ایک ہی جگہ سے۔"],
+    introduction: ["You run the school day to day and own its SkooleeAI account: students, staff, fees and settings meet here, and you manage billing.", "أنت تدير المدرسة يومًا بيوم وتملك حساب SkooleeAI الخاص بها: يلتقي هنا الطلاب والموظفون والرسوم والإعدادات، وأنت من يدير الفوترة.", "آپ اسکول کا روزمرہ انتظام چلاتے ہیں اور اس کے SkooleeAI اکاؤنٹ کے مالک ہیں: طلبہ، عملہ، فیس اور ترتیبات یہیں ملتے ہیں، اور بلنگ آپ سنبھالتے ہیں۔"],
+    preparationTitle: ["Gather what the school runs on", "اجمع ما تقوم عليه المدرسة", "اسکول کی بنیادی معلومات یکجا کریں"],
+    preparation: ["Have your grades, term dates, staff list and fee plan ready. Appoint a principal and an accountant when you have them; until then you hold their desks.", "جهّز الصفوف وتواريخ الفصول وقائمة الموظفين وخطة الرسوم. عيّن مديرًا أكاديميًا ومحاسبًا عند توفرهما؛ وحتى ذلك الحين تتولى مهامهما.", "جماعتیں، تعلیمی تاریخیں، عملے کی فہرست اور فیس کا منصوبہ تیار رکھیں۔ تعلیمی سربراہ اور اکاؤنٹنٹ دستیاب ہوں تو مقرر کریں؛ تب تک ان کے کام آپ کے ذمے ہیں۔"],
+    scopeTitle: ["Two roles, one person", "دوران وشخص واحد", "دو کردار، ایک شخص"],
+    scopeHint: ["You are the school admin and the account owner. Billing & plan, approvals and school settings sit under “Your school”; only you see them.", "أنت مدير المدرسة ومالك الحساب. تجد الفوترة والخطة والموافقات وإعدادات المدرسة ضمن «مدرستك»، ولا يراها سواك.", "آپ اسکول منتظم بھی ہیں اور اکاؤنٹ کے مالک بھی۔ بلنگ اور پلان، منظوریاں اور اسکول کی ترتیبات «آپ کا اسکول» میں ہیں؛ انہیں صرف آپ دیکھتے ہیں۔"],
     reviewTitle: ["Check the details before they spread", "تحقق من التفاصيل قبل اعتمادها", "منظوری سے پہلے تفصیلات دیکھیں"],
     reviewHint: ["Review any AI draft against school records. Confirm names, dates and recipients before applying or sending changes.", "طابق أي مسودة ذكية مع سجلات المدرسة. أكد الأسماء والتواريخ والمستلمين قبل التطبيق أو الإرسال.", "اے آئی کے مسودے کو اسکول ریکارڈ سے ملائیں۔ تبدیلی لاگو یا ارسال کرنے سے پہلے نام، تاریخیں اور وصول کنندگان چیک کریں۔"],
-    chooseTitle: ["Choose your first coordination task", "اختر أول مهمة تنسيق", "انتظام کا پہلا کام چنیں"],
-    greeting: ["Let’s make your next school task easier to find.", "لنجعل العثور على مهمتك المدرسية التالية أسهل.", "آئیں اسکول کا اگلا کام آسانی سے تلاش کریں۔"],
+    chooseTitle: ["Choose your school’s first step", "اختر الخطوة الأولى لمدرستك", "اپنے اسکول کا پہلا قدم چنیں"],
+    greeting: ["Let’s get your school and its account working together.", "لنجعل مدرستك وحسابها يعملان معًا.", "آئیں اسکول اور اس کے اکاؤنٹ کو ساتھ ساتھ تیار کریں۔"],
     scenes: [
       {
-        caption: ["You keep the school connected.", "أنت تحافظ على ترابط المدرسة.", "آپ اسکول کے کاموں کو جوڑتے ہیں۔"],
-        status: ["Meet your school coordination guide", "تعرّف إلى دليل التنسيق المدرسي", "اسکول انتظام کے رہنما سے ملیں"],
-        cards: [["School operations", "عمليات المدرسة", "اسکول کے انتظامی کام"], ["Campus contacts", "جهات اتصال الفروع", "کیمپس کے رابطے"], ["Team responsibilities", "مسؤوليات الفريق", "ٹیم کی ذمہ داریاں"]],
+        caption: ["Your school, and the account behind it.", "مدرستك، والحساب الذي يقف خلفها.", "آپ کا اسکول، اور اس کے پیچھے کا اکاؤنٹ۔"],
+        status: ["Meet your school guide", "تعرّف إلى دليل مدرستك", "اسکول کے رہنما سے ملیں"],
+        cards: [["Daily operations", "العمليات اليومية", "روزمرہ انتظام"], ["Your team", "فريقك", "آپ کی ٹیم"], ["Billing & plan", "الفوترة والخطة", "بلنگ اور پلان"]],
       },
       {
         caption: ["Good coordination starts with accurate records.", "التنسيق الجيد يبدأ بسجلات دقيقة.", "بہتر انتظام درست ریکارڈ سے شروع ہوتا ہے۔"],
         status: ["Prepare your school context", "جهّز سياق مدرستك", "اسکول کا سیاق تیار کریں"],
-        cards: [["Confirm your campus", "أكد فرعك", "کیمپس کی تصدیق"], ["Check school details", "راجع بيانات المدرسة", "اسکول کی تفصیلات دیکھیں"], ["Gather term dates", "اجمع تواريخ الفصل", "تعلیمی تاریخیں یکجا کریں"]],
+        cards: [["Confirm your school", "أكد بيانات مدرستك", "اسکول کی تصدیق"], ["Check school details", "راجع بيانات المدرسة", "اسکول کی تفصیلات دیکھیں"], ["Gather term dates", "اجمع تواريخ الفصل", "تعلیمی تاریخیں یکجا کریں"]],
       },
       {
-        caption: ["Pick the task that helps your team today.", "اختر المهمة التي تفيد فريقك اليوم.", "آج اپنی ٹیم کے لیے مفید کام چنیں۔"],
-        status: ["Your coordination workspace awaits", "مساحة التنسيق بانتظارك", "انتظامی ورک اسپیس کھولیں"],
-        cards: [["Review campus records", "راجع سجلات الفرع", "کیمپس کا ریکارڈ دیکھیں"], ["Open permitted workflows", "افتح المسارات المسموحة", "مجاز ورک فلوز کھولیں"], ["Confirm before sharing", "أكد قبل المشاركة", "شیئر کرنے سے پہلے تصدیق"]],
+        caption: ["Pick the task that helps your school today.", "اختر المهمة التي تفيد مدرستك اليوم.", "آج اپنے اسکول کے لیے مفید کام چنیں۔"],
+        status: ["Your school workspace awaits", "مساحة مدرستك بانتظارك", "اسکول کی ورک اسپیس کھولیں"],
+        cards: [["Review school records", "راجع سجلات المدرسة", "اسکول کا ریکارڈ دیکھیں"], ["Open permitted workflows", "افتح المسارات المسموحة", "مجاز ورک فلوز کھولیں"], ["Confirm before sharing", "أكد قبل المشاركة", "شیئر کرنے سے پہلے تصدیق"]],
       },
     ],
   },
@@ -231,7 +233,7 @@ const narratives: Record<UserRole, Narrative> = {
     title: ["Every figure. In the right context.", "كل رقم. في سياقه الصحيح.", "ہر رقم۔ درست سیاق میں۔"],
     introduction: ["Your work keeps school finances clear. Begin with the right campus and fee period, then review the records that need your attention.", "عملك يحافظ على وضوح مالية المدرسة. ابدأ بالفرع وفترة الرسوم الصحيحين ثم راجع السجلات التي تحتاج إلى اهتمامك.", "آپ کا کام اسکول کے مالی ریکارڈ کو واضح رکھتا ہے۔ درست کیمپس اور فیس کی مدت چنیں، پھر متعلقہ ریکارڈ دیکھیں۔"],
     preparationTitle: ["Prepare the financial context", "جهّز السياق المالي", "مالی سیاق تیار کریں"],
-    preparation: ["Have fee structures, opening balances and the relevant billing period ready. Confirm your campus before working on records.", "جهّز هياكل الرسوم والأرصدة الافتتاحية وفترة الفوترة المعنية. أكد فرعك قبل العمل على السجلات.", "فیس کا ڈھانچہ، ابتدائی بقایا اور متعلقہ مدت تیار رکھیں۔ ریکارڈ پر کام سے پہلے کیمپس کی تصدیق کریں۔"],
+    preparation: ["Have fee structures, opening balances and the relevant fee period ready. Confirm your campus before working on records.", "جهّز هياكل الرسوم والأرصدة الافتتاحية وفترة الرسوم المعنية. أكد فرعك قبل العمل على السجلات.", "فیس کا ڈھانچہ، ابتدائی بقایا اور فیس کی متعلقہ مدت تیار رکھیں۔ ریکارڈ پر کام سے پہلے کیمپس کی تصدیق کریں۔"],
     scopeTitle: ["Finance access follows your assignment", "صلاحيات المالية تتبع تكليفك", "مالی رسائی ذمہ داری کے مطابق ہے"],
     scopeHint: ["Only use the campus and finance tools assigned to you. Ask your administrator if an expected record or permission is missing.", "استخدم فقط الفرع وأدوات المالية المعيّنة لك. اسأل المسؤول عن السجلات أو الصلاحيات المتوقعة غير الظاهرة.", "صرف مقررہ کیمپس اور مالی سہولتیں استعمال کریں۔ متوقع ریکارڈ یا اجازت غائب ہو تو منتظم سے پوچھیں۔"],
     reviewTitle: ["Verify before recording a payment", "تحقق قبل تسجيل دفعة", "ادائیگی درج کرنے سے پہلے تصدیق"],
@@ -247,7 +249,7 @@ const narratives: Record<UserRole, Narrative> = {
       {
         caption: ["Check the campus, period and figures together.", "راجع الفرع والفترة والأرقام معًا.", "کیمپس، مدت اور رقم ایک ساتھ چیک کریں۔"],
         status: ["Prepare your financial records", "جهّز سجلاتك المالية", "مالی ریکارڈ کی تیاری"],
-        cards: [["Campus & billing period", "الفرع وفترة الفوترة", "کیمپس اور بل کی مدت"], ["Fee structures", "هياكل الرسوم", "فیس کا ڈھانچہ"], ["Opening balances", "الأرصدة الافتتاحية", "ابتدائی بقایا"]],
+        cards: [["Campus & fee period", "الفرع وفترة الرسوم", "کیمپس اور فیس کی مدت"], ["Fee structures", "هياكل الرسوم", "فیس کا ڈھانچہ"], ["Opening balances", "الأرصدة الافتتاحية", "ابتدائی بقایا"]],
       },
       {
         caption: ["Open the records, then verify before posting.", "افتح السجلات ثم تحقق قبل التسجيل.", "ریکارڈ کھولیں، پھر اندراج سے پہلے تصدیق کریں۔"],
@@ -363,11 +365,52 @@ const sceneLabels: readonly (readonly [Localized, Localized, Localized])[] = [
   ],
 ];
 const saveTitle: Localized = ["Return whenever you need a hand", "عُد عندما تحتاج إلى إرشاد", "مدد چاہیے ہو تو دوبارہ آئیں"];
-const saveHint: Localized = ["You can replay this guide from your workspace. Replaying it does not reset your saved work.", "يمكنك إعادة هذا الدليل من مساحة عملك. إعادته لا تمسح عملك المحفوظ.", "ورک اسپیس سے یہ رہنمائی دوبارہ دیکھ سکتے ہیں۔ دوبارہ دیکھنے سے محفوظ کام حذف نہیں ہوگا۔"];
+const saveHint: Localized = ["You can replay this guide from Help in your workspace. Replaying it does not reset your saved work.", "يمكنك إعادة هذا الدليل من «المساعدة» في مساحة عملك. إعادته لا تمسح عملك المحفوظ.", "ورک اسپیس میں «مدد» سے یہ رہنمائی دوبارہ دیکھ سکتے ہیں۔ دوبارہ دیکھنے سے محفوظ کام حذف نہیں ہوگا۔"];
 
-export function roleGuideCopy(role: UserRole, language: Language) {
+/**
+ * The ADMIN of a STANDALONE school who does not hold the SkooleeAI subscription (canOwnSubscription is false: no owner
+ * flag and no purchase delegation — legacy or provisioned rows). Still the school admin with the "Your school" tools,
+ * but never told they manage billing, which the server refuses them (SPEC §0.3 rule 2, §8.2).
+ */
+const schoolAdminWithoutBilling: Narrative = {
+  ...narratives.ADMIN,
+  introduction: ["You run the school day to day: students, staff, fees and school settings meet here.", "أنت تدير المدرسة يومًا بيوم: يلتقي هنا الطلاب والموظفون والرسوم وإعدادات المدرسة.", "آپ اسکول کا روزمرہ انتظام چلاتے ہیں: طلبہ، عملہ، فیس اور اسکول کی ترتیبات یہیں ملتے ہیں۔"],
+  scopeHint: ["You are the school admin. Approvals, people and access, and school settings sit under “Your school”; only you see them.", "أنت مدير المدرسة. تجد الموافقات والأشخاص والصلاحيات وإعدادات المدرسة ضمن «مدرستك»، ولا يراها سواك.", "آپ اسکول منتظم ہیں۔ منظوریاں، افراد اور رسائی، اور اسکول کی ترتیبات «آپ کا اسکول» میں ہیں؛ انہیں صرف آپ دیکھتے ہیں۔"],
+  greeting: ["Let’s get your school running from one desk.", "لنجعل مدرستك تُدار من مكتب واحد.", "آئیں اپنے اسکول کو ایک ہی جگہ سے چلائیں۔"],
+  scenes: [
+    {
+      ...narratives.ADMIN.scenes[0],
+      caption: ["Your school, its people and its settings.", "مدرستك وأفرادها وإعداداتها.", "آپ کا اسکول، اس کے لوگ اور اس کی ترتیبات۔"],
+      cards: [["Daily operations", "العمليات اليومية", "روزمرہ انتظام"], ["Your team", "فريقك", "آپ کی ٹیم"], ["School settings", "إعدادات المدرسة", "اسکول کی ترتیبات"]],
+    },
+    narratives.ADMIN.scenes[1],
+    narratives.ADMIN.scenes[2],
+  ],
+};
+
+/**
+ * The role whose story the welcome tells (SPEC §8.2, C32). An ADMIN is the standalone owner — two hats — only when
+ * the institution is known to be STANDALONE; inside a GROUP, or while the kind is unknown (the session lookup failed
+ * or omitted it), the story fails closed to the campus operator and never mentions billing. Billing wording within
+ * the owner story is a separate choice (roleGuideCopy `billing`). Every role-keyed welcome surface (copy, showcase,
+ * stage, icons) takes this role, not the raw account role.
+ */
+export function guideRoleFor(role: UserRole, institutionKind?: "GROUP" | "STANDALONE" | null): UserRole {
+  return role === "ADMIN" && institutionKind !== "STANDALONE" ? "CAMPUS_ADMIN" : role;
+}
+
+/**
+ * Story copy for a story role (see guideRoleFor): "ADMIN" here is the standalone owner. `institutionKind` "GROUP"
+ * still turns an ADMIN into the campus story for callers that pass the account role with a known kind.
+ * `billing` is the subscription capability (canOwnSubscription): `false` gives the owner story without any billing
+ * claim. Callers that know it pass it; a role-only caller (GuideStage, GuideShowcase) gets the owner story with
+ * billing, so LaunchGuide does not hand them the ADMIN role when billing is false.
+ */
+export function roleGuideCopy(role: UserRole, language: Language, institutionKind?: "GROUP" | "STANDALONE", options: { billing?: boolean } = {}) {
   const index = language === "ar" ? 1 : language === "ur" ? 2 : 0;
-  const narrative = narratives[role];
+  const narrative = role === "ADMIN" && institutionKind === "GROUP" ? narratives.CAMPUS_ADMIN
+    : role === "ADMIN" && options.billing === false ? schoolAdminWithoutBilling
+    : narratives[role];
   const text = (value: Localized) => value[index];
   const scene = (value: Scene, stage: 0 | 1 | 2): GuideScene => ({
     caption: text(value.caption),

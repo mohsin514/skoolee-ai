@@ -1,70 +1,35 @@
 "use client";
 
-import { AlertCircle, RefreshCw } from "lucide-react";
-import { BrandButton } from "@/components/role-dashboard";
-import { ParentSubnav } from "@/components/parent/parent-page";
 import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { WorkspacePageSkeleton } from "@/components/teacher/teacher-page";
 
 
+/** A failed portal load: one inline ErrorState with a retry (R4/R5) — never a toast, never a sign-out. */
 export function ParentErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
+  const ui = useUiText();
   return (
-    <section className="flex-1 flex flex-col items-center justify-center p-8">
-      <div className="w-full max-w-md text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-status-error-surface text-status-error-text">
-          <AlertCircle className="h-8 w-8" aria-hidden="true" />
-        </div>
-        <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Something went wrong</p>
-        <h2 className="mt-2 text-2xl font-bold text-ink-strong tracking-tight">Couldn&apos;t load your portal</h2>
-        <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
-          {error || "This link may have expired. Please contact the school for a new access link."}
-        </p>
-        <div className="mt-6 inline-block">
-          <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={onRetry}>
-            Try Again
-          </BrandButton>
-        </div>
-      </div>
+    <section className="flex flex-1 flex-col items-center justify-center p-4 sm:p-8">
+      <ErrorState
+        variant="page"
+        title={ui("Couldn't load your portal")}
+        description={error ? ui(error) : ui("Your child's details didn't load just now. Please try again in a moment.")}
+        onRetry={onRetry}
+        retryLabel={ui("Try again")}
+      />
     </section>
   );
 }
 
 /**
- * The frame both guardian skeletons sit in.
- *
- * They used to draw a `rounded-[40px]` card with a 140px gradient header and
- * no section strip, while the page they stand in for is a `rounded-[32px]`
- * card with a 57px header and a strip of five tabs — so every screen visibly
- * rebuilt itself the moment the data landed. This mirrors `ParentPage`, and
- * renders the *real* subnav: it needs no data beyond the portal token, so a
- * guardian can move between screens while one is still loading.
+ * The frame every skeleton here sits in: `WorkspacePageSkeleton`, the loading shape of the page itself
+ * (PageHeader placeholder, the shared body padding, no card of its own — the shell draws the one page card).
+ * Nothing moves when the data lands, and the sidebar stays usable while a screen is loading.
  */
-function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; children: React.ReactNode }) {
-  return (
-    <section
-      /* Announced once, at the frame, so a screen reader says "loading"
-         rather than reading a page of empty placeholders. */
-      role="status"
-      aria-busy="true"
-      aria-label="Loading the guardian portal"
-      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(120,70,180,0.06),0_24px_60px_-24px_rgba(120,70,180,0.35)]"
-    >
-      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
-        <span
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-primary to-brand-400 opacity-30"
-        />
-        <div className="relative flex items-center gap-3 px-4 py-3 sm:px-5">
-          <SkeletonBlock className={avatar ? "h-10 w-10 shrink-0 rounded-xl" : "h-9 w-9 shrink-0 rounded-xl"} />
-          <div className="min-w-0 space-y-1.5">
-            <SkeletonBlock className="h-4 w-44" />
-            <SkeletonBlock className="h-2.5 w-60" />
-          </div>
-        </div>
-      </header>
-      <ParentSubnav />
-      <div className="custom-scrollbar flex-1 overflow-y-auto bg-brand-50/20 p-4 sm:p-5">{children}</div>
-    </section>
-  );
+function SkeletonFrame({ children }: { avatar?: boolean; children: React.ReactNode }) {
+  const ui = useUiText();
+  return <WorkspacePageSkeleton label={ui("Loading the family portal")} documentFlow>{children}</WorkspacePageSkeleton>;
 }
 
 /** Matches the compact `ParentStat` the pages actually render. */
@@ -153,17 +118,6 @@ export function ParentListSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-export function ParentEmptyState({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-edge/25 bg-brand-50/15 px-[12px] py-[24px] sm:px-6 sm:py-12 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-brand-50">
-        <Icon className="h-6 w-6 text-primary/40" />
-      </div>
-      <h3 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
-      <p className="mt-1 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">{description}</p>
-    </div>
-  );
-}
 
 /**
  * The guardian console's one metric tile.
@@ -188,9 +142,9 @@ export function ParentStat({
 }) {
   const tones = {
     violet: { chip: "bg-brand-50 text-primary", bar: "bg-primary" },
-    green: { chip: "bg-emerald-50 text-emerald-600", bar: "bg-emerald-500" },
-    rose: { chip: "bg-rose-50 text-rose-600", bar: "bg-rose-500" },
-    amber: { chip: "bg-amber-50 text-amber-600", bar: "bg-amber-500" },
+    green: { chip: "bg-status-success-surface text-status-success-text", bar: "bg-status-success-text" },
+    rose: { chip: "bg-status-error-surface text-status-error-text", bar: "bg-status-error-text" },
+    amber: { chip: "bg-status-warning-surface text-status-warning-text", bar: "bg-status-warning-text" },
   } as const;
   const t = tones[tone];
 
@@ -205,7 +159,7 @@ export function ParentStat({
           <p className="[overflow-wrap:anywhere] text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong transition-colors group-hover:text-primary sm:text-[22px]">
             {value}
           </p>
-          <p className="mt-1.5 [overflow-wrap:anywhere] text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-muted">
+          <p className="mt-1.5 [overflow-wrap:anywhere] text-2xs font-semibold leading-tight text-ink-muted">
             {label}
           </p>
           {sub ? (

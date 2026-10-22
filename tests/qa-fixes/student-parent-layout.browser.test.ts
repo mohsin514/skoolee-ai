@@ -82,10 +82,13 @@ test("SKO-485: the Urdu student header keeps readable line height and spacing on
   }
 });
 
-test("SKO-487: the parent policy question field stays inside 320px at 200% text in EN, AR and UR", async () => {
+test("SKO-487 → M95: the parent policy question field (Help › Ask the school) stays inside 320px at 200% text in EN, AR and UR", async () => {
   for (const lang of ["en", "ar", "ur"]) {
     const page = await (await context(`parent-${lang}`, { width: 320, height: 720 })).newPage();
     await page.goto(`${base}/parent`);
+    // The policy assistant left Home: it opens from the header Help menu as a dialog (SPEC §4.2, M95).
+    await page.locator('[data-tour="shell.header.help"]').first().click({ timeout: 60_000 });
+    await page.locator('[data-tour="shell.help.ask"]').click();
     const field = page.locator("#field-policy-question, [name='policy-question'], #policy-question").first();
     await page.locator('section[aria-labelledby="policy-assistant"]').waitFor({ timeout: 60_000 });
     await page.addStyleTag({ content: "html{font-size:200% !important}" });

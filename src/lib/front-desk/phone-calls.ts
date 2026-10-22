@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageFrontDesk, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canManageCampusOps } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { getLocalePackage } from "@/lib/locale/store";
 import { localToInstant } from "@/lib/assignments/rules";
@@ -15,11 +15,26 @@ import { deliverNotification } from "@/lib/notifications/in-app";
 // Notes can be marked sensitive; those are shown only to campus leaders, whoever logged the call and
 // the callback owners — never in lists for anyone else or in dashboard summaries.
 
-const OWNER_ROLES = ["SUPER_ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "RECEPTIONIST"];
+// role-ux G40 / C29: the front desk and the campus admins own front-office work. The principal (academic) and the
+// super admin (governance) are never owners, and ADMIN — the campus operator of a single school — is.
+export const OWNER_ROLES = ["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"];
 const PHONE = /^\+?[\d\s()-]{6,30}$/;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-export const isLeader = (user: AuthUser) => canManageOperations(user);
+export const isLeader = (user: AuthUser) => canManageCampusOps(user);
+
+/**
+ * People who may own front-office work on this campus (G40, F13): its campus admins (CAMPUS_ADMIN, and ADMIN — the
+ * operator of a single school) and receptionists. Served with the call and post lists so the owner pickers never
+ * depend on the routes' older `?owners=1` query (which still lists the principal and omits ADMIN). Front-desk staff
+ * only; everyone else gets an empty list.
+ */
+export async function ownerCandidates(user: AuthUser, campusId: string, db: Pick<TxClient, "user"> = prisma) {
+  if (!(canManageCampusOps(user) || user.role === "RECEPTIONIST")) return [];
+  return db.user.findMany({ where: { schoolId: user.schoolId, campusId, isActive: true, role: { in: OWNER_ROLES as never[] } }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" } });
+}
+/** Front-desk staff: the receptionist and the campus admins (never the principal). */
+const isFrontDesk = (user: AuthUser) => canManageCampusOps(user) || user.role === "RECEPTIONIST";
 export const digits = (phone: string) => phone.replace(/\D/g, "");
 
 const text = (value: unknown, label: string, min: number, max: number) => {
@@ -42,13 +57,13 @@ function instant(value: unknown, label: string, timezone: string) {
 }
 
 async function validOwner(db: TxClient, user: AuthUser, campusId: string, ownerId: string) {
-  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: OWNER_ROLES as never[] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true } });
+  const owner = await db.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, isActive: true, role: { in: OWNER_ROLES as never[] }, campusId }, select: { id: true } });
   if (!owner) throw new ApiError("Choose an active front-desk or leadership colleague in this campus as the owner.", 400);
 }
 
 /** Whether this person may read a call's note. */
 export function canReadNote(user: AuthUser, call: { sensitive: boolean; recordedById: string | null }, ownerIds: (string | null)[]) {
-  if (!canManageFrontDesk(user) && !ownerIds.includes(user.userId)) return false;
+  if (!isFrontDesk(user) && !ownerIds.includes(user.userId)) return false;
   return !call.sensitive || isLeader(user) || call.recordedById === user.userId || ownerIds.includes(user.userId);
 }
 
@@ -111,7 +126,7 @@ export async function actOnCallback(user: AuthUser, campusId: string, body: Reco
     const [locked] = await db.$queryRaw<{ id: string }[]>`SELECT id FROM phone_callbacks WHERE id = ${id} AND campus_id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
     const callback = locked ? await db.phoneCallback.findUnique({ where: { id }, include: { call: { select: { name: true } } } }) : null;
     // A callback the person may not act on answers exactly like one that does not exist.
-    if (!callback || !(canManageFrontDesk(user) || callback.ownerId === user.userId)) throw new ApiError("Callback not found", 404);
+    if (!callback || !(isFrontDesk(user) || callback.ownerId === user.userId)) throw new ApiError("Callback not found", 404);
     if (body.version !== undefined && Number(body.version) !== callback.version) throw new ApiError("This callback changed since you opened it. Reload to see the latest before saving.", 409);
     if (callback.status !== "OPEN") throw new ApiError("This callback is already completed. Its history is kept.", 409);
     const event = { schoolId: user.schoolId, campusId, callbackId: id, actorId: user.userId };
@@ -120,7 +135,7 @@ export async function actOnCallback(user: AuthUser, campusId: string, body: Reco
     const note = body.note ? text(body.note, "Note", 2, 1000) : null;
 
     if (action === "reassign") {
-      if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can reassign a callback.", 403);
+      if (!isFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can reassign a callback.", 403);
       const ownerId = body.ownerId ? String(body.ownerId) : null;
       if (ownerId === callback.ownerId) throw new ApiError("This callback already has that owner.", 409);
       if (ownerId) await validOwner(db, user, campusId, ownerId);
@@ -200,13 +215,14 @@ export async function listCalls(user: AuthUser, campusId: string, filters: { vie
   return {
     data,
     counts: { open: open.length, overdue: open.filter(row => row.dueAt < now).length, unassigned: open.filter(row => !row.ownerId).length, mine: open.filter(row => row.ownerId === user.userId).length },
+    owners: await ownerCandidates(user, campusId),
   };
 }
 
 /** One callback with its history; notes and outcomes follow the call's note permission. */
 export async function callbackHistory(user: AuthUser, campusId: string, id: string) {
   const callback = await prisma.phoneCallback.findFirst({ where: { id, campusId, schoolId: user.schoolId }, include: { call: { include: { callbacks: { select: { ownerId: true } } } }, events: { orderBy: { createdAt: "asc" } } } });
-  if (!callback || !(canManageFrontDesk(user) || callback.ownerId === user.userId)) throw new ApiError("Callback not found", 404);
+  if (!callback || !(isFrontDesk(user) || callback.ownerId === user.userId)) throw new ApiError("Callback not found", 404);
   const readable = canReadNote(user, callback.call, callback.call.callbacks.map(row => row.ownerId));
   const ids = [...new Set(callback.events.flatMap(event => [event.actorId, event.ownerId]).filter((value): value is string => Boolean(value)))];
   const people = new Map((await prisma.user.findMany({ where: { id: { in: ids }, schoolId: user.schoolId }, select: { id: true, fullName: true } })).map(person => [person.id, person.fullName]));

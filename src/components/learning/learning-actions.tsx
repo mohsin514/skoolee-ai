@@ -9,6 +9,8 @@ import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 // SKO-425: learning actions. The next check-in and the responsible adult come
@@ -16,7 +18,7 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 // outcome review are stages of one record with a reason for every decision.
 
 type Row = { id: string; version: number; status: string; origin: string; title: string; learner: string; goal: string | null; owner: string | null; reviewDate: string | null; nextCheckInDate: string | null; checkInOverdue: boolean; reviewDue: boolean; shared: boolean; staleSince?: string | null; staleReason?: string | null };
-type Ctx = { actions: Row[]; learners: { id: string; name: string; rollNo: string }[]; staff: { id: string; name: string }[]; leader: boolean; userId: string };
+type Ctx = { actions: Row[]; learners: { id: string; name: string; rollNo: string }[]; staff: { id: string; name: string }[]; leader: boolean; canActivate?: boolean; userId: string };
 type Detail = Row & { studentId: string; concern: string | null; evidenceState: string; evidenceRefs: { kind: string; refId: string; label: string }[]; baseline: { measure: string; value: number | null; denominator: number | null; takenOn: string; source: string } | null;
   ownerId: string | null; plannedActivity: string | null; minutesPerWeek: number | null; familyShare: { goal: string; action: string; sharedAt: string | null } | null; privateNotes: string | null;
   outcome: { decision: string; reason: string; limitations: string; note: string; participation: { checkIns: number; delivered: number; minutes: number; absent: number }; followUp: { measure: string; value: number | null; denominator: number | null; comparable: boolean; differences: string } | null } | null;
@@ -28,8 +30,17 @@ const EVENT: Record<string, string> = { CREATED: "Created", EDITED: "Draft edite
 const EVIDENCE_STATE: Record<string, string> = { CONFIRMED: "Confirmed by the teacher", NEEDS_OBSERVATION: "Needs more observation" };
 const todayText = () => new Date().toISOString().slice(0, 10);
 
-export function LearningActions() {
+/**
+ * `mode="author"` (default, teachers): the panel's own title and "New learning action".
+ * `mode="review"` (the academic lead's queue — principal and admin "Learning actions", §4.4b): the hosting
+ * PageHeader owns the title, nothing is created here, and a draft opens to Activate. Activate is offered only to
+ * the academic lead (`ctx.canActivate` = canLeadAcademics, G35c), never to a leader the server would refuse.
+ * There is no "Return" act on the server yet (the route is unowned; cross-package need in the P6 report), so the
+ * queue offers Activate only; a lead who disagrees edits the draft or hands it back with a reason (Hand over).
+ */
+export function LearningActions({ mode = "author" }: { mode?: "author" | "review" } = {}) {
   const ui = useUiText();
+  const review = mode === "review";
   const { date, dateTime } = useLocaleFormat();
   const [ctx, setCtx] = useState<Ctx | null>(null), [error, setError] = useState(""), [open, setOpen] = useState<string | null>(null), [creating, setCreating] = useState(false);
   const request = useRef(0);
@@ -43,16 +54,19 @@ export function LearningActions() {
   }, [ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
 
-  if (error) return <section className="sk-panel p-5" role="alert" data-learning-actions>{error} <Button size="sm" variant="secondary" onClick={() => void load()}>{ui("Retry")}</Button></section>;
-  if (!ctx) return <section className="sk-panel p-5" role="status" data-learning-actions>{ui("Loading learning actions…")}</section>;
-  return <section className="sk-panel space-y-3 p-5" aria-labelledby="learning-actions-title" data-learning-actions>
-    <div className="flex flex-wrap items-center justify-between gap-2">
+  // R4/R5: a load failure is an inline ErrorState with retry; loading is a layout-shaped skeleton.
+  if (error) return <section className="sk-panel p-5" data-learning-actions><ErrorState title={ui("Learning actions could not be loaded")} description={error} onRetry={() => void load()} retryLabel={ui("Retry")} /></section>;
+  if (!ctx) return <section className="sk-panel p-5" data-learning-actions><SkeletonList rows={3} label={ui("Loading learning actions…")} /></section>;
+  return <section className="sk-panel space-y-3 p-5" aria-labelledby={review ? undefined : "learning-actions-title"} aria-label={review ? ui("Learning actions") : undefined} data-learning-actions data-mode={mode}>
+    {review ? null : <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 id="learning-actions-title" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><ClipboardList className="size-5 text-primary" aria-hidden />{ui("Learning actions")}</h2>
       <Button size="sm" onClick={() => setCreating(v => !v)}>{creating ? ui("Close") : ui("New learning action")}</Button>
-    </div>
+    </div>}
     <p className="text-xs text-ink-muted">{ui("Specific support with a goal, a responsible adult and a review date. Describe skills and actions, not labels.")}</p>
-    {creating ? <Editor ctx={ctx} onSaved={async id => { setCreating(false); await load(); setOpen(id); }} /> : null}
-    {!ctx.actions.length ? <div data-empty><EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions yet")} description={ui("Start from a specific concern and the evidence behind it.")} action={<Button size="sm" onClick={() => setCreating(true)}>{ui("New learning action")}</Button>} /></div>
+    {creating && !review ? <Editor ctx={ctx} onSaved={async id => { setCreating(false); await load(); setOpen(id); }} /> : null}
+    {!ctx.actions.length ? <div data-empty>{review
+      ? <EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions are waiting")} description={ui("Support plans teachers propose for students appear here for you to activate.")} />
+      : <EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions yet")} description={ui("Start from a specific concern and the evidence behind it.")} action={<Button size="sm" onClick={() => setCreating(true)}>{ui("New learning action")}</Button>} />}</div>
       : <ul className="space-y-2">{ctx.actions.map(row => <li key={row.id} className={`rounded-2xl border p-3 ${row.checkInOverdue ? "border-status-warning-border" : "border-border"}`} data-action={row.id} data-status={row.status}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
@@ -67,7 +81,7 @@ export function LearningActions() {
               <Button size="sm" variant="secondary" aria-expanded={open === row.id} onClick={() => setOpen(open === row.id ? null : row.id)}>{open === row.id ? ui("Hide") : ui("Open")}</Button>
             </div>
           </div>
-          {row.staleSince ? <div role="status" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950" data-stale-action>
+          {row.staleSince ? <div role="status" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-status-warning-border bg-status-warning-surface p-2 text-xs text-status-warning-text" data-stale-action>
             <p className="min-w-0"><span className="font-bold">{ui("Needs review after an assessment repair")}</span> · <bdi>{row.staleReason ?? ""}</bdi></p>
             <Button size="sm" variant="secondary" onClick={async () => { const response = await fetch(`/api/learning-actions/${encodeURIComponent(row.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "acknowledge-repair", data: {} }) }).catch(() => null); if (response?.ok) await load(); }}>{ui("Mark as reviewed")}</Button>
           </div> : null}
@@ -116,7 +130,7 @@ function Editor({ ctx, detail, onSaved }: { ctx: Ctx; detail?: Detail; onSaved: 
     <FormField name="la-family-goal" label={ui("Goal shared with the family")}><Input value={form.familyGoal} onChange={set("familyGoal")} /></FormField>
     <FormField name="la-family-action" label={ui("Action for home")}><Input value={form.familyAction} onChange={set("familyAction")} /></FormField>
     <FormField name="la-notes" label={ui("Private staff notes (never shared)")}><Textarea value={form.privateNotes} onChange={set("privateNotes")} /></FormField>
-    {error ? <p role="alert" className="text-sm text-rose-700 sm:col-span-2">{error}</p> : null}
+    {error ? <p role="alert" className="text-sm text-status-error-text sm:col-span-2">{error}</p> : null}
     <div className="sm:col-span-2"><Button disabled={busy || (!detail && !form.studentId) || form.title.trim().length < 3} onClick={() => void save()}>{busy ? ui("Saving…") : ui("Save draft")}</Button></div>
   </div>;
 }
@@ -143,7 +157,7 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
     if (!response?.ok || !json?.success) { const message: string = json?.error || "The change was not saved."; setNotice(ui(message)); return; }
     setNotice(success); await load(); await onChanged();
   };
-  if (!detail) return <p role="status" className="mt-2 text-sm">{ui("Loading…")}</p>;
+  if (!detail) return <div className="mt-2"><SkeletonList rows={2} label={ui("Loading learning action…")} /></div>;
   const active = detail.status === "ACTIVE";
   return <div className="mt-3 space-y-3 text-sm" data-panel>
     {notice ? <Alert compact tone="info" live="polite" data-notice>{notice}</Alert> : null}
@@ -156,8 +170,8 @@ function Panel({ id, ctx, onChanged, dateTime }: { id: string; ctx: Ctx; onChang
     </section>
     {["DRAFT", "ACTIVE"].includes(detail.status) ? <div className="flex flex-wrap gap-2">
       <Button size="sm" variant="secondary" onClick={() => setEditing(v => !v)}>{editing ? ui("Close editor") : ui("Edit")}</Button>
-      {detail.status === "DRAFT" && ctx.leader ? <Button size="sm" disabled={busy} onClick={() => void act("activate", {}, ui("Activated."))}>{ui("Activate")}</Button> : null}
-      {detail.status === "DRAFT" && !ctx.leader ? <span className="text-xs text-ink-muted">{ui("A school leader activates the plan after checking evidence, goal, owner and dates.")}</span> : null}
+      {detail.status === "DRAFT" && (ctx.canActivate ?? ctx.leader) ? <Button size="sm" disabled={busy} onClick={() => void act("activate", {}, ui("Activated."))}>{ui("Activate")}</Button> : null}
+      {detail.status === "DRAFT" && !(ctx.canActivate ?? ctx.leader) ? <span className="text-xs text-ink-muted">{ui("A school leader activates the plan after checking evidence, goal, owner and dates.")}</span> : null}
     </div> : null}
     {editing ? <Editor ctx={ctx} detail={detail} onSaved={async () => { setEditing(false); await load(); await onChanged(); }} /> : null}
 

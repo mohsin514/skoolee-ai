@@ -32,7 +32,7 @@ export function TeacherConflictsBanner() {
   if (loading || (doubleBooked.length === 0 && overCommitted.length === 0)) return null;
 
   return (
-    <div className="sk-rise mb-5 overflow-hidden rounded-[24px] border border-status-error-border bg-gradient-to-br from-status-error-surface to-white shadow-md">
+    <div className="sk-rise mb-5 overflow-hidden rounded-[24px] border border-status-error-border bg-gradient-to-br from-status-error-surface to-card shadow-md">
       <SystemButton variant="ghost"
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -47,7 +47,12 @@ export function TeacherConflictsBanner() {
             <p className="text-sm font-bold text-ink-strong">{ui("Teacher scheduling conflicts")}</p>
             <p className="mt-0.5 text-xs font-normal leading-relaxed text-ink-muted">
               {doubleBooked.length > 0
-                ? ui("{0} teacher(s) double-booked across {1} period(s)", [doubleBooked.length, totalClashes])
+                ? ui(
+                    doubleBooked.length === 1
+                      ? totalClashes === 1 ? "1 teacher double-booked in 1 period" : "1 teacher double-booked across {1} periods"
+                      : totalClashes === 1 ? "{0} teachers double-booked in 1 period" : "{0} teachers double-booked across {1} periods",
+                    [doubleBooked.length, totalClashes],
+                  )
                 : null}
               {doubleBooked.length > 0 && overCommitted.length > 0 ? " · " : null}
               {overCommitted.length > 0

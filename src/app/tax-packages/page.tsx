@@ -1,5 +1,11 @@
-import { TaxPackages } from "@/components/tax/tax-packages";
+import { redirect } from "next/navigation";
+import { requirePageSession } from "@/lib/auth/require-page-session";
+import { orphanRouteTarget } from "@/lib/navigation/legacy-redirects";
 
-export const metadata = { title: "Invoice tax packages" };
+export const dynamic = "force-dynamic";
 
-export default function Page() { return <main className="mx-auto w-full min-w-0 max-w-5xl space-y-4 p-4 sm:p-6"><TaxPackages /></main>; }
+/** SPEC §6.3 — the finance desk drafts tax packages (Finance desk › Tax packages) and the institution authority signs them off (Approvals › Tax). */
+export default async function TaxPackagesPage() {
+  const user = await requirePageSession();
+  redirect(orphanRouteTarget("tax-packages", user)); // outside try/catch
+}

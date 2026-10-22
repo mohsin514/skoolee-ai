@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Calendar, CalendarX2 } from "lucide-react";
+import { AlertTriangle, Calendar, CalendarRange, CalendarX2, Printer } from "lucide-react";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -11,7 +12,6 @@ import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
 import { TimetableSkeleton } from "@/components/teacher/teacher-components";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
-import { SubstituteDuties } from "@/components/school-ai/school-operations-duties";
 import { MyCover } from "@/components/cover/my-cover";
 
 interface TeacherSlot {
@@ -28,7 +28,13 @@ interface TeacherSlot {
   roomNumber: string | null;
 }
 
+/**
+ * Timetable & cover: the teacher's published week, exam date sheet and, below them, the lessons they
+ * cover and the cover arranged for theirs (MyCover). The read-only duty list that used to sit above
+ * the timetable duplicated MyCover and is gone (M67).
+ */
 export default function TeacherTimetablePage() {
+  const ui = useUiText();
   const [slots, setSlots] = useState<TeacherSlot[]>([]);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,22 +74,20 @@ export default function TeacherTimetablePage() {
 
   return (
     <TeacherPage
-      tone="timetable"
-      icon={Calendar}
-      eyebrow="My Schedule"
-      title="Weekly Timetable"
-      summary="Your published class schedule across all assigned classes"
+      icon={CalendarRange}
+      title="Timetable & cover"
+      description="Your published week, your exam date sheet and the cover arranged with you."
+      secondaryActions={slots.length ? [{ id: "print", label: "Print", icon: Printer, onClick: () => window.print() }] : []}
     >
       {/* TeacherPage already supplies the scroll area, the tinted ground and
           the padding; repeating them here nested a second scrollbar inside the
           first, so the week grid scrolled independently of the page around it. */}
       <div className="space-y-6">
-      <SubstituteDuties />
       {loadFailed ? (
         <div className="sk-panel sk-enter">
           <ErrorState
-            title="Couldn't load your timetable"
-            description="Your schedule didn't load. Try again, and if it keeps happening, ask your campus admin."
+            title={ui("Couldn't load your timetable")}
+            description={ui("Your schedule didn't load. Try again, and if it keeps happening, ask your academic lead.")}
             onRetry={() => { void load(); }}
           />
         </div>
@@ -91,8 +95,8 @@ export default function TeacherTimetablePage() {
         <div className="sk-panel sk-enter" style={{ "--sk-delay": "80ms" } as React.CSSProperties}>
           <EmptyState
             icon={CalendarX2}
-            title="No classes assigned yet"
-            description="Your timetable will appear here once the admin publishes a schedule and assigns classes to you. Check back later."
+            title={ui("No classes assigned yet")}
+            description={ui("Your timetable appears here once your academic lead publishes a schedule with your classes.")}
           />
         </div>
       ) : (
@@ -108,9 +112,9 @@ export default function TeacherTimetablePage() {
             >
               <div className="mb-3 flex items-center gap-2">
                 <div aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-brand">
-                  <Calendar className="h-4 w-4 text-white" />
+                  <Calendar className="size-4 text-primary-foreground" />
                 </div>
-                <h2 id="today-classes-heading" className="text-base font-bold text-ink-strong">Today&apos;s Classes</h2>
+                <h2 id="today-classes-heading" className="text-base font-bold text-ink-strong">{ui("Today's classes")}</h2>
               </div>
               <ul className="flex flex-wrap gap-2">
                 {todaySlots.map((s) => {
@@ -127,7 +131,7 @@ export default function TeacherTimetablePage() {
                       {clashes ? <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-status-error-text" /> : null}
                       <span dir="ltr" className={`text-xs font-bold tabular-nums ${clashes ? "text-status-error-text" : "text-primary"}`}>{s.startTime}</span>
                       <span aria-hidden="true" className="text-xs text-ink-faint">|</span>
-                      <span className="text-xs font-semibold text-ink-strong">{s.subject?.name}</span>
+                      <bdi className="text-xs font-semibold text-ink-strong">{s.subject?.name}</bdi>
                       <span className="text-xs text-ink-subtle">
                         {s.className}{s.classSection ? ` - ${s.classSection}` : ""}
                       </span>
@@ -137,7 +141,7 @@ export default function TeacherTimetablePage() {
                     <li key={s.id} className="min-w-0 max-w-full">
                       {/* A clash is shown by colour and icon, so the reason is
                           also a tooltip that keyboard and touch can reach. */}
-                      {clashes ? <Tooltip content="You are booked in another class this period">{chip}</Tooltip> : chip}
+                      {clashes ? <Tooltip content={ui("You are booked in another class this period")}>{chip}</Tooltip> : chip}
                     </li>
                   );
                 })}
@@ -150,7 +154,7 @@ export default function TeacherTimetablePage() {
               ...s,
               teacher: null,
             }))}
-            title="Full Week Schedule"
+            title={ui("Full week")}
             weekendDays={weekendDays}
           />
 

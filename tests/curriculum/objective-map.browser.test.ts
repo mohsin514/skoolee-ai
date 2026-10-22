@@ -127,7 +127,8 @@ test("a lead records an explicit cross-board decision; identical titles are neve
   await panel.getByRole("combobox", { name: /^Objective here/ }).selectOption({ label: "SBA.M.2 · Subtract whole numbers" });
   await panel.getByRole("combobox", { name: /^Other curriculum/ }).selectOption({ index: 1 });
   await panel.getByRole("combobox", { name: /^Objective there/ }).selectOption({ label: "SBB.M.2 · Subtract whole numbers" });
-  await panel.getByLabel("Partly overlaps").check();
+  // The decision is a radio group of shared choice buttons (no native radios).
+  await panel.getByRole("radio", { name: "Partly overlaps" }).check();
   await panel.getByLabel("Reason (optional)").fill("Board B stops at 100.");
   await panel.getByRole("button", { name: "Record decision" }).click();
   await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();

@@ -1,7 +1,6 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react"
-import { toast } from "@/components/ui/toast";
 import { userMessage } from "@/lib/errors"
 import { getTeacherDashboardData } from "@/app/actions/dashboard"
 
@@ -25,9 +24,12 @@ export function TeacherDataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const requestVersion = useRef(0)
 
+  // Stale-while-revalidate within this mount (addendum 2026-10-22 §3): a refresh after a save (marks, report
+  // cards, an AI draft) keeps the screen the teacher is working on instead of dropping it to the skeleton, and the
+  // fresh payload replaces it when it lands. A refresh that fails clears what was shown (fail closed: a revoked
+  // assignment must not leave its records on screen) and the page shows its inline error with Retry.
   const loadData = useCallback(async () => {
     const version = ++requestVersion.current
-    setData(null)
     setLoading(true)
     setError(null)
     try {
@@ -36,11 +38,12 @@ export function TeacherDataProvider({ children }: { children: ReactNode }) {
       setData(fresh)
     } catch (err: any) {
       if (version !== requestVersion.current) return
+      setData(null)
       // Server-action failures surface raw engine text (query, build paths,
       // database host), so they never go straight to the user.
-      const message = userMessage(err, "Could not load your dashboard.")
-      setError(message)
-      toast.error(message)
+      // Reported once, inline, by the page's ErrorState with a retry — never
+      // also as a toast (R4).
+      setError(userMessage(err, "Could not load your dashboard."))
     } finally {
       if (version === requestVersion.current) setLoading(false)
     }

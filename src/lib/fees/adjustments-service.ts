@@ -1,16 +1,22 @@
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError } from "@/lib/api/scope";
+import { ApiError, canApproveFinance, canManageFinance, soleChecker } from "@/lib/api/scope";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { notifySelfApproval } from "@/lib/notifications/events";
 import { capturePaymentReceipt } from "./receipt";
 
 // SKO-433: refunds, credit notes and waivers as controlled financial exceptions.
 //  - A credit note or waiver reduces what is owed on one invoice; it never moves cash.
 //  - A refund returns cash against one payment; approval is not disbursement, and money is recorded
 //    as returned only when finance confirms the disbursement.
-//  - The requester never decides their own request. Open requests reserve the amount they ask for, so
-//    concurrent requests cannot exceed what is refundable or owed. A decision re-checks the source
-//    version it was requested against; anything that changed needs a fresh request.
+//  - The finance desk (the accountant, or the campus admin while no accountant is on the campus) requests;
+//    the campus admin decides (role-ux §2.5). The requester never decides their own request unless no other
+//    campus admin holds the checker seat for that campus (SD3): then a typed reason of at least 10 characters
+//    is required, the audit row carries selfApproved, and the institution authority is told.
+//  - Open requests reserve the amount they ask for, so concurrent requests cannot exceed what is refundable
+//    or owed. A decision re-checks the source version it was requested against; anything that changed needs
+//    a fresh request.
 
 export const ADJUSTMENT_KINDS = ["REFUND", "CREDIT_NOTE", "WAIVER"] as const;
 export const REASON_CATEGORIES = ["WITHDRAWAL", "OVERPAYMENT", "BILLING_ERROR", "HARDSHIP", "SCHOLARSHIP", "SIBLING_POLICY", "OTHER"] as const;
@@ -37,7 +43,11 @@ async function refundable(tx: TxClient, invoice: InvoiceRow, paymentId: string) 
   return { payment, applied: Math.max(0, Math.min(applied, invoice.totalAmountPaid)), credit: Math.max(0, credit), version: `${payment.id}:${payment.reversals.length}:${applied}:${credit}` };
 }
 
+/** SD3 reason floor (role-ux §2.5). */
+export const SELF_APPROVAL_REASON_MIN = 10;
+
 export async function requestAdjustment(user: AuthUser, input: { kind: AdjustmentKind; invoiceId: string; paymentId?: string | null; amount: number; reasonCategory: string; reason: string; publicExplanation: string; privateNote?: string | null; idempotencyKey: string }) {
+  if (!canManageFinance(user)) throw new ApiError("Only the finance desk requests refunds, credit notes and waivers.", 403);
   if (!ADJUSTMENT_KINDS.includes(input.kind)) throw new ApiError("Choose refund, credit note or waiver.", 400);
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new ApiError("Enter a positive amount.", 400);
   if (!(REASON_CATEGORIES as readonly string[]).includes(input.reasonCategory)) throw new ApiError("Choose a reason category.", 400);
@@ -78,18 +88,34 @@ export async function requestAdjustment(user: AuthUser, input: { kind: Adjustmen
   }
 }
 
-export async function decideAdjustment(user: AuthUser, id: string, decision: "approve" | "decline") {
-  return prisma.$transaction(async (tx) => {
+/**
+ * Approving or declining a refund, credit note or waiver is a money decision (role-ux R3, §4.5.5; P8-10): it always
+ * carries a typed reason of at least `SELF_APPROVAL_REASON_MIN` characters, kept in the decision's audit row. A
+ * self-decision under SD3 is additionally flagged `selfApproved` and reported to the institution authority.
+ */
+export async function decideAdjustment(user: AuthUser, id: string, decision: "approve" | "decline", reason?: string | null) {
+  if (!canApproveFinance(user)) throw new ApiError("Only your campus admin approves refunds, credit notes and waivers.", 403);
+  const why = (reason ?? "").trim().slice(0, 2000);
+  let selfApproval: { campusId: string; reason: string } | null = null;
+  const result = await prisma.$transaction(async (tx) => {
     const adjustment = await tx.financialAdjustment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) } });
     if (!adjustment) throw new ApiError("Adjustment not found", 404);
     await tx.$queryRaw`SELECT id FROM financial_adjustments WHERE id = ${adjustment.id} FOR UPDATE`;
     const current = await tx.financialAdjustment.findUniqueOrThrow({ where: { id: adjustment.id } });
     if (current.status !== "REQUESTED") return current;
-    if (current.requesterId === user.userId) throw new ApiError("You requested this adjustment; another authorized approver must decide.", 403);
+    let self: { selfApproved: true; reason: string } | null = null;
+    if (current.requesterId === user.userId) {
+      // SD3: only when nobody else holds the checker seat for this campus (an accountant never counts).
+      if (!(await soleChecker("finance", user, current.campusId))) throw new ApiError("You requested this adjustment, so another campus admin must decide it.", 403);
+      if (why.length < SELF_APPROVAL_REASON_MIN) throw new ApiError(`You are the only approver on this campus. Give a reason of at least ${SELF_APPROVAL_REASON_MIN} characters to decide your own request.`, 400);
+      self = { selfApproved: true, reason: why };
+      selfApproval = { campusId: current.campusId, reason: why };
+    }
+    if (why.length < SELF_APPROVAL_REASON_MIN) throw new ApiError(`Give a reason of at least ${SELF_APPROVAL_REASON_MIN} characters for this decision. It is kept with the record.`, 400);
     const approver = await tx.user.findUnique({ where: { id: user.userId }, select: { fullName: true } });
     if (decision === "decline") {
       const declined = await tx.financialAdjustment.update({ where: { id: current.id }, data: { status: "DECLINED", approverId: user.userId, approverName: approver?.fullName ?? "Staff", decidedAt: new Date() } });
-      await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "financial_adjustments", recordId: current.id, userId: user.userId, oldValue: { status: "REQUESTED" }, newValue: { status: "DECLINED" } } });
+      await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "financial_adjustments", recordId: current.id, userId: user.userId, oldValue: { status: "REQUESTED" }, newValue: { status: "DECLINED", reason: why, ...(self ?? {}) } } });
       return declined;
     }
     const invoice = await lockInvoice(tx, user, current.invoiceId);
@@ -105,13 +131,27 @@ export async function decideAdjustment(user: AuthUser, id: string, decision: "ap
       status = "APPLIED";
     }
     const decided = await tx.financialAdjustment.update({ where: { id: current.id }, data: { status, approverId: user.userId, approverName: approver?.fullName ?? "Staff", decidedAt: new Date(), ...(status === "APPLIED" ? { executedAt: new Date() } : {}) } });
-    await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "financial_adjustments", recordId: current.id, userId: user.userId, oldValue: { status: "REQUESTED", invoice: version }, newValue: { status, kind: current.kind, amount: current.amount } } });
+    await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "financial_adjustments", recordId: current.id, userId: user.userId, oldValue: { status: "REQUESTED", invoice: version }, newValue: { status, kind: current.kind, amount: current.amount, reason: why, ...(self ?? {}) } } });
     return decided;
   });
+  // After commit, fire-and-forget: the institution authority sees every self-approval (not when it decided itself).
+  const sd3 = selfApproval as { campusId: string; reason: string } | null;
+  if (sd3 && !isInstitutionAuthority(user)) {
+    void Promise.resolve()
+      .then(() => notifySelfApproval({ schoolId: user.schoolId, campusId: sd3.campusId, kind: "finance", recordId: result.id, actorId: user.userId, reason: sd3.reason }))
+      .catch((error) => console.error("[fees/adjustments] self-approval notice failed", error));
+  }
+  return result;
+}
+
+/** A decided adjustment whose requester also decided it was self-approved under SD3 (requester ≠ approver otherwise). */
+export function isSelfApproved(row: { requesterId: string; approverId: string | null }) {
+  return row.approverId !== null && row.approverId === row.requesterId;
 }
 
 /** Finance records what happened to an approved refund. Money counts as returned only when confirmed. */
 export async function recordDisbursement(user: AuthUser, id: string, outcome: "confirmed" | "failed", reference: string) {
+  if (!canManageFinance(user)) throw new ApiError("Only the finance desk records refund payouts.", 403);
   return prisma.$transaction(async (tx) => {
     const adjustment = await tx.financialAdjustment.findFirst({ where: { id, schoolId: user.schoolId, kind: "REFUND", ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) } });
     if (!adjustment) throw new ApiError("Refund not found", 404);

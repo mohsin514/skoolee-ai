@@ -87,18 +87,25 @@ test("a campus administrator sees only their campus history and exports it once"
 });
 
 test("the school owner can switch campus and revoking export permission shows a denial", async () => {
-  const owner = await openHistory("owner", "/super", undefined, async page => {
-    await page.locator("div").filter({ hasText: `Campus ${campusB.slice(0, 4)}` }).getByRole("button", { name: "Manage" }).last().click();
-  });
+  // role-ux M15: a campus detail's "Activity log" is that campus only; the school-wide log, with its campus picker,
+  // is Settings › Activity log.
+  const owner = await openHistory("owner", `/super?view=campuses&campus=${campusB}`);
   await owner.dialog.getByRole("listitem").first().waitFor();
-  assert.equal(await owner.dialog.getByLabel("Campus").inputValue(), campusB, "opens on the selected campus");
+  assert.equal(await owner.dialog.getByLabel("Campus").count(), 0, "the campus detail's log is locked to that campus");
   assert.equal(await owner.dialog.getByRole("listitem").count(), 1);
-  await owner.dialog.getByLabel("Campus").selectOption("");
-  await owner.dialog.getByRole("listitem").nth(2).waitFor();
-  // The school-wide view also includes the owner's own sign-in security and export events.
-  for (const label of ["Students", "Marks", "Classes"]) assert.equal(await owner.dialog.getByRole("listitem").filter({ hasText: label }).count() >= 1, true, `${label} from every campus`);
-  await settled(owner.page); await owner.page.screenshot({ path: `${evidence}/history-owner-campus-filter-en-1440.png`, fullPage: true });
   await owner.ctx.close();
+  const ctx = await context("owner"), page = await ctx.newPage();
+  await page.goto(`${base}/super?view=settings&tab=activity`);
+  const panel = page.locator("[data-audit-history]");
+  await panel.getByRole("listitem").first().waitFor({ timeout: 30_000 });
+  await panel.getByLabel("Campus").selectOption(campusB);
+  await panel.getByRole("listitem").filter({ hasText: "Classes" }).first().waitFor();
+  await panel.getByLabel("Campus").selectOption("");
+  await panel.getByRole("listitem").nth(2).waitFor();
+  // The school-wide view also includes the owner's own sign-in security and export events.
+  for (const label of ["Students", "Marks", "Classes"]) assert.equal(await panel.getByRole("listitem").filter({ hasText: label }).count() >= 1, true, `${label} from every campus`);
+  await settled(page); await page.screenshot({ path: `${evidence}/history-owner-campus-filter-en-1440.png`, fullPage: true });
+  await ctx.close();
 
   await raw.rolePermission.create({ data: { schoolId, role: "CAMPUS_ADMIN", module: "reports", canView: false, canAdd: false, canEdit: false, canDelete: false } });
   const admin = await openHistory("campusAdmin", "/admin?view=leadership");

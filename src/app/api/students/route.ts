@@ -10,7 +10,7 @@ import {
   assertPermission,
   assertModuleRead,
   assertStaffRole,
-  canManageOperations,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -135,15 +135,22 @@ const STUDENT_STATUSES = ["active", "archived", "transferred", "graduated"];
  * order is total: without it, paging through equal values can show the same
  * student twice and skip another.
  */
-function rosterOrderBy(sortBy: string | null, sortDir: string | null) {
+function rosterOrderBy(sortBy: string | null, sortDir: string | null): Prisma.StudentOrderByWithRelationInput[] {
   const dir = sortDir === "desc" ? ("desc" as const) : ("asc" as const);
   const tiebreak = [{ rollNo: "asc" as const }, { id: "asc" as const }];
 
+  // The roster panel's own keys (students-panel SORTS) are accepted alongside the column names.
   switch (sortBy) {
     case "name":
       return [{ fullName: dir }, ...tiebreak];
     case "rollNo":
+    case "roll":
       return [{ rollNo: dir }, { id: "asc" as const }];
+    case "newest":
+      // "Recently added": ascending means newest first, as in the panel.
+      return [{ enrollmentDate: dir === "asc" ? "desc" : "asc" }, { id: "asc" as const }];
+    case "classOrder":
+      return [{ class: { name: dir } }, { class: { section: dir } }, ...tiebreak];
     case "status":
       return [{ status: dir }, ...tiebreak];
     case "guardian":
@@ -167,8 +174,21 @@ export async function GET(req: NextRequest) {
     await assertModuleRead(user, "students");
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
-    const classId = searchParams.get("classId");
+    // `section` is the roster panel's name for one class section (a class id); `classId` stays for older callers.
+    const classId = searchParams.get("section") || searchParams.get("classId");
     const search = searchParams.get("search")?.trim();
+    // Roster filters (P5-08 server paging): `classGroup` = "<academicYear>::<name>" (every section of one class,
+    // the panel's classGroupKey); `categoryId`/`groupId` = an id or "none" (untagged); `missingGuardian=1` = no
+    // guardian phone and no guardian email; `noLogin=1` = no student portal account.
+    const classGroup = searchParams.get("classGroup");
+    const [classGroupYear, ...classGroupNameParts] = classGroup ? classGroup.split("::") : [];
+    const classGroupName = classGroupNameParts.join("::");
+    const classGroupAcademicYear = Number.parseInt(classGroupYear ?? "", 10);
+    const categoryId = searchParams.get("categoryId");
+    const groupId = searchParams.get("groupId");
+    const flag = (key: string) => ["1", "true"].includes(searchParams.get(key) ?? "");
+    const missingGuardian = flag("missingGuardian");
+    const noLogin = flag("noLogin");
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10), 1), 200);
     const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
@@ -182,11 +202,22 @@ export async function GET(req: NextRequest) {
     // Teachers see only the roster of classes they teach or lead. Campus scope
     // alone hands every teacher the whole campus roster, medical notes and
     // guardian contacts included.
-    const where = {
+    const rosterFilters: Prisma.StudentWhereInput[] = [
+      ...(categoryId ? [{ categoryId: categoryId === "none" ? null : categoryId }] : []),
+      ...(groupId ? [{ groupId: groupId === "none" ? null : groupId }] : []),
+      ...(missingGuardian ? [
+        { OR: [{ guardianPhone: null }, { guardianPhone: "" }] },
+        { OR: [{ guardianEmail: null }, { guardianEmail: "" }] },
+      ] : []),
+      ...(noLogin ? [{ OR: [{ studentUserId: null }, { studentUser: { is: { email: "" } } }] }] : []),
+    ];
+    const where: Prisma.StudentWhereInput = {
       ...scopedCampusWhere(user, campusId),
+      ...(rosterFilters.length ? { AND: rosterFilters } : {}),
       class: {
         is: {
           ...(archivedOnly ? {} : { archivedAt: null }),
+          ...(classGroupName ? { name: classGroupName, ...(Number.isFinite(classGroupAcademicYear) ? { academicYear: classGroupAcademicYear } : {}) } : {}),
           ...(user.role === "TEACHER" ? { OR: [
             { classTeacherId: user.userId },
             { subjects: { some: { teacherId: user.userId } } },
@@ -243,7 +274,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     const body = await req.json();
     if (typeof body?._importBatchId === "string") await assertRosterPermission(user, "add");
     else await assertPermission(user, "students", "add");
@@ -817,7 +848,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "students", "edit");
 
     const body = await req.json();
@@ -1159,7 +1190,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "students", "delete");
 
     const { searchParams } = new URL(req.url);

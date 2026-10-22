@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
 import { actOnItem, itemHistory, listItems, logItem } from "@/lib/front-desk/postal";
+import { ownerCandidates } from "@/lib/front-desk/phone-calls";
 import {
   ApiError,
   assertModuleRead,
@@ -14,7 +14,7 @@ import {
 // SKO-464 postal and courier register.
 // GET   ?campusId=&view=active|mine|closed|all&direction=RECEIVE|DISPATCH&q=   → items with counts
 // GET   ?history=<id>                                                     → one item's history
-// GET   ?owners=1                                                         → people who can own an item
+// GET   ?owners=1                                                         → front-office owners on this campus (campus admins, ADMIN, receptionists; G40)
 // POST  {direction, date, toName, fromName?, courier?, referenceNo?, note?, ownerId?, idempotencyKey}
 // PATCH {id, version, action: assign|dispatch|collect|deliver|correct, ...}
 // DELETE is not supported: items and their history are kept.
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const campusId = await resolveCampusId(user, params.get("campusId"));
     if (params.get("owners")) {
-      const owners = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { in: ["CAMPUS_ADMIN", "PRINCIPAL", "RECEPTIONIST", "SUPER_ADMIN"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" } });
+      const owners = await ownerCandidates(user, campusId);
       return Response.json({ success: true, data: owners });
     }
     const history = params.get("history");

@@ -4,7 +4,6 @@ import {
   ApiError,
   assertPermission,
   assertStaffRole,
-  canManageOperations,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -23,10 +22,10 @@ import { Prisma } from "@prisma/client";
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    // Taking a fee payment is the accountant's job and the receptionist's desk
-    // duty, and the matrix grants fees.add to both. The canManageOperations
-    // gate that used to sit in front of this check refused them, leaving the
-    // permission below unreachable for the only two roles that need it.
+    // Taking a fee payment is the finance desk's job (the accountant, or the
+    // campus admin while no accountant is on the campus). The permission matrix
+    // decides who holds fees.add, so a school that opens a cash counter at the
+    // front desk grants it there without a code change.
     assertStaffRole(user);
     await assertPermission(user, "fees", "add");
 
@@ -120,6 +119,8 @@ export async function POST(req: NextRequest) {
       actorName: user.fullName,
       studentName: invoice.student.fullName,
       amount,
+      // The invoice's own currency (an invoice may be billed in another currency than the campus default).
+      currency: invoice.currency,
     });
 
     return respond(result.payment, result.credit, false);

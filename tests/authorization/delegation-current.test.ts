@@ -25,7 +25,7 @@ async function grant(flags: Record<string, boolean>, role = "RECEPTIONIST", modu
   const { data } = await response.json(); assert.equal(data.role, role); assert.equal(data.module, module); return data;
 }
 before(async () => {
-  for (const id of [school, foreignSchool]) await db.school.create({ data: { id, name: "Synthetic delegation school", slug: id, regId: id, contactEmail: `${id}@example.invalid`, city: "Synthetic", status: "ACTIVE", plan: "PRO" } });
+  for (const id of [school, foreignSchool]) await db.school.create({ data: { id, name: "Synthetic delegation school", slug: id, regId: id, contactEmail: `${id}@example.invalid`, city: "Synthetic", status: "ACTIVE", plan: "PRO", registrationKind: "GROUP" } });
   for (const [id, schoolId] of [[campus, school], [otherCampus, school], [foreignCampus, foreignSchool]]) await db.campus.create({ data: { id, schoolId, name: "Synthetic campus", city: "Synthetic", regId: id } });
   for (const role of roles) {
     const userId = randomUUID(), email = `${userId}@example.invalid`;
@@ -70,24 +70,24 @@ test("permission PATCH delegates only a scoped action and revocation applies to 
   assert.equal((await db.visitorLog.findUniqueOrThrow({ where: { id: foreignVisitor } })).note, "Original");
 });
 
+// role-ux §7.3 G18: a school group's matrix is edited by the group admin (with a verified second factor) only.
+// Campus operators read it; an ADMIN carrying the owner flag inside a group is a campus operator (C1), and the
+// principal no longer reads it at all.
 test("read-only administrators cannot mutate grants after current staff permission is revoked", async () => {
-  for (const role of ["CAMPUS_ADMIN", "PRINCIPAL"]) {
+  for (const role of ["CAMPUS_ADMIN", "ADMIN"]) {
     const matrix = await request(role, "/api/roles/permissions"); assert.equal(matrix.status, 200); assert.equal((await matrix.json()).data.canEdit, false);
     assert.equal((await request(role, "/api/roles/permissions", "PATCH", { role: "RECEPTIONIST", module: "front-desk", canEdit: true })).status, 403, "campus manager cannot change institution-wide grants");
   }
-  const owner = await request("ADMIN", "/api/roles/permissions"); assert.equal((await owner.json()).data.canEdit, true);
-  await grant({ canView: true, canEdit: false }, "ADMIN", "staff");
-  assert.equal((await request("ADMIN", "/api/roles/permissions", "PATCH", { role: "RECEPTIONIST", module: "front-desk", canEdit: true })).status, 403);
-  await grant({ canEdit: true }, "ADMIN", "staff");
-  assert.equal((await (await request("ADMIN", "/api/roles/permissions")).json()).data.canEdit, true);
-  await db.user.update({ where: { id: accounts.get("ADMIN")! }, data: { isInstitutionOwner: false } });
-  assert.equal((await request("ADMIN", "/api/roles/permissions", "PATCH", { role: "RECEPTIONIST", module: "front-desk", canEdit: true })).status, 403, "existing owner cookie cannot retain a revoked live owner flag");
+  const owner = await request("SUPER_ADMIN", "/api/roles/permissions"); assert.equal((await owner.json()).data.canEdit, true);
+  assert.equal((await request("SUPER_ADMIN", "/api/roles/permissions", "PATCH", { role: "SUPER_ADMIN", module: "staff", canView: false })).status, 403, "nobody edits their own role row");
   await grant({ canView: true, canEdit: false }, "PRINCIPAL", "staff");
-  const response = await request("PRINCIPAL", "/api/roles/permissions"); assert.equal(response.status, 200);
-  assert.equal(response.headers.get("cache-control"), "private, no-store"); assert.equal((await response.json()).data.canEdit, false);
+  assert.equal((await request("PRINCIPAL", "/api/roles/permissions")).status, 403, "the principal no longer reads the matrix");
   assert.equal((await request("PRINCIPAL", "/api/roles/permissions", "PATCH", { role: "RECEPTIONIST", module: "front-desk", canEdit: true })).status, 403);
-  await grant({ canView: false }, "PRINCIPAL", "staff");
-  assert.equal((await request("PRINCIPAL", "/api/roles/permissions")).status, 403);
+  await grant({ canView: true, canEdit: false }, "CAMPUS_ADMIN", "staff");
+  const response = await request("CAMPUS_ADMIN", "/api/roles/permissions"); assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "private, no-store"); assert.equal((await response.json()).data.canEdit, false);
+  await grant({ canView: false }, "CAMPUS_ADMIN", "staff");
+  assert.equal((await request("CAMPUS_ADMIN", "/api/roles/permissions")).status, 403, "revoking staff view applies to the same existing session");
   await db.user.update({ where: { id: accounts.get("CAMPUS_ADMIN")! }, data: { role: "RECEPTIONIST" } });
   assert.equal((await request("CAMPUS_ADMIN", "/api/roles/permissions", "PATCH", { role: "RECEPTIONIST", module: "front-desk", canEdit: true })).status, 401);
 });
@@ -102,4 +102,10 @@ test("permission input is strict, fixed roles stay fixed, and closing View clear
   for (const key of ["canView", "canAdd", "canEdit", "canDelete"]) assert.equal(closed[key], false);
   assert.equal((await request("SUPER_ADMIN", "/api/roles/permissions", "PATCH", { role: "RECEPTIONIST", module: "front-desk", canEdit: true })).status, 400);
   assert.equal(await db.rolePermission.count({ where: { schoolId: foreignSchool } }), 0);
+  // A bulk/module change carries the typed reason (10–500 characters) into the audit row; a short reason is refused.
+  assert.equal((await request("SUPER_ADMIN", "/api/roles/permissions", "PATCH", { role: "RECEPTIONIST", module: "front-desk", canView: true, reason: "too short" })).status, 400);
+  const reason = "Front desk now covers late admissions";
+  const reasoned = await grant({ canView: true, reason } as unknown as Record<string, boolean>);
+  const audit = await db.auditLog.findFirst({ where: { schoolId: school, tableName: "role_permissions", recordId: reasoned.id }, orderBy: { createdAt: "desc" }, select: { newValue: true } });
+  assert.equal((audit?.newValue as { reason?: string } | null)?.reason, reason);
 });

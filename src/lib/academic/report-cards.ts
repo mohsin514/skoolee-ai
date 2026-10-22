@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { getTenantContext, resolveTenantFromRequest, runWithTenantContext, TenantContextError } from "@/lib/db/tenant-context";
 import { retryDatabaseTransaction } from "@/lib/school-ai/transaction";
@@ -86,8 +87,20 @@ export function gradeForMark(obtained: number, total: number, thresholds?: Grade
   return gradeForPercentage(total > 0 ? (obtained / total) * 100 : 0, thresholds);
 }
 
+export const LOCKED_EXAM_STATUSES = ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"] as const;
+
+/** One definition of "marks are locked" for every query: the lock flag or any post-lock workflow status. */
+export const LOCKED_EXAM_WHERE = {
+  OR: [{ isLocked: true }, { status: { in: [...LOCKED_EXAM_STATUSES] } }],
+} satisfies Prisma.ExamWhereInput;
+
 export function isLockedStatus(status: string | null | undefined) {
-  return status === "LOCKED" || status === "PRINCIPAL_REVIEWED" || status === "PUBLISHED";
+  return (LOCKED_EXAM_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+/** In-memory twin of LOCKED_EXAM_WHERE for an already-loaded exam row. */
+export function isExamLocked(exam: { isLocked: boolean; status: string | null }) {
+  return exam.isLocked || isLockedStatus(exam.status);
 }
 
 function round1(value: number) {
@@ -132,7 +145,7 @@ async function generateReportCardsInTransaction(examId: string, db: TxClient) {
   });
 
   if (!exam) throw new Error("Exam not found");
-  if (!exam.isLocked && !isLockedStatus(exam.status)) {
+  if (!isExamLocked(exam)) {
     throw new Error("Report cards can only be generated from locked exams");
   }
 
@@ -338,7 +351,7 @@ export async function getExamAnalytics(examId: string) {
           where: {
             campusId,
             ...(academicYear ? { academicYear } : {}),
-            OR: [{ isLocked: true }, { status: { in: ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"] } }],
+            ...LOCKED_EXAM_WHERE,
           },
         }),
         publishedExams: await prisma.exam.count({

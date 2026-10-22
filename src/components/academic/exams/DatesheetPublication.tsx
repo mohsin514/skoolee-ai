@@ -101,7 +101,7 @@ export function DatesheetPublication({ sessionId }: { sessionId: string }) {
       <Button loading={busy} disabled={busy || !canPublish} onClick={() => void publish()}>{busy ? ui("Publishing…") : ui("Publish version {0}", [next])}</Button>
       {nothingNew ? <span className="text-xs text-ink-muted">{ui("Make a change before publishing a new version.")}</span> : null}
     </div>
-    {result ? <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900" data-publication-result>{ui("Version {0} published for {1} classes: {2} students and {3} staff are affected; {4} people are told once.", [result.version, result.affected.classes, result.affected.students, result.affected.staff, result.recipients])}</p> : null}
+    {result ? <p role="status" className="rounded-xl bg-status-success-surface p-3 text-sm text-status-success-text" data-publication-result>{ui("Version {0} published for {1} classes: {2} students and {3} staff are affected; {4} people are told once.", [result.version, result.affected.classes, result.affected.students, result.affected.staff, result.recipients])}</p> : null}
 
     {status.history.length ? <details className="text-xs" data-publication-history><summary className="cursor-pointer font-bold">{ui("Version history")}</summary>
       <ol className="mt-2 space-y-1">{status.history.map(entry => <li key={entry.id}>{ui("Version {0}", [entry.version])} · {dateTime(entry.publishedAt)} · <bdi>{entry.publishedBy}</bdi>{entry.changeCount ? ` · ${ui("{0} change(s)", [entry.changeCount])}` : ""}{entry.reason ? <> · <bdi>{entry.reason}</bdi></> : null}</li>)}</ol>

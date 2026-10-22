@@ -64,14 +64,21 @@ test("institution purchase delegation excludes pupils, guardians and the platfor
     assert.equal(canPurchaseSubscription(delegated), false);
     assert.throws(() => assertSubscriptionPurchaser(delegated), { status: 403 });
   }
+  // role-ux §7.2 G6: a purchase flag on a non-authority role is inert (stale delegations stay harmless).
   for (const role of ["TEACHER", "CAMPUS_ADMIN", "PRINCIPAL"] as const) {
     assert.equal(canPurchaseSubscription(actor(role)), false);
     assert.throws(() => assertSubscriptionPurchaser(actor(role)), { status: 403 });
-    const delegated = actor(role, { canPurchaseSubscription: true });
-    assert.equal(canPurchaseSubscription(delegated), true);
-    assert.doesNotThrow(() => assertSubscriptionPurchaser(delegated));
+    const delegated = actor(role, { canPurchaseSubscription: true, institutionKind: "GROUP" });
+    assert.equal(canPurchaseSubscription(delegated), false);
+    assert.throws(() => assertSubscriptionPurchaser(delegated), { status: 403 });
   }
+  // An authority-role delegate (another group admin) may buy; so may the owner of either kind of school.
+  const groupDelegate = actor("SUPER_ADMIN", { canPurchaseSubscription: true, institutionKind: "GROUP" });
+  assert.equal(canPurchaseSubscription(groupDelegate), true);
+  assert.doesNotThrow(() => assertSubscriptionPurchaser(groupDelegate));
   assert.equal(canPurchaseSubscription(actor("SUPER_ADMIN", { isInstitutionOwner: true })), true);
+  assert.equal(canPurchaseSubscription(actor("ADMIN", { isInstitutionOwner: true, institutionKind: "STANDALONE" })), true);
+  assert.equal(canPurchaseSubscription(actor("ADMIN", { isInstitutionOwner: true, institutionKind: "GROUP" })), false);
 });
 
 test("intent validation bounds sizing and keeps idempotency and return-state fields explicit", () => {

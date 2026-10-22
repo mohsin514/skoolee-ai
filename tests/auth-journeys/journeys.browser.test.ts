@@ -194,6 +194,8 @@ test("signing up with an address that already owns a school reads exactly like a
     const replies: Array<{ status: number; body: string }> = [];
     page.on("response", async response => { if (response.url().endsWith("/api/auth/signup-step2")) replies.push({ status: response.status(), body: await response.text() }); });
     await page.goto(`${base}/register`);
+    // §8.2: Continue stays disabled until an institution type is chosen.
+    await page.getByRole("radio", { name: /Multi-Campus School Group/ }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.locator("#name").fill("Synthetic Founder");
     await page.locator("#email").fill(email);

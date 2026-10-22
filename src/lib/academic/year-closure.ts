@@ -47,6 +47,14 @@ export interface YearClosureReport {
 /** Exams whose marks are still being worked on. */
 const UNFINISHED_MARK_STATUSES = ["DRAFT", "ACTIVE", "MARKS_ENTRY"];
 
+/** "Quiz 1 in 10 classes, Midterm" instead of repeating one exam title per class. */
+function groupTitles(titles: string[]) {
+  const counts = new Map<string, number>();
+  for (const t of titles) counts.set(t, (counts.get(t) ?? 0) + 1);
+  const parts = [...counts].map(([t, n]) => (n > 1 ? `${t} in ${n} classes` : t));
+  return parts.slice(0, 3).join(", ") + (parts.length > 3 ? "…" : "");
+}
+
 function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -99,10 +107,7 @@ export async function getYearClosureReport(
         ? "No exams exist for this year, so there is nothing to close."
         : marksOutstanding.length === 0
           ? "Every exam is marked and locked."
-          : `${plural(marksOutstanding.length, "exam is", "exams are")} still awaiting marks: ${marksOutstanding
-              .slice(0, 3)
-              .map((e) => e.title)
-              .join(", ")}${marksOutstanding.length > 3 ? "…" : ""}`,
+          : `${plural(marksOutstanding.length, "exam is", "exams are")} still awaiting marks: ${groupTitles(marksOutstanding.map((e) => e.title))}`,
       view: "exam-cycles",
       owner: "Teachers",
     },

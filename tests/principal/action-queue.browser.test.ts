@@ -11,6 +11,10 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // leave, unapproved report versions, failed family messages, ownerless or late complaints); every item
 // names its trigger, owner and next action; assignment and snooze are recorded with history and never
 // close an item; fixing the source closes it; campus and role limits apply; the order is explained.
+// role-ux §7.5 G39: kinds follow seats. The principal (academic lead) gets report approvals, teacher leave, missing
+// attendance and learning-action check-ins; the campus admin (campus operations) gets complaints, failed family
+// messages, fee adjustments, payment corrections and leave for everyone who is not a teacher. QueueItemState is per
+// campus, so one seat loading its slice never settles the other seat's items.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.QUEUE_TEST_APP || "http://localhost:3107";
@@ -19,7 +23,7 @@ const db = new PrismaClient(), password = "SyntheticQueue417!";
 const schoolId = `queue417-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID(), classId = randomUUID(), studentId = randomUUID(), examId = randomUUID();
 const users = new Map<string, { id: string; email: string }>();
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
-let browser: Browser, leaveId = "", complaintId = "", messageId = "";
+let browser: Browser, leaveId = "", officeLeaveId = "", complaintId = "", messageId = "";
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const schoolDay = new Date(`${today}T12:00:00Z`).getUTCDay() !== 0;
 
@@ -40,20 +44,23 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
 }
 const api = `${base}/api/principal/queue`;
 const queue = async (key = "principal") => (await (await (await context(key)).request.get(`${api}?campusId=${campusId}`)).json()).data;
+const typesOf = (data: { items: { type: string }[] }) => data.items.map(item => item.type);
 const act = async (body: Record<string, unknown>, key = "principal") => (await context(key)).request.post(api, { data: { campusId, ...body } });
 const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
-  await db.school.create({ data: { id: schoolId, name: "Synthetic Oak Queue School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "PRO" } });
+  await db.school.create({ data: { id: schoolId, name: "Synthetic Oak Queue School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "PRO", registrationKind: "GROUP" } });
   for (const [id, name] of [[campusId, "Oak Main"], [otherCampusId, "Oak East"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Karachi" } });
   const principal = await user("principal", "PRINCIPAL"); await user("principal-ar", "PRINCIPAL", campusId, "ar");
   const teacher = await user("teacher", "TEACHER"); const coordinator = await user("coordinator", "TEACHER"); await user("other", "CAMPUS_ADMIN", otherCampusId);
+  await user("campus", "CAMPUS_ADMIN"); const receptionist = await user("receptionist", "RECEPTIONIST");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Karachi", currency: "PKR" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: principal, financeReviewedBy: principal } });
   await db.academicCycle.create({ data: { schoolId, campusId, label: "2026", academicYear: 2026, status: "ACTIVE" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Six", academicYear: 2026, classTeacherId: teacher } });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Synthetic Pupil Oak", rollNo: "Q-1", gender: "MALE", enrollmentDate: new Date("2026-04-01Z") } });
   const leaveType = await db.leaveType.create({ data: { schoolId, campusId, name: "Casual" } });
   leaveId = (await db.leaveRequest.create({ data: { schoolId, campusId, userId: coordinator, leaveTypeId: leaveType.id, fromDate: new Date(Date.now() + 3 * 86_400_000), toDate: new Date(Date.now() + 4 * 86_400_000), days: 20 } })).id;
+  officeLeaveId = (await db.leaveRequest.create({ data: { schoolId, campusId, userId: receptionist, leaveTypeId: leaveType.id, fromDate: new Date(Date.now() + 5 * 86_400_000), toDate: new Date(Date.now() + 6 * 86_400_000), days: 2 } })).id;
   await db.exam.create({ data: { id: examId, schoolId, campusId, classId, title: "Synthetic Midterm", term: "Term 1", academicYear: 2026, status: "PUBLISHED", isLocked: true } });
   const reportId = randomUUID(), versionId = randomUUID();
   await db.reportCard.create({ data: { id: reportId, schoolId, campusId, examId, studentId, status: "GENERATED" } });
@@ -70,24 +77,58 @@ after(async () => { await browser?.close(); await db.school.delete({ where: { id
 test("each source condition is one item with its trigger, owner, next action and an explained order", async () => {
   const data = await queue();
   assert.deepEqual(data.failedSources, [], "every source feed loads");
-  const types = data.items.map((item: { type: string }) => item.type);
-  for (const type of ["LEAVE_PENDING", "REPORT_APPROVAL", "DELIVERY_FAILED", "COMPLAINT"]) assert.ok(types.includes(type), type);
+  const types = typesOf(data);
+  for (const type of ["LEAVE_PENDING", "REPORT_APPROVAL"]) assert.ok(types.includes(type), type);
   if (schoolDay) {
     const attendance = data.items.find((item: { type: string }) => item.type === "ATTENDANCE_MISSING");
     assert.deepEqual([attendance.sourceOwner.name, attendance.link], ["Synthetic teacher", "/principal?view=attendance"]);
   }
   const report = data.items.find((item: { type: string }) => item.type === "REPORT_APPROVAL");
   assert.equal(report.title, "1 report version(s) still need approval");
-  const complaint = data.items.find((item: { type: string }) => item.type === "COMPLAINT");
-  assert.equal(complaint.title, "Confidential concern CMP-0QUEUE01 has no owner");
-  assert.equal(JSON.stringify(data).includes("SECRET-NARRATIVE"), false, "no confidential narrative");
-  assert.equal(JSON.stringify(data).includes("Safeguarding"), false, "no confidential category");
-  // Overdue first, then the published category order.
-  const overdueFlags = data.items.map((item: { overdue: boolean }) => item.overdue);
-  assert.deepEqual(overdueFlags, [...overdueFlags].sort((a, b) => Number(b) - Number(a)));
   assert.match(data.sortingRule, /No pupil risk score/);
   assert.equal(new Set(data.items.map((item: { key: string }) => item.key)).size, data.items.length, "no duplicate items");
   assert.equal((await queue()).items.length, data.items.length, "a second check does not add items");
+  // Overdue first, then the published category order.
+  const overdueFlags = data.items.map((item: { overdue: boolean }) => item.overdue);
+  assert.deepEqual(overdueFlags, [...overdueFlags].sort((a, b) => Number(b) - Number(a)));
+});
+
+test("kinds follow seats: the principal holds the academic items, the campus admin the operations items (G39)", async () => {
+  const principal = await queue("principal");
+  const principalKeys = principal.items.map((item: { key: string }) => item.key);
+  for (const type of ["COMPLAINT", "DELIVERY_FAILED", "ADJUSTMENT_APPROVAL"]) assert.equal(typesOf(principal).includes(type), false, `principal: no ${type}`);
+  assert.ok(principalKeys.includes(`LEAVE_PENDING:${leaveId}`), "teacher leave goes to the academic lead");
+  assert.equal(principalKeys.includes(`LEAVE_PENDING:${officeLeaveId}`), false, "office staff leave goes to the campus admin");
+
+  const campus = await queue("campus");
+  assert.deepEqual(campus.failedSources, []);
+  const campusKeys = campus.items.map((item: { key: string }) => item.key);
+  for (const type of ["COMPLAINT", "DELIVERY_FAILED"]) assert.ok(typesOf(campus).includes(type), `campus admin: ${type}`);
+  for (const type of ["REPORT_APPROVAL", "ATTENDANCE_MISSING", "SUPPORT_CHECKIN"]) assert.equal(typesOf(campus).includes(type), false, `campus admin with a principal: no ${type}`);
+  assert.ok(campusKeys.includes(`LEAVE_PENDING:${officeLeaveId}`));
+  assert.equal(campusKeys.includes(`LEAVE_PENDING:${leaveId}`), false);
+  const complaint = campus.items.find((item: { type: string }) => item.type === "COMPLAINT");
+  assert.equal(complaint.title, "Confidential concern CMP-0QUEUE01 has no owner");
+  assert.equal(complaint.link, "/admin?view=front-desk&tab=complaints");
+  assert.equal(campus.items.find((item: { type: string }) => item.type === "DELIVERY_FAILED").link, "/admin?view=communications");
+  assert.equal(JSON.stringify(campus).includes("SECRET-NARRATIVE"), false, "no confidential narrative");
+  assert.equal(JSON.stringify(campus).includes("Safeguarding"), false, "no confidential category");
+  assert.equal(JSON.stringify(principal).includes("CMP-0QUEUE01"), false, "the principal never reads complaint items, active or resolved");
+});
+
+test("one seat's load never settles the other seat's items (QueueItemState is per campus)", async () => {
+  const complaintKey = `COMPLAINT:${complaintId}`, reportKey = `REPORT_APPROVAL:${examId}`;
+  assert.equal((await act({ action: "acknowledge", keys: [complaintKey] }, "campus")).status(), 200);
+  assert.equal((await act({ action: "acknowledge", keys: [reportKey] }, "principal")).status(), 200);
+  for (let round = 0; round < 2; round++) { await queue("principal"); await queue("campus"); }
+  const states = await db.queueItemState.findMany({ where: { schoolId, campusId, itemKey: { in: [complaintKey, reportKey] } } });
+  assert.equal(states.length, 2);
+  assert.ok(states.every(state => state.resolvedAt === null), "neither item was settled by the other seat's load");
+  assert.equal(await db.queueItemEvent.count({ where: { schoolId, campusId, itemKey: { in: [complaintKey, reportKey] }, kind: "RESOLVED" } }), 0, "no false RESOLVED history");
+  const foreign = await act({ action: "assign", keys: [complaintKey], assigneeId: users.get("teacher")!.id }, "principal");
+  assert.equal(foreign.status(), 200);
+  assert.deepEqual((await foreign.json()).data.map((o: { outcome: string }) => o.outcome), ["resolved"], "the principal cannot act on a campus-operations item");
+  assert.equal((await db.queueItemState.findFirstOrThrow({ where: { campusId, itemKey: complaintKey } })).assigneeId, null, "nothing changed");
 });
 
 test("assignment is idempotent with per-item outcomes and history; acknowledgement does not resolve", async () => {
@@ -106,10 +147,10 @@ test("assignment is idempotent with per-item outcomes and history; acknowledgeme
 
 test("snooze needs a reason and a return time; overdue items stay discoverable", async () => {
   const key = `DELIVERY_FAILED:${messageId}`;
-  assert.equal((await act({ action: "snooze", keys: [key], until: new Date(Date.now() + 86_400_000).toISOString() })).status(), 400);
-  assert.equal((await act({ action: "snooze", keys: [key], reason: "Synthetic waiting for new number", until: new Date(Date.now() - 60_000).toISOString() })).status(), 400);
-  assert.equal((await act({ action: "snooze", keys: [key], reason: "Synthetic waiting for new number", until: new Date(Date.now() + 86_400_000).toISOString() })).status(), 200);
-  const data = await queue();
+  assert.equal((await act({ action: "snooze", keys: [key], until: new Date(Date.now() + 86_400_000).toISOString() }, "campus")).status(), 400);
+  assert.equal((await act({ action: "snooze", keys: [key], reason: "Synthetic waiting for new number", until: new Date(Date.now() - 60_000).toISOString() }, "campus")).status(), 400);
+  assert.equal((await act({ action: "snooze", keys: [key], reason: "Synthetic waiting for new number", until: new Date(Date.now() + 86_400_000).toISOString() }, "campus")).status(), 200);
+  const data = await queue("campus");
   const item = data.items.find((i: { key: string }) => i.key === key);
   assert.deepEqual([item.snoozed, item.overdue], [true, true], "the failed message is overdue and still listed");
   assert.equal(data.counts.snoozed, 1);
@@ -125,7 +166,11 @@ test("fixing the source closes the item and keeps it in resolved history", async
   const data = await queue();
   const keys = data.items.map((i: { key: string }) => i.key);
   assert.equal(keys.includes(`LEAVE_PENDING:${leaveId}`), false);
-  assert.equal(keys.includes(`DELIVERY_FAILED:${messageId}`), false);
+  // The failed message was the campus admin's item; whichever seat loads next settles it, and only that seat reads it.
+  const campus = await queue("campus");
+  assert.equal(campus.items.some((i: { key: string }) => i.key === `DELIVERY_FAILED:${messageId}`), false);
+  assert.ok(campus.resolved.some((r: { key: string }) => r.key === `DELIVERY_FAILED:${messageId}`));
+  assert.equal(data.resolved.some((r: { key: string }) => r.key === `DELIVERY_FAILED:${messageId}`), false, "the principal's resolved history follows its seat");
   if (schoolDay) assert.equal(keys.some((k: string) => k.startsWith("ATTENDANCE_MISSING")), false);
   assert.ok(data.resolved.some((r: { key: string }) => r.key === `LEAVE_PENDING:${leaveId}`));
   const history = (await (await principal.request.get(`${api}?campusId=${campusId}&history=${encodeURIComponent(`LEAVE_PENDING:${leaveId}`)}`)).json()).data;
@@ -146,12 +191,14 @@ test("the principal sees the queue before the charts and snoozes with a reason",
   await page.goto(`${base}/principal`);
   const panel = page.locator("[data-action-queue]");
   await panel.locator("[data-queue-item]").first().waitFor({ timeout: 30_000 });
-  assert.equal(await panel.locator('[data-queue-type="COMPLAINT"]').count(), 1);
+  assert.equal(await panel.locator('[data-queue-type="COMPLAINT"]').count(), 0, "complaints are the campus admin's (G39)");
   await panel.getByRole("button", { name: "Live" }).click();
   assert.match(await panel.innerText(), /Live: re-checks every 2 minutes/);
   await shot(page, "queue-principal-en-1440");
   const report = panel.locator('[data-queue-type="REPORT_APPROVAL"]');
-  await report.getByRole("button", { name: "Snooze" }).click();
+  // §4.5.2: one inline action per row; Snooze sits in the row's overflow menu.
+  await report.locator("[data-row-menu]").click();
+  await page.getByRole("menuitem", { name: "Snooze", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Snooze" }).click();
   await dialog.getByRole("alert").waitFor();
@@ -171,7 +218,7 @@ test("Arabic principal reads the queue right-to-left at phone width", async () =
   await page.waitForLoadState("networkidle");
   await page.locator("[data-action-queue] [data-queue-item]").first().waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
-  assert.match(await page.locator("#action-queue-title").innerText(), /قائمة الإجراءات/);
+  assert.match(await page.locator("#action-queue-title").innerText(), /بانتظارك/); // §8.2: "Action queue" → "Waiting on you"
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
   await page.locator("[data-action-queue]").scrollIntoViewIfNeeded();
   await shot(page, "queue-principal-ar-390");

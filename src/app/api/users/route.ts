@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
-  canManageOperations,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   scopedCampusWhere,
@@ -12,7 +12,7 @@ import {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await req.json();
     const { id, ...updates } = body;

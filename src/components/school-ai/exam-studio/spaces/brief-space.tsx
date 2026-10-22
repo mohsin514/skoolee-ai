@@ -94,7 +94,7 @@ export default function BriefSpace({ language, scope, records, capabilities, rel
         <Select value={recordId} onChange={event => { setSelected(event.target.value); setEditing(null); setNotice(null); }}>{briefs.map(brief => <option key={brief.id} value={brief.id}>{brief.title} · v{brief.version}</option>)}</Select></label>}
       {capabilities.canCreate && <Button variant="outline" disabled={busy} onClick={() => void create()}>{t.briefNew}</Button>}
     </div>
-    {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}><Isolated>{notice.text}</Isolated></p>}
+    {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${notice.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`}><Isolated>{notice.text}</Isolated></p>}
     {!recordId ? <TaskFeedback kind="empty" title={t.briefNone}><p>{t.briefIntro}</p></TaskFeedback>
       : state && <SpaceStateRegion state={state} language={language}>{view => <BriefBody view={view} t={t} language={language} scopeNames={{ subject: scope.subjectName, class: scope.className }} editing={editing} setEditing={setEditing} busy={busy || !capabilities.canCreate} onAnswer={answer} onReview={sendForReview} />}</SpaceStateRegion>}
   </div>;

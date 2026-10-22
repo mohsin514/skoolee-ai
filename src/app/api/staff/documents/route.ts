@@ -4,7 +4,7 @@ import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { deleteFile } from "@/lib/storage/s3";
 
 // Staff documents (CV, CNIC, degrees, contracts...).
@@ -17,7 +17,7 @@ const DOC_KINDS = new Set(["CV", "CNIC", "DEGREE", "CONTRACT", "PHOTO", "OTHER"]
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "view");
     const userId = req.nextUrl.searchParams.get("userId");
     if (!userId) throw new ApiError("userId required", 400);
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
     const body = await req.json();
     const { userId, kind, fileKey, fileName } = body as {
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "delete");
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id required", 400);

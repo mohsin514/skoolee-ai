@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { authorityRoleFor } from "@/lib/auth/institution";
+import { getInstitutionKind } from "@/lib/auth/institution-server";
 import { cleanSupportActions, cleanSupportScope, issueSupportCookie, SUPPORT_COOKIE, supportCookieExpiresAt, validateSupportGrantCombination } from "@/lib/owner/support-access";
 
 export const dynamic = "force-dynamic";
@@ -52,12 +54,16 @@ export async function POST(req: NextRequest) {
         targetType: "support_grant", targetId: grant.id,
         newValues: { schoolId, scope, actions, expiresAt: expiresAt.toISOString(), incidentId: incident.id, emergency },
       } });
-      const reviewers = await tx.user.findMany({ where: { schoolId, role: "SUPER_ADMIN", isActive: true }, select: { id: true } });
+      // G11: the reviewers are the institution authority of that school — the group admin in a school group, the
+      // school admin in a single school — and the notification opens their own Approvals view.
+      const kind = await getInstitutionKind(schoolId, tx);
+      const reviewers = await tx.user.findMany({ where: { schoolId, role: authorityRoleFor(kind), isActive: true }, select: { id: true } });
+      const reviewLink = `${kind === "GROUP" ? "/super" : "/admin"}?${new URLSearchParams({ view: "approvals", tab: "support" })}`;
       if (reviewers.length) await tx.notification.createMany({ data: reviewers.map(({ id }) => ({
         schoolId, userId: id, type: emergency ? "support_emergency_review" : "support_access_request",
         title: emergency ? "Emergency support access needs review" : "Support access request needs approval",
         message: `${actor.fullName || actor.email} ${emergency ? "opened emergency support access" : "requested support access"} for ${incident.reference}. Purpose: ${purpose}. ${emergency ? `Review by ${grant.reviewDueAt?.toISOString()} UTC.` : `Expires ${expiresAt.toISOString()} UTC.`}`,
-        icon: "shield", link: "/super", actorId: actor.userId, actorName: actor.fullName || actor.email,
+        icon: "shield", link: reviewLink, actorId: actor.userId, actorName: actor.fullName || actor.email,
       })) });
       return { incident, grant };
     });

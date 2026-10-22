@@ -170,7 +170,7 @@ test("Urdu learner gate and Arabic coordinator profiles are RTL without overflow
     await page.goto(`${base}/exam-delivery`);
     await page.getByRole("heading", { name: "ملفات تقديم الامتحان" }).waitFor();
     await page.getByText("Windows labs", { exact: false }).first().waitFor();
-    assert.equal(await page.locator("main").getAttribute("dir"), "rtl");
+    assert.equal(await page.locator("main").first().evaluate((el) => getComputedStyle(el).direction), "rtl"); // the frame sets dir on <html>, not <main>
     assert.equal(await noOverflow(page), true);
     await shot(page, "seb-profiles-ar-390");
     assert.deepEqual(errors, []); await ctx.close();

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canManageCampusOps } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { uploadPrivateObject } from "@/lib/storage/s3";
 
@@ -25,7 +25,9 @@ const IMAGE = ["image/jpeg", "image/png", "image/webp"];
 const HOUR = 3_600_000;
 const text = (value: unknown, max: number) => { const s = String(value ?? "").trim(); return s ? s.slice(0, max) : null; };
 const isStaff = (user: AuthUser) => !["PARENT", "STUDENT"].includes(user.role);
-const canLead = (user: AuthUser, campusId: string) => canManageOperations(user) && (user.role === "SUPER_ADMIN" || user.campusId === campusId);
+// role-ux G38b: request types and the campus-wide queue belong to the campus admin; everyone else (the principal
+// included) reaches requests as a named owner, escalation contact or department member.
+const canLead = (user: AuthUser, campusId: string) => canManageCampusOps(user) && (user.role === "SUPER_ADMIN" || user.campusId === campusId);
 
 function campusOf(user: AuthUser, requested: unknown) {
   const campusId = String(requested ?? "") || user.campusId || "";

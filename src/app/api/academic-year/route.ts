@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db/prisma";
 import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
-  canManageOperations,
+  canLeadAcademics,
+  canManageAcademics,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -49,11 +51,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Forbidden", 403);
 
     const body = await req.json();
     const { action, campusId: rawCampusId } = body;
     const campusId = await resolveCampusId(user, rawCampusId);
+    // §0.3 rule 5: promotion batches are campus operations (§2.2 #30 "run batches": PR —, G23); closing a ready
+    // year is the campus operator's or the academic lead's (§2.3 #70, §4.4b principal "Close year"), and only the
+    // academic lead force-closes (G35, below).
+    if ((action === "promote" || action === "bulk-promote") && !canManageCampusOps(user)) {
+      throw new ApiError("Your campus admin runs promotion.", 403);
+    }
+    if (action === "close-year" && !canManageCampusOps(user) && !(await canLeadAcademics(user, campusId))) {
+      throw new ApiError("Forbidden", 403);
+    }
 
     if (action === "close-year") {
       const { academicYear, force } = body;
@@ -66,8 +77,10 @@ export async function POST(req: NextRequest) {
        */
       const closure = await getYearClosureReport(campusId, Number(academicYear));
       if (!closure.canClose) {
-        const isPrincipal = user.role === "SUPER_ADMIN" || user.role === "PRINCIPAL";
-        if (!force || !isPrincipal) {
+        // G35: force-closing an unready year is the academic lead's call (SA removed) — the principal,
+        // or a campus operator only while the campus has no principal.
+        const leadsAcademics = Boolean(force) && await canLeadAcademics(user, campusId);
+        if (!force || !leadsAcademics) {
           throw new ApiError(
             `Academic year ${academicYear} is not ready to close. ${closure.blockingReasons.join(" ")}`,
             409,

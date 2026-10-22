@@ -1,13 +1,20 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
-  ArrowLeft, CheckCircle2, Circle, ClipboardCheck, Coins, FlaskConical, Info, ListChecks, Rocket, Sparkles, Users, Building2, type LucideIcon,
+  CheckCircle2, Circle, ClipboardCheck, Coins, FlaskConical, Info, ListChecks, Rocket, Users, Building2, type LucideIcon,
 } from "lucide-react";
-import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/error-state";
+import { AccessNotice } from "@/components/ui/access-notice";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { toast } from "@/components/ui/toast";
+import { FlagshipChip } from "@/components/ui/flagship";
 import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { getReadinessCopy } from "./readiness-copy";
@@ -18,8 +25,14 @@ import { getLaunchCopy } from "./readiness-launch-copy";
  * one next step, the checks as a journey (Foundation → People → Money & data → Rehearse) with why each
  * matters and an Open that lands where the person can act, then practice, reconciliation and follow-ups,
  * and a go-live bar once everything required is done.
+ *
+ * Rendered in three places, always inside a console that already owns <main>: the framed /setup/readiness page
+ * (RoleFrame) and the `setup` tab of the group admin's Settings and the school admin's School settings. On its own
+ * page it opens with the one PageHeader (h1); inside a settings tab the console's PageHeader is the h1, so the
+ * hero heading drops to h2. Feedback follows R4: a load failure is an inline ErrorState with retry, an action
+ * result is a toast, and go-live approval waits behind a ConfirmAction.
  */
-type Check = { id: string; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string; delegated?: boolean };
+type Check = { id: string; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean };
 type Task = { id: string; key: string; title: string; ownerId: string | null; status: "OPEN" | "DONE" | "DEFERRED" };
 type Batch = { id: string; kind: string; state: string; sourceName: string; total: number; accepted: number; rejected: number; unresolved: number; unknownClass: number };
 type LeadView = {
@@ -27,6 +40,7 @@ type LeadView = {
   facts: { adoptionMode: "EXAM_STUDIO" | "FULL_OPERATIONS"; students: number; studentsWithoutGuardian: number; openingBalances: number; imports: { batches: Batch[] } };
   checks: Check[]; ready: boolean; nextRequired: string | null; tasks: Task[]; staff: Array<{ id: string; fullName: string; role: string }>;
   locale: { country: string; timezone: string; currency: string };
+  aiSetup?: boolean;
 };
 type StaffView = { lead: false; tasks: Task[] };
 type Preview = { step: "attendance" | "assessment" | "family"; className: string; campusName: string; timezone: string; currency: string; learners: Array<{ name: string; status: string }>; subjects: string[] };
@@ -39,10 +53,11 @@ const PHASES: { key: "foundation" | "people" | "money" | "rehearse"; icon: Lucid
 ];
 const fill = (template: string, ...values: (string | number)[]) => template.replace(/\{(\d+)\}/g, (_, i) => String(values[Number(i)] ?? ""));
 
+class ReadinessError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 async function call(body?: unknown) {
   const response = await fetch("/api/readiness", { cache: "no-store", ...(body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Request failed");
+  if (!response.ok) throw new ReadinessError(typeof data.error === "string" ? data.error : "Request failed", response.status);
   return data;
 }
 
@@ -51,23 +66,33 @@ export function ReadinessHome() {
   const t = getReadinessCopy(language);
   const l = getLaunchCopy(language);
   const rtl = language === "ar" || language === "ur";
+  // Own page (/setup/readiness) vs a settings tab inside a console: decides the heading level and the PageHeader.
+  const standalone = (usePathname() ?? "").startsWith("/setup/readiness");
   const [view, setView] = useState<LeadView | StaffView | null>(null);
-  const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [loadFailed, setLoadFailed] = useState<"denied" | "error" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmingApproval, setConfirmingApproval] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [newTask, setNewTask] = useState({ title: "", ownerId: "" });
 
-  const load = useCallback(async () => setView(await call()), []);
-  useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
+  const load = useCallback(async () => {
+    try { setView(await call()); setLoadFailed(null); }
+    catch (error) { setLoadFailed(error instanceof ReadinessError && error.status === 403 ? "denied" : "error"); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
   async function run(work: () => Promise<unknown>, quiet = false) {
-    setBusy(true); setStatus(null);
-    try { await work(); await load(); if (!quiet) setStatus({ tone: "ok", text: t.saved }); }
-    catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); }
+    setBusy(true);
+    try { await work(); await load(); if (!quiet) toast.success(t.saved); }
+    catch (error) { toast.error(error); }
     finally { setBusy(false); }
   }
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   const owner = (id: string | null) => !view || !view.lead || !id ? t.unassigned : view.staff.find(person => person.id === id)?.fullName ?? t.unassigned;
   const checkTitle = (id: string) => t.checks[id as keyof typeof t.checks] ?? id;
+  /** Who finishes a check the viewer has no screen for (P9-08): campus admins (group admin), or the campus team. */
+  const handoff = (check: Check) => check.delegated || check.handledElsewhere ? (
+    <p className="flex items-start gap-1.5 text-xs font-semibold text-status-info-text"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{check.delegated ? l.delegated : l.handledElsewhere}</p>
+  ) : null;
 
   const taskRow = (task: Task, lead: boolean) => (
     <li key={task.id} className="sk-launch-task" data-status={task.status}>
@@ -98,17 +123,16 @@ export function ReadinessHome() {
   const live = lead?.readiness.status === "READY";
 
   return (
-    <main lang={language} dir={rtl ? "rtl" : "ltr"} className="sk-launch">
-      <Link href="/dashboard" className={buttonVariants({ variant: "link", className: "-ms-2 h-auto gap-2 px-2" })}>
-        <ArrowLeft aria-hidden="true" className="size-4 rtl:rotate-180" />{l.back}
-      </Link>
+    <div lang={language} dir={rtl ? "rtl" : "ltr"} className="sk-launch" data-readiness>
+      {/* Copy is already in the reader's language (readiness-copy.ts), so it goes in as nodes and is not looked up again. */}
+      {standalone ? <PageHeader title={<>{t.title}</>} description={<>{t.intro}</>} icon={Rocket} /> : null}
 
-      {/* ── Hero ── */}
-      <header className="sk-launch-hero">
+      {/* ── Hero (once the view is known, so a denied reader never sees a status that is not theirs) ── */}
+      {view ? <section aria-labelledby="readiness-status" className="sk-launch-hero">
         <div className="min-w-0 space-y-3">
-          <p className="sk-eyebrow text-primary">{t.title}</p>
-          <h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{live ? l.liveTitle : t.statusSetup}</h1>
-          <p className="max-w-[60ch] text-sm leading-relaxed text-ink-muted">{live ? l.liveBody : t.intro}</p>
+          {standalone ? null : <p className="sk-eyebrow text-primary">{t.title}</p>}
+          <h2 id="readiness-status" className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{live ? l.liveTitle : t.statusSetup}</h2>
+          {live || !standalone ? <p className="max-w-[60ch] text-sm leading-relaxed text-ink-muted">{live ? l.liveBody : t.intro}</p> : null}
           {lead ? (
             <div className="flex flex-wrap gap-2">
               <span className="sk-choice-tag" data-tone="brand">{t.modes[lead.facts.adoptionMode]}</span>
@@ -116,7 +140,9 @@ export function ReadinessHome() {
               {lead.readiness.approvedAt ? <span className="sk-choice-tag">{t.approvedBy}: {date(lead.readiness.approvedAt)}</span> : null}
             </div>
           ) : null}
-          {lead ? <Link href="/ai?setup=1" className={buttonVariants({ variant: "link", className: "h-auto gap-1 p-0" })}><Sparkles aria-hidden="true" className="size-4" />{t.aiSetup}</Link> : null}
+          {/* Flagship (addendum 2026-10-22): the AI setup questionnaire drafts what these checks ask for; a secondary link
+              here because the spotlight below carries this screen's one primary action. */}
+          {lead?.aiSetup && !live ? <Link href="/ai?workflow=schoolSetup" data-flagship-link="ai-workflows" className={buttonVariants({ variant: "link", className: "h-auto gap-2 p-0" })}><FlagshipChip />{t.aiSetup}</Link> : null}
         </div>
         {lead ? (
           <div className="sk-launch-ring" style={{ ["--sk-ring-value" as string]: `${percent}%` }} role="img" aria-label={fill(l.progress, doneRequired, required.length)}>
@@ -126,10 +152,11 @@ export function ReadinessHome() {
             </div>
           </div>
         ) : null}
-      </header>
+      </section> : null}
 
-      {status ? <Alert tone={status.tone === "error" ? "danger" : "success"} live={status.tone === "error" ? "assertive" : "polite"}>{status.text}</Alert> : null}
-      {!view && !status ? <p role="status" className="text-sm text-ink-muted">{t.loading}</p> : null}
+      {loadFailed === "denied" && !view ? <AccessNotice reason={t.denied} /> : null}
+      {loadFailed === "error" && !view ? <ErrorState title={t.failedTitle} description={t.failed} onRetry={load} /> : null}
+      {!view && !loadFailed ? <SkeletonList rows={4} label={t.loading} /> : null}
 
       {view && !view.lead ? (
         <section aria-labelledby="my-tasks" className="sk-panel space-y-3 p-4 sm:p-6">
@@ -154,16 +181,16 @@ export function ReadinessHome() {
               <p id="next-step" className="sk-eyebrow">{l.nextEyebrow}</p>
               <p className="text-xl font-bold text-ink-strong">{checkTitle(next.id)}</p>
               <p className="text-sm text-ink-muted">{l.why[next.id as keyof typeof l.why]}</p>
-              {next.delegated ? <p className="flex items-start gap-1.5 text-xs font-semibold text-status-info-text"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{l.delegated}</p> : null}
+              {handoff(next)}
             </div>
-            <Link href={next.href} className={buttonVariants({ variant: "default", className: "shrink-0 gap-2" })}>{t.open} <ForwardArrow /></Link>
+            {next.href ? <Link href={next.href} className={buttonVariants({ variant: "default", className: "shrink-0 gap-2" })}>{t.open} <ForwardArrow /></Link> : null}
           </> : <>
             <div className="min-w-0 space-y-1">
               <p id="next-step" className="sk-eyebrow">{l.nextEyebrow}</p>
               <p className="text-xl font-bold text-ink-strong">{live ? l.liveTitle : l.allDoneTitle}</p>
               <p className="text-sm text-ink-muted">{live ? l.liveBody : l.allDoneBody}</p>
             </div>
-            {!live ? <a href="#approve" className={buttonVariants({ variant: "default", className: "shrink-0 gap-2" })}><Rocket aria-hidden="true" className="size-4" />{l.goApprove}</a> : null}
+            {!live ? <Button type="button" disabled={busy || !lead.ready} onClick={() => setConfirmingApproval(true)} className="shrink-0 gap-2"><Rocket aria-hidden="true" className="size-4" />{l.goApprove}</Button> : null}
           </>}
         </section>
 
@@ -193,11 +220,12 @@ export function ReadinessHome() {
                             <span key={key} className="sk-launch-chip"><bdi dir="ltr" className="font-bold">{typeof value === "boolean" ? (value ? t.yes : t.no) : value}</bdi> {t.evidence[key as keyof typeof t.evidence] ?? key}</span>
                           ))}
                         </p>
-                        {!check.passed && check.delegated ? <p className="flex items-start gap-1.5 text-xs font-semibold text-status-info-text"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{l.delegated}</p> : null}
+                        {!check.passed ? handoff(check) : null}
                       </div>
                       <div className="sk-launch-check-action">
                         <span className="sk-choice-tag" data-tone={check.passed ? undefined : "info"}>{check.passed ? l.doneTag : l.todoTag}</span>
-                        {!check.passed ? <Link href={check.href} className={buttonVariants({ variant: check.id === lead.nextRequired ? "default" : "outline", size: "sm", className: "gap-1.5" })}>{t.open} <ForwardArrow /></Link> : null}
+                        {/* The spotlight above carries the one primary Open; rows stay outline. */}
+                        {!check.passed && check.href ? <Link href={check.href} className={buttonVariants({ variant: "outline", size: "sm", className: "gap-1.5" })}>{t.open} <ForwardArrow /></Link> : null}
                       </div>
                     </li>
                   ))}
@@ -277,12 +305,24 @@ export function ReadinessHome() {
               <p className="text-sm text-ink-muted">{lead.ready ? l.approveBar : t.approveBlocked} {t.approveHelp}</p>
               <p className="text-xs text-ink-subtle"><bdi dir="ltr">{lead.tasks.filter(task => task.status === "OPEN").length}</bdi> {t.outstanding}</p>
             </div>
-            <Button type="button" disabled={busy || !lead.ready} onClick={() => run(() => call({ op: "approve", expectedVersion: lead.readiness.version }))} className="shrink-0 gap-2">
+            {/* When every check is done the spotlight holds the primary "Approve go-live"; this one repeats it quietly. */}
+            <Button type="button" variant="outline" disabled={busy || !lead.ready} onClick={() => setConfirmingApproval(true)} className="shrink-0 gap-2">
               <Rocket aria-hidden="true" className="size-4" />{t.approve}
             </Button>
           </section>
         ) : null}
+        {/* R3: going live is a publish-type decision (warning tone); the body says what happens, who hears, and that it is final. */}
+        <ConfirmAction
+          open={confirmingApproval}
+          tone="warning"
+          title={t.confirmTitle}
+          description={t.confirmBody}
+          confirmLabel={t.approve}
+          busy={busy}
+          onConfirm={async () => { await run(() => call({ op: "approve", expectedVersion: lead.readiness.version })); setConfirmingApproval(false); }}
+          onCancel={() => setConfirmingApproval(false)}
+        />
       </> : null}
-    </main>
+    </div>
   );
 }

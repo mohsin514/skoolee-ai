@@ -15,6 +15,7 @@ const en = {
   unmapped: "Unmapped — needs review", unmappedQuestions: "Questions without a valid objective", unmappedResources: "Class resources not linked to this curriculum", allMapped: "Everything is mapped.",
   mappings: "Mapping to other curricula", mappingHelp: "Objectives are never merged by matching titles or codes. Record an explicit decision.", from: "Objective here", target: "Other curriculum", targetObjective: "Objective there",
   relation: "Decision", relations: { SAME: "Same objective", PARTIAL: "Partly overlaps", NOT_EQUIVALENT: "Not equivalent" }, note: "Reason (optional)", record: "Record decision", decisions: "Current decisions", noDecisions: "No decisions recorded.", leadOnly: "Only a curriculum lead can record mapping decisions.",
+  export: "Export", exportWaiting: "Available once the objective map has loaded.", exportFile: "objective-map", exportStatus: "Coverage",
   choose: "Choose…",
 };
 export type ObjectiveMapCopy = typeof en;
@@ -36,6 +37,7 @@ const ar: ObjectiveMapCopy = {
   unmapped: "غير مربوط — يحتاج إلى مراجعة", unmappedQuestions: "أسئلة بلا هدف صالح", unmappedResources: "مصادر الصف غير المرتبطة بهذا المنهج", allMapped: "كل شيء مربوط.",
   mappings: "الربط بمناهج أخرى", mappingHelp: "لا تُدمج الأهداف أبداً بسبب تطابق العناوين أو الرموز. سجّل قراراً صريحاً.", from: "الهدف هنا", target: "المنهج الآخر", targetObjective: "الهدف هناك",
   relation: "القرار", relations: { SAME: "الهدف نفسه", PARTIAL: "تداخل جزئي", NOT_EQUIVALENT: "غير مكافئ" }, note: "السبب (اختياري)", record: "سجّل القرار", decisions: "القرارات الحالية", noDecisions: "لا توجد قرارات مسجلة.", leadOnly: "يمكن لقائد المنهج فقط تسجيل قرارات الربط.",
+  export: "تصدير", exportWaiting: "متاح بعد تحميل خريطة الأهداف.", exportFile: "objective-map", exportStatus: "التغطية",
   choose: "اختر…",
 };
 
@@ -56,6 +58,7 @@ const ur: ObjectiveMapCopy = {
   unmapped: "غیر منسلک — جائزہ درکار", unmappedQuestions: "درست مقصد کے بغیر سوالات", unmappedResources: "کلاس کے وسائل جو اس نصاب سے منسلک نہیں", allMapped: "سب کچھ منسلک ہے۔",
   mappings: "دوسرے نصاب سے ربط", mappingHelp: "مقاصد کو عنوان یا کوڈ ملنے پر کبھی ضم نہیں کیا جاتا۔ واضح فیصلہ درج کریں۔", from: "یہاں کا مقصد", target: "دوسرا نصاب", targetObjective: "وہاں کا مقصد",
   relation: "فیصلہ", relations: { SAME: "ایک ہی مقصد", PARTIAL: "جزوی مماثلت", NOT_EQUIVALENT: "مساوی نہیں" }, note: "وجہ (اختیاری)", record: "فیصلہ درج کریں", decisions: "موجودہ فیصلے", noDecisions: "کوئی فیصلہ درج نہیں۔", leadOnly: "صرف نصاب کے سربراہ ربط کے فیصلے درج کر سکتے ہیں۔",
+  export: "ایکسپورٹ", exportWaiting: "مقاصد کا نقشہ لوڈ ہونے کے بعد دستیاب۔", exportFile: "objective-map", exportStatus: "کوریج",
   choose: "منتخب کریں…",
 };
 

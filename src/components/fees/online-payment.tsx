@@ -39,7 +39,7 @@ export function OnlinePayAction({ invoiceId, onPending }: { invoiceId: string; o
   return <div className="mt-4 space-y-2" data-pay-state="available">
     <Button variant="default" type="button" onClick={() => void pay()} disabled={busy} loading={busy} className="flex min-h-11 w-full items-center justify-center gap-2 py-2.5">
       {busy ? null : <Wallet className="size-4" aria-hidden="true" />}
-      {busy ? ui("Starting SafePay...") : ui("Pay Now (SafePay)")}
+      {busy ? ui("Starting SafePay...") : ui("Pay now (SafePay)")}
     </Button>
     {state.availability.mode === "SANDBOX" && <p className="text-2xs text-ink-subtle">{ui("Test mode: no real money is taken.")}</p>}
     {error && <Alert tone="danger" compact>{error}</Alert>}

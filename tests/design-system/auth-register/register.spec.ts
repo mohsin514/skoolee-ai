@@ -25,6 +25,9 @@ async function mount(page: Page, respond: (request: RequestRecord) => Reply | Pr
 }
 
 async function details(page: Page) {
+  // There is no default type (SPEC §8.2): choose the group unless the test already made a choice.
+  const radios = page.getByRole("radiogroup", { name: "Institution type" }).getByRole("radio");
+  if (!(await radios.nth(0).isChecked()) && !(await radios.nth(1).isChecked())) await radios.nth(0).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Create your account", exact: true })).toBeVisible();
 }
@@ -39,6 +42,22 @@ async function fillValid(page: Page) {
   await page.getByRole("checkbox", { name: /I agree to/ }).focus();
   await page.keyboard.press("Space");
 }
+
+test("no institution type is preselected; the owner and billing line follows the explicit choice", async ({ page }) => {
+  const requests = await mount(page);
+  const radios = page.getByRole("radiogroup", { name: "Institution type" }).getByRole("radio");
+  await expect(radios.nth(0)).not.toBeChecked();
+  await expect(radios.nth(1)).not.toBeChecked();
+  await expect(radios.nth(0)).toHaveAttribute("tabindex", "0");
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
+  await expect(page.getByText("Choose one option to continue.")).toBeVisible();
+  await radios.nth(1).click();
+  await expect(page.getByText("You'll be the school admin and the account owner; you manage billing.")).toBeVisible();
+  await radios.nth(0).click();
+  await expect(page.getByText("You'll be the group admin and the account owner; a group admin manages billing for every campus.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
+  expect(requests).toHaveLength(0);
+});
 
 test("institution radio keyboard selection and Back preserve the chosen type and values", async ({ page, browserName }) => {
   const requests = await mount(page);

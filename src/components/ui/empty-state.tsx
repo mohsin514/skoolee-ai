@@ -7,8 +7,12 @@
  */
 
 import * as React from "react";
+import Link from "next/link";
 import { Inbox, type LucideIcon } from "lucide-react";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { Button, buttonVariants } from "./button";
+import type { PageAction } from "./page-header";
 
 export interface EmptyStateProps {
   icon?: LucideIcon;
@@ -16,6 +20,12 @@ export interface EmptyStateProps {
   description?: React.ReactNode;
   /** Primary next step (usually a Button). */
   action?: React.ReactNode;
+  /**
+   * The screen's PageHeader primary action, repeated here with the same label
+   * (§4.5.7 — the only allowed duplicate). Pass the same `PageAction` object you
+   * give PageHeader; it renders as the same control. Ignored when `action` is set.
+   */
+  primaryAction?: PageAction;
   /** A quieter alternative, such as a help link or "Clear filters". */
   secondaryAction?: React.ReactNode;
   /** `sm` for inside cards and tables; `md` for a whole panel. */
@@ -23,8 +33,31 @@ export interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon: Icon = Inbox, title, description, action, secondaryAction, size = "md", className }: EmptyStateProps) {
+function RepeatedPrimary({ action }: { action: PageAction }) {
+  const t = useUiText();
+  const Icon = action.icon;
+  const content = <>{Icon && !action.loading ? <Icon aria-hidden="true" /> : null}{t(action.label)}</>;
+  if (action.href && !action.disabled) {
+    return <Link href={action.href} className={buttonVariants({ variant: action.tone === "danger" ? "outline" : "default" })} onClick={action.onClick}>{content}</Link>;
+  }
+  return (
+    <Button
+      type="button"
+      variant={action.tone === "danger" ? "outline" : "default"}
+      loading={action.loading}
+      aria-disabled={action.disabled || undefined}
+      title={action.disabled && action.disabledReason ? t(action.disabledReason) : undefined}
+      className={cn(action.disabled && "cursor-not-allowed opacity-60")}
+      onClick={() => { if (!action.disabled) action.onClick?.(); }}
+    >
+      {content}
+    </Button>
+  );
+}
+
+export function EmptyState({ icon: Icon = Inbox, title, description, action, primaryAction, secondaryAction, size = "md", className }: EmptyStateProps) {
   const small = size === "sm";
+  const lead = action ?? (primaryAction ? <RepeatedPrimary action={primaryAction} /> : null);
   return (
     <div className={cn("relative isolate flex flex-col items-center justify-center overflow-hidden text-center", small ? "px-4 py-8" : "px-6 py-14 sm:py-16", className)}>
       <div aria-hidden="true" className="sk-grid-pattern pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-48 max-w-md" />
@@ -43,9 +76,9 @@ export function EmptyState({ icon: Icon = Inbox, title, description, action, sec
           {description}
         </p>
       ) : null}
-      {action || secondaryAction ? (
+      {lead || secondaryAction ? (
         <div className={cn("sk-rise flex flex-wrap items-center justify-center gap-2", small ? "mt-4" : "mt-6")} style={{ animationDelay: "160ms" }}>
-          {action}
+          {lead}
           {secondaryAction}
         </div>
       ) : null}

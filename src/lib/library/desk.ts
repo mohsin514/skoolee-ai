@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, canManageLibrary } from "@/lib/api/scope";
+import { isCampusOperator } from "@/lib/auth/institution";
 import { DEFAULT_RULES, dueDate, finePreview, type LoanRules } from "./rules";
 
 /**
@@ -10,10 +11,12 @@ import { DEFAULT_RULES, dueDate, finePreview, type LoanRules } from "./rules";
  * working). Every physical copy has its own barcode and state; issue and return are single
  * conditional updates, so two desks cannot lend the same copy and a repeated return scan changes
  * nothing; a returned copy is held for the first waiting reservation; fines follow the loan's own
- * rule version and can only be waived by a school leader with a reason.
+ * rule version and can only be waived by a campus admin with a reason.
  */
 
-const LEADERS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"];
+/** Waiving a library charge is the campus operator's decision (matrix §2.4 #87: CA/ADMIN approve; the principal and
+ *  the group admin do not). */
+const canWaiveCharge = (user: AuthUser) => isCampusOperator(user);
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 const barcode = z.string().trim().regex(/^[A-Za-z0-9-]{3,40}$/u, "A barcode uses letters, numbers and dashes.");
 const day = z.iso.date();
@@ -223,7 +226,7 @@ export async function markLost(user: AuthUser, raw: unknown) {
 /** Waive (leaders only, with a reason) or hand a charge to the fees office (recorded, not posted). */
 export async function decideCharge(user: AuthUser, raw: unknown) {
   const input = parse(z.object({ chargeId: text(1, 120), decision: z.enum(["WAIVE", "HAND_TO_FEES"]), reason: text(8, 500) }).strict(), raw);
-  if (input.decision === "WAIVE" && !LEADERS.includes(user.role)) throw new ApiError("Only a school leader can waive a library charge.", 403);
+  if (input.decision === "WAIVE" && !canWaiveCharge(user)) throw new ApiError("Only a school leader can waive a library charge.", 403);
   if (input.decision === "HAND_TO_FEES") assertDesk(user);
   const done = await prisma.libraryCharge.updateMany({ where: { id: input.chargeId, schoolId: user.schoolId, status: "OPEN" },
     data: { status: input.decision === "WAIVE" ? "WAIVED" : "HANDED_TO_FEES", waivedById: user.userId, waiverReason: input.reason, decidedAt: new Date() } });
@@ -241,5 +244,5 @@ export async function deskOverview(user: AuthUser) {
     prisma.bookReservation.findMany({ where: { schoolId: user.schoolId, campusId, status: { in: ["WAITING", "READY"] } }, orderBy: { createdAt: "asc" }, take: 200 }),
     prisma.libraryCharge.findMany({ where: { schoolId: user.schoolId, campusId, status: "OPEN" }, orderBy: { createdAt: "desc" }, take: 200 }),
   ]);
-  return { rules, canWaive: LEADERS.includes(user.role), books, reservations, charges };
+  return { rules, canWaive: canWaiveCharge(user), books, reservations, charges };
 }

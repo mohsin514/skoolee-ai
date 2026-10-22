@@ -4,7 +4,7 @@ import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { ensureAICreditsAvailable,consumeAICreditAndLog } from "@/lib/ai/openai";
-import { assertApprovalRole,assertSchoolAiAccess,loadWorkspacePermissionSnapshot,SchoolAiError } from "./access";
+import { assertApprovalRole,assertSchoolAiAccess,loadWorkspacePermissionSnapshot,resolveWorkerPrincipal,SchoolAiError } from "./access";
 import { getWorkspaceRecordInTransaction,updateWorkspaceRecordInTransaction,assertSourceOriginalAccess } from "./repository";
 import { sourceDataSchema } from "./schemas";
 import { schoolAiTransaction } from "./transaction";
@@ -108,6 +108,8 @@ export async function sweepDocumentJobs(db:PrismaClient,limit=4){
  await db.schoolAiDocumentJob.updateMany({where:{status:"PROCESSING",leaseUntil:{lt:new Date()},kind:"EXTRACT"},data:{status:"FAILED",errorCode:"OUTCOME_UNCERTAIN",leaseToken:null,leaseUntil:null,version:{increment:1}}});
  await db.schoolAiDocumentJob.updateMany({where:{status:"PROCESSING",leaseUntil:{lt:new Date()},kind:"DELETE_ORIGINAL"},data:{status:"FAILED",errorCode:"DELETE_RETRY_REQUIRED",leaseToken:null,leaseUntil:null,version:{increment:1}}});
  const refs=await db.schoolAiDocumentJob.findMany({where:{status:"QUEUED",scheduledAt:{lte:new Date()},attempts:{lt:3}},select:{id:true,schoolId:true,campusId:true,actorId:true,actorRole:true,accessVersion:true,version:true},orderBy:[{scheduledAt:"asc"},{id:"asc"}],take:Math.min(10,Math.max(1,limit))});
- for(const ref of refs){const actor=await db.user.findFirst({where:{id:ref.actorId,schoolId:ref.schoolId},select:{email:true}});try{if(!actor)throw new SchoolAiError("Access changed.",403,"ACCESS_CHANGED");await processDocumentJob({userId:ref.actorId,schoolId:ref.schoolId,campusId:ref.actorRole==="SUPER_ADMIN"?null:ref.campusId,role:ref.actorRole as AuthUser["role"],email:actor.email,accessVersion:ref.accessVersion},ref.id);}catch{await db.schoolAiDocumentJob.updateMany({where:{id:ref.id,schoolId:ref.schoolId,status:"QUEUED",version:ref.version},data:{status:"FAILED",errorCode:"REVIEW_REQUIRED",version:{increment:1}}});}}
+ // G42 [K-B2]: the stored actor is re-resolved (kind included, C32); a changed role or access version fails
+ // the job with ACCESS_CHANGED instead of processing it under stale authority.
+ for(const ref of refs){const actor=await resolveWorkerPrincipal({userId:ref.actorId,schoolId:ref.schoolId,role:ref.actorRole,accessVersion:ref.accessVersion}).catch(()=>null);try{if(!actor)throw new SchoolAiError("Access changed.",403,"ACCESS_CHANGED");await processDocumentJob(actor,ref.id);}catch(error){await db.schoolAiDocumentJob.updateMany({where:{id:ref.id,schoolId:ref.schoolId,status:"QUEUED",version:ref.version},data:{status:"FAILED",errorCode:error instanceof SchoolAiError&&error.code==="ACCESS_CHANGED"?"ACCESS_CHANGED":"REVIEW_REQUIRED",version:{increment:1}}});}}
  return{processed:refs.length};
 }

@@ -14,9 +14,9 @@ export type Tone = "purple" | "green" | "rose" | "amber";
 
 export const TONES: Record<Tone, { ring: string; text: string; soft: string; solid: string }> = {
   purple: { ring: "var(--color-primary)", text: "text-primary", soft: "bg-brand-50", solid: "bg-primary" },
-  green: { ring: "#059669", text: "text-emerald-600", soft: "bg-emerald-50", solid: "bg-emerald-600" },
-  rose: { ring: "#e11d48", text: "text-rose-600", soft: "bg-rose-50", solid: "bg-rose-600" },
-  amber: { ring: "#d97706", text: "text-amber-600", soft: "bg-amber-50", solid: "bg-amber-600" },
+  green: { ring: "var(--color-success)", text: "text-status-success-text", soft: "bg-status-success-surface", solid: "bg-success" },
+  rose: { ring: "var(--color-destructive)", text: "text-status-error-text", soft: "bg-status-error-surface", solid: "bg-destructive" },
+  amber: { ring: "var(--color-warning)", text: "text-status-warning-text", soft: "bg-status-warning-surface", solid: "bg-warning" },
 };
 
 /** Respects prefers-reduced-motion: those users get the final value at once. */
@@ -138,7 +138,7 @@ export function ProgressRing({
           <CountUp value={Math.round(value)} suffix="%" />
         </span>
         {label && (
-          <span className="mt-0.5 text-3xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</span>
+          <span className="mt-0.5 text-3xs font-semibold text-ink-subtle">{label}</span>
         )}
       </div>
     </div>
@@ -225,7 +225,7 @@ export function PanelHeading({
         <div className="min-w-0">
           <h3 className="text-sm font-bold tracking-tight text-ink-strong [overflow-wrap:anywhere]">{title}</h3>
           {sub && (
-            <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p>
+            <p className="truncate text-2xs font-semibold text-ink-subtle">{sub}</p>
           )}
         </div>
       </div>
@@ -254,33 +254,3 @@ export function Panel({
   );
 }
 
-/**
- * The console's one empty state.
- *
- * Coursework, Reports, Fees, Timetable and Attendance each hand-rolled this —
- * five copies that had drifted to three different paddings, two radii and
- * headings ranging from `text-sm` to `text-xl`. The guardian portal already
- * had a single `ParentEmptyState`; this is its counterpart.
- */
-export function StudentEmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-}: {
-  icon: any;
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-edge/25 bg-brand-50/15 px-6 py-12 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-brand-50">
-        <Icon className="h-6 w-6 text-primary/40" />
-      </div>
-      <h3 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
-      <p className="mt-1 max-w-sm text-xs font-normal leading-relaxed text-ink-muted">{description}</p>
-      {action ? <div className="mt-4">{action}</div> : null}
-    </div>
-  );
-}

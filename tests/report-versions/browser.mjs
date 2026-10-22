@@ -19,9 +19,9 @@ for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mo
   const page=await browser.newPage({viewport:{width,height}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.context().addCookies([{name:'skoolee_token',value:fixture.cookies.PRINCIPAL.split('=')[1],url:base}]);
-  await page.goto(`${base}/principal`);
+  // The Academic console's Report cards view (§3 principal `report-cards`; the old overview "Open Review" card is gone).
+  await page.goto(`${base}/principal?view=report-cards`);
   await page.waitForFunction(lang=>document.documentElement.lang===lang,language);
-  await page.getByRole('button',{name:/^(Open Review|فتح المراجعة|جائزہ کھولیں)$/,exact:true}).click();
   const panel=page.locator('section[aria-label]').filter({has:page.locator('h3',{hasText:'Synthetic exam'})}).first();
   await panel.locator('li').first().waitFor();
   const review=panel.getByRole('button',{name:/Review version|مراجعة النسخة|نسخہ دیکھیں/});await review.click();

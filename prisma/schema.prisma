@@ -717,6 +717,9 @@ model User {
   isActive                      Boolean                  @default(true) @map("is_active")
   onboardingComplete            Boolean                  @default(false) @map("onboarding_complete")
   welcomeCompletedAt            DateTime?                @map("welcome_completed_at")
+  // Spotlight tour progress per console variant: { [tourId]: { v, s: "done" | "dismissed", at } }.
+  // Server-side because shared devices clear local data on sign-out.
+  tourProgress                  Json                     @default("{}") @map("tour_progress")
   checkoutIntents               OnboardingCheckoutIntent[]
   mustChangePassword            Boolean                  @default(false) @map("must_change_password")
   // SKO-457: set once the owner of a self-registered account proves the address. Pending

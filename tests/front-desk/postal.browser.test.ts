@@ -48,7 +48,7 @@ const shot = async (page: Page, name: string) => { await page.evaluate("Promise.
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Post School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Cedar North"], [otherCampusId, "Cedar South"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Riyadh" } });
-  const lead = await user("lead", "PRINCIPAL"); await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40 await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Riyadh", currency: "SAR" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   await db.authAttempt.deleteMany({});
@@ -155,7 +155,7 @@ test("reception records a parcel in the UI, keeps the draft when the save fails 
   await page.goto(`${base}/receptionist?view=postal`);
   const panel = page.locator("[data-postal-register]");
   await panel.locator("[data-postal]").first().waitFor({ timeout: 30_000 });
-  await panel.getByRole("button", { name: "Record item" }).click();
+  await page.getByRole("button", { name: "Record item" }).first().click(); // PageHeader primary (role-ux §4.4)
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Record item" }).click();
   await dialog.locator("[data-postal-error]").waitFor();

@@ -1,6 +1,6 @@
 import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
 import { withExamSchedulingWrite } from "@/lib/academic/exam-scheduling-write";
-import { ApiError } from "@/lib/api/scope";
+import { ApiError, canLeadAcademics } from "@/lib/api/scope";
 import { reviewExam, publishExam } from "@/lib/academic/report-versions";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
@@ -37,8 +37,10 @@ function permissionAwareError(error: unknown) {
   return Response.json({ error: "Operation failed" }, { status: 500 });
 }
 
+/** Who may create or move exams. Scheduling stays with the campus office and teachers; the group admin
+ *  reads results but no longer runs campus exams (§7.6, G31). */
 function canManageExams(role: string) {
-  return role === "SUPER_ADMIN" || role === "PRINCIPAL" || role === "TEACHER" || isCampusAdminRole(role);
+  return role === "PRINCIPAL" || role === "TEACHER" || isCampusAdminRole(role);
 }
 
 export async function GET(req: NextRequest) {
@@ -68,11 +70,14 @@ export async function GET(req: NextRequest) {
     // still preparing.
     let audienceScope: Record<string, unknown> = {};
     if (user.role === "STUDENT" || user.role === "PARENT") {
+      // `studentId` narrows a family to one child (the date sheet follows the selected child); it can only narrow:
+      // a child outside the guardian's own scope matches nothing.
+      const studentId = user.role === "PARENT" ? searchParams.get("studentId") : null;
       const students = await prisma.student.findMany({
         where:
           user.role === "STUDENT"
             ? { studentUserId: user.userId }
-            : studentScope(user, "learningRecords"),
+            : { AND: [studentScope(user, "learningRecords"), ...(studentId ? [{ id: studentId }] : [])] },
         select: { classId: true },
       });
       const classIds = Array.from(new Set(students.map((s) => s.classId)));
@@ -157,10 +162,8 @@ export async function POST(req: NextRequest) {
     const cls = await prisma.class.findFirst({
       where: {
         id: parsed.data.classId,
-        campus: {
-          schoolId: user.schoolId,
-          ...(user.role === "SUPER_ADMIN" ? {} : { id: user.campusId || "" }),
-        },
+        // Exam creators are campus-pinned (the group admin no longer schedules campus exams).
+        campus: { schoolId: user.schoolId, id: user.campusId || "" },
       },
       select: { id: true, campusId: true },
     });
@@ -302,10 +305,12 @@ export async function PATCH(req: NextRequest) {
     }
 
     const target = parsed.data.status;
-    // Review and publish are office decisions regardless of exam type.
-    if ((target === "PRINCIPAL_REVIEWED" || target === "PUBLISHED") && !isOfficeRole(user.role)) {
+    // G31 (C7): review and publish are the academic lead's decisions regardless of exam type — the
+    // principal, or a campus operator only while the campus has no principal. Checked here in the route
+    // handler; exam-permissions.ts stays pure because client components import it [K-I3].
+    if ((target === "PRINCIPAL_REVIEWED" || target === "PUBLISHED") && !(isOfficeRole(user.role) && await canLeadAcademics(user, exam.campusId))) {
       return Response.json(
-        { error: "Only the school office can review and publish results" },
+        { error: "Results are reviewed and published by your principal." },
         { status: 403 },
       );
     }

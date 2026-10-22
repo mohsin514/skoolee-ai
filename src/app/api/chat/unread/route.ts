@@ -1,7 +1,7 @@
 import { errorResponse } from "@/lib/api/scope";
 import { requireChatUser, totalUnread } from "@/lib/chat/service";
 import { canCreateGroup, canManageChatSettings } from "@/lib/chat/policy";
-import { roleLabel } from "@/lib/roles";
+import { roleLabelFor } from "@/lib/roles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,9 +26,9 @@ export async function GET() {
         id: user.userId,
         fullName: user.fullName ?? "",
         role: user.role,
-        roleLabel: roleLabel(user.role),
+        roleLabel: roleLabelFor(user),
         canCreateGroup: canCreateGroup(user.role),
-        canManageSettings: canManageChatSettings(user.role),
+        canManageSettings: canManageChatSettings(user),
       },
     });
   } catch (error) {

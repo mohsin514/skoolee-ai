@@ -7,10 +7,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import {
-  canAccessRoleDashboard,
   dashboardPathForRole,
   normalizeUserRole,
+  roleGuardRedirect,
 } from "./lib/roles";
+import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { requiredOnboardingPath } from "@/lib/onboarding/launch-plan";
@@ -30,7 +31,7 @@ const PUBLIC_PATHS = [
   "/accept-invite", "/forgot-password", "/protect-account", "/api/auth/mfa",
   "/apply", // SKO-398 family admission form; data is reached only by the link token or reference + resume key.
   "/api/invite/status", "/api/invite/reissue", // Scoped by a secret invitation token before sign-in.
-  "/parent",
+  // "/parent" is no longer public (D14): the parent layout already requires a signed-in session.
   "/ai-school-management-software", "/ai-report-cards-urdu-english",
   "/whatsapp-report-card-software", "/multi-campus-school-erp",
   "/school-fee-management-software", "/ai-student-performance-analytics",
@@ -40,11 +41,13 @@ const PUBLIC_PATHS = [
   "/api/auth/logout", "/api/auth/verify", "/api/auth/session",
   "/api/auth/showcase-entry", // Read-only current-session continuation; also resolves genuine guests.
   "/api/auth/signup-step1", "/api/auth/signup-step2",
-  "/api/reports/download", // Route authenticates session or a single-child capability.
+  // These routes authenticate the session themselves; portal capability links (`?token=`) are retired (D14) and no
+  // longer stand in for one (`resolveParentScope`).
+  "/api/reports/download",
   "/api/parent/data",
   "/api/parent/timetable",
   "/api/parent/exam-datesheet",
-  "/api/parent/inbox", // SKO-419: route authenticates the session or a single-child capability.
+  "/api/parent/inbox", // SKO-419
 
   // Gateway webhooks — no session cookie by design; each route authenticates
   // itself via the provider's signature/secret before mutating anything.
@@ -71,6 +74,30 @@ function matchesPath(pathname: string, list: string[]) {
 
 function isPublic(pathname: string) {
   return matchesPath(pathname, PUBLIC_PATHS);
+}
+
+/** The payer's billing workspace in either kind of school, plus the legacy entry points that redirect to it (G43). */
+function isBillingWorkspacePath(pathname: string, view: string | null) {
+  return pathname === "/billing" ||
+    pathname.startsWith("/super/billing") ||
+    pathname.startsWith("/dashboard/billing") ||
+    (pathname === "/super" && view === "billing") ||
+    (pathname === "/admin" && view === "billing");
+}
+
+/** Shell reads a suspended school still needs so the minimal shell can render (GET only, G43). */
+const SUSPENDED_SHELL_READS = ["/api/navigation/access", "/api/navigation/counts", "/api/profile", "/api/notifications", "/api/auth/tour"];
+
+/**
+ * What a suspended school can still reach: the recovery screen, the payer's billing workspace and its APIs,
+ * sign-out, the read-only shell calls, and two-step sign-in enrolment (a deferred-MFA owner must be able to
+ * enrol before changing the payment method, K-I5).
+ */
+function allowedWhileSuspended(pathname: string, method: string, isBillingWorkspace: boolean) {
+  if (pathname === "/subscription-suspended" || pathname === "/subscription" || isBillingWorkspace) return true;
+  if (matchesPath(pathname, ["/api/billing", "/api/stripe", "/api/auth/logout", "/account/security"])) return true;
+  if (pathname.startsWith("/api/account/mfa")) return true;
+  return (method === "GET" || method === "HEAD") && matchesPath(pathname, SUSPENDED_SHELL_READS);
 }
 
 export async function proxy(req: NextRequest) {
@@ -160,7 +187,8 @@ export async function proxy(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    // Keep the query so a deep link (?view=…, ?invoice=…) survives sign-in (G46).
+    loginUrl.searchParams.set("redirect", `${pathname}${req.nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -233,26 +261,12 @@ export async function proxy(req: NextRequest) {
     }
 
     const schoolStatus = typeof payload.schoolStatus === "string" ? payload.schoolStatus : "";
-    const isSuperBillingView = pathname === "/super" && req.nextUrl.searchParams.get("view") === "billing";
-    const isBillingWorkspace =
-      pathname.startsWith("/super/billing") ||
-      pathname.startsWith("/dashboard/billing") ||
-      isSuperBillingView;
-    const billingAllowedPath =
-      pathname === "/subscription-suspended" ||
-      // SKO-373: the payer's recovery screen must stay reachable while suspended.
-      pathname === "/subscription" ||
-      isBillingWorkspace ||
-      pathname.startsWith("/api/billing") ||
-      pathname.startsWith("/api/stripe") ||
-      pathname.startsWith("/api/auth/logout");
+    const isBillingWorkspace = isBillingWorkspacePath(pathname, req.nextUrl.searchParams.get("view"));
 
-    if (schoolStatus === "SUSPENDED" && !billingAllowedPath && role !== "APP_OWNER") {
+    if (schoolStatus === "SUSPENDED" && role !== "APP_OWNER" && !allowedWhileSuspended(pathname, req.method, isBillingWorkspace)) {
       if (pathname.startsWith("/api")) {
-        return NextResponse.json(
-          { error: "Subscription suspended. Open billing to update your plan or payment method." },
-          { status: 402 }
-        );
+        // Neutral for every role (G51): the account owner renews; nobody else is sent to billing.
+        return NextResponse.json({ error: SUBSCRIPTION_PAUSED_MESSAGE, code: "SUBSCRIPTION_SUSPENDED" }, { status: 402 });
       }
       return NextResponse.redirect(new URL("/subscription-suspended", req.url));
     }
@@ -265,30 +279,13 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL(dashboardPathForRole(role), req.url));
     }
 
-    if (role === "APP_OWNER" && pathname.startsWith("/dashboard")) {
-      return NextResponse.redirect(new URL("/owner", req.url));
-    }
-
-    if (role === "APP_OWNER" && pathname.startsWith("/super")) {
-      return NextResponse.redirect(new URL("/owner", req.url));
-    }
-
-    // SKO-489: the guardian access workflow lives at /dashboard/guardians and is authorized for group owners
-    // and principals (canManageOperations); keep them on it instead of bouncing to their home consoles.
-    const sharedDashboardTask = pathname === "/dashboard/guardians" || pathname.startsWith("/dashboard/guardians/");
-
-    if (role === "SUPER_ADMIN" && pathname.startsWith("/dashboard") && !sharedDashboardTask) {
-      const target = pathname.startsWith("/dashboard/billing") ? "/super?view=billing" : "/super";
-      return NextResponse.redirect(new URL(target, req.url));
-    }
-
-    if (role === "PRINCIPAL" && pathname.startsWith("/dashboard") && !sharedDashboardTask) {
-      return NextResponse.redirect(new URL("/principal", req.url));
-    }
-
-    // Role-based routing guard
-    if (!canAccessRoleDashboard(role, pathname)) {
-      return NextResponse.redirect(new URL("/403", req.url));
+    // Role-based routing guard (G44, G45): one pure decision for every page path. API paths are never
+    // redirected here; families default-deny to their home; APP_OWNER goes to /owner; staff on another
+    // role's console see /403. Legacy /dashboard/** is admitted for staff and the group admin — its
+    // page redirects each of them to their own console view (§6.1).
+    const guardTarget = roleGuardRedirect(role, pathname);
+    if (guardTarget && guardTarget !== pathname) {
+      return NextResponse.redirect(new URL(guardTarget, req.url));
     }
 
     // Inject auth context as headers for server components

@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  assertPermission,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -36,7 +37,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
+    await assertPermission(user, "transport", "add");
 
     const body = await readJsonBody(req);
     const { title, description, fare } = parseWith(transportRouteSchema, body);
@@ -64,7 +66,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
+    await assertPermission(user, "transport", "edit");
 
     const body = await readJsonBody(req);
     // A PATCH sends only what changed, so the create schema is relaxed to
@@ -104,7 +107,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
+    await assertPermission(user, "transport", "delete");
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);

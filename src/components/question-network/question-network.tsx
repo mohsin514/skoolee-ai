@@ -91,7 +91,7 @@ export function QuestionNetwork() {
       </div>
       <div aria-live="polite">
         {error ? <p role="alert" className="text-sm font-semibold text-status-error-text">{error}</p> : null}
-        {notice ? <p role="status" className="text-sm font-semibold text-emerald-800">{notice}</p> : null}
+        {notice ? <p role="status" className="text-sm font-semibold text-status-success-text">{notice}</p> : null}
       </div>
 
       <div className="space-y-2">

@@ -1,4 +1,5 @@
 "use client";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Alert } from "@/components/ui/alert";
 import { InputGroup , FieldAction } from "@/components/ui/input-group";
 
@@ -76,6 +77,7 @@ export interface OrgChartProps {
 }
 
 export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect }: OrgChartProps) {
+  const ui = useUiText();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [departmentId, setDepartmentId] = useState<string>("");
@@ -236,7 +238,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
     <div className="space-y-3">
       {/* ── Controls ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        <InputGroup surfaceClassName="bg-white" className="relative min-w-[200px] flex-1">
+        <InputGroup surfaceClassName="bg-card" className="relative min-w-[200px] flex-1">
           <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <SystemInput
             value={query}
@@ -245,7 +247,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               if (e.key === "Enter" && matches.size > 0) centreOn([...matches][0]);
               if (e.key === "Escape") setQuery("");
             }}
-            placeholder="Find a name, rank, department or staff code…"
+            placeholder={ui("Find a name, rank, department or staff code…")}
             className="w-full py-2.5 ps-9 pe-8"
           />
           {query ? (
@@ -253,7 +255,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
               type="button"
               onClick={() => setQuery("")}
               className="absolute end-2 top-1/2 -translate-y-1/2"
-              aria-label="Clear search"
+              aria-label={ui("Clear search")}
             >
               <X className="h-3.5 w-3.5" />
             </FieldAction>
@@ -265,7 +267,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
           onChange={(e) => setDepartmentId(e.target.value)}
           className="px-3 py-2.5"
         >
-          <option value="">All departments</option>
+          <option value="">{ui("All departments")}</option>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.parentId ? "— " : ""}
@@ -279,45 +281,45 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
           onChange={(e) => setTrack(e.target.value)}
           className="px-3 py-2.5"
         >
-          <option value="">All tracks</option>
+          <option value="">{ui("All tracks")}</option>
           {Object.entries(TRACK_TONES).map(([key, tone]) => (
             <option key={key} value={key}>
-              {tone.label}
+              {ui(tone.label)}
             </option>
           ))}
         </SystemSelect>
 
-        <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-white p-1">
-          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))}  aria-label="Zoom out">
+        <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-card p-1">
+          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))}  aria-label={ui("Zoom out")}>
             <Minus className="h-3.5 w-3.5" />
           </Button>
           <span className="w-10 text-center text-2xs font-bold tabular-nums text-ink-muted">{Math.round(scale * 100)}%</span>
-          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))}  aria-label="Zoom in">
+          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))}  aria-label={ui("Zoom in")}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="secondary" size="icon" type="button" onClick={fit}  aria-label="Fit to screen">
+          <Button variant="secondary" size="icon" type="button" onClick={fit}  aria-label={ui("Fit to screen")}>
             <Maximize2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs font-semibold uppercase tracking-wide text-ink-subtle">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wide text-ink-subtle">
         {Object.entries(TRACK_TONES).map(([key, tone]) => (
           <span key={key} className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} aria-hidden="true" />
-            {tone.label}
+            {ui(tone.label)}
           </span>
         ))}
         <label className="flex cursor-pointer items-center gap-1.5 normal-case">
           <SystemCheckbox  checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-primary" />
-          <span className="font-semibold uppercase tracking-wide">Show secondary lines</span>
+          <span className="font-semibold ltr:uppercase ltr:tracking-wide">{ui("Show secondary lines")}</span>
         </label>
-        {query ? <span className="normal-case text-primary">{matches.size} match{matches.size === 1 ? "" : "es"}</span> : null}
+        {query ? <span className="normal-case text-primary">{ui(matches.size === 1 ? "{0} match" : "{0} matches", [matches.size])}</span> : null}
       </div>
 
       {unplaced > 0 ? (
         <Alert tone="warning" compact live="off">
-          {unplaced} staff {unplaced === 1 ? "member has" : "members have"} no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.
+          {ui(unplaced === 1 ? "{0} staff member has no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to." : "{0} staff members have no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.", [unplaced])}
         </Alert>
       ) : null}
 
@@ -337,8 +339,8 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <Users className="h-8 w-8 text-ink-muted" aria-hidden="true" />
-            <p className="text-base font-semibold text-ink-strong">No staff on this campus yet</p>
-            <p className="max-w-xs text-sm leading-relaxed text-ink-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
+            <p className="text-base font-semibold text-ink-strong">{ui("No staff on this campus yet")}</p>
+            <p className="max-w-xs text-sm leading-relaxed text-ink-muted">{ui("Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.")}</p>
           </div>
         ) : (
           <div
@@ -418,6 +420,7 @@ function OrgCard({
   onToggle: () => void;
   onSelect: () => void;
 }) {
+  const ui = useUiText();
   const { node } = entry;
   const tone = node.designation ? TRACK_TONES[node.designation.track as keyof typeof TRACK_TONES] : null;
   // Two different jobs, so two different colours. The rail down the left of the
@@ -443,7 +446,7 @@ function OrgCard({
           selected ? "border-primary ring-2 ring-primary/20" : "border-edge/50",
           dimmed && "opacity-30"
         )}
-        style={{ borderLeftWidth: 4, borderLeftColor: rail }}
+        style={{ borderInlineStartWidth: 4, borderInlineStartColor: rail }}
       >
         <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-2xs font-bold text-ink-muted">
           {node.avatarUrl ? (
@@ -452,7 +455,7 @@ function OrgCard({
             initialsOf(node.fullName)
           )}
           {node.isInstitutionHead ? (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-white">
+            <span className="absolute -end-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-white">
               <Crown className="h-2.5 w-2.5" />
             </span>
           ) : null}
@@ -462,32 +465,32 @@ function OrgCard({
           <span className="flex items-center gap-1">
             <span className="truncate text-sm font-bold leading-tight text-ink">{node.fullName}</span>
             {node.dueForReview ? (
-              <Badge variant="warning" size="sm" className="shrink-0">Due<span className="sr-only"> · Has served the usual time in this rank</span></Badge>
+              <Badge variant="warning" size="sm" className="shrink-0">{ui("Due")}<span className="sr-only"> · {ui("Has served the usual time in this rank")}</span></Badge>
             ) : null}
           </span>
           <span
             className={cn(
-              "mt-0.5 block truncate text-2xs font-semibold uppercase tracking-wide",
+              "mt-0.5 block truncate text-2xs font-semibold ltr:uppercase ltr:tracking-wide",
               !tone && "text-ink-subtle"
             )}
             style={tone ? { color: tone.hex } : undefined}
           >
-            {rank || "No rank set"}
+            {rank || ui("No rank set")}
           </span>
           <span className="mt-0.5 flex items-center gap-1 truncate text-2xs font-semibold text-ink-muted">
             {headship ? (
               <span className="truncate text-primary">
-                {headship.isActing ? "Acting head" : "Head"} · {headship.name}
+                {headship.isActing ? ui("Acting head") : ui("Head")} · {headship.name}
               </span>
             ) : (
-              <span className="truncate">{node.department?.name || "No department"}</span>
+              <span className="truncate">{node.department?.name || ui("No department")}</span>
             )}
           </span>
         </span>
 
         {isLeaving ? (
           <Badge variant="danger" size="sm" className="absolute end-2 top-2">
-            {node.employmentStatus === "NOTICE_PERIOD" ? "Notice" : "Left"}
+            {node.employmentStatus === "NOTICE_PERIOD" ? ui("Notice") : ui("Left")}
           </Badge>
         ) : null}
       </Button>
@@ -497,7 +500,7 @@ function OrgCard({
           type="button"
           onClick={onToggle}
           className="absolute -bottom-3 left-1/2 z-10 flex justify-start -translate-x-1/2 items-center gap-1"
-          aria-label={collapsed ? `Show ${entry.hiddenCount} below ${node.fullName}` : `Hide the team below ${node.fullName}`}
+          aria-label={collapsed ? ui("Show {0} below {1}", [entry.hiddenCount, node.fullName]) : ui("Hide the team below {0}", [node.fullName])}
         >
           {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           {collapsed ? entry.hiddenCount : entry.childIds.length}

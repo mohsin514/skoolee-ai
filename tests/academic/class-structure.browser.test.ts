@@ -251,7 +251,8 @@ test("class screens fit 320, 390, 768 and 1440 in EN/AR/UR, including the dashbo
     for (const viewport of [{ width: 320, height: 720 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1440, height: 1000 }]) {
       const ctx = await context(key, viewport), page = await ctx.newPage(), errors: string[] = [];
       page.on("pageerror", error => errors.push(error.message));
-      for (const path of ["/admin?view=classes", "/dashboard/classes"]) {
+      // /dashboard/classes is only a redirect to this view now (§6.1); measuring it again added nothing.
+      for (const path of ["/admin?view=classes"]) {
         await page.goto(`${base}${path}`, { waitUntil: "networkidle" });
         const state = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - window.innerWidth, dir: document.documentElement.getAttribute("dir") || document.body.getAttribute("dir"), text: document.body.innerText }));
         if (state.overflow > 1) failures.push(`${language} ${path} @${viewport.width}: ${state.overflow}px overflow`);

@@ -12,8 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
 
 // SKO-463: occupancy on a chosen date, dated allocations, moves that keep history, and room changes that
 // show their impact before saving. Residents show only name, roll number and class.
@@ -32,7 +34,11 @@ async function send(body: Record<string, unknown>) {
   return json as { data: { id: string }; replayed: boolean };
 }
 
-export function DormitoryAllocations({ canManage = true }: { canManage?: boolean }) {
+/**
+ * Hostel occupancy and stays. `hideAllocate` removes the in-panel "Allocate student" when a console's PageHeader
+ * carries it (§4.4b "Allocate bed"); `command` "allocate-bed" then opens the dialog once the rooms are loaded.
+ */
+export function DormitoryAllocations({ canManage = true, hideAllocate = false, command }: { canManage?: boolean; hideAllocate?: boolean; command?: PanelCommand | null }) {
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
   const [date, setDate] = useState("");
@@ -54,13 +60,21 @@ export function DormitoryAllocations({ canManage = true }: { canManage?: boolean
 
   const done = (message: string) => { toast.success(message); setDialog(null); void load(); };
   const rooms = data?.rooms ?? [];
+  usePanelCommand(command, {
+    "allocate-bed": () => {
+      // A failed load already shows its error with Retry in place; nothing to open then.
+      if (!canManage || !data) return;
+      if (rooms.length) setDialog({ kind: "allocate" });
+      else toast.info(ui("No rooms yet. Add room types and rooms first, then allocate students."));
+    },
+  }, !loading);
   const totals = rooms.reduce((sum, room) => ({ capacity: sum.capacity + (room.status === "AVAILABLE" ? room.capacity : 0), occupied: sum.occupied + room.occupied, out: sum.out + (room.status === "AVAILABLE" ? 0 : 1) }), { capacity: 0, occupied: 0, out: 0 });
 
   return <div className="space-y-4" data-dorm-allocations>
     <div className="flex flex-wrap items-end justify-between gap-3">
       <FormField name="dorm-occupancy-date" label={ui("Occupancy on")}><Input type="date" value={date} onChange={event => setDate(event.target.value)} /></FormField>
       {data ? <p className="text-sm font-semibold text-ink-strong" data-dorm-summary aria-live="polite">{ui("{0} of {1} places taken on {2}", [totals.occupied, totals.capacity, formatDate(data.date)])}{totals.out ? ` · ${ui("{0} room(s) out of service", [totals.out])}` : ""}</p> : null}
-      {canManage ? <Button onClick={() => setDialog({ kind: "allocate" })} disabled={!rooms.length}><UserPlus className="size-4" aria-hidden="true" />{ui("Allocate student")}</Button> : null}
+      {canManage && !hideAllocate ? <Button onClick={() => setDialog({ kind: "allocate" })} disabled={!rooms.length}><UserPlus className="size-4" aria-hidden="true" />{ui("Allocate student")}</Button> : null}
     </div>
 
     {loading && !data ? <SkeletonList rows={3} label={ui("Loading allocations…")} />
@@ -77,7 +91,7 @@ export function DormitoryAllocations({ canManage = true }: { canManage?: boolean
               </Badge>
             </div>
             <p className="text-xs font-semibold text-ink-strong">{ui("{0} of {1} places taken", [room.occupied, room.capacity])}{room.upcoming ? ` · ${ui("{0} upcoming", [room.upcoming])}` : ""}</p>
-            {room.statusReason ? <p className="text-xs text-amber-800"><bdi>{room.statusReason}</bdi></p> : null}
+            {room.statusReason ? <p className="text-xs text-status-warning-text"><bdi>{room.statusReason}</bdi></p> : null}
             {residents.length ? <ul className="space-y-1.5">{residents.map(stay => <li key={stay.id} className="rounded-xl bg-muted/60 px-3 py-2 text-xs" data-dorm-stay={stay.id} data-stay-state={stay.state}>
               <p className="font-semibold text-ink-strong"><bdi>{stay.student.fullName}</bdi> · <bdi>{stay.student.rollNo}</bdi>{stay.student.className ? <> · <bdi>{stay.student.className}</bdi></> : null}</p>
               <p className="text-ink-muted">{ui(STATE_LABEL[stay.state])} · {formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</p>
@@ -143,7 +157,7 @@ function AllocateDialog({ rooms, today, onClose, onDone }: { rooms: Room[]; toda
     if (attempt.current?.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID() };
     void run({ ...payload, idempotencyKey: attempt.current.key }, "Student allocated. Occupancy and history are updated.", "This allocation was already saved; nothing was added twice.");
   };
-  return <ModalFrame title={ui("Allocate student")} eyebrow={ui("Hostel")} subtitle={ui("A stay runs from the start date up to, not including, the end date.")} onClose={onClose} dirty={Boolean(student || reason)}>
+  return <Modal title={ui("Allocate student")} eyebrow={ui("Hostel")} subtitle={ui("A stay runs from the start date up to, not including, the end date.")} onClose={onClose} dirty={Boolean(student || reason)}>
     <div className="space-y-3" data-dorm-allocate>
       <ErrorLine error={error} />
       <FormField name="dorm-student-search" label={ui("Find student by name or roll number")}><Input value={query} onChange={event => setQuery(event.target.value)} /></FormField>
@@ -163,7 +177,7 @@ function AllocateDialog({ rooms, today, onClose, onDone }: { rooms: Room[]; toda
       {student && room ? <p className="rounded-xl bg-muted p-3 text-xs" data-dorm-preview>{ui("{0} will stay in room {1} from {2}{3}. The server checks every night of the stay for a free place.", [student.fullName, room.number, formatDate(start), end ? ` ${ui("until {0}", [formatDate(end)])}` : ` ${ui("with no end date")}`])}</p> : null}
       <Actions busy={busy} label={ui("Allocate")} onClose={onClose} onSave={submit} />
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function MoveDialog({ stay, rooms, today, onClose, onDone }: { stay: Stay; rooms: Room[]; today: string; onClose: () => void; onDone: (message: string) => void }) {
@@ -176,7 +190,7 @@ function MoveDialog({ stay, rooms, today, onClose, onDone }: { stay: Stay; rooms
     if (!toRoomId || !moveDate || reason.trim().length < 3) { setError(ui("Choose the new room, the move date and a reason.")); return; }
     void run({ action: "move", id: stay.id, toRoomId, moveDate, reason: reason.trim() }, "Move saved. The earlier stay is kept in history.", "This move was already saved.");
   };
-  return <ModalFrame title={ui("Move {0}", [stay.student.fullName])} eyebrow={ui("Hostel")} subtitle={ui("Currently in room {0} since {1}.", [stay.roomNumber, formatDate(stay.startDate)])} onClose={onClose} dirty={Boolean(reason)}>
+  return <Modal title={ui("Move {0}", [stay.student.fullName])} eyebrow={ui("Hostel")} subtitle={ui("Currently in room {0} since {1}.", [stay.roomNumber, formatDate(stay.startDate)])} onClose={onClose} dirty={Boolean(reason)}>
     <div className="space-y-3" data-dorm-move>
       <ErrorLine error={error} />
       <FormField name="dorm-move-room" label={ui("New room")}><Select value={toRoomId} onChange={event => setToRoomId(event.target.value)}><option value="">{ui("Choose a room")}</option>{rooms.filter(room => room.id !== stay.roomId && room.status === "AVAILABLE").map(room => <option key={room.id} value={room.id}>{room.number} · {ui("{0} free", [room.available])}</option>)}</Select></FormField>
@@ -185,7 +199,7 @@ function MoveDialog({ stay, rooms, today, onClose, onDone }: { stay: Stay; rooms
       {target && moveDate ? <p className="rounded-xl bg-muted p-3 text-xs" data-dorm-preview>{ui("Room {0}: stay ends on {1}. Room {2}: stay starts on {1} and runs {3}.", [stay.roomNumber, formatDate(moveDate), target.number, stay.endDate ? ui("until {0}", [formatDate(stay.endDate)]) : ui("with no end date")])}</p> : null}
       <Actions busy={busy} label={ui("Save move")} onClose={onClose} onSave={submit} />
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function EndDialog({ stay, today, onClose, onDone }: { stay: Stay; today: string; onClose: () => void; onDone: (message: string) => void }) {
@@ -196,13 +210,13 @@ function EndDialog({ stay, today, onClose, onDone }: { stay: Stay; today: string
     if (!endDate || reason.trim().length < 3) { setError(ui("Choose the end date and give a reason.")); return; }
     void run({ action: "end", id: stay.id, endDate, reason: reason.trim() }, "Stay ended. It stays in the room history.");
   };
-  return <ModalFrame title={ui("End stay for {0}", [stay.student.fullName])} eyebrow={ui("Hostel")} subtitle={ui("The end date is the first night the student is no longer in room {0}.", [stay.roomNumber])} onClose={onClose} dirty={Boolean(reason)}>
+  return <Modal title={ui("End stay for {0}", [stay.student.fullName])} eyebrow={ui("Hostel")} subtitle={ui("The end date is the first night the student is no longer in room {0}.", [stay.roomNumber])} onClose={onClose} dirty={Boolean(reason)}>
     <div className="space-y-3"><ErrorLine error={error} />
       <FormField name="dorm-end-date" label={ui("End date")}><Input type="date" value={endDate} min={stay.startDate} onChange={event => setEndDate(event.target.value)} /></FormField>
       <FormField name="dorm-end-reason" label={ui("Reason")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField>
       <Actions busy={busy} label={ui("End stay")} onClose={onClose} onSave={submit} />
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function CancelDialog({ stay, onClose, onDone }: { stay: Stay; onClose: () => void; onDone: (message: string) => void }) {
@@ -242,19 +256,19 @@ function RoomDialog({ room, onClose, onDone }: { room: Room; onClose: () => void
     catch (failure) { setError(ui(failure instanceof Error ? failure.message : "The room was not updated.")); }
     finally { setBusy(false); }
   };
-  return <ModalFrame title={ui("Room {0}: capacity and status", [room.number])} eyebrow={ui("Hostel")} onClose={onClose}>
+  return <Modal title={ui("Room {0}: capacity and status", [room.number])} eyebrow={ui("Hostel")} onClose={onClose}>
     <div className="space-y-3" data-dorm-room-dialog>
       <ErrorLine error={error} />
       <FormField name="dorm-capacity" label={ui("Capacity")}><Input type="number" min={1} max={50} value={capacity} onChange={event => setCapacity(event.target.value)} /></FormField>
       <FormField name="dorm-status" label={ui("Status")}><Select value={status} onChange={event => setStatus(event.target.value)}><option value="AVAILABLE">{ui("Available")}</option><option value="OUT_OF_SERVICE">{ui("Out of service")}</option></Select></FormField>
       {status === "OUT_OF_SERVICE" ? <FormField name="dorm-status-reason" label={ui("Why is it out of service?")}><Input value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></FormField> : null}
-      {impact ? <div className={`rounded-xl p-3 text-xs ${impact.blocked ? "bg-amber-50 text-amber-900" : "bg-muted"}`} data-dorm-impact={impact.blocked ? "blocked" : "clear"} role={impact.blocked ? "alert" : undefined}>
+      {impact ? <div className={`rounded-xl p-3 text-xs ${impact.blocked ? "bg-status-warning-surface text-status-warning-text" : "bg-muted"}`} data-dorm-impact={impact.blocked ? "blocked" : "clear"} role={impact.blocked ? "alert" : undefined}>
         <p className="font-semibold text-ink-strong">{impact.blocked ? ui(impact.message) : ui("Up to {0} student(s) are allocated from today; this change fits.", [impact.peak])}</p>
         {impact.blocked && impact.affected.length ? <ul className="mt-1 list-disc ps-4">{impact.affected.map(stay => <li key={stay.id}><bdi>{stay.studentName}</bdi> · {formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</li>)}</ul> : null}
       </div> : null}
       <Actions busy={busy} label={ui("Save room")} onClose={onClose} onSave={() => void save()} disabled={impact?.blocked} />
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function HistoryDialog({ student, onClose }: { student: Stay["student"]; onClose: () => void }) {
@@ -262,11 +276,11 @@ function HistoryDialog({ student, onClose }: { student: Stay["student"]; onClose
   const { date: formatDate } = useLocaleFormat();
   const [stays, setStays] = useState<Stay[] | null>(null);
   useEffect(() => { void fetch(`/api/dormitory/allocations?studentId=${encodeURIComponent(student.id)}`, { cache: "no-store" }).then(r => r.json()).then(json => setStays(json.success ? json.data.stays : [])).catch(() => setStays([])); }, [student.id]);
-  return <ModalFrame title={ui("Room history for {0}", [student.fullName])} eyebrow={ui("Hostel")} onClose={onClose}>
+  return <Modal title={ui("Room history for {0}", [student.fullName])} eyebrow={ui("Hostel")} onClose={onClose}>
     {!stays ? <SkeletonList rows={3} label={ui("Loading allocations…")} /> : <ol className="space-y-2" data-dorm-history>{stays.map(stay => <li key={stay.id} className="rounded-xl border border-border p-3 text-xs" data-history-state={stay.state}>
       <p className="font-semibold text-ink-strong">{ui("Room {0}", [stay.roomNumber])} · {ui(STATE_LABEL[stay.state])}</p>
       <p>{formatDate(stay.startDate)} – {stay.endDate ? formatDate(stay.endDate) : ui("no end date")}</p>
       <p className="text-ink-muted"><bdi>{stay.reason}</bdi>{stay.endReason ? <> · <bdi>{stay.endReason}</bdi></> : null}</p>
     </li>)}</ol>}
-  </ModalFrame>;
+  </Modal>;
 }

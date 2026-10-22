@@ -8,7 +8,7 @@ const proposal = z.object({ kind: z.enum(["MARK", "PAYMENT"]), sourceId: z.strin
 const body = z.discriminatedUnion("action", [
     z.object({ action: z.literal("preview"), proposal }),
     z.object({ action: z.literal("request"), proposal, reviewHash: z.string(), reason: z.string().trim().min(1).max(2000), publicExplanation: z.string().trim().min(1).max(2000), privateNote: z.string().max(4000).optional() }),
-    z.object({ action: z.enum(["approve", "reject"]), id: z.string(), reviewHash: z.string() }),
+    z.object({ action: z.enum(["approve", "reject"]), id: z.string(), reviewHash: z.string(), reason: z.string().max(2000).optional() }),
 ]);
 export async function GET(req: Request) {
     try {
@@ -49,7 +49,8 @@ export async function POST(req: Request) {
             return Response.json(await preview(prisma, user, data.proposal));
         if (data.action === "request")
             return Response.json(await requestCorrection(user, data.proposal, data.reviewHash, data), { status: 201 });
-        return Response.json(await decideCorrection(user, data.id, data.action === "approve" ? "APPLIED" : "REJECTED", data.reviewHash));
+        // The decision reason is always passed so a PAYMENT decision without one (≥ 10 characters) is refused (P8-10).
+        return Response.json(await decideCorrection(user, data.id, data.action === "approve" ? "APPLIED" : "REJECTED", data.reviewHash, data.reason ?? null));
     }
     catch (e) {
         if (e instanceof Error && !("status" in e))

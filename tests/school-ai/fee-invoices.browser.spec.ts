@@ -77,20 +77,21 @@ for (const language of ["ar", "ur"] as const) test(`${language} mobile fee workf
   await fillDraft(page, language); await saveApprove(page, language); await createInvoices(page, language);
   const geometry = await page.evaluate(() => ({ width: window.innerWidth, scroll: document.documentElement.scrollWidth, dir: document.documentElement.dir })); expect(geometry.scroll).toBeLessThanOrEqual(geometry.width); expect(geometry.dir).toBe("rtl");
 });
-test("both legacy generation endpoints respect invoices created through the reviewed workflow", async ({ page }) => {
+// G8: /api/billing is the SaaS subscription only (POST answers 410) and /api/billing/invoices is gone; tuition
+// generation and invoice lists live under /api/fees.
+test("the legacy generation endpoint respects invoices created through the reviewed workflow", async ({ page }) => {
   await fillDraft(page); await saveApprove(page); await createInvoices(page);
   const generated = await page.request.post("/api/fees/generate-invoices", { data: { classId, generationMonth: "2026-10", includeLateFees: false } }); expect(generated.status(), await generated.text()).toBe(409);
-  const billing = await page.request.post("/api/billing", { data: { action: "generate-invoices", classId, generationMonth: "2026-10", includeLateFees: false } }); expect(billing.ok(), await billing.text()).toBeTruthy(); expect((await billing.json()).created).toBe(0);
   expect(await db.invoice.count({ where: { schoolId } })).toBe(1);
 });
 test("revoked fee read access immediately protects both invoice lists and generation validates periods", async ({ page }) => {
   await fillDraft(page); await saveApprove(page); await createInvoices(page);
-  for (const endpoint of ["/api/billing", "/api/fees/generate-invoices"]) { const response = await page.request.post(endpoint, { data: { action: "generate-invoices", generationMonth: "2026-13", classId } }); expect(response.status()).toBe(400); }
-  const baseline = await page.request.get("/api/billing/invoices"); expect(baseline.ok(), await baseline.text()).toBeTruthy(); expect((await baseline.json()).invoices).toHaveLength(1); expect(baseline.headers()["cache-control"]).toBe("private, no-store");
+  const invalid = await page.request.post("/api/fees/generate-invoices", { data: { generationMonth: "2026-13", classId } }); expect(invalid.status()).toBe(400);
+  const baseline = await page.request.get("/api/fees/invoices"); expect(baseline.ok(), await baseline.text()).toBeTruthy(); expect((await baseline.json()).invoices).toHaveLength(1); expect(baseline.headers()["cache-control"]).toBe("private, no-store");
   await db.rolePermission.create({ data: { schoolId, role: "ADMIN", module: "fees", canView: false, canAdd: false, canEdit: false, canDelete: false } });
-  for (const endpoint of ["/api/fees/invoices", "/api/billing/invoices", "/api/school-ai/fee-invoices/options"]) expect((await page.request.get(endpoint)).status()).toBe(403);
+  for (const endpoint of ["/api/fees/invoices", "/api/school-ai/fee-invoices/options"]) expect((await page.request.get(endpoint)).status()).toBe(403);
 });
-for (const endpoint of ["/api/fees/generate-invoices", "/api/billing"] as const) test(`${endpoint} generates an enrollment-compatible bill for a mid-month admission`, async ({ page }) => {
+for (const endpoint of ["/api/fees/generate-invoices"] as const) test(`${endpoint} generates an enrollment-compatible bill for a mid-month admission`, async ({ page }) => {
   await db.feeStructure.create({ data: { schoolId, campusId, classId, monthlyFee: 12345, currency: "PKR", activeFrom: new Date("2026-01-01Z") } });
   const response = await page.request.post(endpoint, { data: { action: "generate-invoices", classId, generationMonth: "2026-10", includeLateFees: false } }); expect(response.ok(), await response.text()).toBeTruthy();
   const invoice = await db.invoice.findFirstOrThrow({ where: { schoolId } }); expect(invoice.invoiceDate.toISOString()).toBe("2026-10-13T00:00:00.000Z"); expect(invoice.enrollmentId).toBeTruthy(); expect(invoice.totalAmount).toBe(12345);

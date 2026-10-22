@@ -1,5 +1,6 @@
 "use client";
 
+import { fillNodes } from "@/lib/auth/fill-nodes";
 import { Button as SystemButton } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Progress } from "@/components/ui/progress";
@@ -25,6 +26,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { ModalSurface } from "@/components/ui/modal";
 import { parseSections, parseSubjectList } from "@/lib/class-sections";
@@ -80,12 +82,12 @@ async function runPooled<T>(
  * a glance. Red now means exactly one thing here.
  */
 const SECTION_CHIP_COLORS = [
-  { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-600/20" },
-  { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-500/20" },
-  { bg: "bg-brand-100", text: "text-violet-600", border: "border-primary/20" },
-  { bg: "bg-blue-100", text: "text-blue-600", border: "border-blue-500/20" },
-  { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-500/20" },
-  { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-500/20" },
+  { bg: "bg-status-info-surface", text: "text-status-info-text", border: "border-status-info-text/20" },
+  { bg: "bg-status-warning-surface", text: "text-status-warning-text", border: "border-status-warning-text/20" },
+  { bg: "bg-brand-100", text: "text-status-brand-text", border: "border-primary/20" },
+  { bg: "bg-status-info-surface", text: "text-status-info-text", border: "border-status-info-text/20" },
+  { bg: "bg-status-info-surface", text: "text-status-info-text", border: "border-status-info-text/20" },
+  { bg: "bg-status-success-surface", text: "text-status-success-text", border: "border-status-success-text/20" },
 ];
 
 /* ── Component ────────────────────────────────────────────────────────── */
@@ -101,6 +103,7 @@ export function QuickCreateClass({
   onClose: () => void;
   onCreated: (createdClasses: any[]) => void;
 }) {
+  const ui = useUiText();
   /* ── State ────────────────────────────────────────────────────────── */
   const [name, setName] = useState("");
   const [academicYear, setAcademicYear] = useState(
@@ -167,13 +170,15 @@ export function QuickCreateClass({
    * the click rather than as a toast after it.
    */
   const blockedReason = !name.trim()
-    ? "Name the class to continue."
+    ? ui("Name the class to continue.")
     : hasSections && sectionNames.length === 0
-      ? "Add at least one section, or turn sections off."
+      ? ui("Add at least one section, or turn sections off.")
       : clashingSections.length > 0
         ? hasSections
-          ? `${name.trim()} ${clashingSections.join(", ")} already exist${clashingSections.length === 1 ? "s" : ""} for ${year}.`
-          : `${name.trim()} already exists for ${year}.`
+          ? clashingSections.length === 1
+            ? ui("{0} {1} already exists for {2}.", [name.trim(), clashingSections[0], year])
+            : ui("{0} {1} already exist for {2}.", [name.trim(), clashingSections.join(", "), year])
+          : ui("{0} already exists for {1}.", [name.trim(), year])
         : null;
 
   const copyableClasses = useMemo(
@@ -198,7 +203,7 @@ export function QuickCreateClass({
   const addSubject = () => {
     const raw = newSubjectName.trim();
     if (!raw) {
-      toast.error("Enter a subject name");
+      toast.error(ui("Enter a subject name"));
       return;
     }
 
@@ -224,7 +229,7 @@ export function QuickCreateClass({
     }
 
     if (fresh.length === 0) {
-      toast.error(`${skipped.join(", ")} already added`);
+      toast.error(ui("{0} already added", [skipped.join(", ")]));
       return;
     }
 
@@ -232,10 +237,10 @@ export function QuickCreateClass({
     setNewSubjectName("");
     setNewSubjectMarks("100");
     if (fresh.length > 1) {
-      toast.success(`Added ${fresh.length} subjects`);
+      toast.success(ui("Added {0} subjects", [fresh.length]));
     }
     if (skipped.length > 0) {
-      toast.info(`Skipped ${skipped.join(", ")} — already added`);
+      toast.info(ui("Skipped {0} — already added", [skipped.join(", ")]));
     }
   };
 
@@ -272,7 +277,7 @@ export function QuickCreateClass({
     );
     setCopyFromClassId(classId);
     toast.success(
-      `Copied ${source.subjects.length} subject(s) from ${source.name}${source.section ? ` ${source.section}` : ""}`,
+      ui(source.subjects.length === 1 ? "Copied {0} subject from {1}" : "Copied {0} subjects from {1}", [source.subjects.length, `${source.name}${source.section ? ` ${source.section}` : ""}`]),
     );
   };
 
@@ -289,7 +294,7 @@ export function QuickCreateClass({
       return false;
     }
     if (subjects.some((subject) => !subject.name.trim())) {
-      toast.error("Every subject needs a name");
+      toast.error(ui("Every subject needs a name"));
       return false;
     }
     return true;
@@ -376,11 +381,11 @@ export function QuickCreateClass({
         await runPooled(subjectJobs);
       }
 
-      const sectionLabel =
-        effectiveSections.length > 1
-          ? `${effectiveSections.length} sections`
-          : effectiveSections[0].name || "no sections";
-      toast.success(`"${name.trim()}" created with ${sectionLabel}`);
+      toast.success(effectiveSections.length > 1
+        ? ui("\"{0}\" created with {1} sections", [name.trim(), effectiveSections.length])
+        : effectiveSections[0].name
+          ? ui("\"{0}\" created with section {1}", [name.trim(), effectiveSections[0].name])
+          : ui("\"{0}\" created with no sections", [name.trim()]));
       onCreated(createdClasses);
     } catch (error) {
       toast.error(
@@ -424,26 +429,26 @@ export function QuickCreateClass({
       // and never while the create request is in flight.
       disableBackdropClose={busy}
       dirty={Boolean(name.trim()) && !busy}
-      dirtyMessage="This class has not been created yet. Discard it?"
+      dirtyMessage={ui("This class has not been created yet. Discard it?")}
     >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="shrink-0 border-b border-edge/15 bg-brand-50/70 px-6 pt-5 pb-4 sm:px-7">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-brand-400 to-teal-500 shadow-brand">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-brand-400 to-status-info-text shadow-brand">
                 <Zap className="h-5 w-5 text-white" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-ink-strong">
-                  Quick Setup
+                  {ui("Quick setup")}
                 </h2>
                 <p className="text-xs font-medium text-ink-muted">
-                  Create a class, then configure it fully
+                  {ui("Create a class, then configure it fully")}
                 </p>
               </div>
             </div>
             <IconButton
-              label="Close"
+              label={ui("Close")}
               onClick={onClose}
               disabled={busy}
             >
@@ -459,22 +464,22 @@ export function QuickCreateClass({
             <div className="space-y-4">
               <div className="flex items-center gap-2 ps-1">
                 <GraduationCap className="h-4 w-4 text-primary" />
-                <span className="text-2xs font-semibold uppercase tracking-wider text-primary">
-                  Class Identity
+                <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
+                  {ui("Class identity")}
                 </span>
               </div>
 
               {/* Class Name */}
               <div className="rounded-3xl border border-edge/25 bg-brand-50/50 p-5">
                 <label className="block">
-                  <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    Class Name
+                  <span className="mb-2 block ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                    {ui("Class Name")}
                   </span>
                   <SystemInput
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Grade 8"
+                    placeholder={ui("e.g. Grade 8")}
                     autoFocus
                     className="h-14 w-full px-4 transition-all"
                   />
@@ -484,8 +489,8 @@ export function QuickCreateClass({
               {/* Academic Year */}
               <div className="rounded-3xl border border-edge/25 bg-brand-50/50 p-5">
                 <label className="block">
-                  <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    Academic Year
+                  <span className="mb-2 block ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                    {ui("Academic Year")}
                   </span>
                   <SystemInput
                     type="number"
@@ -499,8 +504,8 @@ export function QuickCreateClass({
 
               {/* Teaching Mode */}
               <div className="rounded-3xl border border-edge/25 bg-brand-50/50 p-5">
-                <span className="mb-3 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  Teaching Mode
+                <span className="mb-3 block ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                  {ui("Teaching Mode")}
                 </span>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {/* One Teacher card */}
@@ -510,15 +515,15 @@ export function QuickCreateClass({
                     className={cn(
                       "group relative overflow-hidden p-4 text-start",
                       teachingMode === "SINGLE"
-                        ? "border-teal-600 bg-white shadow-md"
-                        : "border-transparent bg-white/60 hover:border-teal-600/25 hover:bg-white",
+                        ? "border-status-info-text bg-card shadow-md"
+                        : "border-transparent bg-card/60 hover:border-status-info-text/25 hover:bg-card",
                     )}
                   >
                     <div
                       className={cn(
                         "absolute top-0 start-0 h-full w-1 rounded-e-full transition-all",
                         teachingMode === "SINGLE"
-                          ? "bg-teal-600"
+                          ? "bg-status-info-text"
                           : "bg-transparent",
                       )}
                     />
@@ -527,7 +532,7 @@ export function QuickCreateClass({
                         className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all",
                           teachingMode === "SINGLE"
-                            ? "bg-teal-100 text-teal-700"
+                            ? "bg-status-info-surface text-status-info-text"
                             : "bg-surface-subtle text-ink-subtle",
                         )}
                       >
@@ -539,20 +544,20 @@ export function QuickCreateClass({
                             className={cn(
                               "text-sm font-bold",
                               teachingMode === "SINGLE"
-                                ? "text-teal-700"
+                                ? "text-status-info-text"
                                 : "text-ink-strong",
                             )}
                           >
-                            One teacher
+                            {ui("One teacher")}
                           </p>
                           {teachingMode === "SINGLE" && (
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-600">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-status-info-text">
                               <Check className="h-3 w-3 text-white" />
                             </div>
                           )}
                         </div>
                         <p className="mt-1 text-xs font-normal leading-relaxed text-ink-muted">
-                          The class teacher takes every subject
+                          {ui("The class teacher takes every subject")}
                         </p>
                       </div>
                     </div>
@@ -565,15 +570,15 @@ export function QuickCreateClass({
                     className={cn(
                       "group relative overflow-hidden p-4 text-start",
                       teachingMode === "SUBJECT"
-                        ? "border-amber-500 bg-white shadow-md"
-                        : "border-transparent bg-white/60 hover:border-amber-500/25 hover:bg-white",
+                        ? "border-status-warning-text bg-card shadow-md"
+                        : "border-transparent bg-card/60 hover:border-status-warning-text/25 hover:bg-card",
                     )}
                   >
                     <div
                       className={cn(
                         "absolute top-0 start-0 h-full w-1 rounded-e-full transition-all",
                         teachingMode === "SUBJECT"
-                          ? "bg-amber-500"
+                          ? "bg-warning"
                           : "bg-transparent",
                       )}
                     />
@@ -582,7 +587,7 @@ export function QuickCreateClass({
                         className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all",
                           teachingMode === "SUBJECT"
-                            ? "bg-amber-100 text-amber-700"
+                            ? "bg-status-warning-surface text-status-warning-text"
                             : "bg-surface-subtle text-ink-subtle",
                         )}
                       >
@@ -594,20 +599,20 @@ export function QuickCreateClass({
                             className={cn(
                               "text-sm font-bold",
                               teachingMode === "SUBJECT"
-                                ? "text-amber-700"
+                                ? "text-status-warning-text"
                                 : "text-ink-strong",
                             )}
                           >
-                            Teacher per subject
+                            {ui("Teacher per subject")}
                           </p>
                           {teachingMode === "SUBJECT" && (
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-warning">
                               <Check className="h-3 w-3 text-white" />
                             </div>
                           )}
                         </div>
                         <p className="mt-1 text-xs font-normal leading-relaxed text-ink-muted">
-                          Each subject gets its own teacher
+                          {ui("Each subject gets its own teacher")}
                         </p>
                       </div>
                     </div>
@@ -619,9 +624,9 @@ export function QuickCreateClass({
             {/* ── RIGHT COLUMN: Structure ─────────────────────────── */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 ps-1">
-                <Layers className="h-4 w-4 text-teal-700" />
-                <span className="text-2xs font-semibold uppercase tracking-wider text-teal-700">
-                  Structure
+                <Layers className="h-4 w-4 text-status-info-text" />
+                <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-status-info-text">
+                  {ui("Structure")}
                 </span>
               </div>
 
@@ -630,10 +635,10 @@ export function QuickCreateClass({
                 <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3">
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-ink-strong">
-                      Has sections?
+                      {ui("Has sections?")}
                     </span>
                     <span className="mt-1 block text-xs text-ink-muted">
-                      e.g. Grade 8 - A, Grade 8 - B
+                      {ui("e.g. Grade 8 - A, Grade 8 - B")}
                     </span>
                   </span>
                   <Switch
@@ -646,17 +651,17 @@ export function QuickCreateClass({
                 {hasSections && (
                   <div className="mt-4">
                     <label className="block">
-                      <span className="mb-2 flex items-baseline justify-between gap-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                        <span>Section Names</span>
+                      <span className="mb-2 flex items-baseline justify-between gap-2 ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                        <span>{ui("Section names")}</span>
                         <span className="font-bold normal-case tracking-normal text-ink-subtle">
-                          Type <code className="rounded bg-white px-1 font-mono text-2xs text-teal-700">A-D</code> for a run
+                          {fillNodes(ui("Type {0} for a run"), <code dir="ltr" className="rounded bg-card px-1 font-mono text-2xs text-status-info-text">A-D</code>)}
                         </span>
                       </span>
                       <SystemInput
                         type="text"
                         value={sectionsInput}
                         onChange={(e) => setSectionsInput(e.target.value)}
-                        placeholder="A, B, C  ·  or  A-D  ·  or  1-4"
+                        placeholder={ui("A, B, C  ·  or  A-D  ·  or  1-4")}
                         className="h-12 w-full px-4 transition-all"
                       />
                     </label>
@@ -680,7 +685,7 @@ export function QuickCreateClass({
                               className={cn(
                                 "group/chip inline-flex items-center gap-1.5 rounded-full border py-1.5 ps-3 pe-1.5 text-2xs font-bold transition-all",
                                 taken
-                                  ? "border-rose-300 bg-rose-50 text-rose-600 line-through decoration-rose-400/70"
+                                  ? "border-status-error-border bg-status-error-surface text-status-error-text line-through decoration-status-error-text/70"
                                   : [color.bg, color.text, color.border],
                               )}
                             >
@@ -690,11 +695,11 @@ export function QuickCreateClass({
                                   taken ? "opacity-90" : "opacity-50",
                                 )}
                               />
-                              {name.trim() || "Class"} - {sec}
+                              {name.trim() || ui("Class")} - {sec}
                               <SystemButton variant="ghost"
                                 type="button"
                                 onClick={() => removeSection(sec)}
-                                aria-label={`Remove section ${sec}`}
+                                aria-label={ui("Remove section {0}", [sec])}
                                 className="flex items-center justify-center"
                               >
                                 <X className="h-2.5 w-2.5" aria-hidden="true" />
@@ -704,7 +709,7 @@ export function QuickCreateClass({
                           return taken ? (
                             <Tooltip
                               key={`${sec}-${i}`}
-                              content={`${name.trim()} ${sec} already exists for ${year}`}
+                              content={ui("{0} {1} already exists for {2}", [name.trim(), sec, year])}
                             >
                               {chip}
                             </Tooltip>
@@ -716,11 +721,10 @@ export function QuickCreateClass({
                     )}
 
                     {clashingSections.length > 0 && (
-                      <p className="mt-2.5 flex items-start gap-1.5 rounded-xl bg-rose-50 px-3 py-2 text-2xs font-bold leading-relaxed text-rose-600">
+                      <p className="mt-2.5 flex items-start gap-1.5 rounded-xl bg-status-error-surface px-3 py-2 text-2xs font-bold leading-relaxed text-status-error-text">
                         <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
                         <span>
-                          Struck-through sections already exist for {year}. Remove them, or
-                          change the class name or year.
+                          {ui("Struck-through sections already exist for {0}. Remove them, or change the class name or year.", [year])}
                         </span>
                       </p>
                     )}
@@ -732,8 +736,8 @@ export function QuickCreateClass({
               {copyableClasses.length > 0 && (
                 <div className="rounded-3xl border border-edge/25 bg-brand-50/50 p-5">
                   <label className="block">
-                    <span className="mb-2 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                      Copy Subjects From...
+                    <span className="mb-2 block ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                      {ui("Copy subjects from…")}
                     </span>
                     <div className="relative">
                       <SystemSelect
@@ -743,12 +747,10 @@ export function QuickCreateClass({
                         }}
                         className="h-12 w-full cursor-pointer appearance-none px-4 pe-10 transition-all"
                       >
-                        <option value="">Select a class...</option>
+                        <option value="">{ui("Select a class...")}</option>
                         {copyableClasses.map((cls: any) => (
                           <option key={cls.id} value={cls.id}>
-                            {cls.name}
-                            {cls.section ? ` ${cls.section}` : ""} (
-                            {cls.subjects?.length} subjects)
+                            {ui("{0} ({1} subjects)", [`${cls.name}${cls.section ? ` ${cls.section}` : ""}`, cls.subjects?.length ?? 0])}
                           </option>
                         ))}
                       </SystemSelect>
@@ -760,8 +762,8 @@ export function QuickCreateClass({
 
               {/* Quick-add subjects */}
               <div className="rounded-3xl border border-edge/25 bg-brand-50/50 p-5">
-                <span className="mb-3 block ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  Quick-Add Subjects
+                <span className="mb-3 block ps-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                  {ui("Quick-add subjects")}
                 </span>
                 <div className="flex items-end gap-2">
                   <div className="min-w-0 flex-1">
@@ -775,7 +777,7 @@ export function QuickCreateClass({
                           addSubject();
                         }
                       }}
-                      placeholder="Subject name — or paste a whole list"
+                      placeholder={ui("Subject name — or paste a whole list")}
                       className="h-11 w-full px-3 transition-all"
                     />
                   </div>
@@ -790,7 +792,7 @@ export function QuickCreateClass({
                           addSubject();
                         }
                       }}
-                      placeholder="Marks"
+                      placeholder={ui("Marks")}
                       className="h-11 w-full px-3 text-center transition-all"
                     />
                   </div>
@@ -804,8 +806,7 @@ export function QuickCreateClass({
                 </div>
 
                 <p className="mt-2 ps-2 text-xs font-normal leading-relaxed text-ink-subtle">
-                  Paste from a syllabus and it splits itself —{" "}
-                  <span className="font-mono text-primary">Maths 100, English 75, Science</span>
+                  {fillNodes(ui("Paste from a syllabus and it splits itself — {0}"), <span className="font-mono text-primary">{ui("Maths 100, English 75, Science")}</span>)}
                 </p>
 
                 {/* Subject chips/pills */}
@@ -825,7 +826,7 @@ export function QuickCreateClass({
                           <SystemInput
                             value={subject.name}
                             onChange={(e) => updateSubject(subject.key, { name: e.target.value })}
-                            aria-label={`Subject ${i + 1} name`}
+                            aria-label={ui("Subject {0} name", [i + 1])}
                             className="min-w-0 flex-1 py-1 transition-colors"
                           />
                           <div className="flex shrink-0 items-baseline gap-1">
@@ -834,15 +835,14 @@ export function QuickCreateClass({
                               min="1"
                               value={subject.totalMarks}
                               onChange={(e) => updateSubject(subject.key, { totalMarks: e.target.value })}
-                              aria-label={`${subject.name || "Subject"} total marks`}
+                              aria-label={ui("{0} total marks", [subject.name || ui("Subject")])}
                               className="w-12 py-1 text-end tabular-nums transition-colors"
                             />
-                            <span className="text-2xs font-bold text-ink-subtle">marks</span>
+                            <span className="text-2xs font-bold text-ink-subtle">{ui("marks")}</span>
                           </div>
                         </div>
                         <IconButton
-                          size="sm"
-                          label={`Remove ${subject.name || "subject"}`}
+                          label={subject.name ? ui("Remove {0}", [subject.name]) : ui("Remove subject")}
                           onClick={() => removeSubject(subject.key)}
                           className="ms-2"
                         >
@@ -852,15 +852,15 @@ export function QuickCreateClass({
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-edge/30 bg-white/50 px-6 py-8 text-center">
+                  <div className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-edge/30 bg-card/50 px-6 py-8 text-center">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100">
                       <BookOpen className="h-5 w-5 text-primary/40" />
                     </div>
                     <p className="mt-3 text-sm font-semibold text-ink-strong">
-                      No subjects yet
+                      {ui("No subjects yet")}
                     </p>
                     <p className="mt-1 text-xs text-ink-subtle">
-                      Add them now or later from the class manager
+                      {ui("Add them now or later from the class manager")}
                     </p>
                   </div>
                 )}
@@ -878,14 +878,14 @@ export function QuickCreateClass({
                 <div className="mb-1.5 flex items-center justify-between">
                   <p className="text-xs font-bold text-ink-strong">
                     {progress.total > 0
-                      ? `Creating... (${progress.done} of ${progress.total})`
-                      : "Creating..."}
+                      ? ui("Creating\u2026 ({0} of {1})", [progress.done, progress.total])
+                      : ui("Creating\u2026")}
                   </p>
                   <p className="text-2xs font-semibold tabular-nums text-ink-muted">
                     {Math.round(progressPercent)}%
                   </p>
                 </div>
-                <Progress value={progressPercent} label="Creating classes" size="sm" />
+                <Progress value={progressPercent} label={ui("Creating classes")} size="sm" />
               </div>
             </div>
           ) : (
@@ -901,28 +901,28 @@ export function QuickCreateClass({
                 </Alert>
               ) : (
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl border border-edge bg-card px-3.5 py-2.5 text-xs font-medium text-ink-muted tabular-nums">
-                  <span className="text-2xs font-semibold uppercase tracking-wider text-primary">
-                    Will create
+                  <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
+                    {ui("Will create")}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-lg bg-brand-100 px-2 py-0.5 font-bold text-primary">
                     <Layers className="h-3 w-3" />
-                    {classRowCount} class{classRowCount === 1 ? "" : "es"}
+                    {ui(classRowCount === 1 ? "{0} class" : "{0} classes", [classRowCount])}
                   </span>
                   {subjects.length > 0 ? (
                     <>
                       <span className="text-ink-subtle">&times;</span>
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-teal-100 px-2 py-0.5 font-bold text-teal-700">
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-status-info-surface px-2 py-0.5 font-bold text-status-info-text">
                         <BookOpen className="h-3 w-3" />
-                        {subjects.length} subject{subjects.length === 1 ? "" : "s"}
+                        {ui(subjects.length === 1 ? "{0} subject" : "{0} subjects", [subjects.length])}
                       </span>
                       <span className="text-ink-subtle">=</span>
                       <span className="font-bold text-ink-strong">
-                        {subjectRowCount} subject record{subjectRowCount === 1 ? "" : "s"}
+                        {ui(subjectRowCount === 1 ? "{0} subject record" : "{0} subject records", [subjectRowCount])}
                       </span>
                     </>
                   ) : (
                     <span className="text-ink-subtle">
-                      no subjects yet &mdash; you can add them from the class manager
+                      {ui("No subjects yet — you can add them from the class manager")}
                     </span>
                   )}
                 </div>
@@ -934,9 +934,9 @@ export function QuickCreateClass({
                   onClick={onClose}
                   className="flex h-12 items-center gap-2 px-5 justify-start"
                 >
-                  Cancel
+                  {ui("Cancel")}
                 </SystemButton>
-                <Tooltip content={blockedReason || "Create this class (\u2318\u21A9)"}>
+                <Tooltip content={blockedReason || ui("Create this class (⌘↩)")}>
                 <span tabIndex={blockedReason ? 0 : undefined} className="inline-flex">
                 <SystemButton variant="default"
                   type="button"
@@ -945,7 +945,7 @@ export function QuickCreateClass({
                   className="flex h-12 items-center gap-2 px-6 justify-start"
                 >
                   <Sparkles className="h-4 w-4" />
-                  {classRowCount > 1 ? `Create ${classRowCount} Classes` : "Create & Configure"}
+                  {classRowCount > 1 ? ui("Create {0} classes", [classRowCount]) : ui("Create and configure")}
                   <kbd className="ms-1 hidden rounded border border-white/25 bg-white/10 px-1.5 py-0.5 text-2xs font-bold sm:inline">
                     &#8984;&#8629;
                   </kbd>

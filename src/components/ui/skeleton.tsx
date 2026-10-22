@@ -12,6 +12,10 @@ import { cn } from "@/lib/utils";
  *
  * Built on the existing `.skeleton-shimmer` / `.animate-skeleton-in` styles in
  * globals.css so everything shimmers identically.
+ *
+ * These sit INSIDE the shell's one page card (addendum 2026-10-22): rows and tiles use the same token surfaces as
+ * the real rows (`bg-card`) and panels (`sk-panel`), never a card of their own around the page. The whole-page
+ * placeholder (PageCard + PageHeader + body) is `PageSkeleton` in role-dashboard/RoleShellSkeleton.tsx.
  */
 
 export function Skeleton({
@@ -93,7 +97,7 @@ export function SkeletonList({
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="animate-skeleton-in flex items-center gap-4 rounded-2xl border border-edge/10 bg-white p-4"
+          className="animate-skeleton-in flex items-center gap-4 rounded-2xl border border-edge/10 bg-card p-4"
           style={{ animationDelay: `${i * 60}ms` }}
         >
           <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
@@ -108,7 +112,7 @@ export function SkeletonList({
   );
 }
 
-/** Card grid — for dashboards and stat tiles. */
+/** Card grid — for dashboards and stat tiles (the `sk-panel` tile shape StatTile and TileSkeleton use). */
 export function SkeletonCards({
   count = 4,
   className,
@@ -129,7 +133,7 @@ export function SkeletonCards({
         <div
           key={i}
           className={cn(
-            "animate-skeleton-in rounded-[24px] border border-edge/12 bg-white p-5",
+            "sk-panel animate-skeleton-in p-5",
             cardClassName,
           )}
           style={{ animationDelay: `${i * 80}ms` }}
@@ -158,7 +162,7 @@ export function SkeletonTable({
   return (
     <SkeletonRegion
       className={cn(
-        "overflow-hidden rounded-2xl border border-edge/12 bg-white",
+        "overflow-hidden rounded-2xl border border-edge/12 bg-card",
         className,
       )}
       label={label}

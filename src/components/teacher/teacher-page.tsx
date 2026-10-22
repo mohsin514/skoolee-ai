@@ -1,23 +1,16 @@
 "use client";
 
-import { pageCardSurface } from "@/components/ui/page-card";
-
-import { WorkspaceSubnav } from "@/components/nav/WorkspaceSubnav";
-import React, { useEffect, useRef, useState, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { type ReactNode } from "react";
 import {
   BarChart3,
   BookOpen,
   Calendar,
   CalendarCheck,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   ClipboardList,
   FileText,
   GraduationCap,
   Plane,
-  Search,
   Star,
   Users,
   Zap,
@@ -29,18 +22,16 @@ import {
   Sparkles,
   Trophy,
 } from "lucide-react";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+import { PAGE_CARD_BODY, PageHeaderSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
 import { cn } from "@/lib/utils";
-import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
-import { openTeacherPalette } from "@/components/teacher/palette-bus";
+import type { ModuleTone } from "@/lib/ui/module-tones";
 
 /**
- * The shell every teacher screen sits in.
- *
- * All eleven pages used to hand-roll the same header — a decorative blur, an
- * eyebrow row, a `text-3xl` title and a description, inside `p-7 px-9` — which
- * came to roughly 150px before a single row of content, and drifted apart as
- * each page was edited on its own. One component makes them consistent and
- * gives that height back to the teacher's actual work.
+ * The page every teacher screen sits in: one shared `PageHeader` (SPEC §4.3, R1) inside the shell's one
+ * page card (RoleShell draws it; pages never draw their own). The title is the registry label, the description is one sentence, there is at most one
+ * primary action, and in-page section strips are gone — the sidebar (registry `teacher`) is the only
+ * navigation, so a teacher never sees the same destinations twice.
  */
 
 export interface TeacherNavItem {
@@ -51,110 +42,99 @@ export interface TeacherNavItem {
   tone: ModuleTone;
 }
 
+/**
+ * @deprecated The teacher sidebar comes from the navigation registry (`ROLE_NAV.teacher`,
+ * `src/lib/navigation/role-nav.ts`). Kept for one release for fixtures that still pass explicit nav items.
+ */
 export const TEACHER_NAV: TeacherNavItem[] = [
-  { href: "/teacher", label: "Dashboard", icon: BookOpen, group: "Teach", tone: "brand" },
-  { href: "/teacher/classes", label: "My Classes", icon: GraduationCap, group: "Teach", tone: "classes" },
-  { href: "/teacher/timetable", label: "Timetable", icon: Calendar, group: "Teach", tone: "timetable" },
+  { href: "/teacher", label: "Today", icon: BookOpen, group: "Teach", tone: "brand" },
+  { href: "/teacher/classes", label: "Classes", icon: GraduationCap, group: "Teach", tone: "classes" },
+  { href: "/teacher/timetable", label: "Timetable & cover", icon: Calendar, group: "Teach", tone: "timetable" },
   { href: "/teacher/resources", label: "Resources", icon: FolderOpen, group: "Teach", tone: "classes" },
-  { href: "/teacher/assignments", label: "Assignments", icon: ClipboardCheck, group: "Assess", tone: "exams" },
-  { href: "/teacher/students", label: "My Students", icon: Users, group: "Teach", tone: "students" },
+  { href: "/teacher/assignments", label: "Homework", icon: ClipboardCheck, group: "Assess", tone: "exams" },
+  { href: "/teacher/students", label: "Students", icon: Users, group: "Teach", tone: "students" },
   { href: "/teacher/portfolio", label: "Portfolios", icon: Sparkles, group: "Teach", tone: "students" },
   { href: "/activities", label: "Activities", icon: Trophy, group: "Teach", tone: "students" },
   { href: "/teacher/attendance", label: "Attendance", icon: CalendarCheck, group: "Assess", tone: "attendance" },
   { href: "/teacher/marks", label: "Marks", icon: Star, group: "Assess", tone: "exams" },
   { href: "/teacher/curriculum", label: "Objective map", icon: Target, group: "Assess", tone: "exams" },
   { href: "/teacher/accommodations", label: "Access plans", icon: Accessibility, group: "Assess", tone: "exams" },
-  { href: "/teacher/tests", label: "Assessments", icon: ClipboardList, group: "Assess", tone: "exams" },
-  { href: "/teacher/reports", label: "Reports", icon: FileText, group: "Assess", tone: "reports" },
-  { href: "/teacher/insights", label: "Insights", icon: BarChart3, group: "Me", tone: "brand" },
-  { href: "/teacher/calendar", label: "Calendar", icon: CalendarDays, group: "Me", tone: "timetable" },
-  { href: "/teacher/leave", label: "Leave", icon: Plane, group: "Me", tone: "leave" },
-  { href: "/teacher/ai", label: "AI Insights", icon: Zap, group: "Me", tone: "ai" },
+  { href: "/teacher/tests", label: "Tests & quizzes", icon: ClipboardList, group: "Assess", tone: "exams" },
+  { href: "/teacher/reports", label: "Report cards", icon: FileText, group: "Assess", tone: "reports" },
+  { href: "/teacher/insights", label: "My teaching evidence", icon: BarChart3, group: "Me", tone: "brand" },
+  { href: "/teacher/calendar", label: "Calendar & meetings", icon: CalendarDays, group: "Me", tone: "timetable" },
+  { href: "/teacher/leave", label: "My leave", icon: Plane, group: "Me", tone: "leave" },
+  { href: "/teacher/ai", label: "AI assistant", icon: Zap, group: "Me", tone: "ai" },
 ];
 
-/**
- * Horizontal navigation across the teacher's twelve screens, grouped by what
- * the teacher is doing: preparing to teach, assessing, or managing their own
- * week. The sidebar lists all twelve flat; this makes the shape visible and
- * puts every screen one click from every other.
- */
-export function TeacherSubnav() {
-  return <WorkspaceSubnav label="Teacher sections" items={TEACHER_NAV.map((item) => ({ id: item.href, label: item.label, href: item.href }))} />;
-}
-
-export function TeacherPage({
-  icon: Icon,
-  eyebrow,
-  title,
-  summary,
-  actions,
-  children,
-  /** Rendered flush under the header, outside the scroll area. */
-  banner,
-  contentClassName,
-  tone = "brand",
-}: {
-  icon: LucideIcon;
-  eyebrow: string;
+export interface WorkspacePageProps {
+  /** Registry label verbatim (EN UI key; PageHeader translates it). */
   title: string;
-  summary?: ReactNode;
-  actions?: ReactNode;
+  /**
+   * One sentence; names the decider where relevant. A string is an EN UI key; data (names, classes,
+   * campuses) goes in as a node with `<bdi>` around each value so it is never looked up as a key (R7).
+   */
+  description?: ReactNode;
+  icon?: LucideIcon;
+  /** Persistent state: chips and Alerts ("Checked in 08:02", "Read only"). */
+  status?: ReactNode;
+  primaryAction?: PageAction;
+  secondaryActions?: PageAction[];
+  /** A `ViewTabs` element for in-view sections. */
+  tabs?: ReactNode;
   children: ReactNode;
+  /** Rendered between the header and the content. */
   banner?: ReactNode;
   contentClassName?: string;
-  /** The domain this screen belongs to — drives its accent colour. */
-  tone?: ModuleTone;
-}) {
-  const t = toneOf(tone);
+}
+
+/**
+ * The scroll area a console page draws inside the shell's one page card (addendum 2026-10-22 §2). RoleShell
+ * draws the card itself (`PAGE_CARD_CLASS`, no padding); the page supplies the shared body padding
+ * (`PAGE_CARD_BODY`, the same as framed routes) and its own scrolling, and never a second card or surface.
+ * `documentFlow` (family and learner consoles) lets the page join the document scroll below `md`.
+ */
+export function workspacePageClass(documentFlow = false) {
+  return cn(
+    "custom-scrollbar relative flex min-w-0 flex-col gap-6",
+    documentFlow ? "flex-none overflow-visible md:min-h-0 md:flex-1 md:overflow-y-auto" : "min-h-0 flex-1 overflow-y-auto",
+    PAGE_CARD_BODY,
+  );
+}
+
+/** The page body every teacher, family and learner screen shares: PageHeader, an optional banner, the content. */
+export function WorkspacePage({ documentFlow = false, title, description, icon, status, primaryAction, secondaryActions, tabs, children, banner, contentClassName }: WorkspacePageProps & { documentFlow?: boolean }) {
   return (
-    <section className={cn(pageCardSurface, "p-0 sm:p-0", "relative flex min-h-0 flex-1 flex-col overflow-y-auto")} >
-      <header className="relative shrink-0 overflow-hidden border-b border-edge/12 bg-white">
-        <span
-          aria-hidden
-          className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", t.rail)}
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full blur-2xl"
-          style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
-        />
-        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
-                style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}>
-              <Icon className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-2">
-                <h1 className="break-words text-lg font-bold leading-tight tracking-tight text-ink-strong">
-                  {title}
-                </h1>
-                <span className={cn("hidden shrink-0 text-2xs font-semibold uppercase tracking-wider opacity-80 sm:inline", t.text)}>
-                  {eyebrow}
-                </span>
-              </div>
-              {summary ? (
-                <p className="break-words text-sm font-medium leading-snug text-ink-muted">
-                  {summary}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-        </div>
-      </header>
-
-      <TeacherSubnav />
+    <section data-workspace-page className={workspacePageClass(documentFlow)}>
+      <PageHeader
+        title={title}
+        description={description}
+        icon={icon}
+        status={status}
+        primaryAction={primaryAction}
+        secondaryActions={secondaryActions}
+        tabs={tabs}
+      />
       {banner}
-
-      <div
-        className={cn(
-          "min-w-0 flex-none bg-brand-50/20 p-4 sm:p-5",
-          contentClassName,
-        )}
-      >
-        {children}
-      </div>
+      <div className={cn("min-w-0", contentClassName)}>{children}</div>
     </section>
   );
+}
+
+/**
+ * The loading shape of `WorkspacePage`: the same padding and gap, a PageHeader placeholder and the page's own
+ * content placeholder — so nothing moves when the data lands (addendum 2026-10-22 §3). Announced once.
+ */
+export function WorkspacePageSkeleton({ label, documentFlow = false, action = false, tabs = false, children }: { label: string; documentFlow?: boolean; action?: boolean; tabs?: boolean; children: ReactNode }) {
+  return (
+    <section role="status" aria-busy="true" aria-label={label} className={workspacePageClass(documentFlow)}>
+      <PageHeaderSkeleton action={action} tabs={tabs} />
+      <div className="min-w-0">{children}</div>
+      <span className="sr-only">{label}…</span>
+    </section>
+  );
+}
+
+export function TeacherPage(props: WorkspacePageProps) {
+  return <WorkspacePage {...props} />;
 }

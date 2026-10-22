@@ -143,7 +143,8 @@ test('campus staff cannot read or write another campus via nested or bulk identi
   await assert.rejects(prisma.student.createMany({data:[{id:randomUUID(),campusId:campusA,classId:classA,fullName:'Bulk safe',rollNo:'bulk-safe',gender:'MALE'},{campusId:campusA,classId:foreignClass,fullName:'Bulk denied',rollNo:'bulk-denied',gender:'MALE'}]}));
  });
  assert.equal(await raw.student.count({where:{schoolId:schoolA,rollNo:'bulk-safe'}}),0);
- assert.equal((await request('CAMPUS_ADMIN',`/api/parent/token`,{studentId:sibling})).status,403);
+ // D14: portal links are retired, so minting answers 410 for every caller and every child.
+ assert.equal((await request('CAMPUS_ADMIN',`/api/parent/token`,{studentId:sibling})).status,410);
  assert.equal((await request('CAMPUS_ADMIN',`/api/reports/download?studentId=${sibling}`)).status,403);
 });
 test('permission changes apply to the next protected effect after a navigation read', async () => {
@@ -169,21 +170,27 @@ test('teacher reassignment, disabling and role changes take effect with existing
  assert.equal(await resolveCurrentPrincipal(user),null);assert.equal((await request('TEACHER','/api/auth/session')).status,401);
  await raw.user.update({where:{id:user.userId},data:{role:'TEACHER',campusId:campusA}});
 });
-test('signed parent capability runs every portal query under its school',async()=>{
- const response=await request('CAMPUS_ADMIN','/api/parent/token',{studentId:own}); assert.equal(response.status,200,await response.clone().text());
- const {token}=await response.json();
- const report=await fetch(new URL(`/api/reports/download?token=${token}&reportCardId=${publishedReport}`,appUrl));assert.equal(report.status,200,await report.clone().text());
- const hidden=await fetch(new URL(`/api/reports/download?token=${token}&reportCardId=${draftReport}`,appUrl));assert.equal(hidden.status,403);
- for(const path of ['data','timetable','exam-datesheet']) { const result=await fetch(new URL(`/api/parent/${path}?token=${token}`,appUrl));assert.equal(result.status,200,await result.text()); }
+/** A portal capability signed exactly as the retired `/api/parent/token` minted it (D14), for a link handed out before retirement. */
+async function legacyParentCapability(studentId: string) {
+ const guardian=actors.get('PARENT')!;
+ const relationship=await raw.guardianRelationship.findFirstOrThrow({where:{schoolId:schoolA,studentId,guardianUserId:guardian.userId},select:{id:true}});
+ return new SignJWT({studentId,relationshipId:relationship.id,guardianUserId:guardian.userId,schoolId:schoolA,type:'parent_portal'}).setProtectedHeader({alg:'HS256'}).setExpirationTime('30d').setIssuedAt().sign(new TextEncoder().encode(process.env.AUTH_SECRET));
+}
+test('retired parent capability links neither mint nor open anything (D14)',async()=>{
+ const minted=await request('CAMPUS_ADMIN','/api/parent/token',{studentId:own}); assert.equal(minted.status,410,await minted.clone().text());
+ assert.equal((await minted.json()).code,'PARENT_PORTAL_LINKS_RETIRED');
+ // A link minted before retirement is no longer a credential: without a guardian session every portal read is refused.
+ const token=await legacyParentCapability(own);
+ const report=await fetch(new URL(`/api/reports/download?token=${token}&reportCardId=${publishedReport}`,appUrl));assert.equal(report.status,403,await report.clone().text());
+ for(const path of ['data','timetable','exam-datesheet','inbox']) { const result=await fetch(new URL(`/api/parent/${path}?token=${token}`,appUrl));assert.ok([401,403].includes(result.status),`${path}: ${result.status} ${await result.text()}`); }
 });
 
-test('guardian revocation and account changes invalidate existing cookies and capability links', async () => {
+test('guardian revocation and account changes invalidate existing cookies; retired capability links stay refused', async () => {
   const guardian = actors.get('PARENT')!;
-  const minted = await request('CAMPUS_ADMIN', '/api/parent/token', { studentId: own });
-  assert.equal(minted.status, 200, await minted.clone().text());
-  const { token } = await minted.json();
+  // D14: minting is retired (410); a link signed before retirement opens nothing at any point below.
+  const token = await legacyParentCapability(own);
   const linked = () => fetch(new URL(`/api/parent/data?token=${encodeURIComponent(token)}`, appUrl));
-  assert.equal((await linked()).status, 200);
+  assert.equal((await linked()).status, 403);
   await raw.guardianRelationship.updateMany({where:{schoolId:schoolA, studentId:own, guardianUserId:guardian.userId},data:{status:'REVOKED'}});
   try {
     assert.equal((await linked()).status, 403);
@@ -459,9 +466,13 @@ test('all temporary roles render desktop and mobile dashboard layouts', {timeout
    if(role==='PARENT') {
      // Same-name siblings intentionally have different records. Select the
      // published-record child explicitly rather than relying on tie ordering.
-     await page.getByRole('button',{name:'Change child',exact:true}).click();
-     await page.getByRole('dialog',{name:'Choose child',exact:true}).getByRole('button').filter({hasText:own}).click();
-     await page.getByText('PUBLISHED',{exact:true}).first().waitFor({state:'visible',timeout:20000});
+     // The switcher now sits in the header ("Change child, viewing {child}", anchor shell.parent.child-switcher).
+     await page.locator('[data-tour="shell.parent.child-switcher"]').click();
+     const choice=page.getByRole('dialog',{name:'Choose child',exact:true}).getByRole('button').filter({hasText:own});
+     const switched=(await choice.getAttribute('aria-pressed'))==='true' ? null : page.waitForResponse(response=>response.url().includes('/api/parent/data') && new URL(response.url()).searchParams.get('studentId')===own && response.ok(),{timeout:20000});
+     await choice.click();
+     if(switched) await switched;
+     await page.getByRole('heading',{name:'Latest result',exact:true}).waitFor({state:'visible',timeout:20000});
    }
    await page.waitForTimeout(400); // Let the existing dashboard entrance animation settle.
    await page.screenshot({path:`/private/tmp/sko377-${role.toLowerCase()}-desktop.png`,fullPage:true});

@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
     }
     if (body.action === "escalate") {
       const result = await escalate(user, body);
-      // The designated lead, or the campus leaders when none is named.
-      const leads = result.leadUserId ? [result.leadUserId] : (await prisma.user.findMany({ where: { schoolId: user.schoolId, campusId: result.campusId, isActive: true, role: { in: ["PRINCIPAL", "CAMPUS_ADMIN"] } }, select: { id: true } })).map(u => u.id);
+      // The designated lead, or the campus admins when none is named (role-ux G29: CAMPUS_ADMIN and ADMIN; the
+      // principal is academic and no longer decides pickup exceptions).
+      const leads = result.leadUserId ? [result.leadUserId] : (await prisma.user.findMany({ where: { schoolId: user.schoolId, campusId: result.campusId, isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN"] } }, select: { id: true } })).map(u => u.id);
       await tell("PICKUP_EXCEPTION_REQUESTED", result.campusId, leads.filter(id => id !== user.userId));
       return Response.json({ success: true, data: { checkId: result.checkId } }, { headers });
     }

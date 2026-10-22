@@ -2,7 +2,7 @@ import { startPdfJob } from "@/lib/jobs/processing";
 import { trackDeliveries } from "@/lib/jobs/service";
 import { loadPermissionMap } from "@/lib/permissions";
 import { reviewQueue, approveVersions, reviewExam, publishExam } from "@/lib/academic/report-versions";
-import { assertModuleRead, assertPermission } from "@/lib/api/scope";
+import { assertModuleRead, assertPermission, canLeadAcademics } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
@@ -11,7 +11,7 @@ import { generateReportCardPdf } from "@/lib/academic/pdf";
 import {
   generateReportCardsForLockedExam,
   getExamAnalytics,
-  isLockedStatus,
+  isExamLocked,
 } from "@/lib/academic/report-cards";
 import { notifyReportCardsGenerated } from "@/lib/notifications/automation";
 import { sendReportCardPublishedNotifications } from "@/lib/notifications/service";
@@ -20,9 +20,12 @@ import { assertFeatureEnabled, assertSchoolOperational } from "@/lib/billing/ent
 
 export const runtime = "nodejs";
 
+/** The academic office (canManageAcademics): generate, PDFs and queued delivery (G32). Approval, review and
+ *  publication additionally need the academic lead seat (canLeadAcademics). */
 function canManageReports(role: string) {
   return role === "SUPER_ADMIN" || role === "PRINCIPAL" || isCampusAdminRole(role);
 }
+const LEAD_ACTIONS = new Set(["approve", "review", "publish"]);
 
 async function getScopedExam(examId: string, user: NonNullable<Awaited<ReturnType<typeof getAuthUser>>>) {
   const exam = await prisma.exam.findUnique({
@@ -49,7 +52,8 @@ async function getScopedExam(examId: string, user: NonNullable<Awaited<ReturnTyp
     (error as Error & { status?: number }).status = 403;
     throw error;
   }
-  if (!exam.isLocked && !isLockedStatus(exam.status)) {
+  if (!isExamLocked(exam)) {
+    // 409 = the exam was reopened (or never locked); the client refreshes instead of reporting a failure.
     const error = new Error("Report cards can only be generated from locked exams");
     (error as Error & { status?: number }).status = 409;
     throw error;
@@ -99,7 +103,9 @@ export async function GET(req: NextRequest) {
 
     const versions = await reviewQueue(reportCards.map(r => r.id));
     const editable = Boolean((await loadPermissionMap(user.schoolId, user.role)).get("reports")?.canEdit);
-    return Response.json({ success: true, exam, canEdit: editable && (canManageReports(user.role) || user.role === "TEACHER" && (exam.class.classTeacherId === user.userId || exam.class.subjects.some(s => s.teacherId === user.userId))), reportCards: reportCards.map(r => ({ ...r, review: versions.find(v => v.reportCardId === r.id) })), analytics, canReview: canManageReports(user.role) && editable });
+    // canReview = approve/review/publish (academic lead only); canDeliver = PDFs and queued sends (office).
+    const leads = canManageReports(user.role) && await canLeadAcademics(user, exam.campusId);
+    return Response.json({ success: true, exam, canEdit: editable && (canManageReports(user.role) || user.role === "TEACHER" && (exam.class.classTeacherId === user.userId || exam.class.subjects.some(s => s.teacherId === user.userId))), reportCards: reportCards.map(r => ({ ...r, review: versions.find(v => v.reportCardId === r.id) })), analytics, canReview: leads && editable, canDeliver: canManageReports(user.role) && editable });
   } catch (error) {
     const status = (error as Error & { status?: number }).status || 500;
     return Response.json({ error: error instanceof Error ? error.message : "Failed to load reports" }, { status });
@@ -125,6 +131,11 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "reports", "edit");
     await assertSchoolOperational(user.schoolId);
     const exam = await getScopedExam(examId, user);
+    // G32: approving versions, the principal review and publication are the academic lead's acts — the
+    // principal, or a campus operator only while the campus has no principal.
+    if (LEAD_ACTIONS.has(action) && !(await canLeadAcademics(user, exam.campusId))) {
+      return Response.json({ error: "Report cards are approved and published by your principal." }, { status: 403 });
+    }
 
     if (action === "generate") {
       const generated = await generateReportCardsForLockedExam(examId);

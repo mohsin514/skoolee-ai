@@ -2,7 +2,7 @@
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import {
   CalendarCheck,
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { NO_ENTRY_ANIMATION } from "@/components/insights";
+import { STATUS } from "@/components/insights/palette";
 import { BrandButton } from "@/components/role-dashboard";
 import { resolveMediaUrl } from "@/lib/storage/s3";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,8 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 
 /* ------------------------------------------------------------------ */
@@ -36,6 +39,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 interface AttendanceOverviewProps {
   campusId?: string;
+  /**
+   * Host-owned header (§4.4b "Attendance": Export secondary): each new number downloads what is on screen, and the
+   * in-panel "Download report" button is not rendered (the PageHeader carries it).
+   */
+  exportRequest?: number;
 }
 
 type Period = "today" | "week" | "month";
@@ -128,9 +136,9 @@ function currentMonthStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function formatMonthLabel(ym: string): string {
+function formatMonthLabel(ym: string, language?: string): string {
   const [y, m] = ym.split("-").map(Number);
-  return new Date(y, m - 1).toLocaleDateString(undefined, {
+  return new Date(y, m - 1).toLocaleDateString(language, {
     month: "long",
     year: "numeric",
   });
@@ -194,7 +202,8 @@ function ChartSkeleton() {
 /*  Sub-components                                                     */
 /* ------------------------------------------------------------------ */
 
-const DONUT_COLORS = ["#10b981", "#f43f5e", "#f59e0b"]; // emerald, rose, amber
+// The chart palette's status colours (one source for every chart) — present, absent, on leave.
+const DONUT_COLORS = [STATUS.good, STATUS.critical, STATUS.warning];
 
 function AttendanceDonut({
   present,
@@ -205,19 +214,20 @@ function AttendanceDonut({
   absent: number;
   leave: number;
 }) {
+  const ui = useUiText();
   const total = present + absent + leave;
   if (total === 0) {
     return (
       <div className="flex items-center justify-center h-44 text-sm text-ink-subtle">
-        No data
+        {ui("No records yet")}
       </div>
     );
   }
 
   const data = [
-    { name: "Present", value: present },
-    { name: "Absent", value: absent },
-    { name: "Leave", value: leave },
+    { name: ui("Present"), value: present },
+    { name: ui("Absent"), value: absent },
+    { name: ui("On leave"), value: leave },
   ];
 
   return (
@@ -245,8 +255,8 @@ function AttendanceDonut({
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
         <span className="text-2xl font-bold text-ink-strong">{total}</span>
-        <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-          Records
+        <span className="text-xs font-semibold text-ink-subtle">
+          {ui("Records")}
         </span>
       </div>
     </div>
@@ -262,16 +272,17 @@ function DonutLegend({
   absent: number;
   leave: number;
 }) {
+  const ui = useUiText();
   const items = [
-    { label: "Present", value: present, color: "bg-emerald-500" },
-    { label: "Absent", value: absent, color: "bg-rose-500" },
-    { label: "Leave", value: leave, color: "bg-amber-500" },
+    { label: ui("Present"), value: present, color: "bg-status-success-text" },
+    { label: ui("Absent"), value: absent, color: "bg-status-error-text" },
+    { label: ui("On leave"), value: leave, color: "bg-status-warning-text" },
   ];
   return (
     <div className="flex items-center justify-center gap-5 mt-2">
       {items.map((it) => (
         <div key={it.label} className="flex items-center gap-1.5">
-          <span className={cn("h-2 w-2 rounded-full", it.color)} />
+          <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", it.color)} />
           <span className="text-2xs font-bold text-ink-muted">
             {it.label}
           </span>
@@ -293,7 +304,7 @@ function ProgressBar({ value, className }: { value: number; className?: string }
       )}
     >
       <div
-        className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500"
+        className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500 motion-reduce:transition-none"
         style={{ width: `${Math.min(value, 100)}%` }}
       />
     </div>
@@ -301,24 +312,25 @@ function ProgressBar({ value, className }: { value: number; className?: string }
 }
 
 function StatusBadge({ percentage }: { percentage: number }) {
+  const ui = useUiText();
   if (percentage < 75) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-rose-600">
-        <AlertTriangle className="h-3 w-3" />
-        At Risk
+      <span className="inline-flex items-center gap-1 rounded-full bg-status-error-surface px-2.5 py-0.5 text-2xs font-semibold text-status-error-text">
+        <AlertTriangle aria-hidden="true" className="h-3 w-3" />
+        {ui("At risk")}
       </span>
     );
   }
   if (percentage < 85) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-600">
-        Warning
+      <span className="inline-flex items-center gap-1 rounded-full bg-status-warning-surface px-2.5 py-0.5 text-2xs font-semibold text-status-warning-text">
+        {ui("Watch")}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-emerald-700">
-      Good
+    <span className="inline-flex items-center gap-1 rounded-full bg-status-success-surface px-2.5 py-0.5 text-2xs font-semibold text-status-success-text">
+      {ui("Good")}
     </span>
   );
 }
@@ -327,7 +339,9 @@ function StatusBadge({ percentage }: { percentage: number }) {
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
+export function AttendanceOverview({ campusId, exportRequest }: AttendanceOverviewProps) {
+  const ui = useUiText();
+  const { language } = useLocale();
   // --------------- state ---------------
   const [period, setPeriod] = useState<Period>("today");
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
@@ -340,6 +354,8 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingMonthly, setLoadingMonthly] = useState(false);
   const [loadingClass, setLoadingClass] = useState(false);
+  // R4: a failed read is one inline alert with retry, never a toast (it used to fire up to three).
+  const [loadError, setLoadError] = useState<null | "summary" | "monthly" | "class">(null);
 
   const [classSearch, setClassSearch] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
@@ -349,6 +365,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const fetchSummary = useCallback(
     async (p: Period) => {
       setLoadingSummary(true);
+      setLoadError((e) => (e === "summary" ? null : e));
       try {
         const qs = new URLSearchParams({ period: p });
         if (campusId) qs.set("campusId", campusId);
@@ -358,7 +375,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setSummaryData(data);
       } catch {
         setSummaryData(null);
-        toast.error("Could not load the attendance summary. Try again in a moment.");
+        setLoadError("summary");
       } finally {
         setLoadingSummary(false);
       }
@@ -369,6 +386,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const fetchMonthly = useCallback(
     async (month: string) => {
       setLoadingMonthly(true);
+      setLoadError((e) => (e === "monthly" ? null : e));
       try {
         const qs = new URLSearchParams({ month });
         if (campusId) qs.set("campusId", campusId);
@@ -378,7 +396,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setMonthlyData(data);
       } catch {
         setMonthlyData(null);
-        toast.error("Could not load this month's attendance. Try again in a moment.");
+        setLoadError("monthly");
       } finally {
         setLoadingMonthly(false);
       }
@@ -389,6 +407,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const fetchClassDetail = useCallback(
     async (classId: string, month: string) => {
       setLoadingClass(true);
+      setLoadError((e) => (e === "class" ? null : e));
       try {
         const qs = new URLSearchParams({ classId, month });
         if (campusId) qs.set("campusId", campusId);
@@ -398,7 +417,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setClassDetail(data);
       } catch {
         setClassDetail(null);
-        toast.error("Could not load this class's attendance. Try again in a moment.");
+        setLoadError("class");
       } finally {
         setLoadingClass(false);
       }
@@ -487,7 +506,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
       downloadCSV(
         `attendance-${classDetail.className.replace(/\s+/g, "-")}-${classDetail.month}`,
         [
-          ["Roll No", "Student", "Present", "Absent", "Leave", "Attendance %"],
+          [ui("Roll no."), ui("Student"), ui("Present"), ui("Absent"), ui("Leave"), ui("Attendance %")],
           ...classDetail.students.map((st) => [
             st.rollNo,
             st.name,
@@ -498,13 +517,13 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           ]),
         ]
       );
-      toast.success(`Exported ${classDetail.students.length} students`);
+      toast.success(ui("Exported {0} students", [classDetail.students.length]));
       return;
     }
 
     if (period === "month" && monthlyData) {
       downloadCSV(`attendance-by-class-${monthlyData.month}`, [
-        ["Class", "Students", "Present", "Absent", "Leave", "Marked", "Attendance %"],
+        [ui("Class"), ui("Students"), ui("Present"), ui("Absent"), ui("Leave"), ui("Marked"), ui("Attendance %")],
         ...monthlyData.classes.map((c) => [
           c.className,
           c.studentCount,
@@ -515,13 +534,13 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           c.percentage,
         ]),
       ]);
-      toast.success(`Exported ${monthlyData.classes.length} classes`);
+      toast.success(ui("Exported {0} classes", [monthlyData.classes.length]));
       return;
     }
 
     if (summaryData) {
       downloadCSV(`attendance-${summaryData.period}-${currentMonthStr()}`, [
-        ["Class", "Students", "Present", "Absent", "Leave", "Marked", "Unmarked"],
+        [ui("Class"), ui("Students"), ui("Present"), ui("Absent"), ui("Leave"), ui("Marked"), ui("Not marked")],
         ...summaryData.classBreakdown.map((c) => [
           c.className,
           c.totalStudents,
@@ -532,12 +551,22 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           c.unmarked,
         ]),
       ]);
-      toast.success(`Exported ${summaryData.classBreakdown.length} classes`);
+      toast.success(ui("Exported {0} classes", [summaryData.classBreakdown.length]));
       return;
     }
 
-    toast.error("Nothing to export yet. Attendance appears here once registers are marked.");
+    toast.error(ui("Nothing to export yet. Attendance appears here once registers are marked."));
   }
+
+  // Header-driven export: only a new number downloads (never on mount).
+  const seenExport = useRef(exportRequest);
+  useEffect(() => {
+    if (exportRequest === undefined || seenExport.current === exportRequest) return;
+    seenExport.current = exportRequest;
+    handleDownloadReport();
+    // Reads the data on screen at the moment of the request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exportRequest]);
 
   function handlePrevMonth() {
     setSelectedMonth((m) => shiftMonth(m, -1));
@@ -552,14 +581,30 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
 
   // --------------- render ---------------
 
+  const retryLoad = () => {
+    if (loadError === "summary") void fetchSummary(period);
+    else if (loadError === "monthly") void fetchMonthly(selectedMonth);
+    else if (loadError === "class" && selectedClassId) void fetchClassDetail(selectedClassId, selectedMonth);
+  };
+
   return (
     <div className="space-y-6">
+      {loadError ? (
+        <Alert
+          tone="danger"
+          live="polite"
+          title={ui(loadError === "summary" ? "The attendance summary could not be loaded" : loadError === "monthly" ? "This month's attendance could not be loaded" : "This class's attendance could not be loaded")}
+          actions={<Button type="button" variant="outline" size="sm" onClick={retryLoad}>{ui("Try again")}</Button>}
+        >
+          {ui("Check your connection and try again.")}
+        </Alert>
+      ) : null}
       {/* ===== Header ===== */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           {selectedClassId && classDetail ? (
             <h2 className="text-2xl font-bold text-ink-strong tracking-tight mt-1">
-              {classDetail.className}
+              <bdi>{classDetail.className}</bdi>
             </h2>
           ) : null}
         </div>
@@ -568,51 +613,54 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           {selectedClassId && (
             <BrandButton
               variant="soft"
-              icon={<ChevronLeft className="h-4 w-4 rtl:rotate-180" />}
+              icon={<ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />}
               onClick={handleBackToOverview}
             >
-              Back
+              {ui("All classes")}
             </BrandButton>
           )}
-          <BrandButton
-            variant="soft"
-            icon={<Download className="h-4 w-4" />}
-            onClick={handleDownloadReport}
-          >
-            Download Report
-          </BrandButton>
+          {exportRequest === undefined ? (
+            <BrandButton
+              variant="soft"
+              icon={<Download aria-hidden="true" className="h-4 w-4" />}
+              onClick={handleDownloadReport}
+            >
+              {ui("Download report")}
+            </BrandButton>
+          ) : null}
         </div>
       </div>
 
       {/* ===== Period tabs + month nav ===== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Period selector */}
-        <div className="flex items-center gap-1 rounded-2xl bg-muted p-1">
+        <div role="group" aria-label={ui("Period")} className="flex items-center gap-1 rounded-2xl bg-muted p-1">
           {(["today", "week", "month"] as Period[]).map((p) => (
             <Button variant="ghost" size="sm"
               key={p}
+              aria-pressed={period === p}
               onClick={() => handlePeriodChange(p)}
               className={cn(
                 "",
                 period === p
-                  ? "bg-white shadow-md"
+                  ? "bg-card shadow-md"
                   : "text-ink-muted"
               )}
             >
-              {p === "today" ? "Today" : p === "week" ? "This Week" : "This Month"}
+              {ui(p === "today" ? "Today" : p === "week" ? "This week" : "This month")}
             </Button>
           ))}
         </div>
 
         {/* Month navigator */}
         <div className="flex items-center gap-2">
-          <IconButton variant="outline" size="sm" label="Previous month" onClick={handlePrevMonth}>
+          <IconButton variant="outline" size="sm" label={ui("Previous month")} onClick={handlePrevMonth}>
             <ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
           </IconButton>
           <span className="text-sm font-bold text-ink-strong min-w-[140px] text-center">
-            {formatMonthLabel(selectedMonth)}
+            {formatMonthLabel(selectedMonth, language)}
           </span>
-          <IconButton variant="outline" size="sm" label="Next month"
+          <IconButton variant="outline" size="sm" label={ui("Next month")}
             onClick={handleNextMonth}
             disabled={shiftMonth(selectedMonth, 1) > currentMonthStr()}
           >
@@ -646,13 +694,13 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <SummaryStatCard
                 icon={Users}
-                label="Total Students"
+                label={ui("Students")}
                 value={summaryTotal}
                 tone="purple"
               />
               <SummaryStatCard
                 icon={CalendarCheck}
-                label="Present"
+                label={ui("Present")}
                 value={summaryPresent}
                 tone="green"
                 sub={
@@ -663,7 +711,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               />
               <SummaryStatCard
                 icon={UserX}
-                label="Absent"
+                label={ui("Absent")}
                 value={summaryAbsent}
                 tone="rose"
                 sub={
@@ -674,7 +722,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               />
               <SummaryStatCard
                 icon={Clock}
-                label="On Leave"
+                label={ui("On leave")}
                 value={summaryLeave}
                 tone="amber"
                 sub={
@@ -690,10 +738,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               */}
               <SummaryStatCard
                 icon={TrendingUp}
-                label="Attendance Rate"
+                label={ui("Attendance rate")}
                 value={summaryData?.totalRecords ? `${summaryRate}%` : "—"}
                 tone="dark"
-                sub={summaryData?.totalRecords ? undefined : "Not marked yet"}
+                sub={summaryData?.totalRecords ? undefined : ui("Not marked yet")}
               />
             </div>
           )}
@@ -702,9 +750,9 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Donut chart card */}
             <div className="sk-panel min-w-0 p-5 sm:p-6">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-4">
-                Distribution
-              </p>
+              <h3 className="text-sm font-bold text-ink-strong mb-4">
+                {ui("Distribution")}
+              </h3>
               {loadingSummary ? (
                 <ChartSkeleton />
               ) : (
@@ -726,14 +774,15 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
             {/* Class Breakdown Table */}
             <div className="lg:col-span-2 sk-panel min-w-0 p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-                  Class Breakdown &mdash; {formatMonthLabel(selectedMonth)}
-                </p>
+                <h3 className="text-sm font-bold text-ink-strong">
+                  {ui("Classes — {0}", [formatMonthLabel(selectedMonth, language)])}
+                </h3>
                 <InputGroup surfaceClassName="bg-muted" className="relative">
-                  <Search data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+                  <Search aria-hidden="true" data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
                   <SystemInput
                     type="text"
-                    placeholder="Search class..."
+                    aria-label={ui("Search classes")}
+                    placeholder={ui("Search classes…")}
                     value={classSearch}
                     onChange={(e) => setClassSearch(e.target.value)}
                     className="w-full ps-9 pe-3 sm:w-44"
@@ -744,18 +793,18 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               {loadingMonthly ? (
                 <TableSkeleton />
               ) : filteredClasses.length === 0 ? (
-                <EmptyState size="sm" icon={BarChart3} title="No class data for this month" description={classSearch ? "No class matches your search." : "Classes appear here once their registers are marked."} />
+                <EmptyState size="sm" icon={BarChart3} title={ui("No class data for this month")} description={ui(classSearch ? "No class matches your search." : "Classes appear here once their registers are marked.")} />
               ) : (
                 <div className="space-y-2 max-h-[420px] overflow-y-auto pe-1">
                   {/* Header */}
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    <span className="col-span-3">Class</span>
-                    <span className="col-span-1 text-center">Students</span>
-                    <span className="col-span-1 text-center text-emerald-600">P</span>
-                    <span className="col-span-1 text-center text-rose-500">A</span>
-                    <span className="col-span-1 text-center text-amber-500">L</span>
-                    <span className="col-span-3">Progress</span>
-                    <span className="col-span-2 text-end">Rate</span>
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-ink-subtle">
+                    <span className="col-span-3">{ui("Class")}</span>
+                    <span className="col-span-1 text-center">{ui("Students")}</span>
+                    <abbr title={ui("Present")} className="col-span-1 text-center text-status-success-text no-underline">{ui("Pres.")}</abbr>
+                    <abbr title={ui("Absent")} className="col-span-1 text-center text-status-error-text no-underline">{ui("Abs.")}</abbr>
+                    <abbr title={ui("On leave")} className="col-span-1 text-center text-status-warning-text no-underline">{ui("Lv.")}</abbr>
+                    <span className="col-span-3">{ui("Progress")}</span>
+                    <span className="col-span-2 text-end">{ui("Rate")}</span>
                   </div>
 
                   {filteredClasses.map((cls) => {
@@ -766,19 +815,19 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         onClick={() => handleClassClick(cls.classId)}
                         className="sk-row-interactive w-full grid grid-cols-12 gap-2 items-center text-start tabular-nums group"
                       >
-                        <span className="col-span-3 text-sm font-bold text-ink-strong group-hover:text-primary transition-colors truncate">
+                        <bdi className="col-span-3 text-sm font-bold text-ink-strong group-hover:text-primary transition-colors truncate">
                           {cls.className}
-                        </span>
+                        </bdi>
                         <span className="col-span-1 text-xs font-bold text-ink-muted text-center">
                           {cls.studentCount}
                         </span>
-                        <span className="col-span-1 text-xs font-bold text-emerald-600 text-center">
+                        <span className="col-span-1 text-xs font-bold text-status-success-text text-center">
                           {cls.present}
                         </span>
-                        <span className="col-span-1 text-xs font-bold text-rose-500 text-center">
+                        <span className="col-span-1 text-xs font-bold text-status-error-text text-center">
                           {cls.absent}
                         </span>
-                        <span className="col-span-1 text-xs font-bold text-amber-500 text-center">
+                        <span className="col-span-1 text-xs font-bold text-status-warning-text text-center">
                           {cls.leave}
                         </span>
                         <span className="col-span-3">
@@ -788,10 +837,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                           className={cn(
                             "col-span-2 text-end text-sm font-bold",
                             rate >= 85
-                              ? "text-emerald-600"
+                              ? "text-status-success-text"
                               : rate >= 75
-                                ? "text-amber-600"
-                                : "text-rose-500"
+                                ? "text-status-warning-text"
+                                : "text-status-error-text"
                           )}
                         >
                           {rate}%
@@ -808,16 +857,16 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           {!loadingMonthly && campusAtRiskClasses.length > 0 && (
             <div className="sk-panel min-w-0 p-5 sm:p-6">
               <div className="flex items-center gap-2 mb-5">
-                <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
-                  <AlertTriangle className="h-4 w-4 text-rose-500" />
+                <div aria-hidden="true" className="h-8 w-8 rounded-xl bg-status-error-surface flex items-center justify-center">
+                  <AlertTriangle className="h-4 w-4 text-status-error-text" />
                 </div>
                 <div>
-                  <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-                    Attention Required
+                  <p className="text-xs font-semibold text-ink-muted">
+                    {ui("Attention required")}
                   </p>
-                  <p className="text-sm font-bold text-ink-strong">
-                    Classes Below 75% Attendance
-                  </p>
+                  <h3 className="text-sm font-bold text-ink-strong">
+                    {ui("Classes below 75% attendance")}
+                  </h3>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -831,11 +880,11 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                       <BarChart3 aria-hidden="true" className="h-4 w-4 text-status-error-text" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-ink-strong truncate">
+                      <bdi className="block text-sm font-bold text-ink-strong truncate">
                         {cls.className}
-                      </p>
+                      </bdi>
                       <p className="text-xs font-medium tabular-nums text-status-error-text">
-                        {cls.percentage}% attendance &middot; {cls.absent} absences
+                        {ui("{0}% attendance · {1} absences", [cls.percentage, cls.absent])}
                       </p>
                     </div>
                   </Button>
@@ -868,29 +917,30 @@ function SummaryStatCard({
 }) {
   const toneStyles: Record<string, string> = {
     purple: "bg-brand-50 text-primary",
-    green: "bg-emerald-50 text-emerald-600",
-    rose: "bg-rose-50 text-rose-500",
-    amber: "bg-amber-50 text-amber-600",
-    dark: "bg-ink-strong text-white",
+    green: "bg-status-success-surface text-status-success-text",
+    rose: "bg-status-error-surface text-status-error-text",
+    amber: "bg-status-warning-surface text-status-warning-text",
+    dark: "bg-ink-strong text-primary-foreground",
   };
 
   return (
-    <div className="bg-white p-5 rounded-[28px] border border-edge/10 shadow-lg">
+    <div className="bg-card p-5 rounded-[28px] border border-edge/10 shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-ink-subtle mb-2">
             {label}
           </p>
           <p className="text-2xl md:text-3xl font-extrabold text-ink-strong leading-none">
             {value}
           </p>
           {sub && (
-            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mt-2">
+            <p className="text-xs font-semibold text-ink-subtle mt-2">
               {sub}
             </p>
           )}
         </div>
         <div
+          aria-hidden="true"
           className={cn(
             "h-10 w-10 rounded-2xl flex items-center justify-center shrink-0",
             toneStyles[tone]
@@ -924,6 +974,8 @@ function ClassDetailView({
   filteredStudents: StudentAttendance[];
   atRiskStudents: AtRiskStudent[];
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   if (loading) {
     return (
       <div className="space-y-6">
@@ -942,7 +994,7 @@ function ClassDetailView({
   if (!data) {
     return (
       <div className="sk-panel min-w-0 p-5 sm:p-6">
-        <EmptyState icon={CalendarCheck} title="No attendance data" description={`No records found for this class in ${formatMonthLabel(month)}`} />
+        <EmptyState icon={CalendarCheck} title={ui("No attendance data")} description={ui("No records found for this class in {0}.", [formatMonthLabel(month, language)])} />
       </div>
     );
   }
@@ -955,25 +1007,25 @@ function ClassDetailView({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryStatCard
           icon={Users}
-          label="Total Students"
+          label={ui("Students")}
           value={totalStudents}
           tone="purple"
         />
         <SummaryStatCard
           icon={CalendarCheck}
-          label="Total Present"
+          label={ui("Present")}
           value={summary.totalPresent}
           tone="green"
         />
         <SummaryStatCard
           icon={UserX}
-          label="Total Absent"
+          label={ui("Absent")}
           value={summary.totalAbsent}
           tone="rose"
         />
         <SummaryStatCard
           icon={TrendingUp}
-          label="Class Average"
+          label={ui("Class average")}
           value={`${classAveragePercentage}%`}
           tone="dark"
         />
@@ -983,14 +1035,15 @@ function ClassDetailView({
         {/* Student table */}
         <div className="lg:col-span-2 sk-panel min-w-0 p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-              Student Attendance &mdash; {formatMonthLabel(month)}
-            </p>
+            <h3 className="text-sm font-bold text-ink-strong">
+              {ui("Students — {0}", [formatMonthLabel(month, language)])}
+            </h3>
             <InputGroup surfaceClassName="bg-muted" className="relative">
-              <Search data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+              <Search aria-hidden="true" data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
               <SystemInput
                 type="text"
-                placeholder="Search student..."
+                aria-label={ui("Search students")}
+                placeholder={ui("Search students…")}
                 value={studentSearch}
                 onChange={(e) => onStudentSearch(e.target.value)}
                 className="w-full ps-9 pe-3 sm:w-44"
@@ -999,18 +1052,18 @@ function ClassDetailView({
           </div>
 
           {filteredStudents.length === 0 ? (
-            <EmptyState size="sm" icon={User} title="No students found" description="Try a different name or roll number." />
+            <EmptyState size="sm" icon={User} title={ui("No students found")} description={ui("Try a different name or roll number.")} />
           ) : (
             <div className="space-y-2 max-h-[500px] overflow-y-auto pe-1">
               {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                <span className="col-span-1">Roll</span>
-                <span className="col-span-3">Name</span>
-                <span className="col-span-1 text-center text-emerald-600">P</span>
-                <span className="col-span-1 text-center text-rose-500">A</span>
-                <span className="col-span-1 text-center text-amber-500">L</span>
-                <span className="col-span-3">Progress</span>
-                <span className="col-span-2 text-end">Status</span>
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-ink-subtle">
+                <span className="col-span-1">{ui("Roll")}</span>
+                <span className="col-span-3">{ui("Name")}</span>
+                <abbr title={ui("Present")} className="col-span-1 text-center text-status-success-text no-underline">{ui("Pres.")}</abbr>
+                <abbr title={ui("Absent")} className="col-span-1 text-center text-status-error-text no-underline">{ui("Abs.")}</abbr>
+                <abbr title={ui("On leave")} className="col-span-1 text-center text-status-warning-text no-underline">{ui("Lv.")}</abbr>
+                <span className="col-span-3">{ui("Progress")}</span>
+                <span className="col-span-2 text-end">{ui("Status")}</span>
               </div>
 
               {filteredStudents.map((student) => (
@@ -1019,7 +1072,7 @@ function ClassDetailView({
                   className={cn(
                     "grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-2xl transition-all",
                     student.percentage < 75
-                      ? "bg-rose-50/50 border border-rose-100"
+                      ? "bg-status-error-surface border border-status-error-border"
                       : "bg-muted/50 border border-transparent"
                   )}
                 >
@@ -1047,17 +1100,17 @@ function ClassDetailView({
                           .slice(0, 2)
                       )}
                     </div>
-                    <span className="text-sm font-bold text-ink-strong truncate">
+                    <bdi className="text-sm font-bold text-ink-strong truncate">
                       {student.name}
-                    </span>
+                    </bdi>
                   </div>
-                  <span className="col-span-1 text-xs font-bold text-emerald-600 text-center">
+                  <span className="col-span-1 text-xs font-bold text-status-success-text text-center">
                     {student.present}
                   </span>
-                  <span className="col-span-1 text-xs font-bold text-rose-500 text-center">
+                  <span className="col-span-1 text-xs font-bold text-status-error-text text-center">
                     {student.absent}
                   </span>
-                  <span className="col-span-1 text-xs font-bold text-amber-500 text-center">
+                  <span className="col-span-1 text-xs font-bold text-status-warning-text text-center">
                     {student.leave}
                   </span>
                   <span className="col-span-3">
@@ -1075,30 +1128,30 @@ function ClassDetailView({
         {/* At-Risk Sidebar */}
         <div className="sk-panel min-w-0 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-5">
-            <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
-              <AlertTriangle className="h-4 w-4 text-rose-500" />
+            <div aria-hidden="true" className="h-8 w-8 rounded-xl bg-status-error-surface flex items-center justify-center">
+              <AlertTriangle className="h-4 w-4 text-status-error-text" />
             </div>
             <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-                Below 75%
+              <p className="text-xs font-semibold text-ink-muted">
+                {ui("Below {0}%", [75])}
               </p>
-              <p className="text-sm font-bold text-ink-strong">
-                At-Risk Students ({atRiskStudents.length})
-              </p>
+              <h3 className="text-sm font-bold text-ink-strong">
+                {ui("Students at risk ({0})", [atRiskStudents.length])}
+              </h3>
             </div>
           </div>
 
           {atRiskStudents.length === 0 ? (
-            <EmptyState size="sm" icon={CalendarCheck} title="All good!" description="No at-risk students this month" />
+            <EmptyState size="sm" icon={CalendarCheck} title={ui("All good")} description={ui("No students are at risk this month.")} />
           ) : (
             <div className="space-y-3 max-h-[460px] overflow-y-auto pe-1">
               {atRiskStudents.map((student) => (
                 <div
                   key={student.studentId}
-                  className="p-4 rounded-2xl bg-rose-50/50 border border-rose-100"
+                  className="p-4 rounded-2xl bg-status-error-surface border border-status-error-border"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-2xs font-bold text-rose-600">
+                    <div className="h-9 w-9 rounded-xl bg-card flex items-center justify-center shrink-0 text-2xs font-bold text-status-error-text">
                       {(() => {
                         const imgSrc = resolveMediaUrl(student.profileImageUrl);
                         return imgSrc ? (
@@ -1119,24 +1172,24 @@ function ClassDetailView({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-ink-strong truncate">
+                      <bdi className="block text-sm font-bold text-ink-strong truncate">
                         {student.studentName}
-                      </p>
+                      </bdi>
                       <p className="text-2xs font-bold text-ink-subtle">
-                        Roll: {student.rollNo || "-"}
+                        {ui("Roll: {0}", [student.rollNo || "-"])}
                       </p>
                     </div>
-                    <span className="text-sm font-bold text-rose-500 shrink-0">
+                    <span className="text-sm font-bold text-status-error-text shrink-0">
                       {student.percentage}%
                     </span>
                   </div>
                   <div className="mt-3 flex items-center gap-4 text-2xs font-bold">
-                    <span className="text-rose-500">
-                      {student.absentDays} days absent
+                    <span className="text-status-error-text">
+                      {ui(student.absentDays === 1 ? "1 day absent" : "{0} days absent", [student.absentDays])}
                     </span>
                     {student.consecutiveAbsences > 0 && (
-                      <span className="text-amber-600">
-                        {student.consecutiveAbsences} consecutive
+                      <span className="text-status-warning-text">
+                        {ui("{0} in a row", [student.consecutiveAbsences])}
                       </span>
                     )}
                   </div>

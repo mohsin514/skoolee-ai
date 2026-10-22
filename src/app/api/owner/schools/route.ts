@@ -112,9 +112,16 @@ export async function GET(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────
 // POST — Provision a new school (tenant)
 //
-// Creates School + first Campus + SUPER_ADMIN owner account in one
-// transaction, on the chosen plan. This replaces self-serve /register:
-// only the APP_OWNER can bring a new tenant into existence.
+// Creates School + first Campus + owner account in one transaction, on the
+// chosen plan. This replaces self-serve /register: only the APP_OWNER can
+// bring a new tenant into existence.
+//
+// G22: the institution kind is a required, explicit choice. It is stored as
+// `registrationKind` (the first signal `institutionKindOf` reads), and the
+// owner is created as that kind's institution authority with the owner and
+// purchase flags, so billing, invitations and approvals work from day one:
+//   GROUP      → SUPER_ADMIN, not pinned to a campus (campusId: null)
+//   STANDALONE → ADMIN, pinned to the school's only campus
 //
 // The generated password is returned exactly once, in this response.
 // It is never stored in plaintext and cannot be retrieved again.
@@ -136,6 +143,8 @@ export async function POST(req: NextRequest) {
     const phone = String(body.phone || "").trim() || null;
     const address = String(body.address || "").trim() || null;
 
+    const kind = body.kind === "GROUP" || body.kind === "STANDALONE" ? (body.kind as "GROUP" | "STANDALONE") : null;
+    if (!kind) throw new ApiError("Choose whether this is a school group or a single school", 400);
     if (!schoolName) throw new ApiError("School name is required", 400);
     if (!city) throw new ApiError("City is required", 400);
     if (!ownerName) throw new ApiError("Owner name is required", 400);
@@ -183,6 +192,7 @@ export async function POST(req: NextRequest) {
           contactEmail: schoolContact,
           status,
           plan,
+          registrationKind: kind,
           commercialContract: createPlanContract(plan, { aiCredits: aiCreditsLimit }),
           aiCreditsLimit,
           regId: genRegId("SKL"),
@@ -204,12 +214,15 @@ export async function POST(req: NextRequest) {
       const owner = await tx.user.create({
         data: {
           schoolId: school.id,
-          campusId: campus.id,
+          // A group admin works across every campus; a single school's admin runs its one campus.
+          campusId: kind === "GROUP" ? null : campus.id,
           email: ownerEmail,
           fullName: ownerName,
           phone,
           password: hashed,
-          role: "SUPER_ADMIN",
+          role: kind === "GROUP" ? "SUPER_ADMIN" : "ADMIN",
+          isInstitutionOwner: true,
+          canPurchaseSubscription: true,
           isActive: true,
           // Owner-provisioned accounts skip email verification but must
           // replace the generated password before reaching a dashboard.
@@ -228,7 +241,7 @@ export async function POST(req: NextRequest) {
       targetType: "school",
       targetId: result.school.id,
       targetName: result.school.name,
-      newValues: { plan, status, ownerEmail, campusName },
+      newValues: { plan, status, kind, ownerEmail, campusName },
     }).catch(() => {});
 
     return Response.json(
@@ -242,6 +255,8 @@ export async function POST(req: NextRequest) {
           campusName: result.campus.name,
           ownerId: result.owner.id,
           ownerEmail: result.owner.email,
+          ownerRole: result.owner.role,
+          kind,
           plan,
           status,
           limits: {

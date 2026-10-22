@@ -1,11 +1,10 @@
 "use client";
 import { useCallback, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronDown, Globe2, Languages, Settings, ShieldCheck, UserRound, X, type LucideIcon } from "lucide-react";
+import { Languages, Settings, ShieldCheck, UserRound, X, type LucideIcon } from "lucide-react";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { ModalSurface, useModalSurface } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { SecuritySettingsPanel } from "@/components/account-security/SecuritySettingsPanel";
-import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
 import { PersonalLanguageSetting } from "@/components/settings/PersonalLanguageSetting";
 import { ProfileSettingsSection } from "@/components/settings/ProfileSettingsSection";
 import { securityCardClass } from "@/components/account-security/TwoFactorCard";
@@ -24,6 +23,10 @@ const ICONS: Record<SettingsSection, LucideIcon> = { profile: UserRound, languag
  * which re-renders everything in the new language and direction — keeps state.
  * Security flows open as dialogs stacked on top; the shared ModalSurface gives
  * each its own focus trap, Escape for the top layer only, and focus restore.
+ *
+ * Personal only (M105, F22): the school's language and region live in the authority's Settings / School
+ * settings (`LocaleSettingsPanel`), and the accountant's review of a currency change is `LocaleCurrencyReview`,
+ * mounted in the finance desk — never here.
  */
 export function SettingsModal({ initialSection = "profile", onClose, onProfileSaved }: {
   initialSection?: SettingsSection;
@@ -96,7 +99,7 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
           <Settings aria-hidden="true" className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">{t("Your account")}</p>
+          <p className="text-2xs font-semibold text-primary">{t("Your account")}</p>
           <h2 id={titleId} className="text-xl font-bold leading-tight tracking-tight text-ink-strong sm:text-2xl">{t("Settings")}</h2>
         </div>
         <Button type="button" variant="ghost" size="icon" onClick={requestClose} disabled={!dismissible} aria-label={t("Close settings")} className="-me-2 shrink-0 text-ink-muted">
@@ -117,10 +120,10 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
                 onClick={() => select(key)}
                 className={cn(
                   "h-auto min-h-14 w-full min-w-0 flex-col gap-1 px-1.5 py-2 text-center text-xs leading-tight md:min-h-12 md:flex-row md:justify-start md:gap-3 md:px-3 md:text-start md:text-sm",
-                  selected ? "bg-white text-brand-700 shadow-[0_1px_2px_rgba(120,70,180,0.06),0_6px_16px_-10px_rgba(106,31,176,0.45)] ring-1 ring-brand-200" : "text-ink-muted",
+                  selected ? "bg-card text-brand-700 shadow-[0_1px_2px_rgba(120,70,180,0.06),0_6px_16px_-10px_rgba(106,31,176,0.45)] ring-1 ring-brand-200" : "text-ink-muted",
                 )}>
                 <span aria-hidden="true" className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg md:size-8",
-                  selected ? "bg-primary text-white" : "bg-white text-ink-muted ring-1 ring-border-subtle")}>
+                  selected ? "bg-primary text-white" : "bg-card text-ink-muted ring-1 ring-border-subtle")}>
                   <Icon className="size-4" />
                 </span>
                 <span className="min-w-0 [overflow-wrap:anywhere]">{labels[key].title}</span>
@@ -148,29 +151,16 @@ function SettingsBody({ section, visited, select, tabRefs, initialFocusRef, onPr
   );
 }
 
+/**
+ * Personal language only (M105, F22). School language and region is institution policy: it lives in the
+ * authority's Settings › Language and region (and a campus admin's Campus setup), never in a personal modal.
+ */
 function LanguageSection() {
   const t = useUiText();
-  const [schoolOpen, setSchoolOpen] = useState(false);
   return (
-    <div className="space-y-4">
-      <section aria-labelledby="settings-language-heading" className={securityCardClass}>
-        <h4 id="settings-language-heading" className="mb-4 text-base font-bold tracking-tight text-ink-strong">{t("Display language")}</h4>
-        <PersonalLanguageSetting id="settings-language" />
-      </section>
-
-      {/* School-wide policy is a different thing from the personal choice above, so it sits apart and loads on demand. */}
-      <section className={cn(securityCardClass, "p-0 sm:p-0")}>
-        <Button type="button" variant="ghost" aria-expanded={schoolOpen} aria-controls="settings-school-locale" onClick={() => setSchoolOpen(open => !open)}
-          className="h-auto min-h-16 w-full justify-start gap-3.5 rounded-3xl px-5 py-4 text-start sm:px-6">
-          <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-primary"><Globe2 className="size-5" /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold text-ink-strong">{t("School language and region")}</span>
-            <span className="mt-0.5 block text-xs font-semibold leading-relaxed text-ink-muted">{t("Set by your school for everyone. Administrators can schedule changes.")}</span>
-          </span>
-          <ChevronDown aria-hidden="true" className={cn("size-4 shrink-0 text-ink-muted motion-safe:transition-transform", schoolOpen && "rotate-180")} />
-        </Button>
-        {schoolOpen ? <div id="settings-school-locale" className="border-t border-brand-100 p-3 sm:p-4"><LocaleSettingsPanel /></div> : null}
-      </section>
-    </div>
+    <section aria-labelledby="settings-language-heading" className={securityCardClass}>
+      <h4 id="settings-language-heading" className="mb-4 text-base font-bold tracking-tight text-ink-strong">{t("Display language")}</h4>
+      <PersonalLanguageSetting id="settings-language" />
+    </section>
   );
 }

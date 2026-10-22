@@ -12,9 +12,7 @@ import { useMemo } from "react";
 import {
   AlertTriangle,
   BookOpen,
-  Boxes,
   Library,
-  Package,
   Tags,
   Users,
 } from "lucide-react";
@@ -22,7 +20,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   LabelList,
   Legend,
   ResponsiveContainer,
@@ -34,6 +31,7 @@ import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, RadialGauge, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
 import { Button } from "@/components/ui/button";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 
 export interface LibrarySummary {
@@ -58,6 +56,10 @@ function monthLabel(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: "short" });
 }
 
+/**
+ * `onNavigate` receives librarian views: "lending" (the desk) and "catalogue" (books and members). Inventory is
+ * the campus admin's (role-ux M83), so it is not counted or linked here.
+ */
 export function LibraryOverview({
   summary,
   campusLabel,
@@ -67,6 +69,7 @@ export function LibraryOverview({
   campusLabel: string;
   onNavigate: (view: string) => void;
 }) {
+  const tr = useUiText();
   const derived = useMemo(() => {
     const shelfRate = summary.copiesTotal > 0
       ? Math.round((summary.copiesAvailable / summary.copiesTotal) * 100)
@@ -76,86 +79,83 @@ export function LibraryOverview({
     // pair of axes rather than in two charts the reader has to align by eye.
     const flow = summary.issuesByMonth.map((row, i) => ({
       label: monthLabel(row.month),
-      Issued: row.count,
-      Returned: summary.returnsByMonth[i]?.count ?? 0,
+      issued: row.count,
+      returned: summary.returnsByMonth[i]?.count ?? 0,
     }));
 
     return {
       shelfRate,
       flow,
-      hasFlow: flow.some((f) => f.Issued > 0 || f.Returned > 0),
+      hasFlow: flow.some((f) => f.issued > 0 || f.returned > 0),
       onTime: Math.max(0, summary.onLoan - summary.overdue),
     };
   }, [summary]);
 
   return (
     <div className="space-y-5">
+      {/* Spotlight anchor for the librarian tour's first step (role-ux §9.4). */}
+      <div data-tour="library.today.summary">
       <CommandHero
         eyebrow={campusLabel}
-        title="Library command centre"
+        title={tr("The collection today")}
         heroValue={compact(summary.titles)}
-        heroLabel="Titles in the catalogue"
+        heroLabel={tr("Titles in the catalogue")}
         heroCaption={
           summary.copiesTotal > 0
-            ? `${summary.copiesTotal.toLocaleString()} copies across ${summary.categories} ${summary.categories === 1 ? "category" : "categories"}, borrowed by ${summary.members.toLocaleString()} members.`
-            : "No books catalogued yet — add the first title to start issuing."
+            ? tr("{0} copies across {1} categories, borrowed by {2} members.", [summary.copiesTotal, summary.categories, summary.members])
+            : tr("No books catalogued yet — add the first title to start issuing.")
         }
         meters={[
           {
-            label: "Copies on the shelf",
+            label: tr("Copies on the shelf"),
             value: summary.copiesAvailable,
             max: summary.copiesTotal || 1,
             valueLabel: `${summary.copiesAvailable} / ${summary.copiesTotal}`,
           },
           {
-            label: "Loans returned on time",
+            label: tr("Loans returned on time"),
             value: derived.onTime,
             max: summary.onLoan || 1,
-            valueLabel: summary.onLoan > 0 ? `${derived.onTime} / ${summary.onLoan}` : "None out",
+            valueLabel: summary.onLoan > 0 ? `${derived.onTime} / ${summary.onLoan}` : tr("None out"),
             color: summary.overdue === 0 ? STATUS.good : STATUS.warning,
           },
-        ]}
-        pills={[
-          { icon: BookOpen, label: "On loan", value: summary.onLoan, onClick: () => onNavigate("library") },
-          { icon: AlertTriangle, label: "Overdue", value: summary.overdue, onClick: () => onNavigate("library"), tone: summary.overdue > 0 ? "critical" : "default" },
-          { icon: Users, label: "Members", value: summary.members, onClick: () => onNavigate("library") },
-          { icon: Package, label: "Stock items", value: summary.inventoryItems, onClick: () => onNavigate("inventory") },
         ]}
         aside={
           summary.copiesTotal > 0 ? (
             <RadialGauge
               value={derived.shelfRate}
-              label="On the shelf"
-              sublabel={`${summary.onLoan.toLocaleString()} out on loan`}
+              label={tr("On the shelf")}
+              sublabel={tr("{0} out on loan", [summary.onLoan])}
               color={derived.shelfRate >= 60 ? STATUS.good : derived.shelfRate >= 30 ? STATUS.warning : STATUS.critical}
             />
           ) : (
             <div className="flex h-[148px] w-[148px] flex-col items-center justify-center text-center">
               <Library className="h-7 w-7 text-edge" aria-hidden />
-              <p className="mt-2 px-2 text-2xs font-medium leading-tight text-ink-subtle">No copies catalogued</p>
+              <p className="mt-2 px-2 text-xs font-medium leading-tight text-ink-subtle">{tr("No copies catalogued")}</p>
             </div>
           )
         }
       />
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatTile icon={Library} label="Titles" value={summary.titles} sub={`${summary.copiesTotal} copies`} onClick={() => onNavigate("library")} delay={80} />
-        <StatTile icon={BookOpen} label="On loan" value={summary.onLoan} sub={`${derived.onTime} within due date`} tone={summary.onLoan > 0 ? "brand" : "good"} onClick={() => onNavigate("library")} delay={140} />
-        <StatTile icon={AlertTriangle} label="Overdue" value={summary.overdue} sub={summary.finesOutstanding > 0 ? `${compact(summary.finesOutstanding)} in fines` : "No fines due"} tone={summary.overdue > 0 ? "critical" : "good"} onClick={() => onNavigate("library")} delay={200} />
-        <StatTile icon={Users} label="Members" value={summary.members} sub="Borrowing accounts" onClick={() => onNavigate("library")} delay={260} />
-        <StatTile icon={Boxes} label="Inventory" value={summary.inventoryItems} sub="Tracked items" onClick={() => onNavigate("inventory")} delay={320} />
+      {/* At most four KPI tiles on a landing screen (role-ux §4.5.8). */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile icon={BookOpen} label={tr("On loan")} value={summary.onLoan} sub={tr("{0} within due date", [derived.onTime])} tone={summary.onLoan > 0 ? "brand" : "good"} onClick={() => onNavigate("lending")} delay={80} />
+        <StatTile icon={AlertTriangle} label={tr("Overdue")} value={summary.overdue} sub={summary.finesOutstanding > 0 ? tr("{0} in fines", [compact(summary.finesOutstanding)]) : tr("No fines due")} tone={summary.overdue > 0 ? "critical" : "good"} onClick={() => onNavigate("lending")} delay={140} />
+        <StatTile icon={Library} label={tr("Titles")} value={summary.titles} sub={tr("{0} copies", [summary.copiesTotal])} onClick={() => onNavigate("catalogue")} delay={200} />
+        <StatTile icon={Users} label={tr("Members")} value={summary.members} sub={tr("Borrowing accounts")} onClick={() => onNavigate("catalogue")} delay={260} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <InsightCard
           icon={BookOpen}
-          title="Issues and returns"
-          subtitle="Last six months"
+          title={tr("Issues and returns")}
+          subtitle={tr("Last six months")}
           className="xl:col-span-2"
           delay={120}
           table={{
-            columns: ["Month", "Issued", "Returned"],
-            rows: derived.flow.map((f) => [f.label, f.Issued, f.Returned]),
+            columns: [tr("Month"), tr("Issued"), tr("Returned")],
+            rows: derived.flow.map((f) => [f.label, f.issued, f.returned]),
           }}
         >
           {derived.hasFlow ? (
@@ -165,41 +165,37 @@ export function LibraryOverview({
                   <CartesianGrid vertical={false} stroke={INK.grid} />
                   <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} />
                   <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" books" />} />
+                  <Tooltip cursor={{ fill: INK.grid }} content={<VizTooltip />} />
                   <Legend content={() => null} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Issued" fill={SERIES[0]} radius={[4, 4, 0, 0]} maxBarSize={20} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="Returned" fill={SERIES[2]} radius={[4, 4, 0, 0]} maxBarSize={20} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="issued" name={tr("Issued")} fill={SERIES[0]} radius={[4, 4, 0, 0]} maxBarSize={20} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="returned" name={tr("Returned")} fill={SERIES[2]} radius={[4, 4, 0, 0]} maxBarSize={20} />
                 </BarChart>
               </ResponsiveContainer>
               <SeriesLegend
                 className="mt-3"
                 items={[
-                  { label: "Issued", color: SERIES[0] },
-                  { label: "Returned", color: SERIES[2] },
+                  { label: tr("Issued"), color: SERIES[0] },
+                  { label: tr("Returned"), color: SERIES[2] },
                 ]}
               />
             </>
           ) : (
-            <EmptyChart label="No books have been issued in the last six months" />
+            <EmptyChart label={tr("No books have been issued in the last six months")} />
           )}
         </InsightCard>
 
         <InsightCard
           icon={Tags}
-          title="Collection by category"
-          subtitle="Titles held in each"
+          title={tr("Collection by category")}
+          subtitle={tr("Titles held in each")}
           delay={180}
           actions={
-            <Button variant="link" size="sm"
-              type="button"
-              onClick={() => onNavigate("library")}
-
-            >
-              Catalogue
+            <Button variant="link" size="sm" type="button" onClick={() => onNavigate("catalogue")}>
+              {tr("Catalogue")}
             </Button>
           }
           table={{
-            columns: ["Category", "Titles", "Copies"],
+            columns: [tr("Category"), tr("Titles"), tr("Copies")],
             rows: summary.byCategory.map((c) => [c.name, c.titles, c.copies]),
           }}
         >
@@ -217,57 +213,17 @@ export function LibraryOverview({
                   width={92}
                   tickFormatter={(v: string) => (v.length > 14 ? `${v.slice(0, 13)}…` : v)}
                 />
-                <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" titles" />} />
-                <Bar {...NO_ENTRY_ANIMATION} dataKey="titles" name="Titles" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
+                <Tooltip cursor={{ fill: INK.grid }} content={<VizTooltip />} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="titles" name={tr("Titles")} fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={18}>
                   <LabelList dataKey="titles" position="right" offset={8} style={{ fill: INK.secondary, fontSize: 10, fontWeight: 800 }} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart label="No categories set up yet" />
+            <EmptyChart label={tr("No categories set up yet")} />
           )}
         </InsightCard>
       </div>
-
-      {summary.onLoan > 0 ? (
-        <InsightCard
-          icon={AlertTriangle}
-          title="Loans outstanding"
-          subtitle="Books currently with a member"
-          delay={120}
-          table={{
-            columns: ["State", "Books"],
-            rows: [
-              ["Within due date", derived.onTime],
-              ["Overdue", summary.overdue],
-            ],
-          }}
-        >
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart
-              data={[{ label: "On loan", "Within due date": derived.onTime, Overdue: summary.overdue }]}
-              layout="vertical"
-              margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
-            >
-              <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={70} />
-              <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" books" />} />
-              {/* 2px of surface between the segments does the separating. */}
-              <Bar {...NO_ENTRY_ANIMATION} dataKey="Within due date" stackId="loans" fill={STATUS.good} stroke={INK.surface} strokeWidth={2} maxBarSize={40} />
-              <Bar {...NO_ENTRY_ANIMATION} dataKey="Overdue" stackId="loans" fill={STATUS.critical} stroke={INK.surface} strokeWidth={2} maxBarSize={40} radius={[0, 4, 4, 0]}>
-                <Cell fill={STATUS.critical} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <SeriesLegend
-            className="mt-2"
-            items={[
-              { label: "Within due date", color: STATUS.good, value: derived.onTime },
-              { label: "Overdue", color: STATUS.critical, value: summary.overdue },
-            ]}
-          />
-        </InsightCard>
-      ) : null}
     </div>
   );
 }

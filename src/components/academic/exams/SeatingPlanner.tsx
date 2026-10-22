@@ -16,7 +16,8 @@ import {
   Users,
   Wand2,
 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
+import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ import { BrandButton } from "@/components/role-dashboard";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { roomCapacity } from "@/lib/academic/room-capacity";
 import { Panel, ProgressStat, StepEmpty } from "@/components/academic/exams/shared";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * The seating planner (§79, §80).
@@ -116,12 +118,15 @@ interface PaperRow {
   };
 }
 
-const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function prettyDate(ymd: string) {
+/** "Mon 14 Oct" in the viewer's language (R7: dates through Intl). */
+function prettyDate(ymd: string, language = "en") {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
-  return `${WEEKDAY[dt.getDay()]} ${String(d).padStart(2, "0")} ${dt.toLocaleString("en", { month: "short" })}`;
+  try {
+    return new Intl.DateTimeFormat(language, { weekday: "short", day: "2-digit", month: "short" }).format(dt);
+  } catch {
+    return dt.toDateString();
+  }
 }
 
 function classLabel(c: { name: string; section: string | null }) {
@@ -137,7 +142,11 @@ export function SeatingPlanner({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   const [papers, setPapers] = useState<PaperRow[]>([]);
+  // R4: a failed load is an inline ErrorState with retry, never only a toast.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [headcounts, setHeadcounts] = useState<Record<string, number>>({});
   const [capacity, setCapacity] = useState({
     rooms: 0,
@@ -184,8 +193,9 @@ export function SeatingPlanner({
         counts[row.classId] = row.studentCount;
       }
       setHeadcounts(counts);
+      setLoadFailed(false);
     } catch {
-      toast.error("Could not load the seating plan");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -259,7 +269,7 @@ export function SeatingPlanner({
         body: JSON.stringify({ campusId, sessionId }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "Could not build the seating plan");
+      if (!res.ok || !json.success) throw new Error(json.error || "");
 
       setReport({
         total: json.data.total,
@@ -271,12 +281,12 @@ export function SeatingPlanner({
         })),
       });
       if (json.data.failed.length === 0) {
-        toast.success(`Seated ${json.data.seated} paper${json.data.seated === 1 ? "" : "s"}`);
+        toast.success(json.data.seated === 1 ? ui("Seated 1 paper") : ui("Seated {0} papers", [json.data.seated]));
       }
       await load();
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not build the seating plan");
+      toast.error(friendlyErrorMessage(e, ui("Could not build the seating plan")));
     } finally {
       setSeating(false);
     }
@@ -301,6 +311,10 @@ export function SeatingPlanner({
         ))}
       </div>
     );
+  }
+
+  if (loadFailed) {
+    return <ErrorState title={ui("The seating plan could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   if (papers.length === 0) {
@@ -338,7 +352,7 @@ export function SeatingPlanner({
           label="Exam seats on campus"
           value={capacity.examSeats}
           total={0}
-          suffix={`of ${capacity.teachingSeats} teaching`}
+          suffix={ui("of {0} teaching", [capacity.teachingSeats])}
           tone={shortfall > 0 ? "rose" : "emerald"}
         />
         <ProgressStat
@@ -353,63 +367,59 @@ export function SeatingPlanner({
 
       {/* ── The capacity explainer ──────────────────────────────────────── */}
       <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-edge/20 bg-gradient-to-r from-brand-100 to-surface-subtle px-4 py-3">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <p className="min-w-0 flex-1 text-2xs font-semibold leading-relaxed text-ink-muted">
-          <span className="font-bold text-ink-strong">Exam seats are not teaching seats.</span> A
-          room that holds 30 pupils three to a bench has 10 benches — so on an exam day, at one
-          candidate per bench, it seats <span className="font-bold text-primary">10</span>.
-          Every number on this screen is the exam figure. Set each room&apos;s rows, benches and
-          seats-per-bench under <span className="font-bold">Rooms</span> and the arithmetic
-          happens on its own.
+          <span className="font-bold text-ink-strong">{ui("Exam seats are not teaching seats.")}</span>{" "}
+          {ui("A room that holds 30 pupils three to a bench has 10 benches — so on an exam day, at one candidate per bench, it seats 10. Every number on this screen is the exam figure. Set each room's rows, benches and seats-per-bench under Rooms and the arithmetic happens on its own.")}
         </p>
         {capacity.unmeasured > 0 ? (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-700">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {capacity.unmeasured} room{capacity.unmeasured === 1 ? "" : "s"} unmeasured
+          <span className="flex shrink-0 items-center gap-1.5 rounded-xl bg-status-warning-surface px-2.5 py-1.5 text-2xs font-semibold text-status-warning-text">
+            <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5" />
+            {ui(capacity.unmeasured === 1 ? "{0} room unmeasured" : "{0} rooms unmeasured", [capacity.unmeasured])}
           </span>
         ) : null}
       </div>
 
       {shortfall > 0 ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-rose-200/70 bg-rose-50/60 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
-          <p className="min-w-0 flex-1 text-xs font-bold text-rose-700">
-            The busiest slot needs {totals.peak} exam seats and the campus has {capacity.examSeats}.
-            You are {shortfall} short — split that slot across two days, or record the bench layout
-            of rooms that have none.
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-status-error-border bg-status-error-surface px-4 py-3">
+          <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-status-error-text" />
+          <p className="min-w-0 flex-1 text-xs font-bold text-status-error-text">
+            {ui("The busiest slot needs {0} exam seats and the campus has {1}. You are {2} short — split that slot across two days, or record the bench layout of rooms that have none.", [totals.peak, capacity.examSeats, shortfall])}
           </p>
         </div>
       ) : null}
 
       {/* ── Actions ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_8px_24px_-16px_rgba(120,70,180,0.35)] backdrop-blur-xl">
+      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-edge/20 bg-card/85 px-4 py-3 shadow-sm backdrop-blur-xl">
         <p className="text-xs font-bold text-ink-strong">
-          {slots.length} exam slot{slots.length === 1 ? "" : "s"} across {papers.length} paper
-          {papers.length === 1 ? "" : "s"}
+          {[
+            ui(slots.length === 1 ? "{0} exam slot" : "{0} exam slots", [slots.length]),
+            ui(papers.length === 1 ? "{0} paper" : "{0} papers", [papers.length]),
+          ].join(" · ")}
         </p>
         <div className="ms-auto flex flex-wrap items-center gap-2">
           <Button variant="outline" size="icon"
             type="button"
-            onClick={load}
-            aria-label="Refresh"
+            onClick={() => void load()}
+            aria-label={ui("Refresh")}
             className="flex items-center justify-center"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw aria-hidden="true" className="h-4 w-4" />
           </Button>
           <BrandButton
             variant="dark"
-            icon={<Download className="h-4 w-4" />}
+            icon={<Download aria-hidden="true" className="h-4 w-4" />}
             onClick={download}
             disabled={totals.seated === 0}
           >
-            Download plan
+            {ui("Download plan")}
           </BrandButton>
           <BrandButton
             onClick={autoSeat}
             loading={seating}
             icon={seating ? null : <Wand2 className="h-4 w-4" aria-hidden="true" />}
           >
-            Fill rooms automatically
+            {ui("Fill rooms automatically")}
           </BrandButton>
         </div>
       </div>
@@ -421,22 +431,22 @@ export function SeatingPlanner({
           return (
             <Panel
               key={slot.key}
-              title={prettyDate(slot.date)}
+              title={prettyDate(slot.date, language)}
               subtitle={
                 slot.period
-                  ? `Period ${slot.period.periodNumber} · ${slot.period.startTime}–${slot.period.endTime} · ${slot.candidates} candidates`
-                  : `No fixed time · ${slot.candidates} candidates`
+                  ? ui("Period {0} · {1}–{2} · {3} candidates", [slot.period.periodNumber, slot.period.startTime, slot.period.endTime, slot.candidates])
+                  : ui("No fixed time · {0} candidates", [slot.candidates])
               }
               icon={MapPin}
               actions={
                 slotShort > 0 ? (
-                  <span className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-amber-700">
-                    {slotShort} unseated
+                  <span className="flex items-center gap-1.5 rounded-xl bg-status-warning-surface px-2.5 py-1.5 text-2xs font-semibold text-status-warning-text">
+                    {ui("{0} unseated", [slotShort])}
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-2xs font-semibold uppercase tracking-wider text-emerald-600">
-                    <Check className="h-3.5 w-3.5" />
-                    All seated
+                  <span className="flex items-center gap-1.5 rounded-xl bg-status-success-surface px-2.5 py-1.5 text-2xs font-semibold text-status-success-text">
+                    <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                    {ui("All seated")}
                   </span>
                 )
               }
@@ -460,21 +470,21 @@ export function SeatingPlanner({
                           : "",
                       ))}
                     >
-                      <p className="truncate text-xs font-bold text-ink-strong">
+                      <bdi className="block truncate text-xs font-bold text-ink-strong">
                         {classLabel(paper.exam.class)}
-                      </p>
-                      <p className="truncate text-2xs font-bold text-ink-muted">
+                      </bdi>
+                      <bdi className="block truncate text-2xs font-bold text-ink-muted">
                         {paper.subject.name}
-                      </p>
+                      </bdi>
                       <div className="mt-2 flex items-center gap-1.5">
-                        <Users className="h-3 w-3 shrink-0 text-ink-subtle" />
-                        <span className="text-2xs font-bold tabular-nums text-ink-strong">
+                        <Users aria-hidden="true" className="h-3 w-3 shrink-0 text-ink-subtle" />
+                        <bdi dir="ltr" className="text-2xs font-bold tabular-nums text-ink-strong">
                           {seated}/{head}
-                        </span>
+                        </bdi>
                         <span className="ms-auto truncate text-2xs font-bold text-ink-subtle">
                           {paper.rooms.length === 0
-                            ? "No room"
-                            : `${paper.rooms.map((r) => r.room.roomNumber).join(", ")} · ${seats} seats`}
+                            ? ui("No room")
+                            : ui("{0} · {1} seats", [paper.rooms.map((r) => r.room.roomNumber).join(", "), seats])}
                         </span>
                       </div>
                     </Button>
@@ -501,12 +511,11 @@ export function SeatingPlanner({
 
       {report ? (
         <Modal
-          title="Seating plan built"
+          title={ui("Seating plan built")}
           subtitle={
-            `${report.seated} of ${report.total} papers were filled into rooms` +
-            (report.skipped > 0
-              ? `, and ${report.skipped} already had rooms and were left alone.`
-              : ".")
+            report.skipped > 0
+              ? ui("{0} of {1} papers were filled into rooms, and {2} already had rooms and were left alone.", [report.seated, report.total, report.skipped])
+              : ui("{0} of {1} papers were filled into rooms.", [report.seated, report.total])
           }
           icon={report.failed.length === 0 ? Check : AlertTriangle}
           tone={report.failed.length === 0 ? "emerald" : "amber"}
@@ -514,28 +523,27 @@ export function SeatingPlanner({
           onClose={() => setReport(null)}
           footer={
             <div className="flex justify-end">
-              <BrandButton onClick={() => setReport(null)}>Done</BrandButton>
+              <BrandButton onClick={() => setReport(null)}>{ui("Done")}</BrandButton>
             </div>
           }
         >
           {report.failed.length === 0 ? (
             <p className="text-sm font-normal leading-relaxed text-ink-muted">
-              Every paper has rooms and every candidate has a seat. Download the plan and hand it
-              to the invigilators.
+              {ui("Every paper has rooms and every candidate has a seat. Download the plan and hand it to the invigilators.")}
             </p>
           ) : (
             <div className="space-y-2">
               <p className="text-xs font-bold text-ink-muted">
-                These papers could not be seated. Each one says why.
+                {ui("These papers could not be seated. Each one says why.")}
               </p>
               <ul className="max-h-72 space-y-1.5 overflow-y-auto custom-scrollbar">
                 {report.failed.map((f, i) => (
                   <li
                     key={i}
-                    className="rounded-xl border border-amber-200/60 bg-amber-50/50 px-3 py-2"
+                    className="rounded-xl border border-status-warning-border bg-status-warning-surface px-3 py-2"
                   >
-                    <p className="text-2xs font-bold text-ink-strong">{f.label}</p>
-                    <p className="mt-0.5 text-2xs font-semibold leading-snug text-amber-700">
+                    <bdi className="block text-2xs font-bold text-ink-strong">{f.label}</bdi>
+                    <p className="mt-0.5 text-2xs font-semibold leading-snug text-status-warning-text">
                       {f.message}
                     </p>
                   </li>
@@ -566,6 +574,8 @@ function RoomAssignModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   const [available, setAvailable] = useState<AvailableRoom[]>([]);
   const [plan, setPlan] = useState<SeatingPlan | null>(null);
   const [chosen, setChosen] = useState<string[]>(paper.rooms.map((r) => r.room.id));
@@ -592,7 +602,7 @@ function RoomAssignModal({
       if (roomsRes.success) setAvailable(roomsRes.data.rooms ?? []);
       if (planRes.success) setPlan(planRes.data as SeatingPlan);
     } catch {
-      toast.error("Could not load rooms");
+      toast.error(ui("Could not load rooms"));
     } finally {
       setLoading(false);
     }
@@ -613,7 +623,7 @@ function RoomAssignModal({
   };
 
   const save = async () => {
-    if (chosen.length === 0) return toast.error("Pick at least one room");
+    if (chosen.length === 0) return toast.error(ui("Pick at least one room"));
     setSaving(true);
     try {
       const res = await fetch("/api/academic/exam-schedule/rooms", {
@@ -622,12 +632,12 @@ function RoomAssignModal({
         body: JSON.stringify({ campusId, scheduleId: paper.id, roomIds: chosen }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "Could not seat this paper");
+      if (!res.ok || !json.success) throw new Error(json.error || "");
       setPlan(json.data as SeatingPlan);
-      toast.success(`Seated ${json.data.totalStudents} candidates`);
+      toast.success(ui("Seated {0} candidates", [json.data.totalStudents]));
       onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not seat this paper");
+      toast.error(friendlyErrorMessage(e, ui("Could not seat this paper")));
     } finally {
       setSaving(false);
     }
@@ -642,8 +652,8 @@ function RoomAssignModal({
   return (
     <Modal
       title={`${classLabel(paper.exam.class)} — ${paper.subject.name}`}
-      eyebrow="Seating"
-      subtitle={`${prettyDate(paper.date)}${paper.periodDefinition ? ` · ${paper.periodDefinition.startTime}–${paper.periodDefinition.endTime}` : ""} · ${headcount} candidates`}
+      eyebrow={ui("Seating")}
+      subtitle={[prettyDate(paper.date, language), paper.periodDefinition ? `${paper.periodDefinition.startTime}–${paper.periodDefinition.endTime}` : null, ui("{0} candidates", [headcount])].filter(Boolean).join(" · ")}
       icon={ArmchairIcon}
       tone="violet"
       size="xl"
@@ -655,35 +665,34 @@ function RoomAssignModal({
             onClick={downloadOne}
             className="justify-start flex items-center gap-1.5 px-3"
           >
-            <Download className="h-3.5 w-3.5" />
-            PDF
+            <Download aria-hidden="true" className="h-3.5 w-3.5" />
+            {ui("PDF")}
           </Button>
         ) : null
       }
       footer={
         <ModalActions
           busy={saving}
-          busyLabel="Seating…"
-          actionLabel={`Seat ${headcount} candidate${headcount === 1 ? "" : "s"}`}
-          cancelLabel="Close"
+          busyLabel={ui("Seating…")}
+          actionLabel={ui(headcount === 1 ? "Seat 1 candidate" : "Seat {0} candidates", [headcount])}
+          cancelLabel={ui("Close")}
           onCancel={onClose}
           onAction={save}
           blockedReason={
             chosen.length === 0
-              ? "Pick at least one room."
+              ? ui("Pick at least one room.")
               : short > 0
-              ? `${short} more exam seat${short === 1 ? "" : "s"} needed — add another room.`
+              ? ui(short === 1 ? "1 more exam seat needed — add another room." : "{0} more exam seats needed — add another room.", [short])
               : null
           }
           secondary={
             <span
               className={cn(
                 "text-xs font-bold",
-                short > 0 ? "text-rose-600" : "text-emerald-600",
+                short > 0 ? "text-status-error-text" : "text-status-success-text",
               )}
             >
-              {chosenSeats} exam seats selected
-              {short > 0 ? ` · ${short} short` : ` · ${-short} spare`}
+              {ui(short > 0 ? "{0} exam seats selected · {1} short" : "{0} exam seats selected · {1} spare", [chosenSeats, Math.abs(short)])}
             </span>
           }
         />
@@ -699,16 +708,16 @@ function RoomAssignModal({
         <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
           {/* ── Pick rooms ────────────────────────────────────────────── */}
           <div>
-            <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-              Rooms free in this slot
+            <p className="mb-2 text-xs font-semibold text-ink-subtle">
+              {ui("Rooms free in this slot")}
             </p>
             <div className="max-h-[26rem] space-y-1.5 overflow-y-auto pe-1 custom-scrollbar">
               {available.length === 0 ? (
                 <EmptyState
                   size="sm"
                   icon={DoorOpen}
-                  title="No rooms on this campus yet"
-                  description="Add rooms with a measured exam capacity to this campus first, then come back to seat this paper."
+                  title={ui("No rooms on this campus yet")}
+                  description={ui("Add rooms with a measured exam capacity to this campus first, then come back to seat this paper.")}
                 />
               ) : (
                 available.map((room) => {
@@ -730,28 +739,28 @@ function RoomAssignModal({
                       <span
                         className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-2xs font-bold",
-                          on ? "bg-primary text-white" : "bg-brand-100 text-primary",
+                          on ? "bg-primary text-primary-foreground" : "bg-brand-100 text-primary",
                         )}
                       >
-                        {on ? <Check className="h-4 w-4" /> : room.examCapacity}
+                        {on ? <Check aria-hidden="true" className="h-4 w-4" /> : room.examCapacity}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
-                          <span className="truncate text-xs font-bold text-ink-strong">
+                          <bdi className="truncate text-xs font-bold text-ink-strong">
                             {room.roomNumber}
-                          </span>
+                          </bdi>
                           {room.isExamHall ? (
-                            <span className="rounded bg-brand-100 px-1 py-px text-3xs font-semibold uppercase tracking-wider text-primary">
-                              Hall
+                            <span className="rounded bg-brand-100 px-1 py-px text-2xs font-semibold text-primary">
+                              {ui("Hall")}
                             </span>
                           ) : null}
                         </span>
                         <span className="mt-0.5 block truncate text-2xs font-semibold text-ink-subtle">
                           {room.unmeasured
-                            ? "No size recorded — set it under Rooms"
+                            ? ui("No size recorded — set it under Rooms")
                             : room.busy
                             ? room.busyReason
-                            : `${room.examCapacity} exam seats · ${room.teachingCapacity} teaching${room.location ? ` · ${room.location}` : ""}`}
+                            : [ui("{0} exam seats", [room.examCapacity]), ui("{0} teaching", [room.teachingCapacity]), room.location].filter(Boolean).join(" · ")}
                         </span>
                       </span>
                     </Button>
@@ -772,14 +781,14 @@ function RoomAssignModal({
 
           {/* ── The plan ──────────────────────────────────────────────── */}
           <div>
-            <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-              Seating plan
+            <p className="mb-2 text-xs font-semibold text-ink-subtle">
+              {ui("Seating plan")}
             </p>
             {!plan || plan.rooms.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-edge/35 p-8 text-center">
-                <ArmchairIcon className="mx-auto mb-2 h-8 w-8 text-primary/30" />
+                <ArmchairIcon aria-hidden="true" className="mx-auto mb-2 h-8 w-8 text-primary/30" />
                 <p className="text-xs font-bold text-ink-muted">
-                  Pick rooms and seat the candidates to see the plan.
+                  {ui("Pick rooms and seat the candidates to see the plan.")}
                 </p>
               </div>
             ) : (
@@ -803,6 +812,7 @@ function RoomAssignModal({
  * they will walk it — front row at the top, benches left to right.
  */
 function RoomSeatMap({ room }: { room: PlanRoom }) {
+  const ui = useUiText();
   const rows = useMemo(() => {
     const map = new Map<number, SeatStudent[]>();
     room.students.forEach((s, i) => {
@@ -815,40 +825,41 @@ function RoomSeatMap({ room }: { room: PlanRoom }) {
   return (
     <div className="sk-panel overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-edge/15 bg-surface-subtle px-3 py-2">
-        <DoorOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
-        <span className="text-xs font-bold text-ink-strong">Room {room.roomNumber}</span>
+        <DoorOpen aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <span className="text-xs font-bold text-ink-strong">{ui("Room {0}", [room.roomNumber])}</span>
         {room.isPrimary ? (
-          <span className="rounded bg-brand-100 px-1.5 py-px text-3xs font-semibold uppercase tracking-wider text-primary">
-            Primary
+          <span className="rounded bg-brand-100 px-1.5 py-px text-2xs font-semibold text-primary">
+            {ui("Primary")}
           </span>
         ) : null}
         <span className="ms-auto text-2xs font-bold tabular-nums text-ink-subtle">
-          {room.seated} / {room.capacity} seats
-          {room.teachingCapacity > room.capacity ? ` (${room.teachingCapacity} teaching)` : ""}
+          {room.teachingCapacity > room.capacity
+            ? ui("{0} / {1} seats ({2} teaching)", [room.seated, room.capacity, room.teachingCapacity])
+            : ui("{0} / {1} seats", [room.seated, room.capacity])}
         </span>
       </div>
 
       <div className="p-2.5">
-        <p className="mb-2 rounded-lg bg-muted py-1 text-center text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
-          Front of room
+        <p className="mb-2 rounded-lg bg-muted py-1 text-center text-2xs font-semibold text-ink-subtle">
+          {ui("Front of room")}
         </p>
         <div className="space-y-1">
           {rows.map(([rowNo, seats]) => (
             <div key={rowNo} className="flex items-center gap-1">
-              <span className="w-5 shrink-0 text-3xs font-bold text-ink-subtle">R{rowNo}</span>
+              <span className="w-7 shrink-0 text-3xs font-bold text-ink-subtle" title={ui("Row {0}", [rowNo])}>{ui("R{0}", [rowNo])}</span>
               <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                 {seats.map((s) => (
-                  <Tooltip key={s.studentId} content={`${s.fullName} · Roll ${s.rollNumber} · ${s.seatLabel}`}>
+                  <Tooltip key={s.studentId} content={ui("{0} · Roll {1} · {2}", [s.fullName, s.rollNumber, s.seatLabel])}>
                   <span
                     tabIndex={0}
-                    className="group flex min-w-0 flex-1 basis-16 cursor-default flex-col rounded-lg border border-edge/25 bg-gradient-to-b from-white to-surface-subtle px-1.5 py-1 transition-colors hover:border-primary/40 hover:from-brand-50"
+                    className="group flex min-w-0 flex-1 basis-16 cursor-default flex-col rounded-lg border border-edge/25 bg-gradient-to-b from-card to-surface-subtle px-1.5 py-1 transition-colors hover:border-primary/40 hover:from-brand-50"
                   >
                     <span className="truncate text-3xs font-bold leading-tight text-primary">
                       {s.seatLabel}
                     </span>
-                    <span className="truncate text-2xs font-bold leading-tight text-ink-strong">
+                    <bdi className="truncate text-2xs font-bold leading-tight text-ink-strong">
                       {s.fullName}
-                    </span>
+                    </bdi>
                     <span className="truncate text-3xs font-semibold leading-tight text-ink-subtle">
                       {s.rollNumber}
                     </span>

@@ -21,8 +21,9 @@ import { campusToday } from "@/lib/dormitory/allocations";
  *   SKO-463 allocations.
  */
 
-const LEADERS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"];
-const STAFF = [...LEADERS, "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"];
+// §7.6: optional packages are campus operations; the principal is no longer a package manager.
+const LEADERS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN"];
+const STAFF = [...LEADERS, "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"];
 export const PACKAGES = {
   CANTEEN: { roles: ["MANAGER", "DIETARY_LEAD"], checklist: ["food_safety_procedure", "allergen_procedure_validated", "refund_policy", "menu_publishing_owner"] },
   BOARDING: { roles: ["WARDEN", "LEAVE_APPROVER"], checklist: ["missing_student_procedure", "leave_policy_validated", "roll_call_times", "night_supervision_rota"] },

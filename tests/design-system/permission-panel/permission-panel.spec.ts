@@ -55,6 +55,9 @@ for(const language of ['en','ar','ur'] as const){
   const review=page.getByRole('button',{name:copy.review,exact:true});await review.click();
   const dialog=page.getByRole('dialog');await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('button',{name:copy.cancel,exact:true})).toBeFocused();
+  // R3: copying a role's permissions asks for the reason first; the confirm stays disabled until it is long enough.
+  await expect(dialog.getByRole('button',{name:copy.confirm,exact:true})).toBeDisabled();
+  await dialog.getByRole('textbox',{name:copy.reason}).fill('Match the teacher defaults for the new term');
   await dialog.getByRole('button',{name:copy.confirm,exact:true}).click();
   await expect(dialog.getByRole('alert')).toContainText(copy.saveError);
   await expect(dialog.getByRole('alert')).toContainText(copy.partial);expect(fixture.writes).toHaveLength(2);

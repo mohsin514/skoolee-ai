@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { isFamily, studentScope } from "@/lib/auth/policy";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { applyEnrollment, assertRegistrar, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
 
 export async function GET(req: NextRequest) {
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
       prisma.studentDocument.findMany({ where: { studentId: id }, select: { id: true, kind: true, fileName: true, uploadedAt: true } }),
     ]);
     const events = family ? [] : await prisma.studentTimelineEvent.findMany({ where: { studentId: id, kind: { in: ["ENROLLMENT_TRANSITION", "IDENTITY_CONSOLIDATED", "ADMITTED", "PROMOTED"] } }, select: { id: true, kind: true, title: true, createdAt: true }, orderBy: { createdAt: "desc" } });
-    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: user.role === "SUPER_ADMIN", canManage }, { headers: { "Cache-Control": "private, no-store" } });
+    return Response.json({ pupil, proposals, classes, documents, events, canConsolidate: isInstitutionAuthority(user), canManage }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return errorResponse(error, "Unable to load enrollment history"); }
 }
 export async function POST(req: NextRequest) {

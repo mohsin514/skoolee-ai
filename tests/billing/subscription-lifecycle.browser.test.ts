@@ -94,15 +94,17 @@ before(async () => {
   await new Promise<void>(resolve => fake.listen(STRIPE_PORT, "127.0.0.1", resolve));
   subscriptions.set(subId, subscription(subId, "active"));
   const lapsed = new Date(Date.now() - 40 * 86400_000);
-  await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Group", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", subscriptionLifecycleState: "ACTIVE", stripeSubscriptionId: subId, stripeCustomerId: cusId, planEndsAt: lapsed } });
+  await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Group", registrationKind: "GROUP", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", subscriptionLifecycleState: "ACTIVE", stripeSubscriptionId: subId, stripeCustomerId: cusId, planEndsAt: lapsed } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Cedar North", regId: campusId, city: "Lahore" } });
-  await db.school.create({ data: { id: manualSchoolId, name: "Synthetic Willow School", slug: manualSchoolId, regId: manualSchoolId, contactEmail: `${manualSchoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "BASIC", subscriptionLifecycleState: "ACTIVE", planEndsAt: new Date(Date.now() + 10 * 86400_000) } });
+  await db.school.create({ data: { id: manualSchoolId, name: "Synthetic Willow School", registrationKind: "STANDALONE", slug: manualSchoolId, regId: manualSchoolId, contactEmail: `${manualSchoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "BASIC", subscriptionLifecycleState: "ACTIVE", planEndsAt: new Date(Date.now() + 10 * 86400_000) } });
   await db.campus.create({ data: { id: manualCampusId, schoolId: manualSchoolId, name: "Willow Main", regId: manualCampusId, city: "Karachi" } });
-  await user("owner", "CAMPUS_ADMIN", schoolId, campusId, { isInstitutionOwner: true });
-  await user("owner-ar", "CAMPUS_ADMIN", schoolId, campusId, { canPurchaseSubscription: true }, "ar");
+  // role-ux §7.2 G6: the subscription belongs to the institution authority — the group admin of a school group
+  // (owner, or another group admin with a purchase delegation) and the school admin of a single school.
+  await user("owner", "SUPER_ADMIN", schoolId, campusId, { isInstitutionOwner: true });
+  await user("owner-ar", "SUPER_ADMIN", schoolId, campusId, { canPurchaseSubscription: true }, "ar");
   await user("campus-admin", "CAMPUS_ADMIN", schoolId, campusId);
   await user("accountant", "ACCOUNTANT", schoolId, campusId);
-  await user("manual-owner", "CAMPUS_ADMIN", manualSchoolId, manualCampusId, { isInstitutionOwner: true });
+  await user("manual-owner", "ADMIN", manualSchoolId, manualCampusId, { isInstitutionOwner: true });
   await user("platform", "APP_OWNER", schoolId, campusId);
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
@@ -123,7 +125,9 @@ test("only the institution owner or an explicit delegate can change the subscrip
   }
   const view = await (await admin.request.get(`${base}/api/billing/lifecycle`)).json();
   assert.equal(view.canManage, false);
-  assert.equal(view.billingContact.fullName, "Synthetic owner", "non-payers see who to contact");
+  // role-ux G9: staff see who manages the subscription by name only, never an email.
+  assert.equal(view.managedBy, "Synthetic owner", "non-payers see who to contact");
+  assert.equal("billingContact" in view, false, "no contact email reaches non-payers");
   assert.equal((await (await context("accountant")).request.post(`${base}/api/billing/lifecycle`, { data: { action: "cancel-preview", idempotencyKey: randomUUID() } })).status(), 403, "tuition finance is not subscription authority");
   assert.equal((await lifecycle("owner-ar", { action: "preview", plan: "BASIC" })).status(), 200, "an explicit delegate may preview");
   const portal = await (await context("owner")).request.post(`${base}/api/stripe/portal`, { data: {} });
@@ -219,8 +223,10 @@ test("extra grace is a reviewed exception that restores access until the approve
   sessions.delete("manual-owner");
   const owner = await context("manual-owner");
   const page = await owner.newPage();
+  // G10/G43: old links resolve through /billing to the payer's own Billing & plan, reachable while suspended.
   await page.goto(`${base}/subscription`);
-  assert.equal(new URL(page.url()).pathname, "/subscription", "the payer can still reach recovery while suspended");
+  await page.waitForURL((target) => target.pathname === "/admin" && target.searchParams.get("view") === "billing");
+  assert.equal(new URL(page.url()).searchParams.get("view"), "billing", "the standalone payer can still reach recovery while suspended");
   await page.close();
   assert.equal((await owner.request.get(`${base}/api/classes`)).status(), 402);
   assert.equal((await lifecycle("manual-owner", { action: "grace", reason: "short", graceUntil: new Date(Date.now() + 5 * 86400_000).toISOString().slice(0, 10) })).status(), 400);
@@ -244,7 +250,9 @@ test("extra grace is a reviewed exception that restores access until the approve
 test("the payer sees plain-language state and a cancellation preview, in English and Arabic", async () => {
   const page = await (await context("owner")).newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto(`${base}/subscription`);
+  // §6.2: /billing is the one return address; the group payer lands on the group console's Billing & plan.
+  await page.goto(`${base}/billing`);
+  await page.waitForURL((target) => target.pathname === "/super" && target.searchParams.get("view") === "billing");
   const panel = page.locator("[data-subscription-lifecycle]");
   await panel.waitFor({ timeout: 30_000 });
   assert.match(await panel.locator("[data-state-explainer]").innerText(), /The subscription is paid and renews on the renewal date/);
@@ -260,6 +268,7 @@ test("the payer sees plain-language state and a cancellation preview, in English
 
   const ar = await (await context("owner-ar", { width: 390, height: 844 })).newPage();
   await ar.goto(`${base}/subscription`);
+  await ar.waitForURL((target) => target.pathname === "/super" && target.searchParams.get("view") === "billing");
   await ar.locator("[data-subscription-lifecycle]").waitFor({ timeout: 30_000 });
   assert.equal(await ar.evaluate("document.documentElement.dir"), "rtl");
   assert.match(await ar.locator("[data-state-explainer]").innerText(), /الاشتراك مدفوع/);

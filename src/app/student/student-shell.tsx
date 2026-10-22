@@ -1,37 +1,25 @@
 "use client";
 
-import { MessageCircle } from "lucide-react";
-import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
+import { RoleShell } from "@/components/role-dashboard";
 import { useStudentData } from "./student-data-context";
-import { STUDENT_NAV } from "@/components/student/student-page";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
-// Sign-out lives in RoleHeader (see the note in teacher-shell.tsx): the
-// handleLogout() declared here was unreachable, and its router.push("/login")
-// would have left the console renderable via Back.
+// Sign-out lives in RoleHeader (see the note in teacher-shell.tsx).
+//
+// Navigation is the registry's learner console (`ROLE_NAV.student`): Today ·
+// Work · Timetable · Results on the mobile bar, Messages, and everything else
+// under More. "Schedule" stays a redirect to Attendance for old links.
 export function StudentShell({ children }: { children: React.ReactNode }) {
+  const ui = useUiText();
   const { data } = useStudentData();
-
-  // "Schedule" used to sit here as a second attendance page. Its unique
-  // content (class teacher, enrolled subjects) now lives on Coursework, so the
-  // nav has one entry per destination.
-  //
-  // Built from the same list the in-page subnav uses, so the two cannot drift.
-  const navItems: RoleNavItem[] = [
-    ...STUDENT_NAV.map((item) => ({ icon: item.icon, label: item.label, href: item.href })),
-    { icon: MessageCircle, label: "Messages", href: "/messages" },
-  ];
-  const bottomItems: RoleNavItem[] = [];
-
   const student = data?.user;
+  const name = student?.fullName || ui("Student");
 
   return (
     <RoleShell
+      console="student"
       mobileDocumentFlow
-      navItems={navItems}
-      bottomItems={bottomItems}
-      eyebrow="Official Academic Transcript"
-      userName={student?.fullName || "Student"}
-      userRole={student?.className || "Student Console"}
+      userName={name}
       avatarSeed={student?.fullName || "Student"}
       logoUrl={data?.logoUrl}
       dashboardHref="/student"

@@ -121,7 +121,7 @@ export function DatesheetBuilder({
       const wk = new Set<number>((calRes.data?.weekends || []) as number[]);
       setWeekends(wk);
     } catch {
-      toast.error("Failed to load datesheet");
+      toast.error(tr("The date sheet could not be loaded"));
     } finally {
       setLoading(false);
     }
@@ -183,7 +183,7 @@ export function DatesheetBuilder({
   const handleCellClick = (subjectId: string | null, date: string, periodId: string | null) => {
     const sid = subjectId ?? armed;
     if (!sid) {
-      toast.error("Select a subject from the left first");
+      toast.error(tr("Select a subject from the left first"));
       return;
     }
     setPending({ subjectId: sid, date, periodId });
@@ -199,7 +199,7 @@ export function DatesheetBuilder({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to remove");
-      toast.success("Removed from datesheet");
+      toast.success(tr("Removed from the date sheet"));
       await load();
       onChanged?.();
     } catch (e: any) {
@@ -222,7 +222,7 @@ export function DatesheetBuilder({
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
       {/* Subject sidebar */}
       <div className="sk-panel p-4">
-        <p className="mb-1 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+        <p className="mb-1 text-2xs font-semibold text-ink-muted">
           Exam Subjects
         </p>
         <p className="mb-3 text-2xs font-semibold text-ink-subtle">
@@ -285,7 +285,7 @@ export function DatesheetBuilder({
             {periodCols.map((p) => (
               <div
                 key={p.id || "none"}
-                className="rounded-xl bg-brand-50 px-2 py-1.5 text-center text-2xs font-semibold uppercase tracking-wider text-primary"
+                className="rounded-xl bg-brand-50 px-2 py-1.5 text-center text-2xs font-semibold text-primary"
               >
                 {p.label}
               </div>
@@ -534,7 +534,7 @@ function AssignmentPopover({
           `${subject?.name} scheduled across ${roomIds.length} rooms — ${allocData.data.totalStudents} students seated`,
         );
       } else {
-        toast.success(`${subject?.name} scheduled`);
+        toast.success(tr("{0} scheduled", [subject?.name ?? ""]));
       }
       onScheduled();
     } catch (e: any) {
@@ -588,7 +588,7 @@ function AssignmentPopover({
             })}
           </div>
           <label className="block">
-            <span className="mb-1.5 block text-2xs font-semibold uppercase tracking-wider text-ink-muted">
+            <span className="mb-1.5 block text-2xs font-semibold text-ink-muted">
               Rooms (free rooms only) — pick more than one to split the paper
             </span>
             <div className="sk-panel max-h-52 space-y-1 overflow-y-auto p-1.5">
@@ -610,7 +610,7 @@ function AssignmentPopover({
                     />
                     <DoorOpen className="h-4 w-4 shrink-0 text-primary" />
                     <span className="min-w-0 flex-1 truncate">{r.roomNumber}</span>
-                    <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                    <span className="shrink-0 text-2xs font-semibold text-ink-subtle">
                       {r.unmeasured
                         ? "no size recorded"
                         : `${r.examCapacity} exam seats${r.teachingCapacity > r.examCapacity ? ` · ${r.teachingCapacity} teaching` : ""}`}

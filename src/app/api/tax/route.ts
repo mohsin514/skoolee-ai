@@ -8,7 +8,8 @@ const headers = { "Cache-Control": "private, no-store" };
 const ok = (data: unknown, status = 200) => Response.json({ success: true, data }, { status, headers });
 
 // SKO-444: invoice tax packages. GET ?view=overview | documents | document&id=. POST {action: draft | fixtures |
-// approve | submit | reconcile | correct}.
+// approve | submit | reconcile | correct}. Drafting is the finance desk's; approve is the institution authority's
+// (role-ux G27), with an SD3 `reason` when the authority signs off their own draft.
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
@@ -29,8 +30,9 @@ export async function POST(request: NextRequest) {
     switch (body.action) {
       case "draft": return ok(await tax.saveDraft(user, body), body.id ? 200 : 201);
       case "fixtures": return ok(await tax.runFixtures(user, body));
-      case "approve": return ok(await tax.approve(user, String(body.id ?? "")));
+      case "approve": return ok(await tax.approve(user, String(body.id ?? ""), typeof body.reason === "string" ? body.reason : null));
       case "submit": return ok(await tax.submit(user, String(body.id ?? "")));
+      case "request-signoff": return ok(await tax.requestSignOff(user, String(body.id ?? "")));
       case "reconcile": return ok(await tax.reconcile(user, String(body.id ?? "")));
       case "correct": return ok(await tax.correct(user, body));
       default: throw new ApiError("Unknown action", 400);

@@ -4,7 +4,7 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { getTenantContext, resolveTenantFromRequest, runWithTenantContext } from "@/lib/db/tenant-context";
 import { getPlanLimits, normalizePlan } from "@/config/plans";
 import { getSchoolPlanContract } from "@/config/commercial-contract";
-import { isSchoolOperational } from "@/lib/billing/entitlements";
+import { isSchoolOperational, SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/entitlements";
 import type { AIRemarkRequest, AIRemarkResponse } from "@/types";
 import { AI_PROMPT_VERSION, buildRemarkPrompt } from "./prompts";
 import { assertNoPII, PIILeakError, Pseudonymizer } from "./pseudonymize";
@@ -440,6 +440,15 @@ export interface AIUsageRecordInput {
 
 export class AICreditError extends Error {
   status = 402;
+  /** Machine reason shared with BillingAccessError (G51); set only for a paused subscription. */
+  code?: "SUBSCRIPTION_SUSPENDED";
+}
+
+/** Neutral copy for every role (G51): no billing link, no "upgrade" call to action. */
+function subscriptionPausedError() {
+  const error = new AICreditError(SUBSCRIPTION_PAUSED_MESSAGE);
+  error.code = "SUBSCRIPTION_SUSPENDED";
+  return error;
 }
 
 /** SKO-408 R5.12: the caller cancelled; the provider request was aborted and nothing is charged. */
@@ -462,7 +471,7 @@ export async function getAICreditSnapshot(schoolId: string) {
   }));
 
   if (school && !isSchoolOperational(school.status)) {
-    throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
+    throw subscriptionPausedError();
   }
 
   const used = school?.aiCreditsUsed || 0;
@@ -496,7 +505,7 @@ export async function lockAndReconcileAICredits(schoolId: string, tx: TxClient, 
 export async function reserveAICredits(schoolId: string, credits: number, tx: TxClient) {
   if (!Number.isSafeInteger(credits) || credits < 1) throw Object.assign(new AICreditError("Invalid AI reservation cost."), { status: 400 });
   const school = await lockAndReconcileAICredits(schoolId, tx);
-  if (!school || !isSchoolOperational(school.status) || school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date())) throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
+  if (!school || !isSchoolOperational(school.status) || school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date())) throw subscriptionPausedError();
   if (school.aiCreditsUsed + school.aiCreditsReserved + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) throw new AICreditError("AI credit limit reached");
   await tx.school.update({ where: { id: schoolId }, data: { aiCreditsReserved: { increment: credits } } });
 }
@@ -530,7 +539,7 @@ export async function consumeAICreditAndLog<T = null>(
     }
 
     if (!isSchoolOperational(school.status) || (school.subscriptionLifecycleState === "PAST_DUE_GRACE" && Boolean(school.graceEndsAt && school.graceEndsAt <= new Date()))) {
-      throw new AICreditError("Subscription suspended. Open billing to update your plan or payment method.");
+      throw subscriptionPausedError();
     }
 
     if (school.aiCreditsUsed + school.aiCreditsReserved + credits > getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).aiCredits) {

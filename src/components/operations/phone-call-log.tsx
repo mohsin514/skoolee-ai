@@ -7,7 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame, PanelTitle } from "@/components/shared-admin";
+import { PanelTitle } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
+import { downloadCSV } from "@/lib/csv";
+
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
@@ -21,7 +26,9 @@ import { InfoTip } from "@/components/ui/tooltip";
 // stays open through attempts and reschedules until an outcome is recorded. Notes marked sensitive are
 // withheld from anyone who may not read them, and the queue defaults to open callbacks.
 
-type Owner = { id: string; fullName: string };
+type Owner = { id: string; fullName: string; role?: string };
+// role-ux G40: only the front desk and campus admins own front-office work; the server refuses anyone else.
+const OWNER_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "RECEPTIONIST"]);
 type Callback = { id: string; ownerId: string | null; owner: Owner | null; dueAt: string; status: "OPEN" | "DONE"; attempts: number; outcome: string | null; completedAt: string | null; previousId: string | null; version: number; overdue: boolean };
 type Call = { id: string; name: string; phone: string; direction: "IN" | "OUT"; date: string; purpose: string | null; note: string | null; noteWithheld: boolean; sensitive: boolean; callbacks: Callback[] };
 type HistoryEvent = { id: string; kind: string; dueAt: string | null; createdAt: string; note: string | null; actorName: string | null; ownerName: string | null };
@@ -41,7 +48,12 @@ async function call(method: string, body: Record<string, unknown>) {
   return json;
 }
 
-export function PhoneCallLog() {
+/**
+ * `hideHeader` hands the title and "Log call" to the console's PageHeader; `command` "log-call" opens the form and
+ * "export" saves the calls the filters show as CSV (§4.4b Front desk · Export), once loaded. Call notes are never
+ * exported: sensitive ones are restricted to named readers.
+ */
+export function PhoneCallLog({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [rows, setRows] = useState<Call[]>([]), [counts, setCounts] = useState({ open: 0, overdue: 0, unassigned: 0, mine: 0 });
@@ -60,16 +72,31 @@ export function PhoneCallLog() {
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) throw new Error(response.status === 403 ? ui("You do not have access to the call log for this campus.") : json.error || ui("Calls could not be loaded."));
       setRows(json.data); setCounts(json.counts);
+      // Owner candidates come with the list (G40: campus admins incl. a single school's admin, and receptionists).
+      if (Array.isArray(json.owners)) setOwners((json.owners as Owner[]).filter(person => !person.role || OWNER_ROLES.has(person.role)));
     } catch (failure) { setLoadError(failure instanceof Error ? ui(failure.message) : ui("Calls could not be loaded.")); } finally { setLoading(false); }
   }, [view, direction, q, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), q ? 250 : 0); return () => clearTimeout(timer); }, [load, q]);
-  useEffect(() => { void fetch("/api/front-desk/phone-calls?owners=1", { cache: "no-store" }).then(r => r.json()).then(json => json.success && setOwners(json.data)).catch(() => undefined); }, []);
+  usePanelCommand(command, { "log-call": () => setLogOpen(true) });
+  usePanelCommand(command, {
+    export: () => {
+      if (loadError) return;
+      if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+      downloadCSV(`phone-calls-${new Date().toISOString().slice(0, 10)}`, [
+        ["Name", "Phone", "Direction", "Date", "Purpose", "Callback", "Callback due", "Callback owner", "Attempts"],
+        ...rows.map(row => {
+          const callback = row.callbacks.find(item => item.status === "OPEN") ?? row.callbacks[0] ?? null;
+          return [row.name, row.phone, row.direction === "IN" ? "Incoming" : "Outgoing", row.date, row.purpose ?? "", callback ? (callback.status === "DONE" ? "Completed" : callback.overdue ? "Overdue" : "Open") : "", callback?.dueAt ?? "", callback?.owner?.fullName ?? "", callback?.attempts ?? ""];
+        }),
+      ]);
+    },
+  }, !loading);
 
-  return <div className="sk-panel space-y-4 p-5" data-phone-log>
-    <div className="flex flex-wrap items-center justify-between gap-3">
+  return <div className={hideHeader ? "space-y-4" : "sk-panel space-y-4 p-5"} data-phone-log>
+    {hideHeader ? null : <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-1"><PanelTitle icon={Phone} title={ui("Phone calls")} /><InfoTip content={ui("A promised callback stays open through attempts and reschedules until an outcome is recorded.")} /></div>
       <Button onClick={() => setLogOpen(true)}><Plus className="size-4" aria-hidden="true" />{ui("Log call")}</Button>
-    </div>
+    </div>}
     <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold tabular-nums text-ink-strong" aria-live="polite" data-callback-counts>
       <span>{ui("Open callbacks: {0}", [counts.open])}</span>
       <span className={counts.overdue ? "text-status-error-text" : ""} data-overdue={counts.overdue}>{ui("Overdue: {0}", [counts.overdue])}</span>
@@ -132,7 +159,7 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Your details are kept; retrying will not log the call twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
     } finally { setBusy(false); }
   };
-  return <ModalFrame title={ui("Log call")} eyebrow={ui("Phone calls")} subtitle={ui("Keep it short: who called, why, and whether someone owes them a callback.")} onClose={onClose} dirty={Boolean(form.name || form.phone || form.note || form.purpose)}>
+  return <Modal title={ui("Log call")} eyebrow={ui("Phone calls")} subtitle={ui("Keep it short: who called, why, and whether someone owes them a callback.")} onClose={onClose} dirty={Boolean(form.name || form.phone || form.note || form.purpose)}>
     <div className="space-y-3" data-call-form>
       {error ? <Alert tone="danger" compact data-call-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -151,7 +178,7 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
       </fieldset>
       <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Log call")}</Button></div>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }
 
 function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged }: { call: Call; callback: Callback; owners: Owner[]; onClose: () => void; onChanged: () => void }) {
@@ -173,7 +200,7 @@ function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged 
     finally { setBusy(false); }
   };
   const open = callback.status === "OPEN";
-  return <ModalFrame title={ui("Callback for {0}", [phoneCall.name])} eyebrow={ui("Phone calls")} size="lg" onClose={onClose} dirty={Boolean(note || outcome)}>
+  return <Modal title={ui("Callback for {0}", [phoneCall.name])} eyebrow={ui("Phone calls")} size="lg" onClose={onClose} dirty={Boolean(note || outcome)}>
     <div className="space-y-4" data-callback-dialog={callback.id}>
       {error ? <Alert tone="danger" compact data-callback-error>{error}</Alert> : null}
       <section className="space-y-1 rounded-xl border border-border p-3 text-sm" aria-label={ui("Original call")}>
@@ -218,5 +245,5 @@ function CallbackDialog({ call: phoneCall, callback, owners, onClose, onChanged 
           </li>)}</ol>}
       </section>
     </div>
-  </ModalFrame>;
+  </Modal>;
 }

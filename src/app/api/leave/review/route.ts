@@ -1,7 +1,8 @@
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canLeadAcademics, canManageAcademics, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { isCampusOperator } from "@/lib/auth/institution";
 import { getLeaveBalances, tenthsToDays } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
 import { resolveSourceActions } from "@/lib/notifications/actions";
@@ -14,7 +15,7 @@ import { reconcileMeetings } from "@/lib/meetings/notify";
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "edit");
     const body = await req.json();
 
@@ -25,8 +26,14 @@ export async function PATCH(req: NextRequest) {
       throw new ApiError("status must be APPROVED or REJECTED", 400);
     }
 
-    const target = await prisma.leaveRequest.findFirst({ where: { id, ...resourceScope(user) }, select: { campusId: true } });
+    const target = await prisma.leaveRequest.findFirst({ where: { id, ...resourceScope(user) }, select: { campusId: true, user: { select: { role: true } } } });
     if (!target) throw new ApiError("Leave request not found", 404);
+    // §7.6 (G36): teaching staff's leave is decided by the academic lead (the principal, or a campus operator
+    // while no principal is appointed); everyone else's — office staff and the principal — by the campus operator.
+    const decides = target.user.role === "TEACHER" ? await canLeadAcademics(user, target.campusId) : isCampusOperator(user);
+    if (!decides) {
+      throw new ApiError(target.user.role === "TEACHER" ? "Teachers' leave is decided by your principal." : "This leave is decided by your campus admin.", 403);
+    }
     const { request, updated } = await withSchedulingResourceWrite(user, target.campusId, "leave", "edit", async tx => {
       const request = await tx.leaveRequest.findFirst({
         where: { id, ...resourceScope(user), campusId: target.campusId },

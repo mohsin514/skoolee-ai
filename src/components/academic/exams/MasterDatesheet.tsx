@@ -16,7 +16,8 @@ import {
   Trash2,
   Wand2,
 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
+import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -31,6 +32,8 @@ import {
 } from "@/components/academic/exams/shared";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * The master date sheet (§80).
@@ -81,12 +84,15 @@ interface GridData {
   conflicts: BulkConflict[];
 }
 
-const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function prettyDate(ymd: string) {
+/** "Mon 14 Oct" in the viewer's language (R7: dates through Intl, never a hard-coded English weekday). */
+function prettyDate(ymd: string, language = "en") {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
-  return `${WEEKDAY[dt.getDay()]} ${String(d).padStart(2, "0")} ${dt.toLocaleString("en", { month: "short" })}`;
+  try {
+    return new Intl.DateTimeFormat(language, { weekday: "short", day: "2-digit", month: "short" }).format(dt);
+  } catch {
+    return dt.toDateString();
+  }
 }
 
 function isoDow(ymd: string) {
@@ -116,12 +122,16 @@ export function MasterDatesheet({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   const [data, setData] = useState<GridData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState<SubjectState | null>(null);
   const [removing, setRemoving] = useState<SubjectState | null>(null);
   const [showConflicts, setShowConflicts] = useState(true);
+  // R4: a failed first load is an inline ErrorState with retry; a failed silent refresh keeps the last figures.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(
     async (silent = false) => {
@@ -131,16 +141,18 @@ export function MasterDatesheet({
         const sp = new URLSearchParams({ sessionId });
         if (campusId) sp.set("campusId", campusId);
         const res = await fetch(`/api/academic/exam-schedule/bulk?${sp}`).then((r) => r.json());
-        if (!res.success) throw new Error(res.error || "Could not load the date sheet");
+        if (!res.success) throw new Error(res.error || "");
         setData(res.data as GridData);
+        setLoadFailed(false);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Could not load the date sheet");
+        if (silent) toast.error(friendlyErrorMessage(e, ui("Could not refresh the date sheet")));
+        else setLoadFailed(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [sessionId, campusId],
+    [sessionId, campusId, ui],
   );
 
   useEffect(() => {
@@ -226,12 +238,12 @@ export function MasterDatesheet({
       const res = await fetch(`/api/academic/exam-schedule/bulk?${sp}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "Could not remove the paper");
-      toast.success(`${subject.name} taken off the date sheet`);
+      toast.success(ui("{0} taken off the date sheet", [subject.name]));
       setRemoving(null);
       await load(true);
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not remove the paper");
+      toast.error(friendlyErrorMessage(e, ui("Could not remove the paper")));
     }
   };
 
@@ -243,6 +255,10 @@ export function MasterDatesheet({
         ))}
       </div>
     );
+  }
+
+  if (loadFailed && !data) {
+    return <ErrorState title={ui("The date sheet could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   if (!data || data.rows.length === 0) {
@@ -270,16 +286,18 @@ export function MasterDatesheet({
   return (
     <div className="space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[20px] border border-edge/20 bg-white/85 px-4 py-3 shadow-[0_1px_2px_rgba(120,70,180,0.04),0_8px_24px_-16px_rgba(120,70,180,0.35)] backdrop-blur-xl">
+      <div className="flex flex-wrap items-center gap-3 rounded-[20px] border border-edge/20 bg-card/85 px-4 py-3 shadow-sm backdrop-blur-xl">
         <div className="min-w-0">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
-            Date sheet
+          <p className="text-xs font-semibold text-primary">
+            {ui("Date sheet")}
           </p>
           <p className="text-sm font-bold text-ink-strong">
-            {totals.placed} of {totals.expected} papers placed
+            {ui("{0} of {1} papers placed", [totals.placed, totals.expected])}
             <span className="ms-2 text-2xs font-bold text-ink-subtle">
-              {totals.subjects} subject{totals.subjects === 1 ? "" : "s"} · {data.rows.length}{" "}
-              class{data.rows.length === 1 ? "" : "es"}
+              {[
+                ui(totals.subjects === 1 ? "{0} subject" : "{0} subjects", [totals.subjects]),
+                ui(data.rows.length === 1 ? "{0} class" : "{0} classes", [data.rows.length]),
+              ].join(" · ")}
             </span>
           </p>
         </div>
@@ -287,28 +305,28 @@ export function MasterDatesheet({
         <div className="ms-auto flex flex-wrap items-center gap-2">
           {blocking > 0 ? (
             <Badge variant="danger" dot>
-              {blocking} to fix
+              {ui("{0} to fix", [blocking])}
             </Badge>
           ) : totals.placed === totals.expected ? (
             <Badge variant="success" dot>
-              Complete
+              {ui("Complete")}
             </Badge>
           ) : null}
           <Button variant="outline" size="icon"
             type="button"
             onClick={() => load(true)}
-            aria-label="Refresh"
+            aria-label={ui("Refresh")}
             className="flex items-center justify-center"
           >
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            <RefreshCw aria-hidden="true" className={cn("h-4 w-4", refreshing && "animate-spin motion-reduce:animate-none")} />
           </Button>
           <BrandButton
             variant="dark"
-            icon={<Download className="h-4 w-4" />}
+            icon={<Download aria-hidden="true" className="h-4 w-4" />}
             onClick={download}
             disabled={totals.placed === 0}
           >
-            Download PDF
+            {ui("Download PDF")}
           </BrandButton>
         </div>
       </div>
@@ -322,7 +340,7 @@ export function MasterDatesheet({
           onClick={() => setShowConflicts(true)}
           className="hover:underline"
         >
-          Show conflicts ({data.conflicts.length})
+          {ui("Show conflicts ({0})", [data.conflicts.length])}
         </Button>
       )}
 
@@ -348,48 +366,48 @@ export function MasterDatesheet({
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-2xs font-bold transition-colors",
                       complete
-                        ? "bg-emerald-50 text-emerald-600"
+                        ? "bg-status-success-surface text-status-success-text"
                         : subject.placed > 0
-                        ? "bg-amber-50 text-amber-600"
+                        ? "bg-status-warning-surface text-status-warning-text"
                         : "bg-muted text-ink-subtle",
                     )}
                   >
-                    {subject.placed}/{subject.classCount}
+                    <bdi dir="ltr">{subject.placed}/{subject.classCount}</bdi>
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-ink-strong">{subject.name}</p>
+                    <bdi className="block truncate text-sm font-bold text-ink-strong">{subject.name}</bdi>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs font-bold text-ink-subtle">
                       {subject.date ? (
                         <>
                           <span
                             className={cn(
                               "flex items-center gap-1",
-                              weekendHit ? "text-rose-600" : "text-primary",
+                              weekendHit ? "text-status-error-text" : "text-primary",
                             )}
                           >
-                            <CalendarDays className="h-3 w-3" />
-                            {prettyDate(subject.date)}
+                            <CalendarDays aria-hidden="true" className="h-3 w-3" />
+                            {prettyDate(subject.date, language)}
                           </span>
                           {period ? (
                             <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {period.startTime}–{period.endTime}
+                              <Clock aria-hidden="true" className="h-3 w-3" />
+                              <bdi dir="ltr">{period.startTime}–{period.endTime}</bdi>
                             </span>
                           ) : (
-                            <span className="text-amber-600">No time set</span>
+                            <span className="text-status-warning-text">{ui("No time set")}</span>
                           )}
                         </>
                       ) : subject.mixed ? (
-                        <span className="text-amber-600">
-                          Classes sit this on different days — open to align them
+                        <span className="text-status-warning-text">
+                          {ui("Classes sit this on different days — open to align them")}
                         </span>
                       ) : (
-                        <span>Not placed yet</span>
+                        <span>{ui("Not placed yet")}</span>
                       )}
                       {subject.seatedPapers > 0 ? (
-                        <span className="text-emerald-600">
-                          {subject.seatedPapers} seated
+                        <span className="text-status-success-text">
+                          {ui("{0} seated", [subject.seatedPapers])}
                         </span>
                       ) : null}
                     </p>
@@ -404,16 +422,16 @@ export function MasterDatesheet({
                         "",
                       )}
                     >
-                      {subject.date ? "Change" : "Set date"}
+                      {ui(subject.date ? "Change" : "Set date")}
                     </Button>
                     {subject.placed > 0 ? (
                       <Button variant="secondary" size="icon"
                         type="button"
                         onClick={() => setRemoving(subject)}
-                        aria-label={`Remove ${subject.name} from the date sheet`}
+                        aria-label={ui("Remove {0} from the date sheet", [subject.name])}
                         className="flex items-center justify-center"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                       </Button>
                     ) : null}
                   </div>
@@ -434,8 +452,8 @@ export function MasterDatesheet({
             <EmptyState
               size="sm"
               icon={CalendarDays}
-              title="Nothing placed yet"
-              description="Set a date on a paper and it appears here."
+              title={ui("Nothing placed yet")}
+              description={ui("Set a date on a paper and it appears here.")}
             />
           ) : (
             <ol className="relative space-y-2.5 ps-5">
@@ -450,29 +468,29 @@ export function MasterDatesheet({
                     <span
                       aria-hidden
                       className={cn(
-                        "absolute -start-5 top-3 h-[9px] w-[9px] rounded-full ring-4 ring-white",
-                        weekend ? "bg-rose-500" : "bg-primary",
+                        "absolute -start-5 top-3 h-[9px] w-[9px] rounded-full ring-4 ring-card",
+                        weekend ? "bg-status-error-text" : "bg-primary",
                       )}
                     />
                     <div
                       className={cn(
                         "rounded-2xl border p-3 transition-colors",
                         weekend
-                          ? "border-rose-200/70 bg-rose-50/40"
+                          ? "border-status-error-border bg-status-error-surface"
                           : "border-edge/20 bg-surface-subtle",
                       )}
                     >
                       <p
                         className={cn(
                           "flex items-center gap-1.5 text-2xs font-bold",
-                          weekend ? "text-rose-600" : "text-primary",
+                          weekend ? "text-status-error-text" : "text-primary",
                         )}
                       >
-                        {prettyDate(date)}
+                        {prettyDate(date, language)}
                         {weekend ? (
-                          <span className="flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-2xs uppercase tracking-wider">
-                            <CalendarX className="h-2.5 w-2.5" />
-                            Weekend
+                          <span className="flex items-center gap-1 rounded-full bg-card px-1.5 py-0.5 text-2xs">
+                            <CalendarX aria-hidden="true" className="h-2.5 w-2.5" />
+                            {ui("Weekend")}
                           </span>
                         ) : null}
                       </p>
@@ -480,17 +498,18 @@ export function MasterDatesheet({
                         {entries.map((e) => (
                           <div
                             key={e.subject}
-                            className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5"
+                            className="flex items-center gap-2 rounded-xl bg-card px-2.5 py-1.5"
                           >
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-2xs font-bold text-primary">
-                              P{e.period?.periodNumber ?? "—"}
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-2xs font-bold text-primary" title={e.period ? ui("Period {0}", [e.period.periodNumber]) : undefined}>
+                              <bdi dir="ltr">{e.period?.periodNumber ?? "—"}</bdi>
                             </span>
-                            <span className="min-w-0 flex-1 truncate text-2xs font-bold text-ink-strong">
+                            <bdi className="min-w-0 flex-1 truncate text-2xs font-bold text-ink-strong">
                               {e.subject}
-                            </span>
+                            </bdi>
                             <span className="shrink-0 text-2xs font-bold text-ink-subtle">
-                              {e.period ? `${e.period.startTime}–${e.period.endTime}` : "No time"} ·{" "}
-                              {e.classes} class{e.classes === 1 ? "" : "es"}
+                              {e.period ? <bdi dir="ltr">{e.period.startTime}–{e.period.endTime}</bdi> : ui("No time")}
+                              {" · "}
+                              {ui(e.classes === 1 ? "{0} class" : "{0} classes", [e.classes])}
                             </span>
                           </div>
                         ))}
@@ -520,30 +539,23 @@ export function MasterDatesheet({
         />
       ) : null}
 
-      {removing ? (
-        <Modal
-          title={`Remove ${removing.name}?`}
-          subtitle={`This takes the paper off the date sheet for all ${removing.placed} class${removing.placed === 1 ? "" : "es"}${removing.seatedPapers > 0 ? ", and discards its seating plan" : ""}. Marks already entered are not touched.`}
-          icon={Trash2}
-          tone="rose"
-          size="sm"
-          role="alertdialog"
-          onClose={() => setRemoving(null)}
-          footer={
-            <ModalActions
-              actionLabel="Remove paper"
-              cancelLabel="Keep it"
-              tone="rose"
-              onCancel={() => setRemoving(null)}
-              onAction={() => removeSubject(removing)}
-            />
-          }
-        >
-          <p className="text-sm leading-relaxed font-normal text-ink-muted">
-            You can place it again at any time.
-          </p>
-        </Modal>
-      ) : null}
+      {/* R2/R3: one confirmation dialog — the shared ConfirmAction. */}
+      <ConfirmAction
+        open={Boolean(removing)}
+        tone="danger"
+        title={removing ? ui("Remove {0}?", [removing.name]) : ""}
+        description={removing
+          ? [
+              removing.placed === 1 ? ui("This takes the paper off the date sheet for 1 class.") : ui("This takes the paper off the date sheet for all {0} classes.", [removing.placed]),
+              removing.seatedPapers > 0 ? ui("Its seating plan is discarded.") : null,
+              ui("Marks already entered are not touched. You can place it again at any time."),
+            ].filter(Boolean).join(" ")
+          : ""}
+        confirmLabel={ui("Remove paper")}
+        cancelLabel={ui("Keep editing")}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => { if (removing) void removeSubject(removing); }}
+      />
     </div>
   );
 }
@@ -569,6 +581,7 @@ function PlacePaperModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const ui = useUiText();
   const [date, setDate] = useState(subject.date ?? examWindow.startDate ?? "");
   const [periodId, setPeriodId] = useState(subject.periodDefinitionId ?? periods[0]?.id ?? "");
   const [checking, setChecking] = useState(false);
@@ -604,15 +617,15 @@ function PlacePaperModal({
         }),
       });
       const json = await res.json();
-      if (!json.data) throw new Error(json.error || "Could not check that slot");
+      if (!json.data) throw new Error(json.error || "");
       setPreview({ wouldPlace: json.data.wouldPlace ?? [], conflicts: json.data.conflicts ?? [] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not check that slot");
+      toast.error(friendlyErrorMessage(e, ui("Could not check that slot")));
       setPreview(null);
     } finally {
       setChecking(false);
     }
-  }, [date, periodId, campusId, sessionId, subject.name]);
+  }, [date, periodId, campusId, sessionId, subject.name, ui]);
 
   // Re-check whenever the slot changes, debounced so typing a date does not
   // fire four requests as the day, month and year fill in.
@@ -628,7 +641,7 @@ function PlacePaperModal({
   const blocking = preview?.conflicts.filter((c) => c.blocking) ?? [];
 
   const save = async () => {
-    if (!date) return toast.error("Pick a date");
+    if (!date) return toast.error(ui("Pick a date"));
     setSaving(true);
     try {
       const res = await fetch("/api/academic/exam-schedule/bulk", {
@@ -643,13 +656,11 @@ function PlacePaperModal({
         }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "Could not place the paper");
-      toast.success(
-        `${subject.name} placed for ${json.data.placed} class${json.data.placed === 1 ? "" : "es"}`,
-      );
+      if (!res.ok || !json.success) throw new Error(json.error || "");
+      toast.success(ui(json.data.placed === 1 ? "{0} placed for 1 class" : "{0} placed for {1} classes", [subject.name, json.data.placed]));
       onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not place the paper");
+      toast.error(friendlyErrorMessage(e, ui("Could not place the paper")));
     } finally {
       setSaving(false);
     }
@@ -658,8 +669,8 @@ function PlacePaperModal({
   return (
     <Modal
       title={subject.name}
-      eyebrow="Place a paper"
-      subtitle={`Applies to all ${subject.classCount} class${subject.classCount === 1 ? "" : "es"} that take this subject.`}
+      eyebrow={ui("Place a paper")}
+      subtitle={ui(subject.classCount === 1 ? "Applies to the 1 class that takes this subject." : "Applies to all {0} classes that take this subject.", [subject.classCount])}
       icon={CalendarDays}
       tone="violet"
       size="md"
@@ -668,19 +679,20 @@ function PlacePaperModal({
       footer={
         <ModalActions
           busy={saving}
-          busyLabel="Placing…"
-          actionLabel={`Place for ${preview?.wouldPlace.length ?? subject.classCount} class${(preview?.wouldPlace.length ?? subject.classCount) === 1 ? "" : "es"}`}
+          busyLabel={ui("Placing…")}
+          actionLabel={ui((preview?.wouldPlace.length ?? subject.classCount) === 1 ? "Place for 1 class" : "Place for {0} classes", [preview?.wouldPlace.length ?? subject.classCount])}
+          cancelLabel={ui("Cancel")}
           onCancel={onClose}
           onAction={save}
           blockedReason={
             !date
-              ? "Pick a date."
+              ? ui("Pick a date.")
               : checking
-              ? "Checking that slot against every class…"
+              ? ui("Checking that slot against every class…")
               : blocking.length > 0
               ? blocking[0].message
               : preview && preview.wouldPlace.length === 0
-              ? "Nothing can be placed in this slot."
+              ? ui("Nothing can be placed in this slot.")
               : null
           }
         />
@@ -708,10 +720,10 @@ function PlacePaperModal({
               onChange={(e) => setPeriodId(e.target.value)}
               disabled={periods.length === 0}
             >
-              <option value="">No fixed time</option>
+              <option value="">{ui("No fixed time")}</option>
               {periods.map((p) => (
                 <option key={p.id} value={p.id}>
-                  Period {p.periodNumber} · {p.startTime}–{p.endTime}
+                  {ui("Period {0} · {1}–{2}", [p.periodNumber, p.startTime, p.endTime])}
                 </option>
               ))}
             </SystemSelect>
@@ -722,7 +734,7 @@ function PlacePaperModal({
           <Alert tone="neutral" compact live="polite" icon={false}>
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
-              Checking that slot against every class…
+              {ui("Checking that slot against every class…")}
             </span>
           </Alert>
         ) : preview ? (
@@ -730,23 +742,23 @@ function PlacePaperModal({
             <ConflictPanel conflicts={preview.conflicts} />
             {preview.wouldPlace.length > 0 ? (
               <div className="rounded-2xl border border-edge/20 bg-surface-subtle p-3.5">
-                <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  Will be placed for
+                <p className="mb-2 text-xs font-semibold text-ink-subtle">
+                  {ui("Will be placed for")}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {preview.wouldPlace.map((c) => (
-                    <span
+                    <bdi
                       key={c}
-                      className="rounded-lg bg-white px-2 py-1 text-2xs font-bold text-primary shadow-sm"
+                      className="rounded-lg bg-card px-2 py-1 text-2xs font-bold text-primary shadow-sm"
                     >
                       {c}
-                    </span>
+                    </bdi>
                   ))}
                 </div>
               </div>
             ) : (
               <Alert tone="warning" compact live="off">
-                Nothing can be placed in this slot — every class is blocked.
+                {ui("Nothing can be placed in this slot — every class is blocked.")}
               </Alert>
             )}
           </>

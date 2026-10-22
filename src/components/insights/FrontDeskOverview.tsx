@@ -9,16 +9,14 @@
  * context to judge it against.
  */
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
-  AlertCircle,
   CheckCircle2,
   DoorOpen,
-  FileText,
-  Mail,
   MessageSquare,
   Phone,
   PhoneIncoming,
+  UserCheck,
   Users,
 } from "lucide-react";
 import {
@@ -38,6 +36,7 @@ import { CommandHero } from "./CommandHero";
 import { EmptyChart, InsightCard, SeriesLegend, StatTile, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, compact } from "./palette";
 import { Button } from "@/components/ui/button";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 
 export interface FrontDeskSummary {
@@ -69,22 +68,28 @@ function dayLabel(iso: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function titleCase(value: string): string {
-  return value
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ");
-}
+const COMPLAINT_LABEL: Record<string, string> = { OPEN: "Open", IN_PROGRESS: "In progress", RESOLVED: "Resolved", CLOSED: "Closed" };
 
 export function FrontDeskOverview({
   summary,
   campusLabel,
   onNavigate,
+  queue,
+  pickupsWaiting = null,
 }: {
   summary: FrontDeskSummary;
   campusLabel: string;
   onNavigate: (view: string) => void;
+  /**
+   * The landing view's one work queue ("waiting on you", role-ux §4.5.8), shown under the KPI tiles. The receptionist
+   * console loads and renders it (`FrontDeskQueue` in `src/app/receptionist/page.tsx`); this overview stays
+   * presentational, like every other insights screen.
+   */
+  queue?: ReactNode;
+  /** Pickups at the gate still waiting (identity check or the pickup lead); from the queue, null while it loads. */
+  pickupsWaiting?: number | null;
 }) {
+  const tr = useUiText();
   const derived = useMemo(() => {
     const visitors = summary.visitorsByDay.map((d) => ({ label: dayLabel(d.day), count: d.count }));
     const fortnightVisitors = summary.visitorsByDay.reduce((sum, d) => sum + d.count, 0);
@@ -96,7 +101,7 @@ export function FrontDeskOverview({
     const complaints = summary.complaintsByStatus
       .map((c) => ({
         status: c.status,
-        label: titleCase(c.status),
+        label: tr(COMPLAINT_LABEL[c.status] ?? c.status),
         count: c.count,
         color: COMPLAINT_COLOR[c.status] ?? STATUS.neutral,
       }))
@@ -109,8 +114,8 @@ export function FrontDeskOverview({
     // over the same fortnight, so one pair of axes serves them both.
     const traffic = summary.callsByDay.map((d, i) => ({
       label: dayLabel(d.day),
-      Calls: d.count,
-      Post: summary.postalByDay[i]?.count ?? 0,
+      calls: d.count,
+      post: summary.postalByDay[i]?.count ?? 0,
     }));
 
     return {
@@ -124,85 +129,86 @@ export function FrontDeskOverview({
       openComplaints,
       totalComplaints: complaints.reduce((sum, c) => sum + c.count, 0),
       traffic,
-      hasTraffic: traffic.some((t) => t.Calls > 0 || t.Post > 0),
+      hasTraffic: traffic.some((t) => t.calls > 0 || t.post > 0),
     };
-  }, [summary]);
+  }, [summary, tr]);
 
   const totalCalls = summary.callsIn + summary.callsOut;
   const totalPost = summary.postalReceived + summary.postalDispatched;
 
   return (
     <div className="space-y-5">
+      {/* Spotlight anchor for the receptionist tour's first step (role-ux §9.4). */}
+      <div data-tour="reception.today.summary">
       <CommandHero
         eyebrow={campusLabel}
-        title="Front desk command centre"
+        title={tr("On site today")}
         heroValue={compact(summary.visitorsToday)}
-        heroLabel="Visitors signed in today"
+        heroLabel={tr("Visitors signed in today")}
         heroCaption={
           derived.fortnightVisitors > 0
-            ? `${summary.stillInside} still inside. Averaging ${derived.dailyAverage} a day over the last fortnight.`
-            : "No visitors logged in the last fortnight."
+            ? tr("{0} still inside. Averaging {1} a day over the last fortnight.", [summary.stillInside, derived.dailyAverage])
+            : tr("No visitors logged in the last fortnight.")
         }
         meters={[
           {
-            label: "Signed out again",
+            label: tr("Signed out again"),
             value: Math.max(0, summary.visitorsToday - summary.stillInside),
             max: summary.visitorsToday || 1,
             valueLabel:
               summary.visitorsToday > 0
                 ? `${summary.visitorsToday - summary.stillInside} / ${summary.visitorsToday}`
-                : "Nobody in yet",
+                : tr("Nobody in yet"),
             color: summary.stillInside === 0 ? STATUS.good : STATUS.warning,
           },
           {
-            label: "Complaints resolved",
+            label: tr("Complaints resolved"),
             value: derived.totalComplaints - derived.openComplaints,
             max: derived.totalComplaints || 1,
             valueLabel:
               derived.totalComplaints > 0
                 ? `${derived.totalComplaints - derived.openComplaints} / ${derived.totalComplaints}`
-                : "None logged",
+                : tr("None logged"),
             color: derived.openComplaints === 0 ? STATUS.good : STATUS.warning,
           },
-        ]}
-        pills={[
-          { icon: DoorOpen, label: "Still inside", value: summary.stillInside, onClick: () => onNavigate("visitors"), tone: summary.stillInside > 0 ? "warning" : "default" },
-          { icon: MessageSquare, label: "Open complaints", value: derived.openComplaints, onClick: () => onNavigate("complaints"), tone: derived.openComplaints > 0 ? "critical" : "default" },
-          { icon: PhoneIncoming, label: "Follow-ups due", value: summary.followUpsDue, onClick: () => onNavigate("phone-calls"), tone: summary.followUpsDue > 0 ? "warning" : "default" },
-          { icon: FileText, label: "Certificates", value: summary.certificateTemplates, onClick: () => onNavigate("certificates") },
         ]}
         aside={
           <div className="flex w-full max-w-[148px] flex-col items-center justify-center gap-3 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-primary">
-              {summary.stillInside > 0 ? <Users className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
+              {summary.stillInside > 0 ? <Users className="h-6 w-6" aria-hidden /> : <CheckCircle2 className="h-6 w-6" aria-hidden />}
             </span>
             <div>
-              <p className="text-3xl font-extrabold leading-none tracking-tight tabular-nums text-ink-strong">{summary.stillInside}</p>
-              <p className="mt-1.5 text-2xs font-semibold uppercase leading-tight tracking-wider text-ink-subtle">
-                {summary.stillInside === 1 ? "Visitor in the building" : "Visitors in the building"}
+              <p className="text-3xl font-extrabold leading-none tracking-tight tabular-nums text-ink-strong"><bdi>{summary.stillInside}</bdi></p>
+              <p className="mt-1.5 text-xs font-semibold leading-tight text-ink-subtle">
+                {tr(summary.stillInside === 1 ? "Visitor in the building" : "Visitors in the building")}
               </p>
             </div>
           </div>
         }
       />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatTile icon={Users} label="Visitors" value={summary.visitorsToday} sub="Today" tone="brand" trend={derived.fortnightVisitors > 0 ? derived.visitors.map((v) => v.count).slice(-12) : undefined} onClick={() => onNavigate("visitors")} delay={80} />
-        <StatTile icon={MessageSquare} label="Open complaints" value={derived.openComplaints} sub={`${derived.totalComplaints} logged in total`} tone={derived.openComplaints > 0 ? "critical" : "good"} onClick={() => onNavigate("complaints")} delay={140} />
-        <StatTile icon={Phone} label="Calls" value={totalCalls} sub={`${summary.callsIn} in · ${summary.callsOut} out`} onClick={() => onNavigate("phone-calls")} delay={200} />
-        <StatTile icon={Mail} label="Post" value={totalPost} sub={`${summary.postalReceived} in · ${summary.postalDispatched} out`} onClick={() => onNavigate("postal")} delay={260} />
-        <StatTile icon={AlertCircle} label="Follow-ups" value={summary.followUpsDue} sub="Calls to return" tone={summary.followUpsDue > 0 ? "warning" : "good"} onClick={() => onNavigate("phone-calls")} delay={320} />
       </div>
+
+      {/* At most four KPI tiles on a landing screen (role-ux §4.5.8). */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile icon={DoorOpen} label={tr("Visitors")} value={summary.visitorsToday} sub={tr("{0} still inside", [summary.stillInside])} tone={summary.stillInside > 0 ? "warning" : "brand"} trend={derived.fortnightVisitors > 0 ? derived.visitors.map((v) => v.count).slice(-12) : undefined} onClick={() => onNavigate("visitors")} delay={80} />
+        <StatTile icon={PhoneIncoming} label={tr("Callbacks due")} value={summary.followUpsDue} sub={tr("{0} calls in · {1} out", [summary.callsIn, summary.callsOut])} tone={summary.followUpsDue > 0 ? "warning" : "good"} onClick={() => onNavigate("phone-calls")} delay={140} />
+        {/* Who is on site, callbacks due and pickups waiting (the registry summary for Today); post stays in the
+            traffic chart below and its own view. */}
+        <StatTile icon={UserCheck} label={tr("Pickups waiting")} value={pickupsWaiting ?? "—"} sub={tr("At the gate today")} tone={pickupsWaiting ? "warning" : "good"} onClick={() => onNavigate("pickup")} delay={200} />
+        <StatTile icon={MessageSquare} label={tr("Open complaints")} value={derived.openComplaints} sub={tr("{0} logged in total", [derived.totalComplaints])} tone={derived.openComplaints > 0 ? "critical" : "good"} onClick={() => onNavigate("complaints")} delay={260} />
+      </div>
+
+      {queue}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <InsightCard
           icon={Users}
-          title="Visitors through the door"
-          subtitle="Last 14 days"
+          title={tr("Visitors through the door")}
+          subtitle={tr("Last 14 days")}
           className="xl:col-span-2"
           delay={120}
           table={{
-            columns: ["Day", "Visitors"],
+            columns: [tr("Day"), tr("Visitors")],
             rows: derived.visitors.map((v) => [v.label, v.count]),
           }}
         >
@@ -224,12 +230,12 @@ export function FrontDeskOverview({
                   tickLine={false}
                   allowDecimals={false}
                 />
-                <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip unit=" visitors" />} />
+                <Tooltip cursor={{ stroke: INK.axis, strokeWidth: 1 }} content={<VizTooltip />} />
                 <Area
                   {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="count"
-                  name="Visitors"
+                  name={tr("Visitors")}
                   stroke={SERIES[0]}
                   strokeWidth={2}
                   fill="url(#frontDeskVisitorWash)"
@@ -239,26 +245,22 @@ export function FrontDeskOverview({
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <EmptyChart label="No visitors logged in the last fortnight" />
+            <EmptyChart label={tr("No visitors logged in the last fortnight")} />
           )}
         </InsightCard>
 
         <InsightCard
           icon={MessageSquare}
-          title="Complaints"
-          subtitle="By state"
+          title={tr("Complaints")}
+          subtitle={tr("By state")}
           delay={180}
           actions={
-            <Button variant="link" size="sm"
-              type="button"
-              onClick={() => onNavigate("complaints")}
-
-            >
-              Open
+            <Button variant="link" size="sm" type="button" onClick={() => onNavigate("complaints")}>
+              {tr("Open")}
             </Button>
           }
           table={{
-            columns: ["State", "Complaints"],
+            columns: [tr("State"), tr("Complaints")],
             rows: derived.complaints.map((c) => [c.label, c.count]),
           }}
         >
@@ -269,8 +271,8 @@ export function FrontDeskOverview({
                   <CartesianGrid horizontal={false} stroke={INK.grid} />
                   <XAxis type="number" tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} width={84} />
-                  <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit=" complaints" />} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name="Complaints" radius={[0, 4, 4, 0]} maxBarSize={22}>
+                  <Tooltip cursor={{ fill: INK.grid }} content={<VizTooltip />} />
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="count" name={tr("Complaints")} radius={[0, 4, 4, 0]} maxBarSize={22}>
                     {derived.complaints.map((c) => (
                       <Cell key={c.status} fill={c.color} />
                     ))}
@@ -281,19 +283,19 @@ export function FrontDeskOverview({
               <SeriesLegend className="mt-3" items={derived.complaints.map((c) => ({ label: c.label, color: c.color, value: c.count }))} />
             </>
           ) : (
-            <EmptyChart label="No complaints have been logged" />
+            <EmptyChart label={tr("No complaints have been logged")} />
           )}
         </InsightCard>
       </div>
 
       <InsightCard
         icon={Phone}
-        title="Calls and post"
-        subtitle="Traffic through the desk, last 14 days"
+        title={tr("Calls and post")}
+        subtitle={tr("Traffic through the desk, last 14 days")}
         delay={120}
         table={{
-          columns: ["Day", "Calls", "Post"],
-          rows: derived.traffic.map((t) => [t.label, t.Calls, t.Post]),
+          columns: [tr("Day"), tr("Calls"), tr("Post")],
+          rows: derived.traffic.map((t) => [t.label, t.calls, t.post]),
         }}
       >
         {derived.hasTraffic ? (
@@ -303,21 +305,21 @@ export function FrontDeskOverview({
                 <CartesianGrid vertical={false} stroke={INK.grid} />
                 <XAxis dataKey="label" tick={AXIS_TICK} axisLine={false} tickLine={false} minTickGap={14} />
                 <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip />} />
-                <Bar {...NO_ENTRY_ANIMATION} dataKey="Calls" fill={SERIES[0]} radius={[3, 3, 0, 0]} maxBarSize={14} />
-                <Bar {...NO_ENTRY_ANIMATION} dataKey="Post" fill={SERIES[2]} radius={[3, 3, 0, 0]} maxBarSize={14} />
+                <Tooltip cursor={{ fill: INK.grid }} content={<VizTooltip />} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="calls" name={tr("Calls")} fill={SERIES[0]} radius={[3, 3, 0, 0]} maxBarSize={14} />
+                <Bar {...NO_ENTRY_ANIMATION} dataKey="post" name={tr("Post")} fill={SERIES[2]} radius={[3, 3, 0, 0]} maxBarSize={14} />
               </BarChart>
             </ResponsiveContainer>
             <SeriesLegend
               className="mt-3"
               items={[
-                { label: "Calls", color: SERIES[0], value: totalCalls },
-                { label: "Post", color: SERIES[2], value: totalPost },
+                { label: tr("Calls"), color: SERIES[0], value: totalCalls },
+                { label: tr("Post"), color: SERIES[2], value: totalPost },
               ]}
             />
           </>
         ) : (
-          <EmptyChart label="No calls or post logged in the last fortnight" />
+          <EmptyChart label={tr("No calls or post logged in the last fortnight")} />
         )}
       </InsightCard>
     </div>

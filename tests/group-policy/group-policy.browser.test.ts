@@ -12,6 +12,10 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 // change in between makes the approval stale; locked keys refuse changes through the grading API and the override
 // path; overrides record reason, approver, validity and the version they modify, and expire back to the inherited
 // value; scheduled versions activate once at their date; earlier records keep the version that governed them.
+// role-ux §7.3 G16 (GROUP school): the library, templates and reviews belong to the group admin; override requests to the
+// campus admin of a group campus (the principal reads the campus policy and sets grading, but no longer requests
+// overrides); `/group-policy` redirects the group admin to Standards › Policies and a group campus admin to Campus setup ›
+// Group standards (§6.3), and sends everyone else home.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.POLICY_TEST_APP || "http://localhost:3107";
@@ -48,14 +52,14 @@ const grading = (key: string, extra: Record<string, unknown> = {}) => call(key, 
 const previewOf = (key: string, versionId: string, effectiveFrom?: string) => call(key, "get", `/api/group-policy?view=preview&versionId=${versionId}${effectiveFrom ? `&effectiveFrom=${encodeURIComponent(effectiveFrom)}` : ""}`);
 
 before(async () => {
-  await db.school.create({ data: { id: schoolId, name: "Synthetic Crescent Group", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: "Asia/Karachi" } as never });
+  await db.school.create({ data: { id: schoolId, name: "Synthetic Crescent Group", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: "Asia/Karachi", registrationKind: "GROUP" } as never });
   for (const [cid, name, board, country] of [[north, "Crescent Lahore", "FBISE", "PK"], [riyadh, "Crescent Riyadh", "MOE", "SA"], [dubai, "Crescent Dubai", "IB", "AE"]]) {
     await db.campus.create({ data: { id: cid, schoolId, name, regId: cid, city: name.split(" ")[1], board } });
     await db.academicCycle.create({ data: { schoolId, campusId: cid, label: "2026", academicYear: 2026, status: "ACTIVE" } });
     await db.localePolicy.create({ data: { schoolId, campusId: cid, scopeKey: cid, settings: { country }, effectiveAt: new Date("2026-01-01Z"), createdBy: "synthetic" } });
   }
   await user("owner1", "SUPER_ADMIN"); await user("owner2", "SUPER_ADMIN"); await user("principal", "PRINCIPAL"); await user("dubaiPrincipal", "PRINCIPAL", dubai); await user("teacher", "TEACHER");
-  await user("principal-ar", "PRINCIPAL", north, "ar");
+  await user("campus", "CAMPUS_ADMIN"); await user("dubaiCampus", "CAMPUS_ADMIN", dubai); await user("campus-ar", "CAMPUS_ADMIN", north, "ar");
   for (const [cid, sec] of [[north, "A"], [north, "B"], [dubai, "A"]]) await db.class.create({ data: { id: randomUUID(), schoolId, campusId: cid, name: "Grade 7", section: sec, academicYear: 2026 } });
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
@@ -63,14 +67,17 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await db.school.delete({ where: { id: schoolId } }).catch(() => undefined); await db.$disconnect(); });
 
-test("no template: campus settings stand, staff can read them, only owners publish and only campus leaders request", async () => {
+test("no template: campus settings stand, staff can read them, only the group admin publishes and only campus admins request", async () => {
   assert.equal((await grading("principal")).status, 200, "the campus sets its own grading while no template governs it");
   const view = await campusView("teacher", north);
   assert.equal(view.status, 200);
   assert.equal(view.json.data.template, null);
   assert.deepEqual([row(view, "passingPercentage").source, row(view, "passingPercentage").value], ["CAMPUS", 50]);
   assert.equal(view.json.data.canRequest, false);
+  assert.equal((await campusView("principal", north)).json.data.canRequest, false, "G16: the principal no longer requests overrides");
+  assert.equal((await campusView("campus", north)).json.data.canRequest, true, "the group campus admin requests overrides for its campus");
   assert.equal((await call("teacher", "get", "/api/group-policy?view=library")).status, 403);
+  assert.equal((await call("campus", "get", "/api/group-policy?view=library")).status, 403, "campus admins are not the group admin");
   assert.equal((await call("principal", "get", "/api/group-policy?view=library")).status, 403, "campus leaders are not group owners");
   assert.equal((await gp("principal", { action: "template", domain: "GRADING", title: "X", campusIds: [north] })).status, 403);
   assert.equal((await call("teacher", "get", `/api/group-policy?view=campus&domain=GRADING&campusId=${dubai}`)).json.data.campus.id, north, "campus staff see their own campus only");
@@ -141,18 +148,19 @@ test("locked values refuse changes through the grading API and the override path
   assert.equal(prov.length, 2, "both sections record the version that governed them");
   assert.ok(prov.every(x => x.versionId === ids.v1));
   ids.provRecord = rows[0].id;
-  const viaOverride = await gp("principal", { action: "request-override", campusId: north, domain: "GRADING", key: "passingPercentage", value: 35, reason: "Board allows 33", validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString() });
+  const viaOverride = await gp("campus", { action: "request-override", campusId: north, domain: "GRADING", key: "passingPercentage", value: 35, reason: "Board allows 33", validUntil: new Date(Date.now() + 30 * 86_400_000).toISOString() });
   assert.equal(viaOverride.status, 403); assert.match(viaOverride.json.error ?? "", /locked/);
   assert.equal((await gp("teacher", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 85, reason: "x x x x x", validUntil: new Date(Date.now() + 86_400_000).toISOString() })).status, 403);
 });
 
 test("an override records reason, approver, validity and the version it modifies, then expires back to the inherited value", async () => {
   const until = new Date(Date.now() + 30 * 86_400_000).toISOString();
-  assert.equal((await gp("principal", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 85, reason: "", validUntil: until })).status, 400, "a reason is required");
-  const r = await gp("principal", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 85, reason: "FBISE scholarship bands start A at 85 this year", validUntil: until });
+  assert.equal((await gp("campus", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 85, reason: "", validUntil: until })).status, 400, "a reason is required");
+  const r = await gp("campus", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 85, reason: "FBISE scholarship bands start A at 85 this year", validUntil: until });
   assert.equal(r.status, 201); ids.o1 = r.json.data.id;
   assert.equal(row(await campusView("principal", north), "gradeA").value, 80, "pending changes nothing");
-  assert.equal((await gp("principal", { action: "decide-override", id: ids.o1, decision: "APPROVE" })).status, 403, "campus leaders do not approve");
+  assert.equal((await gp("campus", { action: "decide-override", id: ids.o1, decision: "APPROVE" })).status, 403, "campus admins do not approve");
+  assert.equal((await gp("principal", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeB", value: 72, reason: "The principal asks for a different band", validUntil: until })).status, 403, "G16: override requests are the campus admin's");
   assert.equal((await gp("owner1", { action: "decide-override", id: ids.o1, decision: "APPROVE" })).status, 200);
   const o = await db.policyOverride.findUniqueOrThrow({ where: { id: ids.o1 } });
   assert.deepEqual([o.reason, o.approverId, o.versionId, o.status], ["FBISE scholarship bands start A at 85 this year", id("owner1"), ids.v1, "APPROVED"]);
@@ -175,7 +183,7 @@ test("an override records reason, approver, validity and the version it modifies
 });
 
 test("a future version is staged, shows kept and ended overrides, activates once at its date, and history keeps v1", async () => {
-  const pending = await gp("principal", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 82, reason: "Second request for the spring term", validUntil: new Date(Date.now() + 60 * 86_400_000).toISOString() });
+  const pending = await gp("campus", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 82, reason: "Second request for the spring term", validUntil: new Date(Date.now() + 60 * 86_400_000).toISOString() });
   assert.equal(pending.status, 201);
   const d2 = await gp("owner1", { action: "draft", templateId: ids.t, values: { passingPercentage: 45, gradeA: 80, roundingRule: "WHOLE" }, overridableKeys: [] });
   ids.v2 = d2.json.data.id;
@@ -199,7 +207,7 @@ test("a future version is staged, shows kept and ended overrides, activates once
   assert.deepEqual((await db.policyTemplateVersion.findMany({ where: { templateId: ids.t }, orderBy: { version: "asc" } })).map(v => v.status), ["SUPERSEDED", "ACTIVE"]);
   assert.equal(row(await campusView("principal", north), "passingPercentage").value, 45);
   assert.equal((await db.policyOverride.findFirstOrThrow({ where: { schoolId, key: "gradeA", value: { equals: 82 } } })).status, "REVOKED", "the pending override v2 locks out ended at activation");
-  assert.equal((await gp("principal", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 84, reason: "Third request after v2", validUntil: new Date(Date.now() + 86_400_000).toISOString() })).status, 403, "v2 locks gradeA");
+  assert.equal((await gp("campus", { action: "request-override", campusId: north, domain: "GRADING", key: "gradeA", value: 84, reason: "Third request after v2", validUntil: new Date(Date.now() + 86_400_000).toISOString() })).status, 403, "v2 locks gradeA");
   const prov = await call("principal", "get", `/api/group-policy?view=provenance&recordType=GRADE_WEIGHT_CONFIG&recordId=${ids.provRecord}`);
   assert.ok(prov.json.data.length >= 1 && prov.json.data.every((x: { versionId: string }) => x.versionId === ids.v1), "earlier rows keep v1 as their provenance");
   assert.equal((await db.gradeWeightConfig.findUniqueOrThrow({ where: { id: ids.provRecord } })).passingPercentage, 40, "activation does not rewrite existing records");
@@ -207,17 +215,20 @@ test("a future version is staged, shows kept and ended overrides, activates once
 });
 
 test("screens: campus policy cards, override request, group impact preview, phone, Arabic", async () => {
-  const p = await (await context("principal")).newPage();
+  const campusSetup = /\/admin\?view=settings&tab=group-standards/;
+  const p = await (await context("campus")).newPage();
   await p.goto(`${base}/group-policy`);
+  await p.waitForURL(campusSetup);
   await p.locator('[data-policy-row="passingPercentage"][data-policy-source="GROUP_LOCKED"]').waitFor();
   assert.match(await p.locator('[data-policy-row="passingPercentage"]').innerText(), /Locked by Group Policy v2/);
-  assert.equal(await p.locator("[data-group-library]").count(), 0, "campus leaders do not see the group library");
+  assert.equal(await p.locator("[data-group-library]").count(), 0, "campus admins do not see the group library");
   await shot(p, "01-campus-policy");
   await p.close();
   // A draft v3 to preview on screen (Dubai is not on this template; the IB one is separate).
   await gp("owner1", { action: "draft", templateId: ids.t, values: { passingPercentage: 45, gradeA: 80, roundingRule: "WHOLE", gradeB: 70 }, overridableKeys: ["gradeB"] });
   const o = await (await context("owner1")).newPage();
   await o.goto(`${base}/group-policy`);
+  await o.waitForURL(/\/super\?view=standards&tab=policies/);
   await o.locator('[data-template="Crescent PK board grading"] [data-template-open]').click();
   await o.locator("[data-draft-preview]").click();
   await o.locator("[data-impact]").waitFor();
@@ -225,22 +236,32 @@ test("screens: campus policy cards, override request, group impact preview, phon
   await o.locator('[data-template="Crescent IB grading"] [data-template-open]').click();
   await o.close();
   // A scheduled future version and an override request on a phone.
-  const phone = await (await context("principal", { width: 390, height: 844 })).newPage();
+  const phone = await (await context("campus", { width: 390, height: 844 })).newPage();
   await phone.goto(`${base}/group-policy`);
+  await phone.waitForURL(campusSetup);
   await phone.locator("[data-campus-policy] [data-policy-row]").first().waitFor();
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, "no sideways scroll at phone width");
   await shot(phone, "03-campus-policy-phone");
   await phone.close();
-  const ar = await (await context("principal-ar")).newPage();
+  const ar = await (await context("campus-ar")).newPage();
   await ar.goto(`${base}/group-policy`);
+  await ar.waitForURL(campusSetup);
   await ar.locator('[data-policy-row="passingPercentage"]').waitFor();
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
   assert.match(await ar.locator('[data-policy-row="passingPercentage"]').innerText(), /[؀-ۿ]/);
   await shot(ar, "04-campus-policy-ar");
   await ar.close();
-  const dub = await (await context("dubaiPrincipal")).newPage();
+  const dub = await (await context("dubaiCampus")).newPage();
   await dub.goto(`${base}/group-policy`);
+  await dub.waitForURL(campusSetup);
   await dub.locator("[data-policy-no-template], [data-policy-row]").first().waitFor();
   await shot(dub, "05-dubai-campus");
   await dub.close();
+  // The principal and the teacher have no group-standards screen: home (§6.3).
+  for (const [key, home] of [["principal", "/principal"], ["teacher", "/teacher"]] as const) {
+    const page = await (await context(key)).newPage();
+    await page.goto(`${base}/group-policy`);
+    await page.waitForURL((target) => target.pathname === home);
+    await page.close();
+  }
 });

@@ -21,20 +21,21 @@ import {
 } from "@/components/teacher/teacher-components";
 import { useTeacherData } from "../teacher-data-context";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
-import { LearningActions } from "@/components/learning/learning-actions";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 export default function TeacherInsightsPage() {
+  const ui = useUiText();
   const { data, loading, error, refetch } = useTeacherData();
   const router = useRouter();
 
   const attendanceStats = data?.attendanceSummary || { total: 0, present: 0, absent: 0, leave: 0, unmarked: 0 };
 
   const attendanceChartData = useMemo(() => [
-    { name: "Present", value: attendanceStats.present, color: "var(--color-status-success-text)" },
-    { name: "Absent", value: attendanceStats.absent, color: "var(--color-status-error-text)" },
-    { name: "Leave", value: attendanceStats.leave, color: "var(--color-status-warning-text)" },
-    { name: "Unmarked", value: attendanceStats.unmarked, color: "var(--color-border-subtle)" },
-  ].filter((d) => d.value > 0), [attendanceStats]);
+    { name: ui("Present"), value: attendanceStats.present, color: "var(--color-status-success-text)" },
+    { name: ui("Absent"), value: attendanceStats.absent, color: "var(--color-status-error-text)" },
+    { name: ui("Leave"), value: attendanceStats.leave, color: "var(--color-status-warning-text)" },
+    { name: ui("Unmarked"), value: attendanceStats.unmarked, color: "var(--color-border-subtle)" },
+  ].filter((d) => d.value > 0), [attendanceStats, ui]);
 
   const marksProgressData = useMemo(() => {
     const exams = (data?.exams || []).slice(0, 5);
@@ -92,11 +93,12 @@ export default function TeacherInsightsPage() {
   return (
     <TeacherPage
       icon={BarChart3}
-      eyebrow="My Performance"
-      title="Insights"
-      summary="Attendance, marks progress and quick metrics across your work"
+      title="My teaching evidence"
+      description="The evidence your academic lead records with you, where you can respond, and how each of your classes is doing."
     >
       <div className="space-y-3">
+        {/* SKO-461: the teacher's own bounded evidence and a place to respond — what this page is for. */}
+        <TeacherPerformancePanel self />
         <div className="sk-stagger grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {/* Attendance Donut */}
           <div className="sk-panel min-w-0 p-4">
@@ -106,8 +108,8 @@ export default function TeacherInsightsPage() {
                   <CalendarCheck className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Attendance Breakdown</h2>
-                  <p className="sk-eyebrow">Today</p>
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">{ui("Attendance breakdown")}</h2>
+                  <p className="sk-eyebrow">{ui("Today")}</p>
                 </div>
               </div>
             </div>
@@ -134,9 +136,9 @@ export default function TeacherInsightsPage() {
                     <div key={item.label} className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
                         <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="truncate text-xs font-medium text-ink-muted">{item.label}</span>
+                        <span className="truncate text-xs font-medium text-ink-muted">{ui(item.label)}</span>
                       </div>
-                      <span className="text-sm font-bold tabular-nums text-ink-strong">{item.value}</span>
+                      <span className="text-sm font-bold tabular-nums text-ink-strong"><bdi>{item.value}</bdi></span>
                     </div>
                   ))}
                 </div>
@@ -145,8 +147,8 @@ export default function TeacherInsightsPage() {
               <EmptyState
                 size="sm"
                 icon={CalendarCheck}
-                title="No attendance data yet"
-                description="No students are enrolled in your classes yet, so there is nothing to count today."
+                title={ui("No attendance data yet")}
+                description={ui("No students are enrolled in your classes yet, so there is nothing to count today.")}
                 className="rounded-2xl bg-surface-subtle"
               />
             )}
@@ -160,16 +162,16 @@ export default function TeacherInsightsPage() {
                   <BarChart3 className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Marks Progress</h2>
-                  <p className="sk-eyebrow">Entry status</p>
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">{ui("Marks progress")}</h2>
+                  <p className="sk-eyebrow">{ui("Entry status")}</p>
                 </div>
               </div>
               {marksProgressData.length > 0 ? (
                 <span className="inline-flex items-center gap-0.5">
                   <Badge size="sm" dot data-numeric variant={completionRate >= 80 ? "success" : completionRate >= 50 ? "warning" : "danger"}>
-                    {completionRate}% Complete
+                    {ui("{0}% complete", [completionRate])}
                   </Badge>
-                  <InfoTip content="Marks entered out of marks expected, across the assessments in this chart (up to five)." />
+                  <InfoTip content={ui("Marks entered out of marks expected, across the assessments in this chart (up to five).")} />
                 </span>
               ) : null}
             </div>
@@ -187,12 +189,12 @@ export default function TeacherInsightsPage() {
               <EmptyState
                 size="sm"
                 icon={BarChart3}
-                title="No exam data yet"
-                description="Entry progress shows here once an assessment exists for one of your classes."
+                title={ui("No exam data yet")}
+                description={ui("Entry progress shows here once an assessment exists for one of your classes.")}
                 className="rounded-2xl bg-surface-subtle"
                 action={
                   <Button size="sm" variant="secondary" type="button" onClick={() => router.push("/teacher/marks")}>
-                    Go to marks
+                    {ui("Go to Marks")}
                   </Button>
                 }
               />
@@ -203,33 +205,34 @@ export default function TeacherInsightsPage() {
           <div className="sk-panel min-w-0 p-4 md:col-span-2 xl:col-span-1">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-status-warning-surface text-status-warning-text">
                   <TrendingUp className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Quick Insights</h2>
-                  <p className="sk-eyebrow">Snapshot</p>
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">{ui("Quick insights")}</h2>
+                  <p className="sk-eyebrow">{ui("Snapshot")}</p>
                 </div>
               </div>
             </div>
             <div className="space-y-3">
               {[
                 {
-                  label: "Marks Completion", value: `${completionRate}%`, sub: `${marksProgressData.reduce((s: number, d: any) => s + d.Entered, 0)} of ${marksProgressData.reduce((s: number, d: any) => s + d.total, 0)} entries`,
+                  label: ui("Marks completion"), value: `${completionRate}%`,
+                  sub: ui("{0} of {1} entries", [marksProgressData.reduce((s: number, d: any) => s + d.Entered, 0), marksProgressData.reduce((s: number, d: any) => s + d.total, 0)]),
                   progress: completionRate, tone: "brand" as const,
-                  info: "Marks entered out of marks expected, across the assessments in the chart (up to five).",
+                  info: ui("Marks entered out of marks expected, across the assessments in this chart (up to five)."),
                 },
                 {
-                  label: "Attendance Rate", value: attendanceStats.total ? `${Math.round(attendanceStats.present / Math.max(attendanceStats.total, 1) * 100)}%` : "—",
-                  sub: `${attendanceStats.present} present out of ${attendanceStats.total}`,
+                  label: ui("Attendance rate"), value: attendanceStats.total ? `${Math.round(attendanceStats.present / Math.max(attendanceStats.total, 1) * 100)}%` : "—",
+                  sub: ui("{0} present out of {1}", [attendanceStats.present, attendanceStats.total]),
                   progress: attendanceStats.total ? Math.round(attendanceStats.present / attendanceStats.total * 100) : 0, tone: "success" as const,
-                  info: "Students marked present today out of every student in your classes. Students not yet marked count as not present.",
+                  info: ui("Students marked present today out of every student in your classes. Students not yet marked count as not present."),
                 },
                 {
                   // A count is not a percentage. This drew a bar at
                   // `count * 20`, so five report cards read as "100% complete"
                   // of nothing in particular. It is a figure, so show a figure.
-                  label: "Report Cards", value: String(reportCardCount), sub: "Recently generated",
+                  label: ui("Report cards"), value: String(reportCardCount), sub: ui("Recently generated"),
                   progress: null, tone: "danger" as const,
                   info: null,
                 },
@@ -237,7 +240,7 @@ export default function TeacherInsightsPage() {
                 <div key={item.label}>
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="inline-flex min-w-0 items-center gap-0.5">
-                      <span className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-muted">{item.label}</span>
+                      <span className="truncate text-2xs font-semibold text-ink-muted">{item.label}</span>
                       {item.info ? <InfoTip className="-my-1" content={item.info} /> : null}
                     </span>
                     <span className="text-sm font-bold tabular-nums text-ink-strong">{item.value}</span>
@@ -263,31 +266,31 @@ export default function TeacherInsightsPage() {
                   <GraduationCap className="h-4 w-4" />
                 </span>
                 <div className="min-w-0">
-                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">Class by class</h2>
+                  <h2 className="truncate text-base font-bold tracking-tight text-ink-strong">{ui("Class by class")}</h2>
                   <p className="text-xs text-ink-subtle">
-                    Sorted by what needs you first
+                    {ui("Sorted by what needs you first")}
                   </p>
                 </div>
               </div>
               <Badge variant="neutral" size="sm" data-numeric className="shrink-0">
-                {classBreakdown.length} class{classBreakdown.length === 1 ? "" : "es"}
+                {ui("{0} classes", [classBreakdown.length])}
               </Badge>
             </div>
 
               <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
                 <TableHeader>
                   <TableRow className="bg-brand-50/40 text-ink-muted">
-                    <TableHead className="px-4 py-3">Class</TableHead>
-                    <TableHead className="px-3 py-3 text-center">Students</TableHead>
+                    <TableHead className="px-4 py-3">{ui("Class")}</TableHead>
+                    <TableHead className="px-3 py-3 text-center">{ui("Students")}</TableHead>
                     <TableHead className="px-3 py-3 text-center">
-                      <span className="inline-flex items-center gap-0.5">In today<InfoTip className="-my-1" content="Students marked present today out of the class roster. Until the register is complete it shows how many are still unmarked." /></span>
+                      <span className="inline-flex items-center gap-0.5">{ui("In today")}<InfoTip className="-my-1" content={ui("Students marked present today out of the class roster. Until the register is complete it shows how many are still unmarked.")} /></span>
                     </TableHead>
-                    <TableHead className="px-3 py-3 text-center">Assessments</TableHead>
-                    <TableHead className="px-3 py-3">Marks entered</TableHead>
+                    <TableHead className="px-3 py-3 text-center">{ui("Assessments")}</TableHead>
+                    <TableHead className="px-3 py-3">{ui("Marks entered")}</TableHead>
                     <TableHead className="px-3 py-3 text-center">
-                      <span className="inline-flex items-center gap-0.5">Missing<InfoTip className="-my-1" content="Marks still to enter for this class's assessments, in the subjects you can mark." /></span>
+                      <span className="inline-flex items-center gap-0.5">{ui("Missing")}<InfoTip className="-my-1" content={ui("Marks still to enter for this class's assessments, in the subjects you can mark.")} /></span>
                     </TableHead>
-                    <TableHead className="px-4 py-3"><span className="sr-only">Actions</span></TableHead>
+                    <TableHead className="px-4 py-3"><span className="sr-only">{ui("Actions")}</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-muted">
@@ -296,7 +299,7 @@ export default function TeacherInsightsPage() {
                       <TableCell className="px-4 py-3">
                         <p className="text-sm font-semibold text-ink-strong">{cls.label}</p>
                         <p className="text-xs text-ink-subtle">
-                          {cls.role} · {cls.subjects} subject{cls.subjects === 1 ? "" : "s"}
+                          {ui(cls.role)} · {ui("{0} subjects", [cls.subjects])}
                         </p>
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-ink-strong">
@@ -308,11 +311,11 @@ export default function TeacherInsightsPage() {
                         ) : (
                           <span className={cn(
                             "inline-flex flex-col items-center leading-tight",
-                            cls.unmarked > 0 ? "text-amber-700" : "text-emerald-700",
+                            cls.unmarked > 0 ? "text-status-warning-text" : "text-status-success-text",
                           )}>
                             <span className="text-sm font-bold tabular-nums">{cls.present}/{cls.students}</span>
                             <span className="text-2xs font-semibold tabular-nums">
-                              {cls.unmarked > 0 ? `${cls.unmarked} unmarked` : `${cls.attendanceRate}%`}
+                              {cls.unmarked > 0 ? ui("{0} unmarked", [cls.unmarked]) : `${cls.attendanceRate}%`}
                             </span>
                           </span>
                         )}
@@ -322,14 +325,14 @@ export default function TeacherInsightsPage() {
                       </TableCell>
                       <TableCell className="px-3 py-3">
                         {cls.completion === null ? (
-                          <span className="text-xs text-ink-subtle">No assessments yet</span>
+                          <span className="text-xs text-ink-subtle">{ui("No assessments yet")}</span>
                         ) : (
                           <div className="flex items-center gap-2">
                             <Progress
                               className="min-w-[80px]"
                               size="sm"
                               value={cls.completion}
-                              label={`Marks entered for ${cls.label}`}
+                              label={ui("Marks entered for {0}", [cls.label])}
                               tone={cls.completion >= 80 ? "success" : cls.completion >= 40 ? "warning" : "danger"}
                             />
                             <span className="shrink-0 text-xs font-semibold tabular-nums text-ink-muted">
@@ -345,25 +348,25 @@ export default function TeacherInsightsPage() {
                             {cls.missing}
                           </Badge>
                         ) : (
-                          <Badge variant="success" size="sm" dot>All in</Badge>
+                          <Badge variant="success" size="sm" dot>{ui("All in")}</Badge>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-end">
                         {/* An insight the teacher cannot act on from where they
                             read it is just a number. */}
                         <div className="inline-flex gap-1.5">
-                          <HintTooltip content={`Mark attendance for ${cls.label}`}>
+                          <HintTooltip content={ui("Mark attendance for {0}", [cls.label])}>
                             <Button variant="secondary" size="sm" type="button"
                               onClick={() => router.push(`/teacher/attendance?classId=${encodeURIComponent(cls.id)}`)}
                             >
-                              Attendance
+                              {ui("Attendance")}
                             </Button>
                           </HintTooltip>
-                          <HintTooltip content={`Enter marks for ${cls.label}`}>
+                          <HintTooltip content={ui("Enter marks for {0}", [cls.label])}>
                             <Button variant="secondary" size="sm" type="button"
                               onClick={() => router.push(`/teacher/marks?classId=${encodeURIComponent(cls.id)}`)}
                             >
-                              Marks
+                              {ui("Marks")}
                             </Button>
                           </HintTooltip>
                         </div>
@@ -375,10 +378,7 @@ export default function TeacherInsightsPage() {
 
           </div>
         ) : null}
-        {/* SKO-461: the teacher's own bounded evidence and a place to respond. */}
-        <TeacherPerformancePanel self />
-        {/* SKO-425: learning actions the teacher owns or drafted. */}
-        <LearningActions />
+        {/* Learning actions moved to Students (M65). */}
       </div>
     </TeacherPage>
   );

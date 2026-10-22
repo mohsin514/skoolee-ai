@@ -7,7 +7,7 @@
  * the card renders its empty state rather than a fabricated trend.
  */
 
-import { minorUnits } from "@/lib/locale/package";
+import { defaultLocale, minorUnits } from "@/lib/locale/package";
 import { fromMinor, GRADE_COLOR, GRADE_ORDER, RAMP_BRAND, STATUS } from "./palette";
 
 /** Matches the server's ON_ROLL filter, so counts agree with the headline. */
@@ -219,8 +219,11 @@ export interface EnrolmentMonth {
  * Admissions by month, plus the running roll. Only months from the first
  * enrolment onward are emitted, so a young school does not get a year of
  * flat-zero runway.
+ *
+ * `locale` is the app's locale tag (`localeTag(useLocale())`, e.g. "ar-u-ca-gregory-nu-latn") so month labels follow
+ * the app language, not the browser (R7, P9-12). Without it the labels are English; `key` ("2026-10") stays numeric.
  */
-export function enrolmentTrend(students: any[], months = 12): EnrolmentMonth[] {
+export function enrolmentTrend(students: any[], months = 12, locale = "en"): EnrolmentMonth[] {
   const dated = (students ?? [])
     .map((s: any) => s?.enrollmentDate)
     .filter(Boolean)
@@ -242,6 +245,8 @@ export function enrolmentTrend(students: any[], months = 12): EnrolmentMonth[] {
   const end = new Date();
   const rows: EnrolmentMonth[] = [];
   let running = 0;
+  let monthFormat: Intl.DateTimeFormat;
+  try { monthFormat = new Intl.DateTimeFormat(locale, { month: "short" }); } catch { monthFormat = new Intl.DateTimeFormat("en", { month: "short" }); }
   const cursor = new Date(start);
   while (cursor <= end) {
     const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
@@ -249,7 +254,7 @@ export function enrolmentTrend(students: any[], months = 12): EnrolmentMonth[] {
     running += joined;
     rows.push({
       key,
-      label: cursor.toLocaleDateString(undefined, { month: "short" }),
+      label: monthFormat.format(cursor),
       joined,
       total: running,
     });
@@ -287,7 +292,7 @@ const FEE_COLOR: Record<string, string> = {
 
 /** Normalises Prisma groupBy rows, whose `_count` is a number in one payload
  *  and an object in another. */
-export function feeBuckets(byStatus: any[], currency = "PKR"): FeeBucket[] {
+export function feeBuckets(byStatus: any[], currency: string = defaultLocale.currency): FeeBucket[] {
   return (byStatus ?? [])
     .map((row: any) => {
       const status = String(row.status ?? "").toUpperCase();
@@ -386,10 +391,10 @@ export function campusRows(campuses: any[]): CampusRow[] {
     const billed = fromMinor(
       Object.entries(invoice)
         .filter(([status]) => status !== "CANCELLED")
-        .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0), campus.currency ?? "PKR",
+        .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0), campus.currency ?? defaultLocale.currency,
     );
     const collected = fromMinor(
-      ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0), campus.currency ?? "PKR",
+      ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0), campus.currency ?? defaultLocale.currency,
     );
 
     const percentages = (campus.students ?? [])
@@ -477,7 +482,7 @@ export function campusFeeStack(campuses: any[]): CampusFeeStack[] {
   return (campuses ?? [])
     .map((campus: any) => {
       const summary = campus.invoiceSummary ?? {};
-      const amount = (key: string) => fromMinor(summary[key]?.amount ?? 0, campus.currency ?? "PKR");
+      const amount = (key: string) => fromMinor(summary[key]?.amount ?? 0, campus.currency ?? defaultLocale.currency);
       const row = {
         name: campus.name,
         Paid: amount("PAID"),

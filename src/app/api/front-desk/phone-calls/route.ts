@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { actOnCallback, callbackHistory, listCalls, logCall } from "@/lib/front-desk/phone-calls";
+import { actOnCallback, callbackHistory, listCalls, logCall, ownerCandidates } from "@/lib/front-desk/phone-calls";
 import {
   ApiError,
   assertModuleRead,
@@ -14,7 +13,7 @@ import {
 // SKO-465 reception call log and callback queue.
 // GET   ?campusId=&view=open|mine|overdue|unassigned|all&direction=IN|OUT&q=   → calls with their callbacks
 // GET   ?history=<callbackId>                                             → one callback's history
-// GET   ?owners=1                                                         → people who can own a callback
+// GET   ?owners=1                                                         → front-office owners on this campus (campus admins, ADMIN, receptionists; G40)
 // POST  {name, phone, direction, date, purpose, note?, sensitive?, callbackDue?, callbackOwnerId?, idempotencyKey}
 // PATCH {id (callback), version, action: reassign|reschedule|attempt|complete, ...}
 // DELETE is not supported: calls and callback history are kept.
@@ -30,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     if (params.get("owners")) {
       if (!canManageFrontDesk(user)) throw new ApiError("Forbidden", 403);
-      const owners = await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { in: ["CAMPUS_ADMIN", "PRINCIPAL", "RECEPTIONIST", "SUPER_ADMIN"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true, fullName: true, role: true }, orderBy: { fullName: "asc" } });
+      const owners = await ownerCandidates(user, campusId);
       return Response.json({ success: true, data: owners });
     }
     const history = params.get("history");

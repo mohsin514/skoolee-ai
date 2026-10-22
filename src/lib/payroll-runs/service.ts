@@ -20,8 +20,11 @@ import { calculateRun, EXPORT_FIELDS, exportFile, leaveYearStart, periodEnd, per
  *   and needs approval again; accepted rows are never resubmitted. Exported does not mean paid.
  */
 
-const OPS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"];
-const PREPARERS = [...OPS, "ACCOUNTANT"];
+// role-ux G26 / §2.5: the finance desk prepares and exports; the campus admin approves and owns the policy and
+// the provider mapping (the super admin keeps audited break-glass approval, never offered in a console). The
+// principal is academic and holds neither seat.
+const APPROVERS = ["CAMPUS_ADMIN", "ADMIN", "SUPER_ADMIN"];
+const PREPARERS = ["ACCOUNTANT", "CAMPUS_ADMIN", "ADMIN"];
 const STAFF_ROLES = ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN", "SUPER_ADMIN", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] as const;
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 const day = z.iso.date();
@@ -38,12 +41,17 @@ const json = (value: unknown) => value as Prisma.InputJsonValue;
 const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
 
 async function canPrepare(user: AuthUser) {
-  assert(PREPARERS.includes(user.role), "Payroll access is required.");
+  assert(PREPARERS.includes(user.role), "Only the finance desk prepares payroll.");
   await assertPermission(user, "payroll", "view");
 }
 async function canApprove(user: AuthUser) {
-  assert(OPS.includes(user.role), "Only school leaders approve payroll.");
+  assert(APPROVERS.includes(user.role), "Only your campus admin approves payroll.");
   await assertPermission(user, "payroll", "edit");
+}
+/** Reading the payroll workspace: anyone who prepares or approves it. */
+async function canRead(user: AuthUser) {
+  assert(PREPARERS.includes(user.role) || APPROVERS.includes(user.role), "Payroll access is required.");
+  await assertPermission(user, "payroll", "view");
 }
 
 // ─── Configuration ─────────────────────────────────────────────
@@ -234,8 +242,14 @@ export async function prepareRun(user: AuthUser, raw: unknown, correctionOfId?: 
   });
 }
 
-export async function approveRun(user: AuthUser, id: string) {
+/**
+ * Approving a run is a money decision (role-ux R3, §4.5.5): it carries a typed reason of at least 10 characters,
+ * kept in the audit row with the approval.
+ */
+export async function approveRun(user: AuthUser, id: string, reason?: string | null) {
   await canApprove(user);
+  const why = String(reason ?? "").trim().slice(0, 500);
+  assert(why.length >= 10, "Give a reason of at least 10 characters for approving this run.", 400);
   const campusId = campusOf(user);
   const calc = await prisma.payrollCalculation.findFirst({ where: { id, campusId } });
   assert(!!calc, "Run not found", 404);
@@ -247,7 +261,7 @@ export async function approveRun(user: AuthUser, id: string) {
   if (await staleCheckDraft(calc)) throw new ApiError("Inputs changed since this version was prepared. Prepare a new version.", 409);
   const done = await prisma.payrollCalculation.updateMany({ where: { id, status: "DRAFT", inputHash: calc.inputHash }, data: { status: "APPROVED", approvedById: user.userId, approvedAt: new Date() } });
   assert(done.count === 1, "This version changed since you opened it.", 409);
-  await writeAuditEvent(prisma, user, { table: "payroll_calculations", recordId: id, action: "APPROVE", campusId, after: { version: calc.version, totalNet: calc.totalNet, inputHash: calc.inputHash } });
+  await writeAuditEvent(prisma, user, { table: "payroll_calculations", recordId: id, action: "APPROVE", campusId, after: { version: calc.version, totalNet: calc.totalNet, inputHash: calc.inputHash, reason: why } });
   return prisma.payrollCalculation.findUniqueOrThrow({ where: { id } });
 }
 
@@ -340,7 +354,7 @@ export async function createCorrection(user: AuthUser, submissionId: string) {
 // ─── Overview ──────────────────────────────────────────────────
 
 export async function payrollOverview(user: AuthUser, raw: unknown) {
-  await canPrepare(user);
+  await canRead(user);
   const campusId = campusOf(user);
   const { year, month } = parse(Period, raw);
   const [policy, policies, providers, versions, staffCount, employees] = await Promise.all([
@@ -355,5 +369,6 @@ export async function payrollOverview(user: AuthUser, raw: unknown) {
   const correctedFrom = new Set(versions.filter((v) => v.correctionOfId && v.status !== "SUPERSEDED").map((v) => v.correctionOfId));
   const corrections = submissions.flatMap((s) => (s.rows as Row[]).filter((r) => r.outcome === "REJECTED").map((r) => ({ ...r, submissionId: s.id, reference: s.reference, calculationId: s.calculationId, correctionStarted: correctedFrom.has(s.calculationId) })));
   const latestProviders = providers.filter((p, i) => providers.findIndex((q) => q.code === p.code) === i);
-  return { period: { year, month }, policy, policies, providers: latestProviders, versions, submissions, corrections, staffCount, employees };
+  const flags = await Promise.all([canPrepare(user).then(() => true, () => false), canApprove(user).then(() => true, () => false)]);
+  return { period: { year, month }, policy, policies, providers: latestProviders, versions, submissions, corrections, staffCount, employees, canPrepare: flags[0], canApprove: flags[1] };
 }

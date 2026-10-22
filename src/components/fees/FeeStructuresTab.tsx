@@ -3,86 +3,106 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
-import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
+import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
 import { InputGroup } from "@/components/ui/input-group";
 
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Archive,
   BookOpen,
   Edit3,
-  History,
-  Layers,
+  MoreHorizontal,
   Loader2,
   Percent,
   Plus,
-  Trash2,
   X,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
+import { Menu } from "@/components/ui/menu";
+import { IconButton } from "@/components/ui/icon-button";
+import { ErrorState } from "@/components/ui/error-state";
+import { SectionPicker, UiSentence } from "@/components/operations/console-page";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
-import type { ClassOption, FeeStructure } from "./fee-types";
-import { API, classLabel, formatPKR, paisaToRupees, rupeesToPaisa } from "./fee-utils";
+import type { ClassOption, FeeStructure, PanelCommand } from "./fee-types";
+import { API, classLabel, formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, usePanelCommand } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
 
-type StructureSubTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "fines" | "legacy";
+export type StructureSubTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "fines" | "legacy";
 
-const SUB_TABS: { key: StructureSubTab; label: string; icon: typeof Layers }[] = [
-  { key: "types", label: "Types", icon: Layers },
-  { key: "groups", label: "Groups", icon: BookOpen },
-  { key: "master", label: "Master", icon: BookOpen },
-  { key: "assign", label: "Assign", icon: BookOpen },
-  { key: "discounts", label: "Discounts", icon: Percent },
-  { key: "carry", label: "Carry Forward", icon: History },
-  { key: "fines", label: "Fine Rules", icon: Percent },
-  { key: "legacy", label: "Legacy", icon: History },
+/** Fee setup sections, in the order a school sets them up (also the accountant's PageHeader tabs). */
+export const FEE_SETUP_TABS: { id: StructureSubTab; label: string }[] = [
+  { id: "types", label: "Fee types" },
+  { id: "groups", label: "Fee groups" },
+  { id: "master", label: "Amounts" },
+  { id: "assign", label: "Class groups" },
+  { id: "discounts", label: "Discounts" },
+  { id: "carry", label: "Carry forward" },
+  { id: "fines", label: "Fine rules" },
+  { id: "legacy", label: "Class structures" },
 ];
 
-export function FeeStructuresTab({ campusId }: { campusId?: string }) {
-  // SKO-497: the sub-navigation is operational copy and follows the display language.
-  const tr = useUiText();
-  const [subTab, setSubTab] = useState<StructureSubTab>("types");
+/**
+ * The section a `?tab=` value opens. `layers` (the registry alias for the retired Fee layers view, M75) opens the
+ * first layer and `structures` the per-class structures; the console rewrites the URL to the section it opened.
+ */
+export function feeSetupSection(tab: string | null | undefined): StructureSubTab {
+  const requested = tab === "layers" ? "types" : tab === "structures" ? "legacy" : tab;
+  return FEE_SETUP_TABS.some((item) => item.id === requested) ? (requested as StructureSubTab) : "types";
+}
+
+/** The PageHeader primary for each Fee setup section (role-ux §4.4b; EN UI keys). */
+export const FEE_SETUP_CREATE: Record<StructureSubTab, string> = {
+  types: "New fee type",
+  groups: "New fee group",
+  master: "Add an amount",
+  assign: "Assign a fee group",
+  discounts: "New discount",
+  carry: "New carry-forward",
+  fines: "New fine rule",
+  legacy: "New fee structure",
+};
+
+/**
+ * Fee setup — the one place fee types, groups, amounts, discounts, carry-forward, fine rules and per-class
+ * structures are kept (role-ux M75: the separate "Fee Layers" view duplicated these panels and is retired;
+ * `?tab=layers` opens the first layer). `tab`/`onTabChange` let a console persist the section as `?tab=`.
+ * `command` "create" runs the open section's create action from the console's PageHeader, and `hideCreate`
+ * removes the sections' own create buttons so the screen keeps one primary (labels: `FEE_SETUP_CREATE`).
+ */
+export function FeeStructuresTab({ campusId, tab, onTabChange, command, hideCreate = false, sectionNav = "picker" }: { campusId?: string; tab?: string | null; onTabChange?: (tab: StructureSubTab) => void; command?: PanelCommand | null; hideCreate?: boolean; sectionNav?: "picker" | "none" }) {
+  const [localTab, setLocalTab] = useState<StructureSubTab>("types");
+  const subTab: StructureSubTab = onTabChange || tab ? feeSetupSection(tab) : localTab;
+  // The header command goes to the open section only; changing section drops it so no section replays it.
+  const [forwarded, setForwarded] = useState<{ section: StructureSubTab; command: PanelCommand } | null>(null);
+  const select = (next: StructureSubTab) => { setLocalTab(next); onTabChange?.(next); setForwarded(null); };
+  usePanelCommand(command, { create: () => { const copy = forwardCommand(command); setForwarded(copy ? { section: subTab, command: copy } : null); } });
+  const panel = { campusId, command: forwarded?.section === subTab ? forwarded.command : null, hideCreate };
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
-        {SUB_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = subTab === tab.key;
-          return (
-            <Button aria-pressed={subTab === tab.key} variant="choice"
-              key={tab.key}
-              type="button"
-              onClick={() => setSubTab(tab.key)}
-              className={"justify-start " + (`flex items-center gap-1.5 px-4 py-2 whitespace-nowrap ${
-                ""
-              } `)}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {tr(tab.label)}
-            </Button>
-          );
-        })}
-      </div>
+      {/* One tab row per screen (§3.1): the console renders these sections as its PageHeader tabs ("none"); under
+          another tab row they are a section picker. */}
+      {sectionNav === "picker" ? <SectionPicker label="Fee setup section" items={FEE_SETUP_TABS} value={subTab} onChange={select} /> : null}
 
-      {subTab === "types" && <TypesPanel campusId={campusId} />}
-      {subTab === "groups" && <GroupsPanel campusId={campusId} />}
-      {subTab === "master" && <MasterPanel campusId={campusId} />}
-      {subTab === "assign" && <AssignPanel campusId={campusId} />}
-      {subTab === "discounts" && <DiscountsPanel campusId={campusId} />}
-      {subTab === "carry" && <CarryPanel campusId={campusId} />}
-      {subTab === "fines" && <FineRulesPanel campusId={campusId} />}
-      {subTab === "legacy" && <LegacyStructuresTab campusId={campusId} />}
+      {subTab === "types" && <TypesPanel {...panel} />}
+      {subTab === "groups" && <GroupsPanel {...panel} />}
+      {subTab === "master" && <MasterPanel {...panel} />}
+      {subTab === "assign" && <AssignPanel {...panel} />}
+      {subTab === "discounts" && <DiscountsPanel {...panel} />}
+      {subTab === "carry" && <CarryPanel {...panel} />}
+      {subTab === "fines" && <FineRulesPanel {...panel} />}
+      {subTab === "legacy" && <LegacyStructuresTab {...panel} />}
     </div>
   );
 }
 
-function LegacyStructuresTab({ campusId }: { campusId?: string }) {
+function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campusId?: string; command?: PanelCommand | null; hideCreate?: boolean }) {
   const { money: formatPKR, date } = useLocaleFormat();
   const tr = useUiText();
   const [structures, setStructures] = useState<FeeStructure[]>([]);
@@ -90,11 +110,13 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeStructure | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [sRes, cRes] = await Promise.all([
         fetch(`${API}/structure${qp}`),
@@ -103,9 +125,10 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       const sJson = await sRes.json();
       const cJson = await cRes.json();
       if (sJson.success) setStructures(sJson.data);
+      else setLoadFailed(true);
       if (cJson.success) setClasses(cJson.data);
     } catch {
-      toast.error(tr("Failed to load fee structures"));
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -139,6 +162,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
   const assignedClassIds = new Set(activeStructures.map((s) => s.classId));
   const unassignedClasses = classes.filter((c) => !assignedClassIds.has(c.id));
+  usePanelCommand(command, { create: () => { setEditing(null); setShowModal(true); } }, !loading);
 
   if (loading) {
     return (
@@ -169,19 +193,23 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
     );
   }
 
+  if (loadFailed) {
+    return <ErrorState title={tr("Fee structures could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void loadData()} />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee Structures"}</UiText></h3>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee structures"}</UiText></h3>
           <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-            {activeStructures.length}<UiText>{"active ·"}</UiText>{unassignedClasses.length}<UiText>{"classes without fees"}</UiText></p>
+            <UiSentence text="{0} active · {1} classes without fees" values={[activeStructures.length, unassignedClasses.length]} /></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}><UiText>{"New Structure"}</UiText></BrandButton>
+        {hideCreate ? null : <Button onClick={() => { setEditing(null); setShowModal(true); }}><Plus className="size-4" aria-hidden="true" /><UiText>{"New fee structure"}</UiText></Button>}
       </div>
 
       {unassignedClasses.length > 0 && (
-        <Alert tone="warning" live="off" compact title={tr("Classes Without Fee Structure")}>
+        <Alert tone="warning" live="off" compact title={tr("Classes without fee structure")}>
             {unassignedClasses.map((c) => classLabel(c.name, c.section)).join(", ")}
           </Alert>
       )}
@@ -192,7 +220,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
           title={tr("No fee structures yet")}
           description={tr("Create your first fee structure to start managing fees.")}
           action={
-            <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}><UiText>{"Create Fee Structure"}</UiText></BrandButton>
+            <Button onClick={() => { setEditing(null); setShowModal(true); }}><Plus className="size-4" aria-hidden="true" /><UiText>{"New fee structure"}</UiText></Button>
           }
         />
       ) : (
@@ -210,7 +238,7 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
       {inactiveStructures.length > 0 && (
         <div>
-          <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Inactive Structures"}</UiText></h4>
+          <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Inactive structures"}</UiText></h4>
           <div className="space-y-2 opacity-60">
             {inactiveStructures.map((fs) => (
               <div key={fs.id} className="flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-3 border border-edge/10">
@@ -270,28 +298,24 @@ function StructureCard({
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button aria-label={tr("Edit fee structure")} variant="secondary" size="icon"
-            type="button"
-            onClick={onEdit}
-            className="flex items-center justify-center"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </Button>
-          <Button aria-label={tr("Delete fee structure")} variant="secondary" size="icon"
-            type="button"
-            onClick={() => setConfirmOpen(true)}
-            className="flex items-center justify-center"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          {/* Row overflow (role-ux §4.4b Fee setup: Archive in the overflow, behind ConfirmAction). */}
+          <Menu
+            label="More actions"
+            items={[
+              { id: "edit", label: "Edit", icon: Edit3, onSelect: onEdit },
+              { id: "deactivate", label: "Deactivate", icon: Archive, tone: "danger", onSelect: () => setConfirmOpen(true) },
+            ]}
+            trigger={<IconButton variant="ghost" label={tr("More actions")}><MoreHorizontal aria-hidden="true" /></IconButton>}
+          />
           <ConfirmAction
             open={confirmOpen}
-            title={tr("Deactivate Structure")}
+            title={tr("Deactivate this fee structure?")}
             description={tr("This will deactivate the fee structure for {0}. Existing invoices won't be affected.", [classLabel(fs.class.name, fs.class.section)])}
             onConfirm={() => { setConfirmOpen(false); onDeactivate(); }}
             onCancel={() => setConfirmOpen(false)}
             tone="danger"
             confirmLabel={tr("Deactivate")}
+            cancelLabel={tr("Keep editing")}
           />
         </div>
       </div>
@@ -308,7 +332,7 @@ function StructureCard({
           </div>
         )}
         <div className="rounded-xl bg-status-warning-surface px-3 py-2">
-          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Late Fee"}</UiText></p>
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Late fee"}</UiText></p>
           <p className="text-sm font-bold text-status-warning-text">
             {fs.lateFeePercentage}%{fs.compoundLateFee ? tr(" cpd") : ""}
           </p>
@@ -331,7 +355,7 @@ function StructureCard({
           ))}
           {Object.entries(discountRules).map(([name, pct]) => (
             <div key={name} className="flex items-center justify-between text-2xs font-bold text-status-success-text px-1">
-              <span>{name}<UiText>{"discount"}</UiText></span>
+              <span><UiSentence text="{0} discount" values={[name]} /></span>
               <span>-{pct}%</span>
             </div>
           ))}
@@ -355,8 +379,11 @@ function StructureModal({
   onSaved: () => void;
 }) {
   const tr = useUiText();
-  const [currency, setCurrency] = useState(editing?.currency || "");
-  useEffect(() => { if (!editing) void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => toast.error(tr("Currency could not be loaded"))); }, [campusId, editing]);
+  // The school's currency from the locale package, refined to the chosen campus's; a failed refinement keeps the
+  // school's currency (no toast for a background read, R4).
+  const schoolCurrency = useLocale().currency;
+  const [currency, setCurrency] = useState<string>(editing?.currency || schoolCurrency);
+  useEffect(() => { if (!editing) void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => undefined); }, [campusId, editing]);
   const [classId, setClassId] = useState(editing?.classId ?? "");
   const [monthlyFee, setMonthlyFee] = useState(editing ? String(paisaToRupees(editing.monthlyFee, editing.currency)) : "");
   const [installmentType, setInstallmentType] = useState(editing?.installmentType ?? "11-month");
@@ -440,7 +467,7 @@ function StructureModal({
 
   return (
     <Modal
-      title={editing ? tr("Edit Fee Structure") : tr("New Fee Structure")}
+      title={editing ? tr("Edit fee structure") : tr("New fee structure")}
       eyebrow={tr("Fees")}
       subtitle={tr("Sets what a class is billed each cycle, plus any standing discounts.")}
       icon={editing ? Edit3 : Plus}
@@ -449,7 +476,7 @@ function StructureModal({
       footer={
         <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving} aria-busy={saving || undefined}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : editing ? <Edit3 className="w-4 h-4" aria-hidden="true" /> : <Plus className="w-4 h-4" aria-hidden="true" />}
-          {saving ? tr("Saving...") : editing ? tr("Update Structure") : tr("Create Structure")}
+          {saving ? tr("Saving...") : editing ? tr("Update structure") : tr("Create structure")}
         </BrandButton>
       }
     >
@@ -466,23 +493,23 @@ function StructureModal({
 
           <div className="grid grid-cols-2 gap-3">
             <label>
-              <span className={labelClass}>{tr("Monthly Fee")} (<bdi>{currency}</bdi>)</span>
-              <SystemInput type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
+              <span className={labelClass}>{tr("Monthly fee")} (<bdi>{currency}</bdi>)</span>
+              <SystemInput type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder={tr("e.g. 5000")} className={inputClass} />
             </label>
             <label>
-              <span className={labelClass}><UiText>{"Installment Plan"}</UiText></span>
+              <span className={labelClass}><UiText>{"Installment plan"}</UiText></span>
               <SystemSelect value={installmentType} onChange={(e) => setInstallmentType(e.target.value)} className={inputClass}>
                 <option value="11-month"><UiText>{"11 Months (Jul-May)"}</UiText></option>
                 <option value="6-month"><UiText>{"6 Months"}</UiText></option>
                 <option value="quarterly"><UiText>{"Quarterly"}</UiText></option>
-                <option value="one-time"><UiText>{"One Time"}</UiText></option>
+                <option value="one-time"><UiText>{"One time"}</UiText></option>
               </SystemSelect>
             </label>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <label>
-              <span className={labelClass}><UiText>{"Late Fee %"}</UiText></span>
+              <span className={labelClass}><UiText>{"Late fee %"}</UiText></span>
               <SystemInput type="number" step="0.1" value={lateFeePct} onChange={(e) => setLateFeePct(e.target.value)} className={inputClass} />
             </label>
             <div>
@@ -552,7 +579,7 @@ function StructureModal({
 
           <div className="rounded-2xl border border-edge/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Discount Rules"}</UiText></p>
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Discount rules"}</UiText></p>
               <Button variant="link"
                 type="button"
                 onClick={() => setDiscountRules([...discountRules, { name: "", pct: "" }])}

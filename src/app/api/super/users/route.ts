@@ -5,13 +5,15 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (user.role !== "SUPER_ADMIN") throw new ApiError("Forbidden", 403);
+    // G12: the institution authority (group admin, or the school admin of a single school), school-scoped.
+    if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 
     const { searchParams } = new URL(req.url);
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);

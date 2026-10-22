@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { buildOrgChart, setStaffPosition } from "@/lib/staff/hierarchy";
 
 // The org chart (Module 8b).
@@ -48,7 +48,7 @@ function toDate(value: string | Date | null | undefined) {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "view");
     const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
     const includeFormer = req.nextUrl.searchParams.get("includeFormer") === "true";
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
     const parsed = PositionInput.safeParse(await req.json());
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid position change", 400);

@@ -1,41 +1,31 @@
 "use client";
 
-import { MessageCircle } from "lucide-react";
-import { toast } from "@/components/ui/toast";
-import { RoleShell, type RoleNavItem } from "@/components/role-dashboard";
+import { RoleShell } from "@/components/role-dashboard";
 import { CycleProvider, CycleGate } from "@/components/academic-year/CycleGate";
 import { useTeacherData } from "./teacher-data-context";
-import { TEACHER_NAV } from "@/components/teacher/teacher-page";
 import { TeacherCommandPalette } from "@/components/teacher/command-palette";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
-// Sign-out lives in RoleHeader, which this shell renders via RoleShell. A
-// handleLogout() used to be declared here too, doing the same fetch and then a
-// router.push("/login") — but it was never wired to anything: RoleShell takes no
-// onLogout prop, so nothing could ever call it. Removed rather than corrected,
-// because the soft navigation it used was also wrong (router.push keeps the
-// router cache, so Back could re-render this console after sign-out) and
-// wiring it would have meant two sign-out implementations again. One button,
-// in RoleHeader, doing a full-document navigation.
+// Sign-out lives in RoleHeader, which this shell renders via RoleShell — one
+// button doing a full-document navigation, so Back can never re-render this
+// console after sign-out.
+//
+// The sidebar, mobile bar, eyebrow ("Teaching") and account menu (My leave)
+// all come from the navigation registry (`ROLE_NAV.teacher`). The shell used to
+// flatten its own list and drop the groups; now the registry's groups
+// (Assessments, My classes, More) are what the teacher sees, with module and
+// duty visibility (`activityStaff`, `tripToday`, `careMember`, `accessPlans`)
+// decided server-side.
 export function TeacherShell({ children }: { children: React.ReactNode }) {
+  const ui = useUiText();
   const { data } = useTeacherData();
-  const teacherName = data?.teacherName || "Teacher";
-
-  // Built from the same list the in-page subnav uses, so the two can never
-  // drift apart. Messaging is not a teacher "screen", so it is appended.
-  const navItems: RoleNavItem[] = [
-    ...TEACHER_NAV.map((item) => ({ icon: item.icon, label: item.label, href: item.href })),
-    { icon: MessageCircle, label: "Messages", href: "/messages" },
-  ];
-  const bottomItems: RoleNavItem[] = [];
+  const teacherName = data?.teacherName || ui("Teacher");
 
   return (
     <CycleProvider>
       <RoleShell
-        navItems={navItems}
-        bottomItems={bottomItems}
-        eyebrow="My Academic Workspace"
+        console="teacher"
         userName={teacherName}
-        userRole="Faculty Console"
         avatarSeed={teacherName}
         logoUrl={data?.logoUrl}
         dashboardHref="/teacher"

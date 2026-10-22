@@ -42,7 +42,7 @@ export async function createDraftTimetableSlot(user: AuthUser, timetableId: stri
     if (!locked.length) throw new DraftTimetableSlotError("Timetable not found in your campus.", 404, "TIMETABLE_NOT_FOUND");
     const actor = await tx.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
     if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new DraftTimetableSlotError("Your account access changed. Sign in again.", 403, "PERMISSION_DENIED");
-    const grants = await tx.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true } });
+    const grants = await tx.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true, updatedAt: true } });
     if (!moduleFlags(grants, user.role, "timetable").canEdit) throw new DraftTimetableSlotError("Your timetable editing permission is no longer available.", 403, "PERMISSION_DENIED");
     await assertSchoolOperational(user.schoolId, tx);
     const timetable = await tx.timetable.findFirstOrThrow({ where: { id: timetableId, schoolId: user.schoolId }, include: { class: { select: { academicYear: true, campusId: true, status: true, archivedAt: true } }, campus: { select: { archivedAt: true } } } });

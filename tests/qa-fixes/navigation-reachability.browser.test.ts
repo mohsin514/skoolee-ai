@@ -82,25 +82,29 @@ test("SKO-482: Record corrections is offered only where a correction domain exis
   await owner.close();
   const teacher = await (await signIn("TEACHER")).newPage();
   await teacher.goto(`${base}/teacher`);
+  // Registry groups are collapsed by default; Record corrections sits under More (SPEC §3).
+  await teacher.locator('[data-tour="shell.nav-group.more"]').first().click({ timeout: 60_000 });
   await teacher.getByRole("link", { name: "Record corrections" }).first().waitFor({ state: "attached", timeout: 60_000 });
   await teacher.close();
 });
 
-test("SKO-489: group owners and principals reach the guardian access workflow", async () => {
-  const contexts = new Map<string, BrowserContext>();
-  for (const role of ["SUPER_ADMIN", "PRINCIPAL"]) {
-    contexts.set(role, await signIn(role));
-    const page = await contexts.get(role)!.newPage();
-    await page.goto(`${base}/dashboard/guardians`);
-    await page.waitForLoadState("domcontentloaded");
-    assert.match(new URL(page.url()).pathname, /^\/dashboard\/guardians$/u, `${role} stays on the workflow`);
-    await page.getByRole("heading", { name: "Guardians and access" }).waitFor({ timeout: 60_000 });
-    assert.ok(await page.locator("option", { hasText: "Synthetic Pupil Lina" }).count() > 0, `${role} sees the campus roster`);
-    await page.screenshot({ path: `${evidence}/sko489-${role.toLowerCase()}-guardians.png` });
-    await page.close();
+test("SKO-489 → SPEC §6.1: the retired /dashboard console lands each leader on their own console view", async () => {
+  // The legacy guardians page is retired: campus guardian access lives in /admin?view=guardians; the group admin
+  // and the principal land on the closest view of their own console instead of the legacy shell.
+  const expected: Record<string, Record<string, RegExp>> = {
+    SUPER_ADMIN: { "/dashboard/guardians": /^\/super\?view=campuses$/u, "/dashboard/students": /^\/super\?view=campuses$/u, "/dashboard": /^\/super$/u },
+    PRINCIPAL: { "/dashboard/guardians": /^\/principal\?view=students$/u, "/dashboard/marks": /^\/principal\?view=exam-cycles$/u },
+    CAMPUS_ADMIN: { "/dashboard/guardians?student=s1": /^\/admin\?view=guardians&student=s1$/u, "/dashboard/settings/members": /^\/admin\?view=leadership$/u },
+  };
+  for (const [role, paths] of Object.entries(expected)) {
+    const context = await signIn(role);
+    for (const [from, to] of Object.entries(paths)) {
+      const page = await context.newPage();
+      await page.goto(`${base}${from}`);
+      await page.waitForURL((current) => to.test(current.pathname + current.search), { timeout: 60_000 });
+      await page.screenshot({ path: `${evidence}/spec61-${role.toLowerCase()}-${from.replace(/[^a-z]+/gu, "-")}.png` });
+      await page.close();
+    }
+    await context.close();
   }
-  const other = await contexts.get("SUPER_ADMIN")!.newPage();
-  await other.goto(`${base}/dashboard/students`);
-  await other.waitForURL(/\/super/u, { timeout: 60_000 });
-  await other.close();
 });

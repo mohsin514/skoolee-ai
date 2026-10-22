@@ -1,9 +1,22 @@
 import { LocaleProvider } from "@/components/locale/LocaleProvider";
+import { RoleFrame } from "@/components/role-dashboard/RoleFrame";
+import { prisma } from "@/lib/db/prisma";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
+import { redirect } from "next/navigation";
+import { dashboardPathForRole } from "@/lib/roles";
 
 export default async function CurriculumLayout({ children }: { children: React.ReactNode }) {
-  // Server-seeded; the page's own LocaleProvider becomes a passthrough under this one.
+  // The objective map for academic leaders, framed in the caller's console. Teachers use their own map.
   const user = await requirePageSession();
-  return <LocaleProvider initialLocale={await getDisplayLocale(user)}>{children}</LocaleProvider>;
+  if (user.role === "TEACHER") redirect("/teacher/curriculum");
+  if (!["PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"].includes(user.role)) redirect(dashboardPathForRole(user.role));
+  // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so
+  // the first paint has it (the session's `logoUrl` arrives only after the client's read); a failed read only costs the image.
+  const brand = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { logoUrl: true, campuses: { where: { id: user.campusId ?? "" }, select: { logoUrl: true } } } }).catch(() => null);
+  return (
+    <LocaleProvider initialLocale={await getDisplayLocale(user)}>
+      <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.campuses[0]?.logoUrl || brand?.logoUrl || null} chatDock={user.schoolStatus !== "SUSPENDED"}>{children}</RoleFrame>
+    </LocaleProvider>
+  );
 }

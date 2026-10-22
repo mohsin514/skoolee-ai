@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 // Secondary reporting lines (Module 8b).
 //
@@ -21,7 +21,7 @@ const LineInput = z.object({
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
     const input = LineInput.parse(await req.json());
 
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);

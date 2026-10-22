@@ -69,7 +69,7 @@ test("the bursar posts from the workbench; replays post nothing twice and money 
   const page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/admin?view=fees`);
-  await page.getByRole("button", { name: "Payments", exact: true }).first().click({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Collect", exact: true }).first().click({ timeout: 30_000 }); // role-ux §8.2: payments live under "Collect"
   const card = page.locator(`[data-reconciliation="${reconciliationId}"]`);
   await card.waitFor({ timeout: 30_000 });
   assert.equal(await card.locator('[data-conservation="balanced"]').count(), 1);

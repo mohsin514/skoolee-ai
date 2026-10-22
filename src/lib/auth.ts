@@ -5,6 +5,7 @@ import { resolveCurrentPrincipal } from "@/lib/auth/principal";
 import { jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { normalizeUserRole, type UserRole } from "@/lib/roles";
+import type { InstitutionKind } from "@/lib/auth/institution";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
@@ -25,6 +26,9 @@ export interface AuthUser {
   schoolSlug?: string;
   schoolStatus?: string;
   onboardingComplete?: boolean;
+  /** GROUP or STANDALONE, resolved by resolveCurrentPrincipal (src/lib/auth/institution.ts). Hand-built users
+   *  without it fail closed in every authority predicate. */
+  institutionKind?: InstitutionKind;
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {

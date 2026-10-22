@@ -13,7 +13,8 @@ import { OFFICES, answerIsStale, answerQuestion, type PolicyAnswer, type PolicyD
  * escalation the asker reviews (recipient and included context) before anything is sent.
  */
 
-const MANAGERS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"];
+// §7.6: school policies are written by campus operations; the principal reads them like other staff.
+const MANAGERS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN"];
 const FAMILY = ["PARENT", "STUDENT"];
 const day = z.iso.date();
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);

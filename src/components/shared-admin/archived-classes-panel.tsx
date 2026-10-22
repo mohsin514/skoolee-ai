@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Alert } from "@/components/ui/alert";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 
 type ArchivedClass = { id: string; name: string; section: string | null; academicYear: number; archivedAt: string | null; archiveReason?: string | null; campus?: { name: string } | null; _count?: { students: number; subjects: number } };
 
@@ -18,6 +18,7 @@ type ArchivedClass = { id: string; name: string; section: string | null; academi
  */
 export function ArchivedClassesPanel({ version, onRestored }: { version?: number; onRestored?: () => void }) {
   const ui = useUiText();
+  const { date: formatDay } = useLocaleFormat();
   const [classes, setClasses] = useState<ArchivedClass[]>([]), [loading, setLoading] = useState(true), [failed, setFailed] = useState(false);
   const [restoring, setRestoring] = useState<ArchivedClass | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -49,7 +50,7 @@ export function ArchivedClassesPanel({ version, onRestored }: { version?: number
       : failed ? <ErrorState title={ui("Archived classes could not be loaded.")} onRetry={() => void load()} retryLabel={ui("Try again")} />
       : classes.length === 0 ? <EmptyState size="sm" icon={Archive} title={ui("No archived classes.")} description={ui("Classes you archive appear here and can be restored.")} />
       : <ul className="space-y-2">{classes.map(row => <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-edge p-3 transition-colors hover:bg-surface-hover" data-archived-class={row.id}>
-          <div className="min-w-0"><p className="break-words text-sm font-semibold text-ink-strong">{label(row)}</p><p className="text-xs text-ink-subtle tabular-nums">{[row.campus?.name, row.archiveReason, row.archivedAt ? new Date(row.archivedAt).toISOString().slice(0, 10) : ""].filter(Boolean).join(" · ")}</p></div>
+          <div className="min-w-0"><p className="break-words text-sm font-semibold text-ink-strong">{label(row)}</p><p className="text-xs text-ink-subtle tabular-nums">{[row.campus?.name, row.archiveReason, row.archivedAt ? formatDay(row.archivedAt) : ""].filter(Boolean).join(" · ")}</p></div>
           <Button variant="outline" onClick={() => { setError(""); setRestoring(row); }}><RotateCcw className="size-4" aria-hidden="true" />{ui("Restore")}</Button>
         </li>)}</ul>}
     <ConfirmAction open={Boolean(restoring)} title={ui("Restore {0}?", [restoring ? label(restoring) : ""])} description={ui("The class returns to current class lists. The campus and any active class with the same name, section and year are checked first; nothing changes if there is a conflict.")} confirmLabel={ui("Restore class")} tone="success" busy={busy}

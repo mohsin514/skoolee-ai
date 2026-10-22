@@ -355,7 +355,7 @@ const entries: [string, string, string][] = [
 ["Create a rule to start charging late-payment fines.", "أنشئ قاعدة لاحتساب غرامات التأخر في الدفع.", "تاخیر سے ادائیگی کا جرمانہ لگانے کے لیے ضابطہ بنائیں۔"],
 ["Create account heads to organise income and expense entries.", "أنشئ بنود حساب لتنظيم الإيرادات والنفقات.", "آمدنی اور اخراجات ترتیب دینے کے لیے کھاتوں کی مدات بنائیں۔"],
 ["Create discounts to apply to students or whole categories.", "أنشئ خصومات للطلاب أو للفئات بأكملها.", "طلبہ یا مکمل زمروں کے لیے رعایتیں بنائیں۔"],
-["Create fee heads first — groups then price them in the Master tab.", "أنشئ بنود الرسوم أولًا، ثم حدّد أسعارها للمجموعات في تبويب البنود.", "پہلے فیس کی مدات بنائیں، پھر بنیادی مدات کے ٹیب میں گروپ کی قیمتیں مقرر کریں۔"],
+["Create fee heads first — groups then price them in Amounts.", "أنشئ بنود الرسوم أولًا، ثم حدّد أسعارها للمجموعات في المبالغ.", "پہلے فیس کی مدات بنائیں، پھر رقوم میں گروپ کی قیمتیں مقرر کریں۔"],
 ["Create your first fee structure to start managing fees.", "أنشئ أول هيكل رسوم لبدء إدارة الرسوم.", "فیس کا انتظام شروع کرنے کے لیے پہلی ساخت بنائیں۔"],
 ["Currency", "العملة", "کرنسی"], ["Currency could not be loaded", "تعذر تحميل العملة", "کرنسی لوڈ نہیں ہو سکی"],
 ["Days", "الأيام", "دن"], ["Deactivate", "تعطيل", "غیر فعال کریں"], ["Deactivate Structure", "تعطيل الهيكل", "ساخت غیر فعال کریں"],

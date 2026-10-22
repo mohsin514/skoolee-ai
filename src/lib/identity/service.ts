@@ -4,7 +4,8 @@ import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError } from "@/lib/api/scope";
+import { authorityRoleFor, isCampusOperator, isInstitutionAuthority, kindFor } from "@/lib/auth/institution";
 import { protectSecret, revealSecret } from "@/lib/auth/mfa-crypto";
 import { discover, exchange, pkce, readStateCookie, stateCookie, verifyIdToken, type Discovery } from "./oidc";
 import { applyEnrollment, applyWithdrawal, dateOnly } from "@/lib/students/enrollment";
@@ -26,8 +27,13 @@ const MAPPABLE_ROLES = ["TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST", "P
 const FIELDS = ["fullName", "admissionNo", "className", "status"] as const;
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
-const isGroupAdmin = (user: AuthUser) => user.role === "SUPER_ADMIN" || !!user.isInstitutionOwner;
-function groupAdmin(user: AuthUser) { if (!isGroupAdmin(user)) throw new ApiError("Identity administration permission is required.", 403); }
+// §7.3 G14: identity administration belongs to the institution authority (group admin, or the school admin of a
+// single school); campus operators review and apply roster batches for their own campus. PRINCIPAL does neither.
+const isGroupAdmin = (user: AuthUser) => isInstitutionAuthority(user);
+function groupAdmin(user: AuthUser) { if (!isGroupAdmin(user)) throw new ApiError("Only the institution administrator manages sign-in and roster connections.", 403); }
+const canReviewRoster = (user: AuthUser) => isGroupAdmin(user) || isCampusOperator(user);
+/** Emergency administrators are active holders of the authority role for this kind of school. */
+const emergencyRole = (user: AuthUser) => authorityRoleFor(kindFor(user) ?? "GROUP");
 async function event(schoolId: string, kind: string, actorId: string | null, connectionId: string | null, detail: Record<string, unknown> = {}) {
   await prisma.identityEvent.create({ data: { schoolId, kind, actorId, connectionId, detail: detail as Prisma.InputJsonValue } });
 }
@@ -35,7 +41,7 @@ async function event(schoolId: string, kind: string, actorId: string | null, con
 // ─── Connection setup (group identity administration) ────────────────────
 
 export async function overview(user: AuthUser) {
-  if (!isGroupAdmin(user) && !canManageOperations(user)) throw new ApiError("Identity administration permission is required.", 403);
+  if (!canReviewRoster(user)) throw new ApiError("Only the institution administrator or a campus admin can open sign-in and roster settings.", 403);
   const rows = await prisma.identityConnection.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "asc" } });
   const [requests, batches, events, campuses] = await Promise.all([
     prisma.identityLinkRequest.findMany({ where: { schoolId: user.schoolId, status: "PENDING" }, orderBy: { createdAt: "asc" } }),
@@ -43,7 +49,7 @@ export async function overview(user: AuthUser) {
     isGroupAdmin(user) ? prisma.identityEvent.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "desc" }, take: 30 }) : Promise.resolve([]),
     prisma.campus.findMany({ where: { schoolId: user.schoolId, archivedAt: null }, select: { id: true, name: true } }),
   ]);
-  const superAdmins = isGroupAdmin(user) ? await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: "SUPER_ADMIN" }, select: { id: true, fullName: true } }) : [];
+  const superAdmins = isGroupAdmin(user) ? await runUnscoped("identity: emergency administrator candidates", () => prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: emergencyRole(user) }, select: { id: true, fullName: true } })) : [];
   return {
     isGroupAdmin: isGroupAdmin(user), userId: user.userId, campuses, superAdmins, mappableRoles: MAPPABLE_ROLES, fields: FIELDS,
     connections: rows.map(c => ({ id: c.id, name: c.name, protocol: c.protocol, issuer: c.issuer, clientId: c.clientId, hasSecret: !!c.clientSecret, verifiedDomains: c.verifiedDomains, pendingDomains: c.pendingDomains, roleClaim: c.roleClaim, roleMap: c.roleMap, fieldOwnership: c.fieldOwnership, status: c.status, lastTestedAt: c.lastTestedAt, lastTestResult: c.lastTestResult, emergencyAdminIds: c.emergencyAdminIds })),
@@ -58,7 +64,7 @@ export async function saveConnection(user: AuthUser, body: Record<string, unknow
   const ownership = (body.fieldOwnership && typeof body.fieldOwnership === "object" ? body.fieldOwnership : {}) as Record<string, string>;
   for (const [field, owner] of Object.entries(ownership)) if (!FIELDS.includes(field as never) || !["SOURCE", "LOCAL"].includes(owner)) throw new ApiError("Each field is managed either in the source system or here.", 400);
   const emergencyAdminIds = Array.isArray(body.emergencyAdminIds) ? body.emergencyAdminIds.map(String) : undefined;
-  if (emergencyAdminIds && (await prisma.user.count({ where: { schoolId: user.schoolId, id: { in: emergencyAdminIds }, isActive: true, role: "SUPER_ADMIN" } })) !== emergencyAdminIds.length) throw new ApiError("Emergency administrators must be active super administrators of this school.", 400);
+  if (emergencyAdminIds && (await runUnscoped("identity: verify emergency administrators", () => prisma.user.count({ where: { schoolId: user.schoolId, id: { in: emergencyAdminIds }, isActive: true, role: emergencyRole(user) } }))) !== emergencyAdminIds.length) throw new ApiError("Emergency administrators must be active institution administrators of this school.", 400);
   const data = {
     name: text(body.name, 120), issuer: text(body.issuer, 300).replace(/\/$/, ""), clientId: text(body.clientId, 200),
     ...(body.clientSecret ? { clientSecret: protectSecret(text(body.clientSecret, 500)) } : {}),
@@ -239,7 +245,7 @@ const owner = (c: { fieldOwnership: Prisma.JsonValue }, field: string) => (((c.f
 
 /** Stores a batch (idempotently by its external id) and computes its dry run. */
 export async function submitBatch(user: AuthUser, body: Record<string, unknown>) {
-  if (!canManageOperations(user)) throw new ApiError("Only campus leaders review roster batches.", 403);
+  if (!canReviewRoster(user)) throw new ApiError("Only the institution administrator or a campus admin reviews roster batches.", 403);
   const connectionId = String(body.connectionId ?? ""), campusId = isGroupAdmin(user) ? String(body.campusId || user.campusId || "") : user.campusId ?? "";
   const c = await prisma.identityConnection.findFirst({ where: { id: connectionId, schoolId: user.schoolId } });
   if (!c) throw new ApiError("Connection not found", 404);
@@ -334,7 +340,7 @@ async function computePreview(schoolId: string, c: Prisma.IdentityConnectionGetP
 }
 
 export async function batchDetail(user: AuthUser, id: string) {
-  if (!canManageOperations(user)) throw new ApiError("Only campus leaders review roster batches.", 403);
+  if (!canReviewRoster(user)) throw new ApiError("Only the institution administrator or a campus admin reviews roster batches.", 403);
   const b = await prisma.rosterBatch.findFirst({ where: { id, schoolId: user.schoolId, ...(isGroupAdmin(user) ? {} : { campusId: user.campusId ?? "" }) } });
   if (!b) throw new ApiError("Batch not found", 404);
   const changes = (b.preview ?? []) as unknown as Change[];
@@ -344,7 +350,7 @@ export async function batchDetail(user: AuthUser, id: string) {
 
 /** Applies a reviewed batch. The preview must be current; conflicts change only with an explicit decision. */
 export async function applyBatch(user: AuthUser, body: Record<string, unknown>) {
-  if (!canManageOperations(user)) throw new ApiError("Only campus leaders review roster batches.", 403);
+  if (!canReviewRoster(user)) throw new ApiError("Only the institution administrator or a campus admin reviews roster batches.", 403);
   const b = await prisma.rosterBatch.findFirst({ where: { id: String(body.id ?? ""), schoolId: user.schoolId, ...(isGroupAdmin(user) ? {} : { campusId: user.campusId ?? "" }) }, include: { connection: true } });
   if (!b) throw new ApiError("Batch not found", 404);
   if (b.status === "APPLIED") return { id: b.id, repeated: true, result: b.result };

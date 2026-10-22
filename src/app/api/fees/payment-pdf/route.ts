@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertSharedModuleRead, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertFeesRead, assertSharedModuleRead, canManageFinance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
 import { generatePaymentPdf } from "@/lib/pdf";
 
@@ -13,7 +13,10 @@ export async function GET(req: NextRequest) {
     // SKO-431: a guardian with finance access, or the pupil, can download their own receipts at any time.
     const family = user.role === "PARENT" || user.role === "STUDENT";
     if (family) await assertSharedModuleRead(user, "fees");
-    else if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    else {
+      if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+      await assertFeesRead(user);
+    }
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);

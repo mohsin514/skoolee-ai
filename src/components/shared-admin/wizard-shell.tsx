@@ -1,5 +1,6 @@
 "use client";
 
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Button as SystemButton } from "@/components/ui/button";
 import React, { useEffect, useId } from "react";
 import { ArrowLeft, ArrowRight, Check, X, type LucideIcon } from "lucide-react";
@@ -73,6 +74,7 @@ function WizardChrome({
   submittingLabel = "Working…",
   children,
 }: WizardShellProps) {
+  const ui = useUiText();
   const { requestClose, dragHandleProps, titleId } = useModalSurface();
   const current = steps[step];
   const isLast = step === steps.length - 1;
@@ -89,7 +91,7 @@ function WizardChrome({
         {/* Header scrolls with the fields so 200% text cannot consume the entry viewport. */}
         <div
           {...dragHandleProps}
-          className="relative shrink-0 touch-none overflow-hidden border-b border-edge/20 bg-gradient-to-br from-surface-subtle via-white to-brand-100 px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
+          className="relative shrink-0 touch-none overflow-hidden border-b border-edge/20 bg-gradient-to-br from-surface-subtle via-card to-brand-100 px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
         >
           <div className="pointer-events-none absolute -top-16 -end-10 h-40 w-40 rounded-full bg-gradient-to-bl from-primary/12 to-transparent blur-3xl" />
           <div className="relative flex items-start justify-between gap-4">
@@ -99,16 +101,16 @@ function WizardChrome({
               </span>
               <div className="min-w-0">
                 <p className="sk-eyebrow text-primary">
-                  {eyebrow} · Step {step + 1} of {steps.length}
+                  {ui("{0} · Step {1} of {2}", [ui(eyebrow), step + 1, steps.length])}
                 </p>
                 <h3 id={titleId} className="break-words text-xl sm:text-2xl font-bold tracking-tight text-ink-strong">
-                  {current.label}
+                  {ui(current.label)}
                 </h3>
-                <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">{current.blurb}</p>
+                {current.blurb ? <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">{ui(current.blurb)}</p> : null}
               </div>
             </div>
             <IconButton
-              label="Close"
+              label={ui("Close")}
               variant="ghost"
               onClick={requestClose}
               disabled={submitting}
@@ -140,14 +142,14 @@ function WizardChrome({
                   )}
                 >
                   {done ? <Check className="h-3 w-3" strokeWidth={3.5} /> : <StepIcon className="h-3 w-3" />}
-                  <span className="hidden sm:inline">{s.label}</span>
+                  <span className="hidden sm:inline">{ui(s.label)}</span>
                   <span className="sm:hidden">{i + 1}</span>
                 </SystemButton>
               );
             })}
           </div>
 
-          <div className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/80">
+          <div className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full bg-card/80">
             <div
               className="h-full rounded-full bg-gradient-to-r from-primary via-brand-400 to-brand-300 transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
@@ -162,7 +164,7 @@ function WizardChrome({
 
         </div>
         {/* ── Pinned footer ── */}
-        <div className="shrink-0 border-t border-edge/15 bg-white px-6 py-4 sm:px-7">
+        <div className="shrink-0 border-t border-edge/15 bg-card px-6 py-4 sm:px-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <SystemButton variant="outline"
               type="button"
@@ -170,7 +172,7 @@ function WizardChrome({
               disabled={submitting}
               className="flex h-12 items-center gap-1.5 px-5 justify-start"
             >
-              {step === 0 ? "Cancel" : (<><ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />Back</>)}
+              {step === 0 ? ui("Cancel") : (<><ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{ui("Back")}</>)}
             </SystemButton>
 
             {isLast ? (
@@ -193,7 +195,7 @@ function WizardChrome({
                 disabled={submitting}
                 className="flex h-12 items-center gap-2 px-6 justify-start"
               >
-                Next
+                {ui("Next")}
                 <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
               </SystemButton>
             )}
@@ -223,9 +225,9 @@ export function FormSection({
 }) {
   const tones = {
     violet: "bg-brand-100 text-primary",
-    emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
-    sky: "bg-sky-50 text-sky-600",
+    emerald: "bg-status-success-surface text-status-success-text",
+    amber: "bg-status-warning-surface text-status-warning-text",
+    sky: "bg-status-info-surface text-status-info-text",
   } as const;
   return (
     <section className="sk-panel p-3 sm:p-5 transition-shadow duration-300 hover:shadow-md">
@@ -279,7 +281,7 @@ export function ReviewHero({
   meta: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-primary/20 bg-gradient-to-br from-white via-white to-brand-100 p-5 shadow-sm">
+    <div className="rounded-[24px] border border-primary/20 bg-gradient-to-br from-card via-card to-brand-100 p-5 shadow-sm">
       <div className="flex items-start gap-4">
         <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
           <Icon className="h-6 w-6" />
@@ -306,6 +308,7 @@ export function ReviewSection({
   onEdit: () => void;
   children: React.ReactNode;
 }) {
+  const ui = useUiText();
   return (
     <div className="sk-panel p-3 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -320,7 +323,7 @@ export function ReviewSection({
           onClick={onEdit}
           className="px-3 py-1.5"
         >
-          Edit
+          {ui("Edit")}
         </SystemButton>
       </div>
       <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 gap-y-2 border-t border-muted pt-3">{children}</div>
@@ -340,13 +343,14 @@ export function ReviewRow({
   required?: boolean;
   dir?: "rtl" | "ltr";
 }) {
+  const ui = useUiText();
   if (!value && !required) return null;
   const missing = required && !value;
   return (
     <div>
-      <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{label}</p>
+      <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{label}</p>
       <p className={cn("truncate text-sm font-bold", missing ? "text-status-error-text" : "text-ink-strong")} dir={dir}>
-        {value || (required ? "Required — not set" : "—")}
+        {value || (required ? ui("Required — not set") : "—")}
       </p>
     </div>
   );

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import CorrectionClient from "../../src/app/corrections/view";
 import { PackageChooser } from "../../src/components/onboarding/PackageChooser";
 import RouteError from "../../src/app/teacher/error";
-import { BulkImportDialog } from "../../src/app/dashboard/students/bulk-import-dialog";
+import { BulkImportDialog } from "../../src/components/students/bulk-import-dialog";
 import { defaultLocale } from "../../src/lib/locale/package";
 import { Button } from "../../src/components/ui/button";
 

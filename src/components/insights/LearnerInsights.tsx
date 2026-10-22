@@ -31,6 +31,7 @@ import {
 } from "recharts";
 import { EmptyChart, InsightCard, Meter, SeriesLegend, SingleFigure, VizTooltip } from "./chart-kit";
 import { AXIS_TICK, INK, NO_ENTRY_ANIMATION, SERIES, STATUS, fromMinor, money } from "./palette";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 /** What both portals reduce their payload down to. */
 export interface LearnerSeries {
@@ -55,11 +56,12 @@ export function LearnerInsights({
   series: LearnerSeries;
   possessive?: string;
 }) {
+  const ui = useUiText();
   const derived = useMemo(() => {
     const split = [
-      { name: "Present", value: series.attendance.present, color: STATUS.good },
-      { name: "Absent", value: series.attendance.absent, color: STATUS.critical },
-      { name: "On leave", value: series.attendance.leave, color: STATUS.warning },
+      { name: ui("Present"), value: series.attendance.present, color: STATUS.good },
+      { name: ui("Absent"), value: series.attendance.absent, color: STATUS.critical },
+      { name: ui("On leave"), value: series.attendance.leave, color: STATUS.warning },
     ].filter((s) => s.value > 0);
 
     const subjects = [...series.subjects].sort((a, b) => b.percentage - a.percentage);
@@ -74,21 +76,19 @@ export function LearnerInsights({
       hasTrend: series.examTrend.length > 1,
       marked: series.attendance.present + series.attendance.absent + series.attendance.leave,
     };
-  }, [series]);
-
-  const subject = possessive === "your" ? "your" : `${possessive}'s`;
+  }, [series, ui]);
 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
         <InsightCard
           icon={Award}
-          title="Results by subject"
-          subtitle="Most recent published marks"
+          title={ui("Results by subject")}
+          subtitle={ui("Most recent published marks")}
           className="xl:col-span-2"
           delay={80}
           table={{
-            columns: ["Subject", "Score %", "Obtained", "Out of"],
+            columns: [ui("Subject"), ui("Score %"), ui("Obtained"), ui("Out of")],
             rows: derived.subjects.map((s) => [s.subject, s.percentage, s.obtained, s.total]),
           }}
         >
@@ -114,7 +114,7 @@ export function LearnerInsights({
                   />
                   <ReferenceLine x={PASS_MARK} stroke={INK.axis} strokeWidth={1} />
                   <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit="%" />} />
-                  <Bar {...NO_ENTRY_ANIMATION} dataKey="percentage" name="Score" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                  <Bar {...NO_ENTRY_ANIMATION} dataKey="percentage" name={ui("Score")} radius={[0, 4, 4, 0]} maxBarSize={20}>
                     {derived.subjects.map((s) => (
                       <Cell key={s.subject} fill={s.percentage >= PASS_MARK ? SERIES[0] : STATUS.critical} />
                     ))}
@@ -131,14 +131,13 @@ export function LearnerInsights({
               <SeriesLegend
                 className="mt-3"
                 items={[
-                  { label: `At or above ${PASS_MARK}%`, color: SERIES[0] },
-                  { label: "Below the pass mark", color: STATUS.critical },
+                  { label: ui("At or above {0}%", [PASS_MARK]), color: SERIES[0] },
+                  { label: ui("Below the pass mark"), color: STATUS.critical },
                 ]}
               />
               {derived.best && derived.weakest && derived.best.subject !== derived.weakest.subject ? (
                 <p className="mt-2 text-2xs font-medium leading-relaxed text-ink-subtle">
-                  Strongest in {derived.best.subject} at {derived.best.percentage}%; {derived.weakest.subject} is the
-                  one to work on at {derived.weakest.percentage}%.
+                  {ui("Strongest in {0} at {1}%; {2} is the one to work on at {3}%.", [derived.best.subject, derived.best.percentage, derived.weakest.subject, derived.weakest.percentage])}
                 </p>
               ) : null}
             </>
@@ -149,18 +148,18 @@ export function LearnerInsights({
 
         <InsightCard
           icon={CalendarCheck}
-          title="Attendance"
-          subtitle={derived.marked > 0 ? `${derived.marked} days marked` : "Nothing marked yet"}
+          title={ui("Attendance")}
+          subtitle={derived.marked > 0 ? ui(derived.marked === 1 ? "1 day marked" : "{0} days marked", [derived.marked]) : ui("Nothing marked yet")}
           delay={140}
           table={{
-            columns: ["Status", "Days"],
+            columns: [ui("Status"), ui("Days")],
             rows: derived.split.map((s) => [s.name, s.value]),
           }}
         >
           {derived.split.length === 1 ? (
             <SingleFigure
               value={derived.split[0].value}
-              label={`${derived.split[0].name} — every marked day`}
+              label={ui("{0} — every marked day", [derived.split[0].name])}
               color={derived.split[0].color}
             />
           ) : derived.split.length > 1 ? (
@@ -184,7 +183,7 @@ export function LearnerInsights({
                       <Cell key={s.name} fill={s.color} />
                     ))}
                   </Pie>
-                  <Tooltip content={<VizTooltip unit=" days" />} />
+                  <Tooltip content={<VizTooltip unit={` ${ui("days")}`} />} />
                 </PieChart>
               </ResponsiveContainer>
               <SeriesLegend
@@ -195,8 +194,7 @@ export function LearnerInsights({
                 <p className="mt-2 text-center text-2xs font-medium text-ink-subtle">
                   {/* The school's rate counts approved leave as attending, so
                       this is not the same as the present slice above. */}
-                  {series.attendance.rate}% attendance
-                  {series.attendance.rate < 75 ? " — below the 75% the school expects." : "."}
+                  {ui(series.attendance.rate < 75 ? "{0}% attendance — below the 75% the school expects." : "{0}% attendance.", [series.attendance.rate])}
                 </p>
               ) : null}
             </>
@@ -209,12 +207,12 @@ export function LearnerInsights({
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
         <InsightCard
           icon={TrendingUp}
-          title="Exam by exam"
-          subtitle="Overall percentage in each published exam"
+          title={ui("Exam by exam")}
+          subtitle={ui("Overall percentage in each published exam")}
           className={series.fees ? "xl:col-span-2" : "xl:col-span-3"}
           delay={80}
           table={{
-            columns: ["Exam", "Score %"],
+            columns: [ui("Exam"), ui("Score %")],
             rows: series.examTrend.map((e) => [e.label, e.percentage]),
           }}
         >
@@ -236,7 +234,7 @@ export function LearnerInsights({
                   {...NO_ENTRY_ANIMATION}
                   type="monotone"
                   dataKey="percentage"
-                  name="Score"
+                  name={ui("Score")}
                   stroke={SERIES[0]}
                   strokeWidth={2}
                   fill="url(#learnerExamWash)"
@@ -257,19 +255,19 @@ export function LearnerInsights({
         </InsightCard>
 
         {series.fees ? (
-          <InsightCard icon={Receipt} title="Fees" subtitle="Invoiced to date" delay={140}>
+          <InsightCard icon={Receipt} title={ui("Fees")} subtitle={ui("Invoiced to date")} delay={140}>
             <div className="flex h-full flex-col justify-center gap-5 py-2">
               <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Still to pay</p>
+                <p className="text-xs font-semibold text-ink-subtle">{ui("Still to pay")}</p>
                 <p className="mt-1.5 text-4xl font-extrabold leading-none tracking-tight text-ink-strong">
-                  {money(series.fees.balance)}
+                  <bdi dir="ltr">{money(series.fees.balance)}</bdi>
                 </p>
-                <p className="mt-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  {series.fees.balance > 0 ? `of ${money(series.fees.billed)} invoiced` : "All cleared — nothing due"}
+                <p className="mt-2 text-xs font-semibold text-ink-subtle">
+                  {series.fees.balance > 0 ? ui("of {0} invoiced", [money(series.fees.billed)]) : ui("All cleared — nothing due")}
                 </p>
               </div>
               <Meter
-                label="Paid so far"
+                label={ui("Paid so far")}
                 value={series.fees.paid}
                 max={series.fees.billed || 1}
                 valueLabel={`${money(series.fees.paid)} / ${money(series.fees.billed)}`}
@@ -283,11 +281,11 @@ export function LearnerInsights({
       {series.attendanceByMonth.length > 1 ? (
         <InsightCard
           icon={BookOpen}
-          title="Attendance month by month"
-          subtitle={`How ${subject} attendance has moved`}
+          title={ui("Attendance month by month")}
+          subtitle={possessive === "your" ? ui("How your attendance has moved") : ui("How {0}'s attendance has moved", [possessive])}
           delay={80}
           table={{
-            columns: ["Month", "Rate %", "Days marked"],
+            columns: [ui("Month"), ui("Rate %"), ui("Days marked")],
             rows: series.attendanceByMonth.map((m) => [m.label, m.rate, m.marked]),
           }}
         >
@@ -298,7 +296,7 @@ export function LearnerInsights({
               <YAxis domain={[0, 100]} unit="%" tick={AXIS_TICK} axisLine={false} tickLine={false} />
               <ReferenceLine y={75} stroke={INK.axis} strokeWidth={1} />
               <Tooltip cursor={{ fill: "rgba(129,39,207,0.06)" }} content={<VizTooltip unit="%" />} />
-              <Bar {...NO_ENTRY_ANIMATION} dataKey="rate" name="Attendance" radius={[4, 4, 0, 0]} maxBarSize={26}>
+              <Bar {...NO_ENTRY_ANIMATION} dataKey="rate" name={ui("Attendance")} radius={[4, 4, 0, 0]} maxBarSize={26}>
                 {series.attendanceByMonth.map((m) => (
                   <Cell key={m.label} fill={m.rate >= 75 ? STATUS.good : STATUS.warning} />
                 ))}
@@ -315,8 +313,8 @@ export function LearnerInsights({
           <SeriesLegend
             className="mt-3"
             items={[
-              { label: "At or above 75%", color: STATUS.good },
-              { label: "Below 75%", color: STATUS.warning },
+              { label: ui("At or above {0}%", [75]), color: STATUS.good },
+              { label: ui("Below {0}%", [75]), color: STATUS.warning },
             ]}
           />
         </InsightCard>

@@ -4,6 +4,7 @@ import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import type { PermissionAction, PermissionModule, PermissionFlags } from "@/lib/permissions";
 import type { WorkspaceCapabilities, WorkspaceKind, WorkspaceStatus } from "./types";
+import type { SCHOOL_AI_OPERATION_NAMES } from "./operations";
 
 export class SchoolAiError extends Error {
   constructor(message: string, public status = 400, public code?: string) { super(message); this.name = "SchoolAiError"; }
@@ -47,11 +48,63 @@ export function assertSchoolAiRole(user: AuthUser) {
   if (user.role !== "SUPER_ADMIN" && !user.campusId) throw new SchoolAiError("An active campus assignment is required.", 403);
 }
 export type WorkspacePermissionSnapshot = ReadonlyMap<string, PermissionFlags>;
+
+/** Every executable school AI operation (the registry in ./execution keys on the same names). */
+export type SchoolAiToolOperation = (typeof SCHOOL_AI_OPERATION_NAMES)[number];
+/** Campus operations' own tools: setup, registers, risk decisions, announcements and promotion. */
+const OPERATOR_TOOLS: readonly SchoolAiToolOperation[] = ["setup.apply_changes", "academics.setup_year", "attendance.record_register", "operations.record_risk_decision", "communications.queue_announcement", "students.promote_enrollment"];
+/** Tuition tools — an operator holds them only while the campus has no accountant (`financeDesk`). */
+const FINANCE_TOOLS: readonly SchoolAiToolOperation[] = ["finance.apply_operation", "fees.generate_invoices"];
+/** Academic-lead tools: timetable drafts, publication and cover, exam sessions, year transition, curriculum. */
+const ACADEMIC_TOOLS: readonly SchoolAiToolOperation[] = ["timetable.create_draft", "timetable.create_school_drafts", "timetable.publish_reviewed", "timetable.assign_substitutes", "exams.create_session_plan", "academics.transition_year", "curriculum.import_topics"];
+/** The principal: academic tools plus risk decisions and announcements — no fees, finance, setup or promotion. */
+const PRINCIPAL_TOOLS: readonly SchoolAiToolOperation[] = [...ACADEMIC_TOOLS, "operations.record_risk_decision", "communications.queue_announcement"];
+
+/**
+ * G42 [K-B2] — the explicit per-role, per-seat allow-list of executable AI tools. Pure so it is unit-tested
+ * (tests/authz/principal-scope.test.ts). The group admin gets no campus write tools (drafts and insights only);
+ * campus operators get their own tools plus the finance or academic set only while that seat is vacant on the
+ * campus; the principal gets the academic set. Every other role executes nothing.
+ */
+export function schoolAiOperationsFor(role: string, seats: { academicLead: boolean; financeDesk: boolean }): Set<SchoolAiToolOperation> {
+  if (role === "PRINCIPAL") return new Set(PRINCIPAL_TOOLS);
+  if (role === "CAMPUS_ADMIN" || role === "ADMIN") {
+    return new Set([...OPERATOR_TOOLS, ...(seats.financeDesk ? FINANCE_TOOLS : []), ...(seats.academicLead ? ACADEMIC_TOOLS : [])]);
+  }
+  return new Set();
+}
+
+/**
+ * The allow-list for this user on this campus. Used by BOTH `getWorkspaceCapabilities` (what the UI offers)
+ * and `authorize()` in ./execution (the single choke point for the execute route and queued runs), so typing a
+ * request changes nothing. Server-only imports are dynamic to keep this module unit-testable.
+ */
+export async function allowedSchoolAiOperations(user: AuthUser, campusId: string | null): Promise<Set<SchoolAiToolOperation>> {
+  if (user.role !== "CAMPUS_ADMIN" && user.role !== "ADMIN") return schoolAiOperationsFor(user.role, { academicLead: user.role === "PRINCIPAL", financeDesk: false });
+  const { getCampusSeats } = await import("@/lib/auth/seats");
+  const seats = await getCampusSeats(user.schoolId, campusId ?? user.campusId);
+  return schoolAiOperationsFor(user.role, { academicLead: !seats.principal, financeDesk: !seats.accountant });
+}
+
+/**
+ * Workers never hand-build an `AuthUser` (the institution kind would be missing, C32). They re-resolve the
+ * stored actor through `resolveCurrentPrincipal` in its identity form (no MFA re-check) and refuse when the
+ * account's role or access version no longer matches what was approved; the caller then marks the run or
+ * job BLOCKED/ACCESS_CHANGED.
+ */
+export async function resolveWorkerPrincipal(stored: { userId: string; schoolId: string; role: string; accessVersion: number | null | undefined }): Promise<AuthUser | null> {
+  const { resolveCurrentPrincipal } = await import("@/lib/auth/principal");
+  const resolved = await resolveCurrentPrincipal({ userId: stored.userId, schoolId: stored.schoolId });
+  if (!resolved || resolved.role !== stored.role) return null;
+  if ((resolved.accessVersion ?? 0) !== (stored.accessVersion ?? 0)) return null;
+  return resolved;
+}
 /** Authoring and execution must honor a revoked grant immediately, not after the shared UI cache expires. */
 export async function loadWorkspacePermissionSnapshot(user: AuthUser, client?: TxClient): Promise<WorkspacePermissionSnapshot> {
   const db = client ?? (await import("@/lib/db/prisma")).prisma;
   const { PERMISSION_MODULES, moduleFlags } = await import("@/lib/permissions");
-  const rows = await db.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true } });
+  const rows = await db.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true, updatedAt: true } });
+  // §7.4: `updatedAt` tells a seeded V1 default (follows the V2 default) from a grant saved after the cut-over (honoured).
   return new Map(PERMISSION_MODULES.map(module => [module, moduleFlags(rows, user.role, module)]));
 }
 export async function assertWorkspacePermission(user: AuthUser, module: PermissionModule, action: PermissionAction, permissions?: WorkspacePermissionSnapshot) {
@@ -248,9 +301,23 @@ export async function assertWorkspaceDomainPermission(user: AuthUser, kind: Work
   }
 }
 
-export async function getWorkspaceCapabilities(user: AuthUser): Promise<WorkspaceCapabilities> {
+/** `setupTasks`: whether the "Setup tasks" tab (delegating and accepting setup facts) is offered — only the
+ *  institution authority or the named readiness lead (G42, §10.8). Assignees answer through /setup/readiness. */
+export type WorkspaceCapabilitiesWithSetup = WorkspaceCapabilities & { setupTasks: boolean };
+
+/** Same rule as the setup-task service's manager gate, shared so the tab and the API agree. */
+export async function canManageSetupTasks(user: AuthUser, client?: TxClient): Promise<boolean> {
+  const { isInstitutionAuthority } = await import("@/lib/auth/institution");
+  if (isInstitutionAuthority(user)) return true;
+  const db = client ?? (await import("@/lib/db/prisma")).prisma;
+  const { isReadinessLead } = await import("@/lib/readiness/service");
+  return isReadinessLead(db, user);
+}
+
+export async function getWorkspaceCapabilities(user: AuthUser): Promise<WorkspaceCapabilitiesWithSetup> {
   await assertSchoolAiAccess(user, "view");
   const { prisma } = await import("@/lib/db/prisma");
+  const [allowed, setupTasks] = await Promise.all([allowedSchoolAiOperations(user, user.campusId), canManageSetupTasks(user)]);
   const campusScope = user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {};
   const [permissions, campuses, subjects, school, classes, cycles] = await Promise.all([
     loadWorkspacePermissionSnapshot(user),
@@ -276,6 +343,8 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
   const timetable = permissions.get("timetable");
   const canSetupTimetable = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && timetable?.canView && timetable?.canAdd));
   const canQueueAnnouncement = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && students?.canView && students?.canEdit));
+  // Decoupled from announcements (G42): promotion is its own campus-operations tool.
+  const canPromote = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && students?.canView && students?.canEdit));
   const fees = permissions.get("fees");
   const canGenerateInvoices = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd));
   const canPlanExams = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && exam?.canView && exam?.canAdd && exam?.canEdit && students?.canView));
@@ -286,6 +355,10 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
   const canFinance = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd && fees?.canEdit && accounts?.canView && accounts?.canAdd));
   const canAttendance = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && attendance?.canView && attendance?.canAdd && students?.canView));
   const canSubstitutes = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && timetable?.canView && timetable?.canEdit));
+  // G42: the matrix flags above say what the role's permissions allow; the seat allow-list says which tools
+  // this role may run at all. A tool is offered only when both agree (the same intersection authorize() applies).
+  const tools: NonNullable<WorkspaceCapabilities["tools"]> = [...(canSubstitutes ? [{ operation: "timetable.publish_reviewed" as const,kind:"WORKFLOW" as const }] : []),...(canReviewRisks ? [{operation:"operations.record_risk_decision" as const,kind:"WORKFLOW" as const}] : []),...(canSchoolSetup ? [{ operation: "setup.apply_changes" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "academics.transition_year" as const, kind: "WORKFLOW" as const }] : []), ...(canPromote ? [{ operation: "students.promote_enrollment" as const, kind: "WORKFLOW" as const }] : []), ...(canFinance ? [{ operation: "finance.apply_operation" as const, kind: "WORKFLOW" as const }] : []), ...(canAttendance ? [{ operation: "attendance.record_register" as const, kind: "WORKFLOW" as const }] : []), ...(canSubstitutes ? [{ operation: "timetable.assign_substitutes" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_school_drafts" as const, kind: "WORKFLOW" as const }] : []), ...(canGenerateInvoices ? [{ operation: "fees.generate_invoices" as const, kind: "WORKFLOW" as const }] : []), ...(canPlanExams ? [{ operation: "exams.create_session_plan" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "curriculum.import_topics" as const, kind: "CURRICULUM" as const }] : []), ...(canSetupYear ? [{ operation: "academics.setup_year" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_draft" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "communications.queue_announcement" as const, kind: "WORKFLOW" as const }] : [])]
+    .filter((tool) => allowed.has(tool.operation));
   return {
     role: user.role, campusId: user.campusId,
     canCreate: fixed || Boolean(ai?.canAdd),
@@ -297,8 +370,9 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
     subjects: subjects.map(({ class: cls, ...subject }) => ({ ...subject, className: [cls.name, cls.section].filter(Boolean).join(" · ") })),
     profile,
     setupDefaults: { ...profile, ...(startDate ? { startDate } : {}), ...(endDate ? { endDate } : {}) },
-    execution: canReviewRisks || canSchoolSetup || canFinance || canAttendance || canSubstitutes || canExecute || canSetupTimetable || canQueueAnnouncement || canGenerateInvoices || canPlanExams ? "EXPLICIT_TOOLS_ONLY" : "DRAFTS_ONLY",
-    tools: [...(canSubstitutes ? [{ operation: "timetable.publish_reviewed" as const,kind:"WORKFLOW" as const }] : []),...(canReviewRisks ? [{operation:"operations.record_risk_decision" as const,kind:"WORKFLOW" as const}] : []),...(canSchoolSetup ? [{ operation: "setup.apply_changes" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "academics.transition_year" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "students.promote_enrollment" as const, kind: "WORKFLOW" as const }] : []), ...(canFinance ? [{ operation: "finance.apply_operation" as const, kind: "WORKFLOW" as const }] : []), ...(canAttendance ? [{ operation: "attendance.record_register" as const, kind: "WORKFLOW" as const }] : []), ...(canSubstitutes ? [{ operation: "timetable.assign_substitutes" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_school_drafts" as const, kind: "WORKFLOW" as const }] : []), ...(canGenerateInvoices ? [{ operation: "fees.generate_invoices" as const, kind: "WORKFLOW" as const }] : []), ...(canPlanExams ? [{ operation: "exams.create_session_plan" as const, kind: "WORKFLOW" as const }] : []), ...(canExecute ? [{ operation: "curriculum.import_topics" as const, kind: "CURRICULUM" as const }] : []), ...(canSetupYear ? [{ operation: "academics.setup_year" as const, kind: "WORKFLOW" as const }] : []), ...(canSetupTimetable ? [{ operation: "timetable.create_draft" as const, kind: "WORKFLOW" as const }] : []), ...(canQueueAnnouncement ? [{ operation: "communications.queue_announcement" as const, kind: "WORKFLOW" as const }] : [])],
+    execution: tools.length ? "EXPLICIT_TOOLS_ONLY" : "DRAFTS_ONLY",
+    tools,
+    setupTasks,
   };
 }
 

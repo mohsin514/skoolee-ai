@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
-  canManageOperations,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   assertSharedModuleRead,
@@ -62,7 +62,7 @@ export async function PATCH(
 ) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
 
     const { invoiceId } = await params;
     const body = await req.json();

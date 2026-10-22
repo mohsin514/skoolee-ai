@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 
 /**
@@ -52,6 +52,8 @@ const ymd = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : 
 type Plan = NonNullable<Awaited<ReturnType<typeof prisma.interventionPlan.findFirst>>>;
 
 function isLeader(user: AuthUser) { return canManageOperations(user); }
+/** G35c: the responsible adult may be a teacher, the principal or a campus operator (ADMIN included). */
+const OWNER_ROLES = ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"] as const;
 function canManage(user: AuthUser, plan: Pick<Plan, "ownerId" | "createdBy">) { return isLeader(user) || plan.ownerId === user.userId || (!plan.ownerId && plan.createdBy === user.userId); }
 function assertStaff(user: AuthUser) {
   if (!isLeader(user) && user.role !== "TEACHER") throw new ApiError("Learning actions are for school staff", 403);
@@ -75,7 +77,7 @@ async function bump(tx: TxClient, user: AuthUser, plan: Plan, expectedVersion: n
 }
 
 async function assertOwner(tx: TxClient, user: AuthUser, campusId: string, ownerId: string) {
-  const owner = await tx.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, campusId, isActive: true, role: { in: ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN"] } }, select: { id: true } });
+  const owner = await tx.user.findFirst({ where: { id: ownerId, schoolId: user.schoolId, campusId, isActive: true, role: { in: [...OWNER_ROLES] } }, select: { id: true } });
   if (!owner) throw new ApiError("The responsible adult must be active staff on this campus", 400);
 }
 
@@ -121,7 +123,9 @@ export async function saveLearningAction(user: AuthUser, raw: unknown) {
 
 /** Only a leader activates, and only a complete plan: evidence, goal, owner, review date and next check-in. */
 export async function activateLearningAction(user: AuthUser, id: string, version: number) {
-  if (!isLeader(user)) throw new ApiError("Only an authorized school leader can activate a learning action", 403);
+  // G35c: activation is the academic lead's act — the principal, or a campus operator only while the
+  // campus has no principal.
+  if (!(await canLeadAcademics(user, user.campusId))) throw new ApiError("Your principal activates learning actions.", 403);
   return schoolAiTransaction(user, async tx => {
     const plan = await loadPlan(tx, user, id);
     if (plan.status !== "DRAFT") throw new ApiError("Only a draft can be activated", 409);
@@ -268,7 +272,7 @@ export async function learningActionContext(user: AuthUser) {
   ])];
   const [learners, staff] = await Promise.all([
     prisma.student.findMany({ where: { schoolId: user.schoolId, campusId, archivedAt: null, ...(classIds ? { classId: { in: classIds } } : {}) }, select: { id: true, fullName: true, rollNo: true }, orderBy: { fullName: "asc" }, take: 500 }),
-    prisma.user.findMany({ where: { schoolId: user.schoolId, campusId, isActive: true, role: { in: ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN"] } }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" }, take: 500 }),
+    prisma.user.findMany({ where: { schoolId: user.schoolId, campusId, isActive: true, role: { in: [...OWNER_ROLES] } }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" }, take: 500 }),
   ]);
-  return { learners: learners.map(l => ({ id: l.id, name: l.fullName, rollNo: l.rollNo })), staff: staff.map(s => ({ id: s.id, name: s.fullName })), leader: isLeader(user), userId: user.userId };
+  return { learners: learners.map(l => ({ id: l.id, name: l.fullName, rollNo: l.rollNo })), staff: staff.map(s => ({ id: s.id, name: s.fullName })), leader: isLeader(user), canActivate: await canLeadAcademics(user, user.campusId), userId: user.userId };
 }

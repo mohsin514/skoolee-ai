@@ -51,7 +51,7 @@ before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Willow School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Willow North", regId: campusId, city: "Lahore" } });
   await db.academicCycle.create({ data: { schoolId, campusId, label: "2026", academicYear: 2026, status: "ACTIVE" } });
-  await user("lead", "PRINCIPAL"); await user("teacher", "TEACHER"); await user("parent", "PARENT"); await user("coparent", "PARENT"); await user("otherParent", "PARENT"); await user("parent-ar", "PARENT", "ar");
+  await user("lead", "PRINCIPAL"); await user("office", "CAMPUS_ADMIN"); await user("teacher", "TEACHER"); await user("parent", "PARENT"); await user("coparent", "PARENT"); await user("otherParent", "PARENT"); await user("parent-ar", "PARENT", "ar");
   await db.class.create({ data: { id: classA, schoolId, campusId, name: "Grade 5", section: "A", academicYear: 2026, classTeacherId: users.get("teacher")!.id } });
   await db.class.create({ data: { id: classB, schoolId, campusId, name: "Grade 3", section: "B", academicYear: 2026 } });
   const pupil = async (key: string, name: string, classId: string) => { ids[key] = randomUUID(); await db.student.create({ data: { id: ids[key], schoolId, campusId, classId, fullName: name, rollNo: key, gender: "MALE", status: "active", enrollmentDate: new Date("2026-04-01Z") } as never }); };
@@ -143,7 +143,8 @@ test("screens: changed trip notice and its review, staff roster, Arabic phone", 
   // A third guardian joins now; under the version-3 terms they have not answered yet.
   await relate(ids.ali, "parent-ar", { consents: { medicalTreatment: false, fieldTrips: true, mediaPublication: false, offsiteTravel: false } });
   const page = await (await context("parent-ar", { width: 390, height: 844 })).newPage();
-  await page.goto(`${base}/parent/attendance`);
+  // Trips and permissions live on Activities & trips (M90); leave stays on Attendance.
+  await page.goto(`${base}/parent/activities`);
   await page.locator("[data-guardian-trips]").waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate(() => document.documentElement.dir), "rtl");
   await page.locator(`[data-trip="${ids.trip}"]`).scrollIntoViewIfNeeded();
@@ -156,13 +157,19 @@ test("screens: changed trip notice and its review, staff roster, Arabic phone", 
   await shot(page, "03-trip-receipt-ar");
   await page.close();
   const en = await (await context("parent")).newPage();
-  await en.goto(`${base}/parent/attendance`);
+  await en.goto(`${base}/parent/activities`);
   await en.locator(`[data-trip="${ids.trip}"]`).waitFor({ timeout: 30_000 });
+  await shot(en, "04a-family-trip-en");
+  await en.goto(`${base}/parent/attendance`);
+  await en.locator("[data-guardian-leave]").waitFor({ timeout: 30_000 });
   await en.locator("[data-guardian-leave]").scrollIntoViewIfNeeded();
-  await shot(en, "04-family-leave-and-trip-en");
+  await shot(en, "04b-family-leave-en");
   await en.close();
-  const staff = await (await context("lead")).newPage();
-  await staff.goto(`${base}/principal?view=attendance`);
+  // Trips are campus operations (M53): the campus admin's Attendance view has a Trips tab; the
+  // principal's Attendance shows the student registers only.
+  const staff = await (await context("office")).newPage();
+  await staff.goto(`${base}/admin?view=attendance`);
+  await staff.locator('[data-tour="page.tab.trips"]').click({ timeout: 30_000 });
   await staff.locator(`[data-trip-row="${ids.trip}"] [data-trip-roster]`).click({ timeout: 30_000 });
   await staff.locator("[data-trip-roster-dialog]").waitFor();
   await shot(staff, "05-staff-trip-roster");

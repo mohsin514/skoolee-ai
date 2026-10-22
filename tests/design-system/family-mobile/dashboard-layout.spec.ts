@@ -1,8 +1,8 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { PUBLISHED_EXAM_TITLE } from './dashboard-data-mock';
+import { NEXT_TASK_TITLE, PUBLISHED_EXAM_TITLE, parentInboxPayload, studentTodayPayload } from './dashboard-data-mock';
 import { translateUi } from '../../../src/lib/locale/ui-messages';
 const toolRequire = createRequire(createRequire(path.join(process.cwd(), "package.json")).resolve("tsx"));
 const { build } = toolRequire("esbuild");
@@ -25,8 +25,38 @@ test.beforeAll(async () => {
   css = compiler.build(new Scanner({ sources: [{ base: root, pattern: "src/components/**/*.{ts,tsx}", negated: false }, { base: root, pattern: "src/app/{parent,student}/*.{ts,tsx}", negated: false }, { base: root, pattern: "tests/design-system/family-mobile/*.tsx", negated: false }] }).scan()) + "\n" + moduleCss;
 });
 
-async function verifyPublishedReport(page: Page, screenshotName: string) {
-  const panel = page.getByRole('heading', { name: 'Latest Report Card', exact: true }).locator('..').locator('..');
+/**
+ * Home (family) and Today (learner) after the role re-architecture (role-ux §4.4, M96–M99): one PageHeader with
+ * one contextual primary action, the family inbox / StudentToday first, and no stat rows, quick-access tiles,
+ * calendar or AI panel on the landing screen. These checks reflow both screens at 320 px with 200 % text.
+ */
+async function mount(page: Page, role: 'parent' | 'student', language: 'en' | 'ar' | 'ur', style: string) {
+  await page.route('**/*', route => route.request().url().startsWith('http://family-dashboard.test/') ? route.fulfill({ contentType: 'text/html', body: `<html lang="${language}" dir="${language === 'en' ? 'ltr' : 'rtl'}"><body><div id="root"></div></body></html>` }) : route.abort());
+  await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: true, attendance: true, fees: true, timetable: true, students: true, exams: true, ai: true } } }));
+  await page.route('**/api/profile', route => route.fulfill({ json: { profile: null } }));
+  await page.route('**/api/academic-cycle', route => route.fulfill({ json: { active: null, data: [] } }));
+  await page.route('**/api/parent/inbox', route => route.fulfill({ json: parentInboxPayload() }));
+  await page.route('**/api/parent/invitations', route => route.fulfill({ json: { success: true, invitations: [] } }));
+  await page.route('**/api/student/today**', route => route.fulfill({ json: studentTodayPayload() }));
+  const aiCalls = { count: 0 };
+  await page.route('**/api/ai/**', route => { aiCalls.count++; return route.abort(); });
+  await page.goto(`http://family-dashboard.test/${role}`); await page.addStyleTag({ content: css + style }); await page.addScriptTag({ content: js });
+  await expect(page.locator('main h1')).toBeVisible();
+  return aiCalls;
+}
+
+async function assertReachable(page: Page, locator: Locator) {
+  // Centred, so the fixed mobile navigation never sits over the control being hit-tested.
+  await locator.evaluate(element => element.scrollIntoView({ block: 'center' }));
+  const width = page.viewportSize()!.width;
+  const box = (await locator.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(-1); expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+  expect(await locator.evaluate(element => { const r = element.getBoundingClientRect(); const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return hit === element || element.contains(hit); })).toBe(true);
+}
+
+async function verifyLatestResult(page: Page, language: 'en' | 'ar' | 'ur', screenshotName: string) {
+  const panel = page.locator('section[aria-labelledby="home-latest-result"]');
+  await expect(panel.getByRole('heading', { name: translateUi('Latest result', language), exact: true })).toBeVisible();
   const title = panel.getByText(PUBLISHED_EXAM_TITLE, { exact: true });
   const score = panel.getByText('80%', { exact: true });
   await expect(title).toBeVisible(); await expect(score).toBeVisible();
@@ -35,59 +65,43 @@ async function verifyPublishedReport(page: Page, screenshotName: string) {
     const box = (await field.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
   }
+  // At phone width with enlarged text the score wraps under the title instead of squeezing it.
   const titleBox = (await title.boundingBox())!, scoreBox = (await score.boundingBox())!;
   expect(scoreBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
-  const resultsLink = panel.getByRole('link', { name: 'View all results', exact: true });
-  await resultsLink.scrollIntoViewIfNeeded(); await resultsLink.focus();
-  expect(await resultsLink.evaluate(element => { const box = element.getBoundingClientRect(); const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2); return hit === element || element.contains(hit); })).toBe(true);
+  const resultsLink = panel.getByRole('link', { name: translateUi('All results', language) });
+  await resultsLink.focus(); await assertReachable(page, resultsLink);
   await panel.screenshot({ path: test.info().outputPath(screenshotName) });
 }
 
-for (const language of ['en','ar','ur'] as const) for (const role of ['parent','student'] as const) {
-  test(`${language} ${role}: actual dashboard cards and calendar reflow at320/200%`, async ({ page }) => {
+for (const language of ['en', 'ar', 'ur'] as const) for (const role of ['parent', 'student'] as const) {
+  test(`${language} ${role}: landing screen reflows at320/200% with one primary action`, async ({ page }) => {
     const t = (text: string) => translateUi(text, language);
-    await page.route('**/*', route => route.request().url().startsWith('http://family-dashboard.test/') ? route.fulfill({ contentType: 'text/html', body: `<html lang="${language}" dir="${language === 'en' ? 'ltr' : 'rtl'}"><body><div id="root"></div></body></html>` }) : route.abort());
-    await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: true, attendance: true, fees: true, timetable: true, students: true, exams: true, ai: true } } }));
-    await page.route('**/api/profile', route => route.fulfill({ json: { profile: null } }));
-    await page.route('**/api/academic-cycle', route => route.fulfill({ json: { active: null, data: [] } }));
-    await page.route('**/api/timetable/class', route => route.fulfill({ json: { success: true, data: { slots: [] } } }));
-    await page.route('**/api/exams?**', route => route.fulfill({ json: { success: true, exams: [] } }));
-    await page.route('**/api/academic/calendar/unified?**', route => route.fulfill({ json: { success: true, data: { weekStartsOn: 1, weekends: [6,7], holidays: [{ id: 'holiday-one', name: 'Family learning day with a readable complete title', fromDate: `${new Date().getFullYear()}-12-20`, toDate: `${new Date().getFullYear()}-12-20` }], terms: [], exams: [] } } }));
-    let aiCalls = 0; await page.route('**/api/ai/**', route => { aiCalls++; return route.abort(); });
-    await page.goto(`http://family-dashboard.test/${role}`); await page.addStyleTag({ content: css + '\nhtml {font-size:200% !important;}' }); await page.addScriptTag({ content: js });
-    await expect(page.locator('main h1')).toBeVisible();
-    if (role === 'parent') await expect(page.getByText(PUBLISHED_EXAM_TITLE, { exact: true }).last()).toBeVisible();
+    const aiCalls = await mount(page, role, language, '\nhtml {font-size:200% !important;}');
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    for (const name of ['Results by subject','Attendance','Exam by exam']) {
-      const heading = page.getByRole('heading', { name, exact: true });
-      await heading.scrollIntoViewIfNeeded();
-      const geometry = await heading.evaluate(element => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height, line: parseFloat(getComputedStyle(element).lineHeight) }));
-      expect(geometry.width).toBeGreaterThanOrEqual(150); expect(geometry.height).toBeLessThanOrEqual(geometry.line * 3 + 1);
+    // Exactly one primary action, in the page header (§4.3, §4.4).
+    const primary = page.locator('[data-tour="page.primary-action"]');
+    await expect(primary).toHaveCount(1);
+    await assertReachable(page, primary);
+    if (role === 'parent') {
+      // Home: the top family request is the primary action; the inbox is the one queue (M96).
+      await expect(primary).toContainText(t('Pay {0}').replace('{0}', 'USD 45.00'));
+      const inbox = page.locator('[data-tour="parent.home.inbox"]');
+      await expect(inbox.locator('[data-inbox-item]')).toHaveCount(1);
+      await assertReachable(page, inbox.locator('[data-inbox-open]').first());
+      await page.screenshot({ path: test.info().outputPath(`${role}-${language}-home.png`) });
+      for (const removed of ['Quick Access', 'Results by subject', 'Exam by exam']) await expect(page.getByRole('heading', { name: removed, exact: true })).toHaveCount(0);
+      await verifyLatestResult(page, language, `${role}-${language}-latest-result.png`);
+    } else {
+      // Today: StudentToday only; its next step is the header's "Continue: …" (M99).
+      await expect(primary).toContainText(NEXT_TASK_TITLE);
+      const next = page.locator('[data-tour="student.today.next"]');
+      await expect(next.locator('[data-next-action="NEXT_DUE"]')).toBeVisible();
+      await assertReachable(page, page.locator('[data-today-lessons] li').first());
+      await expect(page.getByRole('button', { name: 'Run AI', exact: true })).toHaveCount(0);
+      await page.screenshot({ path: test.info().outputPath(`${role}-${language}-today.png`) });
     }
-    const results = page.getByRole('region', { name: 'Results by subject', exact: true });
-    await results.scrollIntoViewIfNeeded(); await page.screenshot({ path: test.info().outputPath(`${role}-${language}-insights.png`) });
-    const table = results.getByRole('button', { name: 'Show table', exact: true }); await table.focus(); await page.keyboard.press('Enter'); await expect(results.getByRole('table')).toBeVisible();
-    await expect(results.getByRole('cell', { name: 'Mathematics', exact: true })).toBeVisible();
-    const agenda = page.getByRole('button', { name: t("What's next"), exact: true }); await expect(agenda).toHaveAttribute('aria-pressed','true');
-    await agenda.scrollIntoViewIfNeeded(); await page.screenshot({ path: test.info().outputPath(`${role}-${language}-agenda.png`) });
-    const month = page.getByRole('button', { name: t('Month'), exact: true }); await month.focus(); await page.keyboard.press('Enter');
-    const calendar = page.getByRole('region', { name: t('Month calendar. Scroll horizontally to see all days.'), exact: true }); await expect(calendar).toBeVisible();
-    const first = calendar.getByRole('button').first(); const last = calendar.getByRole('button').last();
-    const box = (await first.boundingBox())!; expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
-    await last.focus(); await expect(last).toBeFocused();
-    const bounds = (await last.boundingBox())!; expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
-    await page.screenshot({ path: test.info().outputPath(`${role}-${language}-month.png`) });
-    await page.setViewportSize({ width: 768, height: 1024 }); await expect(month).toHaveAttribute('aria-pressed','true'); await page.setViewportSize({ width: 320, height: 720 }); await expect(month).toHaveAttribute('aria-pressed','true');
-    await agenda.click(); await expect(page.getByText('Family learning day with a readable complete title')).toBeVisible();
-    if (role === 'student') {
-      const context = page.getByRole('textbox', { name: 'Context for Explain Report', exact: true }); await context.scrollIntoViewIfNeeded(); await context.fill('Readable synthetic draft');
-      expect((await context.boundingBox())!.width).toBeGreaterThanOrEqual(180);
-      const run = page.getByRole('button', { name: 'Run AI', exact: true }); await run.scrollIntoViewIfNeeded(); await run.focus();
-      expect(await run.evaluate(element => { const r = element.getBoundingClientRect(); const hit = document.elementFromPoint(r.x+r.width/2,r.y+r.height/2); return hit === element || element.contains(hit); })).toBe(true);
-      await page.screenshot({ path: test.info().outputPath(`${role}-${language}-ai.png`) });
-    }
-    if (role === 'parent') await verifyPublishedReport(page, `${role}-${language}-published-report.png`);
-    expect(aiCalls).toBe(0); await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(aiCalls.count).toBe(0);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
 
@@ -95,18 +109,9 @@ for (const language of ['en', 'ar', 'ur'] as const) for (const role of ['parent'
   test(`${language} ${role}: zoom audit ${mechanism} immediate and settled layout`, async ({ page }) => {
     const width = mechanism === 'css-zoom' ? 640 : 320;
     await page.setViewportSize({ width, height: mechanism === 'css-zoom' ? 1440 : 720 });
-    await page.route('**/*', route => route.request().url().startsWith('http://family-dashboard.test/') ? route.fulfill({ contentType: 'text/html', body: `<html lang="${language}" dir="${language === 'en' ? 'ltr' : 'rtl'}"><body><div id="root"></div></body></html>` }) : route.abort());
-    await page.route('**/api/navigation/access', route => route.fulfill({ json: { access: { reports: true, attendance: true, fees: true, timetable: true, students: true, exams: true, ai: true } } }));
-    await page.route('**/api/profile', route => route.fulfill({ json: { profile: null } }));
-    await page.route('**/api/academic-cycle', route => route.fulfill({ json: { active: null, data: [] } }));
-    await page.route('**/api/timetable/class', route => route.fulfill({ json: { success: true, data: { slots: [] } } }));
-    await page.route('**/api/exams?**', route => route.fulfill({ json: { success: true, exams: [] } }));
-    await page.route('**/api/academic/calendar/unified?**', route => route.fulfill({ json: { success: true, data: { weekStartsOn: 1, weekends: [6, 7], holidays: [], terms: [], exams: [] } } }));
-    let aiCalls = 0; await page.route('**/api/ai/**', route => { aiCalls++; return route.abort(); });
-    await page.goto(`http://family-dashboard.test/${role}`); await page.addStyleTag({ content: css }); await page.addScriptTag({ content: js });
-    await expect(page.locator('main h1')).toBeVisible();
-    if (role === 'parent') await expect(page.getByText(PUBLISHED_EXAM_TITLE, { exact: true }).last()).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Results by subject', exact: true })).toBeVisible();
+    const aiCalls = await mount(page, role, language, '');
+    const landing = role === 'parent' ? page.locator('[data-tour="parent.home.inbox"]') : page.locator('[data-student-today]');
+    await expect(landing).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const report = await page.evaluate(async mode => {
       const started = performance.now();
@@ -126,18 +131,17 @@ for (const language of ['en', 'ar', 'ur'] as const) for (const role of ['parent'
     }, mechanism);
     console.log(`ZOOM_AUDIT ${language} ${role} ${mechanism} ${JSON.stringify(report)}`);
     await test.info().attach(`${role}-${language}-${mechanism}-measurements`, { contentType: 'application/json', body: JSON.stringify(report, null, 2) });
-    const results = page.getByRole('region', { name: 'Results by subject', exact: true });
-    await results.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: test.info().outputPath(`${role}-${language}-${mechanism}-insights.png`) });
-    const heading = results.getByRole('heading', { name: 'Results by subject', exact: true });
+    await landing.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: test.info().outputPath(`${role}-${language}-${mechanism}-landing.png`) });
+    const heading = page.locator('main h1');
     const headingGeometry = await heading.evaluate(element => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height, line: parseFloat(getComputedStyle(element).lineHeight) * Number(getComputedStyle(document.documentElement).zoom || 1) }));
-    expect(headingGeometry.width).toBeGreaterThanOrEqual(150);
+    expect(headingGeometry.width).toBeGreaterThan(0);
     expect(headingGeometry.height).toBeLessThanOrEqual(headingGeometry.line * 3 + 1);
-    if (role === 'parent') await verifyPublishedReport(page, `${role}-${language}-${mechanism}-published-report.png`);
+    if (role === 'parent') await verifyLatestResult(page, language, `${role}-${language}-${mechanism}-latest-result.png`);
     const final = report.at(-1)!;
     expect(final.rootZoom).toBe(mechanism === 'css-zoom' ? '2' : '1');
     expect(final.rootFont).toBe(mechanism === 'root-text' ? '32px' : '16px');
     expect(final.scrollWidth, JSON.stringify(final)).toBeLessThanOrEqual(final.clientWidth);
-    expect(aiCalls).toBe(0);
+    expect(aiCalls.count).toBe(0);
   });
 }

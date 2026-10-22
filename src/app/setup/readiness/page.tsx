@@ -1,12 +1,11 @@
-import { redirect } from "next/navigation";
-import { LocaleProvider } from "@/components/locale/LocaleProvider";
 import { ReadinessHome } from "@/components/readiness/ReadinessHome";
-import { getAuthUser } from "@/lib/auth";
 
 export const metadata = { title: "School readiness" };
 
-export default async function SchoolReadinessPage() {
-  const user = await getAuthUser();
-  if (!user) redirect("/login");
-  return <LocaleProvider><ReadinessHome /></LocaleProvider>;
+/**
+ * School readiness, framed in the caller's console. `setup/layout.tsx` already checks the session (families and the
+ * platform operator go home) and provides the locale, so the page adds no second LocaleProvider of its own.
+ */
+export default function SchoolReadinessPage() {
+  return <ReadinessHome />;
 }

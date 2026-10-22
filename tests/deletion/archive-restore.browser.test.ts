@@ -76,7 +76,7 @@ test("the student modal archives with the server's history counts and keeps the 
   assert.match(text, /1 mark\(s\)/); assert.match(text, /1 invoice\(s\)/); assert.match(text, /can be restored later/);
   assert.doesNotMatch(text, /will be removed|permanently/i);
   await shot(page, "student-archive-en-1440");
-  await confirm.getByRole("button", { name: "Archive Student" }).click();
+  await confirm.getByRole("button", { name: "Archive student" }).click();
   await page.waitForFunction(`!document.querySelector('[role="alertdialog"], [role="dialog"]')`, undefined, { timeout: 15_000 }).catch(() => undefined);
   const row = await db.student.findUniqueOrThrow({ where: { id: pupilA } });
   assert.ok(row.archivedAt);
@@ -137,7 +137,8 @@ test("archived classes are listed with their year and restore through a dialog; 
   await confirm.getByText("A class with this name, section and academic year already exists in this campus").waitFor();
   assert.ok((await db.class.findUniqueOrThrow({ where: { id: blocked } })).archivedAt, "nothing changed on conflict");
   await shot(page, "class-restore-conflict-en-1440");
-  await confirm.getByRole("button", { name: "Cancel" }).click();
+  // R3: a ConfirmAction's way out is "Keep editing" (the shared default), never "Cancel".
+  await confirm.getByRole("button", { name: "Keep editing" }).click();
   await page.locator(`[data-archived-class="${free}"]`).getByRole("button", { name: "Restore" }).click();
   await dialog(page).getByRole("button", { name: "Restore class" }).click();
   await page.getByText("Nine · A · 2026 restored. Its history was never removed.").waitFor();
@@ -151,14 +152,14 @@ test("bulk archive on the student directory shows a labelled dialog with the sum
   const ctx = await context("admin"), page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   let dialogs = 0; page.on("dialog", d => { dialogs++; void d.dismiss(); });
-  await page.goto(`${base}/dashboard/students`);
+  await page.goto(`${base}/admin?view=students`);
   await page.getByRole("checkbox", { name: "Select Synthetic Noor Pupil" }).check({ timeout: 30_000 });
   await page.getByRole("button", { name: "Archive", exact: true }).click();
   const confirm = dialog(page);
   await confirm.getByText("Archive 1 student(s)?").waitFor();
   assert.match(await confirm.innerText(), /no linked records/);
   await shot(page, "bulk-archive-en-1440");
-  await confirm.getByRole("button", { name: "Archive Student" }).click();
+  await confirm.getByRole("button", { name: "Archive student" }).click();
   await page.waitForFunction(`!document.querySelector('[role="alertdialog"]')`, undefined, { timeout: 15_000 }).catch(() => undefined);
   assert.ok((await db.student.findUniqueOrThrow({ where: { id: pupilAr } })).archivedAt);
   assert.equal(dialogs, 0, "no native browser confirm was used");

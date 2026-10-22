@@ -98,7 +98,7 @@ export function PersonalLanguageSetting({ id = "personal-language", lockedReason
               return (
                 <label key={inputId} htmlFor={inputId}
                   className={cn(
-                    "sk-choice-card relative flex min-h-[76px] cursor-pointer items-center gap-3.5 rounded-2xl border bg-white px-4 py-3.5 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-200",
+                    "sk-choice-card relative flex min-h-[76px] cursor-pointer items-center gap-3.5 rounded-2xl border bg-card px-4 py-3.5 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-200",
                     selected ? "border-primary bg-brand-50 ring-1 ring-primary shadow-sm" : "border-edge hover:border-brand-200 hover:bg-surface-subtle",
                     disabled && !selected && "cursor-not-allowed opacity-60",
                   )}>
@@ -113,7 +113,7 @@ export function PersonalLanguageSetting({ id = "personal-language", lockedReason
                     <span className="mt-0.5 block text-xs font-medium text-ink-subtle [overflow-wrap:anywhere]">{option.english}</span>
                   </span>
                   <span aria-hidden="true" className={cn("flex size-6 shrink-0 items-center justify-center rounded-full border-2",
-                    selected ? "border-primary bg-primary text-white" : "border-field-border bg-white")}>
+                    selected ? "border-primary bg-primary text-white" : "border-field-border bg-card")}>
                     {saving === option.value ? <Loader2 className="size-3.5 motion-safe:animate-spin" /> : selected ? <Check className="size-3.5" strokeWidth={3} /> : null}
                   </span>
                 </label>

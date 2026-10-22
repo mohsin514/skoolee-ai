@@ -10,6 +10,17 @@ import { schoolAICopy } from "../../src/lib/school-ai/copy";
 import { setupGenerationCopy } from "../../src/components/school-ai/setup-generation-copy";
 import { setupQuestions, type SetupAnswers } from "../../src/lib/school-ai/onboarding";
 
+
+/** M106: the floating "Replay guide" button is gone. Help → "Replay welcome" (SPEC §4.2) inside a role shell; where no
+ *  shell is mounted (the /onboarding setup page) the same window event Help dispatches. */
+async function replayWelcome(page: Page) {
+  const help = page.getByRole("button", { name: "Help", exact: true });
+  if (await help.count()) {
+    await help.first().click();
+    await page.getByRole("menuitem", { name: "Replay welcome" }).click();
+  } else await page.evaluate(() => window.dispatchEvent(new Event("skoolee:replay-welcome")));
+}
+
 const database = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
 if (process.env.DATABASE_URL !== database || process.env.DIRECT_URL !== database) throw Error("Only the isolated local test database is allowed.");
 const db = new PrismaClient();
@@ -58,7 +69,7 @@ async function passwordLogin(page: Page, role: UserRole) {
 for (const role of USER_ROLES) {
   test(`password login automatically opens personal onboarding for ${role}`, async ({ page, context }) => {
     await passwordLogin(page, role);
-    await expect(page.getByRole("heading", { name: roleGuideCopy(role, "en").title, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: roleGuideCopy(role, "en", "GROUP").title, exact: true })).toBeVisible();
     await expect(page.locator("[data-launch-guide] [data-guide-persona]")).toHaveAttribute("data-guide-persona", role);
     if (role === "SUPER_ADMIN") await expect(page).toHaveURL(/\/onboarding$/);
     if (role === "TEACHER") await expect(page).toHaveURL(/\/teacher-onboarding$/);
@@ -107,17 +118,18 @@ test("welcome response taking longer than ten seconds still automatically opens"
     await route.continue();
   });
   await page.goto("/admin?view=overview");
-  await expect(page.getByRole("button", { name: c.loadingGuide, exact: true })).toBeVisible();
+  // No floating "Loading your onboarding guide…" button any more (M106): the welcome simply opens when it is ready.
+  await expect(page.getByRole("button", { name: c.loadingGuide, exact: true })).toHaveCount(0);
   await expect(page.locator("[data-launch-guide]")).toBeVisible({ timeout: 25000 });
 });
 
 test("meaningful workflow deep links stay uninterrupted while replay remains available", async ({ page, context }) => {
   await restore(context, page);
   await page.goto("/ai?workflow=overview");
-  await expect(page.getByRole("button", { name: c.replay, exact: true })).toBeVisible();
   await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
   await expect(page.locator("[data-ai-workflow-launchpad]")).toBeVisible();
-  await page.getByRole("button", { name: c.replay, exact: true }).click();
+  await expect(page.getByRole("button", { name: c.replay, exact: true })).toHaveCount(0);
+  await replayWelcome(page);
   await expect(page.locator("[data-launch-guide]")).toBeVisible();
 });
 
@@ -127,7 +139,7 @@ test("completed welcome stays completed across default overview reload while rol
   await expect(page.locator("[data-launch-guide]")).toBeVisible();
   await page.getByRole("button", { name: "Explore on my own", exact: true }).click();
   await page.goto(`${dashboardPathForRole("PRINCIPAL")}?view=overview`);
-  await expect(page.getByRole("button", { name: c.replay, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Help", exact: true })).toBeVisible();
   await expect(page.locator("[data-launch-guide]")).toHaveCount(0);
   const account = await db.user.findUniqueOrThrow({ where: { id: `${schoolId}-PRINCIPAL` } });
   expect(account.welcomeCompletedAt).not.toBeNull();

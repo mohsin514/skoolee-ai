@@ -35,7 +35,8 @@ async function mount(page: Page, role: "parent" | "student", language: "en" | "a
   await page.addStyleTag({ content: css + (large ? "\nhtml { font-size: 200% !important; }" : "") });
   await page.addScriptTag({ content: js });
   await expect(page.locator("main h1")).toBeVisible();
-  await expect(page.getByText(translateUi("No Cycle", language), { exact: true })).toBeVisible();
+  // The academic-cycle chip is staff context (role-ux §4.1): families never carry it in their header.
+  await expect(page.getByText(translateUi("No Cycle", language), { exact: true })).toHaveCount(0);
 }
 
 async function finishDialogEntry(dialog: Locator) {
@@ -67,7 +68,10 @@ for (const language of ["en", "ar", "ur"] as const) for (const role of ["parent"
       expect(Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) <= 1 || Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) <= 1).toBe(true);
     }
     if (role === "parent") {
-      const change = page.getByRole("button", { name: t("Change child"), exact: true });
+      // The child switcher lives in the header's context slot (M97) and names the child being viewed.
+      const change = page.locator('[data-tour="shell.parent.child-switcher"]');
+      await expect(change).toHaveAccessibleName(new RegExp(t("Change child, viewing {0}").split("{0}")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+      await assertInsideViewport(change, page);
       await change.focus(); await page.keyboard.press("Enter");
       const dialog = page.getByRole("dialog"); await finishDialogEntry(dialog);
       for (const roll of [LONG_ROLL_A, LONG_ROLL_B]) {

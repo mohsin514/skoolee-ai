@@ -26,6 +26,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { useLocale } from "@/components/locale/LocaleProvider";
@@ -114,9 +115,9 @@ const SUBJECT_COLORS = [
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   BREAK: { bg: "bg-muted", text: "text-ink-muted", label: "Break" },
-  PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/60", label: "Prayer / Namaz" },
-  ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/60", label: "Assembly" },
-  ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
+  PRAYER: { bg: "bg-status-warning-surface/80", text: "text-status-warning-text/80", label: "Prayer / Namaz" },
+  ASSEMBLY: { bg: "bg-status-info-surface/80", text: "text-status-info-text/80", label: "Assembly" },
+  ACTIVITY: { bg: "bg-status-success-surface/80", text: "text-status-success-text/80", label: "Activity" },
 };
 
 type GridPeriod = { num: number; start: string; end: string; type: string };
@@ -189,8 +190,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
   const qp = campusId ? `?campusId=${campusId}` : "";
 
+  // R4: a failed load is an inline ErrorState with retry (teachers, students and families read this screen).
+  const [loadFailed, setLoadFailed] = useState(false);
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [ttRes, classRes, teacherRes, periodRes, roomRes, calRes] = await Promise.all([
         fetch(`/api/timetable${qp}`),
@@ -220,7 +224,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         setTeachers(teacherList);
       }
     } catch {
-      toast.error("Could not load the timetable. Check your connection and try again.");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -312,14 +316,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable created. Add lessons to each period.");
+        toast.success(ui("Timetable created. Add lessons to each period."));
         setCustomPeriods([]);
         await loadData();
       } else {
         toast.error(json.error || "Could not create the timetable. Please try again.");
       }
     } catch {
-      toast.error("Could not create the timetable. Check your connection and try again.");
+      toast.error(ui("Could not create the timetable. Check your connection and try again."));
     } finally {
       setCreating(false);
     }
@@ -361,7 +365,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable changes saved.");
+        toast.success(ui("Timetable changes saved."));
         setPendingChanges(new Map());
         await loadData();
       } else if (json.conflicts) {
@@ -370,7 +374,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         toast.error(json.error || "Could not save the timetable. Please try again.");
       }
     } catch {
-      toast.error("Could not save the timetable. Check your connection and try again.");
+      toast.error(ui("Could not save the timetable. Check your connection and try again."));
     } finally {
       setSaving(false);
     }
@@ -394,7 +398,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         toast.error(json.error || "Could not change the timetable status. Please try again.");
       }
     } catch {
-      toast.error("Could not change the timetable status. Check your connection and try again.");
+      toast.error(ui("Could not change the timetable status. Check your connection and try again."));
     } finally {
       setPublishing(false);
     }
@@ -412,14 +416,14 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Period settings saved.");
+        toast.success(ui("Period settings saved."));
         await loadData();
         return true;
       }
       toast.error(json.error || "Could not save the period settings. Please try again.");
       return false;
     } catch {
-      toast.error("Could not save the period settings. Check your connection and try again.");
+      toast.error(ui("Could not save the period settings. Check your connection and try again."));
       return false;
     } finally {
       setSaving(false);
@@ -442,13 +446,13 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable deleted");
+        toast.success(ui("Timetable deleted"));
         await loadData();
       } else {
         toast.error(json.error || "Could not delete the timetable. Please try again.");
       }
     } catch {
-      toast.error("Could not delete the timetable. Check your connection and try again.");
+      toast.error(ui("Could not delete the timetable. Check your connection and try again."));
     } finally {
       setDeletingTimetable(false); setConfirmDeleteTimetable(false);
     }
@@ -476,6 +480,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
   }, [scope.resources]);
 
   const selectedTeacherSlots = selectedTeacherId ? teacherSlotMap.get(selectedTeacherId) || [] : [];
+
+  if (loadFailed && !loading) {
+    return <ErrorState title={ui("The timetable could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void loadData()} />;
+  }
 
   if (loading) {
     return (
@@ -578,10 +586,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   </div>
                   {visibleDays.map((day) => (
                     <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-s border-muted ${weekendDays.includes(day.num) ? "opacity-50 bg-muted/70" : ""}`}>
-                      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                      <span className="text-2xs font-semibold text-ink-subtle">{day.short}</span>
                       <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {weekendDays.includes(day.num) && (
-                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold uppercase text-status-error-text">Off</span>
+                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold text-status-error-text">Off</span>
                       )}
                     </div>
                   ))}
@@ -608,7 +616,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                                 {slotInfo.classLabel}
                               </p>
                               {isConflict && (
-                                <span className="text-3xs font-semibold uppercase text-status-error-text mt-0.5">CONFLICT</span>
+                                <span className="text-3xs font-semibold text-status-error-text mt-0.5">CONFLICT</span>
                               )}
                             </div>
                           ) : (
@@ -665,8 +673,8 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         <EmptyState
           className="sk-enter"
           icon={Calendar}
-          title={ui("No Timetable Yet")}
-          description={`Create a weekly schedule for this class with configurable period timings (${visibleDays.map((d) => d.short).join("–")})`}
+          title={ui("No timetable yet")}
+          description={ui("Create a weekly schedule for this class with configurable period timings ({0}).", [visibleDays.map((d) => d.short).join("–")])}
           secondaryAction={
             <Button variant="outline"
               type="button"
@@ -796,10 +804,10 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                   const isOff = weekendDays.includes(day.num);
                   return (
                     <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-s border-muted ${isOff ? "opacity-50 bg-muted/70" : ""}`}>
-                      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                      <span className="text-2xs font-semibold text-ink-subtle">{day.short}</span>
                       <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {isOff && (
-                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold uppercase text-status-error-text">Off</span>
+                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold text-status-error-text">Off</span>
                       )}
                     </div>
                   );
@@ -1210,7 +1218,7 @@ function SlotEditorModal({
 
         <div className="space-y-4">
           <div>
-            <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
+            <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Slot Type</label>
             <div className="flex gap-1 rounded-2xl bg-muted p-1">
               {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
                 <Button aria-pressed={slotType === type} variant="choice" size="sm"
@@ -1228,7 +1236,7 @@ function SlotEditorModal({
           {slotType === "CLASS" && (
             <>
               <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
+                <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Subject</label>
                 <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
@@ -1242,7 +1250,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Teacher</label>
+                <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Teacher</label>
                 <SystemSelect
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
@@ -1256,7 +1264,7 @@ function SlotEditorModal({
               </div>
 
               <div>
-                <label className="text-2xs font-semibold uppercase tracking-wider text-ink-muted mb-1.5 block">Room (Optional)</label>
+                <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Room (Optional)</label>
                 <SystemSelect
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
@@ -1301,7 +1309,7 @@ function RoutinePrintGrid({
         .routine-print h2 { font-size: 16px; font-weight: 800; margin: 0 0 12px; }
         .routine-print table { width: 100%; border-collapse: collapse; }
         .routine-print th, .routine-print td { border: 1px solid #ccc; padding: 6px 8px; font-size: 11px; text-align: center; vertical-align: top; }
-        .routine-print th { background: #f2eef5; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .routine-print th { background: #f2eef5; font-size: 10px; }
         .routine-print td.time { font-weight: 800; font-size: 10px; white-space: nowrap; }
         .routine-print .cell { font-weight: 700; }
         .routine-print .sub { font-weight: 400; color: #555; font-size: 9px; }
@@ -1370,6 +1378,7 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
   title?: string;
   weekendDays?: number[];
 }) {
+  const ui = useUiText();
   // Render only the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = useMemo(
     () => DAYS.filter((d) => !weekendDays.includes(d.num)),
@@ -1405,11 +1414,12 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
   };
 
   if (slots.length === 0) {
+    // R5: the shared EmptyState, not a local copy.
     return (
-      <EmptyStateCard
+      <EmptyState
         icon={Calendar}
-        title="No Timetable Available"
-        description="The timetable hasn't been published yet. Check back later."
+        title={ui("No timetable yet")}
+        description={ui("The timetable has not been published yet. Check back later.")}
       />
     );
   }
@@ -1418,10 +1428,10 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
     <div className="space-y-4">
       {title && (
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-brand-50 flex items-center justify-center">
+          <div aria-hidden="true" className="h-8 w-8 rounded-xl bg-brand-50 flex items-center justify-center">
             <Calendar className="w-4 h-4 text-primary" />
           </div>
-          <h3 className="text-sm font-bold text-ink-strong">{title}</h3>
+          <h3 className="text-sm font-bold text-ink-strong">{ui(title)}</h3>
         </div>
       )}
 
@@ -1431,8 +1441,8 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
           const c = subjectColorMap.get(name);
           return (
             <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg || "bg-surface-subtle"} px-2 py-1`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${c?.dot || "bg-ink-faint"}`} />
-              <span className={`text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{name}</span>
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${c?.dot || "bg-ink-faint"}`} />
+              <bdi className={`text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{name}</bdi>
             </span>
           );
         })}
@@ -1442,11 +1452,11 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
         <div className="min-w-[700px]">
           <div className="grid border-b border-muted" style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}>
             <div className="flex items-center justify-center p-2">
-              <Clock className="w-3.5 h-3.5 text-ink-subtle" />
+              <Clock aria-label={ui("Time")} className="w-3.5 h-3.5 text-ink-subtle" />
             </div>
             {visibleDays.map((day) => (
               <div key={day.num} className="flex items-center justify-center py-2.5 border-s border-muted">
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
+                <abbr title={ui(day.full)} className="text-xs font-semibold text-ink-subtle no-underline">{ui(day.short)}</abbr>
               </div>
             ))}
           </div>
@@ -1462,8 +1472,8 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                 style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}
               >
                 <div className="flex flex-col items-center justify-center p-1.5 border-e border-muted">
-                  <span className="text-2xs font-bold text-primary">P{period.num}</span>
-                  <span className="text-2xs font-medium tabular-nums text-ink-subtle">{period.start}</span>
+                  <span className="text-2xs font-bold text-primary" title={ui("Period {0}", [period.num])}>{ui("P{0}", [period.num])}</span>
+                  <bdi dir="ltr" className="text-2xs font-medium tabular-nums text-ink-subtle">{period.start}</bdi>
                 </div>
                 {visibleDays.map((day) => {
                   const slot = getSlot(day.num, period.num);
@@ -1473,8 +1483,8 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                     const style = SLOT_TYPE_STYLES[slot.slotType];
                     return (
                       <div key={day.num} className="border-s border-muted flex items-center justify-center p-1">
-                        <span className={`text-3xs font-bold ${style?.text || "text-ink-subtle"}`}>
-                          {style?.label || slot.slotType}
+                        <span className={`text-2xs font-bold ${style?.text || "text-ink-subtle"}`}>
+                          {ui(style?.label || slot.slotType)}
                         </span>
                       </div>
                     );
@@ -1486,18 +1496,18 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                     <div key={day.num} className="border-s border-muted p-1">
                       {slot.subject ? (
                         <div className={`h-full rounded-lg ${color?.bg || "bg-surface-subtle"}  ${color?.border || "border-border-subtle"} border p-1.5`}>
-                          <p className={`text-2xs font-bold leading-tight ${color?.text || "text-ink-muted"}`}>
+                          <bdi className={`block text-2xs font-bold leading-tight ${color?.text || "text-ink-muted"}`}>
                             {slot.subject.name}
-                          </p>
+                          </bdi>
                           {slot.className && (
-                            <p className="text-3xs font-semibold text-ink-subtle mt-0.5">
+                            <bdi className="block text-2xs font-semibold text-ink-subtle mt-0.5">
                               {slot.className}{slot.classSection ? ` - ${slot.classSection}` : ""}
-                            </p>
+                            </bdi>
                           )}
                           {slot.teacher && (
-                            <p className="text-3xs font-semibold text-ink-subtle mt-0.5">
+                            <bdi className="block text-2xs font-semibold text-ink-subtle mt-0.5">
                               {slot.teacher.fullName}
-                            </p>
+                            </bdi>
                           )}
                         </div>
                       ) : (

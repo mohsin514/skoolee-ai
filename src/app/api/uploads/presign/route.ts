@@ -1,5 +1,6 @@
 import { createPrivateUploadUrl, authorizePrivateUpload } from "@/lib/storage/private-upload";
 import { NextRequest } from "next/server";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
@@ -141,14 +142,9 @@ async function presignProfileImage(user: Awaited<ReturnType<typeof requireAuthUs
 }
 
 async function presignSchoolLogo(user: Awaited<ReturnType<typeof requireAuthUser>>, body: Record<string, unknown>) {
-  if (!isCampusAdminLike(user.role)) {
-    throw new ApiError("Only administrators can change the school logo", 403);
-  }
-  if (user.role === "ADMIN") {
-    const campusCount = await prisma.campus.count({ where: { schoolId: user.schoolId } });
-    if (campusCount > 1) {
-      throw new ApiError("Only the institution owner can change the school logo", 403);
-    }
+  // G13: the school logo is institution identity — the institution authority only, decided by kind, not campus count.
+  if (!isInstitutionAuthority(user)) {
+    throw new ApiError("Only the institution administrator can change the school logo", 403);
   }
   const { fileName, contentType } = validateImageUpload(body);
   const key = schoolLogoKey(user.schoolId, fileName);

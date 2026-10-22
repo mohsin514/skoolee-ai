@@ -3,7 +3,9 @@
 import { Button as SystemButton } from "@/components/ui/button";
 import { useCallback, useEffect, useState } from "react";
 import { BookMarked, ChevronDown, Plus, Trash2 } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { ErrorState } from "@/components/ui/error-state";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { EmptyInline } from "@/components/shared-admin";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -39,12 +41,15 @@ const STATUS_LABEL: Record<SyllabusTopic["status"], string> = {
 };
 
 export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
+  const ui = useUiText();
   const [topicTitle, setTopicTitle] = useState("");
   const [syllabusTopics, setTopics] = useState<SyllabusTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<SyllabusTopic | null>(null);
   const [open, setOpen] = useState(false);
+  // R4: a syllabus that did not load is an inline error with Retry, not a toast.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const fetchTopics = useCallback(async () => {
     if (!subjectId) return;
@@ -52,10 +57,11 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
     try {
       const res = await fetch(`/api/subjects/${subjectId}/syllabus`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to load syllabus");
+      if (!res.ok) throw new Error(json.error || "");
       setTopics(json.data || []);
-    } catch (error: any) {
-      toast.error(error.message);
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -75,11 +81,11 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
         body: JSON.stringify({ title: topicTitle.trim() }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to add topic");
+      if (!res.ok) throw new Error(json.error || "");
       setTopicTitle("");
       setTopics((prev) => [...prev, json.data]);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, ui("Could not add the topic. Please try again.")));
     } finally {
       setBusy(false);
     }
@@ -95,10 +101,10 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
         body: JSON.stringify({ id: topic.id, status: nextStatus }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to update topic");
+      if (!res.ok) throw new Error(json.error || "");
       setTopics((prev) => prev.map((t) => (t.id === topic.id ? json.data : t)));
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, ui("Could not update the topic. Please try again.")));
     } finally {
       setBusy(false);
     }
@@ -111,10 +117,11 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
         method: "DELETE",
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to delete topic");
+      if (!res.ok) throw new Error(json.error || "");
       setTopics((prev) => prev.filter((t) => t.id !== id));
-    } catch (error: any) {
-      toast.error(error.message);
+      toast.success(ui("Topic deleted"));
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, ui("Could not delete the topic. Please try again.")));
     } finally {
       setBusy(false);
     }
@@ -144,7 +151,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
         }),
       ]);
     } catch {
-      toast.error("Could not reorder topics");
+      toast.error(ui("Could not reorder the topics. Please try again."));
       fetchTopics();
     } finally {
       setBusy(false);
@@ -153,23 +160,29 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
 
   return (
     <div className="sk-panel mt-4 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <BookMarked className="h-4 w-4 text-primary" />
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-            Syllabus · {syllabusTopics.length} topic{syllabusTopics.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-        <ChevronDown
-          className={cn("h-4 w-4 cursor-pointer text-ink-subtle transition-transform", open && "rotate-180")}
-          onClick={() => setOpen(!open)}
-        />
-      </div>
+      {/* A real disclosure button (keyboard and screen reader), not a clickable icon. */}
+      <SystemButton
+        variant="ghost"
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="w-full justify-between gap-3 px-2 text-start"
+      >
+        <span className="flex items-center gap-2">
+          <BookMarked aria-hidden="true" className="h-4 w-4 text-primary" />
+          <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+            {ui(syllabusTopics.length === 1 ? "Syllabus · {0} topic" : "Syllabus · {0} topics", [syllabusTopics.length])}
+          </span>
+        </span>
+        <ChevronDown aria-hidden="true" className={cn("h-4 w-4 text-ink-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} />
+      </SystemButton>
 
       {open ? (
         <div className="mt-4 space-y-3">
-          {loading ? (
-            <SkeletonRegion className="space-y-1.5" label="Loading syllabus">
+          {loadFailed && !loading ? (
+            <ErrorState className="py-6" title={ui("The syllabus did not load")} onRetry={() => void fetchTopics()} retryLabel={ui("Try again")} />
+          ) : loading ? (
+            <SkeletonRegion className="space-y-1.5" label={ui("Loading syllabus")}>
               <SkeletonBar className="h-9 w-full rounded-xl" />
               <SkeletonBar className="h-9 w-4/5 rounded-xl" />
             </SkeletonRegion>
@@ -180,21 +193,20 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                   {syllabusTopics.map((topic, index) => (
                     <div key={topic.id} className="flex items-center gap-2 rounded-xl bg-brand-50/60 px-3 py-2">
                       <IconButton
-                        label={index > 0 ? "Move up" : "Move down"}
+                        label={index > 0 ? ui("Move up") : ui("Move down")}
                         variant="ghost"
-                        size="sm"
                         onClick={() => moveTopic(index, index > 0 ? -1 : 1)}
                         disabled={busy}
                       >
                         <ChevronDown aria-hidden="true" className={cn("h-3 w-3", index > 0 && "rotate-180")} />
                       </IconButton>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-ink-strong">{topic.title}</p>
+                        <p className="truncate text-xs font-bold text-ink-strong"><bdi>{topic.title}</bdi></p>
                         {topic.description ? (
-                          <p className="truncate text-2xs font-normal text-ink-subtle">{topic.description}</p>
+                          <p className="truncate text-2xs font-normal text-ink-subtle"><bdi>{topic.description}</bdi></p>
                         ) : null}
                       </div>
-                      <Tooltip content="Click to change status: Not started → In progress → Completed">
+                      <Tooltip content={ui("Select to move the status on: not started, then in progress, then completed.")}>
                         <SystemButton variant="ghost"
                           type="button"
                           size="sm"
@@ -207,14 +219,13 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                             dot
                             variant={topic.status === "COMPLETED" ? "success" : topic.status === "IN_PROGRESS" ? "warning" : "neutral"}
                           >
-                            {STATUS_LABEL[topic.status]}
+                            {ui(STATUS_LABEL[topic.status] ?? topic.status)}
                           </Badge>
                         </SystemButton>
                       </Tooltip>
                       <IconButton
-                        label="Delete topic"
+                        label={ui("Delete topic")}
                         variant="ghost"
-                        size="sm"
                         onClick={() => setPendingDelete(topic)}
                         disabled={busy}
                       >
@@ -223,14 +234,14 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                     </div>
                   ))}
                 </div>
-              ) : <EmptyInline text="No syllabus topics yet. Add the first topic below." />}
+              ) : <EmptyInline text={ui("No syllabus topics yet. Add the first topic below.")} />}
 
               <ConfirmAction
                 open={pendingDelete !== null}
                 tone="danger"
-                title="Delete this topic?"
-                description={pendingDelete ? `"${pendingDelete.title}" will be removed from this subject's syllabus.` : ""}
-                confirmLabel="Delete topic"
+                title={ui("Delete this topic?")}
+                description={pendingDelete ? ui("\"{0}\" will be removed from this subject's syllabus.", [pendingDelete.title]) : ""}
+                confirmLabel={ui("Delete topic")}
                 busy={busy}
                 onCancel={() => setPendingDelete(null)}
                 onConfirm={() => {
@@ -246,8 +257,8 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                   value={topicTitle}
                   onChange={(e) => setTopicTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") addTopic(); }}
-                  placeholder="Add a syllabus topic (e.g. Chapter 1: Algebra)"
-                  className="h-10 flex-1 px-3"
+                  placeholder={ui("Add a syllabus topic (e.g. Chapter 1: Algebra)")}
+                  className="flex-1 px-3"
                 />
                 <SystemButton variant="default"
                   type="button"
@@ -256,7 +267,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
                   className="flex shrink-0 items-center gap-1.5 px-4 justify-start"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Add
+                  {ui("Add")}
                 </SystemButton>
               </div>
             </>

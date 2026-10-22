@@ -13,11 +13,11 @@ import {
   CircleDashed,
   GraduationCap,
   Info,
-  LayoutDashboard,
   ListChecks,
   Lock,
   PieChart,
   RefreshCw,
+  UserRound,
   Users,
 } from "lucide-react";
 import { Select as SystemSelect } from "@/components/ui/select";
@@ -30,8 +30,13 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { InfoTip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
+import { EXAM_TYPE_LABELS, type ExamType } from "@/lib/academic/exam-permissions";
+import { ScenarioPlanner } from "@/components/planning/scenario-planner";
 
 type Tone = "rose" | "amber" | "teal" | "emerald";
+type Ui = (source: string, values?: unknown[]) => string;
 
 interface HubStatNumbers {
   totalClasses: number;
@@ -62,12 +67,12 @@ interface HubStats {
   activity: { id: string; kind: string; title: string; meta?: string; term?: string; status: string; at: string }[];
 }
 
-// 700 shades keep the coloured label text at AA contrast on its 50 tint.
-const TONE = {
-  rose: { text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200", dot: "bg-rose-500" },
-  amber: { text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", dot: "bg-amber-500" },
-  teal: { text: "text-teal-700", bg: "bg-teal-50", border: "border-teal-200", dot: "bg-teal-500" },
-  emerald: { text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500" },
+/** Status tokens (R10): the server's tone names map onto the shared status scale. */
+const TONE: Record<Tone, { text: string; bg: string; border: string; dot: string }> = {
+  rose: { text: "text-status-error-text", bg: "bg-status-error-surface", border: "border-status-error-border", dot: "bg-status-error-text" },
+  amber: { text: "text-status-warning-text", bg: "bg-status-warning-surface", border: "border-status-warning-border", dot: "bg-status-warning-text" },
+  teal: { text: "text-status-info-text", bg: "bg-status-info-surface", border: "border-status-info-border", dot: "bg-status-info-text" },
+  emerald: { text: "text-status-success-text", bg: "bg-status-success-surface", border: "border-status-success-border", dot: "bg-status-success-text" },
 };
 
 /** Where each action item should take the user when clicked. */
@@ -78,12 +83,28 @@ const ACTION_TARGET: Record<string, string> = {
   "marks-due": "exam-cycles",
 };
 
+/** The academic lead's views (§3 registry: visible to a campus admin only while no principal is appointed). */
+const LEAD_VIEWS = new Set(["timetable", "exam-cycles"]);
+
+/** Action-item copy is built here from the item's id and count, so it is translated (R11). */
+const ACTION_COPY: Record<string, [one: string, many: string]> = {
+  "no-timetable": ["{0} class has no timetable", "{0} classes have no timetable"],
+  "marks-due": ["{0} exam waiting for marks", "{0} exams waiting for marks"],
+  conflicts: ["{0} teacher conflict to resolve", "{0} teacher conflicts to resolve"],
+  unplaced: ["{0} subject not scheduled", "{0} subjects not scheduled"],
+};
+
+const TIMETABLE_STATUS: Record<string, string> = { DRAFT: "Draft", PUBLISHED: "Published", ARCHIVED: "Archived" };
+
+const plural = (ui: Ui, count: number, one: string, many: string) => ui(count === 1 ? one : many, [count]);
+
 interface Step {
   id: string;
   label: string;
   /** What this step is for, in one plain sentence. */
   blurb: string;
-  view: string;
+  /** The campus-console view that does this step; null when another seat owns it (no navigation). */
+  view: string | null;
   icon: React.ComponentType<{ className?: string }>;
   done: boolean;
   /** Why it is not finished yet — shown under the step and in the CTA. */
@@ -93,85 +114,86 @@ interface Step {
   /** True when `detail` names the thing blocking the step, so it reads as a
    *  warning rather than as progress. */
   detailBlocking?: boolean;
-  /** The button wording when this step is the current one. */
-  cta: string;
+  /** The button wording when this step is the current one (null when someone else does it). */
+  cta: string | null;
+  /** Who does this step when it is not the viewer (the academic lead's steps for a campus admin with a principal). */
+  owner?: string;
 }
 
 /**
- * The five things an admin actually has to do, in order. Every step reports why
- * it is unfinished so nothing on this screen is a mystery.
+ * The four things a campus has to set up, in order. Every step reports why it is unfinished so nothing on
+ * this screen is a mystery.
  *
- * Deliberately excluded: promoting students. That is a year-END action, not a
- * setup step, so it lives in its own card below and only unlocks once the year
- * is genuinely complete.
+ * Deliberately excluded: promoting students. That is a year-END action, not a setup step, so it lives in its
+ * own card below and only unlocks once the year is genuinely complete.
+ *
+ * `lead` (the `academicLead` capability): the timetable and exams steps are the academic lead's (§2.3 #57,
+ * #58). A campus admin with a principal sees their progress but no button to views the registry hides.
  */
-function buildSteps(s: HubStatNumbers, cycleStatus: string): Step[] {
+function buildSteps(s: HubStatNumbers, cycleStatus: string, lead: boolean, ui: Ui, list: (items: string[]) => string): Step[] {
   // 1 — Set up the year
   const yearMissing: string[] = [];
-  if (cycleStatus !== "ACTIVE") yearMissing.push("the year is not active yet");
-  if (s.periodsCount === 0) yearMissing.push("daily periods are not defined");
-  if (s.weekendsCount === 0) yearMissing.push("weekend days are not set");
+  if (cycleStatus !== "ACTIVE") yearMissing.push(ui("the year is not active yet"));
+  if (s.periodsCount === 0) yearMissing.push(ui("daily periods are not defined"));
+  if (s.weekendsCount === 0) yearMissing.push(ui("weekend days are not set"));
   const yearDone = yearMissing.length === 0;
 
   // 2 — Classes and subjects
   const classesDone = s.totalClasses > 0 && s.subjectsWithoutTeacher === 0;
   const classesReason =
     s.totalClasses === 0
-      ? "No classes have been created yet."
+      ? ui("No classes have been created yet.")
       : s.subjectsWithoutTeacher > 0
-      ? `${s.subjectsWithoutTeacher} subject${s.subjectsWithoutTeacher > 1 ? "s have" : " has"} no teacher assigned.`
-      : "Every class has subjects and teachers.";
+        ? plural(ui, s.subjectsWithoutTeacher, "{0} subject has no teacher assigned.", "{0} subjects have no teacher assigned.")
+        : ui("Every class has subjects and teachers.");
 
   // 3 — Timetable
-  const timetableDone =
-    s.totalClasses > 0 && s.classesWithoutTimetable === 0 && s.teacherConflicts === 0;
+  const timetableDone = s.totalClasses > 0 && s.classesWithoutTimetable === 0 && s.teacherConflicts === 0;
   const timetableReason =
     s.totalClasses === 0
-      ? "Create classes first, then build their timetables."
+      ? ui("Create classes first, then build their timetables.")
       : s.classesWithoutTimetable > 0
-      ? `${s.classesWithoutTimetable} class${s.classesWithoutTimetable > 1 ? "es have" : " has"} no timetable yet.`
-      : s.teacherConflicts > 0
-      ? `${s.teacherConflicts} teacher clash${s.teacherConflicts > 1 ? "es" : ""} need resolving.`
-      : "All classes have a clash-free timetable.";
+        ? plural(ui, s.classesWithoutTimetable, "{0} class has no timetable yet.", "{0} classes have no timetable yet.")
+        : s.teacherConflicts > 0
+          ? plural(ui, s.teacherConflicts, "{0} teacher clash needs resolving.", "{0} teacher clashes need resolving.")
+          : ui("All classes have a clash-free timetable.");
 
   // 4 — Exams and results. Real exams only; no invented terms.
   const examsDone = s.examsTotal > 0 && s.examsInProgress === 0;
   const examsReason =
     s.examsTotal === 0
-      ? "No exams have been created for this year."
+      ? ui("No exams have been created for this year.")
       : s.examsInProgress > 0
-      ? `${s.examsInProgress} exam${s.examsInProgress > 1 ? "s are" : " is"} still in progress.`
-      : "All exams are finished and results are out.";
+        ? plural(ui, s.examsInProgress, "{0} exam is still in progress.", "{0} exams are still in progress.")
+        : ui("All exams are finished and results are out.");
 
   return [
     {
       id: "year-setup",
-      label: "Set Up the Year",
-      blurb: "Term dates, holidays, daily periods and rooms.",
+      label: ui("Set up the year"),
+      blurb: ui("Term dates, holidays, daily periods and rooms."),
       view: "year-setup",
       icon: CalendarDays,
       done: yearDone,
-      reason: yearDone
-        ? "The year is active and the basics are in place."
-        : `Still to do: ${yearMissing.join(", ")}.`,
-      cta: "Set Up the Year",
+      reason: yearDone ? ui("The year is active and the basics are in place.") : ui("Still to do: {0}.", [list(yearMissing)]),
+      cta: ui("Set up the year"),
     },
     {
       id: "classes",
-      label: "Classes & Subjects",
-      blurb: "Create classes, add subjects, assign teachers.",
+      label: ui("Classes & subjects"),
+      blurb: ui("Create classes, add subjects, assign teachers."),
       view: "classes",
       icon: Users,
       done: classesDone,
       reason: classesReason,
-      detail: s.totalClasses > 0 ? `${s.totalClasses} class${s.totalClasses > 1 ? "es" : ""}` : undefined,
-      cta: s.totalClasses === 0 ? "Create Classes" : "Assign Teachers",
+      detail: s.totalClasses > 0 ? plural(ui, s.totalClasses, "{0} class", "{0} classes") : undefined,
+      cta: s.totalClasses === 0 ? ui("Create classes") : ui("Assign teachers"),
     },
     {
       id: "timetable",
-      label: "Class Timetable",
-      blurb: "Place every subject on the weekly timetable.",
-      view: "timetable",
+      label: ui("Class timetable"),
+      blurb: ui("Place every subject on the weekly timetable."),
+      view: lead ? "timetable" : null,
       icon: BookOpen,
       done: timetableDone,
       reason: timetableReason,
@@ -182,26 +204,39 @@ function buildSteps(s: HubStatNumbers, cycleStatus: string): Step[] {
         s.totalClasses === 0
           ? undefined
           : s.teacherConflicts > 0
-          ? `${s.teacherConflicts} clash${s.teacherConflicts > 1 ? "es" : ""} to resolve`
-          : `${s.publishedTimetables} of ${s.totalClasses} published`,
+            ? plural(ui, s.teacherConflicts, "{0} clash to resolve", "{0} clashes to resolve")
+            : ui("{0} of {1} published", [s.publishedTimetables, s.totalClasses]),
       detailBlocking: s.teacherConflicts > 0,
-      cta: "Open Timetable",
+      cta: lead ? ui("Open timetable") : null,
+      owner: lead ? undefined : ui("Your principal builds and publishes the timetable."),
     },
     {
       id: "exams",
-      label: "Exams & Results",
-      blurb: "Schedule exams, collect marks, release results.",
-      view: "exam-cycles",
+      label: ui("Exams & results"),
+      blurb: ui("Schedule exams, collect marks, release results."),
+      view: lead ? "exam-cycles" : null,
       icon: ListChecks,
       done: examsDone,
       reason: examsReason,
-      detail: s.examsTotal > 0 ? `${s.examsPublished} of ${s.examsTotal} results released` : undefined,
-      cta: s.examsTotal === 0 ? "Create an Exam" : "Open Exams",
+      detail: s.examsTotal > 0 ? ui("{0} of {1} results released", [s.examsPublished, s.examsTotal]) : undefined,
+      cta: lead ? (s.examsTotal === 0 ? ui("Schedule exam") : ui("Open exams")) : null,
+      owner: lead ? undefined : ui("Your principal runs exams and releases results."),
     },
   ];
 }
 
-export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNavigate?: (view: string) => void }) {
+/**
+ * The campus console's Academic overview, mounted under that view's PageHeader (which carries the title, so
+ * this panel opens with the year rather than repeating it). `showPlanner` (default true) mounts the capacity
+ * and staffing scenario planner beneath it — it moved here from the principal console (M56): planning a new
+ * section, room or hire is a campus-operations conversation; nothing it models changes live records.
+ */
+export function AcademicHub({ campusId, onNavigate, showPlanner = true }: { campusId?: string; onNavigate?: (view: string) => void; showPlanner?: boolean }) {
+  const ui = useUiText();
+  const { language } = useLocale();
+  // Inside a registry console the access map says whether this operator also holds the academic-lead seat.
+  const navigationAccess = useNavigationAccess();
+  const academicLead = navigationAccess.has("academicLead");
   const [stats, setStats] = useState<HubStats | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -234,9 +269,17 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
     load();
   }, [load]);
 
+  const list = useCallback((items: string[]) => {
+    try {
+      return new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(items);
+    } catch {
+      return items.join(", ");
+    }
+  }, [language]);
+
   const steps = useMemo(
-    () => (stats ? buildSteps(stats.stats, stats.cycleStatus) : []),
-    [stats],
+    () => (stats ? buildSteps(stats.stats, stats.cycleStatus, academicLead, ui, list) : []),
+    [stats, academicLead, ui, list],
   );
 
   // The step the user should work on now = the first unfinished one.
@@ -246,10 +289,12 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
   const doneCount = steps.filter((s) => s.done).length;
 
   const go = (view: string) => onNavigate?.(view);
+  /** A target the viewer can open: the academic lead's views stay closed to a campus admin with a principal. */
+  const reachable = (view: string) => academicLead || !LEAD_VIEWS.has(view);
 
   if (loading && !stats) {
     return (
-      <SkeletonRegion label="Loading the academic overview" className="space-y-6">
+      <SkeletonRegion label={ui("Loading the academic overview")} className="space-y-6">
         <Skeleton className="h-32 w-full rounded-[28px]" />
         <Skeleton className="h-28 w-full rounded-[28px]" />
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -266,47 +311,49 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
       <ErrorState
         variant="panel"
         className="sk-panel"
-        title="Could not load the academic overview"
-        description="Your setup steps and year figures did not arrive. Nothing has changed; try loading them again."
+        title={ui("Could not load the academic overview")}
+        description={ui("Your setup steps and year figures did not arrive. Nothing has changed; try loading them again.")}
         onRetry={() => void load()}
       />
     );
   }
 
+  const activityMeta = (meta?: string) => {
+    if (!meta) return undefined;
+    const label = EXAM_TYPE_LABELS[meta as ExamType] ?? TIMETABLE_STATUS[meta];
+    return label ? ui(label) : meta;
+  };
+
   return (
     <div className="space-y-6">
-      {/* ── Header: which year are we looking at ── */}
-      <div className="sk-enter rounded-[28px] border border-edge/12 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-md sm:p-6">
+      {/* ── Which year are we looking at (the view's PageHeader carries the title) ── */}
+      <div className="sk-enter rounded-[28px] border border-edge/12 bg-gradient-to-br from-surface-subtle via-card to-brand-100 p-5 shadow-md sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-brand">
-              <LayoutDashboard className="h-5 w-5" />
+            <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-primary-foreground shadow-brand">
+              <CalendarDays className="h-5 w-5" />
             </span>
-            <div className="min-w-0">
-              <p className="sk-eyebrow text-primary">
-                Academic Year <span data-numeric>{stats.academicYear}</span>
-              </p>
-              <h2 className="text-xl font-bold tracking-tight text-ink-strong sm:text-2xl">Academic Overview</h2>
-            </div>
+            <h2 className="min-w-0 text-xl font-bold tracking-tight text-ink-strong sm:text-2xl">
+              {ui("Academic year {0}", [stats.academicYear])}
+            </h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {stats.availableYears.length > 1 ? (
               <SystemSelect
-                aria-label="Academic year shown"
+                aria-label={ui("Academic year shown")}
                 value={stats.academicYear}
                 onChange={(e) => setYear(Number(e.target.value))}
-                className=""
               >
                 {stats.availableYears.map((y) => (
                   <option key={y} value={y}>
-                    Year {y}
+                    {ui("Year {0}", [y])}
                   </option>
                 ))}
               </SystemSelect>
             ) : null}
             <Badge variant={allDone ? "success" : "secondary"} dot className="tabular-nums">
-              {doneCount} of {steps.length} steps done
+              {ui("{0} of {1} steps done", [doneCount, steps.length])}
             </Badge>
           </div>
         </div>
@@ -318,24 +365,23 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
           tone={allDone ? "success" : "brand"}
           value={doneCount}
           max={steps.length || 1}
-          label="Academic year setup progress"
-          valueText={`${doneCount} of ${steps.length} steps done`}
+          label={ui("Academic year setup progress")}
+          valueText={ui("{0} of {1} steps done", [doneCount, steps.length])}
         />
 
-        <nav aria-label="Related academic tools" className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-edge/15 pt-3">
-          <Link href="/setup/readiness" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">School readiness</Link>
-          <Link href="/resources" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">Learning resources</Link>
-          <Link href="/curriculum" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">Objective map</Link>
-          <Link href="/accommodations" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">Access plans</Link>
-          <Link href="/exam-delivery" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">Exam delivery</Link>
+        {/* School readiness is the hosting view's secondary action (§4.4b); access plans and secure exam delivery
+            belong to the academic lead (R-I5), so a campus admin with a principal does not see them here. */}
+        <nav aria-label={ui("Related academic tools")} className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-edge/15 pt-3">
+          <Link href="/resources" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">{ui("Learning resources")}</Link>
+          <Link href="/curriculum" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">{ui("Objective map")}</Link>
+          {academicLead ? <Link href="/accommodations" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">{ui("Access plans")}</Link> : null}
+          {academicLead ? <Link href="/exam-delivery" className="sk-link inline-flex min-h-10 items-center text-sm font-semibold text-primary">{ui("Secure exam delivery")}</Link> : null}
         </nav>
 
         {/* Say plainly when the numbers are not from the active cycle year. */}
         {stats.showingNonCycleYear ? (
-          <Alert tone="warning" icon={Info} live="off" className="mt-4" title={`Showing ${stats.academicYear}, not your active year`}>
-            Your active academic year is <b>{stats.cycleYear}</b>, but nothing has been set up there
-            yet. Showing <b>{stats.academicYear}</b>, which is where your classes are. Finish{" "}
-            {stats.cycleYear} in <b>Set Up the Year</b> when you are ready to move over.
+          <Alert tone="warning" icon={Info} live="off" className="mt-4" title={ui("Showing {0}, not your active year", [stats.academicYear])}>
+            {ui("Your active academic year is {0}, but nothing has been set up there yet. Showing {1}, where your classes are. Finish {0} in Set up the year when you are ready to move over.", [stats.cycleYear ?? "", stats.academicYear])}
           </Alert>
         ) : null}
 
@@ -345,43 +391,38 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
             tone="danger"
             compact
             className="mt-4"
-            title="Could not refresh the overview."
+            title={ui("Could not refresh the overview.")}
             actions={
               <Button type="button" variant="outline" size="sm" loading={loading} onClick={() => void load()}>
                 {loading ? null : <RefreshCw aria-hidden="true" />}
-                Try again
+                {ui("Try again")}
               </Button>
             }
           >
-            The figures below are from the last successful load.
+            {ui("The figures below are from the last successful load.")}
           </Alert>
         ) : null}
       </div>
 
       {/* ── The next thing to do. This is the main call to action. ── */}
       {allDone ? (
-        <div className="sk-enter rounded-[28px] border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm sm:p-6" style={{ "--sk-delay": "60ms" } as React.CSSProperties}>
+        <div className="sk-enter rounded-[28px] border border-status-success-border bg-gradient-to-br from-status-success-surface to-card p-5 shadow-sm sm:p-6" style={{ "--sk-delay": "60ms" } as React.CSSProperties}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 items-center gap-4">
-              <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-status-success-surface">
+                <CheckCircle2 className="h-6 w-6 text-status-success-text" />
               </span>
               <div className="min-w-0">
-                <p className="sk-eyebrow text-emerald-700">
-                  Year Complete
-                </p>
-                <h3 className="text-lg font-bold text-ink-strong">Everything is set up</h3>
+                <p className="sk-eyebrow text-status-success-text">{ui("Year complete")}</p>
+                <h3 className="text-lg font-bold text-ink-strong">{ui("Everything is set up")}</h3>
                 <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">
-                  Results are out. You can now move students into next year.
+                  {ui("Results are out. You can now move students into next year.")}
                 </p>
               </div>
             </div>
-            <Button variant="default"
-              onClick={() => go("promote-archive")}
-              className="sk-nudge-trigger w-full px-5 sm:w-auto"
-            >
+            <Button variant="default" onClick={() => go("promote-archive")} className="sk-nudge-trigger w-full px-5 sm:w-auto">
               <GraduationCap aria-hidden="true" className="h-4 w-4" />
-              Promote Students
+              {ui("Promote students")}
               <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 rtl:rotate-180" />
             </Button>
           </div>
@@ -390,26 +431,29 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         <Card variant="featured" className="sk-enter p-5 sm:p-6" style={{ "--sk-delay": "60ms" } as React.CSSProperties}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex min-w-0 flex-1 items-start gap-4">
-              <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-brand">
+              <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-primary-foreground shadow-brand">
                 <currentStep.icon className="h-6 w-6" />
               </span>
               <div className="min-w-0">
                 <p className="sk-eyebrow text-primary">
-                  Next Step · <span data-numeric>{currentIndex + 1} of {steps.length}</span>
+                  {ui("Next step · {0} of {1}", [currentIndex + 1, steps.length])}
                 </p>
                 <h3 className="text-lg font-bold text-ink-strong">{currentStep.label}</h3>
-                <p className="mt-0.5 max-w-xl text-sm leading-relaxed text-ink-muted">
-                  {currentStep.reason}
-                </p>
+                <p className="mt-0.5 max-w-xl text-sm leading-relaxed text-ink-muted">{currentStep.reason}</p>
+                {currentStep.owner ? (
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-ink-muted">
+                    <UserRound aria-hidden="true" className="h-3.5 w-3.5" />
+                    {currentStep.owner}
+                  </p>
+                ) : null}
               </div>
             </div>
-            <Button variant="default"
-              onClick={() => go(currentStep.view)}
-              className="sk-nudge-trigger w-full px-5 sm:w-auto"
-            >
-              {currentStep.cta}
-              <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 rtl:rotate-180" />
-            </Button>
+            {currentStep.view && currentStep.cta ? (
+              <Button variant="default" onClick={() => go(currentStep.view as string)} className="sk-nudge-trigger w-full px-5 sm:w-auto">
+                {currentStep.cta}
+                <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 rtl:rotate-180" />
+              </Button>
+            ) : null}
           </div>
         </Card>
       ) : null}
@@ -417,53 +461,59 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
       {/* ── Step tracker ── */}
       <section aria-labelledby="academic-hub-steps" className="sk-panel sk-enter p-5 sm:p-6" style={{ "--sk-delay": "120ms" } as React.CSSProperties}>
         <div className="mb-4 flex items-center gap-1">
-          <h3 id="academic-hub-steps" className="text-base font-bold text-ink-strong">
-            Your Year at a Glance
-          </h3>
-          <InfoTip content="A step is done when its checks pass for the year shown. The first unfinished step is the one to work on next." label="How steps are marked done" />
+          <h3 id="academic-hub-steps" className="text-base font-bold text-ink-strong">{ui("Your year at a glance")}</h3>
+          <InfoTip
+            content={ui("A step is done when its checks pass for the year shown. The first unfinished step is the one to work on next.")}
+            label={ui("How steps are marked done")}
+          />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {steps.map((s, i) => {
             const isCurrent = i === currentIndex;
             const Icon = s.icon;
-            return (
-              <Button aria-pressed={isCurrent} variant="choice"
-                key={s.id}
-                onClick={() => go(s.view)}
-                className="group h-full w-full flex-col items-start justify-start gap-2 p-4 text-start"
-              >
+            const body = (
+              <>
                 <span className="flex w-full items-center justify-between gap-2">
                   <span
                     aria-hidden="true"
                     className={cn(
                       "sk-icon-tile flex h-9 w-9 items-center justify-center rounded-xl",
                       s.done
-                        ? "bg-emerald-100 text-emerald-600"
+                        ? "bg-status-success-surface text-status-success-text"
                         : isCurrent
-                          ? "bg-primary text-white"
+                          ? "bg-primary text-primary-foreground"
                           : "bg-muted text-ink-muted",
                     )}
                   >
                     {s.done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                   </span>
-                  <span className="sk-eyebrow">
-                    Step <span data-numeric>{i + 1}</span>
-                  </span>
+                  <span className="sk-eyebrow">{ui("Step {0}", [i + 1])}</span>
                 </span>
                 <span className="block text-sm font-bold text-ink-strong">{s.label}</span>
-                <span className="block text-xs font-normal leading-relaxed text-ink-muted">{s.blurb}</span>
-                {s.done ? <span className="sr-only">Done.</span> : null}
+                <span className="block text-xs font-normal leading-relaxed text-ink-muted">{s.owner ?? s.blurb}</span>
+                {s.done ? <span className="sr-only">{ui("Done.")}</span> : null}
                 {s.detail ? (
-                  <Badge
-                    size="sm"
-                    dot
-                    variant={s.done ? "success" : s.detailBlocking ? "warning" : "secondary"}
-                    className="tabular-nums"
-                  >
+                  <Badge size="sm" dot variant={s.done ? "success" : s.detailBlocking ? "warning" : "secondary"} className="tabular-nums">
                     {s.detail}
                   </Badge>
                 ) : null}
+              </>
+            );
+            // A step the viewer cannot open (the academic lead's) is a status card, never a dead button.
+            return s.view ? (
+              <Button
+                aria-pressed={isCurrent}
+                variant="choice"
+                key={s.id}
+                onClick={() => go(s.view as string)}
+                className="group h-full w-full flex-col items-start justify-start gap-2 p-4 text-start"
+              >
+                {body}
               </Button>
+            ) : (
+              <div key={s.id} className="flex h-full w-full flex-col items-start justify-start gap-2 rounded-2xl border border-edge/15 bg-surface-subtle p-4 text-start" aria-current={isCurrent ? "step" : undefined}>
+                {body}
+              </div>
             );
           })}
         </div>
@@ -472,7 +522,7 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         <div
           className={cn(
             "mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3",
-            allDone ? "border-emerald-200 bg-emerald-50/50" : "border-dashed border-edge/30 bg-surface-subtle",
+            allDone ? "border-status-success-border bg-status-success-surface" : "border-dashed border-edge/30 bg-surface-subtle",
           )}
         >
           <div className="flex min-w-0 items-center gap-3">
@@ -480,75 +530,79 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
               aria-hidden="true"
               className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
-                allDone ? "bg-emerald-100 text-emerald-600" : "bg-muted text-ink-subtle",
+                allDone ? "bg-card text-status-success-text" : "bg-muted text-ink-subtle",
               )}
             >
               {allDone ? <GraduationCap className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-ink-strong">At the end of the year</p>
+              <p className="text-sm font-semibold text-ink-strong">{ui("At the end of the year")}</p>
               <p id="academic-hub-promote-reason" className="text-xs leading-relaxed text-ink-muted">
-                {allDone
-                  ? "Ready — move students into their next class."
-                  : "Promoting students unlocks once results are released."}
+                {allDone ? ui("Ready — move students into their next class.") : ui("Promoting students unlocks once results are released.")}
               </p>
             </div>
           </div>
-          <Button variant="default"
+          <Button
+            variant="default"
             size="sm"
             disabled={!allDone}
             aria-describedby="academic-hub-promote-reason"
             onClick={() => go("promote-archive")}
             className="px-4"
           >
-            Promote Students
+            {ui("Promote students")}
           </Button>
         </div>
       </section>
 
       {/* ── Quick stats ── */}
       <div className="sk-stagger grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={Users} label="Classes" value={stats.stats.totalClasses} tone="teal" info="Active classes in the academic year shown." />
-        <StatCard icon={GraduationCap} label="Teachers Assigned" value={stats.stats.teachersAssigned} tone="teal" info="Teachers at this campus who teach at least one subject." />
-        <StatCard icon={BookOpen} label="Timetables Published" value={stats.stats.publishedTimetables} tone="emerald" info="Classes with a published timetable in the academic year shown." />
-        <StatCard icon={PieChart} label="Exams In Progress" value={stats.stats.examsInProgress} tone="amber" info="Exams this year that are running, collecting marks or waiting for review." />
+        <StatCard icon={Users} label={ui("Classes")} value={stats.stats.totalClasses} tone="teal" info={ui("Active classes in the academic year shown.")} />
+        <StatCard icon={GraduationCap} label={ui("Teachers assigned")} value={stats.stats.teachersAssigned} tone="teal" info={ui("Teachers at this campus who teach at least one subject.")} />
+        <StatCard icon={BookOpen} label={ui("Timetables published")} value={stats.stats.publishedTimetables} tone="emerald" info={ui("Classes with a published timetable in the academic year shown.")} />
+        <StatCard icon={PieChart} label={ui("Exams in progress")} value={stats.stats.examsInProgress} tone="amber" info={ui("Exams this year that are running, collecting marks or waiting for review.")} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ── Needs attention ── */}
         <section aria-labelledby="academic-hub-attention" className="sk-panel p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
-            <AlertTriangle aria-hidden="true" className="h-4 w-4 text-amber-500" />
-            <h3 id="academic-hub-attention" className="text-base font-bold text-ink-strong">
-              Needs Your Attention
-            </h3>
+            <AlertTriangle aria-hidden="true" className="h-4 w-4 text-status-warning-text" />
+            <h3 id="academic-hub-attention" className="text-base font-bold text-ink-strong">{ui("Needs your attention")}</h3>
           </div>
           {stats.actionItems.length > 0 ? (
             <div className="space-y-3">
               {stats.actionItems.map((a) => {
-                const t = TONE[a.tone];
-                return (
-                  <Button variant="outline"
+                const t = TONE[a.tone] ?? TONE.amber;
+                const copy = ACTION_COPY[a.id];
+                const label = copy ? plural(ui, a.count, copy[0], copy[1]) : ui(a.label);
+                const target = ACTION_TARGET[a.id] || "timetable";
+                const row = (
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", t.dot)} />
+                    <span className={cn("min-w-0 text-sm font-semibold", t.text)}>{label}</span>
+                  </span>
+                );
+                return reachable(target) ? (
+                  <Button
+                    variant="outline"
                     key={a.id}
-                    onClick={() => go(ACTION_TARGET[a.id] || "timetable")}
+                    onClick={() => go(target)}
                     className={cn("sk-nudge-trigger w-full justify-between gap-3 px-4 py-3 text-start", t.border, t.bg)}
                   >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", t.dot)} />
-                      <span className={cn("min-w-0 text-sm font-semibold", t.text)}>{a.label}</span>
-                    </span>
+                    {row}
                     <ArrowRight aria-hidden="true" className={cn("sk-nudge h-4 w-4 rtl:rotate-180", t.text)} />
                   </Button>
+                ) : (
+                  <div key={a.id} className={cn("flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl border px-4 py-3", t.border, t.bg)}>
+                    {row}
+                    <span className="text-xs font-semibold text-ink-muted">{ui("With your principal")}</span>
+                  </div>
                 );
               })}
             </div>
           ) : (
-            <EmptyState
-              size="sm"
-              icon={CheckCircle2}
-              title="All caught up"
-              description="Nothing needs fixing right now."
-            />
+            <EmptyState size="sm" icon={CheckCircle2} title={ui("All caught up")} description={ui("Nothing needs fixing right now.")} />
           )}
         </section>
 
@@ -556,54 +610,66 @@ export function AcademicHub({ campusId, onNavigate }: { campusId?: string; onNav
         <section aria-labelledby="academic-hub-activity" className="sk-panel p-5 sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <Clock aria-hidden="true" className="h-4 w-4 text-primary" />
-            <h3 id="academic-hub-activity" className="text-base font-bold text-ink-strong">
-              Recent Activity
-            </h3>
+            <h3 id="academic-hub-activity" className="text-base font-bold text-ink-strong">{ui("Recent activity")}</h3>
           </div>
           {stats.activity.length > 0 ? (
             <div className="space-y-2">
-              {stats.activity.map((a) => (
-                <Button variant="outline"
-                  key={a.id}
-                  onClick={() => go(a.kind === "exam" ? "exam-cycles" : "timetable")}
-                  className="sk-nudge-trigger w-full justify-between gap-3 px-4 py-3 text-start"
-                >
+              {stats.activity.map((a) => {
+                const target = a.kind === "exam" ? "exam-cycles" : "timetable";
+                const row = (
                   <span className="flex min-w-0 items-center gap-3">
                     <span
                       aria-hidden="true"
                       className={cn(
                         "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                        a.kind === "exam" ? "bg-amber-50 text-amber-600" : "bg-brand-100 text-primary",
+                        a.kind === "exam" ? "bg-status-warning-surface text-status-warning-text" : "bg-brand-100 text-primary",
                       )}
                     >
                       {a.kind === "exam" ? <ListChecks className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-ink-strong">{a.title}</span>
+                      <bdi className="block truncate text-sm font-semibold text-ink-strong">{a.title}</bdi>
                       <span className="block truncate text-xs font-normal text-ink-subtle">
-                        {[a.term, a.meta].filter(Boolean).join(" · ")}
+                        {[a.term, activityMeta(a.meta)].filter(Boolean).join(" · ")}
                       </span>
                     </span>
                   </span>
-                  <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 text-ink-faint rtl:rotate-180" />
-                </Button>
-              ))}
+                );
+                return reachable(target) ? (
+                  <Button
+                    variant="outline"
+                    key={a.id}
+                    onClick={() => go(target)}
+                    className="sk-nudge-trigger w-full justify-between gap-3 px-4 py-3 text-start"
+                  >
+                    {row}
+                    <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 text-ink-faint rtl:rotate-180" />
+                  </Button>
+                ) : (
+                  <div key={a.id} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-edge/15 px-4 py-3">
+                    {row}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <EmptyState
               size="sm"
               icon={CircleDashed}
-              title="No recent activity yet"
-              description="The latest exams and class timetables for this year will be listed here."
+              title={ui("No recent activity yet")}
+              description={ui("The latest exams and class timetables for this year will be listed here.")}
               action={
-                <Button type="button" variant="outline" size="sm" onClick={() => go("timetable")}>
-                  Open Timetable
-                </Button>
+                academicLead ? (
+                  <Button type="button" variant="outline" size="sm" onClick={() => go("timetable")}>
+                    {ui("Open timetable")}
+                  </Button>
+                ) : undefined
               }
             />
           )}
         </section>
       </div>
+      {showPlanner ? <ScenarioPlanner /> : null}
     </div>
   );
 }
@@ -622,6 +688,7 @@ function StatCard({
   /** What the number counts, shown behind an (i) beside the label. */
   info?: string;
 }) {
+  const ui = useUiText();
   const t = TONE[tone];
   return (
     <div className="sk-panel min-w-0 p-4 sm:p-5">
@@ -631,7 +698,7 @@ function StatCard({
       <p data-numeric className="mt-3 text-2xl font-bold tracking-tight text-ink-strong tabular-nums sm:text-3xl">{value}</p>
       <div className="mt-1 flex min-w-0 items-center gap-0.5">
         <p className="min-w-0 text-xs font-semibold text-ink-muted">{label}</p>
-        {info ? <InfoTip content={info} label={`About ${label}`} className="-my-1" /> : null}
+        {info ? <InfoTip content={info} label={ui("About {0}", [label])} className="-my-1" /> : null}
       </div>
     </div>
   );

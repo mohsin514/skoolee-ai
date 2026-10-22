@@ -1,7 +1,7 @@
 import type { Language } from "@/lib/locale/package";
 
 const en = {
-  title: "Exam Studio", eyebrow: "FROM EVIDENCE TO UNDERSTANDING",
+  title: "Exam Studio", eyebrow: "From evidence to understanding",
   headline: "Better exams. A clearer next step.",
   introduction: "Bring your curriculum, shape a thoughtful assessment, and turn reviewed results into the next learning opportunity.",
   overview: "Studio home", sources: "Evidence", curriculum: "Create & review", examPlanning: "Schedule", history: "Version history",
@@ -22,7 +22,7 @@ const en = {
   recentAction: "Continue in workspace", source: "Source", paper: "Paper", curriculumKind: "Curriculum", version: "Version",
   draft: "Draft", approved: "Approved", inReview: "In review", archived: "Archived", rejected: "Needs revision", published: "Published",
   camera: "Exam readiness", cameraHint: "Camera requirements and consent are checked in each assigned exam. Availability depends on the school's configured policy.",
-  savedRecords: "Saved work", more: "Load more saved work", next: "Start with evidence", startPaper: "Create an assessment",
+  savedRecords: "Saved work", more: "Load more saved work", next: "Start with evidence", startPaper: "Create an assessment", createExam: "Create an exam", createExamHint: "AI drafts the paper from your material; you review every question before anyone sits it.",
 };
 type Copy = typeof en;
 const ar: Copy = {
@@ -45,7 +45,7 @@ const ar: Copy = {
   recentAction: "المتابعة في مساحة العمل", source: "مصدر", paper: "ورقة", curriculumKind: "منهج", version: "الإصدار",
   draft: "مسودة", approved: "معتمد", inReview: "قيد المراجعة", archived: "مؤرشف", rejected: "يحتاج تعديلًا", published: "منشور",
   camera: "جاهزية الامتحان", cameraHint: "تُفحص متطلبات الكاميرا والموافقة داخل كل امتحان معيّن وفق سياسة المدرسة المهيأة.",
-  savedRecords: "العمل المحفوظ", more: "تحميل المزيد من العمل المحفوظ", next: "ابدأ بالأدلة", startPaper: "إنشاء تقييم",
+  savedRecords: "العمل المحفوظ", more: "تحميل المزيد من العمل المحفوظ", next: "ابدأ بالأدلة", startPaper: "إنشاء تقييم", createExam: "أنشئ اختبارًا", createExamHint: "يصيغ الذكاء الاصطناعي الورقة من موادك، وتراجع كل سؤال قبل أن يجلس له أي طالب.",
 };
 const ur: Copy = {
   title: "امتحان اسٹوڈیو", eyebrow: "شواہد سے سمجھ تک", headline: "بہتر امتحانات۔ اگلا قدم زیادہ واضح۔",
@@ -67,7 +67,7 @@ const ur: Copy = {
   recentAction: "ورک اسپیس میں جاری رکھیں", source: "ماخذ", paper: "پرچہ", curriculumKind: "نصاب", version: "نسخہ",
   draft: "مسودہ", approved: "منظور شدہ", inReview: "زیر جائزہ", archived: "محفوظ شدہ", rejected: "ترمیم درکار", published: "شائع شدہ",
   camera: "امتحان کی تیاری", cameraHint: "کیمرے کی ضروریات اور رضامندی ہر تفویض کردہ امتحان میں اسکول کی ترتیب دی گئی پالیسی کے مطابق جانچی جاتی ہیں۔",
-  savedRecords: "محفوظ کام", more: "مزید محفوظ کام لوڈ کریں", next: "شواہد سے شروع کریں", startPaper: "جائزہ بنائیں",
+  savedRecords: "محفوظ کام", more: "مزید محفوظ کام لوڈ کریں", next: "شواہد سے شروع کریں", startPaper: "جائزہ بنائیں", createExam: "امتحان بنائیں", createExamHint: "اے آئی آپ کے مواد سے پرچہ تیار کرتا ہے؛ کسی کے امتحان دینے سے پہلے آپ ہر سوال کا جائزہ لیتے ہیں۔",
 };
 
 export const studioShellCopy = (language: Language): Copy => language === "ar" ? ar : language === "ur" ? ur : en;

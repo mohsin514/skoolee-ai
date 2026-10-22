@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -16,7 +17,8 @@ export async function PUT(
 ) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "edit");
 
     const { structureId } = await params;
     const existing = await prisma.feeStructure.findFirst({
@@ -88,7 +90,8 @@ export async function DELETE(
 ) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "delete");
 
     const { structureId } = await params;
     const existing = await prisma.feeStructure.findFirst({

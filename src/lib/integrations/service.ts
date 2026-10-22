@@ -3,7 +3,8 @@ import { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError } from "@/lib/api/scope";
+import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
 import { protectSecret, revealSecret } from "@/lib/auth/mfa-crypto";
 import { CONTRACTS, V1 } from "./contract";
 import { checkDestination, validateShape } from "./destination";
@@ -25,10 +26,15 @@ const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 const list = (v: unknown) => Array.isArray(v) ? [...new Set(v.map(String))] : [];
 
+// §7.3 G15: connections, keys, signing secrets and replays are institution-authority work (a principal can no
+// longer rotate keys). A campus operator may read the delivery log of connections that cover only their campus.
 function admin(user: AuthUser) {
-  if (!(user.role === "SUPER_ADMIN" || user.isInstitutionOwner || canManageOperations(user))) throw new ApiError("Integration administration access is required.", 403);
+  if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator manages integrations.", 403);
 }
-const ownCampuses = (user: AuthUser, ids: string[]) => user.role === "SUPER_ADMIN" || user.isInstitutionOwner || ids.every(id => id === user.campusId);
+function reader(user: AuthUser) {
+  if (!isInstitutionAuthority(user) && !isCampusOperator(user)) throw new ApiError("Integration access is required.", 403);
+}
+const ownCampuses = (user: AuthUser, ids: string[]) => isInstitutionAuthority(user) || ids.every(id => id === user.campusId);
 
 // ─── Connections and credentials (administrators) ────────────────────────
 
@@ -60,8 +66,8 @@ export async function createConnection(user: AuthUser, body: Record<string, unkn
   return { id: conn.id, apiKey: key.token, signingSecret: signing };
 }
 
-async function ownConnection(user: AuthUser, id: string) {
-  admin(user);
+async function ownConnection(user: AuthUser, id: string, mode: "write" | "read" = "write") {
+  if (mode === "write") admin(user); else reader(user);
   const c = await prisma.integrationConnection.findFirst({ where: { id, schoolId: user.schoolId } });
   if (!c || !ownCampuses(user, c.campusIds)) throw new ApiError("Connection not found", 404);
   return c;
@@ -123,7 +129,7 @@ export async function updateWebhook(user: AuthUser, body: Record<string, unknown
 
 /** Lists connections with recent delivery evidence. No key or secret ever appears. */
 export async function connections(user: AuthUser) {
-  admin(user);
+  reader(user);
   const rows = await prisma.integrationConnection.findMany({ where: { schoolId: user.schoolId }, orderBy: { createdAt: "desc" }, include: { credentials: { select: { keyId: true, status: true, expiresAt: true, lastUsedAt: true, createdAt: true }, orderBy: { createdAt: "desc" } } } });
   const visible = rows.filter(c => ownCampuses(user, c.campusIds));
   const since = new Date(Date.now() - 7 * 86_400_000);
@@ -143,17 +149,17 @@ function redact(value: unknown, revealNames: boolean): unknown {
 }
 
 export async function deliveries(user: AuthUser, connectionId: string, status?: string | null) {
-  const c = await ownConnection(user, connectionId);
+  const c = await ownConnection(user, connectionId, "read");
   const rows = await prisma.integrationDelivery.findMany({ where: { connectionId: c.id, ...(status ? { status } : {}) }, orderBy: { createdAt: "desc" }, take: 100, include: { event: { select: { id: true, topic: true, occurredAt: true } } } });
   return rows.map(d => ({ id: d.id, eventId: d.eventId, topic: d.event.topic, occurredAt: d.event.occurredAt, status: d.status, attempts: d.attempts, lastStatusCode: d.lastStatusCode, lastError: d.lastError, deliveredAt: d.deliveredAt, replayCount: d.replayCount, nextAttemptAt: d.nextAttemptAt }));
 }
 
-/** One delivery with its attempt history and a redacted payload (names only for group owners). */
+/** One delivery with its attempt history and a redacted payload (names only for the institution authority). */
 export async function deliveryDetail(user: AuthUser, id: string) {
-  admin(user);
+  reader(user);
   const d = await prisma.integrationDelivery.findFirst({ where: { id, schoolId: user.schoolId }, include: { event: true, connection: true, attemptLog: { orderBy: { createdAt: "asc" } } } });
   if (!d || !ownCampuses(user, d.connection.campusIds)) throw new ApiError("Delivery not found", 404);
-  const revealNames = user.role === "SUPER_ADMIN" || !!user.isInstitutionOwner;
+  const revealNames = isInstitutionAuthority(user);
   return { id: d.id, eventId: d.eventId, topic: d.event.topic, status: d.status, attempts: d.attempts, replayCount: d.replayCount, deliveredAt: d.deliveredAt, payload: redact(envelope(d.event), revealNames), attemptLog: d.attemptLog.map(a => ({ attempt: a.attempt, replay: a.replay, host: new URL(a.url).host, statusCode: a.statusCode, outcome: a.outcome, error: a.error, durationMs: a.durationMs, signedWith: a.signedWith, createdAt: a.createdAt })) };
 }
 

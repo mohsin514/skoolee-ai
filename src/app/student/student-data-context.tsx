@@ -18,6 +18,12 @@ const StudentDataContext = createContext<StudentDataContextType>({
   refetch: () => {},
 })
 
+/**
+ * The learner console's one data source, kept by the layout across every /student route and scoped to this mount
+ * (never a module cache). A refresh keeps the screen the learner is on until the fresh payload lands
+ * (stale-while-revalidate, addendum 2026-10-22 §3); a refresh that fails clears what was shown (fail closed) and the
+ * page shows its inline error with Retry — never also a toast (R4).
+ */
 export function StudentDataProvider({ children }: { children: ReactNode }) {
   const value = usePrivateDashboardData(getStudentDashboardData)
 

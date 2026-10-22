@@ -10,7 +10,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    if (!canManageSubscription(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
+    // G6 / K-I5: changing the payment method needs a verified second factor.
+    if (user.mfaVerified !== true) return Response.json({ error: "Turn on two-step sign-in before you change the payment method.", code: "MFA_REQUIRED" }, { status: 403 });
     const parsed = z.object({ idempotencyKey: z.string().min(12).max(120).optional() }).safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) throw new ApiError("Invalid recovery request", 400);
 

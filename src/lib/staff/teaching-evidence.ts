@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 
 /**
  * SKO-461: teaching evidence, not a teacher ranking.
@@ -142,6 +142,9 @@ export async function listNotes(user: AuthUser, campusId: string, teacherId: str
 
 export async function addNote(user: AuthUser, campusId: string, teacherId: string, academicYear: number, body: string) {
   assertEvidenceAccess(user, teacherId);
+  // G35d: support notes are the academic lead's act (the principal, or a campus operator while the campus has
+  // no principal); the teacher concerned may still respond on their own record. Reading stays with academics.
+  if (user.userId !== teacherId && !(await canLeadAcademics(user, campusId))) throw new ApiError("Support notes are written by your principal.", 403);
   const text = body.trim();
   if (text.length < 10 || text.length > 2000) throw new ApiError("Write between 10 and 2000 characters", 400);
   const teacher = await prisma.user.findFirst({ where: { id: teacherId, campusId, role: "TEACHER" }, select: { id: true } });

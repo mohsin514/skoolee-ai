@@ -147,7 +147,7 @@ test("reception sees on-site visitors first, is warned about a namesake and chec
   const register = page.locator("[data-visitor-register]");
   await register.locator("[data-visit]").first().waitFor({ timeout: 30_000 });
   assert.equal(await register.locator("[data-visit]").first().getAttribute("data-visit-status"), "ON_SITE");
-  await register.getByRole("button", { name: "Check in visitor" }).click();
+  await page.getByRole("button", { name: "Check in visitor" }).first().click(); // PageHeader primary (role-ux §4.4)
   const form = register.locator('[data-visitor-form="check-in"]');
   await form.getByLabel("Visitor name").fill("Synthetic Bilal Ahmed");
   await form.getByLabel("Purpose of visit").fill("Synthetic sports kit delivery");
@@ -184,7 +184,9 @@ test("Arabic reception at phone width works right-to-left without overflow", asy
   await page.locator("[data-visit]").first().waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
   assert.match(await page.locator("[data-visitor-counts]").innerText(), /في الموقع الآن/);
-  assert.match(await page.locator("header").filter({ hasText: "سجّل الوصول" }).first().innerText(), /الزوار/, "the console header is translated");
+  assert.match(await page.locator('[data-tour="page.header"]').first().innerText(), /الزوار/, "the console header is translated");
+  // A capture desk keeps its one primary action under the thumb on a phone (role-ux §4.5.1).
+  assert.match(await page.locator("[data-console-sticky-action]").innerText(), /تسجيل دخول زائر/, "Check in visitor sits in the sticky bar");
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
   await shot(page, "visitors-register-ar-390");
   await page.close();

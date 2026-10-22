@@ -1,6 +1,7 @@
 'use server'
 
 import { getAuthUser } from "@/lib/auth";
+import { isGroupConsole } from "@/lib/auth/institution";
 
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
@@ -38,7 +39,12 @@ export async function addCampus(input: AddCampusInput) {
 
   const payload = await getAuthUser();
   if (!payload) throw new Error("Unauthorized");
-  if (payload.role !== "SUPER_ADMIN" && payload.role !== "ADMIN") throw new Error("Permission Denied");
+  // §7.3 G20: only the group admin of a school group opens campuses. A single school's admin is told how to
+  // become a group (support-assisted conversion, D1); everyone else is refused.
+  if (!isGroupConsole(payload)) {
+    if (payload.role === "ADMIN") throw new Error("Your school is a single school. Contact SkooleeAI support to become a school group.");
+    throw new Error("Only the group admin can add a campus.");
+  }
 
   // SKO-402: the same validators as editing a campus, so a campus can always be saved as it was created.
   const name = requiredText(input.name, "Campus name");

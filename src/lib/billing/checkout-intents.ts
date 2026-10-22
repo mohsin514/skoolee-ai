@@ -6,6 +6,7 @@ import type { PlanType } from "@/types";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import type { AuthUser } from "@/lib/auth";
+import { canOwnSubscription } from "@/lib/auth/institution";
 
 export const onboardingCheckoutSchema = z.object({
   plan: z.enum(["FREE", "BASIC", "PRO", "ENTERPRISE"]),
@@ -29,12 +30,14 @@ export function assertOnboardingOwner(user: AuthUser) {
   }
 }
 
+/** §7.2 G6: the same `canOwnSubscription` predicate as every subscription API — the institution authority who
+ *  owns the account, or an authority-role purchase delegate. A purchase flag on any other role is inert. */
 export function assertSubscriptionPurchaser(user: AuthUser) {
   if (["APP_OWNER", "STUDENT", "PARENT"].includes(user.role)) {
     throw new ApiError("This account cannot purchase an institutional package.", 403);
   }
-  if (!user.isInstitutionOwner && !user.canPurchaseSubscription) {
-    throw new ApiError("Subscription purchasing is not delegated to this account.", 403);
+  if (!canOwnSubscription(user)) {
+    throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
   }
 }
 

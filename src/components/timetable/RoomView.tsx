@@ -2,6 +2,7 @@
 
 import { DoorOpen } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import type {
   GridDay,
   GridPeriod,
@@ -39,6 +40,7 @@ export function RoomView({
   periods: GridPeriod[];
   weekendDays: number[];
 }) {
+  const ui = useUiText();
   const colorMap = classColorMap(timetables);
 
   // roomId -> list of occupancies resolved from all timetables
@@ -65,20 +67,19 @@ export function RoomView({
         {/* Header */}
         <div className="grid border-b border-muted" style={{ gridTemplateColumns: gridCols }}>
           <div className="flex items-center gap-1.5 p-3">
-            <DoorOpen className="w-4 h-4 text-ink-subtle" />
-            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Room</span>
+            <DoorOpen aria-hidden="true" className="w-4 h-4 text-ink-subtle" />
+            <span className="text-xs font-semibold text-ink-subtle">{ui("Room")}</span>
           </div>
           {visibleDays.map((day) => {
             const isOff = weekendDays.includes(day.num);
             return (
               <div
                 key={day.num}
-                className={`flex flex-col items-center justify-center py-3 border-l border-muted ${
+                className={`flex flex-col items-center justify-center py-3 border-s border-muted ${
                   isOff ? "opacity-50 bg-muted/70" : ""
                 }`}
               >
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                <span className="text-3xs font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                <span className="text-xs font-semibold text-ink-subtle">{ui(day.full)}</span>
               </div>
             );
           })}
@@ -86,7 +87,7 @@ export function RoomView({
 
         {rooms.length === 0 ? (
           <div className="py-10">
-            <EmptyState size="sm" icon={DoorOpen} title="No rooms configured" description="Add rooms in Academic settings to see room occupancy." />
+            <EmptyState size="sm" icon={DoorOpen} title={ui("No rooms configured")} description={ui("Your campus admin adds rooms under Campus setup; room occupancy appears here.")} />
           </div>
         ) : (
           rooms.map((room) => {
@@ -97,10 +98,10 @@ export function RoomView({
                 className="grid border-b border-muted last:border-b-0 hover:bg-brand-50/20 transition-colors"
                 style={{ gridTemplateColumns: gridCols }}
               >
-                <div className="flex flex-col justify-center p-3 border-r border-muted">
-                  <span className="text-2xs font-bold text-ink-strong">{room.roomNumber}</span>
+                <div className="flex flex-col justify-center p-3 border-e border-muted">
+                  <bdi className="text-2xs font-bold text-ink-strong">{room.roomNumber}</bdi>
                   <span className="text-3xs font-bold text-ink-subtle mt-0.5">
-                    cap {room.capacity || "—"}
+                    {ui("Capacity {0}", [room.capacity || "—"])}
                   </span>
                 </div>
                 {visibleDays.map((day) => {
@@ -112,7 +113,7 @@ export function RoomView({
                   return (
                     <div
                       key={day.num}
-                      className={`border-l border-muted p-1.5 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
+                      className={`border-s border-muted p-1.5 ${isOff ? "opacity-40 bg-muted/70" : ""}`}
                     >
                       {occupied ? (
                         <div className="space-y-1">
@@ -122,14 +123,14 @@ export function RoomView({
                               className={`rounded-lg ${u.color.bg}  ${u.color.border} border px-2 py-1`}
                             >
                               <p className={`text-2xs font-bold leading-tight ${u.color.text}`}>
-                                P{u.period} · {u.clsLabel}
+                                {ui("P{0}", [u.period])} · <bdi>{u.clsLabel}</bdi>
                               </p>
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div className="flex h-full min-h-[40px] items-center justify-center rounded-lg border border-dashed border-edge/15">
-                          <span className="text-3xs font-semibold text-ink-subtle">free</span>
+                          <span className="text-3xs font-semibold text-ink-subtle">{ui("Free")}</span>
                         </div>
                       )}
                     </div>

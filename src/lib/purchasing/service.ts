@@ -3,14 +3,19 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError } from "@/lib/api/scope";
+import { ApiError, soleChecker } from "@/lib/api/scope";
+import { isCampusOperator } from "@/lib/auth/institution";
+import { notifySelfApproval } from "@/lib/notifications/events";
 
 /**
  * SKO-435 purchasing on top of the existing inventory (items, stores, suppliers, movements).
  *
  * - A request shows the budget's available amount and what it would commit before submission.
- * - Approval follows the budget's limit (above it: principal or administrator) and is never by the
- *   requester. An approved order commits budget once; changing its lines, supplier or total
+ * - Approval is a campus-operations decision (§2.5, §7.6): a campus admin on the request's campus, or the
+ *   group admin as audited break-glass. Above the budget's limit only a senior administrator decides. The
+ *   requester never decides their own request unless they are the campus's sole checker (SD3: no other
+ *   active campus admin on that campus), in which case a typed reason is recorded, the history and audit
+ *   row carry `selfApproved`, and the institution authority is notified. An approved order commits budget once; changing its lines, supplier or total
  *   withdraws the approval.
  * - Receipts are idempotent and partial: only the counted quantity is received, more than ordered
  *   is flagged, and each counted item line becomes one stock movement. Asset lines become one tagged
@@ -18,9 +23,13 @@ import { ApiError } from "@/lib/api/scope";
  * - Invoices are matched to what was received; price variance and duplicates go to review.
  */
 
-const OPS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"];
-const SENIOR = ["SUPER_ADMIN", "ADMIN", "PRINCIPAL"];
-const STAFF = [...OPS, "ACCOUNTANT", "LIBRARIAN", "TEACHER", "RECEPTIONIST"];
+// §7.6 [R-B4]: purchasing decisions are campus operations (PRINCIPAL removed); over the budget limit the
+// senior seats are SA, ADMIN and CAMPUS_ADMIN. Any member of staff may still raise a request (API only, D20).
+const OPS = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN"];
+const SENIOR = ["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN"];
+const STAFF = [...OPS, "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "TEACHER", "RECEPTIONIST"];
+/** Decides on the request's own campus: a campus operator pinned there, or SA break-glass. */
+const decidesFor = (user: AuthUser, campusId: string) => user.role === "SUPER_ADMIN" || (isCampusOperator(user) && user.campusId === campusId);
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 const day = z.iso.date();
 const key = z.string().regex(/^[A-Za-z0-9_-]{8,80}$/u, "Invalid idempotency key");
@@ -98,12 +107,15 @@ export async function submitRequest(user: AuthUser, id: string, version: number)
   });
 }
 
-/** Approve (commits budget once) or return with a reason. Never by the requester. */
+/** Approve (commits budget once) or return with a reason. Never by the requester, except the SD3 sole checker with a reason. */
 export async function decideRequest(user: AuthUser, id: string, raw: unknown) {
   const input = parse(z.object({ version: z.number().int().positive(), decision: z.enum(["APPROVE", "RETURN", "CANCEL"]), reason: text(5, 500).optional() }).strict(), raw);
-  return prisma.$transaction(async (tx) => {
+  let selfApproved = false;
+  let campusOfRequest: string | null = null;
+  const decided = await prisma.$transaction(async (tx) => {
     const r = await tx.purchaseRequest.findFirst({ where: { id, schoolId: user.schoolId } });
     if (!r) throw new ApiError("Request not found", 404);
+    campusOfRequest = r.campusId;
     if (r.version !== input.version) throw new ApiError("The order changed since you opened it. Review the new amount.", 409);
     const budget = await tx.purchaseBudget.findUniqueOrThrow({ where: { id: r.budgetId } });
     if (input.decision === "CANCEL") {
@@ -112,10 +124,17 @@ export async function decideRequest(user: AuthUser, id: string, raw: unknown) {
       if ((r.received as number[]).some((q) => q > 0)) throw new ApiError("Goods have already been received; return them before cancelling.", 409);
     } else {
       if (r.status !== "SUBMITTED") throw new ApiError("Only a submitted request can be decided.", 409);
-      assert(OPS.includes(user.role), "Only assigned approvers can commit this budget.");
-      assert(r.requestedById !== user.userId, "You raised this request, so another approver must decide it.");
+      assert(decidesFor(user, r.campusId), "Purchase requests are decided by your campus admin.");
+      if (r.requestedById === user.userId) {
+        // SD3 (§2.5): a maker may decide their own request only when no other active campus admin holds
+        // the checker seat on this campus, and only with a typed reason.
+        const sole = await soleChecker("purchase", user, r.campusId);
+        assert(sole, "You raised this request, so another approver must decide it.");
+        if (!input.reason || input.reason.trim().length < 10) throw new ApiError("You are the only approver on this campus. Give a reason of at least 10 characters to decide your own request.", 400);
+        selfApproved = true;
+      }
       if (input.decision === "APPROVE") {
-        assert(r.total <= budget.approvalLimit || SENIOR.includes(user.role), "This order is above the approval limit; a principal or administrator must approve it.");
+        assert(r.total <= budget.approvalLimit || SENIOR.includes(user.role), "This order is above the approval limit; a senior administrator must approve it.");
         const pos = await budgetPosition(tx, r.budgetId);
         if (r.total > pos.available) throw new ApiError(`${r.total - pos.available} ${budget.currency} above available budget`, 409);
       } else if (!input.reason) throw new ApiError("Give a reason for returning the request.", 400);
@@ -123,10 +142,18 @@ export async function decideRequest(user: AuthUser, id: string, raw: unknown) {
     const status = input.decision === "APPROVE" ? "APPROVED" : input.decision === "RETURN" ? "RETURNED" : "CANCELLED";
     const done = await tx.purchaseRequest.updateMany({ where: { id, version: input.version }, data: { status, version: { increment: 1 },
       ...(input.decision === "APPROVE" ? { approvedById: user.userId, approvedAt: new Date(), approvedHash: orderHash(r.lines as Line[], r.supplierId, r.total) } : {}),
-      history: push(r.history, { by: user.userId, action: status, reason: input.reason ?? null }) } });
+      history: push(r.history, { by: user.userId, action: status, reason: input.reason ?? null, ...(selfApproved ? { selfApproved: true } : {}) }) } });
     if (!done.count) throw new ApiError("Another decision was saved first.", 409);
+    if (selfApproved) {
+      await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "purchase_requests", recordId: id, userId: user.userId, oldValue: { status: r.status }, newValue: { status, selfApproved: true, reason: input.reason ?? null } } });
+    }
     return tx.purchaseRequest.findUnique({ where: { id } });
   });
+  // Fire-and-forget after commit (§10.8): the institution authority sees every sole-checker decision.
+  if (selfApproved && input.reason) {
+    void notifySelfApproval({ schoolId: user.schoolId, campusId: campusOfRequest, kind: "purchase", recordId: id, actorId: user.userId, reason: input.reason }).catch((error: unknown) => console.error("[purchasing] self-approval notice failed", error));
+  }
+  return decided;
 }
 
 /** Record a delivery. The same idempotency key returns the first receipt and changes nothing. */
@@ -273,5 +300,9 @@ export async function purchasingOverview(user: AuthUser) {
     prisma.item.findMany({ where: { campusId }, select: { id: true, name: true }, take: 300 }),
     prisma.supplier.findMany({ where: { campusId }, select: { id: true, name: true } }),
   ]);
-  return { userId: user.userId, canApprove: OPS.includes(user.role), budgets: positions.map((p) => ({ ...p.budget, committed: p.committed, spent: p.spent, available: p.available })), requests, invoices, assets, services, stores, items, suppliers };
+  // SD3 (§2.5): whether this operator is the campus's only checker (it may then decide its own request with a reason),
+  // and which decisions were such self-approvals (recorded in each request's history by decideRequest).
+  const sole = await soleChecker("purchase", user, campusId);
+  const selfApprovedIn = (history: Prisma.JsonValue) => Array.isArray(history) && history.some((entry) => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry) && (entry as { selfApproved?: unknown }).selfApproved === true);
+  return { userId: user.userId, canApprove: OPS.includes(user.role), soleChecker: sole, budgets: positions.map((p) => ({ ...p.budget, committed: p.committed, spent: p.spent, available: p.available })), requests: requests.map((r) => ({ ...r, selfApproved: selfApprovedIn(r.history) })), invoices, assets, services, stores, items, suppliers };
 }

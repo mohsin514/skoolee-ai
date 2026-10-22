@@ -109,11 +109,11 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
             <div className="flex flex-1 gap-1" aria-hidden="true">
               {[1, 2, 3, 4].map((level) => (
                 <div key={level} className={cn("h-1.5 flex-1 rounded-full", level <= strength.level
-                  ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
+                  ? strength.level <= 1 ? "bg-status-error-text" : strength.level <= 2 ? "bg-status-warning-text" : "bg-status-success-text"
                   : "bg-brand-100")} />
               ))}
             </div>
-            <span className={cn("text-xs font-semibold", strength.level <= 1 ? "text-rose-600" : strength.level <= 2 ? "text-amber-700" : "text-emerald-700")}>
+            <span className={cn("text-xs font-semibold", strength.level <= 1 ? "text-status-error-text" : strength.level <= 2 ? "text-status-warning-text" : "text-status-success-text")}>
               {t(strength.label)}
             </span>
           </div>
@@ -126,7 +126,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
 
         <ul className="grid grid-cols-1 gap-x-3 gap-y-1.5 rounded-2xl border border-border-subtle bg-surface-subtle p-3.5 min-[400px]:grid-cols-2">
           {reqs.map((r) => (
-            <li key={r.label} className={cn("flex items-center gap-1.5 text-xs font-semibold", r.met ? "text-emerald-700" : "text-ink-muted")}>
+            <li key={r.label} className={cn("flex items-center gap-1.5 text-xs font-semibold", r.met ? "text-status-success-text" : "text-ink-muted")}>
               {r.met ? <CheckCircle aria-hidden="true" className="size-3.5 shrink-0" /> : <XCircle aria-hidden="true" className="size-3.5 shrink-0 opacity-40" />}
               {t(r.label)}
             </li>

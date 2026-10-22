@@ -22,7 +22,7 @@ function campusScope(user: AuthUser, requested: unknown) {
 export async function authorizeAssignment(tx: TxClient, user: AuthUser, module: PermissionModule, action: "edit" | "delete" = "edit") {
   const actor = await tx.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
   if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && user.accessVersion !== actor.accessVersion) throw new ApiError("Your account access changed. Sign in again.", 403);
-  const grants = await tx.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true } });
+  const grants = await tx.rolePermission.findMany({ where: { schoolId: user.schoolId, role: user.role }, select: { module: true, canView: true, canAdd: true, canEdit: true, canDelete: true, updatedAt: true } });
   if (!moduleFlags(grants, user.role, module)[action === "edit" ? "canEdit" : "canDelete"]) throw new ApiError(`Insufficient permissions: ${module}.${action}`, 403);
   await assertSchoolOperational(user.schoolId, tx);
   return grants;
@@ -53,10 +53,16 @@ export async function updateClassWithTeacherAssignment(user: AuthUser, body: Ass
   });
 }
 
+/** Body keys that only staff a class (class teacher, teaching mode). Like subject-teacher assignment they are an
+ *  academic act gated on `exams.edit` (the route enforces the academic-lead seat); anything else (name, section,
+ *  year) is a class-record change and keeps `students.edit` (§7.6). */
+const STAFFING_ONLY_KEYS = new Set(["id", "campusId", "classTeacherId", "teacherId", "teachingMode", "effectiveFrom"]);
+
 /** Caller holds the campus scheduling fence and a SERIALIZABLE transaction. */
 export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: AuthUser, body: AssignmentInput, campusId: string) {
   const id = recordId(body.id), scope = campusScope(user, campusId);
-  const grants = await authorizeAssignment(tx, user, "students");
+  const staffingOnly = Object.keys(body).every((key) => STAFFING_ONLY_KEYS.has(key));
+  const grants = await authorizeAssignment(tx, user, staffingOnly ? "exams" : "students");
   const existing = await tx.class.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, classTeacherId: true, teachingMode: true, academicYear: true, name: true, section: true, archivedAt: true } });
   if (!existing) throw new ApiError("Class not found", 404);
   // SKO-462: an archived class is history; restore it before changing it.

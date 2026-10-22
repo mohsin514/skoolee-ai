@@ -13,8 +13,11 @@ export default async function OperationalLayout({ children }: { children: React.
   const user = await requirePageSession();
   const requestHeaders = await headers();
   const pathname = requestHeaders.get("x-pathname") || "";
+  // The proxy decides what counts as the billing workspace (/billing, /super?view=billing, /admin?view=billing and
+  // the legacy entry points) and passes it as x-billing-workspace, because a layout cannot read searchParams (G43).
   const billingPath =
     requestHeaders.get("x-billing-workspace") === "1" ||
+    pathname === "/billing" ||
     pathname.startsWith("/super/billing") ||
     pathname.startsWith("/dashboard/billing");
 

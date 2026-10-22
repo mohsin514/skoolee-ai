@@ -1,4 +1,13 @@
-export type FeeTab = "overview" | "structures" | "invoices" | "payments" | "reports" | "accounts";
+/** FeesPanel tabs (role-ux §10.11). `tax` renders TaxPackages mode="draft" for a campus admin holding the finance desk. */
+export type FeeTab = "overview" | "structures" | "invoices" | "payments" | "reports" | "accounts" | "tax";
+export const FEE_TABS: readonly FeeTab[] = ["overview", "structures", "invoices", "payments", "reports", "accounts", "tax"];
+
+/**
+ * A one-shot request from the page header to a panel ("record a payment", "export").
+ * The console owns the PageHeader (one primary action per screen, role-ux §4.4); the panel keeps its state.
+ * A new `nonce` re-runs the same command.
+ */
+export type PanelCommand = { id: string; nonce: number };
 
 export type LayerTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "legacy";
 

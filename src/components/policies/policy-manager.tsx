@@ -1,14 +1,21 @@
 "use client";
 
-import { Alert } from "@/components/ui/alert";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { Archive, MoreHorizontal, Pencil, ScrollText } from "lucide-react";
+import { Menu, type MenuItem } from "@/components/ui/menu";
+import { IconButton } from "@/components/ui/icon-button";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 
 // SKO-429: school leaders write and approve policy versions (audience, office, effective dates,
 // numbered sections), answer escalated questions and check the assistant against owner questions.
@@ -25,53 +32,111 @@ const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approv
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok || !json?.success) throw new Error(json?.error || "Request failed");
+  if (!response?.ok || !json?.success) throw new Error(json?.error || "");
   return json.data;
 }
 const blank = () => ({ topic: "", title: "", office: "GENERAL", audience: "FAMILY", effectiveFrom: new Date().toISOString().slice(0, 10), effectiveUntil: "", sections: [{ id: "1", heading: "", text: "" }] as Section[] });
 
-export function PolicyManager() {
+/**
+ * `command` lets a console's PageHeader drive the panel (Campus setup › Policies, primary "New policy"):
+ * "new-policy" clears the draft form and moves focus to its first field. Each command runs once (by nonce).
+ */
+export function PolicyManager({ command }: { command?: { id: string; nonce: number } | null } = {}) {
   const ui = useUiText();
+  const { date: formatDay } = useLocaleFormat();
+  const formRef = useRef<HTMLFormElement>(null);
+  const lastCommand = useRef<number | null>(command?.nonce ?? null);
   const [policies, setPolicies] = useState<Policy[] | null>(null);
   const [queue, setQueue] = useState<Queued[]>([]);
   const [form, setForm] = useState(blank());
   const [editing, setEditing] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [replies, setReplies] = useState<Record<string, string>>({});
   const [evalForm, setEvalForm] = useState({ question: "", audience: "FAMILY", expectedTopic: "", expectedSection: "", expectNoAnswer: false });
   const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
-  const load = useCallback(async () => { try { const d = await call("/api/policies?view=manage"); setPolicies(d.policies); setQueue(d.queue); } catch (e) { setError(ui((e as Error).message)); } }, [ui]);
+  // F16: approving puts a policy in front of families; archiving takes it away. Both are confirmed first.
+  const [confirming, setConfirming] = useState<{ action: "approve" | "archive"; policy: Policy } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  // R4: a load failure is an inline ErrorState with retry, not a banner over an empty list.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const load = useCallback(async () => { try { const d = await call("/api/policies?view=manage"); setPolicies(d.policies); setQueue(d.queue); setLoadFailed(false); } catch { setLoadFailed(true); } }, []);
   useEffect(() => { void load(); }, [load]);
-  const post = async (body: object, success: string) => { try { const r = await call("/api/policies", { method: "POST", body: JSON.stringify(body) }); setNotice(ui(success)); setError(null); await load(); return r; } catch (e) { setError(ui((e as Error).message)); setNotice(null); return null; } };
+  // R4: an action's result is one translated toast where the person is looking; a failure keeps the form as typed.
+  const post = async (body: object, success: string) => { try { const r = await call("/api/policies", { method: "POST", body: JSON.stringify(body) }); toast.success(ui(success)); await load(); return r; } catch (e) { toast.error(friendlyErrorMessage(e, ui("The change was not saved. Please try again."))); return null; } };
+  useEffect(() => {
+    if (!command || command.nonce === lastCommand.current) return;
+    lastCommand.current = command.nonce;
+    if (command.id !== "new-policy") return;
+    setForm(blank());
+    setEditing(null);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    formRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    formRef.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+  }, [command]);
+  // Opening a draft from a row's overflow brings its form into view (the form sits below the list).
+  useEffect(() => {
+    if (!editing) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    formRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  }, [editing]);
   const setSection = (i: number, key: keyof Section, value: string) => setForm((f) => ({ ...f, sections: f.sections.map((s, j) => (j === i ? { ...s, [key]: value } : s)) }));
   return (
     <section aria-labelledby="policy-manager" className="sk-panel space-y-4 p-4">
       <h2 id="policy-manager" className="text-lg font-bold">{ui("School policies")}</h2>
       <p className="text-sm text-ink-subtle">{ui("Only approved versions in effect on the question date and meant for the asker's audience are used to answer questions.")}</p>
-      <div className="space-y-2">
-        {error ? <Alert tone="danger" compact>{error}</Alert> : null}
-        {notice ? <Alert tone="success" compact>{notice}</Alert> : null}
-      </div>
 
+      <ConfirmAction
+        open={Boolean(confirming)}
+        title={confirming?.action === "approve" ? ui("Approve {0}?", [confirming?.policy.title ?? ""]) : ui("Archive {0}?", [confirming?.policy.title ?? ""])}
+        description={confirming?.action === "approve"
+          ? ui("From its effective date this version answers questions from its audience and replaces the version before it.")
+          : ui("It stops answering questions straight away. Its versions stay on file.")}
+        confirmLabel={confirming?.action === "approve" ? ui("Approve") : ui("Archive")}
+        cancelLabel={ui("Keep editing")}
+        tone="warning"
+        busy={confirmBusy}
+        onCancel={() => setConfirming(null)}
+        onConfirm={async () => {
+          if (!confirming) return;
+          setConfirmBusy(true);
+          const ok = confirming.action === "approve"
+            ? await post({ action: "approve", id: confirming.policy.id }, "Policy approved. It answers questions from its effective date.")
+            : await post({ action: "archive", id: confirming.policy.id }, "Policy archived. It no longer answers questions.");
+          setConfirmBusy(false);
+          if (ok !== null) setConfirming(null);
+        }}
+      />
+
+      {loadFailed && !policies ? <ErrorState title={ui("School policies could not be loaded.")} onRetry={() => void load()} retryLabel={ui("Try again")} />
+        : !policies ? <SkeletonList rows={3} label={ui("Loading policies…")} />
+        : policies.length === 0 ? <EmptyState size="sm" icon={ScrollText} title={ui("No policies yet")} description={ui("Write the first policy below. Families get answers from it once you approve it.")} />
+        : null}
       <ul className="space-y-2">{policies?.map((p) => (
         <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm">
           <div>
             <p className="font-semibold"><bdi>{p.title}</bdi> · v{p.version} · {ui(STATUS_LABEL[p.status] ?? p.status)}</p>
-            <p className="text-ink-subtle"><span dir="ltr">{p.topic}</span> · {ui(AUDIENCE_LABEL[p.audience] ?? p.audience)} · {ui(OFFICE_LABEL[p.office] ?? p.office)} · <span dir="ltr">{p.effectiveFrom.slice(0, 10)} → {p.effectiveUntil ? p.effectiveUntil.slice(0, 10) : "…"}</span></p>
+            <p className="text-ink-subtle"><span dir="ltr">{p.topic}</span> · {ui(AUDIENCE_LABEL[p.audience] ?? p.audience)} · {ui(OFFICE_LABEL[p.office] ?? p.office)} · <span>{formatDay(p.effectiveFrom)} <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {p.effectiveUntil ? formatDay(p.effectiveUntil) : "…"}</span></p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {p.status === "DRAFT" ? <>
-              <Button size="sm" variant="outline" onClick={() => { setEditing(p.id); setForm({ topic: p.topic, title: p.title, office: p.office, audience: p.audience, effectiveFrom: p.effectiveFrom.slice(0, 10), effectiveUntil: p.effectiveUntil?.slice(0, 10) ?? "", sections: p.sections }); }}>{ui("Edit")}</Button>
-              <Button size="sm" onClick={() => post({ action: "approve", id: p.id }, "Policy approved. It answers questions from its effective date.")}>{ui("Approve")}</Button>
-            </> : null}
+          {/* §4.5.2–3: one inline action per row (Approve a draft, start the next version of an approved one); Edit
+              and Archive sit in the row overflow, Archive behind its confirmation. */}
+          <div className="flex flex-wrap items-center gap-2">
+            {p.status === "DRAFT" ? <Button size="sm" onClick={() => setConfirming({ action: "approve", policy: p })}>{ui("Approve")}</Button> : null}
             {p.status === "APPROVED" ? <Button size="sm" variant="outline" onClick={() => post({ action: "version", id: p.id }, "A draft of the next version was created.")}>{ui("New version")}</Button> : null}
-            {p.status !== "ARCHIVED" && p.status !== "SUPERSEDED" ? <Button size="sm" variant="ghost" onClick={() => post({ action: "archive", id: p.id }, "Policy archived. It no longer answers questions.")}>{ui("Archive")}</Button> : null}
+            {p.status !== "ARCHIVED" && p.status !== "SUPERSEDED" ? (
+              <Menu
+                label={ui("More actions for {0}", [p.title])}
+                align="end"
+                trigger={<IconButton label={ui("More actions for {0}", [p.title])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+                items={[
+                  ...(p.status === "DRAFT" ? [{ id: "edit", label: "Edit", icon: Pencil, onSelect: () => { setEditing(p.id); setForm({ topic: p.topic, title: p.title, office: p.office, audience: p.audience, effectiveFrom: p.effectiveFrom.slice(0, 10), effectiveUntil: p.effectiveUntil?.slice(0, 10) ?? "", sections: p.sections }); } } satisfies MenuItem] : []),
+                  { id: "archive", label: "Archive", icon: Archive, tone: "danger", onSelect: () => setConfirming({ action: "archive", policy: p }) } satisfies MenuItem,
+                ]}
+              />
+            ) : null}
           </div>
         </li>
       ))}</ul>
 
-      <form className="grid gap-3 rounded-xl border border-border p-3 md:grid-cols-2" onSubmit={async (e) => {
+      <form ref={formRef} id="policy-draft-form" className="grid scroll-mt-4 gap-3 rounded-xl border border-border p-3 md:grid-cols-2" onSubmit={async (e) => {
         e.preventDefault();
         const r = await post({ action: "save", id: editing ?? undefined, data: { ...form, effectiveUntil: form.effectiveUntil || null } }, "Draft saved. Approve it to make it answer questions.");
         if (r) { setForm(blank()); setEditing(null); }
@@ -99,7 +164,7 @@ export function PolicyManager() {
 
       <div className="space-y-2">
         <h3 className="font-semibold">{ui("Questions sent to the school office")}</h3>
-        {queue.length === 0 ? <p className="text-sm text-ink-subtle">{ui("No questions are waiting.")}</p> : queue.map((q) => (
+        {queue.length === 0 ? <EmptyState size="sm" icon={ScrollText} title={ui("No questions are waiting.")} /> : queue.map((q) => (
           <div key={q.id} className="space-y-1 rounded-xl border border-border p-3 text-sm">
             <p className="font-semibold">{ui(OFFICE_LABEL[q.escalation.office] ?? q.escalation.office)} · <bdi>{q.askedBy?.fullName ?? "—"}</bdi> · {ui(STATUS_LABEL[q.escalation.answerStatus] ?? q.escalation.answerStatus)}</p>
             {q.escalation.includedQuestion ? <p>{ui("Question")}: <bdi>{q.escalation.includedQuestion}</bdi></p> : null}
@@ -121,7 +186,7 @@ export function PolicyManager() {
           <FormField name="ev-aud" label={ui("Asked by")}><Select value={evalForm.audience} onChange={(e) => setEvalForm((f) => ({ ...f, audience: e.target.value }))}><option value="FAMILY">{ui("Families")}</option><option value="STAFF">{ui("Staff only")}</option></Select></FormField>
           <FormField name="ev-topic" label={ui("Expected topic key")}><Input dir="ltr" value={evalForm.expectedTopic} onChange={(e) => setEvalForm((f) => ({ ...f, expectedTopic: e.target.value }))} /></FormField>
           <FormField name="ev-sec" label={ui("Expected section (optional)")}><Input dir="ltr" value={evalForm.expectedSection} onChange={(e) => setEvalForm((f) => ({ ...f, expectedSection: e.target.value }))} /></FormField>
-          <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={evalForm.expectNoAnswer} onChange={(e) => setEvalForm((f) => ({ ...f, expectNoAnswer: e.target.checked }))} /> {ui("This question should NOT get an answer")}</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={evalForm.expectNoAnswer} onChange={(e) => setEvalForm((f) => ({ ...f, expectNoAnswer: e.target.checked }))} /> {ui("This question should not get an answer")}</label>
           <div className="flex gap-2 md:col-span-2"><Button type="submit" size="sm" variant="outline">{ui("Add check")}</Button><Button type="button" size="sm" onClick={async () => { const r = await post({ action: "eval-run" }, "Checks run against the current policies."); if (r) setEvalResult(r as EvalResult); }}>{ui("Run all checks")}</Button></div>
         </form>
         {evalResult ? <div className="text-sm"><p className="font-semibold">{ui("{0} of {1} checks passed", [evalResult.passed, evalResult.total])}</p>

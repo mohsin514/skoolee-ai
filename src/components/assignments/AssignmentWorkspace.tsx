@@ -10,6 +10,9 @@ import { getAssignmentCopy, type AssignmentCopy } from "./assignment-copy";
 import { Banner, call, fileHref, formatAt, Pill, RubricTable, shortSha, stateTone, type Criterion, type Feedback, type Receipt, type Score } from "./shared";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 // SKO-409 teacher workspace: queue by status, draft editor, release review, marking and return.
 type Status = "DRAFT" | "RELEASED" | "CLOSED";
@@ -25,7 +28,11 @@ const FILE_GROUPS = ["PDF", "IMAGE", "WORD", "TEXT"] as const;
 const key = () => `w-${crypto.randomUUID()}`;
 const matches = (filter: Filter, a: Summary) => filter === "ALL" || (filter === "NEEDS_FEEDBACK" ? a.counts.needsFeedback > 0 : filter === "RETURNED" ? a.counts.returned > 0 : a.status === filter);
 
-export function AssignmentWorkspace() {
+/**
+ * `createRequest` (incremented by the page's "Create homework" primary action) opens the editor;
+ * with `hideCreateButton` the toolbar no longer repeats that action (§4.4: one primary per screen).
+ */
+export function AssignmentWorkspace({ createRequest, hideCreateButton = false }: { createRequest?: number; hideCreateButton?: boolean } = {}) {
   const { language } = useLocale();
   const t = getAssignmentCopy(language), rtl = language === "ar" || language === "ur";
   const [view, setView] = useState<ListView | null>(null);
@@ -36,6 +43,8 @@ export function AssignmentWorkspace() {
   const [editing, setEditing] = useState<"new" | "existing" | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  useEffect(() => { if (createRequest) { setSelected(null); setEditing("new"); } }, [createRequest]);
 
   const loadList = useCallback(async () => {
     const data = await call(`/api/assignments${classId ? `?classId=${encodeURIComponent(classId)}` : ""}`);
@@ -43,7 +52,7 @@ export function AssignmentWorkspace() {
     if (!classId) setClassId(data.classId);
   }, [classId]);
   const loadDetail = useCallback(async (id: string) => setDetail(await call(`/api/assignments/${id}`)), []);
-  useEffect(() => { loadList().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [loadList, t.failed]);
+  useEffect(() => { setLoadFailed(false); loadList().catch(() => setLoadFailed(true)); }, [loadList]);
   useEffect(() => { if (selected) loadDetail(selected).catch(error => setStatus({ tone: "error", text: error.status === 404 ? t.notAvailable : error.message })); else setDetail(null); }, [selected, loadDetail, t.notAvailable]);
 
   async function run(work: () => Promise<unknown>, done = t.saved) {
@@ -53,7 +62,8 @@ export function AssignmentWorkspace() {
     finally { setBusy(false); }
   }
 
-  if (!view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <p className="text-sm text-ink-muted" aria-busy="true">{t.loading}</p>}</div>;
+  if (!view && loadFailed) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={() => { setLoadFailed(false); loadList().catch(() => setLoadFailed(true)); }} /></div>;
+  if (!view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3"><Banner status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
   const totals = { DRAFT: view.assignments.filter(a => a.status === "DRAFT").length, RELEASED: view.assignments.filter(a => a.status === "RELEASED").length, NEEDS_FEEDBACK: view.assignments.reduce((n, a) => n + a.counts.needsFeedback, 0), RETURNED: view.assignments.reduce((n, a) => n + a.counts.returned, 0) };
   const shown = view.assignments.filter(a => matches(filter, a));
 
@@ -63,7 +73,7 @@ export function AssignmentWorkspace() {
         {view.classes.map(klass => <option key={klass.id} value={klass.id}>{klass.name}{klass.section ? ` ${klass.section}` : ""}</option>)}</Select></label>
       <label className="grid gap-1 text-xs font-semibold">{t.filter}<Select value={filter} onChange={event => setFilter(event.target.value as Filter)}>
         {(Object.keys(t.filters) as Filter[]).map(value => <option key={value} value={value}>{t.filters[value]}</option>)}</Select></label>
-      <Button type="button" onClick={() => { setSelected(null); setEditing("new"); }}><Plus aria-hidden />{t.create}</Button>
+      {!hideCreateButton ? <Button type="button" onClick={() => { setSelected(null); setEditing("new"); }}><Plus aria-hidden />{t.create}</Button> : null}
     </div>
     <nav aria-label={t.filter} className="flex flex-wrap gap-2">
       {(["DRAFT", "RELEASED", "NEEDS_FEEDBACK", "RETURNED"] as const).map(value => <Button key={value} type="button" size="sm" variant="choice" aria-pressed={filter === value} onClick={() => { setFilter(filter === value ? "ALL" : value); setSelected(null); }}>
@@ -88,7 +98,7 @@ export function AssignmentWorkspace() {
           </div>
           {item.status !== "DRAFT" && <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink">
             <span>{item.counts.submitted} {t.counts.submitted}</span>
-            <span className={item.counts.needsFeedback ? "font-semibold text-violet-800" : ""}>{item.counts.needsFeedback} {t.counts.needsFeedback}</span>
+            <span className={item.counts.needsFeedback ? "font-semibold text-primary" : ""}>{item.counts.needsFeedback} {t.counts.needsFeedback}</span>
             <span className={item.counts.late ? "font-semibold text-status-warning-text" : ""}>{item.counts.late} {t.counts.late}</span>
             <span>{item.counts.returned} {t.counts.returned}</span>
           </p>}
@@ -130,7 +140,7 @@ function AssignmentEditor({ t, classId, subjects, resources, initial, busy, onCa
       {resources.length === 0 ? <p className="text-ink-muted">{t.noMaterials}</p> : <div className="flex flex-wrap gap-3">{resources.map(r => <label key={r.id} className="inline-flex min-h-11 items-center gap-2 text-sm"><Checkbox className="h-4 w-4" checked={picked.includes(r.id)} onChange={event => setPicked(list => event.target.checked ? [...list, r.id] : list.filter(id => id !== r.id))} /><span dir="auto">{r.title}</span></label>)}</div>}
     </fieldset>}
     <fieldset className="grid min-w-0 gap-2 sm:col-span-2"><legend className="mb-1 text-sm font-semibold">{t.rubric}</legend>
-      <ol className="grid gap-2">{rubric.map((row, index) => <li key={index} className="grid min-w-0 gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-[2fr_1fr_3fr_auto] sm:items-end">
+      <ol className="grid gap-2">{rubric.map((row, index) => <li key={index} className="grid min-w-0 gap-2 rounded-lg bg-surface-subtle p-3 sm:grid-cols-[2fr_1fr_3fr_auto] sm:items-end">
         <label className="grid gap-1 text-xs font-semibold">{t.criterion} {index + 1}<Input dir="auto" required minLength={2} maxLength={120} value={row.title} onChange={event => setCriterion(index, { title: event.target.value })} /></label>
         <label className="grid gap-1 text-xs font-semibold">{t.points}<Input type="number" inputMode="numeric" min={1} max={100} required value={Number.isFinite(row.maxPoints) ? row.maxPoints : ""} onChange={event => setCriterion(index, { maxPoints: event.target.valueAsNumber })} /></label>
         <label className="grid gap-1 text-xs font-semibold">{t.criterionHelp}<Input dir="auto" maxLength={500} value={row.description} onChange={event => setCriterion(index, { description: event.target.value })} /></label>
@@ -149,6 +159,7 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
   const { assignment, release } = detail;
   const [plan, setPlan] = useState<Plan | null>(null);
   const [learner, setLearner] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const row = detail.queue.find(q => q.studentId === learner) ?? null;
   const openPreview = () => run(async () => setPlan((await call(`/api/assignments/${assignment.id}`, { op: "preview" })).result), "");
@@ -165,9 +176,20 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
       {assignment.status !== "CLOSED" && <div className="mt-3 flex flex-wrap gap-2">
         <Button ref={trigger} type="button" disabled={busy} onClick={openPreview}>{t.preview}</Button>
         <Button type="button" variant="outline" disabled={busy} onClick={() => setEditing(!editing)}>{assignment.status === "DRAFT" ? t.edit : t.editReleased}</Button>
-        {assignment.status === "RELEASED" && <Button type="button" variant="ghost" disabled={busy} onClick={() => run(() => call(`/api/assignments/${assignment.id}`, { op: "close" }))}>{t.close}</Button>}
+        {assignment.status === "RELEASED" && <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirmClose(true)}>{t.close}</Button>}
       </div>}
     </header>
+    <ConfirmAction
+      open={confirmClose}
+      tone="warning"
+      title={t.closeTitle}
+      description={t.closeBody}
+      confirmLabel={t.close}
+      cancelLabel={t.keepOpen}
+      busy={busy}
+      onCancel={() => setConfirmClose(false)}
+      onConfirm={() => { setConfirmClose(false); void run(() => call(`/api/assignments/${assignment.id}`, { op: "close" })); }}
+    />
     {editing && <AssignmentEditor t={t} classId={""} subjects={subjects} resources={detail.resources} initial={assignment} busy={busy} onCancel={() => setEditing(false)} onSave={async body => { if (await run(() => call(`/api/assignments/${assignment.id}`, { op: "update", ...body }))) setEditing(false); }} />}
     {plan && <ReleaseReview t={t} language={language} plan={plan} busy={busy} onCancel={closePreview} onRelease={async () => {
       if (await run(() => call(`/api/assignments/${assignment.id}`, { op: "release", expectedVersion: assignment.currentVersion ?? 0 }), t.released)) closePreview();
@@ -179,7 +201,7 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
       <section aria-labelledby="asg-queue" className="min-w-0 sk-panel p-4">
         <h3 id="asg-queue" className="mb-2 text-sm font-semibold">{t.queue}</h3>
         <ul className="grid gap-2" aria-label={t.queue}>{detail.queue.map(q => { const latest = q.versions[0]; return <li key={q.studentId}>
-          <Button variant="ghost" type="button" aria-current={learner === q.studentId ? "true" : undefined} onClick={() => setLearner(q.studentId)} className={`flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-start text-sm ${learner === q.studentId ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
+          <Button variant="ghost" type="button" aria-current={learner === q.studentId ? "true" : undefined} onClick={() => setLearner(q.studentId)} className={`flex min-h-11 w-full flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-start text-sm ${learner === q.studentId ? "border-status-brand-border bg-status-brand-surface" : "border-border-subtle bg-card hover:bg-surface-hover"}`}>
             <span className="min-w-0 font-semibold [overflow-wrap:anywhere]" dir="auto">{q.name}</span>
             <span className="flex flex-wrap gap-1">
               <Pill tone={stateTone(q.status)}>{latest ? `${t.states[q.status as keyof typeof t.states] ?? q.status} · v${latest.version}` : t.notSubmitted}</Pill>
@@ -242,11 +264,11 @@ function Marking({ t, language, assignmentId, timezone, row, rubrics, busy, run,
     </div>
     {row.extension && <p className="text-sm text-status-success-text">{t.extended}: {row.extension.dueLocal.replace("T", " ")} — <span dir="auto">{row.extension.reason}</span></p>}
     {version ? <>
-      <div className="rounded-lg bg-slate-50 p-3 text-sm">
+      <div className="rounded-lg bg-surface-subtle p-3 text-sm">
         <p className="flex flex-wrap items-center gap-2"><span className="font-semibold">{t.receipt} <bdi>{version.receiptCode}</bdi></span>{version.late && <Pill tone="amber">{t.lateTag}</Pill>}{version.mode === "PAPER" && <Pill>{t.paperTag}</Pill>}</p>
         <p className="text-xs text-ink-muted">{version.mode === "PAPER" ? t.receivedAt : t.submittedAt} {formatAt(version.receivedAt, language, timezone)} · {t.version} {version.assignmentVersion} · {t.rubricVersion} {version.rubricVersion} · {t.checksum} <bdi className="font-mono">{shortSha(version.artifactSha256)}</bdi></p>
         {version.text && <p className="mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]" dir="auto">{version.text}</p>}
-        {version.file && <a className="mt-2 inline-flex min-h-11 items-center gap-1 font-semibold text-violet-700 underline" href={fileHref(assignmentId, version.id)}><Download className="h-4 w-4" aria-hidden />{t.download}: <bdi>{version.file.name}</bdi></a>}
+        {version.file && <a className="mt-2 inline-flex min-h-11 items-center gap-1 font-semibold text-primary underline" href={fileHref(assignmentId, version.id)}><Download className="h-4 w-4" aria-hidden />{t.download}: <bdi>{version.file.name}</bdi></a>}
       </div>
       {returned ? <div className="space-y-2">
         <p className="text-sm font-semibold text-status-success-text">{t.returnedOn} {formatAt(version.feedback!.returnedAt, language, timezone)}{version.feedback!.gradebookTransfer === "REQUESTED" ? ` · ${t.gradebookRequested}` : ""}</p>

@@ -4,7 +4,8 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -38,7 +39,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
     const campusId = await resolveCampusId(user, body.campusId);
@@ -68,7 +70,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "edit");
 
     const body = await req.json();
     if (!body.id) throw new ApiError("id is required", 400);
@@ -109,7 +112,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "delete");
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);

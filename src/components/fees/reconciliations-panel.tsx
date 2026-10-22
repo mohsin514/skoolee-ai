@@ -5,7 +5,10 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { useLocaleFormat, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
 // SKO-432: the reconciliation workbench. Each committed statement shows where every unit of money
 // went; matched rows post as payments only after an explicit review; unmatched money stays visible.
@@ -17,14 +20,17 @@ type Rec = {
   report: { received: number; allocated: number; credited: number; unallocated: number; adjustments: number; difference: number; balanced: boolean };
 };
 
-export function ReconciliationsPanel({ campusId, version = 0, onPosted }: { campusId?: string; version?: number; onPosted?: () => void }) {
+export function ReconciliationsPanel({ campusId, version = 0, onPosted, showEmpty = false }: { campusId?: string; version?: number; onPosted?: () => void; /** Render an empty state instead of nothing (the dedicated Reconciliation tab). */ showEmpty?: boolean }) {
   const ui = useUiText();
   const { money, date } = useLocaleFormat();
-  const [items, setItems] = useState<Rec[] | null>(null), [posting, setPosting] = useState<Rec | null>(null), [busy, setBusy] = useState(false);
+  const { currency: campusCurrency } = useLocale();
+  const [items, setItems] = useState<Rec[] | null>(null), [posting, setPosting] = useState<Rec | null>(null), [busy, setBusy] = useState(false), [failed, setFailed] = useState(false);
   const load = useCallback(async () => {
-    const response = await fetch(`/api/fees/reconciliations${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`, { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    if (response.ok && json.success) setItems(json.data);
+    setFailed(false);
+    const response = await fetch(`/api/fees/reconciliations${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`, { cache: "no-store" }).catch(() => null);
+    const json = response ? await response.json().catch(() => ({})) : {};
+    if (response?.ok && json.success) setItems(json.data);
+    else setFailed(true);
   }, [campusId]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load, version]);
   const post = async () => {
@@ -38,11 +44,14 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted }: { camp
       setPosting(null); await load(); onPosted?.();
     } catch (failure) { toast.error(failure instanceof Error ? failure.message : ui("The statement could not be posted.")); } finally { setBusy(false); }
   };
+  if (showEmpty && failed) return <ErrorState title={ui("Reconciliations could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />;
+  if (showEmpty && !items) return <SkeletonTable rows={3} columns={3} label={ui("Loading reconciliations")} />;
+  if (showEmpty && items && items.length === 0) return <div className="sk-panel"><EmptyState icon={Landmark} title={ui("No bank statements to reconcile")} description={ui("Imported statements appear here. Matched rows become payments only after you review and post them.")} /></div>;
   if (!items || items.length === 0) return null;
   return <section className="sk-panel space-y-4 p-5" data-reconciliations>
     <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Landmark className="size-4 text-primary" aria-hidden="true" />{ui("Bank reconciliations")}</h3>
     {items.map(rec => {
-      const currency = rec.matched[0]?.currency || rec.unmatched[0]?.currency || "PKR", fmt = (amount: number) => money(amount, currency), r = rec.report;
+      const currency = rec.matched[0]?.currency || rec.unmatched[0]?.currency || campusCurrency, fmt = (amount: number) => money(amount, currency), r = rec.report;
       return <article key={rec.id} className="space-y-3 rounded-2xl border border-edge p-4" data-reconciliation={rec.id} data-reconciliation-status={rec.status}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="min-w-0 text-sm font-semibold text-ink-strong tabular-nums">{rec.bankAccount} · {rec.from ? date(rec.from) : ""} – {rec.to ? date(rec.to) : ""}</p>
@@ -56,7 +65,7 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted }: { camp
         {rec.status === "pending" && rec.matched.length > 0 && <Button onClick={() => setPosting(rec)} disabled={busy} loading={busy && posting?.id === rec.id}>{ui("Post {0} matched payment(s)", [rec.matched.length])}</Button>}
       </article>;
     })}
-    <ConfirmAction open={Boolean(posting)} title={ui("Post matched payments?")} description={posting ? ui("{0} matched transaction(s) totalling {1} become payments with receipts. {2} stays unallocated for review. This cannot be posted twice.", [posting.matched.length, money(posting.report.allocated, posting.matched[0]?.currency || "PKR"), money(posting.report.unallocated, posting.matched[0]?.currency || "PKR")]) : ""}
-      confirmLabel={ui("Post payments")} tone="primary" busy={busy} onConfirm={() => void post()} onCancel={() => setPosting(null)} />
+    <ConfirmAction open={Boolean(posting)} title={ui("Post matched payments?")} description={posting ? ui("{0} matched transaction(s) totalling {1} become payments with receipts. {2} stays unallocated for review. This cannot be posted twice.", [posting.matched.length, money(posting.report.allocated, posting.matched[0]?.currency || campusCurrency), money(posting.report.unallocated, posting.matched[0]?.currency || campusCurrency)]) : ""}
+      confirmLabel={ui("Post payments")} cancelLabel={ui("Keep editing")} tone="primary" busy={busy} onConfirm={() => void post()} onCancel={() => setPosting(null)} />
   </section>;
 }

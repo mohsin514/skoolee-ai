@@ -47,14 +47,14 @@ const care = (key: string, data: Record<string, unknown>) => call(key, "post", "
 const view = (key: string, query: string) => call(key, "get", `/api/care?${query}`);
 const id = (key: string) => users.get(key)!.id;
 const relate = async (guardianKey: string) => {
-  const rel = await db.guardianRelationship.create({ data: { schoolId, campusId: north, studentId: ids.hana, guardianUserId: id(guardianKey), createdByUserId: id("principal"), fullName: `Synthetic ${guardianKey}`, email: users.get(guardianKey)!.email, relationship: "Parent", status: "ACTIVE", verifiedAt: new Date() } });
-  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: rel.id, createdByUserId: id("principal"), reason: "Synthetic care fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance: true, finances: false, communication: true, pickup: true } } });
+  const rel = await db.guardianRelationship.create({ data: { schoolId, campusId: north, studentId: ids.hana, guardianUserId: id(guardianKey), createdByUserId: id("campusAdmin"), fullName: `Synthetic ${guardianKey}`, email: users.get(guardianKey)!.email, relationship: "Parent", status: "ACTIVE", verifiedAt: new Date() } });
+  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: rel.id, createdByUserId: id("campusAdmin"), reason: "Synthetic care fixture", effectiveFrom: new Date(Date.now() - 60_000), permissions: { learningRecords: true, attendance: true, finances: false, communication: true, pickup: true } } });
 };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO", timezone: "Asia/Karachi" } as never });
   for (const [cid, name] of [[north, "Cedar North"], [south, "Cedar South"]]) { await db.campus.create({ data: { id: cid, schoolId, name, regId: cid, city: "Lahore" } }); await db.academicCycle.create({ data: { schoolId, campusId: cid, label: "2026", academicYear: 2026, status: "ACTIVE" } }); }
-  await user("principal", "PRINCIPAL"); await user("nurse", "TEACHER"); await user("clinicLead", "TEACHER"); await user("clinicStaff", "RECEPTIONIST");
+  await user("campusAdmin", "CAMPUS_ADMIN"); // role-ux §7.6: campus operations (the principal is academic and holds none of this) await user("nurse", "TEACHER"); await user("clinicLead", "TEACHER"); await user("clinicStaff", "RECEPTIONIST");
   await user("sgLead", "TEACHER"); await user("sgDeputy", "TEACHER"); await user("teacher", "TEACHER"); await user("support", "ACCOUNTANT"); await user("southTeacher", "TEACHER", south);
   await user("teacher-ar", "TEACHER", north, "ar"); await user("guardianA", "PARENT"); await user("guardianB", "PARENT");
   await db.class.create({ data: { id: classId, schoolId, campusId: north, name: "Grade 6", section: "B", academicYear: 2026 } });
@@ -71,11 +71,11 @@ after(async () => { await browser?.close(); await db.school.delete({ where: { id
 test("a workspace stays closed until the local procedure, lead and retention are validated", async () => {
   assert.equal((await care("teacher", { action: "configure", domain: "CLINIC", enabled: true })).status, 403, "only campus leaders configure");
   for (const [key, domain, role] of [["nurse", "CLINIC", "NURSE"], ["clinicLead", "CLINIC", "LEAD"], ["clinicStaff", "CLINIC", "CLINIC_STAFF"], ["sgLead", "SAFEGUARDING", "LEAD"], ["sgDeputy", "SAFEGUARDING", "DEPUTY"]]) {
-    const r = await care("principal", { action: "add-member", domain, userId: id(key), role });
+    const r = await care("campusAdmin", { action: "add-member", domain, userId: id(key), role });
     assert.equal(r.status, 201, r.body);
   }
-  assert.equal((await care("principal", { action: "add-member", domain: "SAFEGUARDING", userId: id("nurse"), role: "NURSE" })).status, 400, "safeguarding has no nurse role");
-  assert.equal((await care("principal", { action: "add-member", domain: "CLINIC", userId: id("nurse"), role: "NURSE" })).status, 409, "one active membership");
+  assert.equal((await care("campusAdmin", { action: "add-member", domain: "SAFEGUARDING", userId: id("nurse"), role: "NURSE" })).status, 400, "safeguarding has no nurse role");
+  assert.equal((await care("campusAdmin", { action: "add-member", domain: "CLINIC", userId: id("nurse"), role: "NURSE" })).status, 409, "one active membership");
   // Before enabling, nothing works — not even intake, which points to the local procedure.
   const early = await care("teacher", { action: "concern", studentId: ids.hana, source: "STAFF_OBSERVATION", observation: "x", eventAt: new Date().toISOString(), idempotencyKey: randomUUID() });
   assert.equal(early.status, 409); assert.match(early.json.error ?? "", /local safeguarding procedure/);
@@ -85,13 +85,13 @@ test("a workspace stays closed until the local procedure, lead and retention are
     [{ procedureReference: "CEDAR-SG-2026 v3", retentionMonths: 300, leadUserId: id("sgDeputy") }, /added to this workspace as a lead/],
     [{ procedureReference: "CEDAR-SG-2026 v3", retentionMonths: 300, leadUserId: id("sgLead") }, /Confirm/],
   ] as const;
-  for (const [extra, message] of missing) { const r = await care("principal", { action: "configure", domain: "SAFEGUARDING", enabled: true, ...extra }); assert.equal(r.status, 400); assert.match(r.json.error ?? "", message); }
-  assert.equal((await care("principal", { action: "configure", domain: "SAFEGUARDING", enabled: true, confirm: true, procedureReference: "CEDAR-SG-2026 v3", retentionMonths: 300, leadUserId: id("sgLead") })).status, 200);
-  assert.equal((await care("principal", { action: "configure", domain: "CLINIC", enabled: true, confirm: true, procedureReference: "CEDAR-CLINIC-2026 v2", retentionMonths: 120, leadUserId: id("clinicLead") })).status, 200);
+  for (const [extra, message] of missing) { const r = await care("campusAdmin", { action: "configure", domain: "SAFEGUARDING", enabled: true, ...extra }); assert.equal(r.status, 400); assert.match(r.json.error ?? "", message); }
+  assert.equal((await care("campusAdmin", { action: "configure", domain: "SAFEGUARDING", enabled: true, confirm: true, procedureReference: "CEDAR-SG-2026 v3", retentionMonths: 300, leadUserId: id("sgLead") })).status, 200);
+  assert.equal((await care("campusAdmin", { action: "configure", domain: "CLINIC", enabled: true, confirm: true, procedureReference: "CEDAR-CLINIC-2026 v2", retentionMonths: 120, leadUserId: id("clinicLead") })).status, 200);
   const row = await db.confidentialSetting.findFirstOrThrow({ where: { schoolId, domain: "SAFEGUARDING" } });
-  assert.deepEqual([row.enabled, row.confirmedById, row.retentionMonths], [true, id("principal"), 300]);
+  assert.deepEqual([row.enabled, row.confirmedById, row.retentionMonths], [true, id("campusAdmin"), 300]);
   const leadMember = await db.confidentialMember.findFirstOrThrow({ where: { schoolId, userId: id("sgLead"), revokedAt: null } });
-  assert.equal((await care("principal", { action: "revoke-member", id: leadMember.id })).status, 409, "the responsible lead cannot simply be removed");
+  assert.equal((await care("campusAdmin", { action: "revoke-member", id: leadMember.id })).status, 409, "the responsible lead cannot simply be removed");
 });
 
 test("clinic records: visits, care plan, and doses only against an in-date instruction with its own dose", async () => {
@@ -148,18 +148,18 @@ test("concern intake: any staff, no diagnosis, idempotent receipt, no access for
   assert.deepEqual(mine.json.data.map((r: { reference: string }) => r.reference).sort(), [ids.ref1, second.json.data.reference].sort());
 });
 
-test("separate domains: clinic, principal, teacher, family, support and another campus are refused and logged", async () => {
+test("separate domains: clinic, campus admin, teacher, family, support and another campus are refused and logged", async () => {
   const sg = (key: string) => view(key, "view=safeguarding"), clinic = (key: string) => view(key, "view=clinic");
-  for (const key of ["nurse", "clinicLead", "clinicStaff", "principal", "teacher", "support", "southTeacher"]) assert.equal((await sg(key)).status, 403, `${key} → safeguarding queue`);
-  for (const key of ["nurse", "clinicLead", "principal", "teacher"]) assert.notEqual((await view(key, `view=safeguarding&concernId=${ids.c1}`)).status, 200, `${key} → case`);
-  for (const key of ["sgLead", "sgDeputy", "principal", "teacher", "support"]) assert.equal((await clinic(key)).status, 403, `${key} → clinic queue`);
+  for (const key of ["nurse", "clinicLead", "clinicStaff", "campusAdmin", "teacher", "support", "southTeacher"]) assert.equal((await sg(key)).status, 403, `${key} → safeguarding queue`);
+  for (const key of ["nurse", "clinicLead", "campusAdmin", "teacher"]) assert.notEqual((await view(key, `view=safeguarding&concernId=${ids.c1}`)).status, 200, `${key} → case`);
+  for (const key of ["sgLead", "sgDeputy", "campusAdmin", "teacher", "support"]) assert.equal((await clinic(key)).status, 403, `${key} → clinic queue`);
   assert.equal((await view("sgLead", `view=clinic&studentId=${ids.hana}`)).status, 403, "safeguarding membership does not open clinic records");
   assert.equal((await view("guardianA", `view=clinic&studentId=${ids.hana}`)).status, 403);
   assert.equal((await view("guardianA", `view=safeguarding&concernId=${ids.c1}`)).status, 404);
   assert.equal((await call("guardianA", "get", `/api/care/export?concernId=${ids.c1}`)).status, 404);
   assert.ok(await db.confidentialAccessLog.count({ where: { schoolId, action: "DENIED", actorId: id("nurse"), domain: "SAFEGUARDING" } }) >= 1, "refusals are audited");
   // Ordinary search and the code that feeds AI never touch these records.
-  const search = await call("principal", "get", `/api/search?q=${encodeURIComponent("Synthetic Hana")}&types=student`);
+  const search = await call("campusAdmin", "get", `/api/search?q=${encodeURIComponent("Synthetic Hana")}&types=student`);
   assert.equal(search.status, 200);
   assert.ok(!/SG-|SYNTHETIC-OBSERVATION|safeguard|clinic|Cetirizine|allerg/i.test(search.body), "search reveals neither case existence nor summaries");
   for (const file of ["src/lib/search/service.ts", "src/lib/ai/gateway.ts", "src/lib/study/assistant.ts", "src/lib/policies/service.ts"]) {
@@ -245,14 +245,14 @@ test("exports: one case only, audited; emergency access is short, audited, stops
   assert.equal((await call("teacher", "get", `/api/care/export?studentId=${ids.hana}`)).status, 403);
   assert.ok(await db.confidentialAccessLog.count({ where: { schoolId, actorId: id("teacher"), action: "DENIED", studentId: ids.hana } }) >= 2);
   // Safeguarding emergency by a leader; revoking it mid-session stops access.
-  const sg = await care("principal", { action: "emergency", domain: "SAFEGUARDING", studentId: ids.hana, purpose: "Police at reception asking about pupil; lead unreachable", minutes: 15 });
+  const sg = await care("campusAdmin", { action: "emergency", domain: "SAFEGUARDING", studentId: ids.hana, purpose: "Police at reception asking about pupil; lead unreachable", minutes: 15 });
   assert.equal(sg.status, 201); ids.g2 = sg.json.data.id;
-  assert.equal((await view("principal", `view=safeguarding&studentId=${ids.hana}`)).json.data.length, 1);
-  assert.equal((await view("principal", `view=safeguarding&concernId=${ids.c1}`)).status, 200);
-  assert.equal((await view("principal", `view=safeguarding&concernId=${ids.c2}`)).status, 404, "another student's case stays closed");
-  assert.equal((await care("principal", { action: "revoke-emergency", id: ids.g2 })).status, 200);
-  assert.equal((await view("principal", `view=safeguarding&concernId=${ids.c1}`)).status, 404);
-  assert.equal((await call("principal", "get", `/api/care/export?concernId=${ids.c1}`)).status, 404);
+  assert.equal((await view("campusAdmin", `view=safeguarding&studentId=${ids.hana}`)).json.data.length, 1);
+  assert.equal((await view("campusAdmin", `view=safeguarding&concernId=${ids.c1}`)).status, 200);
+  assert.equal((await view("campusAdmin", `view=safeguarding&concernId=${ids.c2}`)).status, 404, "another student's case stays closed");
+  assert.equal((await care("campusAdmin", { action: "revoke-emergency", id: ids.g2 })).status, 200);
+  assert.equal((await view("campusAdmin", `view=safeguarding&concernId=${ids.c1}`)).status, 404);
+  assert.equal((await call("campusAdmin", "get", `/api/care/export?concernId=${ids.c1}`)).status, 404);
   // The leads review every grant, with what it was used for.
   const ov = await view("clinicLead", "view=oversight&domain=CLINIC");
   const grant = ov.json.data.grants.find((x: { id: string }) => x.id === ids.g1);
@@ -288,19 +288,17 @@ test("screens: intake receipt, clinic record, case and disclosure review, emerge
   await shot(t, "01-intake-receipt");
   await t.close();
   const n = await (await context("nurse")).newPage();
-  await n.goto(`${base}/care`);
-  await n.locator('[data-care-tab="clinic"]').click();
+  await n.goto(`${base}/care?tab=clinic`); // deep link (role-ux §4.2/§6.3)
   await n.locator("[data-clinic-queue]").waitFor();
   assert.ok(!(await n.locator("[data-clinic-queue]").innerText()).includes("Headache"), "no observation in the queue");
   await shot(n, "02-clinic-queue");
-  assert.equal(await n.locator('[data-care-tab="safeguarding"]').count(), 0, "clinic members do not see the safeguarding workspace");
+  assert.equal(await n.locator('[data-tour="page.tab.safeguarding"]').count(), 0, "clinic members do not see the safeguarding workspace");
   await n.locator("[data-clinic-queue-instruction]").first().click();
   await n.locator("[data-clinic-record]").waitFor();
   await shot(n, "03-clinic-record");
   await n.close();
   const lead = await (await context("sgLead")).newPage();
-  await lead.goto(`${base}/care`);
-  await lead.locator('[data-care-tab="safeguarding"]').click();
+  await lead.goto(`${base}/care?tab=safeguarding`); // deep link (role-ux §4.2/§6.3)
   await lead.locator("[data-safeguarding-queue]").waitFor();
   await shot(lead, "04-safeguarding-queue");
   await lead.locator(`[data-safeguarding-row="${ids.ref1}"]`).click();
@@ -318,8 +316,7 @@ test("screens: intake receipt, clinic record, case and disclosure review, emerge
   await lead.locator("[data-disclosure-confirm]").waitFor({ state: "detached" });
   await lead.close();
   const dep = await (await context("sgDeputy")).newPage();
-  await dep.goto(`${base}/care`);
-  await dep.locator('[data-care-tab="safeguarding"]').click();
+  await dep.goto(`${base}/care?tab=safeguarding`); // deep link (role-ux §4.2/§6.3)
   await dep.locator(`[data-safeguarding-row="${ids.ref1}"]`).click();
   await dep.locator("[data-disclosure-status=PROPOSED] [data-disclosure-review]").click();
   await dep.locator("[data-disclosure-review-modal]").waitFor();
@@ -330,15 +327,13 @@ test("screens: intake receipt, clinic record, case and disclosure review, emerge
   await dep.close();
   await care("teacher", { action: "emergency", domain: "CLINIC", studentId: ids.hana, purpose: "Reaction during sports day", minutes: 15 });
   const em = await (await context("teacher")).newPage();
-  await em.goto(`${base}/care`);
-  await em.locator('[data-care-tab="emergency"]').click();
+  await em.goto(`${base}/care?tab=emergency`); // deep link (role-ux §4.2/§6.3)
   await em.locator("[data-my-grant-open]").first().click();
   await em.locator("[data-care-emergency-banner]").waitFor();
   await shot(em, "07-emergency-banner");
   await em.close();
   const phone = await (await context("sgLead", { width: 390, height: 844 })).newPage();
-  await phone.goto(`${base}/care`);
-  await phone.locator('[data-care-tab="safeguarding"]').click();
+  await phone.goto(`${base}/care?tab=safeguarding`); // deep link (role-ux §4.2/§6.3)
   await phone.locator(`[data-safeguarding-row="${ids.ref1}"]`).click();
   await phone.locator(`[data-concern="${ids.c1}"]`).waitFor();
   assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, "no sideways scroll at phone width");
@@ -353,12 +348,12 @@ test("screens: intake receipt, clinic record, case and disclosure review, emerge
   await ar.close();
   const fam = await (await context("guardianA")).newPage();
   await fam.goto(`${base}/care`);
-  await fam.locator("[data-care-denied]").waitFor();
+  // role-ux G44: families are sent home by the proxy; staff modules never render for them.
+  await fam.waitForURL(/\/parent(?:[/?#]|$)/, { timeout: 30_000 });
   await shot(fam, "10-family-no-access");
   await fam.close();
-  const settings = await (await context("principal")).newPage();
-  await settings.goto(`${base}/care`);
-  await settings.locator('[data-care-tab="settings"]').click();
+  const settings = await (await context("campusAdmin")).newPage();
+  await settings.goto(`${base}/care?tab=settings`); // deep link (role-ux §4.2/§6.3)
   await settings.locator("[data-care-setting=SAFEGUARDING][data-enabled=true]").waitFor();
   await shot(settings, "11-settings");
   await settings.close();

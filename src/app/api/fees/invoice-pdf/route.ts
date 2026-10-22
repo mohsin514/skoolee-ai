@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { assertFeesRead, ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { assertFeesRead, ApiError, canManageFinance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { generateInvoicePdf } from "@/lib/pdf";
 
 export const runtime = "nodejs";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
 
     await assertFeesRead(user);
     const id = req.nextUrl.searchParams.get("id");

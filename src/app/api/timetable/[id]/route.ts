@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { requireAuthUser, errorResponse, canManageOperations } from "@/lib/api/scope";
+import { requireAuthUser, errorResponse, canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus, previewTimetablePublish, publishTimetableVersion } from "@/lib/timetable/manual";
 import { notifyTimetableVersion } from "@/lib/timetable/notify";
@@ -45,6 +45,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const campusId = await resolveTimetableCampus(user, id);
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
     const body = await req.json();
+    // G35a: publishing or unpublishing a timetable is the academic lead's act — the principal, or a campus
+    // operator only while the campus has no principal. Drafts stay open to the academic office.
+    if ((body.action === "publish" || body.action === "unpublish") && !(await canLeadAcademics(user, campusId))) {
+      return Response.json({ error: "Your principal publishes the timetable." }, { status: 403 });
+    }
     if (body.action === "publish") {
       // SKO-403: a reviewed publication of an exact draft revision, effective from a chosen date.
       const result = await publishTimetableVersion(user, campusId, id, body);

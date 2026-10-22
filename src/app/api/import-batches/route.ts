@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { bankRowKeys } from "@/lib/fees/bank-reconciliation";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, assertStaffRole, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, assertStaffRole, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseMoney, localePackageSchema } from "@/lib/locale/package";
 import { bankImportSchema, studentSchema } from "@/lib/validators/schemas";
 import { importField, normalizeImportHeader, parseImportCsv } from "@/lib/imports/csv";
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     assertStaffRole(user);
     const kind = request.nextUrl.searchParams.get("kind");
     if (kind !== "STUDENT_ROSTER" && kind !== "BANK_STATEMENT") throw new ApiError("Choose a supported import type", 400);
-    if (kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (kind === "STUDENT_ROSTER" && !canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     if (kind === "STUDENT_ROSTER") await assertRosterPermission(user, "view");
     else await assertPermission(user, "fees", "view");
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     const kind = body.kind;
     if (kind !== "STUDENT_ROSTER" && kind !== "BANK_STATEMENT") throw new ApiError("Choose a supported import type", 400);
     const permissionModule = kind === "STUDENT_ROSTER" ? "students" : "fees";
-    if (kind === "STUDENT_ROSTER" && !canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (kind === "STUDENT_ROSTER" && !canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     if (kind === "STUDENT_ROSTER") await assertRosterPermission(user, "add");
     else await assertPermission(user, permissionModule, "add");
 

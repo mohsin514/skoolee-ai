@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import type { TxClient } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError } from "@/lib/api/scope";
+import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
 import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { DATA_REGIONS, type DataRegion } from "@/config/data-regions";
@@ -27,10 +28,12 @@ export const activeHoldWhere = (schoolId: string, category: string, now: Date) =
 const BACKUP_NOTE = "Deleted rows leave provider backups only when those backups expire under the provider retention window; backups are not edited.";
 const EXPORT_LINK_HOURS = 24;
 
-/** School- or group-level data administration: the institution owner or the group SUPER_ADMIN. */
+/** School- or group-level data administration: the institution authority (§7.3 G17). */
 export function canAdministerDataLifecycle(user: AuthUser) {
-  return user.role === "SUPER_ADMIN" || (user.isInstitutionOwner === true && ["ADMIN", "SUPER_ADMIN"].includes(user.role));
+  return isInstitutionAuthority(user);
 }
+/** Staff who may ask for a campus export: campus operators (PRINCIPAL no longer requests exports, G17). */
+const canRequestCampusExport = (user: AuthUser) => isCampusOperator(user);
 function assertAdmin(user: AuthUser) {
   if (!canAdministerDataLifecycle(user)) throw new ApiError("Data lifecycle administration permission is required.", 403);
 }
@@ -139,7 +142,7 @@ export async function createLifecycleRequest(user: AuthUser, raw: unknown, env: 
   const input = requestInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
     if (input.kind === "EXPORT") {
-      if (!canManageOperations(user) && user.role !== "PARENT") throw new ApiError("You cannot request a data export.", 403);
+      if (!canAdministerDataLifecycle(user) && !canRequestCampusExport(user) && user.role !== "PARENT") throw new ApiError("You cannot request a data export.", 403);
       // Existence and scope share one answer so an out-of-scope learner is indistinguishable from a missing one.
       const student = await tx.student.findFirst({ where: { AND: [{ id: input.studentId }, studentScope(user, "any")] }, select: { id: true, campusId: true } });
       if (!student) throw new ApiError("Learner not found.", 404);
@@ -234,10 +237,10 @@ export async function downloadExport(user: AuthUser, requestId: string, token: s
 // ─── Overview ─────────────────────────────────────────────────────
 export async function lifecycleOverview(user: AuthUser, env: Record<string, string | undefined> = process.env, now = new Date()) {
   const admin = canAdministerDataLifecycle(user);
-  if (!admin && !canManageOperations(user) && user.role !== "PARENT") throw new ApiError("Data lifecycle information is not available for your role.", 403);
+  if (!admin && !canRequestCampusExport(user) && user.role !== "PARENT") throw new ApiError("Data lifecycle information is not available for your role.", 403);
   return schoolAiTransaction(user, async tx => {
     const requestWhere: Prisma.DataLifecycleRequestWhereInput = admin ? { schoolId: user.schoolId }
-      : canManageOperations(user) ? { schoolId: user.schoolId, campusId: user.campusId, kind: "EXPORT" } : { schoolId: user.schoolId, requestedBy: user.userId };
+      : canRequestCampusExport(user) ? { schoolId: user.schoolId, campusId: user.campusId, kind: "EXPORT" } : { schoolId: user.schoolId, requestedBy: user.userId };
     const requests = await tx.dataLifecycleRequest.findMany({ where: requestWhere, orderBy: { requestedAt: "desc" }, take: 50,
       select: { id: true, kind: true, status: true, category: true, studentId: true, targetRegion: true, reason: true, requestedBy: true, requestedAt: true, reviewedBy: true, reviewedAt: true, version: true, plan: true, receipt: true, downloadExpiresAt: true, downloadToken: true } });
     const visibleRequests = requests.map(({ downloadToken, ...request }) => ({ ...request, downloadToken: request.requestedBy === user.userId ? downloadToken : null }));

@@ -15,6 +15,8 @@ function ModalFoundationFixture() {
   const [authoredCopy, setAuthoredCopy] = useState(false);
   const [name, setName] = useState("");
   const [closeCount, setCloseCount] = useState(0);
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [recordedReason, setRecordedReason] = useState("");
 
   useEffect(() => {
     const release = () => setBusy(false);
@@ -42,6 +44,11 @@ function ModalFoundationFixture() {
     </Modal>}
     <ConfirmAction open={confirmOpen} title="Confirm synthetic change" description="Only this browser fixture changes."
       tone={tone} confirmLabel="Start example operation" cancelLabel={authoredCopy ? "Author-owned cancel" : undefined} busy={busy} onConfirm={() => setBusy(true)} onCancel={() => setConfirmOpen(false)} />
+    <button type="button" onClick={() => setReasonOpen(true)}>Open reasoned approval</button>
+    <output aria-label="Recorded reason">{recordedReason}</output>
+    <ConfirmAction open={reasonOpen} title="Approve your own request?" description="No other approver holds this seat; the reason is recorded."
+      tone="warning" confirmLabel="Approve with reason" requireReason={{ label: "Reason for approving", minLength: 10 }}
+      onConfirm={(reason) => { setRecordedReason(reason ?? ""); setReasonOpen(false); }} onCancel={() => setReasonOpen(false)} />
     <Dialog open={compoundOpen} onOpenChange={setCompoundOpen}>
       <DialogContent dismissible={!busy}>
         <DialogHeader><DialogTitle>Compound synthetic dialog</DialogTitle></DialogHeader>

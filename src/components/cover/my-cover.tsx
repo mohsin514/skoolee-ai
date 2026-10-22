@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { ErrorState } from "@/components/ui/error-state";
@@ -76,7 +76,7 @@ export function MyCover() {
         {["DECISION_NEEDED", "PLANNED", "PUBLISHED"].includes(r.status) ? <Button size="sm" onClick={() => { setRec(r); setRecTitle(r.title ?? ""); setRecText(r.instructions ?? ""); setRecDue(r.dueDate ?? data.today); setRecNote(""); }} data-recovery-open>{ui("Follow up")}</Button> : null}
       </div>)}</div> : null}
 
-    {editing ? <ModalFrame title={ui("Handover")} eyebrow={editing.substitute} subtitle={`${date(editing.date)} ${editing.startTime}–${editing.endTime} · ${editing.className}`} onClose={() => setEditing(null)}>
+    {editing ? <Modal size="sm" title={ui("Handover")} eyebrow={editing.substitute} subtitle={`${date(editing.date)} ${editing.startTime}–${editing.endTime} · ${editing.className}`} onClose={() => setEditing(null)}>
       <div className="space-y-3" data-handover-dialog>
         <FormField name="h-objective" label={ui("What should pupils learn?")}><Input value={objective} onChange={e => setObjective(e.target.value)} maxLength={300} /></FormField>
         <FormField name="h-instructions" label={ui("Instructions for the substitute (staff only)")}><Textarea rows={3} value={instructions} onChange={e => setInstructions(e.target.value)} maxLength={2000} /></FormField>
@@ -84,17 +84,18 @@ export function MyCover() {
           {editing.choices.length ? editing.choices.map(c => <label key={c.id} className="flex items-center gap-2 text-sm"><Checkbox checked={picked.includes(c.id)} onChange={e => setPicked(e.target.checked ? [...picked, c.id] : picked.filter(x => x !== c.id))} data-handover-pick={c.id} /> <span dir="auto">{c.title}</span></label>) : <p className="text-xs text-ink-muted">{ui("This class has no published resources.")}</p>}</fieldset>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Back")}</Button><Button disabled={busy || !objective.trim()} onClick={() => void run(() => call("POST", { action: "handover", dutyId: editing.id, objective, instructions, resourceIds: picked }), "Handover saved. The substitute has been told.").then(ok => ok && setEditing(null))} loading={busy} data-handover-save>{ui("Save handover")}</Button></div>
       </div>
-    </ModalFrame> : null}
+    </Modal> : null}
 
-    {outcomeFor ? <ModalFrame title={ui("What happened in this lesson?")} eyebrow={outcomeFor.className} subtitle={`${date(outcomeFor.date)} ${outcomeFor.startTime}–${outcomeFor.endTime}`} onClose={() => setOutcomeFor(null)}>
+    {outcomeFor ? <Modal size="sm" title={ui("What happened in this lesson?")} eyebrow={outcomeFor.className} subtitle={`${date(outcomeFor.date)} ${outcomeFor.startTime}–${outcomeFor.endTime}`} onClose={() => setOutcomeFor(null)}>
       <div className="space-y-3" data-outcome-dialog>
-        <fieldset className="space-y-1 text-sm">{["DELIVERED", "SUPERVISED_ONLY", "NOT_HELD"].map(o => <label key={o} className="flex items-center gap-2"><input type="radio" name="cover-outcome" checked={outcome === o} onChange={() => setOutcome(o)} data-outcome={o} /> {outcomeLabel(o)}</label>)}</fieldset>
+        {/* Shared choice buttons as a radio group (no native radio, §11.0 rule 4). */}
+        <div role="radiogroup" aria-label={ui("What happened in this lesson?")} className="flex flex-col gap-2">{["DELIVERED", "SUPERVISED_ONLY", "NOT_HELD"].map(o => <Button key={o} type="button" variant="choice" role="radio" aria-checked={outcome === o} onClick={() => setOutcome(o)} className="w-full justify-start text-start" data-outcome={o}>{outcomeLabel(o)}</Button>)}</div>
         {outcome && outcome !== "DELIVERED" ? <FormField name="o-activity" label={ui("What did pupils do instead?")} hint={ui("The class teacher will decide on a catch-up.")}><Textarea rows={2} value={activity} onChange={e => setActivity(e.target.value)} /></FormField> : null}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOutcomeFor(null)}>{ui("Back")}</Button><Button disabled={busy || !outcome || (outcome !== "DELIVERED" && !activity.trim())} onClick={() => void run(() => call("POST", { action: "outcome", dutyId: outcomeFor.id, outcome, actualActivity: activity }), "Recorded.").then(ok => ok && setOutcomeFor(null))} loading={busy} data-outcome-save>{ui("Record")}</Button></div>
       </div>
-    </ModalFrame> : null}
+    </Modal> : null}
 
-    {rec ? <ModalFrame title={ui("Catch-up for a missed lesson")} eyebrow={`${rec.className} · ${rec.subjectName}`} subtitle={date(rec.date)} onClose={() => setRec(null)}>
+    {rec ? <Modal size="sm" title={ui("Catch-up for a missed lesson")} eyebrow={`${rec.className} · ${rec.subjectName}`} subtitle={date(rec.date)} onClose={() => setRec(null)}>
       <div className="space-y-3" data-recovery-dialog>
         {rec.status !== "PUBLISHED" ? <>
           <FormField name="r-title" label={ui("Catch-up task")}><Input value={recTitle} onChange={e => setRecTitle(e.target.value)} maxLength={200} /></FormField>
@@ -112,7 +113,7 @@ export function MyCover() {
           <div className="flex justify-end"><Button disabled={busy || !recNote.trim()} onClick={() => void run(() => recovery(rec, "complete", { evidenceNote: recNote }), "Catch-up completed.").then(ok => ok && setRec(null))} data-recovery-complete>{ui("Mark catch-up complete")}</Button></div>
         </>}
       </div>
-    </ModalFrame> : null}
+    </Modal> : null}
   </section>;
 }
 

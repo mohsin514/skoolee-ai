@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
-import { ModalFrame } from "@/components/shared-admin";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { Modal } from "@/components/ui/modal";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -48,20 +48,23 @@ export function LearnerLeaveQueue() {
       <p className="whitespace-pre-line text-xs text-ink-muted" dir="auto">{row.reason}</p>
       <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setDeciding({ row, action: "approve" })} data-leave-approve>{ui("Approve")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "clarify" })} data-leave-clarify>{ui("Ask for more detail")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "decline" })} data-leave-decline>{ui("Decline")}</Button></div>
     </li>)}</ul> : <EmptyState size="sm" icon={CalendarCheck} title={ui("Nothing waiting.")} />}
-    {deciding ? <ModalFrame title={deciding.action === "approve" ? ui("Approve leave") : deciding.action === "decline" ? ui("Decline leave") : ui("Ask for more detail")} eyebrow={ui("Attendance")} subtitle={deciding.row.studentName} onClose={() => setDeciding(null)}>
+    {deciding ? <Modal size="sm" title={deciding.action === "approve" ? ui("Approve leave") : deciding.action === "decline" ? ui("Decline leave") : ui("Ask for more detail")} eyebrow={ui("Attendance")} subtitle={deciding.row.studentName} onClose={() => setDeciding(null)}>
       <div className="space-y-3"><FormField name="leave-note" label={deciding.action === "approve" ? ui("Note (optional)") : ui("Message to the family")}><Textarea value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "approve" && note.trim().length < 2} onClick={async () => { setBusy(true); try { await send("/api/attendance/leave", "POST", { id: deciding.row.id, action: deciding.action, note: note.trim() || undefined, knownVersion: deciding.row.version }); toast.success(ui("Decision recorded")); setDeciding(null); setNote(""); void load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} loading={busy} data-leave-confirm>{ui("Confirm")}</Button></div></div>
-    </ModalFrame> : null}
+    </Modal> : null}
   </div>;
 }
 
-const emptyTerms = { title: "", destination: "", departAt: "", returnAt: "", respondBy: "", costAmount: "0", costCurrency: "PKR", contact: "", instructions: "", consentKind: "fieldTrips", signatoryRule: "ANY_GUARDIAN" };
+const emptyTerms = { title: "", destination: "", departAt: "", returnAt: "", respondBy: "", costAmount: "0", costCurrency: "", contact: "", instructions: "", consentKind: "fieldTrips", signatoryRule: "ANY_GUARDIAN" };
 
 export function TripsDesk() {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
   const [trips, setTrips] = useState<TripRow[] | null>(null), [roster, setRoster] = useState<Roster | null>(null), [editing, setEditing] = useState<{ mode: "create" | "revise"; tripId?: string; knownVersion?: number } | null>(null);
-  const [form, setForm] = useState(emptyTerms), [classId, setClassId] = useState(""), [classes, setClasses] = useState<{ id: string; name: string; section: string | null }[]>([]), [material, setMaterial] = useState(true), [changeNote, setChangeNote] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  // A new notice starts in the school's own currency, never a hard-coded one (R7).
+  const { currency: schoolCurrency } = useLocale();
+  const blankTerms: typeof emptyTerms = { ...emptyTerms, costCurrency: schoolCurrency };
+  const [form, setForm] = useState(blankTerms), [classId, setClassId] = useState(""), [classes, setClasses] = useState<{ id: string; name: string; section: string | null }[]>([]), [material, setMaterial] = useState(true), [changeNote, setChangeNote] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const load = useCallback(async () => { const json = await fetch("/api/trips", { cache: "no-store" }).then(r => r.json()).catch(() => ({})); setTrips(json.success ? json.data : []); }, []);
   const openRoster = async (id: string) => { const json = await fetch(`/api/trips?id=${id}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({})); if (json.success) setRoster(json.data); };
   useEffect(() => { void load(); }, [load]);
@@ -78,19 +81,19 @@ export function TripsDesk() {
   };
   if (!trips) return null;
   return <div className="sk-panel space-y-3 p-5" data-trips-desk>
-    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Trips and permission")}</h3><Button size="sm" variant="outline" onClick={() => { setForm(emptyTerms); setEditing({ mode: "create" }); }} data-new-trip>{ui("New trip notice")}</Button></div>
+    <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Trips and permission")}</h3><Button size="sm" variant="outline" onClick={() => { setForm(blankTerms); setEditing({ mode: "create" }); }} data-new-trip>{ui("New trip notice")}</Button></div>
     {trips.length ? <ul className="divide-y divide-edge/20">{trips.map(trip => <li key={trip.id} className="flex flex-wrap items-center gap-2 py-2" data-trip-row={trip.id}>
       <span className="min-w-0 flex-1 text-sm font-semibold text-ink-strong" dir="auto">{trip.title} <span className="text-xs font-normal text-ink-muted">· {ui("Version {0}", [String(trip.currentVersion)])} · <bdi>{dateTime(trip.departAt)}</bdi></span></span>
       <Button size="sm" variant="outline" onClick={() => void openRoster(trip.id)} data-trip-roster>{ui("Answers")}</Button>
-    </li>)}</ul> : <EmptyState size="sm" icon={Bus} title={ui("No trips yet.")} description={ui("Publish a trip notice to ask families for permission.")} action={<Button size="sm" onClick={() => { setForm(emptyTerms); setEditing({ mode: "create" }); }}>{ui("New trip notice")}</Button>} />}
-    {roster ? <ModalFrame title={String((roster.versions.at(-1) as { title?: string })?.title ?? "")} eyebrow={ui("Trip permission")} subtitle={ui("Version {0} · answers count from version {1}", [String(roster.trip.currentVersion), String(roster.trip.baseline)])} onClose={() => setRoster(null)} wide>
+    </li>)}</ul> : <EmptyState size="sm" icon={Bus} title={ui("No trips yet.")} description={ui("Publish a trip notice to ask families for permission.")} action={<Button size="sm" onClick={() => { setForm(blankTerms); setEditing({ mode: "create" }); }}>{ui("New trip notice")}</Button>} />}
+    {roster ? <Modal size="lg" title={String((roster.versions.at(-1) as { title?: string })?.title ?? "")} eyebrow={ui("Trip permission")} subtitle={ui("Version {0} · answers count from version {1}", [String(roster.trip.currentVersion), String(roster.trip.baseline)])} onClose={() => setRoster(null)}>
       <div className="space-y-3" data-trip-roster-dialog>
         <div className="flex flex-wrap gap-2">{["GRANTED", "PARTIAL", "PENDING", "DECLINED"].map(k => <Badge key={k} variant={standingTone(k)} dot><span>{standing(ui, k)}: <span className="tabular-nums">{roster.counts[k] ?? 0}</span></span></Badge>)}</div>
         <ul className="divide-y divide-edge/20">{roster.rows.map(row => <li key={row.studentId} className="py-2 text-sm" data-roster-row={row.studentId} data-roster-status={row.status}><span className="font-semibold text-ink-strong"><bdi>{row.name}</bdi></span> <Badge size="sm" dot variant={standingTone(row.status)}>{standing(ui, row.status)}</Badge>{row.history.length ? <span className="block text-xs text-ink-muted">{row.history.map((h, i) => <span key={i}>{i ? " · " : ""}<bdi>{h.guardian ?? ""}</bdi> · {ui("Version {0}", [String(h.version)])} · {({ GRANTED: ui("Permission given"), DECLINED: ui("Permission refused"), WITHDRAWN: ui("Permission withdrawn") } as Record<string, string>)[h.choice] ?? h.choice}</span>)}</span> : null}</li>)}</ul>
         {roster.trip.status === "OPEN" ? <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { const v = roster.versions.at(-1) as Record<string, string | number>; const local = (iso: string | number) => new Date(String(iso)).toISOString().slice(0, 16); setForm({ title: String(v.title), destination: String(v.destination), departAt: local(v.departAt), returnAt: local(v.returnAt), respondBy: local(v.respondBy), costAmount: String(v.costAmount), costCurrency: String(v.costCurrency), contact: String(v.contact), instructions: String(v.instructions), consentKind: String(v.consentKind), signatoryRule: String(v.signatoryRule) }); setMaterial(true); setChangeNote(""); setEditing({ mode: "revise", tripId: roster.trip.id, knownVersion: roster.trip.currentVersion }); setRoster(null); }} data-revise-trip>{ui("Change the terms")}</Button></div> : null}
       </div>
-    </ModalFrame> : null}
-    {editing ? <ModalFrame title={editing.mode === "create" ? ui("New trip notice") : ui("Change the trip terms")} eyebrow={ui("Trip permission")} onClose={() => setEditing(null)} wide>
+    </Modal> : null}
+    {editing ? <Modal size="lg" title={editing.mode === "create" ? ui("New trip notice") : ui("Change the trip terms")} eyebrow={ui("Trip permission")} onClose={() => setEditing(null)}>
       <div className="space-y-3" data-trip-form>
         {error ? <Alert tone="danger" compact>{error}</Alert> : null}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -111,6 +114,6 @@ export function TripsDesk() {
         </>}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditing(null)}>{ui("Cancel")}</Button><Button disabled={busy} onClick={() => void save()} loading={busy} data-publish-trip>{ui("Publish")}</Button></div>
       </div>
-    </ModalFrame> : null}
+    </Modal> : null}
   </div>;
 }

@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { paymentSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -22,7 +23,8 @@ export async function POST(req: NextRequest) {
 async function confirmPayment(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     const parsed = paymentSchema.safeParse(body);
@@ -63,6 +65,8 @@ async function confirmPayment(req: NextRequest) {
       actorName: user.fullName,
       studentName: invoice.student.fullName,
       amount: payment.amount,
+      // The invoice's own currency (an invoice may be billed in another currency than the campus default).
+      currency: invoice.currency,
     });
 
     return Response.json(

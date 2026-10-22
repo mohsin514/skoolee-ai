@@ -53,7 +53,7 @@ for (const role of ["principal", "super", "student"]) {
       assert.deepEqual(await page.evaluate(() => window.dashboardFixture.requests().map(item => item.role)), [role, role, role, role]);
     } finally { await context.close(); }
   });
-  test(`${role}: old async results are ignored and denied refresh hides data until successful retry`, async () => {
+  test(`${role}: old async results are ignored; a same-scope refresh keeps data until a denial clears it`, async () => {
     const context = await browser.newContext(); const page = await context.newPage();
     try {
       await page.goto(`${origin}/?role=${role}`); await waitForRequests(page, 1);
@@ -63,7 +63,10 @@ for (const role of ["principal", "super", "student"]) {
       await page.evaluate(() => window.dashboardFixture.resolve(1, "OLD SCOPE SECRET"));
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       assert.equal(await page.getByTestId("data").textContent(), '{"privateLabel":"NEW SCOPE RECORD"}');
-      await page.getByRole("button", { name: "Refresh" }).click(); await waitForRequests(page, 3); await assertClosed(page);
+      // Stale-while-revalidate inside one scoped mount: the records already shown stay until the recheck answers.
+      await page.getByRole("button", { name: "Refresh" }).click(); await waitForRequests(page, 3);
+      assert.equal(await page.getByTestId("data").textContent(), '{"privateLabel":"NEW SCOPE RECORD"}');
+      assert.equal(await page.getByTestId("loading").textContent(), "true");
       await page.evaluate(() => window.dashboardFixture.reject(3));
       await page.waitForFunction(() => document.querySelector('[data-testid="error"]')?.textContent === "This account cannot access that record.");
       assert.equal(await page.getByTestId("data").textContent(), "null");

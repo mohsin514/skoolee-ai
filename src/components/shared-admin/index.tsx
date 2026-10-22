@@ -1,12 +1,12 @@
 "use client";
+import { fillNodes } from "@/lib/auth/fill-nodes";
 import { AiWorkflowsHome } from "@/components/ai-workflows/AiWorkflowsHome";
-import { AuditHistoryModal } from "@/components/audit/audit-history-modal";
 import { Tooltip } from "@/components/ui/tooltip";
 import { IconButton } from "@/components/ui/icon-button";
-import { Button as SystemButton } from "@/components/ui/button";
+import { Button as SystemButton, buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { InputGroup } from "@/components/ui/input-group";
@@ -14,7 +14,7 @@ import { InputGroup } from "@/components/ui/input-group";
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Modal, MODAL_TONES, type ModalTone, type ModalSize } from "@/components/ui/modal";
+import { Modal, ModalActions as SharedModalActions, MODAL_TONES, type ModalTone, type ModalSize } from "@/components/ui/modal";
 import {
   AlertTriangle,
   ArrowRight,
@@ -51,6 +51,7 @@ import {
   MapPin,
   MessageCircle,
   Megaphone,
+  MoreHorizontal,
   Pencil,
   Phone,
   PhoneCall,
@@ -74,9 +75,12 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-import { NO_ENTRY_ANIMATION } from "@/components/insights";
-import { toast } from "@/components/ui/toast";
+import { Menu, type MenuItem } from "@/components/ui/menu";
+import { ErrorState } from "@/components/ui/error-state";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+import { ViewTabs } from "@/components/ui/view-tabs";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { translateUi } from "@/lib/locale/ui-messages";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -94,8 +98,11 @@ export { StudentsPanel } from "@/components/shared-admin/students-panel";
 import { SubjectSyllabus } from "@/components/shared-admin/subject-syllabus";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { resolveMediaUrl } from "@/lib/storage/s3";
-import { SkeletonList } from "@/components/ui/skeleton";
-import { RoomsManager } from "@/components/academic/RoomsManager";
+import { Skeleton, SkeletonList, SkeletonRegion } from "@/components/ui/skeleton";
+import { FormField } from "@/components/ui/form-field";
+import { apiErrorMessage } from "@/lib/errors";
+import { usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
 import { csvCell, downloadCSV } from "@/lib/csv";
 import {
   DataTable,
@@ -139,19 +146,38 @@ export type ClassGroup = {
   sections: any[];
 };
 
+/**
+ * Words for the record states these panels show (R7: a translated word, never a raw enum). Keys are the API
+ * values; the values are EN UI keys translated by `StatusPill`. Anything unknown falls back to sentence case.
+ */
+const STATUS_WORDS: Record<string, string> = {
+  ACTIVE: "Active", INACTIVE: "Inactive", PENDING: "Pending", APPROVED: "Approved", REJECTED: "Rejected", CANCELLED: "Cancelled",
+  DRAFT: "Draft", SCHEDULED: "Scheduled", ONGOING: "In progress", IN_PROGRESS: "In progress", COMPLETED: "Completed",
+  LOCKED: "Locked", PRINCIPAL_REVIEWED: "Reviewed", PUBLISHED: "Published", ARCHIVED: "Archived", SENT: "Sent",
+  FAILED: "Failed", BLOCKED: "Blocked", SUSPENDED: "Suspended", TRIAL: "Trial", REVIEW: "In review", NO_REPORT: "No report",
+  FOLLOW_UP: "Follow-up", CONVERTED: "Converted", LOST: "Lost", GRADUATED: "Graduated", TRANSFERRED: "Transferred",
+  WITHDRAWN: "Withdrawn", EXPIRED: "Expired", INVITED: "Invited",
+};
+
+/** Sentence-case words for a status value: `FOLLOW_UP` → "Follow-up", `IN_PROGRESS` → "In progress". */
 export function formatStatus(status?: string) {
-  return (status || "Pending").replaceAll("_", " ");
+  const value = status || "PENDING";
+  if (STATUS_WORDS[value]) return STATUS_WORDS[value];
+  if (value !== value.toUpperCase()) return value.replaceAll("_", " ");
+  const words = value.toLowerCase().replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** Status token classes (R10): success, brand, error or neutral. */
 export function statusTone(status?: string) {
-  if (["ACTIVE", "Active", "PUBLISHED", "SENT", "APPROVED", "Assigned", "One Teacher"].includes(status || "")) {
-    return "bg-emerald-50 text-emerald-600";
+  if (["ACTIVE", "Active", "PUBLISHED", "SENT", "APPROVED", "Assigned", "One Teacher", "CONVERTED", "COMPLETED", "GRADUATED"].includes(status || "")) {
+    return "bg-status-success-surface text-status-success-text";
   }
-  if (["Invited", "PENDING", "TRIAL", "REVIEW", "LOCKED", "Subject Teachers"].includes(status || "")) {
-    return "bg-brand-50 text-primary";
+  if (["Invited", "INVITED", "PENDING", "TRIAL", "REVIEW", "LOCKED", "PRINCIPAL_REVIEWED", "Subject Teachers", "FOLLOW_UP", "SCHEDULED", "ONGOING", "IN_PROGRESS"].includes(status || "")) {
+    return "bg-status-brand-surface text-status-brand-text";
   }
-  if (["Expired", "FAILED", "BLOCKED", "SUSPENDED", "NO_REPORT", "Unassigned"].includes(status || "")) {
-    return "bg-rose-50 text-rose-600";
+  if (["Expired", "EXPIRED", "FAILED", "BLOCKED", "SUSPENDED", "NO_REPORT", "Unassigned", "LOST", "REJECTED"].includes(status || "")) {
+    return "bg-status-error-surface text-status-error-text";
   }
   return "bg-muted text-ink";
 }
@@ -230,6 +256,13 @@ export function groupClasses(classes: any[]) {
  * A leading =, +, - or @ is prefixed with a quote character so spreadsheets
  * treat the value as text instead of a formula.
  */
+/** Module-level helpers (CSV export) run outside React; they translate with the document's language. */
+function translateNow(source: string, values: unknown[] = []): string {
+  const base = typeof document === "undefined" ? "en" : document.documentElement.lang.toLowerCase().split("-")[0];
+  const language = base === "ar" || base === "ur" ? base : "en";
+  return translateUi(source, language).replace(/\{(\d+)\}/g, (match, index) => (index in values ? String(values[Number(index)]) : match));
+}
+
 const STUDENT_CSV_COLUMNS: [string, (s: any) => unknown][] = [
   ["Full Name", (s) => s.fullName],
   ["Roll No", (s) => s.rollNo],
@@ -245,7 +278,7 @@ const STUDENT_CSV_COLUMNS: [string, (s: any) => unknown][] = [
 /** Downloads the given students as CSV. Shared by the admin and principal views. */
 export function exportStudentsToCSV(students: any[], campusName?: string) {
   if (!students.length) {
-    toast.error("Nothing to export — no students match the current filters");
+    toast.error(translateNow("Nothing to export — no students match the current filters"));
     return;
   }
   const rows = [
@@ -262,7 +295,7 @@ export function exportStudentsToCSV(students: any[], campusName?: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast.success(`${students.length} student${students.length === 1 ? "" : "s"} exported`);
+  toast.success(translateNow("{0} student(s) exported", [students.length]));
 }
 
 /** Every non-active roll state, as shown to admins. */
@@ -277,336 +310,206 @@ export function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+/** Student timeline event kinds (EN UI keys); anything else reads as sentence case, never a raw enum (R7). */
+const TIMELINE_KIND_LABELS: Record<string, string> = {
+  ADMITTED: "Admitted",
+  PROMOTED: "Promoted",
+  NOTE: "Note",
+  DOC_UPLOADED: "Document uploaded",
+  FEE_PAID: "Fee paid",
+  ENROLLMENT_TRANSITION: "Enrolment change",
+  GRADUATED: "Graduated",
+  TRANSFERRED: "Transferred",
+  WITHDRAWN: "Withdrawn",
+};
+
+/** Guardian relationships (EN UI keys; translated where shown). */
+const GUARDIAN_RELATIONSHIP_LABELS: Record<string, string> = {
+  FATHER: "Father",
+  MOTHER: "Mother",
+  GUARDIAN: "Guardian",
+  UNCLE: "Uncle",
+  AUNT: "Aunt",
+  GRANDPARENT: "Grandparent",
+  SIBLING: "Sibling",
+};
+
+/** Leave allocations made for a whole role (EN UI keys, plural). */
+const ALLOCATION_ROLE_LABELS: Record<string, string> = {
+  TEACHER: "Teachers",
+  PRINCIPAL: "Principals",
+  ACCOUNTANT: "Accountants",
+  RECEPTIONIST: "Receptionists",
+  LIBRARIAN: "Librarians",
+  CAMPUS_ADMIN: "Campus admins",
+  ADMIN: "Campus admins",
+};
+
 export function formatDate(value?: string | Date | null) {
   if (!value) return "N/A";
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+/**
+ * Staff & invites (campus admin) / Staff & leaders (single-school admin) — M22.
+ *
+ * The console's PageHeader owns the view's primary action ("Invite staff member"). This panel lists who
+ * runs the campus, grouped by seat. Leadership changes (deputy admin, principal) are offered only to the
+ * institution authority (`canAppointLeaders`); a campus admin sees the leaders read-only, with the console's
+ * "Managed by …" note above. Office-staff changes need the membership delegation (`canInvite`); without it
+ * the rows are read-only. Destructive actions live in each row's overflow menu, behind ConfirmAction.
+ */
 export function LeadershipPanel({
   data,
+  canInvite = false,
+  canAppointLeaders = false,
   onInviteAdmin,
   onInvitePrincipal,
-  onInviteAccountant,
-  onInviteLibrarian,
-  onInviteReceptionist,
   onRemove,
   onResend,
   onCancel,
-  onActivityLog,
 }: {
   data: any;
-  onInviteAdmin: () => void;
-  onInvitePrincipal: () => void;
-  onInviteAccountant?: () => void;
-  onInviteLibrarian?: () => void;
-  onInviteReceptionist?: () => void;
+  /** `memberships`: invite, resend, cancel and remove office staff on this campus. */
+  canInvite?: boolean;
+  /** `inviteLeaders`: appoint or revoke the principal and deputy admins (institution authority only). */
+  canAppointLeaders?: boolean;
+  onInviteAdmin?: () => void;
+  onInvitePrincipal?: () => void;
   onRemove: (id: string, label: string) => void;
   onResend: (id: string) => void;
   onCancel: (id: string) => void;
+  /** @deprecated The activity log lives in School settings › Activity log. Ignored. */
   onActivityLog?: () => void;
+  /** @deprecated Office invites start from the console's "Invite staff member" primary action. Ignored. */
+  onInviteAccountant?: () => void;
+  onInviteLibrarian?: () => void;
+  onInviteReceptionist?: () => void;
 }) {
-  const adminCount = data.campusAdmins?.length || 0;
-  const principalAssigned = data.principal ? 1 : 0;
-  const pendingCount = data.pendingAdminInvitations?.length || 0;
-  const opsCount = data.operationsStaff?.length || 0;
+  const ui = useUiText();
+  const admins: any[] = data.campusAdmins || [];
+  const pendingAdmins: any[] = data.pendingAdminInvitations || [];
+  const staff: any[] = data.operationsStaff || [];
+  const pendingStaff: any[] = data.pendingOperationsInvitations || [];
+  const principal = data.principal;
+  const principalPending = principal && principal.status && String(principal.status).toLowerCase() === "pending";
 
-  const donutData = [
-    { name: "Admins", value: adminCount, color: "#8127cf" },
-    { name: "Principal", value: principalAssigned, color: "#10b981" },
-    { name: "Operations", value: opsCount, color: "#3b82f6" },
-    { name: "Pending", value: pendingCount, color: "#f59e0b" },
-  ].filter((d) => d.value > 0);
+  // §1.5: an ADMIN is the "School admin" only in a single school; inside a school group an ADMIN is a campus admin.
+  const adminName = data.institutionKind === "STANDALONE" ? "School admin" : "Campus admin";
+  const roleName = (role?: string) =>
+    ui(({ ACCOUNTANT: "Accountant", LIBRARIAN: "Librarian", RECEPTIONIST: "Receptionist", CAMPUS_ADMIN: "Campus admin", ADMIN: adminName, PRINCIPAL: "Principal" } as Record<string, string>)[role || ""] ?? formatStatus(role));
 
   return (
-    <div className="space-y-7">
-      <div className="sk-rise relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-brand-100 rounded-[32px] border border-edge/25 p-7 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="absolute top-0 end-0 w-80 h-80 bg-gradient-to-bl from-primary/10 to-transparent rounded-full blur-3xl -translate-y-1/3 translate-x-1/4 rtl:-translate-x-1/4 pointer-events-none" />
-        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          {/* Eyebrow → title → explanation, in that order, matching the
-              academics overview. It previously led with the campus name in
-              grey and buried the actual heading underneath it at 9px. */}
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <section aria-labelledby="leaders-heading" className="sk-panel space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
-              <LayoutGrid className="h-5 w-5" />
-            </span>
+            <span aria-hidden="true" className="grid size-10 place-items-center rounded-2xl bg-brand-50 text-primary"><Shield className="size-5" /></span>
             <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
-                Staff · {data.campusName}
-              </p>
-              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Admins &amp; Access</h2>
-              <p className="mt-0.5 max-w-xl text-xs font-semibold text-ink-muted">
-                Who runs this campus: admin access, the principal, office staff, and invitations still outstanding.
-              </p>
+              <h2 id="leaders-heading" className="text-lg font-bold text-ink-strong">{ui("Leadership")}</h2>
+              <p className="text-xs font-medium text-ink-muted">{ui("Who runs this campus and who leads teaching.")}</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <BrandButton variant="soft" icon={<Plus className="w-3.5 h-3.5" />} onClick={onInviteAdmin}>
-              Add Admin
-            </BrandButton>
-            <BrandButton variant="soft" icon={<GraduationCap className="w-3.5 h-3.5" />} onClick={onInvitePrincipal}>
-              Appoint Principal
-            </BrandButton>
-            {onActivityLog ? (
-              <BrandButton variant="dark" icon={<ClipboardList className="w-3.5 h-3.5" />} onClick={onActivityLog}>
-                Activity Log
-              </BrandButton>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Charts & Panels Row ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_2.2fr] gap-6">
-        {/* Donut + Campus Identity */}
-        <div className="space-y-6">
-          {/* Donut Chart */}
-          <div className="sk-panel sk-rise group p-6 border-edge/10" style={{ animationDelay: "80ms" }}>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Leadership</p>
-                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Team Overview</h3>
-              </div>
-              <div className="relative shrink-0">
-                <div className="absolute -inset-2 bg-primary/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative h-10 w-10 rounded-2xl bg-brand-50 flex items-center justify-center text-primary">
-                  <Users className="h-5 w-5" />
-                </div>
-              </div>
-            </div>
-            {donutData.length > 0 ? (
-              <div className="flex items-center gap-6">
-                <div className="shrink-0">
-                  <ResponsiveContainer width={130} height={130}>
-                    <PieChart>
-                      <Pie {...NO_ENTRY_ANIMATION} data={donutData} cx="50%" cy="50%" innerRadius={38} outerRadius={60} paddingAngle={3} dataKey="value" stroke="none">
-                        {donutData.map((entry, idx) => (
-                          <Cell key={idx} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex-1 space-y-2.5">
-                  {[
-                    { label: "Admins", value: adminCount, color: "#8127cf" },
-                    { label: "Principal", value: principalAssigned, color: "#10b981" },
-                    { label: "Operations", value: opsCount, color: "#3b82f6" },
-                    { label: "Pending", value: pendingCount, color: "#f59e0b" },
-                  ].map((item) => (
-                    // gap-3 and a shrink-0 value: justify-between alone let the
-                    // widest label ("Operations", uppercase with wide tracking)
-                    // run straight into its number — it read as "OPERATIONS1".
-                    <div key={item.label} className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                        <span className="truncate text-2xs font-semibold text-ink-muted uppercase tracking-wider">{item.label}</span>
-                      </div>
-                      <span className="shrink-0 text-xs font-bold text-ink-strong">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-[130px] rounded-2xl bg-brand-50/40">
-                <p className="text-xs font-bold text-ink-subtle">No team data yet</p>
-              </div>
-            )}
-          </div>
-
-          {/* Campus Identity */}
-          <div className="sk-panel sk-rise group p-6 border-edge/10" style={{ animationDelay: "160ms" }}>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Identity</p>
-                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Campus Details</h3>
-              </div>
-              <div className="relative shrink-0">
-                <div className="absolute -inset-2 bg-primary/10 rounded-xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative h-10 w-10 rounded-2xl bg-brand-50 flex items-center justify-center text-primary">
-                  <Building className="h-5 w-5" />
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { icon: Building, label: "Campus", value: data.campusName },
-                { icon: School, label: "School", value: data.schoolName },
-                { icon: MapPin, label: "City", value: data.campusCity || "Not set" },
-                { icon: FileText, label: "Reg ID", value: data.campusRegId || "Not set" },
-                { icon: GraduationCap, label: "Year", value: data.academicYear || "Not set" },
-                { icon: Users, label: "Students", value: `${data.studentCount || 0}` },
-              ].map((f, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-xl bg-brand-50/40 px-3 py-2">
-                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-primary/10 to-brand-300/10 flex items-center justify-center text-primary shrink-0">
-                    <f.icon className="w-3 h-3" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">{f.label}</p>
-                    <p className="text-2xs font-bold text-ink-strong truncate">{f.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          {canAppointLeaders && onInviteAdmin ? (
+            <SystemButton variant="outline" size="sm" type="button" onClick={onInviteAdmin}>
+              <Plus aria-hidden="true" />{ui("Add deputy admin")}
+            </SystemButton>
+          ) : null}
         </div>
 
-        {/* Admin Team & Principal Panel */}
-        <div className="space-y-6">
-          {/* Admin Team + Pending In One Card */}
-          <div className="sk-panel sk-rise p-6 border-edge/10" style={{ animationDelay: "160ms" }}>
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Team</p>
-                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Admin Team</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                {adminCount > 0 ? (
-                  <Badge variant="default" className="tabular-nums">
-                    {adminCount} active
-                  </Badge>
-                ) : null}
-                {pendingCount > 0 ? (
-                  <Badge variant="warning" className="tabular-nums">
-                    <Clock aria-hidden="true" />
-                    {pendingCount}
-                  </Badge>
-                ) : null}
-                <StatusPill status="Owner Managed" />
-              </div>
-            </div>
-            <div className="space-y-3">
-              {data.campusAdmins?.map((admin: any) => (
-                <AdminRow key={admin.id} admin={admin} currentUserId={data.currentUserId} onRemove={() => onRemove(admin.id, "Admin")} />
-              ))}
-              {data.pendingAdminInvitations?.map((invite: any) => (
-                <PendingFacultyRow key={invite.id} invite={invite} onResend={() => onResend(invite.id)} onCancel={() => onCancel(invite.id)} />
-              ))}
-              {!data.campusAdmins?.length && !data.pendingAdminInvitations?.length ? (
-                <div className="flex items-center justify-center h-20 rounded-2xl bg-brand-50/40">
-                  <p className="text-xs font-bold text-ink-subtle">No admin access assigned yet.</p>
-                </div>
-              ) : null}
-            </div>
-          </div>
+        <div className="space-y-3">
+          {admins.map((admin: any) => (
+            <PersonRow
+              key={admin.id}
+              name={admin.fullName}
+              detail={admin.email}
+              badge={admin.id === data.currentUserId ? ui("You") : roleName(admin.role)}
+              actions={canAppointLeaders && admin.id !== data.currentUserId ? [{ id: "revoke", label: ui("Revoke access"), tone: "danger", onSelect: () => onRemove(admin.id, admin.role || "CAMPUS_ADMIN") }] : []}
+            />
+          ))}
+          {pendingAdmins.map((invite: any) => (
+            <PendingFacultyRow key={invite.id} invite={invite} readOnly={!canAppointLeaders} onResend={() => onResend(invite.id)} onCancel={() => onCancel(invite.id)} />
+          ))}
 
-          {/* Principal Card */}
-          <div className="sk-panel p-6 border-edge/10">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Authority</p>
-                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Principal</h3>
+          {principal && !principalPending ? (
+            <PersonRow
+              name={principal.fullName}
+              detail={principal.email}
+              badge={roleName("PRINCIPAL")}
+              actions={canAppointLeaders ? [{ id: "revoke", label: ui("Revoke access"), tone: "danger", onSelect: () => onRemove(principal.id, "PRINCIPAL") }] : []}
+            />
+          ) : principal && principalPending ? (
+            <PendingFacultyRow invite={principal} readOnly={!canAppointLeaders} onResend={() => onResend(principal.id)} onCancel={() => onCancel(principal.id)} />
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-status-warning-border bg-status-warning-surface p-4">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-ink-strong">{ui("No principal appointed")}</p>
+                <p className="mt-0.5 text-xs text-ink-muted">{ui("Until one is appointed, timetable, exams and report-card approvals stay with you.")}</p>
               </div>
-              <div className="h-10 w-10 rounded-2xl bg-brand-50 flex items-center justify-center text-primary">
-                <GraduationCap className="h-5 w-5" />
-              </div>
-            </div>
-            {data.principal ? (
-              <div className="flex items-center gap-5">
-                <div className="relative shrink-0">
-                  <div className="absolute -inset-2 bg-gradient-to-br from-emerald-100/40 to-transparent rounded-2xl blur-md" />
-                  <div className="relative h-16 w-16 rounded-2xl bg-white border-2 border-emerald-100 shadow-sm flex items-center justify-center overflow-hidden">
-                    <AvatarImage name={data.principal.email} alt="" className="h-full w-full object-cover" />
-                  </div>
-                  <div className="absolute -top-1 -end-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-base font-bold text-ink-strong tracking-tight truncate">{data.principal.fullName}</h4>
-                  <p className="mt-0.5 truncate text-xs text-ink-subtle">{data.principal.email}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="success" size="sm" dot>
-                      Active
-                    </Badge>
-                  </div>
-                </div>
-                <SystemButton variant="destructive" type="button" onClick={() => onRemove(data.principal.id, "Principal")}
-                  className="shrink-0 px-4 flex items-center gap-1.5 justify-center">
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Revoke
+              {canAppointLeaders && onInvitePrincipal ? (
+                <SystemButton variant="outline" size="sm" type="button" onClick={onInvitePrincipal}>
+                  <GraduationCap aria-hidden="true" />{ui("Appoint principal")}
                 </SystemButton>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 rounded-2xl bg-amber-50 border-2 border-dashed border-amber-200 flex items-center justify-center text-amber-400">
-                    <GraduationCap className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-ink-strong">No Principal Assigned</p>
-                    <p className="text-2xs font-semibold text-ink-muted mt-0.5">Tap below to appoint a principal</p>
-                  </div>
-                </div>
-                <BrandButton variant="dark" icon={<GraduationCap className="w-3.5 h-3.5" />} onClick={onInvitePrincipal}>
-                  Appoint
-                </BrandButton>
-              </div>
-            )}
-          </div>
-
-          {/* Operations Staff Card */}
-          <div className="sk-panel p-6 border-edge/10">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Operations</p>
-                <h3 className="text-lg font-bold text-ink-strong mt-0.5">Operations Staff</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                {opsCount > 0 ? (
-                  <Badge variant="info" className="tabular-nums">
-                    {opsCount} active
-                  </Badge>
-                ) : null}
-              </div>
-            </div>
-            <div className="space-y-3">
-              {data.operationsStaff?.map((staff: any) => (
-                <div key={staff.id} className="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-50/30 via-white to-blue-50/30 px-4 py-3 border border-transparent hover:border-blue-100 transition-all">
-                  <div className="relative shrink-0">
-                    <div className="h-10 w-10 rounded-xl bg-white border border-blue-100 shadow-sm flex items-center justify-center overflow-hidden">
-                      <AvatarImage name={staff.email} alt="" className="h-full w-full object-cover" />
-                    </div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-bold text-ink-strong truncate">{staff.fullName}</h4>
-                    <p className="truncate text-xs text-ink-subtle">{staff.email}</p>
-                  </div>
-                  <Badge variant="info" size="sm" className="shrink-0">
-                    {staff.role}
-                  </Badge>
-                  <SystemButton variant="destructive" type="button" onClick={() => onRemove(staff.id, staff.role)}
-                    className="shrink-0 px-3 flex items-center gap-1 justify-center">
-                    <Trash2 className="w-3 h-3" />
-                  </SystemButton>
-                </div>
-              ))}
-              {data.pendingOperationsInvitations?.map((invite: any) => (
-                <PendingFacultyRow key={invite.id} invite={invite} onResend={() => onResend(invite.id)} onCancel={() => onCancel(invite.id)} />
-              ))}
-              {!data.operationsStaff?.length && !data.pendingOperationsInvitations?.length ? (
-                <div className="flex items-center justify-center h-16 rounded-2xl bg-blue-50/30">
-                  <p className="text-xs font-bold text-ink-subtle">No operations staff assigned yet</p>
-                </div>
               ) : null}
             </div>
-            <div className="flex flex-wrap gap-2 mt-4">
-              {onInviteAccountant ? (
-                <BrandButton variant="soft" icon={<Plus className="w-3 h-3" />} onClick={onInviteAccountant}>
-                  Add Accountant
-                </BrandButton>
-              ) : null}
-              {onInviteLibrarian ? (
-                <BrandButton variant="soft" icon={<Plus className="w-3 h-3" />} onClick={onInviteLibrarian}>
-                  Add Librarian
-                </BrandButton>
-              ) : null}
-              {onInviteReceptionist ? (
-                <BrandButton variant="soft" icon={<Plus className="w-3 h-3" />} onClick={onInviteReceptionist}>
-                  Add Receptionist
-                </BrandButton>
-              ) : null}
-            </div>
-          </div>
+          )}
         </div>
+      </section>
+
+      <section aria-labelledby="office-staff-heading" className="sk-panel space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="grid size-10 place-items-center rounded-2xl bg-brand-50 text-primary"><Briefcase className="size-5" /></span>
+            <div>
+              <h2 id="office-staff-heading" className="text-lg font-bold text-ink-strong">{ui("Office staff")}</h2>
+              <p className="text-xs font-medium text-ink-muted">{ui("Accountants, receptionists and librarians on this campus.")}</p>
+            </div>
+          </div>
+          {staff.length ? <Badge variant="info" className="tabular-nums"><bdi>{staff.length}</bdi></Badge> : null}
+        </div>
+        <div className="space-y-3">
+          {staff.map((member: any) => (
+            <PersonRow
+              key={member.id}
+              name={member.fullName}
+              detail={member.email}
+              badge={roleName(member.role)}
+              actions={canInvite ? [{ id: "revoke", label: ui("Revoke access"), tone: "danger", onSelect: () => onRemove(member.id, member.role) }] : []}
+            />
+          ))}
+          {pendingStaff.map((invite: any) => (
+            <PendingFacultyRow key={invite.id} invite={invite} readOnly={!canInvite} onResend={() => onResend(invite.id)} onCancel={() => onCancel(invite.id)} />
+          ))}
+          {!staff.length && !pendingStaff.length ? (
+            <EmptyInline text={ui(canInvite ? "No office staff yet. Use Invite staff member to add an accountant, receptionist or librarian." : "No office staff yet.")} />
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** One person in a staff list: avatar, name, email, role chip and an overflow menu for the rest. */
+function PersonRow({ name, detail, badge, actions }: { name: string; detail?: string; badge?: string; actions: MenuItem[] }) {
+  const ui = useUiText();
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-border bg-brand-50">
+        <AvatarImage name={detail || name} alt="" className="h-full w-full object-cover" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-ink-strong"><bdi>{name}</bdi></p>
+        {detail ? <p dir="ltr" className="truncate text-start text-xs text-ink-muted">{detail}</p> : null}
       </div>
+      {badge ? <Badge variant="neutral" size="sm" className="shrink-0">{badge}</Badge> : null}
+      {actions.length ? (
+        <Menu
+          label={ui("More actions")}
+          align="end"
+          trigger={<IconButton label={ui("More actions for {0}", [name])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+          items={actions}
+        />
+      ) : null}
     </div>
   );
 }
@@ -626,13 +529,30 @@ export function AcademicPanel({
   onDeleteSubject,
   onUpdateSubject,
   onAddSection,
+  title,
+  description,
+  secondaryActions,
+  headingLevel = 1,
+  notice,
 }: {
+  /** Shown under the page header (e.g. the teacher-conflicts banner), never above the view's title. */
+  notice?: ReactNode;
+  /** The view's one-sentence description (EN UI key, §4.3); the live class/section count then sits under it. */
+  description?: string;
+  /** The hosting view's secondaries (e.g. the principal's "Export"), forwarded to the header. */
+  secondaryActions?: PageAction[];
   classes: any[];
   teachers: any[];
   students?: any[];
   campusName?: string;
-  onAddClass: () => void;
-  onAddStudent: (classId?: string) => void;
+  /** Without it the "Add class" primary is not rendered (read-only consoles). */
+  onAddClass?: () => void;
+  /** The registry label of the hosting view (defaults to "Classes & subjects"). */
+  title?: string;
+  /** 1 when this panel is the whole view (its header is the page's one h1). */
+  headingLevel?: 1 | 2;
+  /** Omitted for a viewer who cannot admit students (§4.5.11): the Add student controls are not rendered. */
+  onAddStudent?: (classId?: string) => void;
   onBulkImport?: (classId?: string) => void;
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
@@ -691,22 +611,21 @@ export function AcademicPanel({
     <div className="space-y-6">
       <WorkspaceHeader
         icon={School}
-        eyebrow={ui("Academics")}
-        title={ui("Classes & Subjects")}
+        title={title ?? "Classes & subjects"}
+        description={description}
+        headingLevel={headingLevel}
         tone="classes"
         summary={
           <>
             {ui(classGroups.length === 1 ? "{0} class" : "{0} classes", [classGroups.length])}{" · "}
             {ui(allSections.length === 1 ? "{0} section" : "{0} sections", [allSections.length])}
-            {campusName ? ` · ${campusName}` : ""}
+            {campusName ? <> · <bdi>{campusName}</bdi></> : null}
           </>
         }
-        actions={
-          <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={onAddClass}>
-            {ui("Add Class")}
-          </BrandButton>
-        }
+        primaryAction={onAddClass ? { id: "add-class", label: "Add class", icon: Plus, onClick: onAddClass } : undefined}
+        secondaryActions={secondaryActions}
       />
+      {notice}
 
       {classGroups.length > 0 ? (
         <>
@@ -793,828 +712,24 @@ export function AcademicPanel({
           icon={BookOpen}
           title={ui("No classes defined")}
           description={ui("Create classes during onboarding or from the class management flow.")}
-          action={<BrandButton onClick={onAddClass}>{ui("Add Class")}</BrandButton>}
+          action={onAddClass ? <SystemButton type="button" onClick={onAddClass}><Plus aria-hidden="true" />{ui("Add class")}</SystemButton> : undefined}
         />
       )}
     </div>
   );
 }
-export function ExamDetailModal({
-  exam,
-  onClose,
-  onViewReportCard,
-  onRefresh,
-}: {
-  exam: any;
-  onClose: () => void;
-  onViewReportCard: (report: any) => void;
-  onRefresh: () => void;
-}) {
-  const [tab, setTab] = useState<"marks" | "reports" | "analytics">("marks");
-  const [marksData, setMarksData] = useState<any>(null);
-  const [reportsData, setReportsData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [actionBusy, setActionBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      try {
-        const [marksRes, reportsRes] = await Promise.all([
-          fetch(`/api/marks?examId=${exam.id}`).then((r) => r.json()),
-          fetch(`/api/reports?examId=${exam.id}`).then((r) => r.json()).catch(() => null),
-        ]);
-        if (!cancelled) {
-          setMarksData(marksRes);
-          setReportsData(reportsRes);
-        }
-      } catch { if (!cancelled) toast.error("Failed to load exam data"); }
-      finally { if (!cancelled) setLoading(false); }
-    })();
-    return () => { cancelled = true; };
-  }, [exam.id]);
+/*
+ * F30: ExamDetailModal, ExamCreateModal, the legacy ReportCardsPanel list, HelpModal, ActivityLogModal, AdminRow
+ * and SnapshotColumn were reachable from no console (the exams workspace, the header Help menu and the audit
+ * dialog own those jobs now); they were removed with the admin page's dead state.
+ */
 
-  const handleLock = async () => {
-    setActionBusy("lock");
-    try {
-      const res = await fetch(`/api/exams/${exam.id}/lock`, { method: "POST" });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to lock");
-      toast.success(`Exam locked. ${result.generated || 0} report cards generated.`);
-      onRefresh();
-      onClose();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setActionBusy(null); }
-  };
-
-  const handleStatusChange = async (status: string) => {
-    setActionBusy(status);
-    try {
-      const res = await fetch("/api/exams", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: exam.id, status }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to update status");
-      toast.success(`Exam status updated to ${status.replaceAll("_", " ")}`);
-      onRefresh();
-      onClose();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setActionBusy(null); }
-  };
-
-  const students = marksData?.students || [];
-  const subjects = marksData?.subjects || [];
-  const marks = marksData?.marks || [];
-  const reportCards = reportsData?.reportCards || [];
-  const analytics = reportsData?.analytics || null;
-
-  const getMarkValue = (studentId: string, subjectId: string) => {
-    const mark = marks.find((m: any) => m.studentId === studentId && m.subjectId === subjectId);
-    return mark ? mark.marksObtained : null;
-  };
-
-  const canLock = !exam.isLocked && (exam.status === "ACTIVE" || exam.status === "MARKS_ENTRY");
-  const canReview = exam.status === "LOCKED";
-  const canPublish = exam.status === "PRINCIPAL_REVIEWED";
-
-  return (
-    <Modal
-      title={exam.title}
-      eyebrow={exam.examType?.replaceAll("_", " ") || "Exam"}
-      subtitle={`${exam.term} — ${classLabel(exam.class)} — Total: ${exam.totalMarks} marks`}
-      chips={<StatusPill status={exam.status} />}
-      icon={FileText}
-      size="xl"
-      onClose={onClose}
-      headerActions={
-        <>
-          {canLock && (
-            <SystemButton variant="ghost" type="button" onClick={handleLock} disabled={actionBusy !== null}
-              className="flex items-center gap-1.5 px-4 py-2.5 justify-start">
-              {actionBusy === "lock" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />} Lock Exam
-            </SystemButton>
-          )}
-          {canReview && (
-            <SystemButton variant="ghost" type="button" onClick={() => handleStatusChange("PRINCIPAL_REVIEWED")} disabled={actionBusy !== null}
-              className="flex items-center gap-1.5 px-4 py-2.5 justify-start">
-              {actionBusy === "PRINCIPAL_REVIEWED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Mark Reviewed
-            </SystemButton>
-          )}
-          {canPublish && (
-            <SystemButton variant="ghost" type="button" onClick={() => handleStatusChange("PUBLISHED")} disabled={actionBusy !== null}
-              className="flex items-center gap-1.5 px-4 py-2.5 justify-start">
-              {actionBusy === "PUBLISHED" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />} Publish
-            </SystemButton>
-          )}
-        </>
-      }
-    >
-
-        <div className="flex items-center gap-1 rounded-2xl bg-muted p-1 mb-6">
-          {(["marks", "reports", "analytics"] as const).map((t) => (
-            <SystemButton variant="ghost" key={t} onClick={() => setTab(t)}
-              className={cn("px-5 py-2.5",
-                tab === t ? "bg-white text-primary shadow-md" : "text-ink-muted hover:text-primary"
-              )}>
-              {t === "marks" ? "Marks Sheet" : t === "reports" ? `Report Cards (${reportCards.length})` : "Analytics"}
-            </SystemButton>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="space-y-3 animate-skeleton-in">
-            <div className="overflow-x-auto rounded-2xl border border-edge/10">
-              <div className="grid grid-cols-[40px_1fr_80px_80px_80px_60px_60px] gap-0">
-                <div className="col-span-7 flex gap-4 px-4 py-3 bg-brand-50/30 border-b border-edge/10">
-                  {Array.from({ length: 7 }).map((_, i) => (
-                    <div key={i} className="h-2.5 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer" />
-                  ))}
-                </div>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="col-span-7 flex items-center gap-4 px-4 py-3 border-b border-edge/5 animate-skeleton-in" style={{ animationDelay: `${i * 50}ms` }}>
-                    <div className="h-3 w-5 rounded-full bg-border-subtle/30 skeleton-shimmer" />
-                    <div className="h-3 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer flex-1" />
-                    <div className="h-3 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            {tab === "marks" && (
-              <div className="overflow-x-auto rounded-2xl border border-edge/10">
-                {students.length === 0 ? (
-                  <EmptyState size="sm" icon={Users} title="No students found for this exam" description="Students enrolled in this exam's class will appear here." />
-                ) : (
-                  <table className="w-full text-start">
-                    <thead>
-                      <tr className="border-b border-edge/10 bg-brand-50/30">
-                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">#</th>
-                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Student</th>
-                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted">Roll No</th>
-                        {subjects.map((s: any) => (
-                          <th key={s.id} className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">{s.name}<br /><span className="text-3xs font-semibold">/ {s.totalMarks}</span></th>
-                        ))}
-                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">Total</th>
-                        <th className="px-4 py-3 text-2xs font-semibold uppercase tracking-wider text-ink-muted text-center">%</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.map((student: any, idx: number) => {
-                        const total = subjects.reduce((s: number, sub: any) => s + (getMarkValue(student.id, sub.id) ?? 0), 0);
-                        const maxTotal = subjects.reduce((s: number, sub: any) => s + sub.totalMarks, 0);
-                        const pct = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
-                        return (
-                          <tr key={student.id} className="border-b border-edge/5 hover:bg-brand-50/20 transition-colors">
-                            <td className="px-4 py-3 text-xs font-bold text-ink-subtle">{idx + 1}</td>
-                            <td className="px-4 py-3">
-                              <p className="text-sm font-bold text-ink-strong truncate max-w-[180px]">{student.fullName}</p>
-                            </td>
-                            <td className="px-4 py-3 text-xs font-semibold text-ink-muted">{student.rollNo}</td>
-                            {subjects.map((sub: any) => {
-                              const val = getMarkValue(student.id, sub.id);
-                              return (
-                                <td key={sub.id} className="px-4 py-3 text-center">
-                                  <span className={cn("text-sm font-bold", val === null ? "text-ink-subtle" : val < sub.totalMarks * 0.5 ? "text-rose-500" : "text-ink-strong")}>
-                                    {val ?? "—"}
-                                  </span>
-                                </td>
-                              );
-                            })}
-                            <td className="px-4 py-3 text-center text-sm font-bold text-primary">{total}</td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={cn("text-sm font-bold", pct >= 80 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-rose-500")}>{pct}%</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
-
-            {tab === "reports" && (
-              <div>
-                {reportCards.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <ClipboardList className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle">No report cards generated yet</p>
-                    <p className="text-xs font-semibold text-ink-subtle mt-1">Lock the exam to auto-generate report cards</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                    {reportCards.map((rc: any) => (
-                      <SystemButton variant="ghost" key={rc.id} type="button" onClick={() => { onClose(); onViewReportCard(rc); }}
-                        className="text-start p-4">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-ink-strong truncate">{rc.student?.fullName}</p>
-                            <p className="text-2xs font-semibold text-ink-subtle mt-0.5">Roll: {rc.student?.rollNo || "—"}</p>
-                          </div>
-                          <StatusPill status={rc.status} />
-                        </div>
-                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-edge/10">
-                          <span className="text-xl font-bold text-primary">{rc.grade || "—"}</span>
-                          <span className="text-sm font-bold text-ink-muted">{Math.round(rc.percentage || 0)}%</span>
-                          <span className="ms-auto text-2xs font-bold text-ink-subtle">Rank #{rc.rank || "—"}</span>
-                        </div>
-                      </SystemButton>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {tab === "analytics" && (
-              <div>
-                {!analytics ? (
-                  <div className="py-16 text-center">
-                    <Award className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle">Analytics available after report cards are generated</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {[
-                        { label: "Class Average", value: `${Math.round(analytics.classAverage || 0)}%`, icon: Award, tone: "bg-brand-50 text-primary" },
-                        { label: "Passed", value: analytics.passCount ?? 0, icon: CheckCircle2, tone: "bg-emerald-50 text-emerald-600" },
-                        { label: "Failed", value: analytics.failCount ?? 0, icon: X, tone: "bg-rose-50 text-rose-500" },
-                        { label: "Total Students", value: analytics.totalStudents ?? students.length, icon: Users, tone: "bg-muted text-ink" },
-                      ].map((s) => (
-                        <div key={s.label} className="sk-panel p-5">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider mb-2">{s.label}</p>
-                              <p className="text-2xl font-bold text-ink-strong">{s.value}</p>
-                            </div>
-                            <div className={cn("h-10 w-10 rounded-2xl flex items-center justify-center shrink-0", s.tone)}>
-                              <s.icon className="w-4 h-4" />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {analytics.subjectAverages?.length > 0 && (
-                      <div className="sk-panel p-6">
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-4">Subject Performance</p>
-                        <div className="space-y-3">
-                          {analytics.subjectAverages.map((sa: any) => {
-                            const avg = Math.round(sa.average || 0);
-                            return (
-                              <div key={sa.subjectId || sa.name}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <span className="text-xs font-bold text-ink-strong">{sa.name}</span>
-                                  <span className={cn("text-xs font-bold", avg >= 80 ? "text-emerald-600" : avg >= 50 ? "text-amber-600" : "text-rose-500")}>{avg}%</span>
-                                </div>
-                                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                  <div className={cn("h-full rounded-full transition-all duration-700",
-                                    avg >= 80 ? "bg-emerald-500" : avg >= 50 ? "bg-amber-500" : "bg-rose-500"
-                                  )} style={{ width: `${avg}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {analytics.topStudents?.length > 0 && (
-                      <div className="sk-panel p-6">
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-4">Top Performers</p>
-                        <div className="space-y-2">
-                          {analytics.topStudents.map((ts: any, idx: number) => (
-                            <div key={ts.studentId || idx} className="flex items-center gap-3 p-3 rounded-2xl bg-brand-50/30">
-                              <span className={cn("flex h-8 w-8 items-center justify-center rounded-xl text-xs font-bold shrink-0",
-                                idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-border-subtle text-ink" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-muted text-ink-muted"
-                              )}>#{idx + 1}</span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-ink-strong truncate">{ts.name || ts.fullName}</p>
-                              </div>
-                              <span className="text-sm font-bold text-primary">{Math.round(ts.percentage || 0)}%</span>
-                              <span className="text-sm font-bold text-ink-strong">{ts.grade}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {analytics.needsAttention?.length > 0 && (
-                      <div className="sk-panel p-6">
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-rose-500/70 mb-4">Needs Attention</p>
-                        <div className="space-y-2">
-                          {analytics.needsAttention.map((ns: any) => (
-                            <div key={ns.studentId} className="flex items-center gap-3 p-3 rounded-2xl bg-rose-50/30 border border-rose-100">
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-ink-strong truncate">{ns.name || ns.fullName}</p>
-                                <p className="text-2xs font-semibold text-rose-500 mt-0.5">{ns.reason}</p>
-                              </div>
-                              <span className="text-sm font-bold text-rose-500">{Math.round(ns.percentage || 0)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-    </Modal>
-  );
-}
-
-export function ExamCreateModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [classes, setClasses] = useState<any[]>([]);
-  const [title, setTitle] = useState("");
-  const [classId, setClassId] = useState("");
-  const [term, setTerm] = useState("Mid Term");
-  const [academicYear, setAcademicYear] = useState(String(new Date().getFullYear()));
-  const [examType, setExamType] = useState("MID_TERM");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/classes")
-      .then((r) => r.json())
-      .then((j) => {
-        const list = j.success ? (j.data || []) : (Array.isArray(j) ? j : []);
-        setClasses(list);
-        if (list.length === 1) setClassId(list[0].id);
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleCreate = async () => {
-    if (!title.trim() || !classId) {
-      toast.error("Exam title and class are required");
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await fetch("/api/exams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), classId, term, academicYear: Number(academicYear) || new Date().getFullYear(), examType }),
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        const err = result.error || "Failed to create exam";
-        throw new Error(typeof err === "string" ? err : JSON.stringify(err));
-      }
-      await onCreated();
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <ModalFrame title="New Exam Cycle" eyebrow="Exams & Grading" icon={ClipboardList} onClose={onClose}>
-      <div className="space-y-3">
-        <FormInput label="Exam Title" value={title} placeholder="e.g. Final Term 2026" onChange={setTitle} />
-        <div className="grid grid-cols-2 gap-4">
-          <FormSelect label="Class" value={classId} onChange={setClassId}>
-            <option value="">— Select class —</option>
-            {classes.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {classLabel(c)}
-              </option>
-            ))}
-          </FormSelect>
-          <FormInput label="Academic Year" type="number" placeholder="e.g. 2026" value={academicYear} onChange={setAcademicYear} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <FormSelect label="Term" value={term} onChange={setTerm}>
-            {["Mid Term", "Final Term", "Quiz", "Class Test", "Custom"].map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </FormSelect>
-          <FormSelect label="Exam Type" value={examType} onChange={setExamType}>
-            <option value="MID_TERM">Mid Term</option>
-            <option value="FINAL">Final</option>
-            <option value="CLASS_TEST">Class Test</option>
-            <option value="QUIZ">Quiz</option>
-            <option value="CUSTOM">Custom</option>
-          </FormSelect>
-        </div>
-        {classes.length === 0 && (
-          <Alert tone="warning" live="off" compact title="No classes found">
-            Create a class first, then add an exam cycle.
-          </Alert>
-        )}
-        <ModalActions busy={busy} busyLabel="Creating..." actionLabel="Create Exam Cycle" onClose={onClose} onSave={handleCreate} />
-      </div>
-    </ModalFrame>
-  );
-}
-
-export function ReportCardsPanel({
-  reports,
-  onSelect,
-}: {
-  reports: any[];
-  onSelect?: (report: any) => void;
-}) {
-  const [prefs, patchPrefs] = useWorkspacePrefs("report-cards", {
-    view: "cards",
-    sortKey: "name",
-    perPage: 24,
-  });
-  const [search, setSearch] = useState("");
-  const [classFilter, setClassFilter] = useState("all");
-  const [examFilter, setExamFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-
-  const pct = (r: any) => Number(r.percentage ?? 0);
-
-  const { classOptions, examOptions } = useMemo(() => {
-    const cls = new Map<string, string>();
-    const exams = new Map<string, string>();
-    for (const r of reports) {
-      if (r.student?.class?.id) cls.set(r.student.class.id, classLabel(r.student.class));
-      if (r.exam?.id) exams.set(r.exam.id, r.exam.title || "Exam");
-    }
-    return {
-      classOptions: [...cls.entries()].sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true })),
-      examOptions: [...exams.entries()].sort((a, b) => a[1].localeCompare(b[1])),
-    };
-  }, [reports]);
-
-  const published = reports.filter((r) => String(r.status).toUpperCase() === "PUBLISHED").length;
-  const withMarks = reports.filter((r) => r.percentage != null);
-  const average =
-    withMarks.length > 0
-      ? Math.round(withMarks.reduce((sum, r) => sum + pct(r), 0) / withMarks.length)
-      : null;
-  // A report card below the pass mark is the one an office actually has to do
-  // something about, so it is a number on the screen rather than a scroll.
-  const failing = withMarks.filter((r) => pct(r) < 40).length;
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const rows = reports.filter((r) => {
-      if (classFilter !== "all" && r.student?.class?.id !== classFilter) return false;
-      if (examFilter !== "all" && r.exam?.id !== examFilter) return false;
-      if (statusFilter !== "all" && String(r.status).toUpperCase() !== statusFilter) return false;
-      if (!q) return true;
-      return Boolean(
-        r.student?.fullName?.toLowerCase().includes(q) ||
-          r.student?.rollNo?.toLowerCase().includes(q) ||
-          r.exam?.title?.toLowerCase().includes(q),
-      );
-    });
-    const dir = prefs.sortDir === "desc" ? -1 : 1;
-    return rows.sort((a, b) => {
-      let cmp = 0;
-      switch (prefs.sortKey) {
-        case "score":
-          cmp = pct(a) - pct(b);
-          break;
-        case "class":
-          cmp = classLabel(a.student?.class).localeCompare(classLabel(b.student?.class), undefined, { numeric: true });
-          break;
-        case "exam":
-          cmp = (a.exam?.title || "").localeCompare(b.exam?.title || "");
-          break;
-        default:
-          cmp = (a.student?.fullName || "").localeCompare(b.student?.fullName || "");
-      }
-      return cmp === 0
-        ? (a.student?.fullName || "").localeCompare(b.student?.fullName || "")
-        : cmp * dir;
-    });
-  }, [reports, search, classFilter, examFilter, statusFilter, prefs.sortKey, prefs.sortDir]);
-
-  const paged = usePaged(filtered, prefs.perPage);
-  const filtersActive =
-    classFilter !== "all" || examFilter !== "all" || statusFilter !== "all" || Boolean(search.trim());
-
-  const resetFilters = () => {
-    setClassFilter("all");
-    setExamFilter("all");
-    setStatusFilter("all");
-    setSearch("");
-  };
-
-  const scoreTone = (v: number) =>
-    v >= 80 ? "text-emerald-600" : v >= 40 ? "text-amber-600" : "text-rose-500";
-
-  if (reports.length === 0) {
-    return (
-      <EmptyState
-        icon={ClipboardList}
-        title="No report cards yet"
-        description="Report cards are generated when an exam's marks are locked. Finish marks entry under Exams & Results, lock the exam, and they appear here."
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <WorkspaceHeader
-        icon={ClipboardList}
-        eyebrow="Academics"
-        title="Report Cards"
-        tone="reports"
-        summary={
-          <>
-            {filtered.length} of {reports.length} shown
-            {average !== null ? ` · ${average}% average` : ""}
-            {failing > 0 ? ` · ${failing} below 40%` : ""}
-          </>
-        }
-      />
-
-      <StatTiles
-        tiles={[
-          { key: "total", icon: ClipboardList, label: "Report cards", value: reports.length, tone: "violet" },
-          {
-            key: "published",
-            icon: CheckCircle2,
-            label: "Released to families",
-            value: published,
-            hint: `${reports.length - published} still internal`,
-            tone: published === reports.length ? "emerald" : "amber",
-          },
-          {
-            key: "avg",
-            icon: Award,
-            label: "Average score",
-            value: average === null ? "—" : `${average}%`,
-            hint: withMarks.length ? `across ${withMarks.length} cards` : "No marks yet",
-            tone: "teal",
-          },
-          {
-            key: "fail",
-            icon: AlertTriangle,
-            label: "Below 40%",
-            value: failing,
-            hint: failing ? "Tap to see only these" : "Nobody is failing",
-            tone: failing ? "rose" : "emerald",
-            active: statusFilter === "all" && prefs.sortKey === "score" && prefs.sortDir === "asc",
-            onClick: failing
-              ? () => patchPrefs({ sortKey: "score", sortDir: "asc" })
-              : undefined,
-          },
-        ]}
-      />
-
-      <WorkspaceToolbar
-        trailing={
-          <>
-            <ToolbarSelect
-              value={prefs.sortKey}
-              onChange={(v) => patchPrefs({ sortKey: v })}
-              label="Sort by"
-              options={[
-                ["name", "Student"],
-                ["score", "Score"],
-                ["class", "Class"],
-                ["exam", "Exam"],
-              ]}
-            />
-            <SortDirButton
-              dir={prefs.sortDir}
-              onToggle={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
-            />
-            <ViewSwitch
-              value={prefs.view}
-              onChange={(v) => patchPrefs({ view: v })}
-              options={[
-                { value: "cards", label: "Cards", icon: LayoutGrid },
-                { value: "table", label: "List", icon: ClipboardList },
-              ]}
-            />
-          </>
-        }
-      >
-        <SearchField
-          value={search}
-          onChange={setSearch}
-          placeholder="Student, roll no or exam…"
-          autoFocusKey={null}
-        />
-        <ToolbarSelect
-          value={classFilter}
-          onChange={setClassFilter}
-          label="Class"
-          options={[["all", "All classes"], ...classOptions.map(([id, n]) => [id, n] as [string, string])]}
-        />
-        <ToolbarSelect
-          value={examFilter}
-          onChange={setExamFilter}
-          label="Exam"
-          options={[["all", "All exams"], ...examOptions.map(([id, n]) => [id, n] as [string, string])]}
-        />
-        <ToolbarSelect
-          value={statusFilter}
-          onChange={setStatusFilter}
-          label="Status"
-          options={[
-            ["all", "Any status"],
-            ["PUBLISHED", "Published"],
-            ["DRAFT", "Draft"],
-          ]}
-        />
-        {filtersActive ? (
-          <SystemButton variant="ghost"
-            type="button"
-            onClick={resetFilters}
-            className="flex items-center gap-1.5 px-3 justify-start"
-          >
-            <X className="h-3 w-3" /> Clear
-          </SystemButton>
-        ) : null}
-      </WorkspaceToolbar>
-
-      {filtered.length === 0 ? (
-        <EmptyInline text="No report card matches those filters." />
-      ) : prefs.view === "table" ? (
-        <DataTable
-          rows={paged.rows}
-          rowKey={(r: any) => r.id}
-          minWidth={760}
-          onRowClick={onSelect ? (r: any) => onSelect(r) : undefined}
-          sort={{ key: prefs.sortKey, dir: prefs.sortDir }}
-          onSort={(key) =>
-            patchPrefs(
-              key === prefs.sortKey
-                ? { sortDir: prefs.sortDir === "asc" ? "desc" : "asc" }
-                : { sortKey: key, sortDir: "asc" },
-            )
-          }
-          columns={[
-            {
-              key: "name",
-              label: "Student",
-              sortable: true,
-              render: (r: any) => (
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-ink-strong">
-                    {r.student?.fullName || "Student"}
-                  </p>
-                  <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    {r.student?.rollNo || "No roll"}
-                  </p>
-                </div>
-              ),
-            },
-            {
-              key: "class",
-              label: "Class",
-              sortable: true,
-              render: (r: any) => (
-                <span className="text-xs font-bold text-ink">
-                  {r.student?.class ? classLabel(r.student.class) : "—"}
-                </span>
-              ),
-            },
-            {
-              key: "exam",
-              label: "Exam",
-              sortable: true,
-              secondary: true,
-              render: (r: any) => (
-                <span className="text-xs font-bold text-ink-muted">{r.exam?.title || "—"}</span>
-              ),
-            },
-            {
-              key: "score",
-              label: "Score",
-              sortable: true,
-              align: "right",
-              render: (r: any) =>
-                r.percentage == null ? (
-                  <span className="text-2xs font-semibold text-ink-subtle">—</span>
-                ) : (
-                  <span className={cn("text-sm font-bold", scoreTone(pct(r)))}>
-                    {Math.round(pct(r))}%
-                  </span>
-                ),
-            },
-            {
-              key: "grade",
-              label: "Grade",
-              align: "center",
-              render: (r: any) => (
-                <span className="text-xs font-bold text-primary">{r.grade || "—"}</span>
-              ),
-            },
-            {
-              key: "status",
-              label: "Status",
-              align: "right",
-              render: (r: any) => <StatusPill status={r.status} />,
-            },
-          ]}
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {paged.rows.map((report: any, i: number) => (
-            <div
-              key={report.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelect?.(report)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onSelect?.(report);
-                }
-              }}
-              className="sk-panel sk-rise group/report cursor-pointer p-5 transition-all duration-300 hover:-translate-y-0.5"
-              style={{ animationDelay: `${i * 40}ms` }}
-            >
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold tracking-tight text-ink-strong">
-                    {report.student?.fullName || "Student"}
-                  </p>
-                  <p className="mt-1 truncate text-2xs font-bold text-ink-muted">
-                    {report.exam?.title || "Report"}
-                  </p>
-                </div>
-                <StatusPill status={report.status} />
-              </div>
-              <div className="flex items-end justify-between gap-3">
-                <p className="text-2xs font-semibold text-ink-muted">
-                  {report.student?.class ? classLabel(report.student.class) : "—"}
-                  {report.student?.rollNo ? ` · ${report.student.rollNo}` : ""}
-                </p>
-                <div className="text-end">
-                  {report.percentage == null ? (
-                    <p className="text-xs font-bold text-ink-subtle">No marks</p>
-                  ) : (
-                    <>
-                      <p className={cn("text-xl font-bold leading-none", scoreTone(pct(report)))}>
-                        {Math.round(pct(report))}%
-                      </p>
-                      {report.grade ? (
-                        <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
-                          Grade {report.grade}
-                        </p>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              </div>
-              {/* A score bar makes a row of cards comparable at a glance. */}
-              {report.percentage != null ? (
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      pct(report) >= 80
-                        ? "bg-emerald-500"
-                        : pct(report) >= 40
-                          ? "bg-amber-500"
-                          : "bg-rose-500",
-                    )}
-                    style={{ width: `${Math.min(100, Math.max(0, pct(report)))}%` }}
-                  />
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {filtered.length > 0 ? (
-        <div className="sk-panel px-4 py-2.5">
-          <Pagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            perPage={prefs.perPage}
-            total={filtered.length}
-            firstShown={paged.firstShown}
-            lastShown={paged.lastShown}
-            onPage={paged.setPage}
-            onPerPage={(n) => patchPrefs({ perPage: n })}
-            perPageOptions={[12, 24, 48, 96]}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
+/**
+ * Teachers on the campus. The console's PageHeader carries the view's title and its one primary action
+ * ("Invite teacher", only with the membership delegation); this panel is the list beneath it. Without
+ * `canInvite` the list is read-only: no invite, resend, cancel or revoke controls are rendered (§4.5.11).
+ */
 export function FacultyPanel({
   teachers,
   pendingInvites,
@@ -1623,6 +738,7 @@ export function FacultyPanel({
   onViewTeacher,
   onResend,
   onCancel,
+  canInvite = true,
 }: {
   teachers: any[];
   pendingInvites: any[];
@@ -1632,7 +748,10 @@ export function FacultyPanel({
   onViewTeacher: (teacher: any, visible?: any[]) => void;
   onResend: (id: string) => void;
   onCancel: (id: string) => void;
+  /** `memberships`: invite, resend, cancel and revoke. Default true for existing callers. */
+  canInvite?: boolean;
 }) {
+  const ui = useUiText();
   const [searchQuery, setSearchQuery] = useState("");
   const [facultyFilter, setFacultyFilter] = useState<"all" | "unassigned" | "classTeachers" | "onboarding">("all");
   const [sortKey, setSortKey] = useState<"name" | "subjects" | "classes">("name");
@@ -1684,38 +803,25 @@ export function FacultyPanel({
     return (
       <EmptyState
         icon={Users}
-        title="No teachers yet"
-        description="Invite your teaching staff. Once they are here you can make them class teachers and assign them subjects, which is what the timetable and marks entry are built on."
-        action={<BrandButton onClick={onInvite}>Add Teacher</BrandButton>}
+        title={ui("No teachers yet")}
+        // §4.5.11: only someone who can invite is told to invite.
+        description={canInvite
+          ? ui("Invite your teaching staff. Once they are here you can make them class teachers and assign them subjects, which is what the timetable and marks entry are built on.")
+          : ui("Teachers appear here once they are invited. Then you can make them class teachers and assign them subjects, which is what the timetable and marks entry are built on.")}
+        // The empty state repeats the PageHeader primary with the same label — the one allowed duplicate.
+        action={canInvite ? <SystemButton type="button" onClick={onInvite}><Plus aria-hidden="true" />{ui("Invite teacher")}</SystemButton> : undefined}
       />
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* ── Header: same anatomy as the academics overview ── */}
-      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
-              <Users className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Staff</p>
-              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Teachers</h2>
-            </div>
-          </div>
-          <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={onInvite}>
-            Add Teacher
-          </BrandButton>
-        </div>
-      </div>
 
       {/* ── At a glance. The last three are chores, so they filter the list. ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <MetricCard
           icon={Users}
-          label="Teachers on staff"
+          label={ui("Teachers on staff")}
           value={teachers.length}
           tone="violet"
           active={facultyFilter === "all"}
@@ -1723,25 +829,25 @@ export function FacultyPanel({
         />
         <MetricCard
           icon={BookOpen}
-          label="No subjects assigned"
+          label={ui("No subjects assigned")}
           value={unassigned}
-          hint={unassigned ? "Tap to filter" : "Everyone is teaching"}
+          hint={unassigned ? ui("Tap to filter") : ui("Everyone is teaching")}
           tone={unassigned ? "amber" : "emerald"}
           active={facultyFilter === "unassigned"}
           onClick={unassigned ? () => setFacultyFilter(facultyFilter === "unassigned" ? "all" : "unassigned") : undefined}
         />
         <MetricCard
           icon={Clock}
-          label="Invites pending"
+          label={ui("Invites pending")}
           value={pendingInvites.length}
-          hint={expiredInvites ? `${expiredInvites} expired` : pendingInvites.length ? "Awaiting sign-up" : "None outstanding"}
+          hint={expiredInvites ? ui("{0} expired", [expiredInvites]) : pendingInvites.length ? ui("Awaiting sign-up") : ui("None outstanding")}
           tone={expiredInvites ? "amber" : "teal"}
         />
         <MetricCard
           icon={UserCheck}
-          label="Onboarding unfinished"
+          label={ui("Onboarding unfinished")}
           value={onboarding}
-          hint={onboarding ? "Tap to filter" : "All set up"}
+          hint={onboarding ? ui("Tap to filter") : ui("All set up")}
           tone={onboarding ? "amber" : "emerald"}
           active={facultyFilter === "onboarding"}
           onClick={onboarding ? () => setFacultyFilter(facultyFilter === "onboarding" ? "all" : "onboarding") : undefined}
@@ -1753,12 +859,12 @@ export function FacultyPanel({
           <SearchField
             value={searchQuery}
             onChange={setSearchQuery}
-            placeholder="Name, email or phone…"
+            placeholder={ui("Name, email or phone…")}
             autoFocusKey={null}
             className="max-w-xs"
           />
           <ToolbarSelect
-            label="Show"
+            label={ui("Show")}
             value={facultyFilter}
             onChange={(v) => setFacultyFilter(v as typeof facultyFilter)}
             options={[
@@ -1769,7 +875,7 @@ export function FacultyPanel({
             ]}
           />
           <ToolbarSelect
-            label="Sort by"
+            label={ui("Sort by")}
             value={sortKey}
             onChange={(v) => setSortKey(v as typeof sortKey)}
             options={[
@@ -1778,14 +884,14 @@ export function FacultyPanel({
               ["classes", "Most classes led"],
             ]}
           />
-          <StatusPill status={`${filtered.length} of ${teachers.length} shown`} />
+          <Badge variant="neutral" className="tabular-nums">{ui("{0} of {1} shown", [filtered.length, teachers.length])}</Badge>
           {filtersActive ? (
             <SystemButton variant="ghost"
               type="button"
               onClick={() => { setFacultyFilter("all"); setSearchQuery(""); }}
               className="flex items-center gap-1.5 px-3 justify-start"
             >
-              <X className="h-3 w-3" /> Clear
+              <X aria-hidden="true" className="h-3 w-3" /> {ui("Clear")}
             </SystemButton>
           ) : null}
           <div className="ms-auto">
@@ -1836,7 +942,7 @@ export function FacultyPanel({
                       <span
                         className={cn(
                           "inline-flex min-w-[28px] justify-center rounded-full px-2 py-0.5 text-2xs font-bold",
-                          n === 0 ? "bg-amber-50 text-amber-700" : "bg-brand-50 text-primary",
+                          n === 0 ? "bg-status-warning-surface text-status-warning-text" : "bg-brand-50 text-primary",
                         )}
                       >
                         {n}
@@ -1863,24 +969,23 @@ export function FacultyPanel({
                 {
                   key: "actions",
                   label: "",
-                  align: "right",
+                  align: "end",
                   render: (t: any) => (
                     <div className="flex items-center justify-end gap-1.5">
-                      <SystemButton variant="default"
+                      <SystemButton variant="outline" size="sm"
                         type="button"
                         onClick={() => onViewTeacher(t, filtered)}
-                        className="px-3 py-1.5"
                       >
-                        Open
+                        {ui("Open")}
                       </SystemButton>
-                      <SystemButton variant="ghost"
-                        type="button"
-                        onClick={() => onRemove(t.id)}
-                        aria-label={`Remove ${t.fullName}`}
-                        className="flex items-center justify-center"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </SystemButton>
+                      {canInvite ? (
+                        <Menu
+                          label={ui("More actions")}
+                          align="end"
+                          trigger={<IconButton label={ui("More actions for {0}", [t.fullName])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+                          items={[{ id: "revoke", label: ui("Revoke access"), tone: "danger", onSelect: () => onRemove(t.id) }]}
+                        />
+                      ) : null}
                     </div>
                   ),
                 },
@@ -1893,18 +998,19 @@ export function FacultyPanel({
           {facultyPrefs.view === "table"
             ? null
             : filtered.map((teacher: any) => (
-                <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={() => onRemove(teacher.id)} />
+                <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={canInvite ? () => onRemove(teacher.id) : undefined} />
               ))}
 
           {filteredInvites.length ? (
             <>
-              <p className="pt-2 ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                Invited, not signed up yet
+              <p className="pt-2 ps-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                {ui("Invited, not signed up yet")}
               </p>
               {filteredInvites.map((invite: any) => (
                 <PendingFacultyRow
                   key={invite.id}
                   invite={invite}
+                  readOnly={!canInvite}
                   onResend={() => onResend(invite.id)}
                   onCancel={() => onCancel(invite.id)}
                 />
@@ -1953,36 +1059,37 @@ function MetricCard({
 }) {
   const tones = {
     violet: "bg-brand-100 text-primary",
-    teal: "bg-teal-50 text-teal-600",
-    amber: "bg-amber-50 text-amber-600",
-    emerald: "bg-emerald-50 text-emerald-600",
+    teal: "bg-status-info-surface text-status-info-text",
+    amber: "bg-status-warning-surface text-status-warning-text",
+    emerald: "bg-status-success-surface text-status-success-text",
   } as const;
   const interactive = Boolean(onClick);
-  const className = cn(
-    "sk-panel p-5 text-start transition-all duration-200",
-    active
-      ? "border-primary shadow-[0_4px_16px_-4px_rgba(129,39,207,0.30)]"
-      : "",
-    interactive ? "sk-hover-lift cursor-pointer" : "",
-  );
-  // A card with nothing to do is not a button — rendering it as a disabled one
-  // announced "dimmed button" to screen readers for what is just a number.
-  const Tag = interactive ? "button" : "div";
-  return (
-    <Tag
-      {...(interactive ? { type: "button" as const, onClick, "aria-pressed": Boolean(active) } : {})}
-      className={className}
-    >
+  const body = (
+    <>
       <span className={cn("flex h-10 w-10 items-center justify-center rounded-2xl", tones[tone])}>
-        <Icon className="h-5 w-5" />
+        <Icon aria-hidden="true" className="h-5 w-5" />
       </span>
-      <p className="mt-3 text-3xl font-extrabold tracking-tight text-ink-strong">{value}</p>
-      <p className="mt-1 text-xs font-semibold text-ink-muted">{label}</p>
-      {hint ? (
-        <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{hint}</p>
-      ) : null}
-    </Tag>
+      <span className="mt-3 block text-3xl font-extrabold tracking-tight text-ink-strong"><bdi>{value}</bdi></span>
+      <span className="mt-1 block text-xs font-semibold text-ink-muted">{label}</span>
+      {hint ? <span className="mt-1 block text-2xs font-semibold text-ink-subtle">{hint}</span> : null}
+    </>
   );
+  // A card with nothing to do is not a button — rendering it as a disabled one announced "dimmed button" to screen
+  // readers for what is just a number. The interactive card is the shared Button (no native control here, Rule 4).
+  if (interactive) {
+    return (
+      <SystemButton
+        type="button"
+        variant="choice"
+        aria-pressed={Boolean(active)}
+        onClick={onClick}
+        className={cn("sk-panel sk-hover-lift h-auto w-full flex-col items-start justify-start gap-0 whitespace-normal p-5 text-start", active && "border-primary shadow-brand")}
+      >
+        {body}
+      </SystemButton>
+    );
+  }
+  return <div className="sk-panel p-5 text-start">{body}</div>;
 }
 
 const STUDENT_SORTS = {
@@ -2003,20 +1110,31 @@ const STUDENT_SORTS = {
 
 type StudentSortKey = keyof typeof STUDENT_SORTS;
 
+/**
+ * The console's AI assistant. `reviewItems` is omitted for a viewer who does not approve AI drafts (a campus
+ * admin while a principal is appointed), so no review queue is shown to them; the PageHeader's "New request"
+ * focuses the composer (`AI_COMPOSER_INPUT_ID`). `hideHeading` (host-owned mode, §4.3): the hosting PageHeader
+ * already carries the title and the one primary, so the home drops its own headline and demotes its spotlight
+ * action (no second title, no second primary).
+ */
 export function AIPanel({
   features,
   insights,
   reviewItems,
   onComplete,
   title = "Campus AI",
+  campusId,
+  hideHeading = false,
 }: {
   features: any[];
   insights: any[];
-  reviewItems: any[];
+  reviewItems?: any[];
   onComplete: () => void;
   title?: string;
+  campusId?: string | null;
+  hideHeading?: boolean;
 }) {
-  return <AiWorkflowsHome title={title} features={features} insights={insights} reviewItems={reviewItems ?? []} onComplete={onComplete} />;
+  return <AiWorkflowsHome title={title} hideHeading={hideHeading} features={features} insights={insights} reviewItems={reviewItems} canReview={reviewItems !== undefined} campusId={campusId} onComplete={onComplete} />;
 }
 
 export function MoveStudentModal({
@@ -2036,6 +1154,7 @@ export function MoveStudentModal({
   onClose: () => void;
   onSave: () => void;
 }) {
+  const ui = useUiText();
   const currentClassId = student.class?.id || student.classId;
   const classGroups = groupClasses(classes);
   const selectedClass = classes.find((cls) => cls.id === classId);
@@ -2051,41 +1170,41 @@ export function MoveStudentModal({
 
   return (
     <ModalFrame
-      title="Move Student"
-      eyebrow="Class Placement"
-      subtitle="Moving a student re-issues their roll number in the new section."
+      title={ui("Move student")}
+      eyebrow={ui("Class placement")}
+      subtitle={ui("Moving a student re-issues their roll number in the new section.")}
       icon={ArrowRightLeft}
       tone="sky"
       onClose={onClose}
     >
       <div className="rounded-3xl bg-brand-50/65 p-5 mb-5">
         <p className="text-sm font-bold text-ink-strong">{student.fullName}</p>
-        <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-          Current: {classLabel(student.class)} · Roll: {student.rollNo}
+        <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+          {ui("Current: {0} · Roll: {1}", [classLabel(student.class), student.rollNo])}
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <FormSelect label="New Class" value={selectedGroupKey} onChange={selectClassGroup}>
-          <option value="">Select class</option>
+        <FormSelect label={ui("New class")} value={selectedGroupKey} onChange={selectClassGroup}>
+          <option value="">{ui("Select class")}</option>
           {classGroups.map((group) => (
             <option key={group.key} value={group.key}>
               {group.name} - {group.academicYear}
             </option>
           ))}
         </FormSelect>
-        <FormSelect label="New Section" value={classId} onChange={onClassChange}>
-          <option value="">Select section</option>
+        <FormSelect label={ui("New section")} value={classId} onChange={onClassChange}>
+          <option value="">{ui("Select section")}</option>
           {(selectedGroup?.sections || []).map((cls) => (
             <option key={cls.id} value={cls.id} disabled={cls.id === currentClassId}>
-              {cls.section ? `Section ${cls.section}` : "Whole class"}{cls.id === currentClassId ? " (current)" : ""}
+              {cls.section ? ui("Section {0}", [cls.section]) : ui("Whole class")}{cls.id === currentClassId ? " " + ui("(current)") : ""}
             </option>
           ))}
         </FormSelect>
       </div>
       {isSameClass && classId ? (
-        <p className="mt-3 text-xs font-semibold text-amber-600">Please select a different class or section to move the student.</p>
+        <p className="mt-3 text-xs font-semibold text-status-warning-text">{ui("Please select a different class or section to move the student.")}</p>
       ) : null}
-      <ModalActions busy={busy || !classId || isSameClass} busyLabel="Moving" actionLabel="Move Student" onClose={onClose} onSave={onSave} />
+      <ModalActions busy={busy || !classId || isSameClass} busyLabel={ui("Moving")} actionLabel={ui("Move student")} onClose={onClose} onSave={onSave} />
     </ModalFrame>
   );
 }
@@ -2131,13 +1250,17 @@ export function ClassDetailModal({
     subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }
   ) => Promise<boolean>;
   onChangeSubjectTeacher: (classId: string, subjectId: string, teacherId: string) => void;
-  onAddStudent: () => void;
+  /** §4.5.11: omitted for a viewer the server refuses (the principal); the control is then not rendered. */
+  onAddStudent?: () => void;
   onViewStudent: (student: any) => void;
-  onDeleteClass: (cls: any) => void;
-  onUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  /** Omitted for a read-only viewer: no Delete class control. */
+  onDeleteClass?: (cls: any) => void;
+  /** Omitted for a read-only viewer: no Edit control for the class details. */
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
+  const ui = useUiText();
   type ManageTab = "overview" | "subjects" | "students";
   const [tab, setTab] = useState<ManageTab>("overview");
   // Campus-wide teacher load/clash data, refreshed after each assignment so
@@ -2200,6 +1323,7 @@ export function ClassDetailModal({
   }, [cls.id, editingClass]);
 
   const saveClassEdit = async () => {
+    if (!onUpdateClass) return;
     await onUpdateClass(cls.id, {
       name: editClassName,
       section: editClassSection,
@@ -2232,7 +1356,7 @@ export function ClassDetailModal({
   ];
 
   return (
-    <ModalFrame title={classLabel(cls)} eyebrow="Manage Class" icon={School} onClose={onClose} wide>
+    <ModalFrame title={classLabel(cls)} eyebrow={ui("Manage class")} icon={School} onClose={onClose} wide>
       {/* Tabs — the modal used to be one long scroll mixing class settings,
           subjects and students together, which made it hard to tell what a
           given control actually affected. */}
@@ -2247,13 +1371,13 @@ export function ClassDetailModal({
               onClick={() => setTab(t.key)}
               className={cn(
                 "flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5",
-                active ? "bg-white text-primary shadow-sm" : "text-ink-muted hover:text-primary"
+                active ? "bg-card text-primary shadow-sm" : "text-ink-muted hover:text-primary"
               )}
             >
               <Icon className="h-3.5 w-3.5" />
               {t.label}
               {t.badge !== undefined ? (
-                <span className={cn("rounded-full px-1.5 py-0.5 text-3xs", active ? "bg-brand-50 text-primary" : "bg-white/70 text-ink-subtle")}>
+                <span className={cn("rounded-full px-1.5 py-0.5 text-3xs", active ? "bg-brand-50 text-primary" : "bg-card/70 text-ink-subtle")}>
                   {t.badge}
                 </span>
               ) : null}
@@ -2265,16 +1389,16 @@ export function ClassDetailModal({
       {tab === "overview" ? (
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <MiniMetric label="Students" value={students.length} active />
-            <MiniMetric label="Subjects" value={subjectCount} />
-            <MiniMetric label="Academic Year" value={cls.academicYear || "N/A"} />
+            <MiniMetric label={ui("Students")} value={students.length} active />
+            <MiniMetric label={ui("Subjects")} value={subjectCount} />
+            <MiniMetric label={ui("Academic Year")} value={cls.academicYear || "N/A"} />
           </div>
 
           {/* Teaching mode — the single most important setting on this screen,
               so it leads and explains itself rather than sitting as an
               unexplained toggle next to the teacher field. */}
           <div className="rounded-3xl bg-brand-50/65 p-5">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">How is this section taught?</p>
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("How is this section taught?")}</p>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {([
                 { mode: "SINGLE" as const, title: "One teacher", copy: "The class teacher takes every subject in this section." },
@@ -2290,8 +1414,8 @@ export function ClassDetailModal({
                     className={cn(
                       "p-4 text-start",
                       active
-                        ? "border-primary bg-white shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
-                        : "border-transparent bg-white/60 hover:border-primary/25 hover:bg-white"
+                        ? "border-primary bg-card shadow-brand"
+                        : "border-transparent bg-card/60 hover:border-primary/25 hover:bg-card"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -2304,8 +1428,8 @@ export function ClassDetailModal({
               })}
             </div>
             {teachingMode === "SINGLE" ? (
-              <p className="mt-3 rounded-2xl bg-white/70 p-3 text-2xs font-bold leading-relaxed text-ink-muted">
-                Every subject below follows the class teacher automatically — changing the class teacher updates them all.
+              <p className="mt-3 rounded-2xl bg-card/70 p-3 text-2xs font-bold leading-relaxed text-ink-muted">
+                {ui("Every subject below follows the class teacher automatically — changing the class teacher updates them all.")}
               </p>
             ) : null}
           </div>
@@ -2316,21 +1440,21 @@ export function ClassDetailModal({
           <div className="rounded-3xl bg-brand-50/65 p-5">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  {teachingMode === "SINGLE" ? "Class Teacher" : "Homeroom Teacher (optional)"}
+                <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                  {teachingMode === "SINGLE" ? ui("Class Teacher") : ui("Homeroom teacher (optional)")}
                 </p>
                 <p className="mt-1 truncate text-base font-bold tracking-tight text-ink-strong">
-                  {cls.classTeacher?.fullName || "Unassigned"}
+                  {cls.classTeacher?.fullName || ui("Unassigned")}
                 </p>
-                <p className="mt-1 truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                <p className="mt-1 truncate text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                   {teachingMode === "SINGLE"
-                    ? (cls.classTeacher?.email || "Assign a teacher to make this roster visible in the teacher dashboard.")
-                    : "Optional coordinator for this section. Subject teachers are assigned on the Subjects tab."}
+                    ? (cls.classTeacher?.email || ui("Assign a teacher to make this roster visible in the teacher dashboard."))
+                    : ui("Optional coordinator for this section. Subject teachers are assigned on the Subjects tab.")}
                 </p>
               </div>
               {cls.classTeacher?.profileImageUrl ? (
-                <div className="hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-sm sm:block">
-                  <AvatarImage src={cls.classTeacher.profileImageUrl} name={cls.classTeacher.fullName} alt="Teacher photo" initialsClassName="text-base" />
+                <div className="hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-card shadow-sm sm:block">
+                  <AvatarImage src={cls.classTeacher.profileImageUrl} name={cls.classTeacher.fullName} alt={ui("Teacher photo")} initialsClassName="text-base" />
                 </div>
               ) : null}
             </div>
@@ -2353,7 +1477,7 @@ export function ClassDetailModal({
               />
               {teachingMode === "SUBJECT" ? (
                 <p className="mt-2 text-2xs font-bold leading-relaxed text-ink-muted">
-                  This is the section coordinator, separate from the subject teachers listed on the Subjects tab.
+                  {ui("This is the section coordinator, separate from the subject teachers listed on the Subjects tab.")}
                 </p>
               ) : null}
               {teacherBusy ? (
@@ -2365,44 +1489,48 @@ export function ClassDetailModal({
           {/* Class identity + destructive actions, kept together at the bottom. */}
           <div className="sk-panel p-5">
             <div className="flex items-center justify-between gap-3">
-              <PanelTitle icon={School} title="Class details" />
-              <SystemButton variant="ghost"
-                type="button"
-                onClick={() => setEditingClass(!editingClass)}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 justify-start",
-                  editingClass ? "bg-muted text-ink-muted" : "bg-brand-50 text-primary hover:bg-brand-100"
-                )}
-              >
-                {editingClass ? "Cancel" : "Edit"}
-              </SystemButton>
+              <PanelTitle icon={School} title={ui("Class details")} />
+              {onUpdateClass ? (
+                <SystemButton variant="ghost"
+                  type="button"
+                  onClick={() => setEditingClass(!editingClass)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 justify-start",
+                    editingClass ? "bg-muted text-ink-muted" : "bg-brand-50 text-primary hover:bg-brand-100"
+                  )}
+                >
+                  {editingClass ? ui("Cancel") : ui("Edit")}
+                </SystemButton>
+              ) : null}
             </div>
-            {editingClass ? (
+            {editingClass && onUpdateClass ? (
               <div className="mt-4 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <FormInput label="Class Name" value={editClassName} placeholder="e.g. Class 10" onChange={setEditClassName} />
-                  <FormInput label="Section" value={editClassSection} placeholder="e.g. A" onChange={setEditClassSection} />
-                  <FormInput label="Academic Year" type="number" value={editClassAcademicYear} placeholder="2026" onChange={setEditClassAcademicYear} />
+                  <FormInput label={ui("Class Name")} value={editClassName} placeholder={ui("e.g. Class 10")} onChange={setEditClassName} />
+                  <FormInput label={ui("Section")} value={editClassSection} placeholder="e.g. A" onChange={setEditClassSection} />
+                  <FormInput label={ui("Academic Year")} type="number" value={editClassAcademicYear} placeholder="2026" onChange={setEditClassAcademicYear} />
                 </div>
                 <div className="flex justify-end">
                   <BrandButton variant="dark" className="h-12" onClick={saveClassEdit} disabled={classUpdateBusy}>
-                    {classUpdateBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Class Details"}
+                    {classUpdateBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Save class details")}
                   </BrandButton>
                 </div>
               </div>
             ) : (
               <div className="mt-4 flex items-center justify-between gap-3">
                 <p className="text-xs font-bold text-ink-muted">
-                  {cls.name}{cls.section ? ` · Section ${cls.section}` : ""} · {cls.academicYear}
+                  {cls.name}{cls.section ? " · " + ui("Section {0}", [cls.section]) : ""} · {cls.academicYear}
                 </p>
-                <SystemButton variant="ghost"
-                  type="button"
-                  onClick={() => onDeleteClass(cls)}
-                  className="flex shrink-0 items-center gap-1.5 px-3 justify-start"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete Class
-                </SystemButton>
+                {onDeleteClass ? (
+                  <SystemButton variant="ghost"
+                    type="button"
+                    onClick={() => onDeleteClass(cls)}
+                    className="flex shrink-0 items-center gap-1.5 px-3 justify-start"
+                  >
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                    {ui("Archive class")}
+                  </SystemButton>
+                ) : null}
               </div>
             )}
           </div>
@@ -2412,11 +1540,11 @@ export function ClassDetailModal({
       {tab === "subjects" ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <PanelTitle icon={BookOpen} title="Subjects" />
+            <PanelTitle icon={BookOpen} title={ui("Subjects")} />
             <div className="flex items-center gap-2">
               {unassignedCount > 0 && teachingMode === "SUBJECT" ? (
                 <Badge variant="warning" dot className="tabular-nums">
-                  {unassignedCount} unassigned
+                  {ui("{0} unassigned", [unassignedCount])}
                 </Badge>
               ) : null}
               <StatusPill status={teachingMode === "SINGLE" ? "One Teacher" : "Per Subject"} />
@@ -2425,8 +1553,7 @@ export function ClassDetailModal({
 
           {teachingMode === "SINGLE" ? (
             <p className="rounded-2xl bg-brand-50/60 p-4 text-2xs font-bold leading-relaxed text-ink-muted">
-              All subjects are taught by <span className="text-primary">{cls.classTeacher?.fullName || "the class teacher (unassigned)"}</span>.
-              Switch to “Teacher per subject” on the Overview tab to assign them individually.
+              {fillNodes(ui("All subjects are taught by {0}. Switch to “Teacher per subject” on the Overview tab to assign them individually."), <span className="text-primary"><bdi>{cls.classTeacher?.fullName || ui("the class teacher (unassigned)")}</bdi></span>)}
             </p>
           ) : null}
 
@@ -2438,8 +1565,8 @@ export function ClassDetailModal({
                   {isEditing ? (
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <FormInput label="Subject Name" value={editSubjectName} placeholder="Subject name" onChange={setEditSubjectName} />
-                        <FormInput label="Total Marks" type="number" value={editSubjectMarks} placeholder="100" onChange={setEditSubjectMarks} />
+                        <FormInput label={ui("Subject Name")} value={editSubjectName} placeholder={ui("Subject name")} onChange={setEditSubjectName} />
+                        <FormInput label={ui("Total Marks")} type="number" value={editSubjectMarks} placeholder="100" onChange={setEditSubjectMarks} />
                       </div>
                       <div className="flex gap-2">
                         <BrandButton
@@ -2448,14 +1575,14 @@ export function ClassDetailModal({
                           onClick={() => saveEditingSubject(subject.id)}
                           disabled={subjectUpdateBusyId === subject.id}
                         >
-                          {subjectUpdateBusyId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                          {subjectUpdateBusyId === subject.id ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Save")}
                         </BrandButton>
                         <SystemButton variant="ghost"
                           type="button"
                           onClick={() => setEditingSubjectId(null)}
                           className="h-11 px-4"
                         >
-                          Cancel
+                          {ui("Cancel")}
                         </SystemButton>
                       </div>
                     </div>
@@ -2464,15 +1591,15 @@ export function ClassDetailModal({
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-ink-strong">{subject.name}</p>
-                          <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                            {subject.teacher?.fullName || "Teacher unassigned"} {subject.totalMarks ? `- ${subject.totalMarks} marks` : ""}
+                          <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                            {subject.teacher?.fullName || ui("Teacher unassigned")} {subject.totalMarks ? "- " + ui("{0} marks", [subject.totalMarks]) : ""}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <IconButton label="Edit subject" variant="ghost" size="sm" onClick={() => startEditingSubject(subject)}>
+                          <IconButton label={ui("Edit subject")} variant="ghost" onClick={() => startEditingSubject(subject)}>
                             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                           </IconButton>
-                          <IconButton label="Delete subject" variant="ghost" size="sm" onClick={() => onDeleteSubject(subject)}>
+                          <IconButton label={ui("Delete subject")} variant="ghost" onClick={() => onDeleteSubject(subject)}>
                             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           </IconButton>
                         </div>
@@ -2506,18 +1633,18 @@ export function ClassDetailModal({
                 </div>
               );
             })}
-            {!subjectCount ? <EmptyInline text="No subjects are attached to this class yet." /> : null}
+            {!subjectCount ? <EmptyInline text={ui("No subjects are attached to this class yet.")} /> : null}
           </div>
 
           <div className="sk-panel p-4">
-            <PanelTitle icon={Plus} title="Add Subject" />
+            <PanelTitle icon={Plus} title={ui("Add Subject")} />
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <FormInput label="Subject Name" value={subjectName} placeholder="e.g. Mathematics" onChange={setSubjectName} />
-              <FormInput label="Total Marks" type="number" value={subjectMarks} placeholder="100" onChange={setSubjectMarks} />
+              <FormInput label={ui("Subject Name")} value={subjectName} placeholder={ui("e.g. Mathematics")} onChange={setSubjectName} />
+              <FormInput label={ui("Total Marks")} type="number" value={subjectMarks} placeholder="100" onChange={setSubjectMarks} />
             </div>
             {teachingMode === "SUBJECT" ? (
               <div className="mt-3">
-                <TeacherPicker label="Subject Teacher (optional)" teachers={teachers} availability={availability} assignmentMode="subject" subjectName={subjectName} value={newSubjectTeacherId} onChange={setNewSubjectTeacherId} allowUnassigned />
+                <TeacherPicker label={ui("Subject Teacher (optional)")} teachers={teachers} availability={availability} assignmentMode="subject" subjectName={subjectName} value={newSubjectTeacherId} onChange={setNewSubjectTeacherId} allowUnassigned />
               </div>
             ) : null}
             {siblingSections.length > 1 ? (
@@ -2529,24 +1656,24 @@ export function ClassDetailModal({
                 <span
                   className={cn(
                     "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
-                    applyToAllSections ? "border-primary bg-primary" : "border-edge/50 bg-white"
+                    applyToAllSections ? "border-primary bg-primary" : "border-edge/50 bg-card"
                   )}
                 >
                   {applyToAllSections ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
                 </span>
                 <span className="min-w-0">
                   <span className="block text-2xs font-bold text-ink-strong">
-                    Add to all {siblingSections.length} sections of {cls.name}
+                    {ui("Add to all {0} sections of {1}", [siblingSections.length, cls.name])}
                   </span>
                   <span className="block text-2xs font-bold text-ink-muted">
-                    Sections that already have this subject are skipped.
+                    {ui("Sections that already have this subject are skipped.")}
                   </span>
                 </span>
               </SystemButton>
             ) : null}
             <div className="mt-3 flex justify-end">
               <BrandButton variant="dark" className="h-12" onClick={createSubject} disabled={creatingSubject}>
-                {creatingSubject ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Subject"}
+                {creatingSubject ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Add Subject")}
               </BrandButton>
             </div>
           </div>
@@ -2556,10 +1683,12 @@ export function ClassDetailModal({
       {tab === "students" ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <PanelTitle icon={GraduationCap} title="Students" />
-            <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onAddStudent}>
-              Add Student
-            </BrandButton>
+            <PanelTitle icon={GraduationCap} title={ui("Students")} />
+            {onAddStudent ? (
+              <BrandButton variant="soft" icon={<Plus aria-hidden="true" />} onClick={onAddStudent}>
+                {ui("Add student")}
+              </BrandButton>
+            ) : null}
           </div>
           <div className="max-h-[420px] space-y-2 overflow-y-auto pe-1 custom-scrollbar">
             {students.map((student) => (
@@ -2569,7 +1698,7 @@ export function ClassDetailModal({
                 onClick={() => onViewStudent(student)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-start justify-start"
               >
-                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-white bg-card shadow-sm">
                   <img
                     src={resolveMediaUrl(student.profileImageUrl) ?? undefined}
                     alt=""
@@ -2578,13 +1707,13 @@ export function ClassDetailModal({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-ink-strong">{student.fullName}</p>
-                  <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    Roll {student.rollNo} - Guardian {student.guardianName || "N/A"}
+                  <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                    {ui("Roll {0} · Guardian {1}", [student.rollNo, student.guardianName || ui("Not recorded")])}
                   </p>
                 </div>
               </SystemButton>
             ))}
-            {students.length === 0 ? <EmptyInline text="No students are enrolled in this class yet." /> : null}
+            {students.length === 0 ? <EmptyInline text={ui("No students are enrolled in this class yet.")} /> : null}
           </div>
         </div>
       ) : null}
@@ -2602,29 +1731,26 @@ const STUDENT_STATUS_CHANGES = {
     label: "Archive",
     icon: Archive,
     title: "Archive this student?",
-    describe: (name: string) =>
-      `${name} comes off the active roll and stops appearing in class lists, attendance and marks entry. Their record, results and history are kept, and you can restore them at any time from Promote Students.`,
+    // EN UI key with {0} = the student's name (translated where shown).
+    describe: "{0} comes off the active roll and stops appearing in class lists, attendance and marks entry. Their record, results and history are kept, and you can restore them at any time from Year end & promotion.",
   },
   transferred: {
-    label: "Mark Transferred",
+    label: "Mark transferred",
     icon: ArrowRightLeft,
     title: "Mark as transferred out?",
-    describe: (name: string) =>
-      `${name} is recorded as having left for another school. They come off the active roll but keep their full history, and can be restored later.`,
+    describe: "{0} is recorded as having left for another school. They come off the active roll but keep their full history, and can be restored later.",
   },
   graduated: {
-    label: "Mark Graduated",
+    label: "Mark graduated",
     icon: Award,
     title: "Mark as graduated?",
-    describe: (name: string) =>
-      `${name} is recorded as having completed their schooling here. They come off the active roll and their results stay on file.`,
+    describe: "{0} is recorded as having completed their schooling here. They come off the active roll and their results stay on file.",
   },
   active: {
-    label: "Restore to Roll",
+    label: "Restore to roll",
     icon: RotateCcw,
     title: "Restore this student?",
-    describe: (name: string) =>
-      `${name} goes back onto the active roll and will appear again in class lists, attendance and marks entry.`,
+    describe: "{0} goes back onto the active roll and will appear again in class lists, attendance and marks entry.",
   },
 } as const;
 
@@ -2669,6 +1795,8 @@ export function StudentDetailModal({
   onMove,
   onDelete,
   onUpdate,
+  onOpenGuardians,
+  readOnly = false,
 }: {
   student: any;
   busy: boolean;
@@ -2679,7 +1807,12 @@ export function StudentDetailModal({
   onMove: () => void;
   onDelete: (student: any) => void;
   onUpdate: (studentId: string, updates: Record<string, any>) => Promise<void>;
+  /** M34: opens Guardians & access for this child (replaces the retired "Parent Portal Link", D14). */
+  onOpenGuardians?: () => void;
+  /** Read-only profile (principal): no Move, Archive, status change or Edit controls. */
+  readOnly?: boolean;
 }) {
+  const ui = useUiText();
   const { date: formatCalendarDate } = useLocaleFormat();
   // The roster carries a summary; address, medical notes, allergies,
   // medications and special needs live only on the full record and are fetched
@@ -2693,9 +1826,6 @@ export function StudentDetailModal({
   const avatar = student.profileImageUrl;
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [parentLink, setParentLink] = useState<string | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [generatingLink, setGeneratingLink] = useState(false);
   const [tags, setTags] = useState<{ categories: any[]; groups: any[] }>({ categories: [], groups: [] });
   const [tagsLoading, setTagsLoading] = useState(true);
   const [profileTab, setProfileTab] = useState<"overview" | "siblings" | "documents" | "timeline">("overview");
@@ -2714,15 +1844,15 @@ export function StudentDetailModal({
       .then((json) => {
         if (!active) return;
         if (json.success) setFull(json.data);
-        else setDetailError(json.error || "Could not load the full profile");
+        else setDetailError(ui(json.error || "Could not load the full profile"));
       })
       .catch(() => {
-        if (active) setDetailError("Could not load the full profile");
+        if (active) setDetailError(ui("Could not load the full profile"));
       });
     return () => {
       active = false;
     };
-  }, [summary.id]);
+  }, [summary.id, ui]);
 
   useEffect(() => {
     let active = true;
@@ -2745,36 +1875,6 @@ export function StudentDetailModal({
       active = false;
     };
   }, [summary.id]);
-
-  const generateParentLink = async () => {
-    setGeneratingLink(true);
-    try {
-      const res = await fetch("/api/parent/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: student.id }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setParentLink(json.portalUrl);
-        toast.success("Parent portal link generated (valid 30 days)");
-      } else {
-        toast.error(json.error || "Failed to generate link");
-      }
-    } catch {
-      toast.error("Failed to generate parent link");
-    } finally {
-      setGeneratingLink(false);
-    }
-  };
-
-  const copyParentLink = () => {
-    if (!parentLink) return;
-    navigator.clipboard.writeText(parentLink);
-    setLinkCopied(true);
-    toast.success("Link copied to clipboard!");
-    setTimeout(() => setLinkCopied(false), 2000);
-  };
 
   const baseline = studentDraftValues(student);
   const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full && full.id === summary.id,
@@ -2819,19 +1919,17 @@ export function StudentDetailModal({
       const saved = studentDraftValues(result.data);
       if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
       pupilDraft.markSaved(); setFull(result.data); setEditing(false);
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Save failed. Your draft is retained."); }
+    } catch (error) { toast.error(friendlyErrorMessage(error, ui("Could not save the changes. Your draft is kept."))); }
   };
 
-  const formatDob = (d: any) => {
-    if (!d) return "N/A";
-    try { return new Date(d).toLocaleDateString("en-PK", { year: "numeric", month: "long", day: "numeric" }); } catch { return "N/A"; }
-  };
+  // R7: dates follow the school's locale package, never a hard-coded "en-PK".
+  const formatDob = (d: any) => (d ? formatCalendarDate(d) : ui("Not recorded"));
 
   const genderLabel = (g: string) => {
     if (g === "MALE") return "Male";
     if (g === "FEMALE") return "Female";
     if (g === "OTHER") return "Other";
-    return g || "N/A";
+    return g || "Not recorded";
   };
 
   const relationshipLabel = (r: string) => {
@@ -2842,8 +1940,8 @@ export function StudentDetailModal({
   return (
     <ModalFrame
       title={student.fullName}
-      eyebrow="Student Profile"
-      subtitle={`${student.rollNo || "No roll number"} · ${classLabel(student.class)}`}
+      eyebrow={ui("Student profile")}
+      subtitle={`${student.rollNo || ui("No roll number")} · ${classLabel(student.class)}`}
       avatar={<AvatarImage src={avatar} name={student.fullName} initialsClassName="text-lg" />}
       chips={
         <>
@@ -2879,43 +1977,41 @@ export function StudentDetailModal({
     >
       {/* Pinned inside the scroll area: on a profile this long the actions
           and the tab strip used to scroll out of reach within one flick. */}
-      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-edge/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-edge/15 bg-card/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <SystemButton variant="default" type="button" onClick={onMove} className="flex items-center gap-1.5 px-3 justify-start">
-            <ArrowRightLeft className="h-3.5 w-3.5" />Move Class
-          </SystemButton>
-          <SystemButton variant="ghost" type="button" onClick={generateParentLink} disabled={generatingLink} className="flex items-center gap-1.5 px-3 justify-start">
-            {generatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-            Parent Portal Link
-          </SystemButton>
+          {readOnly ? null : (
+            <SystemButton variant="outline" size="sm" type="button" onClick={onMove}>
+              <ArrowRightLeft aria-hidden="true" />{ui("Move class")}
+            </SystemButton>
+          )}
+          {onOpenGuardians ? (
+            <SystemButton variant="outline" size="sm" type="button" onClick={onOpenGuardians}>
+              <Users aria-hidden="true" />{ui("Guardians")}
+            </SystemButton>
+          ) : null}
           {/*
             Leaving the roll is the common case and archiving is reversible, so
             it leads. Delete is destructive and irreversible, so it is last and
             visually quiet rather than a headline action.
           */}
-          {(isActive
+          {(readOnly ? [] : isActive
             ? (["archived", "transferred", "graduated"] as StudentStatusChange[])
             : (["active"] as StudentStatusChange[])
           ).map((key) => {
             const action = STUDENT_STATUS_CHANGES[key];
             const Icon = action.icon;
             return (
-              <SystemButton variant="ghost"
+              <SystemButton variant="outline" size="sm"
                 key={key}
                 type="button"
                 // SKO-389: archiving opens the server's dependency preview (marks, invoices, reports) first.
                 onClick={() => (key === "archived" ? onDelete(student) : setStatusChange(key))}
                 {...(key === "archived" ? { "data-archive-student": true } : {})}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 justify-start",
-                  key === "active"
-                    ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                    : "bg-amber-50 text-amber-700 hover:bg-amber-100",
-                )}
+                className={key === "active" ? "text-status-success-text" : "text-status-warning-text"}
               >
-                <Icon className="h-3.5 w-3.5" />
-                {action.label}
+                <Icon aria-hidden="true" />
+                {ui(action.label)}
               </SystemButton>
             );
           })}
@@ -2924,13 +2020,13 @@ export function StudentDetailModal({
             justify-between child starts at the left edge of the new line, so
             Edit Details lost its separation and the whole strip read as one
             undifferentiated wall of buttons. */}
-        <SystemButton variant="ghost"
+        {readOnly ? null : <SystemButton variant="ghost"
           type="button"
           // Editing is held back until the full record is in hand. A save
           // writes every field it holds, so editing a half-loaded profile
           // would blank the ones that had not arrived.
           disabled={!editing && !full}
-          title={!full ? "Loading the full profile…" : undefined}
+          title={!full ? ui("Loading the full profile…") : undefined}
           onClick={() => {
             // The editable fields only exist on Overview. Turning on edit mode
             // from Siblings/Documents/Timeline otherwise showed the Cancel and
@@ -2943,54 +2039,31 @@ export function StudentDetailModal({
             editing ? "bg-muted text-ink-muted" : "bg-brand-50 text-primary hover:bg-brand-100"
           )}
         >
-          <Pencil className="h-3.5 w-3.5" />{editing ? "Cancel" : "Edit Details"}
-        </SystemButton>
+          <Pencil className="h-3.5 w-3.5" />{editing ? ui("Cancel") : ui("Edit details")}
+        </SystemButton>}
       </div>
       <DraftRecovery draft={pupilDraft} saving={busy} excluded="Health notes, allergies, medications and special needs are not stored in device drafts." />
       {detailError ? (
         <p
           role="alert"
-          className="mx-6 mb-2 rounded-lg bg-rose-50 px-3 py-2 text-2xs font-bold text-rose-600"
+          className="mx-6 mb-2 rounded-lg bg-status-error-surface px-3 py-2 text-2xs font-bold text-status-error-text"
         >
-          {detailError} — address, medical and guardian detail may be missing, so editing is
-          disabled. Close and reopen the profile to retry.
+          {ui("{0} — address, medical and guardian detail may be missing, so editing is disabled. Close and reopen the profile to retry.", [detailError])}
         </p>
       ) : null}
 
-      {parentLink && (
-        <InputGroup surfaceClassName="bg-emerald-50" className="my-2">
-          <ExternalLink data-field-affix="start" className="h-4 w-4 text-emerald-600 shrink-0" />
-          <SystemInput type="text" readOnly value={parentLink} className="flex-1 text-emerald-800 truncate" />
-          <SystemButton variant="secondary" data-field-affix="end" data-field-action="text" type="button" onClick={copyParentLink} className="flex items-center gap-1 px-2.5 shrink-0 justify-start">
-            {linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {linkCopied ? "Copied!" : "Copy"}
-          </SystemButton>
-        </InputGroup>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        {([
-          ["overview", "Overview", User],
-          ["siblings", "Siblings", Users],
-          ["documents", "Documents", FileText],
-          ["timeline", "Timeline", History],
-        ] as const).map(([key, label, Icon]) => (
-          <SystemButton variant="ghost"
-            key={key}
-            type="button"
-            onClick={() => setProfileTab(key)}
-            className={cn(
-              "flex items-center gap-1.5 px-3.5 justify-start",
-              profileTab === key
-                ? "bg-primary text-white shadow-lg shadow-primary/20"
-                : "bg-brand-50/70 text-ink-muted hover:bg-brand-100 hover:text-primary"
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </SystemButton>
-        ))}
-      </div>
+      {/* The shared tab strip (translated labels, roving focus, a Select on phones) instead of hand-made pills. */}
+      <ViewTabs
+        items={[
+          { id: "overview", label: "Overview" },
+          { id: "siblings", label: "Siblings" },
+          { id: "documents", label: "Documents" },
+          { id: "timeline", label: "Timeline" },
+        ]}
+        value={profileTab}
+        onChange={(id) => setProfileTab(id as typeof profileTab)}
+        ariaLabel="Student profile sections"
+      />
       </div>
 
       {profileTab !== "overview" ? (
@@ -3011,71 +2084,70 @@ export function StudentDetailModal({
       {editing ? (
         <div className="mb-5 space-y-3 rounded-[24px] border border-edge/25 bg-surface-subtle p-5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormInput label="Full Name (English)" value={ed("fullName")} placeholder="Student name" onChange={(v) => setEd("fullName", v)} />
-            <FormInput label="Full Name (Urdu)" value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
+            <FormInput label={ui("Full name (English)")} value={ed("fullName")} placeholder={ui("Student name")} onChange={(v) => setEd("fullName", v)} />
+            <FormInput label={ui("Full name (Urdu)")} value={ed("nameUr")} placeholder="اردو نام" onChange={(v) => setEd("nameUr", v)} />
           </div>
-          <FormInput label="Roll Number" value={ed("rollNo")} placeholder="Roll number" onChange={(v) => setEd("rollNo", v)} />
+          <FormInput label={ui("Roll number")} value={ed("rollNo")} placeholder={ui("Roll number")} onChange={(v) => setEd("rollNo", v)} />
         </div>
       ) : null}
 
       {/* Say plainly when this profile is not on the active roll. */}
       {!isActive ? (
-        <div className="mb-4 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <Archive className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <p className="text-xs font-semibold text-amber-800">
-            This student is <b>{ARCHIVED_STATUS_LABELS[currentStatus] || currentStatus}</b> and is off the active roll —
-            they will not appear in class lists, attendance or marks entry. Use <b>Restore to Roll</b> to bring them back.
+        <div className="mb-4 flex items-start gap-2 rounded-2xl border border-status-warning-border bg-status-warning-surface px-4 py-3">
+          <Archive className="mt-0.5 h-4 w-4 shrink-0 text-status-warning-text" />
+          <p className="text-xs font-semibold text-status-warning-text">
+            {fillNodes(ui("This student is {0} and is off the active roll — they will not appear in class lists, attendance or marks entry. Use {1} to bring them back."), <b>{ui(ARCHIVED_STATUS_LABELS[currentStatus] || currentStatus)}</b>, <b>{ui("Restore to roll")}</b>)}
           </p>
         </div>
       ) : null}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-10">
-        <MiniMetric label="Roll No" value={student.rollNo || "N/A"} active />
-        <MiniMetric label="Class" value={classLabel(student.class)} />
-        <MiniMetric label="Status" value={ARCHIVED_STATUS_LABELS[currentStatus] || "Active"} />
-        <MiniMetric label="Latest Result" value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} />
+        <MiniMetric label={ui("Roll No")} value={student.rollNo || "N/A"} active />
+        <MiniMetric label={ui("Class")} value={classLabel(student.class)} />
+        <MiniMetric label={ui("Status")} value={ui(ARCHIVED_STATUS_LABELS[currentStatus] || "Active")} />
+        <MiniMetric label={ui("Latest result")} value={report ? report.grade || `${Math.round(report.percentage || 0)}%` : "N/A"} />
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Personal Info */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={User} title="Personal Info" />
+          <PanelTitle icon={User} title={ui("Personal Info")} />
           {editing ? (
             <div className="mt-4 space-y-3">
               {/* A real date picker — this used to be a free-text box that
                   silently dropped anything not typed as YYYY-MM-DD. */}
-              <FormInput label="Date of Birth" type="date" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
-              <FormSelect label="Gender" value={ed("gender")} onChange={(v) => setEd("gender", v)}>
-                <option value="">Not specified</option>
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
-                <option value="OTHER">Other</option>
+              <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} />
+              <FormSelect label={ui("Gender")} value={ed("gender")} onChange={(v) => setEd("gender", v)}>
+                <option value="">{ui("Not specified")}</option>
+                <option value="MALE">{ui("Male")}</option>
+                <option value="FEMALE">{ui("Female")}</option>
+                <option value="OTHER">{ui("Other")}</option>
               </FormSelect>
-              <FormSelect label="Blood Type" value={ed("bloodType")} onChange={(v) => setEd("bloodType", v)}>
-                <option value="">Not known</option>
+              <FormSelect label={ui("Blood type")} value={ed("bloodType")} onChange={(v) => setEd("bloodType", v)}>
+                <option value="">{ui("Not known")}</option>
                 {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
               </FormSelect>
-              <FormInput label="Nationality" value={ed("nationality")} placeholder="Pakistan" onChange={(v) => setEd("nationality", v)} />
-              <FormInput label="Phone" value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
-              <FormInput label="Previous School" value={ed("previousSchool")} placeholder="Previous school" onChange={(v) => setEd("previousSchool", v)} />
+              <FormInput label={ui("Nationality")} value={ed("nationality")} placeholder={ui("Pakistan")} onChange={(v) => setEd("nationality", v)} />
+              <FormInput label={ui("Phone")} value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
+              <FormInput label={ui("Previous school")} value={ed("previousSchool")} placeholder={ui("Previous school")} onChange={(v) => setEd("previousSchool", v)} />
               <div className="grid grid-cols-2 gap-3">
                 {tagsLoading ? (
                   <>
-                    <div className="h-10 w-full rounded-xl bg-primary/10 animate-pulse" />
-                    <div className="h-10 w-full rounded-xl bg-primary/10 animate-pulse" />
+                    <Skeleton className="h-11 w-full rounded-xl" />
+                    <Skeleton className="h-11 w-full rounded-xl" />
                   </>
                 ) : (
                   <>
-                    <FormSelect label="Category" value={ed("categoryId")} onChange={(v) => setEd("categoryId", v)}>
-                      <option value="">No category</option>
+                    <FormSelect label={ui("Category")} value={ed("categoryId")} onChange={(v) => setEd("categoryId", v)}>
+                      <option value="">{ui("No category")}</option>
                       {tags.categories
                         .filter((c) => c.isActive !== false || c.id === student.category?.id)
                         .map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                     </FormSelect>
-                    <FormSelect label="Group" value={ed("groupId")} onChange={(v) => setEd("groupId", v)}>
-                      <option value="">No group</option>
+                    <FormSelect label={ui("Group")} value={ed("groupId")} onChange={(v) => setEd("groupId", v)}>
+                      <option value="">{ui("No group")}</option>
                       {tags.groups.map((g) => (
                         <option key={g.id} value={g.id}>{g.name}</option>
                       ))}
@@ -3086,87 +2158,87 @@ export function StudentDetailModal({
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Student Login" value={student.studentUser?.email || "Not linked"} />
-              <DetailRow label="Date of Birth" value={formatCalendarDate(student.dateOfBirth)} />
-              <DetailRow label="Gender" value={genderLabel(student.gender)} />
-              <DetailRow label="Blood Type" value={student.bloodType || "N/A"} />
-              <DetailRow label="Nationality" value={student.nationality || "N/A"} />
-              <DetailRow label="Phone" value={student.phone || "N/A"} />
-              <DetailRow label="Previous School" value={student.previousSchool || "N/A"} />
-              <DetailRow label="Category" value={student.category?.name || "None"} />
-              <DetailRow label="Group" value={student.group?.name || "None"} />
-              <DetailRow label="Enrolled" value={formatDob(student.enrollmentDate)} />
+              <DetailRow label={ui("Student login")} value={student.studentUser?.email || "Not linked"} />
+              <DetailRow label={ui("Date of Birth")} value={formatCalendarDate(student.dateOfBirth)} />
+              <DetailRow label={ui("Gender")} value={ui(genderLabel(student.gender))} />
+              <DetailRow label={ui("Blood type")} value={student.bloodType || "N/A"} />
+              <DetailRow label={ui("Nationality")} value={student.nationality || "N/A"} />
+              <DetailRow label={ui("Phone")} value={student.phone || "N/A"} />
+              <DetailRow label={ui("Previous school")} value={student.previousSchool || "N/A"} />
+              <DetailRow label={ui("Category")} value={student.category?.name || "None"} />
+              <DetailRow label={ui("Group")} value={student.group?.name || "None"} />
+              <DetailRow label={ui("Enrolled")} value={formatDob(student.enrollmentDate)} />
             </div>
           )}
         </div>
 
         {/* Guardian Details */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={Users} title="Guardian" />
+          <PanelTitle icon={Users} title={ui("Guardian")} />
           {editing ? (
             <div className="mt-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <FormInput label="Name (English)" value={ed("guardianName")} placeholder="Guardian name" onChange={(v) => setEd("guardianName", v)} />
-                <FormInput label="Name (Urdu)" value={ed("guardianNameUr")} placeholder="سرپرست کا نام" onChange={(v) => setEd("guardianNameUr", v)} />
+                <FormInput label={ui("Name (English)")} value={ed("guardianName")} placeholder={ui("Guardian name")} onChange={(v) => setEd("guardianName", v)} />
+                <FormInput label={ui("Name (Urdu)")} value={ed("guardianNameUr")} placeholder="سرپرست کا نام" onChange={(v) => setEd("guardianNameUr", v)} />
               </div>
-              <FormSelect label="Relationship" value={ed("guardianRelationship")} onChange={(v) => setEd("guardianRelationship", v)}>
-                <option value="">Select</option>
-                {["FATHER","MOTHER","GUARDIAN","UNCLE","AUNT","GRANDPARENT","SIBLING"].map((r) => <option key={r} value={r}>{r.charAt(0) + r.slice(1).toLowerCase()}</option>)}
+              <FormSelect label={ui("Relationship")} value={ed("guardianRelationship")} onChange={(v) => setEd("guardianRelationship", v)}>
+                <option value="">{ui("Select")}</option>
+                {Object.entries(GUARDIAN_RELATIONSHIP_LABELS).map(([r, label]) => <option key={r} value={r}>{ui(label)}</option>)}
               </FormSelect>
-              <FormInput label="Occupation" value={ed("guardianOccupation")} placeholder="Occupation" onChange={(v) => setEd("guardianOccupation", v)} />
-              <FormInput label="Phone" value={ed("guardianPhone")} placeholder="Guardian phone" onChange={(v) => setEd("guardianPhone", v)} />
-              <FormInput label="Email" value={ed("guardianEmail")} placeholder="Guardian email" onChange={(v) => setEd("guardianEmail", v)} />
+              <FormInput label={ui("Occupation")} value={ed("guardianOccupation")} placeholder={ui("Occupation")} onChange={(v) => setEd("guardianOccupation", v)} />
+              <FormInput label={ui("Phone")} value={ed("guardianPhone")} placeholder={ui("Guardian phone")} onChange={(v) => setEd("guardianPhone", v)} />
+              <FormInput label={ui("Email")} value={ed("guardianEmail")} placeholder={ui("Guardian email")} onChange={(v) => setEd("guardianEmail", v)} />
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Name" value={student.guardianName || "N/A"} />
-              {student.guardianNameUr ? <DetailRow label="Name (Urdu)" value={<span dir="rtl">{student.guardianNameUr}</span>} /> : null}
-              <DetailRow label="Relationship" value={relationshipLabel(student.guardianRelationship)} />
-              <DetailRow label="Occupation" value={student.guardianOccupation || "N/A"} />
-              <DetailRow label="Phone" value={student.guardianPhone || student.guardianWhatsapp || "N/A"} />
-              <DetailRow label="Email" value={student.guardianEmail || "N/A"} />
+              <DetailRow label={ui("Name")} value={student.guardianName || "N/A"} />
+              {student.guardianNameUr ? <DetailRow label={ui("Name (Urdu)")} value={<span dir="rtl">{student.guardianNameUr}</span>} /> : null}
+              <DetailRow label={ui("Relationship")} value={relationshipLabel(student.guardianRelationship)} />
+              <DetailRow label={ui("Occupation")} value={student.guardianOccupation || "N/A"} />
+              <DetailRow label={ui("Phone")} value={student.guardianPhone || student.guardianWhatsapp || "N/A"} />
+              <DetailRow label={ui("Email")} value={student.guardianEmail || "N/A"} />
             </div>
           )}
         </div>
 
         {/* Address */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={MapPin} title="Address" />
+          <PanelTitle icon={MapPin} title={ui("Address")} />
           {editing ? (
             <div className="mt-4 space-y-3">
-              <FormInput label="Address" value={ed("address")} placeholder="Street address" onChange={(v) => setEd("address", v)} />
+              <FormInput label={ui("Address")} value={ed("address")} placeholder={ui("Street address")} onChange={(v) => setEd("address", v)} />
               <div className="grid grid-cols-2 gap-3">
-                <FormInput label="City" value={ed("city")} placeholder="City" onChange={(v) => setEd("city", v)} />
-                <FormInput label="Province" value={ed("province")} placeholder="Province" onChange={(v) => setEd("province", v)} />
+                <FormInput label={ui("City")} value={ed("city")} placeholder={ui("City")} onChange={(v) => setEd("city", v)} />
+                <FormInput label={ui("Province")} value={ed("province")} placeholder={ui("Province")} onChange={(v) => setEd("province", v)} />
               </div>
-              <FormInput label="Postal Code" value={ed("postalCode")} placeholder="Postal code" onChange={(v) => setEd("postalCode", v)} />
+              <FormInput label={ui("Postal Code")} value={ed("postalCode")} placeholder={ui("Postal code")} onChange={(v) => setEd("postalCode", v)} />
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Address" value={student.address || "N/A"} />
-              <DetailRow label="City" value={student.city || "N/A"} />
-              <DetailRow label="Province" value={student.province || "N/A"} />
-              <DetailRow label="Postal Code" value={student.postalCode || "N/A"} />
+              <DetailRow label={ui("Address")} value={student.address || "N/A"} />
+              <DetailRow label={ui("City")} value={student.city || "N/A"} />
+              <DetailRow label={ui("Province")} value={student.province || "N/A"} />
+              <DetailRow label={ui("Postal Code")} value={student.postalCode || "N/A"} />
             </div>
           )}
         </div>
 
         {/* Medical & Report */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={Heart} title="Medical & Health" />
+          <PanelTitle icon={Heart} title={ui("Medical and health")} />
           {editing ? (
             <div className="mt-4 space-y-3">
-              <FormInput label="Medical Notes" value={ed("medicalNotes")} placeholder="Medical conditions" onChange={(v) => setEd("medicalNotes", v)} />
-              <FormInput label="Special Needs" value={ed("specialNeeds")} placeholder="Special needs" onChange={(v) => setEd("specialNeeds", v)} />
-              <FormInput label="Allergies" value={ed("allergies")} placeholder="Allergies" onChange={(v) => setEd("allergies", v)} />
-              <FormInput label="Medications" value={ed("medications")} placeholder="Medications" onChange={(v) => setEd("medications", v)} />
+              <FormInput label={ui("Medical notes")} value={ed("medicalNotes")} placeholder={ui("Medical conditions")} onChange={(v) => setEd("medicalNotes", v)} />
+              <FormInput label={ui("Special needs")} value={ed("specialNeeds")} placeholder={ui("Special needs")} onChange={(v) => setEd("specialNeeds", v)} />
+              <FormInput label={ui("Allergies")} value={ed("allergies")} placeholder={ui("Allergies")} onChange={(v) => setEd("allergies", v)} />
+              <FormInput label={ui("Medications")} value={ed("medications")} placeholder={ui("Medications")} onChange={(v) => setEd("medications", v)} />
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Medical Notes" value={student.medicalNotes || "None"} />
-              <DetailRow label="Special Needs" value={student.specialNeeds || "None"} />
-              <DetailRow label="Allergies" value={student.allergies || "None"} />
-              <DetailRow label="Medications" value={student.medications || "None"} />
+              <DetailRow label={ui("Medical notes")} value={student.medicalNotes || "None"} />
+              <DetailRow label={ui("Special needs")} value={student.specialNeeds || "None"} />
+              <DetailRow label={ui("Allergies")} value={student.allergies || "None"} />
+              <DetailRow label={ui("Medications")} value={student.medications || "None"} />
             </div>
           )}
         </div>
@@ -3174,16 +2246,16 @@ export function StudentDetailModal({
 
       {/* Report Card */}
       <div className="sk-panel mt-5 p-5">
-        <PanelTitle icon={FileText} title="Report Card" />
+        <PanelTitle icon={FileText} title={ui("Report Card")} />
         {report ? (
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <DetailRow label="Exam" value={report.exam?.title || "N/A"} />
-            <DetailRow label="Status" value={<StatusPill status={report.status} />} />
-            <DetailRow label="Generated" value={formatDate(report.generatedAt)} />
+            <DetailRow label={ui("Exam")} value={report.exam?.title || "N/A"} />
+            <DetailRow label={ui("Status")} value={<StatusPill status={report.status} />} />
+            <DetailRow label={ui("Generated")} value={formatCalendarDate(report.generatedAt)} />
           </div>
         ) : (
           <div className="mt-4">
-            <EmptyInline text="No report card has been generated for this student yet." />
+            <EmptyInline text={ui("No report card has been generated for this student yet.")} />
           </div>
         )}
       </div>
@@ -3198,19 +2270,19 @@ export function StudentDetailModal({
       {editing ? (
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
           <BrandButton variant="soft" className="h-12" onClick={() => setEditing(false)} disabled={busy}>
-            Cancel
+            {ui("Cancel")}
           </BrandButton>
           <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Save Changes")}
           </BrandButton>
         </div>
       ) : null}
 
       <ConfirmAction
         open={Boolean(statusChange)}
-        title={statusChange ? STUDENT_STATUS_CHANGES[statusChange].title : ""}
-        description={statusChange ? STUDENT_STATUS_CHANGES[statusChange].describe(student.fullName) : ""}
-        confirmLabel={statusChange ? STUDENT_STATUS_CHANGES[statusChange].label : ""}
+        title={statusChange ? ui(STUDENT_STATUS_CHANGES[statusChange].title) : ""}
+        description={statusChange ? ui(STUDENT_STATUS_CHANGES[statusChange].describe, [student.fullName]) : ""}
+        confirmLabel={statusChange ? ui(STUDENT_STATUS_CHANGES[statusChange].label) : ""}
         tone={statusChange === "active" ? "primary" : "warning"}
         busy={statusBusy}
         onCancel={() => setStatusChange(null)}
@@ -3242,6 +2314,8 @@ export function StudentAdmissionsPanel({
   version: number;
   onVersionBump: () => void;
 }) {
+  const ui = useUiText();
+  const { date: formatWhen } = useLocaleFormat();
   const [siblings, setSiblings] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
@@ -3327,10 +2401,10 @@ export function StudentAdmissionsPanel({
       const rec = await recRes.json();
       if (!rec.success) throw new Error(rec.error || "Could not save document");
 
-      toast.success(`${kindsLabel[uploadKind] ?? "Document"} uploaded`);
+      toast.success(ui("{0} uploaded", [ui(kindsLabel[uploadKind] ?? "Document")]));
       onVersionBump();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not upload the document. Please try again.")));
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -3341,11 +2415,11 @@ export function StudentAdmissionsPanel({
     try {
       const res = await fetch(`/api/students/documents?id=${encodeURIComponent(doc.id)}`, { method: "DELETE" });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Delete failed");
-      toast.success("Document deleted");
+      if (!json.success) throw new Error(json.error || "");
+      toast.success(ui("Document deleted"));
       onVersionBump();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not delete the document. Please try again.")));
     }
   };
 
@@ -3359,12 +2433,12 @@ export function StudentAdmissionsPanel({
         body: JSON.stringify({ studentId: student.id, title: noteDraft.trim() }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Could not add note");
+      if (!json.success) throw new Error(json.error || "");
       setNoteDraft("");
-      toast.success("Note added to timeline");
+      toast.success(ui("Note added to timeline"));
       onVersionBump();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add note");
+      toast.error(friendlyErrorMessage(error, ui("Could not add the note. Please try again.")));
     } finally {
       setNoteBusy(false);
     }
@@ -3375,9 +2449,9 @@ export function StudentAdmissionsPanel({
     try {
       await onUpdate(student.id, { siblingStudentId: targetId });
       onVersionBump();
-      toast.success("Linked as siblings");
+      toast.success(ui("Linked as siblings"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Link failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not link the sibling. Please try again.")));
     } finally {
       setLinkBusy(false);
     }
@@ -3385,36 +2459,27 @@ export function StudentAdmissionsPanel({
 
   const kindLabel = (kind: string) => {
     const map: Record<string, string> = {
-      BIRTH_CERTIFICATE: "Birth Certificate",
-      TRANSFER_CERTIFICATE: "Transfer Certificate",
+      BIRTH_CERTIFICATE: "Birth certificate",
+      TRANSFER_CERTIFICATE: "Transfer certificate",
       PHOTO: "Photo",
       OTHER: "Other",
     };
-    return map[kind] || kind;
+    return ui(map[kind] || formatStatus(kind));
   };
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      // The shared skeleton pieces (one shimmer, one shape language), laid out like the sections that arrive.
+      <SkeletonRegion className="space-y-4" label={ui("Loading the profile…")}>
         <div className="sk-panel p-5">
-          <div className="h-4 w-36 rounded-lg bg-primary/10 animate-pulse" />
-          <div className="mt-4 space-y-2">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-3.5 w-40 rounded bg-primary/10 animate-pulse" />
-                  <div className="h-3 w-28 rounded bg-primary/10 animate-pulse" />
-                </div>
-                <div className="h-6 w-16 shrink-0 rounded-full bg-primary/10 animate-pulse" />
-              </div>
-            ))}
-          </div>
+          <Skeleton className="h-4 w-36 rounded-lg" />
+          <SkeletonList rows={3} className="mt-4" />
         </div>
         <div className="sk-panel p-5">
-          <div className="h-4 w-36 rounded-lg bg-primary/10 animate-pulse" />
-          <div className="mt-4 h-14 w-full max-w-xs rounded-2xl bg-primary/10 animate-pulse" />
+          <Skeleton className="h-4 w-36 rounded-lg" />
+          <Skeleton className="mt-4 h-14 w-full max-w-xs rounded-2xl" />
         </div>
-      </div>
+      </SkeletonRegion>
     );
   }
 
@@ -3422,26 +2487,26 @@ export function StudentAdmissionsPanel({
     return (
       <div className="space-y-4">
         <div className="sk-panel p-5">
-          <PanelTitle icon={Users} title="Siblings" />
+          <PanelTitle icon={Users} title={ui("Siblings")} />
           {siblings.length === 0 ? (
             <div className="mt-4">
-              <EmptyInline text="Not linked to any siblings yet. Link the student to a sibling below (or pick the guardian when admitting a new child — the group auto-links)." />
+              <EmptyInline text={ui("Not linked to any siblings yet. Link the student to a sibling below (or pick the guardian when admitting a new child — the group auto-links).")} />
             </div>
           ) : (
             <div className="mt-4 space-y-2">
               {siblings.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
+                <div key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-card/70 px-4 py-3">
                   <div>
                     <p className="text-sm font-bold text-ink-strong">
-                      {s.id === student.id ? `${s.fullName} (this student)` : s.fullName}
+                      {s.id === student.id ? ui("{0} (this student)", [s.fullName]) : s.fullName}
                     </p>
                     <p className="text-xs font-semibold text-ink-muted">
-                      {s.rollNo || "No roll"} · {classLabel(s.class)}
+                      {s.rollNo || ui("No roll")} · {classLabel(s.class)}
                     </p>
                   </div>
                   {s.id !== student.id ? (
-                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-primary">
-                      Sibling
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
+                      {ui("Sibling")}
                     </span>
                   ) : null}
                 </div>
@@ -3451,12 +2516,12 @@ export function StudentAdmissionsPanel({
         </div>
 
         <div className="sk-panel p-5">
-          <PanelTitle icon={UserCheck} title="Link a sibling" />
+          <PanelTitle icon={UserCheck} title={ui("Link a sibling")} />
           <div className="mt-4 space-y-3">
             <FormInput
-              label="Search a student by name, roll or admission no."
+              label={ui("Search a student by name, roll or admission no.")}
               value={linkSearch}
-              placeholder="e.g. Ahmed or ALG-A-001"
+              placeholder={ui("e.g. Ahmed or ALG-A-001")}
               onChange={(v) => {
                 setLinkSearch(v);
                 const q = v.trim().toLowerCase();
@@ -3473,19 +2538,19 @@ export function StudentAdmissionsPanel({
             {linkResults.length > 0 ? (
               <div className="space-y-2">
                 {linkResults.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-3">
+                  <div key={s.id} className="flex items-center justify-between gap-3 rounded-2xl bg-card/70 px-4 py-3">
                     <div>
                       <p className="text-sm font-bold text-ink-strong">{s.fullName}</p>
                       <p className="text-xs font-semibold text-ink-muted">{s.rollNo} · {classLabel(s.class)}</p>
                     </div>
-                    <BrandButton variant="soft" className="h-8 px-3 text-2xs" onClick={() => linkSiblings(s.id)} disabled={linkBusy}>
-                      {linkBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : "Link"}
-                    </BrandButton>
+                    <SystemButton type="button" variant="secondary" size="sm" loading={linkBusy} onClick={() => linkSiblings(s.id)} aria-label={ui("Link {0} as a sibling", [s.fullName])}>
+                      {ui("Link")}
+                    </SystemButton>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs font-semibold text-ink-subtle">Type at least 2 characters to search.</p>
+              <p className="text-xs font-semibold text-ink-subtle">{ui("Type at least 2 characters to search.")}</p>
             )}
           </div>
         </div>
@@ -3497,10 +2562,10 @@ export function StudentAdmissionsPanel({
     return (
       <div className="space-y-4">
         <div className="sk-panel p-5">
-          <PanelTitle icon={FileText} title="Admission Documents" />
+          <PanelTitle icon={FileText} title={ui("Admission documents")} />
           <div className="mt-4 flex flex-wrap items-end gap-3">
             <div className="w-48">
-              <FormSelect label="Document type" value={uploadKind} onChange={setUploadKind}>
+              <FormSelect label={ui("Document type")} value={uploadKind} onChange={setUploadKind}>
                 {["BIRTH_CERTIFICATE", "TRANSFER_CERTIFICATE", "PHOTO", "OTHER"].map((k) => (
                   <option key={k} value={k}>{kindLabel(k)}</option>
                 ))}
@@ -3523,13 +2588,13 @@ export function StudentAdmissionsPanel({
               onClick={() => fileInput.current?.click()}
               disabled={uploading}
             >
-              {uploading ? "Uploading…" : "Upload (max 10 MB)"}
+              {uploading ? ui("Uploading…") : ui("Upload (max 10 MB)")}
             </BrandButton>
           </div>
         </div>
 
         {documents.length === 0 ? (
-          <EmptyInline text="No documents uploaded yet." />
+          <EmptyInline text={ui("No documents uploaded yet.")} />
         ) : (
           <div className="space-y-2">
             {documents.map((doc) => (
@@ -3537,7 +2602,7 @@ export function StudentAdmissionsPanel({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-ink-strong">{doc.fileName}</p>
                   <p className="text-xs font-semibold text-ink-muted">
-                    {kindLabel(doc.kind)} · {formatDate(doc.uploadedAt)}
+                    {kindLabel(doc.kind)} · {formatWhen(doc.uploadedAt)}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -3546,9 +2611,9 @@ export function StudentAdmissionsPanel({
                       href={doc.downloadUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex h-8 items-center gap-1.5 rounded-xl bg-brand-50 px-3 text-2xs font-semibold uppercase tracking-wider text-primary hover:bg-primary hover:text-white transition-all"
+                      className="flex h-8 items-center gap-1.5 rounded-xl bg-brand-50 px-3 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary hover:bg-primary hover:text-white transition-all"
                     >
-                      <Download className="h-3 w-3" />View
+                      <Download className="h-3 w-3" />{ui("View")}
                     </a>
                   ) : null}
                   <SystemButton variant="ghost"
@@ -3570,30 +2635,30 @@ export function StudentAdmissionsPanel({
   return (
     <div className="space-y-4">
       <div className="sk-panel p-5">
-        <PanelTitle icon={History} title="Timeline" />
+        <PanelTitle icon={History} title={ui("Timeline")} />
         <div className="mt-4 flex items-end gap-3">
           <div className="flex-1">
-            <FormInput label="Add a note" value={noteDraft} placeholder="e.g. Fee discount applied, meeting held…" onChange={setNoteDraft} />
+            <FormInput label={ui("Add a note")} value={noteDraft} placeholder={ui("e.g. Fee discount applied, meeting held…")} onChange={setNoteDraft} />
           </div>
-          <BrandButton variant="dark" className="h-10" icon={<Plus className="h-4 w-4" />} onClick={addNote} disabled={noteBusy || !noteDraft.trim()}>
-            {noteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
-          </BrandButton>
+          <SystemButton type="button" variant="secondary" loading={noteBusy} disabled={!noteDraft.trim()} onClick={addNote}>
+            {noteBusy ? null : <Plus aria-hidden="true" />}{ui("Add note")}
+          </SystemButton>
         </div>
       </div>
 
       {timeline.length === 0 ? (
-        <EmptyInline text="No timeline events yet. Admissions, class transfers, fee payments and document uploads are recorded here automatically." />
+        <EmptyInline text={ui("No timeline events yet. Admissions, class transfers, fee payments and document uploads are recorded here automatically.")} />
       ) : (
         <div className="space-y-0">
           {timeline.map((ev, idx) => (
             <div key={ev.id} className="relative flex gap-3 ps-5">
               {idx < timeline.length - 1 ? <div className="absolute start-[5px] top-5 h-full w-px bg-edge/40" /> : null}
-              <div className="absolute start-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-primary bg-white" />
+              <div className="absolute start-0 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-primary bg-card" />
               <div className="pb-4">
                 <p className="text-sm font-bold text-ink-strong">{ev.title}</p>
                 {ev.detail ? <p className="text-xs font-semibold text-ink-muted">{ev.detail}</p> : null}
-                <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  {ev.kind} · {formatDate(ev.createdAt)}
+                <p className="mt-0.5 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                  {ui(TIMELINE_KIND_LABELS[ev.kind] ?? formatStatus(ev.kind))} · {formatWhen(ev.createdAt)}
                 </p>
               </div>
             </div>
@@ -3610,6 +2675,7 @@ export function TeacherDetailModal({
   onNavigate,
   onClose,
   onUpdate,
+  showStaffRecord = true,
 }: {
   teacher: any;
   /** The teachers currently on screen, for stepping between profiles. */
@@ -3617,8 +2683,12 @@ export function TeacherDetailModal({
   onNavigate?: (teacherId: string) => void;
   onClose: () => void;
   onUpdate?: (teacherId: string, updates: Record<string, any>) => Promise<void>;
+  /** M47: the Staff Record tab (salary, bank, documents) is campus operations only; the principal passes false. */
+  showStaffRecord?: boolean;
 }) {
-  const { date: formatCalendarDate } = useLocaleFormat();
+  const ui = useUiText();
+  const { date: formatCalendarDate, money: formatStaffMoney } = useLocaleFormat();
+  const { currency: schoolCurrency } = useLocale();
   const ledClasses = teacher.ledClasses || [];
   const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
@@ -3631,7 +2701,7 @@ export function TeacherDetailModal({
   const [teacherTab, setTeacherTab] = useState<"overview" | "teaching" | "record">("overview");
 
   // ── Staff Records (payroll / bank / documents / timeline) ──
-  const isStaffAdmin = Boolean(onUpdate);
+  const isStaffAdmin = Boolean(onUpdate) && showStaffRecord;
   const [staff, setStaff] = useState<any>(null);
   const [staffDocs, setStaffDocs] = useState<any[]>([]);
   const [staffTimeline, setStaffTimeline] = useState<any[]>([]);
@@ -3715,12 +2785,12 @@ export function TeacherDetailModal({
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Could not save staff record");
-      toast.success(json.events ? `Saved (${json.events} change${json.events === 1 ? "" : "s"} logged)` : "Staff record saved");
+      if (!json.success) throw new Error(json.error || "");
+      toast.success(json.events ? ui(json.events === 1 ? "Saved ({0} change logged)" : "Saved ({0} changes logged)", [json.events]) : ui("Staff record saved"));
       setEditStaff(false);
       await loadStaffRecords();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Save failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not save the staff record. Please try again.")));
     } finally {
       setStaffSaving(false);
     }
@@ -3762,10 +2832,10 @@ export function TeacherDetailModal({
       });
       const rec = await recRes.json();
       if (!rec.success) throw new Error(rec.error || "Could not save document");
-      toast.success("Document uploaded");
+      toast.success(ui("Document uploaded"));
       await loadStaffRecords();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not upload the document. Please try again.")));
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -3777,22 +2847,23 @@ export function TeacherDetailModal({
     try {
       const res = await fetch(`/api/staff/documents?id=${encodeURIComponent(doc.id)}`, { method: "DELETE" });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Delete failed");
-      toast.success("Document deleted");
+      if (!json.success) throw new Error(json.error || "");
+      toast.success(ui("Document deleted"));
       await loadStaffRecords();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not delete the document. Please try again.")));
     } finally {
       setDocBusy(null);
     }
   };
 
-  const rupee = (paisa: number) => `Rs. ${(paisa / 100).toLocaleString("en-PK")}`;
+  // R7: money and dates through the locale package (never "Rs." or a hard-coded en-PK).
+  const rupee = (minor: number) => formatStaffMoney(minor, schoolCurrency);
   const maskAccount = (num: string) =>
     num.length <= 4 ? (num ? "••••" : "") : `•••• •••• ${num.slice(-4)}`;
   const formatStaffDate = (d: any) => {
-    if (!d) return "N/A";
-    try { return new Date(d).toLocaleDateString("en-PK", { year: "numeric", month: "long", day: "numeric" }); } catch { return "N/A"; }
+    if (!d) return ui("Not recorded");
+    try { return formatCalendarDate(d instanceof Date ? d.toISOString() : String(d)); } catch { return ui("Not recorded"); }
   };
 
   useEffect(() => {
@@ -3854,45 +2925,45 @@ export function TeacherDetailModal({
   };
 
   const formatDate = (d: any) => {
-    if (!d) return "N/A";
-    try { return new Date(d).toLocaleDateString("en-PK", { year: "numeric", month: "long", day: "numeric" }); } catch { return "N/A"; }
+    if (!d) return ui("Not recorded");
+    try { return formatCalendarDate(d instanceof Date ? d.toISOString() : String(d)); } catch { return ui("Not recorded"); }
   };
 
   const genderLabel = (g: string) => {
     if (g === "MALE") return "Male";
     if (g === "FEMALE") return "Female";
     if (g === "OTHER") return "Other";
-    return g || "N/A";
+    return g || "Not recorded";
   };
 
   return (
     <ModalFrame
       title={teacher.fullName}
-      eyebrow="Teacher Profile"
-      subtitle={teacher.email || "No email on file"}
+      eyebrow={ui("Teacher profile")}
+      subtitle={teacher.email || ui("No email on file")}
       avatar={<AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-lg" />}
       chips={
         <>
           <span
             className={cn(
-              "inline-flex items-center rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
+              "inline-flex items-center rounded-full px-2.5 py-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider",
               (teacher._count?.taughtSubjects || taughtSubjects.length) === 0
-                ? "bg-amber-50 text-amber-600"
-                : "bg-emerald-50 text-emerald-600",
+                ? "bg-status-warning-surface text-status-warning-text"
+                : "bg-status-success-surface text-status-success-text",
             )}
           >
             {(teacher._count?.taughtSubjects || taughtSubjects.length) === 0
-              ? "No subjects"
-              : `${teacher._count?.taughtSubjects || taughtSubjects.length} subjects`}
+              ? ui("No subjects")
+              : ui("{0} subjects", [teacher._count?.taughtSubjects || taughtSubjects.length])}
           </span>
           {(teacher._count?.ledClasses || ledClasses.length) > 0 ? (
             <Badge variant="info">
-              Class teacher · {teacher._count?.ledClasses || ledClasses.length}
+              {ui("Class teacher · {0}", [teacher._count?.ledClasses || ledClasses.length])}
             </Badge>
           ) : null}
           {!teacher.onboardingComplete ? (
             <Badge variant="warning">
-              Onboarding pending
+              {ui("Onboarding pending")}
             </Badge>
           ) : null}
         </>
@@ -3911,7 +2982,7 @@ export function TeacherDetailModal({
       wide
     >
       {/* Pinned inside the scroll area so the tab strip and Edit stay reachable. */}
-      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-edge/15 bg-white/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-edge/15 bg-card/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/*
           Tabs, matching the student profile. This dialog used to be a single
@@ -3919,29 +2990,17 @@ export function TeacherDetailModal({
           classes, subjects, payroll, bank, documents, timeline — so finding
           anything below the fold meant scrolling past everything above it.
         */}
-        <div className="flex flex-wrap items-center gap-2">
-          {(
-            [
-              ["overview", "Overview", User],
-              ["teaching", "Teaching", BookOpen],
-              ...(isStaffAdmin ? ([["record", "Staff Record", Wallet]] as const) : []),
-            ] as const
-          ).map(([key, label, Icon]) => (
-            <SystemButton variant="ghost"
-              key={key}
-              type="button"
-              onClick={() => setTeacherTab(key)}
-              className={cn(
-                "flex items-center gap-1.5 px-3.5 justify-start",
-                teacherTab === key
-                  ? "bg-primary text-white shadow-lg shadow-primary/20"
-                  : "bg-brand-50/70 text-ink-muted hover:bg-brand-100 hover:text-primary",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </SystemButton>
-          ))}
+        <div className="min-w-0 flex-1">
+          <ViewTabs
+            items={[
+              { id: "overview", label: "Overview" },
+              { id: "teaching", label: "Teaching" },
+              { id: "record", label: "Staff record", hidden: !isStaffAdmin },
+            ]}
+            value={teacherTab}
+            onChange={(id) => setTeacherTab(id as typeof teacherTab)}
+            ariaLabel="Teacher profile sections"
+          />
         </div>
         {onUpdate && teacherTab === "overview" ? (
           <SystemButton variant="ghost"
@@ -3953,7 +3012,7 @@ export function TeacherDetailModal({
             )}
           >
             <Pencil className="h-3 w-3" />
-            {editing ? "Cancel" : "Edit Details"}
+            {editing ? ui("Cancel") : ui("Edit details")}
           </SystemButton>
         ) : null}
       </div>
@@ -3963,16 +3022,16 @@ export function TeacherDetailModal({
       {/* Photo, name, email and flags are all in the dialog header now. */}
       {editing ? (
         <div className="mb-5 rounded-[24px] border border-edge/25 bg-surface-subtle p-5">
-          <FormInput label="Full Name" value={ed("fullName")} placeholder="Teacher name" onChange={(v) => setEd("fullName", v)} />
+          <FormInput label={ui("Full Name")} value={ed("fullName")} placeholder={ui("Teacher name")} onChange={(v) => setEd("fullName", v)} />
         </div>
       ) : null}
 
       {/* ── Quick Stats ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-10">
-        <MiniMetric label="Subjects" value={teacher._count?.taughtSubjects || taughtSubjects.length} active />
-        <MiniMetric label="Class Teacher" value={teacher._count?.ledClasses || ledClasses.length} />
-        <MiniMetric label="Status" value={teacher.isActive ? "Active" : "Inactive"} />
-        <MiniMetric label="Onboarding" value={teacher.onboardingComplete ? "Done" : "Pending"} />
+        <MiniMetric label={ui("Subjects")} value={teacher._count?.taughtSubjects || taughtSubjects.length} active />
+        <MiniMetric label={ui("Class Teacher")} value={teacher._count?.ledClasses || ledClasses.length} />
+        <MiniMetric label={ui("Status")} value={teacher.isActive ? "Active" : "Inactive"} />
+        <MiniMetric label={ui("Onboarding")} value={teacher.onboardingComplete ? "Done" : "Pending"} />
       </div>
 
       {/* ── Profile Sections ── */}
@@ -3981,7 +3040,7 @@ export function TeacherDetailModal({
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Personal Info */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={User} title="Personal Info" />
+          <PanelTitle icon={User} title={ui("Personal Info")} />
           {editing ? (
             <div className="mt-4 space-y-3">
               {/*
@@ -3990,57 +3049,57 @@ export function TeacherDetailModal({
                 editable, accepted nothing, and gave no reason why.
               */}
               <div>
-                <span className="sk-field-label">Email</span>
+                <span className="sk-field-label">{ui("Email")}</span>
                 <div className="flex h-14 w-full items-center rounded-2xl border border-edge/20 bg-muted px-4 text-sm font-bold text-ink-muted">
                   <Lock className="me-2 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
-                  <span className="truncate">{teacher.email || "No email"}</span>
+                  <span className="truncate">{teacher.email || ui("No email")}</span>
                 </div>
                 <p className="mt-1.5 ps-2 text-2xs font-semibold text-ink-subtle">
-                  This is the teacher&apos;s sign-in address and cannot be changed here.
+                  {ui("This is the teacher's sign-in address and cannot be changed here.")}
                 </p>
               </div>
-              <FormInput label="Phone" value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
-              <FormInput label="CNIC" value={ed("cnic")} placeholder="12345-1234567-1" onChange={(v) => setEd("cnic", v)} />
+              <FormInput label={ui("Phone")} value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
+              <FormInput label={ui("CNIC")} value={ed("cnic")} placeholder="12345-1234567-1" onChange={(v) => setEd("cnic", v)} />
               {/* A real date picker — this used to be a free-text box that
                   silently dropped anything not typed as YYYY-MM-DD. */}
-              <FormInput label="Date of Birth" type="date" value={ed("dateOfBirth")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("dateOfBirth", v)} />
-              <FormSelect label="Gender" value={ed("gender")} onChange={(v) => setEd("gender", v)}>
-                <option value="">Not specified</option>
-                <option value="MALE">Male</option>
-                <option value="FEMALE">Female</option>
-                <option value="OTHER">Other</option>
+              <FormInput label={ui("Date of Birth")} type="date" value={ed("dateOfBirth")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("dateOfBirth", v)} />
+              <FormSelect label={ui("Gender")} value={ed("gender")} onChange={(v) => setEd("gender", v)}>
+                <option value="">{ui("Not specified")}</option>
+                <option value="MALE">{ui("Male")}</option>
+                <option value="FEMALE">{ui("Female")}</option>
+                <option value="OTHER">{ui("Other")}</option>
               </FormSelect>
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Email" value={teacher.email || "N/A"} />
-              <DetailRow label="Phone" value={teacher.phone || "N/A"} />
-              <DetailRow label="CNIC" value={teacher.cnic || "N/A"} />
-              <DetailRow label="Date of Birth" value={formatCalendarDate(teacher.dateOfBirth)} />
-              <DetailRow label="Gender" value={genderLabel(teacher.gender)} />
+              <DetailRow label={ui("Email")} value={teacher.email || "N/A"} />
+              <DetailRow label={ui("Phone")} value={teacher.phone || "N/A"} />
+              <DetailRow label={ui("CNIC")} value={teacher.cnic || "N/A"} />
+              <DetailRow label={ui("Date of Birth")} value={formatCalendarDate(teacher.dateOfBirth)} />
+              <DetailRow label={ui("Gender")} value={ui(genderLabel(teacher.gender))} />
             </div>
           )}
         </div>
 
         {/* Professional Details */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={Briefcase} title="Professional" />
+          <PanelTitle icon={Briefcase} title={ui("Professional")} />
           {editing ? (
             <div className="mt-4 space-y-3">
-              <FormSelect label="Qualification" value={ed("qualification")} onChange={(v) => setEd("qualification", v)}>
-                <option value="">Select qualification</option>
-                <option value="Matric">Matric</option>
-                <option value="Intermediate">Intermediate</option>
-                <option value="Bachelors">Bachelors</option>
-                <option value="Masters">Masters</option>
-                <option value="MPhil">MPhil</option>
-                <option value="PhD">PhD</option>
-                <option value="B.Ed">B.Ed</option>
-                <option value="M.Ed">M.Ed</option>
+              <FormSelect label={ui("Qualification")} value={ed("qualification")} onChange={(v) => setEd("qualification", v)}>
+                <option value="">{ui("Select qualification")}</option>
+                <option value="Matric">{ui("Matric")}</option>
+                <option value="Intermediate">{ui("Intermediate")}</option>
+                <option value="Bachelors">{ui("Bachelors")}</option>
+                <option value="Masters">{ui("Masters")}</option>
+                <option value="MPhil">{ui("MPhil")}</option>
+                <option value="PhD">{ui("PhD")}</option>
+                <option value="B.Ed">{ui("B.Ed")}</option>
+                <option value="M.Ed">{ui("M.Ed")}</option>
               </FormSelect>
-              <FormInput label="Experience" value={ed("experience")} placeholder="e.g. 5 years" onChange={(v) => setEd("experience", v)} />
+              <FormInput label={ui("Experience")} value={ed("experience")} placeholder={ui("e.g. 5 years")} onChange={(v) => setEd("experience", v)} />
               {/* Was free text; anything not typed as YYYY-MM-DD was dropped. */}
-              <FormInput label="Joining Date" type="date" value={ed("joiningDate")} placeholder="YYYY-MM-DD" onChange={(v) => setEd("joiningDate", v)} />
+              <FormInput label={ui("Joining Date")} type="date" value={ed("joiningDate")} placeholder={ui("YYYY-MM-DD")} onChange={(v) => setEd("joiningDate", v)} />
               <div className="sm:col-span-2">
                 <SpecialtyEditor
                   specialties={specialties}
@@ -4060,60 +3119,60 @@ export function TeacherDetailModal({
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Qualification" value={teacher.qualification || "N/A"} />
+              <DetailRow label={ui("Qualification")} value={teacher.qualification || "N/A"} />
               <DetailRow
-                label="Teaches"
+                label={ui("Teaches")}
                 value={teachesAll ? "All subjects" : specialties.length ? specialties.join(", ") : "Not set"}
               />
-              <DetailRow label="Experience" value={teacher.experience || "N/A"} />
-              <DetailRow label="Joining Date" value={formatCalendarDate(teacher.joiningDate)} />
+              <DetailRow label={ui("Experience")} value={teacher.experience || "N/A"} />
+              <DetailRow label={ui("Joining Date")} value={formatCalendarDate(teacher.joiningDate)} />
             </div>
           )}
         </div>
 
         {/* Address */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={MapPin} title="Address" />
+          <PanelTitle icon={MapPin} title={ui("Address")} />
           {editing ? (
             <div className="mt-4 space-y-3">
-              <FormInput label="Address" value={ed("address")} placeholder="Street address" onChange={(v) => setEd("address", v)} />
+              <FormInput label={ui("Address")} value={ed("address")} placeholder={ui("Street address")} onChange={(v) => setEd("address", v)} />
               <div className="grid grid-cols-2 gap-3">
-                <FormInput label="City" value={ed("city")} placeholder="City" onChange={(v) => setEd("city", v)} />
-                <FormSelect label="Province" value={ed("province")} onChange={(v) => setEd("province", v)}>
-                  <option value="">Select province</option>
-                  <option value="Punjab">Punjab</option>
-                  <option value="Sindh">Sindh</option>
-                  <option value="KPK">KPK</option>
-                  <option value="Balochistan">Balochistan</option>
-                  <option value="Islamabad">Islamabad</option>
-                  <option value="AJK">AJK</option>
-                  <option value="Gilgit-Baltistan">Gilgit-Baltistan</option>
+                <FormInput label={ui("City")} value={ed("city")} placeholder={ui("City")} onChange={(v) => setEd("city", v)} />
+                <FormSelect label={ui("Province")} value={ed("province")} onChange={(v) => setEd("province", v)}>
+                  <option value="">{ui("Select province")}</option>
+                  <option value="Punjab">{ui("Punjab")}</option>
+                  <option value="Sindh">{ui("Sindh")}</option>
+                  <option value="KPK">{ui("KPK")}</option>
+                  <option value="Balochistan">{ui("Balochistan")}</option>
+                  <option value="Islamabad">{ui("Islamabad")}</option>
+                  <option value="AJK">{ui("AJK")}</option>
+                  <option value="Gilgit-Baltistan">{ui("Gilgit-Baltistan")}</option>
                 </FormSelect>
               </div>
-              <FormInput label="Postal Code" value={ed("postalCode")} placeholder="Postal code" onChange={(v) => setEd("postalCode", v)} />
+              <FormInput label={ui("Postal Code")} value={ed("postalCode")} placeholder={ui("Postal code")} onChange={(v) => setEd("postalCode", v)} />
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Address" value={teacher.address || "N/A"} />
-              <DetailRow label="City" value={teacher.city || "N/A"} />
-              <DetailRow label="Province" value={teacher.province || "N/A"} />
-              <DetailRow label="Postal Code" value={teacher.postalCode || "N/A"} />
+              <DetailRow label={ui("Address")} value={teacher.address || "N/A"} />
+              <DetailRow label={ui("City")} value={teacher.city || "N/A"} />
+              <DetailRow label={ui("Province")} value={teacher.province || "N/A"} />
+              <DetailRow label={ui("Postal Code")} value={teacher.postalCode || "N/A"} />
             </div>
           )}
         </div>
 
         {/* Emergency Contact */}
         <div className="sk-panel p-5">
-          <PanelTitle icon={Shield} title="Emergency Contact" />
+          <PanelTitle icon={Shield} title={ui("Emergency contact")} />
           {editing ? (
             <div className="mt-4 space-y-3">
-              <FormInput label="Contact Person" value={ed("emergencyContact")} placeholder="Emergency contact name" onChange={(v) => setEd("emergencyContact", v)} />
-              <FormInput label="Contact Phone" value={ed("emergencyPhone")} placeholder="Emergency phone" onChange={(v) => setEd("emergencyPhone", v)} />
+              <FormInput label={ui("Contact Person")} value={ed("emergencyContact")} placeholder={ui("Emergency contact name")} onChange={(v) => setEd("emergencyContact", v)} />
+              <FormInput label={ui("Contact Phone")} value={ed("emergencyPhone")} placeholder={ui("Emergency phone")} onChange={(v) => setEd("emergencyPhone", v)} />
             </div>
           ) : (
             <div className="mt-4 space-y-3">
-              <DetailRow label="Contact Person" value={teacher.emergencyContact || "N/A"} />
-              <DetailRow label="Contact Phone" value={teacher.emergencyPhone || "N/A"} />
+              <DetailRow label={ui("Contact Person")} value={teacher.emergencyContact || "N/A"} />
+              <DetailRow label={ui("Contact Phone")} value={teacher.emergencyPhone || "N/A"} />
             </div>
           )}
         </div>
@@ -4122,10 +3181,10 @@ export function TeacherDetailModal({
       {editing ? (
         <div className="mt-6 flex justify-end gap-3">
           <BrandButton variant="soft" className="h-12" onClick={() => setEditing(false)} disabled={saving}>
-            Cancel
+            {ui("Cancel")}
           </BrandButton>
           <BrandButton variant="dark" className="h-12" onClick={saveEdits} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Save Changes")}
           </BrandButton>
         </div>
       ) : null}
@@ -4137,37 +3196,37 @@ export function TeacherDetailModal({
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <PanelTitle icon={School} title="Led Classes" />
-            <StatusPill status={`${ledClasses.length} Classes`} />
+            <PanelTitle icon={School} title={ui("Classes led")} />
+            <Badge variant="neutral" className="tabular-nums">{ledClasses.length === 1 ? ui("1 class") : ui("{0} classes", [ledClasses.length])}</Badge>
           </div>
           <div className="space-y-2">
             {ledClasses.map((cls: any) => (
               <div key={cls.id} className="rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
                 <p className="text-sm font-bold text-ink-strong">{classLabel(cls)}</p>
-                <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  {cls._count?.students || 0} students - {cls._count?.subjects || 0} subjects
+                <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                  {ui("{0} students · {1} subjects", [cls._count?.students || 0, cls._count?.subjects || 0])}
                 </p>
               </div>
             ))}
-            {ledClasses.length === 0 ? <EmptyInline text="This teacher is not the class teacher for any class yet." /> : null}
+            {ledClasses.length === 0 ? <EmptyInline text={ui("This teacher is not the class teacher for any class yet.")} /> : null}
           </div>
         </div>
 
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <PanelTitle icon={BookOpen} title="Taught Subjects" />
-            <StatusPill status={`${taughtSubjects.length} Subjects`} />
+            <PanelTitle icon={BookOpen} title={ui("Subjects taught")} />
+            <Badge variant="neutral" className="tabular-nums">{taughtSubjects.length === 1 ? ui("1 subject") : ui("{0} subjects", [taughtSubjects.length])}</Badge>
           </div>
           <div className="space-y-2">
             {taughtSubjects.map((subject: any) => (
               <div key={subject.id} className="rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
                 <p className="text-sm font-bold text-ink-strong">{subject.name}</p>
-                <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  {classLabel(subject.class)} - {subject.totalMarks || 100} marks
+                <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                  {ui("{0} · {1} marks", [classLabel(subject.class), subject.totalMarks || 100])}
                 </p>
               </div>
             ))}
-            {taughtSubjects.length === 0 ? <EmptyInline text="No subjects are assigned to this teacher yet. Assign them under Academics → Classes & Subjects, otherwise they cannot be placed on a timetable or enter marks." /> : null}
+            {taughtSubjects.length === 0 ? <EmptyInline text={ui("No subjects are assigned to this teacher yet. Assign them in Classes & subjects; until then they cannot be placed on a timetable or enter marks.")} /> : null}
           </div>
         </div>
       </div>
@@ -4177,12 +3236,12 @@ export function TeacherDetailModal({
         <div className="mt-6 rounded-3xl border border-edge/20 bg-brand-50/40 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-brand">
                 <Wallet className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold tracking-tight text-ink-strong">Staff Records</h3>
-                <p className="text-2xs font-bold text-ink-muted">Payroll · Bank · Documents · Timeline</p>
+                <h3 className="text-base font-bold tracking-tight text-ink-strong">{ui("Staff records")}</h3>
+                <p className="text-2xs font-bold text-ink-muted">{ui("Payroll · Bank · Documents · Timeline")}</p>
               </div>
             </div>
             <BrandButton
@@ -4190,47 +3249,47 @@ export function TeacherDetailModal({
               icon={editStaff ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
               onClick={editStaff ? () => setEditStaff(false) : openStaffEditor}
             >
-              {editStaff ? "Cancel Edit" : staff?.staffProfile ? "Edit Staff Record" : "Set Up Staff Record"}
+              {editStaff ? ui("Cancel") : staff?.staffProfile ? ui("Edit staff record") : ui("Set up staff record")}
             </BrandButton>
           </div>
 
           {editStaff ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <div className="sk-panel p-5">
-                <PanelTitle icon={Banknote} title="Payroll" />
+                <PanelTitle icon={Banknote} title={ui("Payroll")} />
                 <div className="mt-4 space-y-3">
-                  <FormInput label="Designation" value={staffForm.designation || ""} placeholder="e.g. Senior Maths Teacher" onChange={(v) => setStaffForm((p) => ({ ...p, designation: v }))} />
-                  <FormSelect label="Contract Type" value={staffForm.contractType || ""} onChange={(v) => setStaffForm((p) => ({ ...p, contractType: v }))}>
-                    <option value="">Not specified</option>
-                    <option value="PERMANENT">Permanent</option>
-                    <option value="CONTRACT">Contract</option>
-                    <option value="PART_TIME">Part-time</option>
+                  <FormInput label={ui("Designation")} value={staffForm.designation || ""} placeholder={ui("e.g. Senior Maths Teacher")} onChange={(v) => setStaffForm((p) => ({ ...p, designation: v }))} />
+                  <FormSelect label={ui("Contract type")} value={staffForm.contractType || ""} onChange={(v) => setStaffForm((p) => ({ ...p, contractType: v }))}>
+                    <option value="">{ui("Not specified")}</option>
+                    <option value="PERMANENT">{ui("Permanent")}</option>
+                    <option value="CONTRACT">{ui("Contract")}</option>
+                    <option value="PART_TIME">{ui("Part-time")}</option>
                   </FormSelect>
-                  <FormInput label="Basic Salary (Rs / month)" type="number" value={staffForm.basicSalary || ""} placeholder="e.g. 85000" onChange={(v) => setStaffForm((p) => ({ ...p, basicSalary: v }))} />
-                  <AmountRowsEditor title="Allowances" rows={allowances} onChange={setAllowances} />
-                  <AmountRowsEditor title="Deductions" rows={deductions} onChange={setDeductions} />
+                  <FormInput label={ui("Basic salary (per month)")} type="number" value={staffForm.basicSalary || ""} placeholder="e.g. 85000" onChange={(v) => setStaffForm((p) => ({ ...p, basicSalary: v }))} />
+                  <AmountRowsEditor title={ui("Allowances")} rows={allowances} onChange={setAllowances} />
+                  <AmountRowsEditor title={ui("Deductions")} rows={deductions} onChange={setDeductions} />
                 </div>
               </div>
               <div className="sk-panel p-5">
-                <PanelTitle icon={Landmark} title="Bank Details" />
-                <p className="mt-1 text-2xs font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
+                <PanelTitle icon={Landmark} title={ui("Bank details")} />
+                <p className="mt-1 text-2xs font-bold text-ink-subtle">{ui("Sensitive — only visible to administrators")}</p>
                 <div className="mt-4 space-y-3">
-                  <FormInput label="Account Holder Name" value={staffForm.bankAccountName || ""} placeholder="Name on account" onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountName: v }))} />
-                  <FormInput label="Account Number" value={staffForm.bankAccountNumber || ""} placeholder="IBAN / account number" onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountNumber: v }))} />
-                  <FormInput label="Bank Name" value={staffForm.bankName || ""} placeholder="e.g. HBL, Meezan" onChange={(v) => setStaffForm((p) => ({ ...p, bankName: v }))} />
+                  <FormInput label={ui("Account holder name")} value={staffForm.bankAccountName || ""} placeholder={ui("Name on account")} onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountName: v }))} />
+                  <FormInput label={ui("Account Number")} value={staffForm.bankAccountNumber || ""} placeholder={ui("IBAN / account number")} onChange={(v) => setStaffForm((p) => ({ ...p, bankAccountNumber: v }))} />
+                  <FormInput label={ui("Bank Name")} value={staffForm.bankName || ""} placeholder={ui("e.g. HBL, Meezan")} onChange={(v) => setStaffForm((p) => ({ ...p, bankName: v }))} />
                 </div>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <div className="sk-panel p-5">
-                <PanelTitle icon={Banknote} title="Payroll" />
+                <PanelTitle icon={Banknote} title={ui("Payroll")} />
                 <div className="mt-4 space-y-3">
-                  <DetailRow label="Designation" value={staff?.staffProfile?.designation || "Not set"} />
-                  <DetailRow label="Contract Type" value={staff?.staffProfile?.contractType ? staff.staffProfile.contractType.replace("_", " ") : "Not set"} />
-                  <DetailRow label="Basic Salary" value={staff?.staffProfile ? rupee(staff.staffProfile.basicSalary) : "Not set"} />
+                  <DetailRow label={ui("Designation")} value={staff?.staffProfile?.designation || "Not set"} />
+                  <DetailRow label={ui("Contract type")} value={staff?.staffProfile?.contractType ? staff.staffProfile.contractType.replace("_", " ") : "Not set"} />
+                  <DetailRow label={ui("Basic salary")} value={staff?.staffProfile ? rupee(staff.staffProfile.basicSalary) : "Not set"} />
                   <DetailRow
-                    label="Allowances"
+                    label={ui("Allowances")}
                     value={
                       staff?.staffProfile?.allowancesJson
                         ? Object.entries(staff.staffProfile.allowancesJson as Record<string, number>)
@@ -4240,7 +3299,7 @@ export function TeacherDetailModal({
                     }
                   />
                   <DetailRow
-                    label="Deductions"
+                    label={ui("Deductions")}
                     value={
                       staff?.staffProfile?.deductionsJson
                         ? Object.entries(staff.staffProfile.deductionsJson as Record<string, number>)
@@ -4252,12 +3311,12 @@ export function TeacherDetailModal({
                 </div>
               </div>
               <div className="sk-panel p-5">
-                <PanelTitle icon={Landmark} title="Bank Details" />
-                <p className="mt-1 text-2xs font-bold text-ink-subtle">Sensitive — only visible to administrators</p>
+                <PanelTitle icon={Landmark} title={ui("Bank details")} />
+                <p className="mt-1 text-2xs font-bold text-ink-subtle">{ui("Sensitive — only visible to administrators")}</p>
                 <div className="mt-4 space-y-3">
-                  <DetailRow label="Account Holder" value={staff?.staffProfile?.bankAccountName || "Not set"} />
-                  <DetailRow label="Account Number" value={staff?.staffProfile?.bankAccountNumber ? maskAccount(staff.staffProfile.bankAccountNumber) : "Not set"} />
-                  <DetailRow label="Bank" value={staff?.staffProfile?.bankName || "Not set"} />
+                  <DetailRow label={ui("Account holder")} value={staff?.staffProfile?.bankAccountName || "Not set"} />
+                  <DetailRow label={ui("Account Number")} value={staff?.staffProfile?.bankAccountNumber ? maskAccount(staff.staffProfile.bankAccountNumber) : "Not set"} />
+                  <DetailRow label={ui("Bank")} value={staff?.staffProfile?.bankName || "Not set"} />
                 </div>
               </div>
             </div>
@@ -4266,30 +3325,30 @@ export function TeacherDetailModal({
           {editStaff ? (
             <div className="mt-5 flex justify-end">
               <BrandButton variant="dark" className="h-11" onClick={saveStaff} disabled={staffSaving}>
-                {staffSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Staff Record"}
+                {staffSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : ui("Save staff record")}
               </BrandButton>
             </div>
           ) : null}
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="sk-panel p-5">
-              <PanelTitle icon={FileText} title="Documents" />
+              <PanelTitle icon={FileText} title={ui("Documents")} />
               <div className="mt-4 space-y-2">
                 {staffDocs.length === 0 ? (
-                  <EmptyInline text="No documents uploaded yet." />
+                  <EmptyInline text={ui("No documents uploaded yet.")} />
                 ) : (
                   staffDocs.map((doc) => (
                     <div key={doc.id} className="flex items-center gap-3 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-primary">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-primary">
                         <FileText className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-bold text-ink-strong">{doc.fileName}</p>
-                        <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+                        <p className="mt-0.5 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                           {doc.kind} · {formatStaffDate(doc.uploadedAt)}
                         </p>
                       </div>
-                      <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-white hover:text-primary">
+                      <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-card hover:text-primary">
                         <Download className="h-4 w-4" />
                       </a>
                       <SystemButton variant="ghost" type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex items-center justify-center">
@@ -4300,12 +3359,12 @@ export function TeacherDetailModal({
                 )}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <FormSelect label="" value={uploadKind} onChange={setUploadKind}>
-                    <option value="CV">CV</option>
-                    <option value="CNIC">CNIC</option>
-                    <option value="DEGREE">Degree</option>
-                    <option value="CONTRACT">Contract</option>
-                    <option value="PHOTO">Photo</option>
-                    <option value="OTHER">Other</option>
+                    <option value="CV">{ui("CV")}</option>
+                    <option value="CNIC">{ui("CNIC")}</option>
+                    <option value="DEGREE">{ui("Degree")}</option>
+                    <option value="CONTRACT">{ui("Contract")}</option>
+                    <option value="PHOTO">{ui("Photo")}</option>
+                    <option value="OTHER">{ui("Other")}</option>
                   </FormSelect>
                   <input
                     ref={fileInput}
@@ -4317,28 +3376,28 @@ export function TeacherDetailModal({
                       if (file) uploadStaffDoc(file);
                     }}
                   />
-                  <BrandButton variant="soft" icon={<Upload className="w-4 h-4" />} onClick={() => fileInput.current?.click()} disabled={uploading} className="h-9">
-                    {uploading ? "Uploading..." : "Upload Document"}
-                  </BrandButton>
+                  <SystemButton type="button" variant="secondary" size="sm" loading={uploading} onClick={() => fileInput.current?.click()}>
+                    {uploading ? null : <Upload aria-hidden="true" />}{uploading ? ui("Uploading\u2026") : ui("Upload document")}
+                  </SystemButton>
                 </div>
               </div>
             </div>
 
             <div className="sk-panel p-5">
-              <PanelTitle icon={History} title="Timeline" />
+              <PanelTitle icon={History} title={ui("Timeline")} />
               <div className="mt-4 space-y-2 max-h-80 overflow-y-auto custom-scrollbar pe-1">
                 {staffTimeline.length === 0 ? (
-                  <EmptyInline text="No staff record events yet." />
+                  <EmptyInline text={ui("No staff record events yet.")} />
                 ) : (
                   staffTimeline.map((event) => (
                     <div key={event.id} className="flex items-start gap-3 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3">
-                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white text-primary">
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-card text-primary">
                         {event.kind === "SALARY" ? <Banknote className="h-3.5 w-3.5" /> : event.kind === "BANK" ? <CreditCard className="h-3.5 w-3.5" /> : <History className="h-3.5 w-3.5" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-ink-strong">{event.title}</p>
                         {event.detail ? <p className="mt-0.5 text-2xs font-semibold text-ink-muted">{event.detail}</p> : null}
-                        <p className="mt-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
+                        <p className="mt-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{formatStaffDate(event.createdAt)}</p>
                       </div>
                     </div>
                   ))
@@ -4361,6 +3420,7 @@ function AmountRowsEditor({
   rows: { name: string; amount: string }[];
   onChange: (rows: { name: string; amount: string }[]) => void;
 }) {
+  const ui = useUiText();
   const update = (index: number, field: "name" | "amount", value: string) => {
     onChange(rows.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
   };
@@ -4372,16 +3432,17 @@ function AmountRowsEditor({
           <div key={index} className="flex items-center gap-2">
             <SystemInput
               value={row.name}
-              placeholder="Label"
+              placeholder={ui("Label")}
               onChange={(e) => update(index, "name", e.target.value)}
-              className="h-10 min-w-0 flex-1 px-3"
+              className="min-w-0 flex-1 px-3"
             />
             <SystemInput
               value={row.amount}
               type="number"
-              placeholder="Rs"
+              placeholder="0.00"
+              dir="ltr"
               onChange={(e) => update(index, "amount", e.target.value)}
-              className="h-10 w-24 px-3"
+              className="w-24 px-3"
             />
             <SystemButton variant="ghost"
               type="button"
@@ -4397,7 +3458,7 @@ function AmountRowsEditor({
           onClick={() => onChange([...rows, { name: "", amount: "" }])}
           className="flex items-center gap-1.5 px-3 justify-start"
         >
-          <Plus className="h-3.5 w-3.5" /> Add {title.toLowerCase()}
+          <Plus aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Add a line")}
         </SystemButton>
       </div>
     </div>
@@ -4415,6 +3476,9 @@ export { MODAL_TONES };
 export type { ModalTone, ModalSize };
 
 /**
+ * @deprecated New dialogs use `Modal` from `@/components/ui/modal` directly (R2). This thin adapter keeps the
+ * admin-facing name and prop shape for existing callers.
+ *
  * The shell every admin dialog sits in.
  *
  * The layout, layering and keyboard behaviour now come from the single `Modal`
@@ -4483,6 +3547,10 @@ export function ModalFrame({
   );
 }
 
+/**
+ * @deprecated Use `ModalActions` from `@/components/ui/modal` (onCancel / onAction). This keeps the admin-era
+ * prop shape (onClose / onSave / hint) for existing callers and renders the one shared footer (F15, R2).
+ */
 export function ModalActions({
   busy,
   busyLabel,
@@ -4491,6 +3559,7 @@ export function ModalActions({
   onSave,
   tone = "violet",
   hint,
+  blockedReason,
 }: {
   busy: boolean;
   busyLabel: string;
@@ -4500,30 +3569,21 @@ export function ModalActions({
   tone?: ModalTone;
   /** Optional note explaining what the action will do. */
   hint?: ReactNode;
+  blockedReason?: string | null;
 }) {
+  const footerTone: "violet" | "rose" | "emerald" = tone === "rose" ? "rose" : tone === "emerald" ? "emerald" : "violet";
   return (
-    <div className="mt-8 border-t border-edge/15 pt-6">
-      {hint ? <p className="mb-3 text-xs font-semibold text-ink-muted">{hint}</p> : null}
-      <div className="flex gap-3">
-        <BrandButton variant="soft" className="flex-1 h-13" onClick={onClose}>
-          Cancel
-        </BrandButton>
-        <BrandButton
-          variant={tone === "rose" ? "danger" : "dark"}
-          className="flex-[2] h-13"
-          onClick={onSave}
-          disabled={busy}
-        >
-          {busy ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              {busyLabel}
-            </>
-          ) : (
-            actionLabel
-          )}
-        </BrandButton>
-      </div>
+    <div className="mt-6 space-y-3 border-t border-border pt-5">
+      {hint ? <p className="text-xs font-semibold text-ink-muted">{hint}</p> : null}
+      <SharedModalActions
+        busy={busy}
+        busyLabel={busyLabel}
+        actionLabel={actionLabel}
+        onCancel={onClose}
+        onAction={onSave}
+        tone={footerTone}
+        blockedReason={blockedReason}
+      />
     </div>
   );
 }
@@ -4597,7 +3657,8 @@ export function ClassGroupCard({
   group: { name: string; academicYear: number | string; sections: any[] };
   teachers: any[];
   students: any[];
-  onAddStudent: (classId?: string) => void;
+  /** Omitted for a viewer who cannot admit students (§4.5.11): the Add student controls are not rendered. */
+  onAddStudent?: (classId?: string) => void;
   onBulkImport?: (classId?: string) => void;
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
@@ -4642,7 +3703,7 @@ export function ClassGroupCard({
     <div className={cn(
       "sk-panel sk-rise group transition-all self-start",
       open
-        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+        ? "border-edge/25 hover:border-primary/25 hover:shadow-lg"
         : "border-edge/5 hover:border-primary/10",
       // Expanded, the card carries per-section rows with their own metadata and
       // action buttons. In a half-width grid column those wrapped into a jumble,
@@ -4681,7 +3742,7 @@ export function ClassGroupCard({
               {group.name}
             </p>
             {open ? (
-              <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <p className="mt-0.5 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                 {group.academicYear} - {sectionless
                   ? ui("No sections")
                   : ui(group.sections.length === 1 ? "{0} section" : "{0} sections", [group.sections.length])} · {ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])} · {ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}
@@ -4707,7 +3768,7 @@ export function ClassGroupCard({
               {ui("Delete")}
             </SystemButton>
           ) : null}
-          <span className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
+          <span className="text-3xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
             {ui(group.sections.length === 1 ? "{0} section" : "{0} sections", [group.sections.length])}
           </span>
           <ChevronDown
@@ -4750,7 +3811,7 @@ export function ClassGroupCard({
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
                   placeholder={sectionless ? ui("First section name (e.g. A)") : ui("Section name (e.g. C)")}
-                  className="h-10 flex-1 px-3"
+                  className="flex-1 px-3"
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddSection(); if (e.key === "Escape") { setAddingSection(false); setNewSectionName(""); } }}
                 />
@@ -4811,7 +3872,8 @@ export function SectionCard({
   classTeacherId: string;
   students: any[];
   onViewClass: (cls: any) => void;
-  onAddStudent: (classId?: string) => void;
+  /** Omitted for a viewer who cannot admit students (§4.5.11): the Add student controls are not rendered. */
+  onAddStudent?: (classId?: string) => void;
   onBulkImport?: (classId?: string) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
@@ -4835,22 +3897,22 @@ export function SectionCard({
           <p className="text-sm font-bold text-ink-strong">{cls.section ? ui("Section {0}", [cls.section]) : ui("Whole class")}</p>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             {isSubjectMode ? (
-              <span className="inline-flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <span className="inline-flex items-center gap-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
                 {subjectCount ? ui("{0}/{1} teachers", [assignedSubjectTeachers, subjectCount]) : ui("No subjects yet")}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <span className="inline-flex items-center gap-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
                 <UserCheck className="h-3 w-3" />
                 {cls.classTeacher?.fullName || ui("No class teacher")}
               </span>
             )}
             <span className="text-ink-subtle">|</span>
-            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])}</span>
+            <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])}</span>
             <span className="text-ink-subtle">|</span>
-            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}</span>
+            <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui(subjectCount === 1 ? "{0} subject" : "{0} subjects", [subjectCount])}</span>
             <span
-              className="rounded-full bg-white px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-primary"
+              className="rounded-full bg-card px-2 py-0.5 text-3xs font-semibold ltr:uppercase ltr:tracking-wider text-primary"
               title={cls.teachingMode === "SUBJECT" ? ui("Each subject has its own teacher") : ui("The class teacher takes every subject")}
             >
               {cls.teachingMode === "SUBJECT" ? ui("Per subject") : ui("One teacher")}
@@ -4902,7 +3964,7 @@ export function SectionCard({
         <div className="border-t border-edge/10">
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle flex items-center gap-1">
+              <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle flex items-center gap-1">
                 <BookOpen className="h-3 w-3" />
                 {ui("Subjects ({0})", [subjectCount])}
               </p>
@@ -4910,19 +3972,19 @@ export function SectionCard({
             {cls.subjects?.length ? (
               <div className="space-y-1.5">
                 {cls.subjects.map((subject: any) => (
-                  <div key={subject.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                  <div key={subject.id} className="flex items-center justify-between rounded-xl bg-card px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-bold text-ink-strong truncate">{subject.name}</p>
-                      <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle mt-0.5">
+                      <p className="text-3xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle mt-0.5">
                         {subject.teacher?.fullName || ui("No teacher")} · {ui("{0} marks", [subject.totalMarks || 100])}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider",
-                        subject.teacher?.id ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-semibold ltr:uppercase ltr:tracking-wider",
+                        subject.teacher?.id ? "bg-status-success-surface text-status-success-text" : "bg-status-warning-surface text-status-warning-text"
                       )}>
-                        <span className={cn("h-1.5 w-1.5 rounded-full", subject.teacher?.id ? "bg-emerald-500" : "bg-amber-500")} />
+                        <span className={cn("h-1.5 w-1.5 rounded-full", subject.teacher?.id ? "bg-success" : "bg-warning")} />
                         {subject.teacher?.id ? ui("Assigned") : ui("Unassigned")}
                       </span>
                     </div>
@@ -4930,7 +3992,7 @@ export function SectionCard({
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-white/70 px-3 py-2 text-2xs font-bold text-ink-subtle">
+              <p className="rounded-xl bg-card/70 px-3 py-2 text-2xs font-bold text-ink-subtle">
                 {ui("No subjects yet. Click Manage to add subjects, assign teachers, and build the syllabus.")}
               </p>
             )}
@@ -4938,7 +4000,7 @@ export function SectionCard({
 
           <div className="border-t border-edge/10 px-4 py-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle flex items-center gap-1">
+              <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle flex items-center gap-1">
                 <GraduationCap className="h-3 w-3" />
                 {ui("Students ({0})", [studentCount])}
               </p>
@@ -4955,7 +4017,7 @@ export function SectionCard({
             {students.length > 0 ? (
               <div className="grid grid-cols-2 gap-1.5">
                 {displayStudents.map((student: any) => (
-                  <div key={student.id} className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-2">
+                  <div key={student.id} className="flex items-center gap-2 rounded-xl bg-card px-2.5 py-2">
                     <div className="h-7 w-7 shrink-0 overflow-hidden rounded-lg bg-brand-50 border border-white">
                       <img
                         src={resolveMediaUrl(student.profileImageUrl) ?? undefined}
@@ -4965,13 +4027,13 @@ export function SectionCard({
                     </div>
                     <div className="min-w-0">
                       <p className="text-2xs font-bold text-ink-strong truncate">{student.fullName}</p>
-                      <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">{ui("Roll {0}", [student.rollNo || "—"])}</p>
+                      <p className="text-3xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Roll {0}", [student.rollNo || "—"])}</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl bg-white/70 px-3 py-2 text-2xs font-bold text-ink-subtle">
+              <p className="rounded-xl bg-card/70 px-3 py-2 text-2xs font-bold text-ink-subtle">
                 {ui("No students enrolled yet. Click + Student to add.")}
               </p>
             )}
@@ -4982,350 +4044,153 @@ export function SectionCard({
   );
 }
 
-export function AdminRow({ admin, currentUserId, onRemove }: { admin: any; currentUserId?: string; onRemove?: () => void }) {
-  const isCurrentUser = admin.id === currentUserId;
-
-  return (
-    <div className="group/row relative bg-gradient-to-br from-brand-50/50 via-white to-brand-50/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-primary/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -end-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/row:opacity-100 transition-opacity duration-500 pointer-events-none" />
-      <div className="relative flex items-center justify-between gap-4">
-        <div className="flex items-center gap-5 min-w-0">
-          <div className="relative shrink-0">
-            <div className="absolute -inset-2 bg-gradient-to-br from-primary/10 to-brand-300/8 rounded-2xl blur-md opacity-0 group-hover/row:opacity-100 transition-opacity duration-500" />
-            <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-primary/10 shadow-sm flex items-center justify-center overflow-hidden transition-all duration-300 group-hover/row:border-primary/30 group-hover/row:shadow-md">
-              <AvatarImage name={admin.email} alt="" className="h-full w-full object-cover" />
-            </div>
-            <div className={`absolute -top-1 -end-1 h-3.5 w-3.5 rounded-full border-2 border-white ${isCurrentUser ? "bg-emerald-500" : "bg-primary"}`} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h4 className="text-base font-bold text-ink-strong tracking-tight leading-none truncate">{admin.fullName}</h4>
-              {isCurrentUser && (
-                <span className="shrink-0 inline-flex items-center rounded-full bg-gradient-to-r from-primary to-brand-300 px-2 py-0.5 text-3xs font-semibold uppercase tracking-wider text-white shadow-sm">
-                  Owner
-                </span>
-              )}
-            </div>
-            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider leading-none mt-1 truncate">{admin.email}</p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="inline-flex items-center gap-1 text-3xs font-semibold uppercase tracking-wider text-primary/60">
-                <Shield className="w-2.5 h-2.5" />
-                {isCurrentUser ? "Current session" : formatStatus(admin.role)}
-              </span>
-            </div>
-          </div>
-        </div>
-        {!isCurrentUser && onRemove && (
-          <SystemButton variant="destructive"
-            type="button"
-            onClick={onRemove}
-            className="shrink-0 px-4 flex items-center gap-1.5 justify-center"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Revoke
-          </SystemButton>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export function PendingFacultyRow({ invite, onResend, onCancel }: { invite: any; onResend: () => void; onCancel: () => void }) {
+export function PendingFacultyRow({ invite, onResend, onCancel, readOnly = false }: { invite: any; onResend: () => void; onCancel: () => void; readOnly?: boolean }) {
+  const ui = useUiText();
+  const { date } = useLocaleFormat();
   const expired = invite.expiresAt ? new Date() > new Date(invite.expiresAt) : false;
-  const expiryLabel = invite.expiresAt
-    ? new Date(invite.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-    : null;
-  const inviteName = invite.profile?.fullName || null;
+  const inviteName = invite.profile?.fullName || invite.fullName || null;
   const deliveryFailed = invite.deliveryStatus === "failed";
-
   return (
-    <div className="group/pending relative bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 p-5 rounded-[28px] border border-amber-200/60 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -end-12 w-24 h-24 bg-gradient-to-bl from-amber-300/10 to-transparent rounded-full blur-[50px] pointer-events-none" />
-      <div className="relative flex items-center justify-between gap-4">
-        <div className="flex items-center gap-5 min-w-0">
-          <div className="relative shrink-0">
-            <div className="absolute -inset-2 bg-amber-200/20 rounded-2xl blur-md opacity-0 group-hover/pending:opacity-100 transition-opacity duration-500" />
-            <div className="relative h-14 w-14 rounded-2xl bg-white border-2 border-amber-200 shadow-sm flex items-center justify-center transition-all duration-300 group-hover/pending:border-amber-300 group-hover/pending:shadow-md">
-              <Clock className={`w-6 h-6 ${expired ? "text-rose-500" : "text-amber-500"}`} />
-            </div>
-            <div className={`absolute -top-1 -end-1 h-3.5 w-3.5 rounded-full border-2 border-white ${expired ? "bg-rose-500" : "bg-amber-400"}`} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h4 className="text-base font-bold text-ink-strong tracking-tight leading-none truncate">{inviteName || "Invitation pending"}</h4>
-              <StatusPill status={deliveryFailed ? "Delivery failed" : expired ? "Expired" : formatStatus(invite.role)} />
-            </div>
-            <p className="text-2xs font-semibold text-ink-muted uppercase tracking-wider leading-none mt-1 truncate">{invite.email}</p>
-            {deliveryFailed && <p role="status" className="mt-2 text-xs text-rose-700">Email could not be delivered. Resend to try again.</p>}
-            {expiryLabel ? (
-              <div className="flex items-center gap-1.5 mt-2">
-                <Clock className={`w-2.5 h-2.5 ${expired ? "text-rose-500" : "text-amber-500"}`} />
-                <span className={`text-3xs font-semibold uppercase tracking-wider ${expired ? "text-rose-600" : "text-amber-600"}`}>
-                  {expired ? "Expired" : "Expires"} {expiryLabel}
-                </span>
-              </div>
-            ) : null}
-          </div>
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-status-warning-border bg-status-warning-surface px-4 py-3">
+      <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-status-warning-border bg-card text-status-warning-text">
+        <Clock className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="truncate text-sm font-bold text-ink-strong">{inviteName ? <bdi>{inviteName}</bdi> : ui("Invitation pending")}</p>
+          <Badge variant={deliveryFailed || expired ? "danger" : "warning"} size="sm">
+            {deliveryFailed ? ui("Delivery failed") : expired ? ui("Expired") : ui(formatStatus(invite.role))}
+          </Badge>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-          <SystemButton variant="default" type="button" onClick={onResend} className="px-4 flex items-center gap-1.5 justify-center">
-            <Send className="w-3.5 h-3.5" />
-            Resend
-          </SystemButton>
-          <SystemButton variant="destructive" type="button" onClick={onCancel} className="px-4 flex items-center gap-1.5 justify-center">
-            <X className="w-3.5 h-3.5" />
-            Cancel
-          </SystemButton>
-        </div>
+        <p dir="ltr" className="truncate text-start text-xs text-ink-muted">{invite.email}</p>
+        {deliveryFailed ? <p role="status" className="mt-1 text-xs text-status-error-text">{ui("Email could not be delivered. Resend to try again.")}</p> : null}
+        {invite.expiresAt ? (
+          <p className="mt-1 text-xs font-medium text-ink-muted">
+            {expired ? ui("Expired {0}", [date(invite.expiresAt)]) : ui("Expires {0}", [date(invite.expiresAt)])}
+          </p>
+        ) : null}
       </div>
+      {readOnly ? null : (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <SystemButton variant="outline" size="sm" type="button" onClick={onResend}>
+            <Send aria-hidden="true" />{ui("Resend")}
+          </SystemButton>
+          <Menu
+            label={ui("More actions")}
+            align="end"
+            trigger={<IconButton label={ui("More actions for {0}", [inviteName || invite.email || ""])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+            items={[{ id: "cancel", label: ui("Cancel invitation"), tone: "danger", onSelect: onCancel }]}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove: () => void }) {
+export function FacultyRow({ teacher, onView, onRemove }: { teacher: any; onView: () => void; onRemove?: () => void }) {
+  const ui = useUiText();
   const avatar = teacher.profileImageUrl;
   const subjects = teacher._count?.taughtSubjects ?? teacher.taughtSubjects?.length ?? 0;
   const classes = teacher._count?.ledClasses ?? teacher.ledClasses?.length ?? 0;
-
   return (
-    <div className="sk-rise group/faculty relative bg-gradient-to-br from-brand-50/50 via-white to-brand-50/20 p-5 rounded-[28px] border border-transparent transition-all duration-300 hover:border-primary/15 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
-      <div className="absolute -top-12 -end-12 w-24 h-24 bg-gradient-to-bl from-primary/6 to-transparent rounded-full blur-[50px] opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500 pointer-events-none" />
-      <div className="relative flex items-center justify-between gap-4">
-        <div className="flex items-center gap-5 min-w-0">
-          <div className="relative shrink-0">
-            <div className="absolute -inset-2 bg-gradient-to-br from-primary/10 to-brand-300/8 rounded-2xl blur-md opacity-0 group-hover/faculty:opacity-100 transition-opacity duration-500" />
-            <div className="relative h-12 w-12 bg-brand-50 rounded-xl overflow-hidden border-2 border-white shadow-sm flex items-center justify-center transition-all duration-300 group-hover/faculty:border-primary/20 group-hover/faculty:shadow-md">
-              <AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-sm" />
-            </div>
-          </div>
-          <div className="min-w-0">
-            <h4 className="text-base font-bold text-ink-strong tracking-tight leading-none mb-1 truncate">{teacher.fullName}</h4>
-            <p className="text-2xs font-semibold text-ink-subtle uppercase tracking-wider leading-none truncate">{teacher.email}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {classes > 0 ? (
-                <Badge variant="info" size="sm">
-                  <School className="h-2.5 w-2.5" aria-hidden="true" />
-                  Class teacher · {classes}
-                </Badge>
-              ) : null}
-              {!teacher.onboardingComplete ? (
-                <Badge variant="warning" size="sm">
-                  <Clock className="h-2.5 w-2.5" aria-hidden="true" />
-                  Onboarding
-                </Badge>
-              ) : null}
-            </div>
-          </div>
+    <div className="sk-rise flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 transition-colors hover:border-primary/30">
+      <span className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-border bg-brand-50">
+        <AvatarImage src={avatar} name={teacher.fullName} initialsClassName="text-sm" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-ink-strong"><bdi>{teacher.fullName}</bdi></p>
+        <p dir="ltr" className="truncate text-start text-xs text-ink-muted">{teacher.email}</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {classes > 0 ? (
+            <Badge variant="info" size="sm">
+              <School className="h-2.5 w-2.5" aria-hidden="true" />
+              {ui("Class teacher · {0}", [classes])}
+            </Badge>
+          ) : null}
+          {!teacher.onboardingComplete ? (
+            <Badge variant="warning" size="sm">
+              <Clock className="h-2.5 w-2.5" aria-hidden="true" />
+              {ui("Onboarding")}
+            </Badge>
+          ) : null}
+          {/* Zero subjects is the thing that blocks the timetable, so it reads as a warning. */}
+          <Badge variant={subjects === 0 ? "warning" : "success"} size="sm">
+            {subjects === 0 ? ui("No subjects") : ui(subjects === 1 ? "{0} subject" : "{0} subjects", [subjects])}
+          </Badge>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {/*
-            Zero subjects used to read in the same confident green as twelve.
-            It is the thing that blocks the timetable, so it reads as a warning.
-          */}
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full px-2.5 py-1 text-3xs font-semibold uppercase tracking-wider",
-              subjects === 0 ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600",
-            )}
-          >
-            {subjects === 0 ? "No subjects" : `${subjects} subject${subjects === 1 ? "" : "s"}`}
-          </span>
-          <SystemButton variant="default"
-            type="button"
-            onClick={onView}
-            className="px-4 flex items-center gap-1.5 justify-center"
-          >
-            View
-          </SystemButton>
-          {/* Revoking a teacher's access is destructive and irreversible from
-              here, so it does not sit lit up in red on every row beside View.
-              It surfaces on hover, and on keyboard focus so it stays reachable. */}
-          <SystemButton variant="destructive"
-            type="button"
-            onClick={onRemove}
-            aria-label={`Revoke access for ${teacher.fullName}`}
-            className="px-4 flex items-center gap-1.5 justify-center"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Revoke
-          </SystemButton>
-        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <SystemButton variant="outline" size="sm" type="button" onClick={onView}>
+          {ui("Open")}
+        </SystemButton>
+        {onRemove ? (
+          <Menu
+            label={ui("More actions")}
+            align="end"
+            trigger={<IconButton label={ui("More actions for {0}", [teacher.fullName])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+            items={[{ id: "revoke", label: ui("Revoke access"), tone: "danger", onSelect: onRemove }]}
+          />
+        ) : null}
       </div>
     </div>
   );
 }
+
+/* The helpers below take EN UI keys (or text a caller already translated) and translate them here (R11). */
 
 export function PanelTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+  const ui = useUiText();
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
+      <div aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-primary">
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-lg font-bold tracking-tight text-ink-strong">{title}</h3>
-    </div>
-  );
-}
-
-export function SnapshotColumn({ icon: Icon, title, after, count, children }: { icon: LucideIcon; title: string; after?: ReactNode; count?: number; children: ReactNode }) {
-  const [open, setOpen] = useState(true);
-  // Counting React children only works when the caller spreads a list into the
-  // column. A caller that renders one component which owns the list — the AI
-  // Review Queue does — always counted as exactly 1, so an empty queue was
-  // labelled "1 item" directly above "No AI drafts are waiting for review".
-  // `count` lets those callers report the real number.
-  const childCount = useMemo(() => {
-    if (typeof count === "number") return count;
-    let n = 0;
-    if (Array.isArray(children)) {
-      n = children.filter(Boolean).length;
-    } else if (children) {
-      n = 1;
-    }
-    return n;
-  }, [children, count]);
-
-  return (
-    <div className={cn(
-      "sk-panel sk-rise group transition-all self-start",
-      open
-        ? "border-edge/25 hover:border-primary/25 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
-        : "border-edge/5 hover:border-primary/10"
-    )}>
-      <SystemButton variant="ghost"
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "flex w-full items-center justify-between gap-4 text-start",
-          open ? "p-5" : "px-4 py-3"
-        )}
-        aria-expanded={open}
-      >
-        <div className="relative flex items-center gap-3 min-w-0">
-          <div className="absolute -inset-2 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-primary/18" />
-          <div className={cn(
-            "relative flex shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary shadow-sm transition-all",
-            open ? "h-10 w-10" : "h-8 w-8"
-          )}>
-            <Icon className={cn("transition-all", open ? "h-5 w-5" : "h-4 w-4")} />
-          </div>
-          <div className="min-w-0">
-            <p className={cn("truncate font-bold text-ink-strong transition-all", open ? "text-base" : "text-sm")}>
-              {title}
-            </p>
-            {open ? (
-              <p className="mt-0.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                {childCount} item{childCount === 1 ? "" : "s"}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {open ? null : (
-            <span className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle">
-              {childCount} items
-            </span>
-          )}
-          <ChevronDown
-            className={cn(
-              "text-primary transition-all duration-200",
-              open ? "h-5 w-5 rotate-180" : "h-4 w-4"
-            )}
-          />
-        </div>
-      </SystemButton>
-
-      {open ? (
-        <div className="border-t border-edge/10 p-5">
-          {after ? (
-            <div className="mb-3 flex justify-end">{after}</div>
-          ) : null}
-          <div className="space-y-3">{children}</div>
-        </div>
-      ) : null}
+      <h3 className="text-lg font-bold tracking-tight text-ink-strong">{ui(title)}</h3>
     </div>
   );
 }
 
 export function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  const ui = useUiText();
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl bg-white/70 px-4 py-3 transition-colors duration-200 hover:bg-white">
-      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle shrink-0">{label}</span>
+    <div className="flex items-center justify-between gap-4 rounded-2xl bg-card/70 px-4 py-3 transition-colors duration-200 hover:bg-card">
+      <span className="shrink-0 text-xs font-semibold text-ink-subtle">{ui(label)}</span>
       <span className="min-w-0 truncate text-end text-sm font-bold text-ink-strong">{value}</span>
     </div>
   );
 }
 
 export function MiniMetric({ label, value, active }: { label: string; value: any; active?: boolean }) {
+  const ui = useUiText();
   return (
     <div className={cn(
       "rounded-2xl px-4 py-3.5 transition-all duration-200",
-      active ? "bg-gradient-to-br from-brand-50 to-brand-100 shadow-sm" : "bg-brand-50/60"
+      active ? "bg-brand-100" : "bg-brand-50/60"
     )}>
-      <p className="text-3xs font-semibold uppercase tracking-wider text-ink-subtle leading-none">{label}</p>
-      <p className={cn("mt-1.5 truncate text-base font-bold leading-none", active ? "text-primary" : "text-ink-strong")}>{value}</p>
+      <p className="text-2xs font-semibold leading-none text-ink-subtle">{ui(label)}</p>
+      <bdi className={cn("mt-1.5 block truncate text-base font-bold leading-none tabular-nums", active ? "text-primary" : "text-ink-strong")}>{value}</bdi>
     </div>
   );
 }
 
 export function StatusPill({ status }: { status?: string }) {
+  const ui = useUiText();
   return (
     <span className={cn(
-      "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-3xs font-semibold uppercase tracking-wider transition-all duration-200",
+      "inline-flex shrink-0 items-center rounded-full px-3 py-1 text-2xs font-semibold transition-all duration-200",
       statusTone(status)
     )}>
-      {formatStatus(status)}
+      {ui(formatStatus(status))}
     </span>
   );
 }
 
 export function EmptyInline({ text }: { text: string }) {
+  const ui = useUiText();
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-brand-50/60 to-brand-100/40 border border-edge/8 p-5 text-center">
-      <p className="text-sm font-semibold text-ink-muted leading-relaxed">{text}</p>
+    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5 text-center">
+      <p className="text-sm font-semibold leading-relaxed text-ink-muted">{ui(text)}</p>
     </div>
-  );
-}
-
-export function ActivityLogModal({ onClose }: { onClose: () => void }) {
-  return <AuditHistoryModal onClose={onClose} />;
-}
-
-export function HelpModal({ onClose }: { onClose: () => void }) {
-  return (
-    <ModalFrame title="Help Center" eyebrow="Campus Support" icon={Sparkles} tone="emerald" onClose={onClose}>
-      <div className="space-y-3">
-        <div className="rounded-3xl bg-brand-50/65 p-5">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Getting Started</p>
-          <p className="mt-2 text-sm font-semibold leading-relaxed text-ink">
-            This is your campus admin workspace. From here you can manage classes, teachers, students, exams, and AI-powered insights.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Classes</p>
-            <p className="mt-1 text-xs font-semibold text-ink-muted">Add classes with sections, assign class teachers, create subjects, and enroll students.</p>
-          </div>
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Teachers</p>
-            <p className="mt-1 text-xs font-semibold text-ink-muted">Invite teachers, assign them to subjects or as class teachers, and manage their access.</p>
-          </div>
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Students</p>
-            <p className="mt-1 text-xs font-semibold text-ink-muted">Add students individually or via CSV bulk import. Track report cards and move between classes.</p>
-          </div>
-          <div className="sk-panel p-4 transition-all duration-200 hover:border-primary/15 hover:shadow-sm">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Exams & Reports</p>
-            <p className="mt-1 text-xs font-semibold text-ink-muted">Create exam cycles, enter marks from teacher dashboards, and generate report cards.</p>
-          </div>
-        </div>
-        <div className="rounded-3xl bg-brand-50/50 p-5">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Need more help?</p>
-          <p className="mt-1 text-xs font-semibold text-ink-muted">
-            Contact your school administration for advanced support. Additional documentation and FAQs are available through your school&apos;s IT department.
-          </p>
-        </div>
-      </div>
-    </ModalFrame>
   );
 }
 
@@ -5354,10 +4219,11 @@ export function SpecialtyEditor({
   onRemove: (name: string) => void;
   onToggleAll: () => void;
 }) {
+  const ui = useUiText();
   return (
     <div className="rounded-2xl border border-edge/25 bg-brand-50/40 p-4">
-      <p className="mb-2 ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-        Teaching specialities
+      <p className="mb-2 ps-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+        {ui("Teaching specialities")}
       </p>
 
       <SystemButton variant="ghost"
@@ -5368,15 +4234,15 @@ export function SpecialtyEditor({
         <span
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
-            teachesAll ? "border-emerald-500 bg-emerald-500" : "border-edge/50 bg-white"
+            teachesAll ? "border-status-success-text bg-success" : "border-edge/50 bg-card"
           )}
         >
           {teachesAll ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
         </span>
         <span className="min-w-0">
-          <span className="block text-2xs font-bold text-ink-strong">Can teach all subjects</span>
+          <span className="block text-2xs font-bold text-ink-strong">{ui("Can teach all subjects")}</span>
           <span className="block text-2xs font-bold text-ink-muted">
-            Generalist — never warned about subject mismatch.
+            {ui("Generalist — never warned about subject mismatch.")}
           </span>
         </span>
       </SystemButton>
@@ -5394,7 +4260,7 @@ export function SpecialtyEditor({
                   type="button"
                   onClick={() => onRemove(s)}
                   className=""
-                  aria-label={`Remove ${s}`}
+                  aria-label={ui("Remove {0}", [s])}
                 >
                   <X className="h-2.5 w-2.5" />
                 </SystemButton>
@@ -5402,7 +4268,7 @@ export function SpecialtyEditor({
             ))}
             {specialties.length === 0 ? (
               <span className="text-2xs font-bold text-ink-subtle">
-                No specialities yet — add the subjects this teacher is qualified for.
+                {ui("No specialities yet — add the subjects this teacher is qualified for.")}
               </span>
             ) : null}
           </div>
@@ -5417,15 +4283,15 @@ export function SpecialtyEditor({
                   onAdd(draft);
                 }
               }}
-              placeholder="e.g. Mathematics"
-              className="h-10 flex-1 px-3 transition-all"
+              placeholder={ui("e.g. Mathematics")}
+              className="flex-1 px-3 transition-all"
             />
             <SystemButton variant="default"
               type="button"
               onClick={() => onAdd(draft)}
               className="shrink-0 px-4"
             >
-              Add
+              {ui("Add")}
             </SystemButton>
           </div>
         </>
@@ -5455,6 +4321,7 @@ export function StudentSetupPanel({
   /** Jumps to the roster filtered by this tag. Omit to hide the link. */
   onViewStudents?: (filter: { categoryId?: string; groupId?: string }) => void;
 } = {}) {
+  const ui = useUiText();
   const [categories, setCategories] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -5463,18 +4330,22 @@ export function StudentSetupPanel({
   const [deleting, setDeleting] = useState<{ kind: StudentTagKind; item: any } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [cats, grps] = await Promise.all([
-        fetch(STUDENT_TAG_API.category).then((r) => r.json()),
-        fetch(STUDENT_TAG_API.group).then((r) => r.json()),
+        fetch(STUDENT_TAG_API.category, { cache: "no-store" }).then((r) => r.json()),
+        fetch(STUDENT_TAG_API.group, { cache: "no-store" }).then((r) => r.json()),
       ]);
-      setCategories(cats.success ? cats.data : []);
-      setGroups(grps.success ? grps.data : []);
+      if (!cats.success || !grps.success) throw new Error(cats.error || grps.error || "Categories could not be loaded.");
+      setCategories(cats.data ?? []);
+      setGroups(grps.data ?? []);
+      setLoadFailed(false);
     } catch {
-      toast.error("Could not load student categories and groups");
+      // R4: an inline ErrorState with retry, never a toast.
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -5495,14 +4366,14 @@ export function StudentSetupPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Could not save");
-      toast.success(editing ? `${kind === "category" ? "Category" : "Group"} updated` : `${kind === "category" ? "Category" : "Group"} created`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(apiErrorMessage(json.error, ui("The change could not be saved. Please try again.")));
+      toast.success(ui(editing ? (kind === "category" ? "Category updated" : "Group updated") : (kind === "category" ? "Category created" : "Group created")));
       setEditing(null);
       setCreating(null);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save");
+      toast.error(friendlyErrorMessage(error, ui("The change could not be saved. Please try again.")));
     } finally {
       setBusy(false);
     }
@@ -5513,14 +4384,14 @@ export function StudentSetupPanel({
     setConfirmBusy(true);
     try {
       const res = await fetch(`${STUDENT_TAG_API[deleting.kind]}?id=${deleting.item.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Could not delete");
-      toast.success(deleting.kind === "category" ? "Category deleted" : "Group deleted");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(apiErrorMessage(json.error, ui("This could not be deleted. Please try again.")));
+      toast.success(ui(deleting.kind === "category" ? "Category deleted" : "Group deleted"));
       setDeleting(null);
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not delete");
-      setDeleting(null);
+      // The dialog stays open so the person can retry or keep the tag.
+      toast.error(friendlyErrorMessage(error, ui("This could not be deleted. Please try again.")));
     } finally {
       setConfirmBusy(false);
     }
@@ -5536,29 +4407,14 @@ export function StudentSetupPanel({
 
   return (
     <div className="space-y-8">
-      {/* Header matches the academics overview so the students section of the
-          admin does not read as a different application. */}
-      <div className="sk-rise rounded-[28px] border border-edge/25 bg-gradient-to-br from-surface-subtle via-white to-brand-100 p-5 shadow-[0_4px_16px_-4px_rgba(120,70,180,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
-              <Tag className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Students</p>
-              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Categories &amp; Groups</h2>
-            </div>
-          </div>
-          <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-bold text-primary shadow-sm">
-            {categories.length + groups.length} tag{categories.length + groups.length === 1 ? "" : "s"} defined
-          </span>
-        </div>
-        <p className="mt-4 max-w-2xl text-xs font-semibold leading-relaxed text-ink-muted">
-          Categories tag a student's fee or scholarship eligibility (General, Scholarship, Orphan, Staff Child…) and
-          drive fee discounts. Groups tag logistics and cohorts (Transport users, Hostel residents, House A…). Both are
-          optional per student and can be assigned during admission or from a student's profile.
-        </p>
-      </div>
+      {/* A section of Campus setup: the view's page title sits above, so this is an h2. */}
+      <PageHeader
+        headingLevel={2}
+        icon={Tag}
+        title={ui("Categories & groups")}
+        description={ui("Categories tag fee or scholarship eligibility and drive fee discounts; groups tag logistics and cohorts such as transport users or houses. Both are optional for each student.")}
+        status={<Badge variant="neutral" className="tabular-nums">{ui("{0} tags defined", [categories.length + groups.length])}</Badge>}
+      />
 
       {/* A tag nobody uses and a roster nobody has tagged are the two things
           worth knowing here, and neither was visible before. */}
@@ -5571,7 +4427,7 @@ export function StudentSetupPanel({
             icon: UserCheck,
             label: "Students with a category",
             value: taggedStudents,
-            hint: studentCount ? `of ${studentCount} on roll` : undefined,
+            hint: studentCount ? ui("of {0} on roll", [studentCount]) : undefined,
             tone: "emerald",
           },
           {
@@ -5585,12 +4441,20 @@ export function StudentSetupPanel({
         ]}
       />
 
+      {loadFailed && !categories.length && !groups.length ? (
+        <ErrorState
+          variant="panel"
+          title={ui("Couldn't load categories and groups")}
+          description={ui("The student tags didn't come back. Check your connection and try again.")}
+          onRetry={() => load()}
+        />
+      ) : (
       <div>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <TagListCard
             kind="category"
             icon={Tag}
-            title="Student Categories"
+            title={ui("Student categories")}
             items={categories}
             loading={loading}
             onAdd={() => setCreating("category")}
@@ -5603,7 +4467,7 @@ export function StudentSetupPanel({
           <TagListCard
             kind="group"
             icon={Layers}
-            title="Student Groups"
+            title={ui("Student groups")}
             items={groups}
             loading={loading}
             onAdd={() => setCreating("group")}
@@ -5613,6 +4477,7 @@ export function StudentSetupPanel({
           />
         </div>
       </div>
+      )}
 
       {modal ? (
         <TagFormModal
@@ -5629,17 +4494,20 @@ export function StudentSetupPanel({
 
       <ConfirmAction
         open={Boolean(deleting)}
-        title={`Delete ${deleting?.kind === "category" ? "category" : "group"}?`}
+        title={ui(deleting?.kind === "category" ? "Delete this category?" : "Delete this group?")}
         description={
           deleting
             ? inUse > 0
               // "keep their links until reassigned" told an admin nothing about
               // how much work they were about to create for themselves.
-              ? `"${deleting.item.name}" is on ${inUse} student${inUse === 1 ? "" : "s"}. Deleting it removes that tag from ${inUse === 1 ? "them" : "all of them"}, and any fee rule that depends on it stops applying. This cannot be undone.`
-              : `"${deleting.item.name}" is not on any student, so removing it changes nothing else.`
+              ? ui(inUse === 1
+                ? "\"{0}\" is on 1 student. Deleting it removes that tag, and any fee rule that depends on it stops applying. This cannot be undone."
+                : "\"{0}\" is on {1} students. Deleting it removes that tag from all of them, and any fee rule that depends on it stops applying. This cannot be undone.", [deleting.item.name, inUse])
+              : ui("\"{0}\" is not on any student, so removing it changes nothing else.", [deleting.item.name])
             : ""
         }
-        confirmLabel="Delete"
+        confirmLabel={ui(deleting?.kind === "category" ? "Delete category" : "Delete group")}
+        cancelLabel={ui("Keep it")}
         tone="danger"
         busy={confirmBusy}
         onCancel={() => setDeleting(null)}
@@ -5670,106 +4538,88 @@ function TagListCard({
   onDelete: (item: any) => void;
   onViewStudents?: (item: any) => void;
 }) {
+  const ui = useUiText();
+  const noun = kind === "category" ? "category" : "group";
   return (
-    <div className="sk-panel p-5">
+    <section aria-label={ui(title)} className="sk-panel p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
+          <div aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-primary">
             <Icon className="h-5 w-5" />
           </div>
           <div>
-            <h4 className="text-sm font-bold tracking-tight text-ink-strong">{title}</h4>
-            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-              {items.length} {items.length === 1 ? "tag" : "tags"}
+            <h3 className="text-sm font-bold tracking-tight text-ink-strong">{ui(title)}</h3>
+            <p className="text-xs font-semibold text-ink-subtle">
+              {ui(items.length === 1 ? "{0} tag" : "{0} tags", [items.length])}
             </p>
           </div>
         </div>
-        <BrandButton variant="soft" icon={<Plus className="w-4 h-4" />} onClick={onAdd}>
-          Add
-        </BrandButton>
+        <SystemButton type="button" variant="outline" size="sm" onClick={onAdd}>
+          <Plus aria-hidden="true" />{ui(kind === "category" ? "Add category" : "Add group")}
+        </SystemButton>
       </div>
 
       <div className="space-y-2.5">
         {loading ? (
-          <div className="space-y-2.5">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 rounded-2xl border border-edge/20 bg-brand-50/40 px-4 py-3"
-              >
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-3 w-1/3 rounded-full bg-edge/25 animate-pulse" />
-                  <div className="h-2.5 w-2/3 rounded-full bg-edge/15 animate-pulse" />
-                </div>
-                <div className="h-5 w-14 shrink-0 rounded-full bg-edge/20 animate-pulse" />
-              </div>
-            ))}
-          </div>
+          <SkeletonList rows={3} label={ui("Loading tags…")} />
         ) : items.length === 0 ? (
-          <EmptyInline text={`No ${kind === "category" ? "categories" : "groups"} yet — add your first one.`} />
+          <EmptyInline text={kind === "category" ? "No categories yet — add your first one." : "No groups yet — add your first one."} />
         ) : (
           items.map((item) => {
             const studentCount = item._count?.students ?? 0;
             return (
               <div
                 key={item.id}
-                className="group flex items-center gap-3 rounded-2xl border border-edge/20 bg-brand-50/40 px-4 py-3 transition-all hover:border-primary/25 hover:bg-white"
+                className="group flex items-center gap-3 rounded-2xl border border-border-subtle bg-surface-subtle px-4 py-3 transition-all hover:border-primary/25 hover:bg-card"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-bold text-ink-strong">{item.name}</p>
+                    <p className="truncate text-sm font-bold text-ink-strong"><bdi>{item.name}</bdi></p>
                     {kind === "category" ? (
-                      <StatusPill status={item.isActive === false ? "Inactive" : "Active"} />
+                      <StatusPill status={item.isActive === false ? "INACTIVE" : "ACTIVE"} />
                     ) : null}
                   </div>
-                  <p className="mt-0.5 truncate text-2xs font-semibold text-ink-muted">
-                    {item.description || "No description"}
+                  <p className="mt-0.5 truncate text-xs font-semibold text-ink-muted">
+                    {item.description ? <bdi>{item.description}</bdi> : ui("No description")}
                   </p>
                 </div>
                 {onViewStudents && studentCount > 0 ? (
-                  <SystemButton variant="default"
+                  <SystemButton variant="outline"
+                    size="sm"
                     type="button"
                     onClick={() => onViewStudents(item)}
-                    title={`Show the ${studentCount} student${studentCount === 1 ? "" : "s"} tagged "${item.name}"`}
-                    className="flex shrink-0 items-center gap-1 px-2.5 py-1 justify-start"
+                    aria-label={ui("Show the students tagged {0}", [item.name])}
+                    className="shrink-0 gap-1 px-2.5"
                   >
-                    {studentCount} student{studentCount === 1 ? "" : "s"}
+                    {ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])}
                     <ArrowRight className="h-3 w-3 rtl:rotate-180" aria-hidden="true" />
                   </SystemButton>
                 ) : (
                   <span
                     className={cn(
-                      "shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider shadow-sm",
-                      studentCount > 0 ? "bg-white text-primary" : "bg-muted text-ink-subtle",
+                      "shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold",
+                      studentCount > 0 ? "bg-card text-primary" : "bg-muted text-ink-subtle",
                     )}
                   >
-                    {studentCount === 0 ? "Unused" : `${studentCount} students`}
+                    {studentCount === 0 ? ui("Unused") : ui(studentCount === 1 ? "{0} student" : "{0} students", [studentCount])}
                   </span>
                 )}
-                <div className="flex shrink-0 items-center gap-1">
-                  <SystemButton variant="ghost"
-                    type="button"
-                    onClick={() => onEdit(item)}
-                    className="flex items-center justify-center"
-                    title={`Rename ${kind}`}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </SystemButton>
-                  <SystemButton variant="ghost"
-                    type="button"
-                    onClick={() => onDelete(item)}
-                    className="flex items-center justify-center"
-                    title={`Delete ${kind}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </SystemButton>
-                </div>
+                {/* §4.5.2: rename and delete live in the row's overflow menu; delete is confirmed. */}
+                <Menu
+                  label={ui("More actions")}
+                  align="end"
+                  trigger={<IconButton label={ui("More actions for {0}", [item.name])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+                  items={[
+                    { id: "rename", label: noun === "category" ? "Rename category" : "Rename group", icon: Pencil, onSelect: () => onEdit(item) },
+                    { id: "delete", label: noun === "category" ? "Delete category" : "Delete group", icon: Trash2, tone: "danger", onSelect: () => onDelete(item) },
+                  ]}
+                />
               </div>
             );
           })
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -5786,83 +4636,76 @@ function TagFormModal({
   onClose: () => void;
   onSave: (kind: StudentTagKind, payload: { name: string; description?: string; isActive?: boolean }) => void;
 }) {
+  const ui = useUiText();
   const [name, setName] = useState(item?.name || "");
   const [description, setDescription] = useState(item?.description || "");
   const [isActive, setIsActive] = useState(item?.isActive !== false);
   const [error, setError] = useState("");
+  const category = kind === "category";
 
   const submit = () => {
     if (!name.trim()) {
-      setError("Name is required");
+      setError(ui("Give it a name."));
       return;
     }
     onSave(kind, {
       name: name.trim(),
       description: description.trim() || undefined,
-      ...(kind === "category" ? { isActive } : {}),
+      ...(category ? { isActive } : {}),
     });
   };
 
   return (
-    <ModalFrame
-      title={item ? `Edit ${kind === "category" ? "category" : "group"}` : `New ${kind === "category" ? "category" : "group"}`}
-      eyebrow="Students · Tags"
-      icon={kind === "category" ? Tag : Layers}
-      tone={kind === "category" ? "emerald" : "sky"}
+    <Modal
+      title={ui(item ? (category ? "Edit category" : "Edit group") : (category ? "New category" : "New group"))}
+      eyebrow={ui("Categories & groups")}
+      icon={category ? Tag : Layers}
+      tone={category ? "emerald" : "sky"}
+      size="sm"
+      dirty={name !== (item?.name || "") || description !== (item?.description || "")}
       onClose={onClose}
+      footer={
+        <SharedModalActions
+          busy={busy}
+          busyLabel={ui("Saving…")}
+          actionLabel={ui(item ? "Save changes" : (category ? "Create category" : "Create group"))}
+          onCancel={onClose}
+          onAction={submit}
+        />
+      }
     >
       <div className="space-y-4">
-        <FormInput
-          label="Name"
-          value={name}
-          placeholder={kind === "category" ? "e.g. Scholarship" : "e.g. Transport users"}
-          onChange={(v) => {
-            setName(v);
-            if (error) setError("");
-          }}
-        />
-        {error ? <p className="ps-2 text-xs font-semibold text-rose-500">{error}</p> : null}
-        <label className="block group/input">
-          <span className="sk-field-label">Description</span>
+        <FormField name="tag-name" label={ui("Name")} required error={error || undefined}>
+          <SystemInput
+            value={name}
+            placeholder={ui(category ? "e.g. Scholarship" : "e.g. Transport users")}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (error) setError("");
+            }}
+          />
+        </FormField>
+        <FormField name="tag-description" label={ui("Description")} optional>
           <SystemTextarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={kind === "category" ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route"}
+            placeholder={ui(category ? "e.g. 50% fee concession for staff children" : "e.g. Students using the morning van route")}
             rows={3}
-            className="w-full px-4 py-3 transition-all"
           />
-        </label>
-        {kind === "category" ? (
-          <SystemButton variant="ghost"
-            type="button"
-            onClick={() => setIsActive((v) => !v)}
-            className="flex w-full items-center gap-3 p-3 text-start justify-start"
-          >
-            <span
-              className={cn(
-                "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
-                isActive ? "border-emerald-500 bg-emerald-500" : "border-edge/50 bg-white"
-              )}
-            >
-              {isActive ? <Check className="h-3 w-3 text-white" strokeWidth={3.5} /> : null}
-            </span>
+        </FormField>
+        {category ? (
+          <label className="flex min-h-11 items-start gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-3">
+            <SystemCheckbox checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             <span className="min-w-0">
-              <span className="block text-2xs font-bold text-ink-strong">Active</span>
-              <span className="block text-2xs font-bold text-ink-muted">
-                Inactive categories stay on existing students but can't be chosen for new admissions.
+              <span className="block text-sm font-bold text-ink-strong">{ui("Active")}</span>
+              <span className="block text-xs text-ink-muted">
+                {ui("Inactive categories stay on existing students but can't be chosen for new admissions.")}
               </span>
             </span>
-          </SystemButton>
+          </label>
         ) : null}
       </div>
-      <ModalActions
-        busy={busy}
-        busyLabel={item ? "Saving" : "Creating"}
-        actionLabel={item ? "Save Changes" : `Create ${kind === "category" ? "Category" : "Group"}`}
-        onClose={onClose}
-        onSave={submit}
-      />
-    </ModalFrame>
+    </Modal>
   );
 }
 
@@ -5882,19 +4725,54 @@ function querySourceIcon(source: string) {
   return UserCheck;
 }
 
+const OPEN_ENQUIRY = ["ACTIVE", "FOLLOW_UP"];
+const isOverdueEnquiry = (q: any, now: number) =>
+  OPEN_ENQUIRY.includes(q.status) && Boolean(q.nextFollowUp) && new Date(q.nextFollowUp).getTime() < now;
+
+/**
+ * Admission enquiries (§3.1 admin `admissions&tab=enquiries`; receptionist `admissions&tab=enquiries`).
+ * Self-sufficient for consoles that host it without campus data: `classes` are fetched when absent, and
+ * "Convert to student" is offered only when `onConvert` is passed (the front desk logs and follows up; the
+ * campus admin enrols). A console whose PageHeader carries "New enquiry" and "Export" passes `headerless`
+ * and sends those as `command`s (`new-enquiry`, `export`); otherwise the panel shows its own section header.
+ * A load failure is an inline ErrorState with retry (R4), never a silently empty list.
+ */
 export function AdmissionQueriesPanel({
-  classes,
-  version,
+  classes: providedClasses,
+  version: providedVersion,
   onVersionBump,
   onConvert,
+  command,
+  headerless = false,
 }: {
-  classes: any[];
-  version: number;
-  onVersionBump: () => void;
-  onConvert: (query: any) => void;
+  classes?: any[];
+  version?: number;
+  onVersionBump?: () => void;
+  onConvert?: (query: any) => void;
+  /** Header commands from the hosting console: `new-enquiry` opens the form, `export` downloads the shown list. */
+  command?: PanelCommand | null;
+  /** The console's PageHeader carries this panel's actions, so the panel renders no header of its own. */
+  headerless?: boolean;
 }) {
+  const ui = useUiText();
+  const { date } = useLocaleFormat();
+  const [localVersion, setLocalVersion] = useState(0);
+  const version = (providedVersion ?? 0) + localVersion;
+  const bumpVersion = () => { if (onVersionBump) onVersionBump(); else setLocalVersion((v) => v + 1); };
+  const [fetchedClasses, setFetchedClasses] = useState<any[]>([]);
+  useEffect(() => {
+    if (providedClasses) return;
+    let live = true;
+    fetch("/api/classes", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json) => { if (live && json?.success !== false) setFetchedClasses(json.data || []); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [providedClasses]);
+  const classes = providedClasses ?? fetchedClasses;
   const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sourceFilter, setSourceFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -5916,21 +4794,22 @@ export function AdmissionQueriesPanel({
   /*
    * Status, source and overdue are applied client-side (see `filtered`), so
    * sending them to the API as well made every count on this screen wrong the
-   * moment a chip was pressed: picking "Converted" narrowed the response to
-   * converted leads, and the chips then read "All (4) · Active (0) · Overdue
-   * (0)" for a desk with forty open enquiries. Only `search` still goes to the
-   * server, because the endpoint caps at 200 rows and searching is the one case
-   * that legitimately needs to reach past them.
+   * moment a chip was pressed. Only `search` still goes to the server, because
+   * the endpoint caps at 200 rows and searching is the one case that
+   * legitimately needs to reach past them.
    */
   const loadQueries = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      const res = await fetch(`/api/admission-queries?${params.toString()}`);
-      const json = await res.json();
-      if (json.success) setQueries(json.data || []);
+      const res = await fetch(`/api/admission-queries?${params.toString()}`, { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "Enquiries could not be loaded.");
+      setQueries(json.data || []);
+      setLoadFailed(false);
     } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -5944,10 +4823,8 @@ export function AdmissionQueriesPanel({
     const c: Record<string, number> = { ACTIVE: 0, FOLLOW_UP: 0, CONVERTED: 0, LOST: 0, OVERDUE: 0, UNASSIGNED: 0, NO_DATE: 0 };
     for (const q of queries) {
       if (c[q.status] !== undefined) c[q.status] += 1;
-      const open = ["ACTIVE", "FOLLOW_UP"].includes(q.status);
-      if (open && q.nextFollowUp && new Date(q.nextFollowUp).getTime() < now) {
-        c.OVERDUE += 1;
-      }
+      const open = OPEN_ENQUIRY.includes(q.status);
+      if (isOverdueEnquiry(q, now)) c.OVERDUE += 1;
       // An open lead with nobody on it, or with no next date, is not overdue —
       // it is worse, because nothing will ever make it surface.
       if (open && !q.assignedTo) c.UNASSIGNED += 1;
@@ -5975,10 +4852,7 @@ export function AdmissionQueriesPanel({
         const s = searchQuery.toLowerCase();
         if (!q.name.toLowerCase().includes(s) && !q.phone.includes(s) && !(q.email || "").toLowerCase().includes(s)) return false;
       }
-      if (showOverdue) {
-        if (!["ACTIVE", "FOLLOW_UP"].includes(q.status)) return false;
-        if (!q.nextFollowUp || new Date(q.nextFollowUp).getTime() >= now) return false;
-      }
+      if (showOverdue && !isOverdueEnquiry(q, now)) return false;
       return true;
     });
 
@@ -6005,18 +4879,18 @@ export function AdmissionQueriesPanel({
 
   const exportQueries = () => {
     if (!filtered.length) {
-      toast.error("Nothing to export — no enquiries match the current filters");
+      toast.error(ui("Nothing to export — no enquiries match the current filters"));
       return;
     }
     downloadCSV("admission_enquiries", [
       ["Name", "Phone", "Email", "Source", "Status", "Class of interest", "Next follow-up",
-        "Follow-ups logged", "Owner", "Converted student", "Enquired on", "Note"],
+        "Follow-ups logged", "Owner", "Converted student", "Enquired on", "Note"].map((heading) => ui(heading)),
       ...filtered.map((q: any) => [
         q.name,
         q.phone,
         q.email,
-        QUERY_SOURCES_LABELS[q.source] || q.source,
-        q.status,
+        ui(QUERY_SOURCES_LABELS[q.source] || q.source),
+        ui(formatStatus(q.status)),
         q.classInterested ? classLabel(q.classInterested) : "",
         q.nextFollowUp ? String(q.nextFollowUp).slice(0, 10) : "",
         q._count?.followUps ?? 0,
@@ -6026,238 +4900,229 @@ export function AdmissionQueriesPanel({
         q.note,
       ]),
     ]);
-    toast.success(`${filtered.length} enquir${filtered.length === 1 ? "y" : "ies"} exported`);
+    toast.success(ui(filtered.length === 1 ? "{0} enquiry exported" : "{0} enquiries exported", [filtered.length]));
   };
+
+  usePanelCommand(command, { "new-enquiry": () => setShowNewModal(true), export: exportQueries }, !loading);
 
   /*
    * `active` is passed in rather than derived from the two arguments: the chip
-   * compared its own prefixed key ("status-ACTIVE") against its value
-   * ("ACTIVE"), which is never equal, so no chip has ever rendered as selected
-   * and the row gave no indication of what was being filtered.
+   * compared its own prefixed key against its value, which is never equal, so
+   * no chip ever rendered as selected.
    */
   const filterChip = (key: string, label: string, active: boolean, onSelect: () => void) => (
-    <SystemButton variant="ghost"
+    <SystemButton variant="choice" size="sm"
       key={key}
       type="button"
       onClick={onSelect}
       aria-pressed={active}
-      className={cn(
-        "px-3.5",
-        active
-          ? "bg-primary text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-          : "bg-white text-ink-muted border border-edge/25 hover:border-primary/30 hover:text-primary"
-      )}
+      className="px-3.5"
     >
       {label}
     </SystemButton>
   );
 
-  return (
-    <div className="sk-panel sk-rise p-6">
-      <div className="mb-5">
-        {/* Same header anatomy as the academics overview: icon tile, eyebrow,
-            title, and the one action that starts new work. */}
-        <div className="-mx-6 -mt-6 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-t-[32px] border-b border-edge/15 bg-gradient-to-br from-surface-subtle via-white to-brand-100 px-6 py-5">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
-              <PhoneCall className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Students</p>
-              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Admission Enquiries</h2>
-              <p className="mt-0.5 text-xs font-semibold text-ink-muted">
-                Families who have asked about a place. Follow them up, then convert the ones who enrol.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <BrandButton
-              variant="soft"
-              icon={<Download className="w-4 h-4" />}
-              onClick={exportQueries}
-              disabled={!filtered.length}
-            >
-              Export
-            </BrandButton>
-            <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowNewModal(true)}>
-              New Enquiry
-            </BrandButton>
-          </div>
-        </div>
+  const followUpChip = (q: any) => {
+    const overdue = isOverdueEnquiry(q, now);
+    if (!q.nextFollowUp) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-2xs font-semibold text-ink-muted">
+          <Clock aria-hidden="true" className="h-3 w-3" /> {ui("No follow-up set")}
+        </span>
+      );
+    }
+    return (
+      <span className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-2xs font-semibold",
+        overdue ? "bg-status-error-surface text-status-error-text" : "bg-status-brand-surface text-status-brand-text",
+      )}>
+        <CalendarClock aria-hidden="true" className="h-3 w-3" />
+        {ui(overdue ? "Overdue since {0}" : "Next {0}", [date(q.nextFollowUp)])}
+      </span>
+    );
+  };
 
-        {/* The pipeline in four numbers. Conversion rate is the one figure a
-            head asks for and the screen could never answer. */}
-        <StatTiles
-          tiles={[
-            {
-              key: "open",
-              icon: PhoneCall,
-              label: "Open enquiries",
-              value: counts.ACTIVE + counts.FOLLOW_UP,
-              hint: `${queries.length} in total`,
-              tone: "violet",
+  return (
+    <div className={cn("space-y-4", headerless ? "" : "sk-panel sk-rise p-6")}>
+      {headerless ? null : (
+        // Same anatomy as every console section: title, one sentence and the one action that starts new work.
+        <PageHeader
+          headingLevel={2}
+          icon={PhoneCall}
+          title={ui("Enquiries")}
+          description={onConvert
+            ? "Families who have asked about a place. Follow them up, then convert the ones who enrol."
+            : "Families who have asked about a place. Log each one and follow it up; your campus admin enrols."}
+          primaryAction={{ id: "new-enquiry", label: "New enquiry", icon: Plus, onClick: () => setShowNewModal(true) }}
+          secondaryActions={[{ id: "export-enquiries", label: "Export", icon: Download, onClick: exportQueries, disabled: !filtered.length, disabledReason: "Nothing to export yet." }]}
+        />
+      )}
+
+      {/* The pipeline in four numbers. Conversion rate is the one figure a head asks for. */}
+      <StatTiles
+        tiles={[
+          {
+            key: "open",
+            icon: PhoneCall,
+            label: "Open enquiries",
+            value: counts.ACTIVE + counts.FOLLOW_UP,
+            hint: ui("{0} in total", [queries.length]),
+            tone: "violet",
+          },
+          {
+            key: "overdue",
+            icon: CalendarClock,
+            label: "Overdue follow-ups",
+            value: counts.OVERDUE,
+            hint: counts.NO_DATE ? ui("{0} with no date set", [counts.NO_DATE]) : ui("All have a next date"),
+            tone: counts.OVERDUE ? "rose" : "emerald",
+            active: showOverdue,
+            onClick: () => {
+              setStatusFilter("ALL");
+              setSourceFilter("ALL");
+              setShowOverdue(!showOverdue);
             },
-            {
-              key: "overdue",
-              icon: CalendarClock,
-              label: "Overdue follow-ups",
-              value: counts.OVERDUE,
-              hint: counts.NO_DATE ? `${counts.NO_DATE} with no date set` : "All have a next date",
-              tone: counts.OVERDUE ? "rose" : "emerald",
-              active: showOverdue,
-              onClick: () => {
-                setStatusFilter("ALL");
-                setSourceFilter("ALL");
-                setShowOverdue(!showOverdue);
-              },
+          },
+          {
+            key: "converted",
+            icon: GraduationCap,
+            label: "Converted",
+            value: counts.CONVERTED,
+            hint: conversionRate !== null ? ui("{0}% of decided enquiries", [conversionRate]) : ui("None decided yet"),
+            tone: "emerald",
+            active: statusFilter === "CONVERTED",
+            onClick: () => {
+              setShowOverdue(false);
+              setSourceFilter("ALL");
+              setStatusFilter(statusFilter === "CONVERTED" ? "ALL" : "CONVERTED");
             },
-            {
-              key: "converted",
-              icon: GraduationCap,
-              label: "Converted",
-              value: counts.CONVERTED,
-              hint: conversionRate !== null ? `${conversionRate}% of decided enquiries` : "None decided yet",
-              tone: "emerald",
-              active: statusFilter === "CONVERTED",
-              onClick: () => {
-                setShowOverdue(false);
-                setSourceFilter("ALL");
-                setStatusFilter(statusFilter === "CONVERTED" ? "ALL" : "CONVERTED");
-              },
+          },
+          {
+            key: "unassigned",
+            icon: UserCheck,
+            label: "Nobody assigned",
+            value: counts.UNASSIGNED,
+            hint: counts.UNASSIGNED ? ui("No one is chasing these") : ui("Every lead has an owner"),
+            tone: counts.UNASSIGNED ? "amber" : "emerald",
+          },
+        ]}
+      />
+
+      {/* Overdue follow-ups are the only thing here that goes wrong on its own, so they are called out above the list. */}
+      {counts.OVERDUE > 0 && !showOverdue ? (
+        <Alert
+          tone="danger"
+          compact
+          live="off"
+          actions={
+            <SystemButton type="button" size="sm" variant="outline" onClick={() => { setStatusFilter("ALL"); setShowOverdue(true); setSourceFilter("ALL"); }}>
+              {ui("Show overdue")}
+            </SystemButton>
+          }
+        >
+          {ui(counts.OVERDUE === 1 ? "{0} follow-up is overdue." : "{0} follow-ups are overdue.", [counts.OVERDUE])}
+        </Alert>
+      ) : null}
+
+      <div role="group" aria-label={ui("Filter by status")} className="flex flex-wrap gap-2">
+        {[
+          { key: "ALL", label: ui("All ({0})", [queries.length]) },
+          { key: "ACTIVE", label: ui("Active ({0})", [counts.ACTIVE]) },
+          { key: "FOLLOW_UP", label: ui("Follow-up ({0})", [counts.FOLLOW_UP]) },
+          { key: "CONVERTED", label: ui("Converted ({0})", [counts.CONVERTED]) },
+          { key: "OVERDUE", label: ui("Overdue ({0})", [counts.OVERDUE]) },
+        ].map((c) =>
+          filterChip(
+            `status-${c.key}`,
+            c.label,
+            c.key === "OVERDUE" ? showOverdue : !showOverdue && statusFilter === c.key,
+            () => {
+              setStatusFilter(c.key === "OVERDUE" ? "ALL" : c.key);
+              setShowOverdue(c.key === "OVERDUE");
+              setSourceFilter("ALL");
             },
-            {
-              key: "unassigned",
-              icon: UserCheck,
-              label: "Nobody assigned",
-              value: counts.UNASSIGNED,
-              hint: counts.UNASSIGNED ? "No one is chasing these" : "Every lead has an owner",
-              tone: counts.UNASSIGNED ? "amber" : "emerald",
-            },
+          ),
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2.5">
+        <SearchField
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={ui("Name, phone or email…")}
+          label={ui("Search enquiries")}
+          autoFocusKey={null}
+          className="max-w-xs"
+        />
+        <ToolbarSelect
+          label={ui("Source")}
+          value={sourceFilter}
+          onChange={setSourceFilter}
+          options={[
+            ["ALL", "All sources"],
+            ...Object.entries(QUERY_SOURCES_LABELS).map(([k, v]) => [k, v] as [string, string]),
           ]}
         />
-        <div className="h-4" />
-
-        {/* Overdue follow-ups are the only thing here that goes wrong on its
-            own, so they get called out above the list rather than buried. */}
-        {counts.OVERDUE > 0 && !showOverdue ? (
-          <SystemButton variant="ghost"
-            type="button"
-            onClick={() => { setStatusFilter("ALL"); setShowOverdue(true); setSourceFilter("ALL"); }}
-            className="mb-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-start hover:brightness-95"
-          >
-            <span className="flex items-center gap-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-              <span className="text-sm font-bold text-rose-600">
-                {counts.OVERDUE} follow-up{counts.OVERDUE === 1 ? " is" : "s are"} overdue
-              </span>
-            </span>
-            <ArrowRight className="h-4 w-4 text-rose-600 rtl:rotate-180" aria-hidden="true" />
-          </SystemButton>
-        ) : null}
-
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          {[
-            { key: "ALL", label: `All (${queries.length})` },
-            { key: "ACTIVE", label: `Active (${counts.ACTIVE})` },
-            { key: "FOLLOW_UP", label: `Follow-up (${counts.FOLLOW_UP})` },
-            { key: "CONVERTED", label: `Converted (${counts.CONVERTED})` },
-            { key: "OVERDUE", label: `Overdue (${counts.OVERDUE})` },
-          ].map((c) =>
-            filterChip(
-              `status-${c.key}`,
-              c.label,
-              c.key === "OVERDUE" ? showOverdue : !showOverdue && statusFilter === c.key,
-              () => {
-                setStatusFilter(c.key === "OVERDUE" ? "ALL" : c.key);
-                setShowOverdue(c.key === "OVERDUE");
-                setSourceFilter("ALL");
-              },
-            ),
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <SearchField
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Name, phone or email…"
-            autoFocusKey={null}
-            className="max-w-xs"
-          />
-          <ToolbarSelect
-            label="Source"
-            value={sourceFilter}
-            onChange={setSourceFilter}
+        <ToolbarSelect
+          label={ui("Sort by")}
+          value={querySort}
+          onChange={(v) => setQuerySort(v as typeof querySort)}
+          options={[
+            ["overdue", "Most overdue first"],
+            ["next", "Furthest away"],
+            ["newest", "Newest enquiry"],
+            ["name", "Name (A–Z)"],
+          ]}
+        />
+        <span className="text-xs font-semibold text-ink-muted" aria-live="polite">{ui("{0} shown", [filtered.length])}</span>
+        <div className="ms-auto">
+          <ViewSwitch
+            value={queryPrefs.view}
+            onChange={(v) => patchQueryPrefs({ view: v })}
             options={[
-              ["ALL", "All sources"],
-              ...Object.entries(QUERY_SOURCES_LABELS).map(([k, v]) => [k, v] as [string, string]),
+              { value: "cards", label: "Cards", icon: LayoutGrid },
+              { value: "table", label: "List", icon: ClipboardList },
             ]}
           />
-          <ToolbarSelect
-            label="Sort by"
-            value={querySort}
-            onChange={(v) => setQuerySort(v as typeof querySort)}
-            options={[
-              ["overdue", "Most overdue first"],
-              ["next", "Furthest away"],
-              ["newest", "Newest enquiry"],
-              ["name", "Name (A–Z)"],
-            ]}
-          />
-          <StatusPill status={`${filtered.length} shown`} />
-          <div className="ms-auto">
-            <ViewSwitch
-              value={queryPrefs.view}
-              onChange={(v) => patchQueryPrefs({ view: v })}
-              options={[
-                { value: "cards", label: "Cards", icon: LayoutGrid },
-                { value: "table", label: "List", icon: ClipboardList },
-              ]}
-            />
-          </div>
         </div>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="sk-panel flex items-center gap-3 p-4"
-            >
-              <div className="h-11 w-11 shrink-0 rounded-2xl bg-edge/20 animate-pulse" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="h-3.5 w-1/3 rounded-full bg-edge/25 animate-pulse" />
-                <div className="h-2.5 w-2/3 rounded-full bg-edge/15 animate-pulse" />
-              </div>
-              <div className="h-5 w-16 shrink-0 rounded-full bg-edge/20 animate-pulse" />
-            </div>
-          ))}
-        </div>
+      {loading && !queries.length ? (
+        <SkeletonList rows={4} label={ui("Loading enquiries…")} />
+      ) : loadFailed && !queries.length ? (
+        <ErrorState
+          variant="panel"
+          title={ui("Couldn't load enquiries")}
+          description={ui("The enquiry list didn't come back. Check your connection and try again.")}
+          onRetry={() => void loadQueries()}
+        />
+      ) : queries.length === 0 ? (
+        <EmptyState
+          icon={PhoneCall}
+          title={ui("No enquiries yet")}
+          description={ui("Log a family's first call or visit and follow it up from here.")}
+          action={<SystemButton type="button" onClick={() => setShowNewModal(true)}><Plus aria-hidden="true" />{ui("New enquiry")}</SystemButton>}
+        />
       ) : filtered.length === 0 ? (
-        <EmptyInline text="No admission queries match these filters" />
+        <EmptyInline text={ui("No enquiries match these filters. Try clearing them.")} />
       ) : queryPrefs.view === "table" ? (
         <DataTable
           rows={filtered}
           rowKey={(q: any) => q.id}
           minWidth={860}
+          caption={ui("Admission enquiries")}
+          getRowLabel={(q: any) => q.name}
           onRowClick={(q: any) => setSelected(q)}
-          rowClassName={(q: any) =>
-            ["ACTIVE", "FOLLOW_UP"].includes(q.status) &&
-            q.nextFollowUp &&
-            new Date(q.nextFollowUp).getTime() < now
-              ? "bg-rose-50/40"
-              : undefined
-          }
+          rowClassName={(q: any) => (isOverdueEnquiry(q, now) ? "bg-status-error-surface/40" : undefined)}
           columns={[
             {
               key: "name",
               label: "Enquiry",
               render: (q: any) => (
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-ink-strong">{q.name}</p>
-                  <p className="truncate text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                    {QUERY_SOURCES_LABELS[q.source] || q.source}
+                  <p className="truncate text-sm font-bold text-ink-strong"><bdi>{q.name}</bdi></p>
+                  <p className="truncate text-xs font-semibold text-ink-subtle">
+                    {ui(QUERY_SOURCES_LABELS[q.source] || q.source)}
                   </p>
                 </div>
               ),
@@ -6273,36 +5138,14 @@ export function AdmissionQueriesPanel({
               secondary: true,
               render: (q: any) => (
                 <span className="text-xs font-bold text-ink">
-                  {q.classInterested ? classLabel(q.classInterested) : "Not set"}
+                  {q.classInterested ? <bdi>{classLabel(q.classInterested)}</bdi> : ui("Not set")}
                 </span>
               ),
             },
             {
               key: "follow",
               label: "Next follow-up",
-              render: (q: any) => {
-                const overdue =
-                  ["ACTIVE", "FOLLOW_UP"].includes(q.status) &&
-                  q.nextFollowUp &&
-                  new Date(q.nextFollowUp).getTime() < now;
-                if (!q.nextFollowUp) {
-                  return (
-                    <span className="text-2xs font-bold text-ink-subtle">Not scheduled</span>
-                  );
-                }
-                return (
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
-                      overdue ? "bg-rose-100 text-rose-600" : "bg-brand-50 text-primary",
-                    )}
-                  >
-                    <CalendarClock className="h-3 w-3" />
-                    {overdue ? "Overdue · " : ""}
-                    {formatDate(q.nextFollowUp)}
-                  </span>
-                );
-              },
+              render: (q: any) => followUpChip(q),
             },
             {
               key: "owner",
@@ -6310,92 +5153,75 @@ export function AdmissionQueriesPanel({
               secondary: true,
               render: (q: any) => (
                 <span className="text-xs font-bold text-ink-muted">
-                  {q.assignedTo?.fullName || "Unassigned"}
+                  {q.assignedTo?.fullName ? <bdi>{q.assignedTo.fullName}</bdi> : ui("Unassigned")}
                 </span>
               ),
             },
             {
               key: "status",
               label: "Status",
-              align: "right",
+              align: "end",
               render: (q: any) => <StatusPill status={q.status} />,
             },
           ]}
         />
       ) : (
-        <div className="space-y-3">
-          {filtered.map((q, i) => {
-            const overdue = ["ACTIVE", "FOLLOW_UP"].includes(q.status) && q.nextFollowUp && new Date(q.nextFollowUp).getTime() < now;
+        <ul className="space-y-3" aria-label={ui("Admission enquiries")}>
+          {filtered.map((q) => {
+            const overdue = isOverdueEnquiry(q, now);
             const SourceIcon = querySourceIcon(q.source);
             return (
-              <SystemButton variant="ghost"
+              <li
                 key={q.id}
-                type="button"
-                onClick={() => setSelected(q)}
                 className={cn(
-                  "group/q relative w-full overflow-hidden p-4 text-start hover:-translate-y-0.5",
-                  overdue
-                    ? "border-rose-300/70 bg-rose-50/40 hover:border-rose-400/60"
-                    : "border-edge/25 hover:border-primary/30"
+                  "sk-panel relative flex flex-wrap items-start gap-3 overflow-hidden p-4",
+                  overdue ? "border-status-error-border bg-status-error-surface/40" : "",
                 )}
-                style={{ animationDelay: `${i * 50}ms` }}
               >
-                {overdue ? (
-                  <span className="absolute start-0 top-4 bottom-4 w-1 rounded-r-full bg-rose-500" />
-                ) : null}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm transition-all duration-300 group-hover/q:from-primary group-hover/q:to-brand-400 group-hover/q:text-white">
-                      <SourceIcon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-md font-bold text-ink-strong tracking-tight">{q.name}</p>
-                      <p className="mt-0.5 truncate text-xs font-bold text-ink-muted">
-                        {q.phone}
-                        {q.email ? ` · ${q.email}` : ""}
-                        {q.classInterested ? ` · ${classLabel(q.classInterested)}` : " · Class not set"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    {/* Returning a call is what this screen is for; it should
-                        not need the detail drawer first. */}
-                    <EnquiryContact query={q} />
-                    <StatusPill status={q.status} />
-                    <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                      {QUERY_SOURCES_LABELS[q.source] || q.source}
+                {overdue ? <span aria-hidden="true" className="absolute inset-y-4 start-0 w-1 rounded-e-full bg-status-error-text" /> : null}
+                {/* The row opens the record; calling back stays one tap away beside it (§4.5.2). */}
+                <SystemButton
+                  variant="ghost"
+                  type="button"
+                  onClick={() => setSelected(q)}
+                  className="h-auto min-w-0 flex-1 justify-start gap-3 p-0 text-start font-normal"
+                  aria-label={ui("Open enquiry from {0}", [q.name])}
+                >
+                  <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-primary">
+                    <SourceIcon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-md font-bold tracking-tight text-ink-strong"><bdi>{q.name}</bdi></span>
+                    <span className="mt-0.5 block truncate text-xs font-semibold text-ink-muted">
+                      <bdi dir="ltr">{q.phone}</bdi>
+                      {q.email ? <> · <bdi dir="ltr">{q.email}</bdi></> : null}
+                      {" · "}
+                      {q.classInterested ? <bdi>{classLabel(q.classInterested)}</bdi> : ui("Class not set")}
                     </span>
-                  </div>
+                  </span>
+                </SystemButton>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <EnquiryContact query={q} />
+                  <StatusPill status={q.status} />
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-muted pt-2.5">
-                  {q.nextFollowUp ? (
-                    <span className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider",
-                      overdue ? "bg-rose-100 text-rose-600" : "bg-brand-50 text-primary"
-                    )}>
-                      <CalendarClock className="h-3 w-3" />
-                      {overdue ? "Overdue · " : "Next "}{formatDate(q.nextFollowUp)}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-                      <Clock className="h-3 w-3" /> No follow-up set
-                    </span>
-                  )}
+                <div className="flex w-full flex-wrap items-center gap-2 border-t border-muted pt-2.5">
+                  {followUpChip(q)}
+                  <span className="text-2xs font-semibold text-ink-subtle">{ui(QUERY_SOURCES_LABELS[q.source] || q.source)}</span>
                   {q.assignedTo ? (
                     <Badge variant="info">
-                      <User className="h-3 w-3" aria-hidden="true" /> {q.assignedTo.fullName}
+                      <User className="h-3 w-3" aria-hidden="true" /> <bdi>{q.assignedTo.fullName}</bdi>
                     </Badge>
                   ) : null}
                   {q.convertedStudent ? (
                     <Badge variant="success">
-                      <UserCheck className="h-3 w-3" aria-hidden="true" /> {q.convertedStudent.fullName}
+                      <UserCheck className="h-3 w-3" aria-hidden="true" /> <bdi>{q.convertedStudent.fullName}</bdi>
                     </Badge>
                   ) : null}
                 </div>
-              </SystemButton>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
       {showNewModal ? (
@@ -6405,7 +5231,7 @@ export function AdmissionQueriesPanel({
           onCreated={() => {
             setShowNewModal(false);
             loadQueries();
-            onVersionBump();
+            bumpVersion();
           }}
         />
       ) : null}
@@ -6415,12 +5241,13 @@ export function AdmissionQueriesPanel({
           query={selected}
           classes={classes}
           now={now}
-          onConvert={() => { setSelected(null); onConvert(selected); }}
+          onConvert={onConvert ? () => { setSelected(null); onConvert(selected); } : undefined}
           onClose={() => setSelected(null)}
           onChanged={(updated) => {
-            setSelected(updated);
+            if (updated?._deleted) setSelected(null);
+            else setSelected(updated);
             loadQueries();
-            onVersionBump();
+            bumpVersion();
           }}
         />
       ) : null}
@@ -6430,42 +5257,40 @@ export function AdmissionQueriesPanel({
 
 
 /**
- * Call / WhatsApp / email an enquiry straight from the list. Stops propagation
- * so tapping a number does not also open the detail drawer behind it.
+ * Call / WhatsApp / email an enquiry straight from the list. Each is its own 44 px link beside the row's
+ * open control (never nested inside it).
  */
 function EnquiryContact({ query }: { query: any }) {
+  const ui = useUiText();
   const digits = String(query.phone || "").replace(/[^\d+]/g, "");
   const wa = String(query.phone || "").replace(/\D/g, "");
-  const stop = (e: React.MouseEvent) => e.stopPropagation();
-  const cls =
-    "flex h-7 w-7 items-center justify-center rounded-full border border-edge/25 bg-white text-ink-muted transition-colors hover:border-primary/40 hover:text-primary";
+  const cls = buttonVariants({ variant: "outline", size: "icon", className: "rounded-full text-ink-muted" });
   return (
     <div className="flex shrink-0 items-center gap-1">
       {digits.length >= 6 ? (
-        <Tooltip content={`Call ${query.phone}`} describe={false}>
-          <a href={`tel:${digits}`} onClick={stop} aria-label="Call enquiry" className={cls}>
-            <PhoneCall className="h-3 w-3" />
+        <Tooltip content={ui("Call {0}", [query.phone])} describe={false}>
+          <a href={`tel:${digits}`} aria-label={ui("Call {0}", [query.name])} className={cls}>
+            <PhoneCall aria-hidden="true" className="h-4 w-4" />
           </a>
         </Tooltip>
       ) : null}
       {wa.length >= 8 ? (
-        <Tooltip content="Message on WhatsApp" describe={false}>
+        <Tooltip content={ui("Message on WhatsApp")} describe={false}>
           <a
             href={`https://wa.me/${wa}`}
-            onClick={stop}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Message enquiry on WhatsApp"
+            aria-label={ui("Message {0} on WhatsApp", [query.name])}
             className={cls}
           >
-            <MessageCircle className="h-3 w-3" />
+            <MessageCircle aria-hidden="true" className="h-4 w-4" />
           </a>
         </Tooltip>
       ) : null}
       {query.email ? (
         <Tooltip content={query.email} describe={false}>
-          <a href={`mailto:${query.email}`} onClick={stop} aria-label="Email enquiry" className={cls}>
-            <Mail className="h-3 w-3" />
+          <a href={`mailto:${query.email}`} aria-label={ui("Email {0}", [query.name])} className={cls}>
+            <Mail aria-hidden="true" className="h-4 w-4" />
           </a>
         </Tooltip>
       ) : null}
@@ -6482,6 +5307,7 @@ function NewQueryModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const ui = useUiText();
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -6491,14 +5317,19 @@ function NewQueryModal({
     note: "",
   });
   const [busy, setBusy] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const dirty = Boolean(form.name || form.phone || form.email || form.note);
 
   // Group the flat class rows into their class groups (name + academic year)
   // so the dropdown lists each class once, not every section.
   const classGroups = useMemo(() => groupClasses(classes), [classes]);
+  const nameError = attempted && !form.name.trim() ? ui("Enter the guardian's or the child's name.") : undefined;
+  const phoneError = attempted && !form.phone.trim() ? ui("Enter a phone number so the office can call back.") : undefined;
 
   const submit = async () => {
+    // R4: a missing field is shown on the field itself, never as a toast.
     if (!form.name.trim() || !form.phone.trim()) {
-      toast.error("Name and phone are required");
+      setAttempted(true);
       return;
     }
     setBusy(true);
@@ -6508,55 +5339,73 @@ function NewQueryModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, classInterestedId: form.classInterestedId || null }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not create query");
-      toast.success("Enquiry created");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(apiErrorMessage(data.error, ui("The enquiry could not be saved. Please try again.")));
+      toast.success(ui("Enquiry created"));
       onCreated();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create query");
+      toast.error(friendlyErrorMessage(error, ui("The enquiry could not be saved. Please try again.")));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <ModalFrame title="New Admission Enquiry" eyebrow="Admissions" subtitle="Log a family who has asked about a place." icon={PhoneCall} tone="emerald" onClose={onClose}>
+    <Modal
+      title={ui("New enquiry")}
+      eyebrow={ui("Admissions")}
+      subtitle={ui("Log a family who has asked about a place.")}
+      icon={PhoneCall}
+      tone="emerald"
+      size="sm"
+      dirty={dirty}
+      onClose={onClose}
+      footer={<SharedModalActions busy={busy} busyLabel={ui("Saving…")} actionLabel={ui("Create enquiry")} onCancel={onClose} onAction={submit} tone="emerald" />}
+    >
       <div className="space-y-4">
-        <FormInput label="Name *" value={form.name} placeholder="Guardian or student name" onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
+        <FormField name="enquiry-name" label={ui("Name")} required error={nameError}>
+          <SystemInput value={form.name} placeholder={ui("Guardian or student name")} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+        </FormField>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormInput label="Phone *" value={form.phone} placeholder="+92 300 1234567" onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
-          <FormInput label="Email" value={form.email} placeholder="optional" onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
+          <FormField name="enquiry-phone" label={ui("Phone")} required error={phoneError}>
+            <SystemInput type="tel" dir="ltr" inputMode="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+          </FormField>
+          <FormField name="enquiry-email" label={ui("Email")} optional>
+            <SystemInput type="email" dir="ltr" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+          </FormField>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <FormSelect label="Class interested in" value={form.classInterestedId} onChange={(v) => setForm((f) => ({ ...f, classInterestedId: v }))}>
-            <option value="">Not specified</option>
-            {classGroups.map((group) => {
-              const rep = group.sections.find((s) => !s.section) || group.sections[0];
-              return (
-                <option key={group.key} value={rep?.id}>
-                  {group.name}{group.academicYear ? ` (${group.academicYear})` : ""}
-                </option>
-              );
-            })}
-          </FormSelect>
-          <FormSelect label="Source" value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))}>
-            {Object.entries(QUERY_SOURCES_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </FormSelect>
+          <FormField name="enquiry-class" label={ui("Class interested in")}>
+            <SystemSelect value={form.classInterestedId} onChange={(e) => setForm((f) => ({ ...f, classInterestedId: e.target.value }))}>
+              <option value="">{ui("Not specified")}</option>
+              {classGroups.map((group) => {
+                const rep = group.sections.find((s) => !s.section) || group.sections[0];
+                return (
+                  <option key={group.key} value={rep?.id}>
+                    {group.name}{group.academicYear ? ` (${group.academicYear})` : ""}
+                  </option>
+                );
+              })}
+            </SystemSelect>
+          </FormField>
+          <FormField name="enquiry-source" label={ui("Source")}>
+            <SystemSelect value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}>
+              {Object.entries(QUERY_SOURCES_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{ui(v)}</option>
+              ))}
+            </SystemSelect>
+          </FormField>
         </div>
-        <label className="block">
-          <span className="sk-field-label">Note</span>
+        <FormField name="enquiry-note" label={ui("Note")} optional>
           <SystemTextarea
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-            placeholder="What is this enquiry about?"
-            className="min-h-24 w-full px-4 py-3 transition-all duration-250"
+            placeholder={ui("What is this enquiry about?")}
+            className="min-h-24"
           />
-        </label>
+        </FormField>
       </div>
-      <ModalActions busy={busy} busyLabel="Creating" actionLabel="Create Enquiry" onClose={onClose} onSave={submit} />
-    </ModalFrame>
+    </Modal>
   );
 }
 
@@ -6571,21 +5420,27 @@ function QueryDetailModal({
   query: any;
   classes: any[];
   now: number;
-  onConvert: () => void;
+  /** Absent for the front desk: enrolment is the campus admin's decision (§2.2 #51). */
+  onConvert?: () => void;
   onClose: () => void;
   onChanged: (updated: any) => void;
 }) {
+  const ui = useUiText();
+  const { date } = useLocaleFormat();
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [noteDraft, setNoteDraft] = useState("");
   const [nextDate, setNextDate] = useState("");
+  const [noteAttempted, setNoteAttempted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: query.name, phone: query.phone, email: query.email || "" });
+  void classes;
 
   const loadFollowUps = useCallback(async () => {
-    const res = await fetch(`/api/admission-queries/follow-ups?queryId=${query.id}`);
-    const json = await res.json();
+    const res = await fetch(`/api/admission-queries/follow-ups?queryId=${query.id}`, { cache: "no-store" });
+    const json = await res.json().catch(() => ({}));
     if (json.success) setFollowUps(json.data || []);
   }, [query.id]);
 
@@ -6593,7 +5448,8 @@ function QueryDetailModal({
     loadFollowUps();
   }, [loadFollowUps]);
 
-  const patch = async (body: Record<string, any>) => {
+  const failed = ui("The enquiry could not be updated. Please try again.");
+  const patch = async (body: Record<string, any>, success = "Enquiry updated") => {
     setBusy(true);
     try {
       const res = await fetch("/api/admission-queries", {
@@ -6601,13 +5457,13 @@ function QueryDetailModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: query.id, ...body }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Update failed");
-      toast.success("Enquiry updated");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(apiErrorMessage(data.error, failed));
+      toast.success(ui(success));
       onChanged(data.data);
       return data.data;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Update failed");
+      toast.error(friendlyErrorMessage(error, failed));
       return null;
     } finally {
       setBusy(false);
@@ -6616,215 +5472,214 @@ function QueryDetailModal({
 
   const addFollowUp = async () => {
     if (!noteDraft.trim()) {
-      toast.error("Please write a follow-up note");
+      setNoteAttempted(true);
       return;
     }
-    await patch({
-      followUp: {
-        note: noteDraft.trim(),
-        nextDate: nextDate || null,
-      },
-    });
+    const saved = await patch({ followUp: { note: noteDraft.trim(), nextDate: nextDate || null } }, "Follow-up logged");
+    if (!saved) return;
     setNoteDraft("");
     setNextDate("");
+    setNoteAttempted(false);
     loadFollowUps();
   };
 
-  const setStatus = async (status: string) => {
-    const updated = await patch({ status });
-    if (updated?.status === "LOST") setDeleteConfirm(false);
+  const doDelete = async () => {
+    const res = await fetch(`/api/admission-queries?id=${query.id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(apiErrorMessage(data.error, ui("The enquiry could not be deleted. Please try again.")));
+    toast.success(ui("Enquiry deleted"));
+    setDeleteConfirm(false);
+    onChanged({ ...query, _deleted: true });
   };
 
-  const doDelete = async () => {
+  const startApplication = async () => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/admission-queries?id=${query.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not delete");
-      toast.success("Query deleted");
-      onChanged({ ...query, _deleted: true });
+      const forms = await (await fetch("/api/admissions?forms=1", { cache: "no-store" })).json();
+      const form = (forms.data ?? []).find((item: { currentVersion: number; isOpen: boolean }) => item.currentVersion > 0 && item.isOpen);
+      if (!form) { toast.error(ui("Publish an application form under Applications first.")); return; }
+      const response = await fetch("/api/admissions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", formId: form.id, enquiryId: query.id }) });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error(apiErrorMessage(json.error, ui("The application could not be started.")));
+      toast.success(ui("Application {0} started from this enquiry. Continue it under Applications.", [json.data.reference]));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not delete");
+      toast.error(friendlyErrorMessage(error, ui("The application could not be started.")));
     } finally {
       setBusy(false);
     }
   };
 
-  const overdue = ["ACTIVE", "FOLLOW_UP"].includes(query.status) && query.nextFollowUp && new Date(query.nextFollowUp).getTime() < now;
+  const overdue = isOverdueEnquiry(query, now);
+  const open = query.status !== "CONVERTED";
+  const moreActions: MenuItem[] = [
+    { id: "edit", label: "Edit details", icon: Pencil, onSelect: () => setEditing(true) },
+    ...(open && query.status !== "FOLLOW_UP" && query.status !== "LOST" ? [{ id: "follow-up", label: "Mark as follow-up", icon: Send, onSelect: () => void patch({ status: "FOLLOW_UP" }) }] : []),
+    ...(open && query.status !== "LOST" ? [{ id: "lost", label: "Mark as lost", icon: X, onSelect: () => void patch({ status: "LOST" }) }] : []),
+  ];
 
   return (
-    <ModalFrame title={query.name} eyebrow={`Admission Enquiry · ${QUERY_SOURCES_LABELS[query.source] || query.source}`} subtitle={query.phone} icon={PhoneCall} onClose={onClose} wide>
+    <Modal
+      title={query.name}
+      eyebrow={`${ui("Admission enquiry")} · ${ui(QUERY_SOURCES_LABELS[query.source] || query.source)}`}
+      subtitle={<bdi dir="ltr">{query.phone}</bdi>}
+      chips={<><StatusPill status={query.status} />{overdue ? <Badge variant="danger" size="sm"><CalendarClock aria-hidden="true" className="h-3 w-3" />{ui("Follow-up overdue")}</Badge> : null}</>}
+      icon={PhoneCall}
+      size="lg"
+      dirty={Boolean(noteDraft.trim()) || editing}
+      onClose={onClose}
+      headerActions={
+        <Menu
+          label={ui("More actions")}
+          align="end"
+          trigger={<IconButton label={ui("More actions for {0}", [query.name])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+          items={moreActions}
+        />
+      }
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* §4.5.3: the destructive action sits at the start of the footer, behind a confirmation. */}
+          <SystemButton type="button" variant="ghost" className="text-status-error-text" onClick={() => setDeleteConfirm(true)} disabled={busy}>
+            <Trash2 aria-hidden="true" />{ui("Delete enquiry")}
+          </SystemButton>
+          <SystemButton type="button" variant="outline" onClick={onClose}>{ui("Close")}</SystemButton>
+        </div>
+      }
+    >
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="space-y-4 lg:col-span-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusPill status={query.status} />
-            {overdue ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-rose-600">
-                <CalendarClock className="h-3 w-3" /> Follow-up overdue
-              </span>
-            ) : null}
-          </div>
-
           {editing ? (
             <div className="space-y-3">
-              <FormInput label="Name" value={editForm.name} placeholder="Name" onChange={(v) => setEditForm((f) => ({ ...f, name: v }))} />
-              <FormInput label="Phone" value={editForm.phone} placeholder="Phone" onChange={(v) => setEditForm((f) => ({ ...f, phone: v }))} />
-              <FormInput label="Email" value={editForm.email} placeholder="Email" onChange={(v) => setEditForm((f) => ({ ...f, email: v }))} />
+              <FormField name="enquiry-edit-name" label={ui("Name")} required>
+                <SystemInput value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
+              </FormField>
+              <FormField name="enquiry-edit-phone" label={ui("Phone")} required>
+                <SystemInput type="tel" dir="ltr" value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+              </FormField>
+              <FormField name="enquiry-edit-email" label={ui("Email")} optional>
+                <SystemInput type="email" dir="ltr" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} />
+              </FormField>
               <div className="flex gap-2">
-                <BrandButton variant="soft" onClick={() => setEditing(false)}>Cancel</BrandButton>
-                <BrandButton
+                <SystemButton type="button" variant="outline" onClick={() => { setEditing(false); setEditForm({ name: query.name, phone: query.phone, email: query.email || "" }); }}>{ui("Keep editing")}</SystemButton>
+                <SystemButton
+                  type="button"
+                  loading={busy}
+                  disabled={!editForm.name.trim() || !editForm.phone.trim()}
                   onClick={async () => {
                     const updated = await patch({ name: editForm.name, phone: editForm.phone, email: editForm.email });
                     if (updated) setEditing(false);
                   }}
-                  disabled={busy}
                 >
-                  Save
-                </BrandButton>
+                  {ui("Save changes")}
+                </SystemButton>
               </div>
             </div>
           ) : (
             <>
-              <div className="rounded-2xl border border-edge/20 bg-brand-50/40 p-4">
-                <DetailRow label="Phone" value={query.phone} />
-                <DetailRow label="Email" value={query.email || "—"} />
-                <DetailRow label="Class interested" value={query.classInterested ? classLabel(query.classInterested) : "Not specified"} />
-                <DetailRow label="Assigned to" value={query.assignedTo?.fullName || "Unassigned"} />
-                <DetailRow label="Next follow-up" value={query.nextFollowUp ? `${formatDate(query.nextFollowUp)}${overdue ? " (overdue)" : ""}` : "None"} />
-                <DetailRow label="Logged on" value={formatDate(query.createdAt)} />
+              <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+                <DetailRow label={ui("Phone")} value={<bdi dir="ltr">{query.phone}</bdi>} />
+                <DetailRow label={ui("Email")} value={query.email ? <bdi dir="ltr">{query.email}</bdi> : "—"} />
+                <DetailRow label={ui("Class interested")} value={query.classInterested ? <bdi>{classLabel(query.classInterested)}</bdi> : ui("Not specified")} />
+                <DetailRow label={ui("Assigned to")} value={query.assignedTo?.fullName ? <bdi>{query.assignedTo.fullName}</bdi> : ui("Unassigned")} />
+                <DetailRow label={ui("Next follow-up")} value={query.nextFollowUp ? (overdue ? ui("{0} (overdue)", [date(query.nextFollowUp)]) : date(query.nextFollowUp)) : ui("None")} />
+                <DetailRow label={ui("Logged on")} value={date(query.createdAt)} />
                 {query.convertedStudent ? (
-                  <DetailRow label="Converted to" value={`${query.convertedStudent.fullName} (${query.convertedStudent.rollNo})`} />
+                  <DetailRow label={ui("Converted to")} value={<bdi>{`${query.convertedStudent.fullName} (${query.convertedStudent.rollNo})`}</bdi>} />
                 ) : null}
               </div>
               {query.note ? (
-                <div className="rounded-2xl border border-edge/20 bg-brand-50/40 p-4">
-                  <p className="mb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Note</p>
-                  <p className="whitespace-pre-wrap text-sm font-bold text-ink-strong/80">{query.note}</p>
+                <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+                  <p className="mb-1.5 text-xs font-semibold text-ink-subtle">{ui("Note")}</p>
+                  <p className="whitespace-pre-wrap text-sm font-semibold text-ink-strong">{query.note}</p>
                 </div>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                <BrandButton variant="soft" icon={<Pencil className="w-4 h-4" />} onClick={() => setEditing(true)}>
-                  Edit
-                </BrandButton>
-                {query.status !== "CONVERTED" ? (
-                  <>
-                    {query.status !== "LOST" ? (
-                      <BrandButton variant="soft" icon={<Send className="w-4 h-4" />} onClick={() => setStatus("FOLLOW_UP")} disabled={busy}>
-                        Mark Follow-up
-                      </BrandButton>
-                    ) : null}
-                    {/* SKO-398: an enquiry becomes an application on the published form, which then runs to enrollment. */}
-                    <BrandButton variant="soft" icon={<Send className="w-4 h-4" />} disabled={busy} onClick={async () => {
-                      try {
-                        const forms = await (await fetch("/api/admissions?forms=1", { cache: "no-store" })).json();
-                        const form = (forms.data ?? []).find((item: { currentVersion: number; isOpen: boolean }) => item.currentVersion > 0 && item.isOpen);
-                        if (!form) { toast.error("Publish an application form under Applications first."); return; }
-                        const response = await fetch("/api/admissions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", formId: form.id, enquiryId: query.id }) });
-                        const json = await response.json().catch(() => ({}));
-                        if (!response.ok || !json.success) throw new Error(json.error || "The application could not be started.");
-                        toast.success(`Application ${json.data.reference} started from this enquiry. Continue it under Applications.`);
-                      } catch (error) { toast.error(error instanceof Error ? error.message : "The application could not be started."); }
-                    }}>
-                      Start application
-                    </BrandButton>
-                    <BrandButton variant="soft" icon={<UserCheck className="w-4 h-4" />} onClick={onConvert} disabled={busy}>
-                      Convert to Student
-                    </BrandButton>
-                    {query.status !== "LOST" ? (
-                      <BrandButton variant="soft" icon={<X className="w-4 h-4" />} onClick={() => setStatus("LOST")} disabled={busy}>
-                        Mark Lost
-                      </BrandButton>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
+              {open ? (
+                // SKO-398: an enquiry becomes an application on the published form, which then runs to enrolment.
+                <div className="flex flex-wrap gap-2">
+                  <SystemButton type="button" loading={busy} onClick={() => void startApplication()}>
+                    <Send aria-hidden="true" />{ui("Start application")}
+                  </SystemButton>
+                  {onConvert ? (
+                    <SystemButton type="button" variant="outline" onClick={onConvert} disabled={busy}>
+                      <UserCheck aria-hidden="true" />{ui("Convert to student")}
+                    </SystemButton>
+                  ) : null}
+                </div>
+              ) : null}
             </>
           )}
-
-          <div className="flex items-center justify-between border-t border-edge/10 pt-4">
-            <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-              {query._count?.followUps ?? followUps.length} follow-ups
-            </span>
-            {!deleteConfirm ? (
-              <SystemButton variant="ghost"
-                type="button"
-                onClick={() => setDeleteConfirm(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 justify-start"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> Delete query
-              </SystemButton>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-2xs font-bold text-rose-600">Sure?</span>
-                <BrandButton variant="soft" onClick={() => setDeleteConfirm(false)}>Keep</BrandButton>
-                <BrandButton variant="dark" onClick={doDelete} disabled={busy} className="bg-rose-600 hover:bg-rose-700">
-                  Delete
-                </BrandButton>
-              </div>
-            )}
-          </div>
         </div>
 
-        <div className="lg:col-span-3">
-          <div className="mb-3">
-            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Follow-up Timeline</p>
+        <div className="space-y-4 lg:col-span-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-bold text-ink-strong">{ui("Follow-up timeline")}</h3>
+            <span className="text-xs font-semibold text-ink-subtle">{ui("{0} logged", [query._count?.followUps ?? followUps.length])}</span>
           </div>
           <div className="max-h-[420px] space-y-3 overflow-y-auto custom-scrollbar pe-1">
             {followUps.length === 0 ? (
-              <EmptyInline text="No follow-ups yet — log the first call below" />
+              <EmptyInline text={ui("No follow-ups yet — log the first call below")} />
             ) : (
               followUps.map((fu) => (
                 <div key={fu.id} className="sk-panel p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-2xs font-semibold uppercase tracking-wider text-primary">
-                      {formatDate(fu.date)}
-                    </span>
-                    {fu.actor?.fullName ? (
-                      <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                        by {fu.actor.fullName}
-                      </span>
-                    ) : null}
+                  <div className="flex items-center justify-between gap-3 text-xs font-semibold">
+                    <span className="text-primary">{date(fu.date)}</span>
+                    {fu.actor?.fullName ? <span className="text-ink-subtle">{ui("by {0}", [fu.actor.fullName])}</span> : null}
                   </div>
-                  <p className="mt-1.5 whitespace-pre-wrap text-sm font-bold text-ink-strong/85">{fu.note}</p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-sm font-semibold text-ink-strong">{fu.note}</p>
                   {fu.nextDate ? (
-                    <p className="mt-2 text-2xs font-semibold uppercase tracking-wider text-primary">
-                      Next: {formatDate(fu.nextDate)}
-                    </p>
+                    <p className="mt-2 text-xs font-semibold text-primary">{ui("Next: {0}", [date(fu.nextDate)])}</p>
                   ) : null}
                 </div>
               ))
             )}
           </div>
-          <div className="mt-4 rounded-2xl border border-edge/20 bg-brand-50/40 p-4">
-            <p className="mb-2.5 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Log a follow-up</p>
-            <SystemTextarea
-              value={noteDraft}
-              onChange={(e) => setNoteDraft(e.target.value)}
-              placeholder="What happened on this call / visit?"
-              className="min-h-20 w-full px-4 py-3 transition-all duration-250"
-            />
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <div className="w-48">
-                <span className="sk-field-label">Next follow-up</span>
-                <SystemInput
-                  type="date"
-                  value={nextDate}
-                  onChange={(e) => setNextDate(e.target.value)}
-                  className="h-11 w-full px-4 transition-all duration-250"
-                />
-              </div>
-              <BrandButton variant="dark" icon={<Send className="w-4 h-4" />} onClick={addFollowUp} disabled={busy} className="ms-auto">
-                Log follow-up
-              </BrandButton>
+          <div className="space-y-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+            <FormField name="enquiry-follow-up" label={ui("Log a follow-up")} error={noteAttempted && !noteDraft.trim() ? ui("Write what happened on this call or visit.") : undefined}>
+              <SystemTextarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                placeholder={ui("What happened on this call or visit?")}
+                className="min-h-20"
+              />
+            </FormField>
+            <div className="flex flex-wrap items-end gap-3">
+              <FormField name="enquiry-next-date" label={ui("Next follow-up")} optional className="w-48">
+                <SystemInput type="date" dir="ltr" value={nextDate} onChange={(e) => setNextDate(e.target.value)} />
+              </FormField>
+              <SystemButton type="button" variant="outline" loading={busy} onClick={addFollowUp} className="ms-auto">
+                <Send aria-hidden="true" />{ui("Log follow-up")}
+              </SystemButton>
             </div>
           </div>
         </div>
       </div>
-    </ModalFrame>
+
+      <ConfirmAction
+        open={deleteConfirm}
+        title={ui("Delete this enquiry?")}
+        description={ui("{0}'s enquiry and its follow-up notes are removed. This cannot be undone.", [query.name])}
+        confirmLabel={ui("Delete enquiry")}
+        cancelLabel={ui("Keep enquiry")}
+        tone="danger"
+        busy={deleting}
+        onCancel={() => setDeleteConfirm(false)}
+        onConfirm={async () => {
+          setDeleting(true);
+          try {
+            await doDelete();
+          } catch (error) {
+            // The dialog stays open so the person can retry or keep the enquiry.
+            toast.error(friendlyErrorMessage(error, ui("The enquiry could not be deleted. Please try again.")));
+          } finally {
+            setDeleting(false);
+          }
+        }}
+      />
+    </Modal>
   );
 }
 
 export function ArchivedStudentsPanel({ version, onVersionBump }: { version: number; onVersionBump: () => void }) {
+  const ui = useUiText();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -6878,13 +5733,13 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         body: JSON.stringify({ ids: Array.from(selected), status }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Update failed");
-      toast.success(`${data.updated} student${data.updated === 1 ? "" : "s"} ${verb}`);
+      if (!res.ok) throw new Error(data.error || ui("Could not change the selected students. Please try again."));
+      toast.success(ui(status === "active" ? "{0} student(s) restored to the active roll" : "{0} student(s) marked as graduated", [data.updated]));
       setSelected(new Set());
       await load();
       onVersionBump();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Update failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not change the selected students. Please try again.")));
     } finally {
       setBulkBusy(false);
     }
@@ -6892,7 +5747,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
 
   const exportArchived = () => {
     if (!filtered.length) {
-      toast.error("Nothing to export — no records match the current filters");
+      toast.error(ui("Nothing to export — no records match the current filters"));
       return;
     }
     downloadCSV("archived_students", [
@@ -6907,7 +5762,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         String(s.updatedAt || s.createdAt || "").slice(0, 10),
       ]),
     ]);
-    toast.success(`${filtered.length} record${filtered.length === 1 ? "" : "s"} exported`);
+    toast.success(ui("{0} record(s) exported", [filtered.length]));
   };
 
   const changeStatus = async (student: any, status: string, successMsg: string) => {
@@ -6919,12 +5774,12 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         body: JSON.stringify({ id: student.id, status }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Update failed");
+      if (!res.ok) throw new Error(data.error || "");
       toast.success(successMsg);
       await load();
       onVersionBump();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Update failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not change the student's status. Please try again.")));
     } finally {
       setBusyId(null);
     }
@@ -6934,34 +5789,31 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
     <div className="sk-panel sk-rise p-6">
       <RestoreStudentDialog student={restoring} onClose={() => setRestoring(null)} onRestored={message => { toast.success(message); void load(); onVersionBump(); }} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <PanelTitle icon={Archive} title="Archived & Inactive Students" />
+        <PanelTitle icon={Archive} title={ui("Archived and inactive students")} />
         <div className="flex items-center gap-2 pb-1.5">
-          <StatusPill status={`${filtered.length} records`} />
+          <Badge variant="neutral" className="tabular-nums">{filtered.length === 1 ? ui("1 record") : ui("{0} records", [filtered.length])}</Badge>
           <BrandButton
             variant="soft"
             icon={<Download className="w-4 h-4" />}
             onClick={exportArchived}
             disabled={!filtered.length}
-            className="h-9"
           >
-            Export
+            {ui("Export")}
           </BrandButton>
         </div>
       </div>
       <p className="mb-5 max-w-2xl text-xs font-semibold leading-relaxed text-ink-muted">
-        Students who have left the active roll. Their results and history stay on file. Restore anyone who
-        was taken off by mistake, or mark a leaver as graduated so the record shows why they left. Take a
-        student off the roll from their profile in the Student Directory.
+        {ui("Students who have left the active roll. Their results and history stay on file. Restore anyone who was taken off by mistake, or mark a leaver as graduated so the record shows why they left. Take a student off the roll from their profile in the Student Directory.")}
       </p>
 
       {/* Status chips: "archived" and "graduated" are different situations and
           admins usually want one or the other, not the pile. */}
       <div className="mb-4 flex flex-wrap gap-2">
         {[
-          { key: "all", label: `All (${students.length})` },
+          { key: "all", label: ui("All ({0})", [students.length]) },
           ...Object.keys(ARCHIVED_STATUS_LABELS)
             .filter((k) => counts[k])
-            .map((k) => ({ key: k, label: `${ARCHIVED_STATUS_LABELS[k]} (${counts[k]})` })),
+            .map((k) => ({ key: k, label: ui("{0} ({1})", [ui(ARCHIVED_STATUS_LABELS[k]), counts[k]]) })),
         ].map((chip) => (
           <SystemButton variant="ghost"
             key={chip.key}
@@ -6970,8 +5822,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
             className={cn(
               "px-3.5",
               statusFilter === chip.key
-                ? "bg-primary text-white shadow-[0_4px_14px_-2px_rgba(129,39,207,0.45)]"
-                : "border border-edge/25 bg-white text-ink-muted hover:border-primary/30 hover:text-primary",
+                ? "bg-primary text-white shadow-brand"
+                : "border border-edge/25 bg-card text-ink-muted hover:border-primary/30 hover:text-primary",
             )}
           >
             {chip.label}
@@ -6983,7 +5835,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         <SearchField
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Search archived students…"
+          placeholder={ui("Search archived students…")}
           autoFocusKey={null}
           className="max-w-xs"
         />
@@ -6997,7 +5849,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
             }
             className="flex items-center gap-1.5 px-3 justify-start"
           >
-            {filtered.every((s) => selected.has(s.id)) ? "Deselect all" : `Select all ${filtered.length}`}
+            {filtered.every((s) => selected.has(s.id)) ? ui("Deselect all") : ui("Select all {0}", [filtered.length])}
           </SystemButton>
         ) : null}
       </div>
@@ -7011,29 +5863,27 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
             key: "restore",
             label: "Restore to roll",
             icon: RotateCcw,
-            accent: "#10b981",
             onRun: () => runBulkStatus("active", "restored to the active roll"),
           },
           {
             key: "graduated",
             label: "Mark graduated",
             icon: Award,
-            accent: "#8127cf",
             onRun: () => runBulkStatus("graduated", "marked as graduated"),
           },
         ]}
       />
 
       {loading ? (
-        <SkeletonList rows={4} label="Loading archived students" />
+        <SkeletonList rows={4} label={ui("Loading archived students")} />
       ) : filtered.length === 0 ? (
-        <EmptyInline text="No archived or inactive students — archived profiles appear here" />
+        <EmptyInline text={ui("No archived or inactive students — archived profiles appear here")} />
       ) : (
         <div className="space-y-3">
           {filtered.map((s, i) => (
             <div
               key={s.id}
-              className="sk-rise sk-panel flex flex-wrap items-center gap-4 p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-[0_10px_28px_-6px_rgba(120,70,180,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+              className="sk-rise sk-panel flex flex-wrap items-center gap-4 p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-lg"
               style={{ animationDelay: `${i * 50}ms` }}
             >
               <SystemCheckbox
@@ -7047,7 +5897,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
                     return next;
                   })
                 }
-                aria-label={`Select ${s.fullName}`}
+                aria-label={ui("Select {0}", [s.fullName])}
                 className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
               />
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-muted text-ink-muted">
@@ -7057,7 +5907,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
                 <p className="truncate text-md font-bold text-ink-strong tracking-tight">{s.fullName}</p>
                 <p className="mt-0.5 truncate text-xs font-bold text-ink-muted">
                   {s.rollNo}
-                  {s.class ? ` · ${classLabel(s.class)}` : " · No class"}
+                  {s.class ? ` · ${classLabel(s.class)}` : " · " + ui("No class")}
                   {s.guardianPhone ? ` · ${s.guardianPhone}` : ""}
                 </p>
               </div>
@@ -7069,7 +5919,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
                   disabled={busyId === s.id}
                   onClick={() => setRestoring(s)}
                 >
-                  {busyId === s.id ? "Working…" : "Restore"}
+                  {busyId === s.id ? ui("Working…") : ui("Restore")}
                 </BrandButton>
                 {/*
                   Marking a leaver as graduated was already wired in the handler
@@ -7080,9 +5930,9 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
                     variant="soft"
                     icon={<Award className="w-4 h-4" />}
                     disabled={busyId === s.id}
-                    onClick={() => changeStatus(s, "graduated", `${s.fullName} marked as graduated`)}
+                    onClick={() => changeStatus(s, "graduated", ui("{0} marked as graduated", [s.fullName]))}
                   >
-                    Graduated
+                    {ui("Graduated")}
                   </BrandButton>
                 )}
               </div>
@@ -7095,34 +5945,81 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
 }
 
 const LEAVE_TABS = [
-  { id: "requests", label: "Approve Queue", icon: CheckCircle2 },
-  { id: "types", label: "Leave Types", icon: Layers },
+  { id: "requests", label: "Requests", icon: CheckCircle2 },
+  { id: "balances", label: "Balances", icon: Users },
+  { id: "types", label: "Leave types", icon: Layers },
   { id: "allocations", label: "Allocations", icon: UserCheck },
-  { id: "balances", label: "Staff Balances", icon: Users },
 ] as const;
 
-const LEAVE_STATUS_STYLES: Record<string, string> = {
-  PENDING: "border-amber-200 bg-amber-50 text-amber-700",
-  APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  REJECTED: "border-rose-200 bg-rose-50 text-rose-600",
-  CANCELLED: "border-edge/20 bg-muted text-ink-muted",
+/** Leave decisions read as the verbs on the queue (§4.4b "Approve / Decline"), on status tokens (R7, R10). */
+const LEAVE_STATUS: Record<string, { label: string; variant: "warning" | "success" | "danger" | "neutral" }> = {
+  PENDING: { label: "Waiting for a decision", variant: "warning" },
+  APPROVED: { label: "Approved", variant: "success" },
+  REJECTED: { label: "Declined", variant: "danger" },
+  CANCELLED: { label: "Withdrawn", variant: "neutral" },
 };
 
-function leaveDaysLabel(tenths: number) {
+/** Who asked for leave, as a translated role word (R7: never the raw enum). */
+const LEAVE_ROLE_WORDS: Record<string, string> = {
+  TEACHER: "Teacher", PRINCIPAL: "Principal", ACCOUNTANT: "Accountant", RECEPTIONIST: "Receptionist",
+  LIBRARIAN: "Librarian", CAMPUS_ADMIN: "Campus admin", ADMIN: "Campus admin",
+};
+
+/** Leave is stored in tenths of a day; one translated template per form (R11). */
+function leaveDaysLabel(tenths: number, ui: (source: string, values?: unknown[]) => string) {
   const d = tenths / 10;
-  return Number.isInteger(d) ? `${d} day${d === 1 ? "" : "s"}` : `${d} days`;
+  return d === 1 ? ui("1 day") : ui("{0} days", [d]);
 }
 
-function leaveDateLabel(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" });
-  } catch {
-    return iso?.slice(0, 10) || "N/A";
-  }
-}
 
-export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
-  const [tab, setTab] = useState<(typeof LEAVE_TABS)[number]["id"]>("requests");
+type LeaveTabId = (typeof LEAVE_TABS)[number]["id"];
+type LeaveTabKey = "queue" | "balances" | "types" | "allocations";
+
+/**
+ * Leave approvals for the campus. Hosts its own PageHeader (h1 by default: the panel is the whole view),
+ * with the tab-level primary ("Add leave type", "Allocate leave") and Export as a secondary. `tabs` limits
+ * the sections — a principal decides teaching-staff leave only (`["queue"]`), the campus operator also owns
+ * leave types and allowances (M52). A load failure is an inline ErrorState with retry, never a silent empty list.
+ */
+export function LeaveManagementPanel({
+  campusId,
+  tabs,
+  title = "Leave approvals",
+  description = "Decide staff leave, set leave types and allowances, and see what everyone has left.",
+  headingLevel = 1,
+  activeTab,
+  onTabChange,
+}: {
+  campusId?: string;
+  tabs?: LeaveTabKey[];
+  /** Controlled section (the console keeps it in `?tab=`); unknown or hidden ids fall back to the first tab. */
+  activeTab?: string | null;
+  onTabChange?: (tab: LeaveTabKey) => void;
+  /** EN UI key; the hosting view's registry label. */
+  title?: string;
+  description?: string;
+  headingLevel?: 1 | 2;
+}) {
+  const ui = useUiText();
+  const { date: formatDay } = useLocaleFormat();
+  const leaveDateLabel = (iso: string) => (iso ? formatDay(iso) : ui("Not recorded"));
+  const allowedTabs = useMemo(() => {
+    const wanted = new Set<LeaveTabId>((tabs ?? ["queue", "types", "allocations", "balances"]).map((t) => (t === "queue" ? "requests" : t) as LeaveTabId));
+    return LEAVE_TABS.filter((t) => wanted.has(t.id));
+  }, [tabs]);
+  const ownsSetup = allowedTabs.some((t) => t.id === "types" || t.id === "allocations");
+  const showsBalances = allowedTabs.some((t) => t.id === "balances");
+  const [tabState, setTabState] = useState<LeaveTabId>(allowedTabs[0]?.id ?? "requests");
+  const requestedTab = (activeTab === "queue" ? "requests" : activeTab) as LeaveTabId | null | undefined;
+  const tab: LeaveTabId = requestedTab && allowedTabs.some((t) => t.id === requestedTab) ? requestedTab : allowedTabs.some((t) => t.id === tabState) ? tabState : allowedTabs[0]?.id ?? "requests";
+  const setTab = (next: LeaveTabId) => {
+    if (!allowedTabs.some((t) => t.id === next)) return;
+    setTabState(next);
+    onTabChange?.(next === "requests" ? "queue" : next);
+  };
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ kind: "type" | "allocation"; id: string; name: string } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear());
   const [statusFilter, setStatusFilter] = useState("");
   const [requestSearch, setRequestSearch] = useState("");
@@ -7150,28 +6047,38 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
 
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [reviewing, setReviewing] = useState<string | null>(null);
+  // Decline asks for the reason the person will read (§4.5.2: Approve / Decline pair, Decline outline).
+  const [declining, setDeclining] = useState<any>(null);
+  const roleWord = (role?: string) => (role ? ui(LEAVE_ROLE_WORDS[role] ?? formatStatus(role)) : ui("Staff"));
+  const days = (tenths: number) => leaveDaysLabel(tenths, ui);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    const scope = campusId ? `&campusId=${encodeURIComponent(campusId)}` : "";
+    const read = (url: string) => fetch(url, { cache: "no-store" }).then(async (r) => ({ ok: r.ok, json: await r.json().catch(() => ({})) }));
     try {
-      const [typesJson, allocJson, reqJson] = await Promise.all([
-        fetch(`/api/leave/types${campusId ? `?campusId=${campusId}` : ""}`).then((r) => r.json()),
-        fetch(`/api/leave/allocations?academicYear=${academicYear}${campusId ? `&campusId=${campusId}` : ""}`).then((r) => r.json()),
-        fetch(`/api/leave?mode=all&academicYear=${academicYear}${statusFilter ? `&status=${statusFilter}` : ""}${campusId ? `&campusId=${campusId}` : ""}`).then((r) => r.json()),
+      const [typesRes, allocRes, reqRes] = await Promise.all([
+        ownsSetup || showsBalances ? read(`/api/leave/types${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`) : Promise.resolve(null),
+        ownsSetup ? read(`/api/leave/allocations?academicYear=${academicYear}${scope}`) : Promise.resolve(null),
+        read(`/api/leave?mode=all&academicYear=${academicYear}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ""}${scope}`),
       ]);
-      if (typesJson.success) setTypes(typesJson.data || []);
-      if (allocJson.success) setAllocations(allocJson.data || []);
-      if (reqJson.success) {
-        setRequests(reqJson.data.requests || []);
-        setStaffUsers(reqJson.data.users || []);
+      // The queue is what this view is for: without it there is nothing honest to show.
+      if (!reqRes.ok || !reqRes.json.success) throw new Error(reqRes.json.error || "Leave requests could not be loaded.");
+      setRequests(reqRes.json.data.requests || []);
+      setStaffUsers(reqRes.json.data.users || []);
+      if (typesRes?.json.success) setTypes(typesRes.json.data || []);
+      if (allocRes?.json.success) setAllocations(allocRes.json.data || []);
+      if (showsBalances) {
+        const balRes = await read(`/api/leave?mode=balances&academicYear=${academicYear}${scope}`);
+        if (balRes.json.success) setStaffBalances(balRes.json.data.staff || []);
       }
-      const balJson = await fetch(`/api/leave?mode=balances&academicYear=${academicYear}${campusId ? `&campusId=${campusId}` : ""}`).then((r) => r.json());
-      if (balJson.success) setStaffBalances(balJson.data.staff || []);
-    } catch {
+    } catch (error) {
+      setLoadError(friendlyErrorMessage(error, ui("Leave requests could not be loaded.")));
     } finally {
       setLoading(false);
     }
-  }, [campusId, academicYear, statusFilter]);
+  }, [campusId, academicYear, statusFilter, ownsSetup, showsBalances]);
 
   useEffect(() => {
     load();
@@ -7179,7 +6086,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
 
   const addType = async () => {
     if (!typeForm.name.trim()) {
-      toast.error("Type name is required");
+      toast.error(ui("Type name is required"));
       return;
     }
     setTypeBusy(true);
@@ -7190,13 +6097,13 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ name: typeForm.name, defaultDays: Number(typeForm.defaultDays) || 0, campusId }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Could not create leave type");
-      toast.success(`Leave type "${typeForm.name}" created`);
+      if (!json.success) throw new Error(json.error || ui("Could not create the leave type. Please try again."));
+      toast.success(ui("Leave type \"{0}\" created", [typeForm.name]));
       setShowAddType(false);
       setTypeForm({ name: "", defaultDays: "10" });
       setReloadTick((t) => t + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Create failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not create the leave type. Please try again.")));
     } finally {
       setTypeBusy(false);
     }
@@ -7210,29 +6117,25 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id, defaultDays: Number(defaultDays) || 0 }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Update failed");
-      toast.success("Default days updated");
+      if (!json.success) throw new Error(json.error || "");
+      toast.success(ui("Default days updated"));
       setReloadTick((t) => t + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Update failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not update the default days. Please try again.")));
     }
   };
 
-  const deleteType = async (type: any) => {
-    try {
-      const res = await fetch(`/api/leave/types?id=${type.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Delete failed");
-      toast.success(`Leave type "${type.name}" deleted`);
-      setReloadTick((t) => t + 1);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
-    }
+  const deleteType = async (type: { id: string; name: string }) => {
+    const res = await fetch(`/api/leave/types?id=${encodeURIComponent(type.id)}`, { method: "DELETE" });
+    const json = await res.json().catch(() => ({}));
+    if (!json.success) throw new Error(json.error || ui("The leave type could not be deleted."));
+    toast.success(ui("Leave type \"{0}\" deleted", [type.name]));
+    setReloadTick((t) => t + 1);
   };
 
   const addAllocation = async () => {
     if (!allocForm.leaveTypeId) {
-      toast.error("Select a leave type");
+      toast.error(ui("Select a leave type"));
       return;
     }
     setAllocBusy(true);
@@ -7250,30 +6153,41 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Could not create allocation");
-      toast.success("Allocation created");
+      if (!json.success) throw new Error(json.error || ui("Could not create the allocation. Please try again."));
+      toast.success(ui("Allocation created"));
       setShowAddAllocation(false);
       setReloadTick((t) => t + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Create failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not create the allocation. Please try again.")));
     } finally {
       setAllocBusy(false);
     }
   };
 
   const deleteAllocation = async (id: string) => {
+    const res = await fetch(`/api/leave/allocations?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const json = await res.json().catch(() => ({}));
+    if (!json.success) throw new Error(json.error || ui("The allocation could not be removed."));
+    toast.success(ui("Allocation removed"));
+    setReloadTick((t) => t + 1);
+  };
+
+  // F16: deleting a leave type or an allocation is confirmed first, and a failure keeps the dialog open.
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleteBusy(true);
     try {
-      const res = await fetch(`/api/leave/allocations?id=${id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Delete failed");
-      toast.success("Allocation removed");
-      setReloadTick((t) => t + 1);
+      if (pendingDelete.kind === "type") await deleteType({ id: pendingDelete.id, name: pendingDelete.name });
+      else await deleteAllocation(pendingDelete.id);
+      setPendingDelete(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+      toast.error(friendlyErrorMessage(error, ui("This action could not be completed. Please try again.")));
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
-  const review = async (request: any, status: "APPROVED" | "REJECTED") => {
+  const review = async (request: any, status: "APPROVED" | "REJECTED", note?: string) => {
     setReviewing(request.id);
     try {
       const res = await fetch("/api/leave/review", {
@@ -7282,13 +6196,13 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({
           id: request.id,
           status,
-          reviewNote: reviewNotes[request.id] || "",
+          reviewNote: note ?? reviewNotes[request.id] ?? "",
           override: Boolean(overrides[request.id]),
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Review failed");
-      toast.success(`${request.user?.fullName || "Request"} — leave ${status.toLowerCase()}`);
+      if (!json.success) throw new Error(json.error || ui("Could not save the decision. Please try again."));
+      toast.success(status === "APPROVED" ? ui("Leave approved for {0}", [request.user?.fullName || ui("this request")]) : ui("Leave declined for {0}", [request.user?.fullName || ui("this request")]));
       // Clear only this request's draft; the others are still being worked on.
       setReviewNotes((prev) => {
         const next = { ...prev };
@@ -7301,8 +6215,10 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         return next;
       });
       setReloadTick((t) => t + 1);
+      return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Review failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not save the decision. Please try again.")));
+      return false;
     } finally {
       setReviewing(null);
     }
@@ -7373,37 +6289,37 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
 
   const exportRequests = () => {
     if (!visibleRequests.length) {
-      toast.error("Nothing to export — no requests match the current filters");
+      toast.error(ui("Nothing to export — no requests match the current filters"));
       return;
     }
     downloadCSV(`leave_requests_${academicYear}`, [
-      ["Staff", "Role", "Leave Type", "Days", "From", "To", "Status", "Reason", "Reviewed By", "Review Note"],
+      [ui("Staff member"), ui("Role"), ui("Leave type"), ui("Days"), ui("From"), ui("To"), ui("Status"), ui("Reason"), ui("Reviewed by"), ui("Review note")],
       ...visibleRequests.map((r) => [
         r.user?.fullName,
-        r.user?.role,
+        roleWord(r.user?.role),
         r.leaveType?.name,
         (r.days || 0) / 10,
         String(r.fromDate || "").slice(0, 10),
         String(r.toDate || "").slice(0, 10),
-        r.status,
+        ui(LEAVE_STATUS[r.status]?.label ?? formatStatus(r.status)),
         r.reason,
         r.reviewedBy?.fullName,
         r.reviewNote,
       ]),
     ]);
-    toast.success(`${visibleRequests.length} request${visibleRequests.length === 1 ? "" : "s"} exported`);
+    toast.success(ui("{0} request(s) exported", [visibleRequests.length]));
   };
 
   const exportBalances = () => {
     if (!visibleBalances.length) {
-      toast.error("Nothing to export — no staff balances to show");
+      toast.error(ui("Nothing to export — no staff balances to show"));
       return;
     }
     downloadCSV(`leave_balances_${academicYear}`, [
-      ["Staff", "Role", ...types.flatMap((t: any) => [`${t.name} allocated`, `${t.name} used`, `${t.name} left`])],
+      [ui("Staff member"), ui("Role"), ...types.flatMap((t: any) => [ui("{0}: allocated", [t.name]), ui("{0}: used", [t.name]), ui("{0}: left", [t.name])])],
       ...visibleBalances.map((row: any) => [
         row.user?.fullName,
-        row.user?.role,
+        roleWord(row.user?.role),
         ...types.flatMap((t: any) => {
           const b = ((row.balances as any[]) || []).find((bl: any) => bl.leaveTypeId === t.id);
           if (!b) return [0, 0, 0];
@@ -7411,60 +6327,82 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         }),
       ]),
     ]);
-    toast.success(`${visibleBalances.length} staff balance${visibleBalances.length === 1 ? "" : "s"} exported`);
+    toast.success(ui("{0} staff balance(s) exported", [visibleBalances.length]));
   };
 
+  const tabPrimary: PageAction | undefined =
+    tab === "types" ? { id: "add-leave-type", label: "Add leave type", icon: Plus, onClick: () => setShowAddType(true) }
+    : tab === "allocations" ? { id: "allocate-leave", label: "Allocate leave", icon: Plus, onClick: () => setShowAddAllocation(true) }
+    : undefined;
+  const tabExport: PageAction[] =
+    tab === "requests" ? [{ id: "export-requests", label: "Export", icon: Download, onClick: exportRequests }]
+    : tab === "balances" ? [{ id: "export-balances", label: "Export", icon: Download, onClick: exportBalances }]
+    : [];
+
   return (
-    <div className="sk-panel sk-rise p-6">
-      {/* Header matches the academics overview. */}
-      <div className="-mx-6 -mt-6 mb-5 rounded-t-[32px] border-b border-edge/15 bg-gradient-to-br from-surface-subtle via-white to-brand-100 px-6 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/20">
-              <Plane className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Staff</p>
-              <h2 className="text-xl font-bold tracking-tight text-ink-strong">Leave Management</h2>
-              <p className="mt-0.5 text-xs font-semibold text-ink-muted">
-                Approve requests, set leave types and allowances, and see what each member of staff has left.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-              Year
+    <div className="space-y-5">
+      <PageHeader
+        title={title}
+        description={description}
+        icon={Plane}
+        headingLevel={headingLevel}
+        primaryAction={tabPrimary}
+        secondaryActions={tabExport}
+        status={
+          <>
+            <label className="flex items-center gap-2 text-xs font-semibold text-ink-muted">
+              {ui("Year")}
               <SystemInput
                 type="number"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(Number(e.target.value) || new Date().getFullYear())}
-                className="h-9 w-24 px-3"
+                className="w-24 px-3"
+                aria-label={ui("Academic year")}
               />
             </label>
-            <span className="rounded-full bg-white px-3 py-1.5 text-2xs font-bold text-primary shadow-sm">
-              {pendingCount} pending
-            </span>
-          </div>
-        </div>
+            <Badge variant={pendingCount ? "warning" : "neutral"} className="tabular-nums">{ui("{0} pending", [pendingCount])}</Badge>
+          </>
+        }
+        tabs={allowedTabs.length > 1 ? (
+          <ViewTabs
+            items={allowedTabs.map((t) => ({ id: t.id, label: t.label, count: t.id === "requests" && pendingCount ? pendingCount : undefined }))}
+            value={tab}
+            onChange={(id) => setTab(id as LeaveTabId)}
+            ariaLabel="Leave sections"
+          />
+        ) : undefined}
+      />
 
-        {/* Pending approvals are the only thing here that blocks someone else,
-            so they get called out rather than sitting inside a tab. */}
-        {pendingCount > 0 && tab !== "requests" ? (
-          <SystemButton variant="ghost"
-            type="button"
-            onClick={() => { setTab("requests"); setStatusFilter("PENDING"); }}
-            className="mt-4 flex w-full items-center justify-between gap-3 px-4 py-3 text-start hover:brightness-95"
-          >
-            <span className="flex items-center gap-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-              <span className="text-sm font-bold text-amber-700">
-                {pendingCount} leave request{pendingCount === 1 ? "" : "s"} waiting on you
-              </span>
-            </span>
-            <ArrowRight className="h-4 w-4 text-amber-700 rtl:rotate-180" aria-hidden="true" />
-          </SystemButton>
-        ) : null}
-      </div>
+      <ConfirmAction
+        open={Boolean(pendingDelete)}
+        title={pendingDelete?.kind === "type" ? ui("Delete leave type {0}?", [pendingDelete?.name ?? ""]) : ui("Remove this allocation?")}
+        description={pendingDelete?.kind === "type"
+          ? ui("Staff can no longer apply for this type. Requests already decided keep their history. This cannot be undone.")
+          : ui("Staff covered by it lose these days from their allowance for the year. Requests already decided keep their history.")}
+        confirmLabel={pendingDelete?.kind === "type" ? ui("Delete leave type") : ui("Remove allocation")}
+        cancelLabel={ui("Keep editing")}
+        tone="danger"
+        busy={deleteBusy}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      />
+
+      {loadError ? (
+        <ErrorState title={ui("Leave records could not be loaded")} description={ui(loadError)} onRetry={() => setReloadTick((t) => t + 1)} />
+      ) : (
+      // The shell's page card is the surface (addendum 2): rows sit on it as their own panels, never card-in-card.
+      <div className="sk-rise">
+      {/* Pending approvals are the only thing here that blocks someone else, so they get called out
+          rather than sitting inside a tab. */}
+      {pendingCount > 0 && tab !== "requests" ? (
+        <Alert
+          tone="warning"
+          className="mb-4"
+          actions={<SystemButton variant="outline" size="sm" type="button" onClick={() => { setTab("requests"); setStatusFilter("PENDING"); }}>{ui("Review requests")}</SystemButton>}
+        >
+          {ui(pendingCount === 1 ? "{0} leave request waiting on you" : "{0} leave requests waiting on you", [pendingCount])}
+        </Alert>
+      ) : null}
 
       {/* The four numbers worth knowing before opening a tab. Each is also the
           fastest route to the rows behind it. */}
@@ -7508,7 +6446,7 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
               icon: AlertTriangle,
               label: "Over allowance",
               value: leaveStats.overdrawn.length,
-              hint: `${leaveStats.approvedDays} day${leaveStats.approvedDays === 1 ? "" : "s"} approved this year`,
+              hint: leaveStats.approvedDays === 1 ? ui("1 day approved this year") : ui("{0} days approved this year", [leaveStats.approvedDays]),
               tone: leaveStats.overdrawn.length ? "rose" : "slate",
               active: tab === "balances",
               onClick: () => setTab("balances"),
@@ -7521,18 +6459,18 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
           previously meant reading every approved row and comparing dates. */}
       {leaveStats.outToday.length > 0 ? (
         <div className="mb-4 rounded-[20px] border border-edge/25 bg-brand-50/40 p-4">
-          <p className="text-2xs font-semibold uppercase tracking-wider text-primary">Out of school today</p>
+          <p className="text-xs font-semibold text-primary">{ui("Out of school today")}</p>
           <div className="mt-2.5 flex flex-wrap gap-2">
             {leaveStats.outToday.map((r) => (
               <span
                 key={r.id}
-                title={`${r.leaveType?.name || "Leave"} · ${leaveDateLabel(r.fromDate)} → ${leaveDateLabel(r.toDate)}`}
-                className="flex items-center gap-2 rounded-full border border-edge/30 bg-white px-3 py-1.5 text-2xs font-bold text-ink-strong shadow-sm"
+                title={`${r.leaveType?.name || ui("Leave")} · ${ui("{0} to {1}", [leaveDateLabel(r.fromDate), leaveDateLabel(r.toDate)])}`}
+                className="flex items-center gap-2 rounded-full border border-edge/30 bg-card px-3 py-1.5 text-2xs font-bold text-ink-strong shadow-sm"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                {r.user?.fullName || "Unknown"}
+                <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <bdi>{r.user?.fullName || ui("Unknown")}</bdi>
                 <span className="font-semibold text-ink-subtle">
-                  back {leaveDateLabel(new Date(new Date(r.toDate).getTime() + 86400000).toISOString())}
+                  {ui("back {0}", [leaveDateLabel(new Date(new Date(r.toDate).getTime() + 86400000).toISOString())])}
                 </span>
               </span>
             ))}
@@ -7540,117 +6478,102 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         </div>
       ) : null}
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {LEAVE_TABS.map((t) => {
-          const Icon = t.icon;
-          return (
-            <SystemButton variant="ghost"
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "flex items-center gap-1.5 px-3.5 justify-start",
-                tab === t.id ? "bg-primary text-white shadow-md" : "bg-brand-50/60 text-ink-muted hover:bg-brand-100"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" /> {t.label}
-            </SystemButton>
-          );
-        })}
-      </div>
-
       {loading ? (
-        <SkeletonList rows={5} label="Loading leave records" />
+        <SkeletonList rows={5} label={ui("Loading leave records")} />
       ) : tab === "requests" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <SystemSelect
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 cursor-pointer px-3"
+              aria-label={ui("Filter by status")}
+              className="w-auto min-w-44 cursor-pointer"
             >
-              <option value="">All statuses</option>
-              <option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-              <option value="CANCELLED">Cancelled</option>
+              <option value="">{ui("All statuses")}</option>
+              <option value="PENDING">{ui("Waiting for a decision")}</option>
+              <option value="APPROVED">{ui("Approved")}</option>
+              <option value="REJECTED">{ui("Declined")}</option>
+              <option value="CANCELLED">{ui("Withdrawn")}</option>
             </SystemSelect>
             <SearchField
               value={requestSearch}
               onChange={setRequestSearch}
-              placeholder="Search staff, type or reason…"
-              label="Search leave requests"
+              placeholder={ui("Search staff, type or reason…")}
+              label={ui("Search leave requests")}
               className="min-w-[220px] flex-1"
             />
-            <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={exportRequests} className="h-10">
-              Export
-            </BrandButton>
           </div>
 
           {requests.length === 0 ? (
-            <EmptyInline text="No leave requests for this year." />
+            <EmptyState
+              size="sm"
+              icon={Plane}
+              title={ui("No leave requests for this year")}
+              description={ui("Requests staff send from My leave appear here for you to approve or decline.")}
+            />
           ) : visibleRequests.length === 0 ? (
-            <EmptyInline text={`No requests match “${requestSearch}”.`} />
+            <EmptyState
+              size="sm"
+              icon={Plane}
+              title={ui("No requests match “{0}”", [requestSearch])}
+              description={ui("Try a different name or clear the search.")}
+              action={<SystemButton type="button" variant="outline" size="sm" onClick={() => setRequestSearch("")}>{ui("Clear search")}</SystemButton>}
+            />
           ) : (
-            visibleRequests.map((r) => (
-              <div key={r.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-ink-strong">
-                    {r.user?.fullName || "Unknown"} <span className="text-ink-subtle">({r.user?.role || "—"})</span>
-                  </p>
-                  <p className="mt-0.5 text-xs font-semibold text-ink-muted">
-                    {r.leaveType?.name || "Leave"} · {leaveDaysLabel(r.days)} · {leaveDateLabel(r.fromDate)} → {leaveDateLabel(r.toDate)}
-                  </p>
-                  {r.reason ? <p className="mt-1 text-2xs font-semibold text-ink-subtle">{r.reason}</p> : null}
-                  {r.reviewedBy ? (
-                    <p className="mt-1 text-2xs font-bold text-ink-subtle">
-                      Reviewed by {r.reviewedBy.fullName}{r.reviewNote ? ` — ${r.reviewNote}` : ""}
+            visibleRequests.map((r) => {
+              const name = r.user?.fullName || ui("Unknown");
+              const state = LEAVE_STATUS[r.status];
+              return (
+                <div key={r.id} className="sk-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-ink-strong">
+                      <bdi>{name}</bdi> <span className="font-semibold text-ink-subtle">· {roleWord(r.user?.role)}</span>
                     </p>
-                  ) : null}
-                </div>
-                <span className={`rounded-full border px-3 py-1 text-2xs font-semibold uppercase tracking-wider ${LEAVE_STATUS_STYLES[r.status] || LEAVE_STATUS_STYLES.PENDING}`}>
-                  {r.status}
-                </span>
-                {r.status === "PENDING" ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SystemInput
-                      type="text"
-                      value={reviewNotes[r.id] || ""}
-                      onChange={(e) => setReviewNotes((prev) => ({ ...prev, [r.id]: e.target.value }))}
-                      placeholder="Review note"
-                      aria-label={`Review note for ${r.user?.fullName || "this request"}`}
-                      className="h-10 w-44 px-3"
-                    />
-                    <label className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-muted cursor-pointer">
-                      <SystemCheckbox
-
-                        checked={Boolean(overrides[r.id])}
-                        onChange={(e) => setOverrides((prev) => ({ ...prev, [r.id]: e.target.checked }))}
-                        className="h-3.5 w-3.5 accent-primary"
-                      />
-                      Override balance
-                    </label>
-                    <BrandButton variant="soft" disabled={reviewing === r.id} onClick={() => review(r, "APPROVED")} className="h-10">
-                      {reviewing === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve"}
-                    </BrandButton>
-                    <BrandButton variant="soft" disabled={reviewing === r.id} onClick={() => review(r, "REJECTED")} className="h-10 bg-rose-50 text-rose-600 hover:bg-rose-100">
-                      Reject
-                    </BrandButton>
+                    <p className="mt-0.5 text-xs font-semibold text-ink-muted">
+                      <bdi>{r.leaveType?.name || ui("Leave")}</bdi> · {days(r.days)} · {ui("{0} to {1}", [leaveDateLabel(r.fromDate), leaveDateLabel(r.toDate)])}
+                    </p>
+                    {r.reason ? <p className="mt-1 text-xs text-ink-subtle"><bdi>{r.reason}</bdi></p> : null}
+                    {r.reviewedBy ? (
+                      <p className="mt-1 text-xs font-semibold text-ink-subtle">
+                        {r.reviewNote ? ui("Reviewed by {0}: {1}", [r.reviewedBy.fullName, r.reviewNote]) : ui("Reviewed by {0}", [r.reviewedBy.fullName])}
+                      </p>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            ))
+                  {r.status === "PENDING" ? (
+                    // §4.5.2: the queue row's one inline pair — Approve, then Decline as outline (both 44 px).
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-ink-muted">
+                        <SystemCheckbox
+                          checked={Boolean(overrides[r.id])}
+                          onChange={(e) => setOverrides((prev) => ({ ...prev, [r.id]: e.target.checked }))}
+                        />
+                        {ui("Override balance")}
+                      </label>
+                      <SystemButton type="button" size="sm" loading={reviewing === r.id} onClick={() => void review(r, "APPROVED")} aria-label={ui("Approve leave for {0}", [name])}>
+                        {ui("Approve")}
+                      </SystemButton>
+                      <SystemButton type="button" size="sm" variant="outline" disabled={reviewing === r.id} onClick={() => setDeclining(r)} aria-label={ui("Decline leave for {0}", [name])}>
+                        {ui("Decline")}
+                      </SystemButton>
+                    </div>
+                  ) : (
+                    <Badge variant={state?.variant ?? "neutral"} className="shrink-0 self-start sm:self-center">{ui(state?.label ?? formatStatus(r.status))}</Badge>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       ) : tab === "types" ? (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowAddType(true)} className="h-10">
-              Add Leave Type
-            </BrandButton>
-          </div>
           {types.length === 0 ? (
-            <EmptyInline text="No leave types defined for this campus." />
+            <EmptyState
+              size="sm"
+              icon={Layers}
+              title={ui("No leave types yet")}
+              description={ui("Add the kinds of leave staff can ask for, with how many days each allows per year.")}
+              primaryAction={{ id: "add-leave-type", label: "Add leave type", icon: Plus, onClick: () => setShowAddType(true) }}
+            />
           ) : (
             types.map((t) => (
               <div key={t.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
@@ -7660,30 +6583,32 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-ink-strong">{t.name}</p>
                   <p className="mt-0.5 text-xs font-semibold text-ink-muted">
-                    {t._count?.allocations || 0} allocation{(t._count?.allocations || 0) === 1 ? "" : "s"} ·{" "}
-                    {t._count?.requests || 0} request{(t._count?.requests || 0) === 1 ? "" : "s"}
+                    {ui((t._count?.allocations || 0) === 1 ? "{0} allocation" : "{0} allocations", [t._count?.allocations || 0])} ·{" "}
+                    {ui((t._count?.requests || 0) === 1 ? "{0} request" : "{0} requests", [t._count?.requests || 0])}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-2xs font-semibold uppercase tracking-wider text-ink-muted">
-                    Default
+                  <label className="flex items-center gap-2 text-xs font-semibold text-ink-muted">
+                    {ui("Default")}
                     <SystemInput
                       type="number"
+                      inputMode="numeric"
+                      dir="ltr"
                       defaultValue={t.defaultDaysDisplay}
                       onBlur={(e) => {
                         if (Number(e.target.value) !== t.defaultDaysDisplay) updateTypeDays(t.id, e.target.value);
                       }}
-                      className="h-10 w-20 px-3"
+                      className="w-20"
+                      aria-label={ui("Default days per year for {0}", [t.name])}
                     />
-                    days
+                    {ui("days")}
                   </label>
-                  <SystemButton variant="ghost"
-                    type="button"
-                    onClick={() => deleteType(t)}
-                    className="flex items-center justify-center"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </SystemButton>
+                  <Menu
+                    label={ui("More actions")}
+                    align="end"
+                    trigger={<IconButton label={ui("More actions for {0}", [t.name])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+                    items={[{ id: "delete", label: ui("Delete leave type"), tone: "danger", onSelect: () => setPendingDelete({ kind: "type", id: t.id, name: t.name }) }]}
+                  />
                 </div>
               </div>
             ))
@@ -7691,13 +6616,14 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
         </div>
       ) : tab === "allocations" ? (
         <div className="space-y-3">
-          <div className="flex justify-end">
-            <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={() => setShowAddAllocation(true)} className="h-10">
-              Add Allocation
-            </BrandButton>
-          </div>
           {allocations.length === 0 ? (
-            <EmptyInline text="No allocations for this year yet. Add role-wide or per-user allocations." />
+            <EmptyState
+              size="sm"
+              icon={UserCheck}
+              title={ui("No allocations for this year yet")}
+              description={ui("Give a whole role or one staff member their days for each leave type.")}
+              primaryAction={{ id: "allocate-leave", label: "Allocate leave", icon: Plus, onClick: () => setShowAddAllocation(true) }}
+            />
           ) : (
             allocations.map((a) => (
               <div key={a.id} className="sk-panel flex flex-wrap items-center gap-4 p-4">
@@ -7706,19 +6632,18 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-ink-strong">
-                    {a.leaveType?.name || "Leave"} · {leaveDaysLabel(a.days)}
+                    <bdi>{a.leaveType?.name || ui("Leave")}</bdi> · {days(a.days)}
                   </p>
                   <p className="mt-0.5 text-xs font-semibold text-ink-muted">
-                    {a.userId ? `User: ${a.user?.fullName || "—"}` : `All ${a.role || "staff"} members`} · {a.academicYear}
+                    {a.userId ? ui("User: {0}", [a.user?.fullName || "—"]) : a.role ? ui("All {0}", [ui(ALLOCATION_ROLE_LABELS[a.role] ?? a.role)]) : ui("All staff")} · {a.academicYear}
                   </p>
                 </div>
-                <SystemButton variant="ghost"
-                  type="button"
-                  onClick={() => deleteAllocation(a.id)}
-                  className="flex items-center justify-center"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </SystemButton>
+                <Menu
+                  label={ui("More actions")}
+                  align="end"
+                  trigger={<IconButton label={ui("More actions for {0}", [a.leaveType?.name || ui("Leave")])}><MoreHorizontal aria-hidden="true" /></IconButton>}
+                  items={[{ id: "remove", label: ui("Remove allocation"), tone: "danger", onSelect: () => setPendingDelete({ kind: "allocation", id: a.id, name: a.leaveType?.name || "" }) }]}
+                />
               </div>
             ))
           )}
@@ -7726,56 +6651,110 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
       ) : null}
 
       {showAddType ? (
-        <ModalFrame title="Add Leave Type" eyebrow="Staff · Leave" icon={Plane} tone="sky" onClose={() => setShowAddType(false)}>
-          <div className="space-y-4">
-            <FormInput label="Type Name" value={typeForm.name} placeholder="e.g. Casual Leave" onChange={(v) => setTypeForm((p) => ({ ...p, name: v }))} />
-            <FormInput label="Default Days / Year" type="number" value={typeForm.defaultDays} placeholder="e.g. 10" onChange={(v) => setTypeForm((p) => ({ ...p, defaultDays: v }))} />
-            <div className="flex justify-end">
-              <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={addType} disabled={typeBusy} className="h-11">
-                {typeBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Type"}
-              </BrandButton>
-            </div>
-          </div>
-        </ModalFrame>
+        <Modal
+          title={ui("Add leave type")}
+          eyebrow={ui("Leave approvals")}
+          subtitle={ui("Staff choose from these types when they ask for leave.")}
+          icon={Plane}
+          size="sm"
+          dirty={Boolean(typeForm.name.trim())}
+          onClose={() => setShowAddType(false)}
+          footer={(
+            <SharedModalActions
+              busy={typeBusy}
+              busyLabel={ui("Creating…")}
+              actionLabel={ui("Create leave type")}
+              onCancel={() => setShowAddType(false)}
+              onAction={() => void addType()}
+              blockedReason={typeForm.name.trim() ? null : ui("Name the leave type first.")}
+            />
+          )}
+        >
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void addType(); }}>
+            <FormField name="leave-type-name" label={ui("Type name")} required>
+              <SystemInput value={typeForm.name} placeholder={ui("e.g. Casual leave")} onChange={(e) => setTypeForm((p) => ({ ...p, name: e.target.value }))} />
+            </FormField>
+            <FormField name="leave-type-days" label={ui("Default days per year")}>
+              <SystemInput type="number" inputMode="numeric" dir="ltr" min={0} value={typeForm.defaultDays} onChange={(e) => setTypeForm((p) => ({ ...p, defaultDays: e.target.value }))} />
+            </FormField>
+          </form>
+        </Modal>
       ) : null}
 
       {showAddAllocation ? (
-        <ModalFrame title="Add Leave Allocation" eyebrow="Staff · Leave" icon={Plane} tone="sky" onClose={() => setShowAddAllocation(false)}>
-          <div className="space-y-4">
-            <FormSelect label="Leave Type" value={allocForm.leaveTypeId} onChange={(v) => setAllocForm((p) => ({ ...p, leaveTypeId: v }))}>
-              <option value="">Select type</option>
-              {types.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Scope" value={allocForm.scope} onChange={(v) => setAllocForm((p) => ({ ...p, scope: v }))}>
-              <option value="role">Whole role</option>
-              <option value="user">Specific staff member</option>
-            </FormSelect>
-            {allocForm.scope === "role" ? (
-              <FormSelect label="Role" value={allocForm.role} onChange={(v) => setAllocForm((p) => ({ ...p, role: v }))}>
-                <option value="CAMPUS_ADMIN">Campus Admin</option>
-                <option value="ADMIN">Admin</option>
-                <option value="PRINCIPAL">Principal</option>
-                <option value="TEACHER">Teacher</option>
-              </FormSelect>
-            ) : (
-              <FormSelect label="Staff Member" value={allocForm.userId} onChange={(v) => setAllocForm((p) => ({ ...p, userId: v }))}>
-                <option value="">Select staff member</option>
-                {staffUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.fullName} ({u.role})</option>
+        <Modal
+          title={ui("Allocate leave")}
+          eyebrow={ui("Leave approvals")}
+          subtitle={ui("Give a whole role or one staff member their days for a leave type this year.")}
+          icon={Plane}
+          size="sm"
+          onClose={() => setShowAddAllocation(false)}
+          footer={(
+            <SharedModalActions
+              busy={allocBusy}
+              busyLabel={ui("Creating…")}
+              actionLabel={ui("Create allocation")}
+              onCancel={() => setShowAddAllocation(false)}
+              onAction={() => void addAllocation()}
+              blockedReason={!allocForm.leaveTypeId ? ui("Choose a leave type first.") : allocForm.scope === "user" && !allocForm.userId ? ui("Choose the staff member first.") : null}
+            />
+          )}
+        >
+          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void addAllocation(); }}>
+            <FormField name="allocation-type" label={ui("Leave type")} required>
+              <SystemSelect value={allocForm.leaveTypeId} onChange={(e) => setAllocForm((p) => ({ ...p, leaveTypeId: e.target.value }))}>
+                <option value="">{ui("Select type")}</option>
+                {types.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
-              </FormSelect>
+              </SystemSelect>
+            </FormField>
+            <FormField name="allocation-scope" label={ui("Who it is for")}>
+              <SystemSelect value={allocForm.scope} onChange={(e) => setAllocForm((p) => ({ ...p, scope: e.target.value }))}>
+                <option value="role">{ui("Whole role")}</option>
+                <option value="user">{ui("Specific staff member")}</option>
+              </SystemSelect>
+            </FormField>
+            {allocForm.scope === "role" ? (
+              <FormField name="allocation-role" label={ui("Role")}>
+                <SystemSelect value={allocForm.role} onChange={(e) => setAllocForm((p) => ({ ...p, role: e.target.value }))}>
+                  {Object.entries(ALLOCATION_ROLE_LABELS).filter(([role]) => role !== "ADMIN").map(([role, label]) => (
+                    <option key={role} value={role}>{ui(label)}</option>
+                  ))}
+                </SystemSelect>
+              </FormField>
+            ) : (
+              <FormField name="allocation-user" label={ui("Staff member")} required>
+                <SystemSelect value={allocForm.userId} onChange={(e) => setAllocForm((p) => ({ ...p, userId: e.target.value }))}>
+                  <option value="">{ui("Select staff member")}</option>
+                  {staffUsers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.fullName} · {roleWord(u.role)}</option>
+                  ))}
+                </SystemSelect>
+              </FormField>
             )}
-            <FormInput label="Days / Year" type="number" value={allocForm.days} placeholder="e.g. 10" onChange={(v) => setAllocForm((p) => ({ ...p, days: v }))} />
-            <div className="flex justify-end">
-              <BrandButton variant="dark" icon={<Plus className="w-4 h-4" />} onClick={addAllocation} disabled={allocBusy} className="h-11">
-                {allocBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Allocation"}
-              </BrandButton>
-            </div>
-          </div>
-        </ModalFrame>
+            <FormField name="allocation-days" label={ui("Days per year")}>
+              <SystemInput type="number" inputMode="numeric" dir="ltr" min={0} value={allocForm.days} onChange={(e) => setAllocForm((p) => ({ ...p, days: e.target.value }))} />
+            </FormField>
+          </form>
+        </Modal>
       ) : null}
+
+      <ConfirmAction
+        open={Boolean(declining)}
+        title={ui("Decline leave for {0}?", [declining?.user?.fullName || ui("this request")])}
+        description={ui("They see your reason on their leave request. Nothing is taken from their allowance.")}
+        confirmLabel={ui("Decline")}
+        cancelLabel={ui("Keep editing")}
+        tone="warning"
+        busy={Boolean(declining && reviewing === declining.id)}
+        requireReason={{ label: ui("Reason they will read"), minLength: 5 }}
+        onCancel={() => setDeclining(null)}
+        onConfirm={async (reason?: string) => {
+          if (!declining) return;
+          if (await review(declining, "REJECTED", reason)) setDeclining(null);
+        }}
+      />
 
       {/* ── Staff Balances ──────────────────────────────── */}
       {tab === "balances" ? (
@@ -7784,38 +6763,46 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
             <SearchField
               value={balanceSearch}
               onChange={setBalanceSearch}
-              placeholder="Search staff…"
-              label="Search staff balances"
+              placeholder={ui("Search staff…")}
+              label={ui("Search staff balances")}
               className="min-w-[220px] flex-1"
             />
-            <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={exportBalances} className="h-10">
-              Export
-            </BrandButton>
           </div>
           {staffBalances.length === 0 ? (
-            <EmptyInline text="No staff with leave allocations yet." />
+            <EmptyState
+              size="sm"
+              icon={Users}
+              title={ui("No staff with leave allocations yet")}
+              description={ui("Balances appear once leave is allocated to a role or a staff member.")}
+            />
           ) : visibleBalances.length === 0 ? (
-            <EmptyInline text={`No staff match “${balanceSearch}”.`} />
+            <EmptyState
+              size="sm"
+              icon={Users}
+              title={ui("No staff match “{0}”", [balanceSearch])}
+              description={ui("Try a different name or clear the search.")}
+              action={<SystemButton type="button" variant="outline" size="sm" onClick={() => setBalanceSearch("")}>{ui("Clear search")}</SystemButton>}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-edge/15 text-ink-muted text-xs uppercase tracking-wider">
-                    <th className="text-start py-2 px-3 font-medium">Staff Member</th>
-                    <th className="text-start py-2 px-3 font-medium">Role</th>
+                  <tr className="border-b border-edge/15 text-xs text-ink-muted">
+                    <th className="text-start py-2 px-3 font-medium">{ui("Staff member")}</th>
+                    <th className="text-start py-2 px-3 font-medium">{ui("Role")}</th>
                     {types.map((t: any) => (
                       <th key={t.id} className="text-center py-2 px-3 font-medium" colSpan={3}>{t.name}</th>
                     ))}
                   </tr>
                   {types.length > 0 ? (
-                    <tr className="border-b border-edge/10 text-ink-subtle text-2xs uppercase">
+                    <tr className="border-b border-edge/10 text-2xs text-ink-subtle">
                       <th />
                       <th />
                       {types.map((t: any) => (
                         <React.Fragment key={t.id}>
-                          <th className="text-center py-1 px-1 font-normal">Alloc</th>
-                          <th className="text-center py-1 px-1 font-normal">Used</th>
-                          <th className="text-center py-1 px-1 font-normal">Left</th>
+                          <th className="text-center py-1 px-1 font-normal">{ui("Allocated")}</th>
+                          <th className="text-center py-1 px-1 font-normal">{ui("Used")}</th>
+                          <th className="text-center py-1 px-1 font-normal">{ui("Left")}</th>
                         </React.Fragment>
                       ))}
                     </tr>
@@ -7824,8 +6811,8 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                 <tbody>
                   {visibleBalances.map((row: any) => (
                     <tr key={row.user.id} className="border-b border-edge/8 hover:bg-muted/50">
-                      <td className="py-2 px-3 font-medium text-ink">{row.user.fullName}</td>
-                      <td className="py-2 px-3 text-ink-muted capitalize">{row.user.role.toLowerCase().replace("_", " ")}</td>
+                      <td className="py-2 px-3 font-medium text-ink"><bdi>{row.user.fullName}</bdi></td>
+                      <td className="py-2 px-3 text-ink-muted">{roleWord(row.user.role)}</td>
                       {types.map((t: any) => {
                         const b = (row.balances as any[]).find((bl: any) => bl.leaveTypeId === t.id);
                         const alloc = b ? b.allocated / 10 : 0;
@@ -7843,10 +6830,10 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
                             <td
                               title={
                                 overdrawn
-                                  ? `${Math.abs(left)} day${Math.abs(left) === 1 ? "" : "s"} over the allocation`
+                                  ? (Math.abs(left) === 1 ? ui("1 day over the allocation") : ui("{0} days over the allocation", [Math.abs(left)]))
                                   : undefined
                               }
-                              className={`text-center py-2 px-1 font-semibold ${left <= 0 && alloc > 0 ? "text-rose-600" : left <= alloc * 0.2 && alloc > 0 ? "text-amber-600" : "text-emerald-600"}`}
+                              className={`text-center py-2 px-1 font-semibold ${left <= 0 && alloc > 0 ? "text-status-error-text" : left <= alloc * 0.2 && alloc > 0 ? "text-status-warning-text" : "text-status-success-text"}`}
                             >
                               {left}
                             </td>
@@ -7861,406 +6848,23 @@ export function LeaveManagementPanel({ campusId }: { campusId?: string }) {
           )}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────
-// Module 10 — Payroll
-// Search by role + month + year → Generate DRAFT run → edit lines →
-// mark paid (posts an idempotent EXPENSE ledger entry) → printable report.
-const PAYROLL_ROLES = ["", "TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"];
-
-function paisa(value: number) {
-  return `Rs ${(value / 100).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-export function PayrollPanel({ campusId }: { campusId?: string }) {
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
-  const [role, setRole] = useState("");
-
-  const [run, setRun] = useState<any>(null);
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [report, setReport] = useState<any>(null);
-  const [reportLoading, setReportLoading] = useState(false);
-
-  const monthLabel = `${year}-${String(month).padStart(2, "0")}`;
-
-  const loadRun = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/payroll?month=${month}&year=${year}${role ? `&role=${role}` : ""}${campusId ? `&campusId=${campusId}` : ""}`);
-      const json = await res.json();
-      if (json.success) {
-        setRun(json.data.run);
-        setPaymentMethods(json.data.paymentMethods || []);
-      }
-    } catch {
-    } finally {
-      setLoading(false);
-    }
-  }, [campusId, month, year, role]);
-
-  useEffect(() => {
-    loadRun();
-  }, [loadRun]);
-
-  const generate = async () => {
-    setGenerating(true);
-    try {
-      const res = await fetch("/api/payroll/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, year, role: role || null, campusId }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Generation failed");
-      setRun(json.data);
-      toast.success(json.regenerated ? `Payroll ${monthLabel} regenerated` : `Payroll ${monthLabel} generated`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Generation failed");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const saveLine = async (id: string, field: "basic" | "allowances" | "deductions" | "bonus", raw: string) => {
-    setSavingId(id);
-    try {
-      const res = await fetch("/api/payroll/lines", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, [field]: Math.round((Number(raw) || 0) * 100) }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Save failed");
-      setRun((prev: any) => ({
-        ...prev,
-        lines: (prev?.lines || []).map((l: any) => (l.id === id ? { ...l, ...json.data } : l)),
-      }));
-      toast.success("Line updated");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Save failed");
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  const markPaid = async (line: any) => {
-    if (!paymentMethods.length) {
-      toast.error("Add a payment method in Accounts first");
-      return;
-    }
-    setSavingId(line.id);
-    try {
-      const res = await fetch("/api/payroll/lines", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: line.id, status: "PAID", paymentMethodId: paymentMethods[0].id }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Marking paid failed");
-      setRun((prev: any) => ({
-        ...prev,
-        lines: (prev?.lines || []).map((l: any) => (l.id === line.id ? { ...l, ...json.data } : l)),
-      }));
-      toast.success(json.alreadyPaid ? "Already paid" : `Paid ${line.user?.fullName} — expense posted`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Marking paid failed");
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  const loadReport = async () => {
-    setReportLoading(true);
-    try {
-      const res = await fetch(`/api/payroll/report?from=${monthLabel}&to=${monthLabel}${campusId ? `&campusId=${campusId}` : ""}`);
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Report failed");
-      setReport(json.data);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Report failed");
-    } finally {
-      setReportLoading(false);
-    }
-  };
-
-  const totals = useMemo(() => {
-    const t = { basic: 0, allowances: 0, deductions: 0, bonus: 0, net: 0, paid: 0 };
-    for (const l of run?.lines || []) {
-      t.basic += l.basic;
-      t.allowances += l.allowances;
-      t.deductions += l.deductions;
-      t.bonus += l.bonus;
-      t.net += l.net;
-      if (l.status === "PAID") t.paid += l.net;
-    }
-    return t;
-  }, [run]);
-
-  return (
-    <div className="sk-panel sk-rise p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <PanelTitle icon={Banknote} title="Payroll" />
-        <div className="flex flex-wrap items-center gap-2">
-          <SystemSelect
-            value={String(month)}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            className="h-10 w-28 cursor-pointer px-3"
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1}>
-                {new Date(0, i).toLocaleString("default", { month: "short" })}
-              </option>
-            ))}
-          </SystemSelect>
-          <SystemSelect
-            value={String(year)}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="h-10 w-28 cursor-pointer px-3"
-          >
-            {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </SystemSelect>
-          <SystemSelect
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="h-10 w-40 cursor-pointer px-3"
-          >
-            {PAYROLL_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r ? r.replace("_", " ") : "All roles"}
-              </option>
-            ))}
-          </SystemSelect>
-          <BrandButton variant="dark" icon={<Sparkles className="h-4 w-4" />} onClick={generate} disabled={generating}>
-            {generating ? "Generating…" : run ? "Regenerate" : "Generate Payroll"}
-          </BrandButton>
-        </div>
       </div>
-
-      {run ? (
-        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl bg-surface-sunken px-4 py-3">
-          <span className="text-sm font-bold text-ink">
-            {monthLabel} · {run.lines.length} staff · {run.status}
-          </span>
-          <span className="text-sm font-bold text-primary">{paisa(totals.net)} net</span>
-          <span className="text-xs font-semibold text-emerald-600">{paisa(totals.paid)} paid</span>
-        </div>
-      ) : null}
-
-      {loading ? (
-        <EmptyInline text="Loading payroll…" />
-      ) : run && run.lines.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-edge/15 text-ink-muted text-xs uppercase tracking-wider">
-                <th className="text-start py-2 px-3 font-medium">Staff Member</th>
-                <th className="text-start py-2 px-3 font-medium">Role</th>
-                <th className="text-end py-2 px-3 font-medium">Basic</th>
-                <th className="text-end py-2 px-3 font-medium">Allowances</th>
-                <th className="text-end py-2 px-3 font-medium">Deductions</th>
-                <th className="text-end py-2 px-3 font-medium">Bonus</th>
-                <th className="text-end py-2 px-3 font-medium">Net</th>
-                <th className="text-center py-2 px-3 font-medium">Status</th>
-                <th className="text-end py-2 px-3 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {run.lines.map((line: any) => (
-                <tr key={line.id} className="border-b border-edge/8 hover:bg-muted/50">
-                  <td className="py-2 px-3 font-medium text-ink">{line.user?.fullName}</td>
-                  <td className="py-2 px-3 text-ink-muted capitalize">{(line.user?.role || "").toLowerCase().replace("_", " ")}</td>
-                  <EditableAmountCell
-                    value={line.basic}
-                    disabled={line.status === "PAID" || savingId === line.id}
-                    onSave={(raw) => saveLine(line.id, "basic", raw)}
-                  />
-                  <EditableAmountCell
-                    value={line.allowances}
-                    disabled={line.status === "PAID" || savingId === line.id}
-                    onSave={(raw) => saveLine(line.id, "allowances", raw)}
-                  />
-                  <EditableAmountCell
-                    value={line.deductions}
-                    disabled={line.status === "PAID" || savingId === line.id}
-                    onSave={(raw) => saveLine(line.id, "deductions", raw)}
-                  />
-                  <EditableAmountCell
-                    value={line.bonus}
-                    disabled={line.status === "PAID" || savingId === line.id}
-                    onSave={(raw) => saveLine(line.id, "bonus", raw)}
-                  />
-                  <td className="text-end py-2 px-3 font-bold text-ink-strong">{paisa(line.net)}</td>
-                  <td className="text-center py-2 px-3">
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-bold",
-                        line.status === "PAID" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                      )}
-                    >
-                      {line.status === "PAID" ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                      {line.status}
-                    </span>
-                  </td>
-                  <td className="text-end py-2 px-3">
-                    {line.status === "PAID" ? (
-                      <span className="text-xs font-semibold text-ink-subtle">{line.paidAt ? new Date(line.paidAt).toLocaleDateString() : ""}</span>
-                    ) : (
-                      <BrandButton variant="soft" icon={<Check className="h-3.5 w-3.5" />} onClick={() => markPaid(line)} disabled={savingId === line.id}>
-                        {savingId === line.id ? "Saving…" : "Mark Paid"}
-                      </BrandButton>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              <tr className="bg-surface-sunken font-bold text-ink-strong">
-                <td className="py-2.5 px-3" colSpan={2}>
-                  Totals
-                </td>
-                <td className="text-end py-2.5 px-3">{paisa(totals.basic)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(totals.allowances)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(totals.deductions)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(totals.bonus)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(totals.net)}</td>
-                <td className="text-center py-2.5 px-3 text-ink-muted">
-                  {run.lines.filter((l: any) => l.status === "PAID").length}/{run.lines.length} paid
-                </td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <EmptyInline text={`No payroll run for ${monthLabel}. Set a staff member's basic salary (Staff Records) and click Generate Payroll.`} />
       )}
-
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-edge/15 pt-5">
-        <div>
-          <h4 className="text-sm font-bold tracking-tight text-ink-strong">Payroll Report</h4>
-          <p className="text-xs font-bold text-ink-muted">Summary for {monthLabel} — totals per run and per staff</p>
-        </div>
-        <div className="flex gap-2">
-          <BrandButton variant="soft" icon={<Download className="h-4 w-4" />} onClick={loadReport} disabled={reportLoading}>
-            {reportLoading ? "Loading…" : "Load Report"}
-          </BrandButton>
-          <BrandButton variant="dark" icon={<Printer className="h-4 w-4" />} onClick={() => window.print()} disabled={!report}>
-            Print
-          </BrandButton>
-        </div>
-      </div>
-
-      {report ? (
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-edge/15">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-edge/15 bg-surface-sunken text-ink-muted text-xs uppercase tracking-wider">
-                <th className="text-start py-2 px-3 font-medium">Run</th>
-                <th className="text-end py-2 px-3 font-medium">Basic</th>
-                <th className="text-end py-2 px-3 font-medium">Allowances</th>
-                <th className="text-end py-2 px-3 font-medium">Deductions</th>
-                <th className="text-end py-2 px-3 font-medium">Bonus</th>
-                <th className="text-end py-2 px-3 font-medium">Net</th>
-                <th className="text-end py-2 px-3 font-medium">Paid</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.runs.map((r: any) => (
-                <tr key={r.id} className="border-b border-edge/8">
-                  <td className="py-2 px-3 font-medium text-ink">
-                    {r.year}-{String(r.month).padStart(2, "0")} <span className="text-ink-subtle font-semibold">({r.lines.length} lines)</span>
-                  </td>
-                  <td className="text-end py-2 px-3">{paisa(r.totals.basic)}</td>
-                  <td className="text-end py-2 px-3">{paisa(r.totals.allowances)}</td>
-                  <td className="text-end py-2 px-3">{paisa(r.totals.deductions)}</td>
-                  <td className="text-end py-2 px-3">{paisa(r.totals.bonus)}</td>
-                  <td className="text-end py-2 px-3 font-bold">{paisa(r.totals.net)}</td>
-                  <td className="text-end py-2 px-3 font-bold text-emerald-600">{paisa(r.totals.paid)}</td>
-                </tr>
-              ))}
-              <tr className="bg-surface-sunken font-bold text-ink-strong">
-                <td className="py-2.5 px-3">Grand Total</td>
-                <td className="text-end py-2.5 px-3">{paisa(report.grand.basic)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(report.grand.allowances)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(report.grand.deductions)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(report.grand.bonus)}</td>
-                <td className="text-end py-2.5 px-3">{paisa(report.grand.net)}</td>
-                <td className="text-end py-2.5 px-3 text-emerald-600">{paisa(report.grand.paid)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      ) : null}
     </div>
   );
 }
 
-function EditableAmountCell({ value, disabled, onSave }: { value: number; disabled?: boolean; onSave: (raw: string) => void }) {
-  const [draft, setDraft] = useState(String((value / 100).toFixed(2)));
-  useEffect(() => {
-    setDraft(String((value / 100).toFixed(2)));
-  }, [value]);
-
-  if (disabled) {
-    return <td className="text-end py-2 px-3 text-ink-muted">{paisa(value)}</td>;
-  }
-  return (
-    <td className="py-1 px-3 text-end">
-      <SystemInput
-        className="w-24 px-2 py-1 text-end"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          if (Number(draft) >= 0 && draft !== String((value / 100).toFixed(2))) onSave(draft);
-          else setDraft(String((value / 100).toFixed(2)));
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        }}
-      />
-    </td>
-  );
-}
+// M76: the legacy PayrollPanel (every write 403s for its only caller) is retired; payroll runs live in
+// `PayrollRunsPanel` (prepare in /accountant, approve in /admin?view=payroll).
 
 // ────────────────────────────────────────────────────────────
 // The school-wide matrix has a localized, scoped recovery surface.
 export { RolePermissionsPanel } from "./role-permissions-panel";
 
 // ────────────────────────────────────────────────────────────
-// Module 12 — Class Rooms
-const ROOM_COLORS = [
-  "bg-gradient-to-br from-primary to-brand-700",
-  "bg-gradient-to-br from-sky-500 to-blue-700",
-  "bg-gradient-to-br from-emerald-500 to-emerald-700",
-  "bg-gradient-to-br from-amber-500 to-amber-700",
-  "bg-gradient-to-br from-red-500 to-red-800",
-  "bg-gradient-to-br from-violet-500 to-violet-800",
-];
-
-/**
- * Rooms moved to their own component when they gained a physical layout (§79).
- *
- * This export stays so nothing that already imports it breaks, but the panel
- * itself is `RoomsManager` — a second copy of a room editor is exactly how one
- * screen ends up knowing about bench layouts and the other quietly does not.
- */
-export function RoomsPanel({ campusId }: { campusId?: string }) {
-  return <RoomsManager campusId={campusId} />;
-}
-
-// ────────────────────────────────────────────────────────────
 // Module 12 — Period Definitions
 export function PeriodsPanel({ campusId }: { campusId?: string }) {
+  const ui = useUiText();
   const [timeType, setTimeType] = useState<"CLASS" | "EXAM">("CLASS");
   const [periods, setPeriods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -8276,22 +6880,21 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
    */
   const [drafts, setDrafts] = useState<Record<string, { startTime: string; endTime: string }>>({});
   const [confirmPeriod, setConfirmPeriod] = useState<any>(null);
+  // R4: a load failure is an inline ErrorState with retry, never an empty list that looks like "no periods".
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/academic/periods?timeType=${timeType}${campusId ? `&campusId=${campusId}` : ""}`);
+      const res = await fetch(`/api/academic/periods?timeType=${timeType}${campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}`, { cache: "no-store" });
       const json = await res.json();
-      if (json.success) {
-        const rows = json.data || [];
-        setPeriods(rows);
-        setDrafts(
-          Object.fromEntries(
-            rows.map((r: any) => [r.id, { startTime: r.startTime, endTime: r.endTime }]),
-          ),
-        );
-      }
+      if (!res.ok || !json.success) throw new Error(json.error || "");
+      setLoadFailed(false);
+      const rows = json.data || [];
+      setPeriods(rows);
+      setDrafts(Object.fromEntries(rows.map((r: any) => [r.id, { startTime: r.startTime, endTime: r.endTime }])));
     } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -8304,11 +6907,11 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
   const addPeriod = async () => {
     const num = parseInt(form.periodNumber, 10);
     if (!Number.isFinite(num) || num < 1) {
-      toast.error("Period number must be >= 1");
+      toast.error(ui("Period number must be 1 or more"));
       return;
     }
     if (!form.startTime || !form.endTime || form.startTime >= form.endTime) {
-      toast.error("End time must be after start time");
+      toast.error(ui("End time must be after start time"));
       return;
     }
     setBusy(true);
@@ -8319,13 +6922,13 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ timeType, periodNumber: num, startTime: form.startTime, endTime: form.endTime, campusId }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Create failed");
-      toast.success(`Period ${num} (${form.startTime}–${form.endTime}) added`);
+      if (!json.success) throw new Error(json.error || "");
+      toast.success(ui("Period {0} ({1}–{2}) added", [num, form.startTime, form.endTime]));
       setShowAdd(false);
       setForm({ periodNumber: String(periods.length + 1), startTime: form.endTime, endTime: shiftMinutes(form.endTime, 40) });
       setReloadTick((t) => t + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Create failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not add the period. Please try again.")));
     } finally {
       setBusy(false);
     }
@@ -8339,12 +6942,12 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id, [field]: value }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Update failed");
+      if (!json.success) throw new Error(json.error || "");
       if (json.warning) toast.warning(json.warning);
-      else toast.success("Period updated");
+      else toast.success(ui("Period updated"));
       setReloadTick((t) => t + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Update failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not update the period. Please try again.")));
     }
   };
 
@@ -8352,12 +6955,12 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
     try {
       const res = await fetch(`/api/academic/periods?id=${id}`, { method: "DELETE" });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Delete failed");
+      if (!json.success) throw new Error(json.error || "");
       if (json.warning) toast.warning(json.warning);
-      else toast.success("Period removed");
+      else toast.success(ui("Period removed"));
       setReloadTick((t) => t + 1);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+      toast.error(friendlyErrorMessage(error, ui("Could not remove the period. Please try again.")));
     }
   };
 
@@ -8374,7 +6977,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
   return (
     <div className="sk-panel sk-rise p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <PanelTitle icon={Clock} title="Class & Exam Time Setup" />
+        <PanelTitle icon={Clock} title={ui("Class and exam times")} />
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-full bg-muted p-1">
             {(["CLASS", "EXAM"] as const).map((t) => (
@@ -8386,12 +6989,12 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                   timeType === t ? "bg-ink-strong text-white" : "text-ink-muted hover:text-ink"
                 )}
               >
-                {t === "CLASS" ? "Class Periods" : "Exam Periods"}
+                {t === "CLASS" ? ui("Class periods") : ui("Exam periods")}
               </SystemButton>
             ))}
           </div>
           <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd((v) => !v)}>
-            Add Period
+            {ui("Add period")}
           </BrandButton>
         </div>
       </div>
@@ -8399,35 +7002,35 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
       {showAdd ? (
         <div className="mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-edge/20 bg-surface-sunken p-4">
           <div>
-            <label className="mb-1 block ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Period #</label>
+            <label className="mb-1 block ps-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Period #")}</label>
             <SystemInput
               type="number"
               min={1}
-              className="h-10 w-20 px-3"
+              className="w-20 px-3"
               value={form.periodNumber}
               onChange={(e) => setForm((f) => ({ ...f, periodNumber: e.target.value }))}
             />
           </div>
           <div>
-            <label className="mb-1 block ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">Start</label>
+            <label className="mb-1 block ps-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Start")}</label>
             <SystemInput
               type="time"
-              className="h-10 w-28 px-3"
+              className="w-28 px-3"
               value={form.startTime}
               onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
             />
           </div>
           <div>
-            <label className="mb-1 block ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle">End</label>
+            <label className="mb-1 block ps-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("End")}</label>
             <SystemInput
               type="time"
-              className="h-10 w-28 px-3"
+              className="w-28 px-3"
               value={form.endTime}
               onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
             />
           </div>
           <BrandButton variant="dark" icon={<Check className="h-4 w-4" />} onClick={addPeriod} disabled={busy}>
-            {busy ? "Adding…" : "Create"}
+            {busy ? ui("Adding…") : ui("Create")}
           </BrandButton>
         </div>
       ) : null}
@@ -8436,13 +7039,13 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         <div className="mb-5">
           <StatTiles
             tiles={[
-              { key: "count", icon: Clock, label: `${timeType === "CLASS" ? "Class" : "Exam"} periods`, value: periods.length, tone: "violet" },
+              { key: "count", icon: Clock, label: timeType === "CLASS" ? "Class periods" : "Exam periods", value: periods.length, tone: "violet" },
               {
                 key: "window",
                 icon: Sun,
                 label: "School day",
                 value: `${periods[0].startTime}–${periods[periods.length - 1].endTime}`,
-                hint: `${Math.round(dayLength / 60)}h ${dayLength % 60}m from first to last bell`,
+                hint: ui("{0} h {1} min from first to last bell", [Math.floor(dayLength / 60), dayLength % 60]),
                 tone: "teal",
               },
               {
@@ -8466,10 +7069,18 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         </div>
       ) : null}
 
-      {loading ? (
-        <EmptyInline text="Loading periods…" />
+      {loadFailed && !loading ? (
+        <ErrorState title={ui("Periods could not be loaded")} onRetry={() => setReloadTick((t) => t + 1)} retryLabel={ui("Try again")} />
+      ) : loading ? (
+        <SkeletonList rows={4} label={ui("Loading periods…")} />
       ) : periods.length === 0 ? (
-        <EmptyInline text="No periods defined yet. These drive the timetable grid row headers." />
+        <EmptyState
+          size="sm"
+          icon={Clock}
+          title={ui("No periods yet")}
+          description={ui("Periods are the rows of every timetable. Add the first one with its start and end time.")}
+          action={showAdd ? undefined : <SystemButton type="button" variant="outline" size="sm" onClick={() => setShowAdd(true)}><Plus aria-hidden="true" />{ui("Add period")}</SystemButton>}
+        />
       ) : (
         <div className="space-y-2">
           {periods.map((p, i) => {
@@ -8487,8 +7098,8 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             {gapMinutes > 0 ? (
               <div className="flex items-center gap-3 px-4 py-1" aria-hidden="true">
                 <span className="h-px flex-1 bg-edge/25" />
-                <span className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
-                  {gapMinutes} min break
+                <span className="text-2xs font-semibold text-ink-subtle">
+                  {ui("{0} min break", [gapMinutes])}
                 </span>
                 <span className="h-px flex-1 bg-edge/25" />
               </div>
@@ -8496,14 +7107,14 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             <div
               className="flex flex-wrap items-center gap-3 rounded-2xl border border-edge/15 bg-brand-50/25 px-4 py-3"
             >
-              <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white ${ROOM_COLORS[i % ROOM_COLORS.length]}`}>
-                {p.periodNumber}
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
+                <bdi>{p.periodNumber}</bdi>
               </span>
-              <span className="text-sm font-bold text-ink-subtle">Period {p.periodNumber}</span>
+              <span className="text-sm font-bold text-ink-subtle">{ui("Class period {0}", [p.periodNumber])}</span>
               <SystemInput
                 type="time"
-                aria-label={`Period ${p.periodNumber} start time`}
-                className="h-9 px-2.5"
+                aria-label={ui("Period {0} start time", [p.periodNumber])}
+                className="px-2.5"
                 value={draft.startTime}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, [p.id]: { ...draft, startTime: e.target.value } }))
@@ -8512,18 +7123,18 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                   const next = e.target.value;
                   if (!next || next === p.startTime) return;
                   if (next >= draft.endTime) {
-                    toast.error("Start time must be before the end time");
+                    toast.error(ui("Start time must be before the end time"));
                     setDrafts((d) => ({ ...d, [p.id]: { ...draft, startTime: p.startTime } }));
                     return;
                   }
                   updatePeriod(p.id, "startTime", next);
                 }}
               />
-              <span className="text-xs font-bold text-ink-subtle">to</span>
+              <span className="text-xs font-bold text-ink-subtle">{ui("to")}</span>
               <SystemInput
                 type="time"
-                aria-label={`Period ${p.periodNumber} end time`}
-                className="h-9 px-2.5"
+                aria-label={ui("Period {0} end time", [p.periodNumber])}
+                className="px-2.5"
                 value={draft.endTime}
                 onChange={(e) =>
                   setDrafts((d) => ({ ...d, [p.id]: { ...draft, endTime: e.target.value } }))
@@ -8532,21 +7143,21 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
                   const next = e.target.value;
                   if (!next || next === p.endTime) return;
                   if (next <= draft.startTime) {
-                    toast.error("End time must be after the start time");
+                    toast.error(ui("End time must be after the start time"));
                     setDrafts((d) => ({ ...d, [p.id]: { ...draft, endTime: p.endTime } }));
                     return;
                   }
                   updatePeriod(p.id, "endTime", next);
                 }}
               />
-              <span className="rounded-full bg-white px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary">
-                {lengthMinutes > 0 ? `${lengthMinutes} min` : "—"}
+              <span className="rounded-full bg-card px-2 py-0.5 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
+                {lengthMinutes > 0 ? ui("{0} min", [lengthMinutes]) : "—"}
               </span>
               <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setConfirmPeriod(p)}
                 className="ms-auto p-1.5"
-                aria-label={`Delete period ${p.periodNumber}`}
+                aria-label={ui("Delete period {0}", [p.periodNumber])}
               >
                 <Trash2 className="h-4 w-4" />
               </SystemButton>
@@ -8555,21 +7166,22 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             );
           })}
           <p className="pt-2 text-xs font-bold text-ink-subtle">
-            Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and
-            leaves existing slots untouched.
+            {ui("Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and leaves existing slots untouched.")}
           </p>
         </div>
       )}
 
       <ConfirmAction
         open={Boolean(confirmPeriod)}
-        title={`Delete period ${confirmPeriod?.periodNumber ?? ""}?`}
+        title={ui("Delete period {0}?", [confirmPeriod?.periodNumber ?? ""])}
         description={
           confirmPeriod
-            ? `The ${confirmPeriod.startTime}–${confirmPeriod.endTime} slot disappears from every ${timeType === "CLASS" ? "class timetable" : "exam date sheet"} row on this campus. Lessons already placed in it are not moved anywhere — they stop being shown.`
+            ? ui(timeType === "CLASS"
+              ? "The {0}–{1} slot disappears from every class timetable row on this campus. Lessons already placed in it are not moved anywhere — they stop being shown."
+              : "The {0}–{1} slot disappears from every exam date sheet row on this campus. Nothing already placed in it is moved anywhere — it stops being shown.", [confirmPeriod.startTime, confirmPeriod.endTime])
             : ""
         }
-        confirmLabel="Delete period"
+        confirmLabel={ui("Delete period")}
         tone="danger"
         onCancel={() => setConfirmPeriod(null)}
         onConfirm={async () => {

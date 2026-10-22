@@ -108,7 +108,8 @@ after(async () => { await browser?.close(); store.close(); await raw.school.dele
 
 test("a teacher uploads a handout, publishes it, and previews what learners and families see", async () => {
   const { ctx, page, errors } = await open("teacher", "/teacher/resources");
-  await page.getByRole("heading", { name: "Learning resources" }).first().waitFor();
+  // The teacher's page is "Resources" (registry label); "Add resource" is its PageHeader primary (§4.4b).
+  await page.getByRole("heading", { level: 1, name: "Resources", exact: true }).waitFor();
   await list(page).getByText("Cell quiz answer key", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Add resource" }).click();
   const form = page.getByRole("form", { name: "New resource" });

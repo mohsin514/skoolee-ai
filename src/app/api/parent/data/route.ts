@@ -1,20 +1,79 @@
 import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
 import { publishedReportsWhere } from "@/lib/auth/policy";
 import { errorResponse } from "@/lib/api/scope";
+import { getAuthUser } from "@/lib/auth";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
 import { withParentScope } from "@/lib/parent/resolve-child";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { studentScope } from "@/lib/auth/policy";
+import { loadPermissionMap } from "@/lib/permissions";
+import { capabilitiesFor } from "@/lib/navigation/capabilities";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
+/** How many recent invoices travel with the payload for the learner charts. Totals never use this list. */
+const RECENT_INVOICES = 5;
+
+/** The registry keys the family console reads (§3 `parent`): the role-matrix modules and the family capability keys. */
+const FAMILY_NAV_KEYS = ["reports", "exams", "timetable", "attendance", "fees", "corrections", "pkgCanteen", "accessPlans", "pickupGuardian", "multiChild"] as const;
+const NO_FAMILY_ACCESS = Object.fromEntries(FAMILY_NAV_KEYS.map((key) => [key, false])) as Record<(typeof FAMILY_NAV_KEYS)[number], boolean>;
+
+/**
+ * Family totals (§11 P7, F19): the outstanding balance per currency across every open invoice of every child the
+ * guardian may see finances for — never the short recent list, and never one child only — so Home's figure is the
+ * sum of the children's statements.
+ */
+async function outstandingByCurrency(schoolId: string, students: Prisma.StudentWhereInput) {
+  const rows = await prisma.invoice.groupBy({
+    by: ["currency"],
+    where: { schoolId, student: students, status: { not: "CANCELLED" }, balanceDue: { gt: 0 } },
+    _sum: { balanceDue: true },
+    _count: { _all: true },
+  });
+  return rows
+    .map((row) => ({ currency: row.currency, outstanding: row._sum.balanceDue ?? 0, invoices: row._count._all }))
+    .filter((row) => row.outstanding > 0);
+}
+
 export async function GET(req: NextRequest) {
   try {
-    return await withParentScope(req, async ({ studentId, children, permissions }) => {
+    // M98 / G4: a signed-in guardian whose children are not linked yet (an invitation still waiting) is not an
+    // error. They get the family console with Home only — greeting, the invitations banner and an empty state —
+    // instead of "Invalid or expired access" with no way to reach their invitations.
+    const session = req.nextUrl.searchParams.get("token") ? null : await getAuthUser();
+    if (session?.role === "PARENT" && !req.nextUrl.searchParams.get("studentId")) {
+      const linked = await prisma.student.count({ where: studentScope(session, "any") });
+      if (linked === 0) {
+        return Response.json({ success: true, data: null, noChildren: true, guardian: { fullName: session.fullName ?? null }, navigationAccess: NO_FAMILY_ACCESS });
+      }
+    }
+
+    return await withParentScope(req, async ({ studentId, children, permissions: relation, schoolId }) => {
     if (!studentId) {
       return Response.json({ error: "Invalid or expired access" }, { status: 401 });
     }
+
+    // Children are only listed for a signed-in guardian (never for a token link), so the session
+    // user is read only on that path: it names the guardian in the header and keys the family checks.
+    const guardian = children.length && session?.role === "PARENT" ? session : null;
+
+    // G8/G9: one predicate with the rest of the app. A module shows (and its data travels) only when this guardian's
+    // relationship to the child allows it AND the school's PARENT permission matrix has the module on — the same
+    // matrix `/api/navigation/access` applies to the framed family routes. The family capability keys come from
+    // `capabilitiesFor()` (§1.4), so the parent console and the framed routes offer the same More leaves.
+    // Presentation and payload trimming only: every family API keeps its own per-request check.
+    const matrix = await loadPermissionMap(schoolId, "PARENT");
+    const moduleOn = (module: string) => matrix.get(module)?.canView === true;
+    const permissions = {
+      ...relation,
+      learningRecords: relation.learningRecords && moduleOn("reports"),
+      attendance: relation.attendance && moduleOn("attendance"),
+      finances: relation.finances && moduleOn("fees"),
+    };
+    const family = guardian ? await capabilitiesFor(guardian, matrix) : null;
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
@@ -39,7 +98,7 @@ export async function GET(req: NextRequest) {
         } } : {}),
         ...(permissions.finances ? { invoices: {
           orderBy: { dueDate: "desc" },
-          take: 5,
+          take: RECENT_INVOICES,
         } } : {}),
       },
     });
@@ -61,6 +120,11 @@ export async function GET(req: NextRequest) {
       ? await Promise.all(student.reportCards.map(async r => familyVersion(await getPublishedVersion(r.id))))
       : [];
 
+    // Family totals: every open invoice of every child this guardian may see finances for (statement semantics).
+    const feeTotals = !moduleOn("fees") ? []
+      : guardian ? await outstandingByCurrency(schoolId, { AND: [studentScope(guardian, "finances"), { archivedAt: null }] })
+      : permissions.finances ? await outstandingByCurrency(schoolId, { id: student.id }) : [];
+
     return Response.json({
       success: true,
       data: {
@@ -68,6 +132,8 @@ export async function GET(req: NextRequest) {
         // a switcher instead of stranding siblings behind the default pick.
         children,
         selectedStudentId: studentId,
+        // The signed-in guardian, so the header greets the parent rather than the child.
+        guardian: guardian ? { fullName: guardian.fullName ?? null } : null,
         access: {
           learningRecords: permissions.learningRecords,
           attendance: permissions.attendance,
@@ -75,12 +141,18 @@ export async function GET(req: NextRequest) {
           communication: permissions.communication,
           pickup: permissions.pickup,
         },
+        // Booleans only: the family console's registry visibility (§3 `parent`) reads these keys.
         navigationAccess: {
-          reports: permissions.learningRecords,
-          exams: permissions.learningRecords,
-          timetable: permissions.learningRecords,
+          reports: relation.learningRecords && moduleOn("reports"),
+          exams: relation.learningRecords && moduleOn("exams"),
+          timetable: relation.learningRecords && moduleOn("timetable"),
           attendance: permissions.attendance,
           fees: permissions.finances,
+          corrections: family?.corrections ?? false,
+          pkgCanteen: family?.pkgCanteen ?? false,
+          accessPlans: family?.accessPlans ?? false,
+          pickupGuardian: family?.pickupGuardian ?? false,
+          multiChild: family?.multiChild ?? false,
         },
         student: {
           fullName: student.fullName,
@@ -92,7 +164,7 @@ export async function GET(req: NextRequest) {
         },
         campus: { ...student.campus, schoolId: undefined },
         reportCards: released.map(r => ({ ...r,
-          pdfUrl: `/api/reports/download?reportCardId=${r.id}&versionId=${r.versionId}&redirect=1${req.nextUrl.searchParams.get("token") ? `&token=${encodeURIComponent(req.nextUrl.searchParams.get("token")!)}` : ""}`,
+          pdfUrl: `/api/reports/download?reportCardId=${encodeURIComponent(r.id)}&versionId=${encodeURIComponent(r.versionId)}&redirect=1`,
         })),
         marksByExam: released.map(r => ({ examId: r.examId, examTitle: r.examTitle, term: r.term, marks: r.marks })),
         attendance: permissions.attendance ? {
@@ -123,6 +195,7 @@ export async function GET(req: NextRequest) {
           status: inv.status,
           dueDate: inv.dueDate.toISOString().split("T")[0],
         })) : [],
+        feeTotals,
       },
     });
     });

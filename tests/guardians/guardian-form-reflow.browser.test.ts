@@ -41,9 +41,10 @@ async function open(lang: string): Promise<Page> {
   const { secret } = await (await ctx.request.post(base + "/api/auth/mfa", { data: { action: "setup" } })).json().catch(() => ({}));
   if (secret) { await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
   const page = await ctx.newPage();
-  await page.goto(`${base}/dashboard/guardians`);
-  await page.locator("#guardian-list-title, select").first().waitFor({ timeout: 60_000 });
-  await page.locator("select").first().selectOption(studentId);
+  // /dashboard/guardians is only a redirect now (§6.1); the screen lives in the campus console.
+  await page.goto(`${base}/admin?view=guardians`);
+  await page.locator("#guardian-child").waitFor({ timeout: 60_000 });
+  await page.locator("#guardian-child").selectOption(studentId);
   await page.locator("#guardian-editor > form").first().waitFor();
   await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
   await page.waitForTimeout(300);
