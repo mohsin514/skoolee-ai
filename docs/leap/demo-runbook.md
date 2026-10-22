@@ -8,8 +8,9 @@ Operator runbook for the three-minute assessment story. Everything shown is **sy
 |---|---|---|
 | Build | Record the exact commit on `dev` that you will demo (`git log -1 --oneline`). Do not demo uncommitted work. | Founder |
 | Reset | `DEMO_PASSWORD=<12+ chars> DATABASE_URL=<demo database> npx tsx scripts/demo/reset-demo-tenant.ts`. Use only the dedicated demo database. A non-local database also needs `DEMO_RESET_ALLOW_REMOTE=1`. | Founder |
-| Confirm reset | The printed manifest shows `users 3, classes 2, students 12, guardianLinks 2, exams 1, approvedRecords 2, familyActions 1`, and the same `fingerprint` as the last rehearsal. | Founder |
-| Accounts | `demo-principal@example.invalid`, `demo-teacher@example.invalid`, `demo-guardian@example.invalid` (password from `DEMO_PASSWORD`; never reuse a real password). MFA is enrolled at first sign-in. | Founder |
+| Confirm reset | The printed manifest shows `users 5, classes 2, students 12, guardianLinks 2, exams 3, approvedRecords 2, familyActions 1`, and the same `fingerprint` as the last rehearsal. | Founder |
+| Accounts | `demo-principal@example.invalid`, `demo-teacher@example.invalid`, `demo-guardian@example.invalid`, `demo-hod@example.invalid` (Head of Science), `demo-student@example.invalid` (password from `DEMO_PASSWORD`; never reuse a real password). MFA is enrolled at first sign-in for the principal. | Founder |
+| Exam chain data (SKO-500) | Grade 7 A and B with Science (approved eight-outcome syllabus in three units, outcome 1 taught), Grade 7 A Mathematics with no syllabus (for the live Syllabus Drop), a Science department headed by the HOD, a published Grade 7 A timetable (Science 07:30, Mathematics 08:15, Monday to Saturday) and a mid-term with Science on the date sheet nine days after the reset. | Founder |
 | Scanner | The live scan needs the configured mark-scan extractor and object store for the demo environment. Print the mark sheet from the exam's mark-sheet template before the session. | Founder |
 | Recorded fallback | A labelled screen recording of the same story (EN and AR), with captions and a transcript. **Not yet recorded.** | Founder |
 

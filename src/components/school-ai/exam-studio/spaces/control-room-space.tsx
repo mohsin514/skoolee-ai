@@ -11,6 +11,7 @@ import { examIncidentCopy, fill } from "../../exam-incident-copy";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { SpaceStateRegion, type SpaceState } from "../space-state";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PulsePanel } from "../pulse-panel";
 
 /**
  * SKO-408 Control room (R17.1-R17.6). Human decisions about a live sitting, with scope, reason and
@@ -65,7 +66,7 @@ export default function ControlRoomSpace({ language, scope, capabilities }: Stud
     </div>}
     <SpaceStateRegion state={state} language={language}>{board => {
       const live = board.attempts.filter(attempt => attempt.status === "IN_PROGRESS");
-      return <div className="space-y-4"><Supervise examId={examId} board={board} language={language} canExtend={capabilities.canApprove} onChanged={() => void load()} /><div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+      return <div className="space-y-4"><PulsePanel language={language} examId={examId} /><Supervise examId={examId} board={board} language={language} canExtend={capabilities.canApprove} onChanged={() => void load()} /><div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <section aria-labelledby="compose-title" className="sk-panel space-y-3 p-5">
           <h3 id="compose-title" className="font-semibold">{revising ? fill(t.revising, [number(revising.version)]) : t.composeTitle}</h3>
           <p className="text-sm text-ink-subtle">{t.composeHint}</p>

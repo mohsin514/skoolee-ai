@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList, Download, Plus } from "lucide-react";
+import { ClipboardList, Download, Plus, Sparkles } from "lucide-react";
 import { ExamCycleManager } from "@/components/academic/ExamCycleManager";
 import { TeacherPage } from "@/components/teacher/teacher-page";
 import { classLabel, formatStatus, useTeacherData } from "@/components/teacher/teacher-components";
@@ -48,7 +48,11 @@ export default function TeacherTestsPage() {
       title="Tests & quizzes"
       description="Create quizzes and class tests, enter their marks, then lock them when you have finished. Your academic lead locks term exams and publishes results."
       primaryAction={{ id: "new-test", label: "New test", icon: Plus, onClick: () => setNewRequest((n) => n + 1) }}
-      secondaryActions={[{ id: "export-tests", label: "Export CSV", icon: Download, onClick: exportCsv, disabled: !tests.length, disabledReason: "No tests to export yet." }]}
+      secondaryActions={[
+        // SKO-500: a classroom quiz built from the approved syllabus and what is taught, approved by the teacher (classroom tier).
+        { id: "quiz-with-studio", label: "Quiz with Exam Studio", icon: Sparkles, href: "/ai/studio#space=brief" },
+        { id: "export-tests", label: "Export CSV", icon: Download, onClick: exportCsv, disabled: !tests.length, disabledReason: "No tests to export yet." },
+      ]}
     >
       <ExamCycleManager role="TEACHER" hideHeading newRequest={newRequest} />
     </TeacherPage>

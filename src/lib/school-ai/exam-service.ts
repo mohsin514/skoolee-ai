@@ -90,6 +90,10 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
   const record = await getWorkspaceRecord(user, input.paperId);
   if (record.kind !== "PAPER" || record.status !== "APPROVED" || !record.campusId) throw new ApiError("Only an approved campus paper can be assigned.", 409);
   const paper = paperDataSchema.parse(record.data);
+  // SKO-500: a sitting that names its date-sheet row is linked to that row and its paper request; the row must be
+  // this paper's class and subject in this campus.
+  const schedule = input.examScheduleId ? await prisma.examSchedule.findFirst({ where: { id: input.examScheduleId, schoolId: user.schoolId, campusId: record.campusId }, select: { id: true, subjectId: true, paperSlotId: true, exam: { select: { classId: true } } } }) : null;
+  if (input.examScheduleId && (!schedule || schedule.exam.classId !== paper.classId || schedule.subjectId !== paper.subjectId)) throw new ApiError("Choose a date-sheet sitting for this paper's class and subject.", 409);
   await assertWorkspaceSubject(user, record.campusId, paper);
   const count = await prisma.student.count({ where: { id: { in: input.studentIds }, schoolId: user.schoolId, campusId: record.campusId, classId: paper.classId, archivedAt: null, status: "active", studentUserId: { not: null } } });
   if (count !== input.studentIds.length) throw new ApiError("Every selected student must have an active account in this paper's class.", 403);
@@ -117,7 +121,7 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
     // SKO-408: the sealed release — workbench papers must pass every release precondition; the hash is recorded either way.
     const stored = await tx.schoolAiRecord.findFirstOrThrow({ where: { id: record.id, schoolId: user.schoolId }, select: { createdById: true } });
     const seal = await sealRelease(tx, user, { id: record.id, version: record.version, createdById: stored.createdById, campusId: record.campusId }, paper);
-    const created = await tx.schoolAiExamAssignment.create({ data: { contentHash: seal.contentHash, rehearsalId: seal.rehearsalId, ...(secureProfile ? { secureProfileId: secureProfile.id, secureProfileVersion: secureProfile.version } : {}), id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: input.mode, status: "ACTIVE" }, select: selection });
+    const created = await tx.schoolAiExamAssignment.create({ data: { contentHash: seal.contentHash, rehearsalId: seal.rehearsalId, ...(secureProfile ? { secureProfileId: secureProfile.id, secureProfileVersion: secureProfile.version } : {}), id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: input.mode, status: "ACTIVE", ...(schedule ? { examScheduleId: schedule.id, paperSlotId: schedule.paperSlotId } : {}) }, select: selection });
     await writeAuditEvent(tx, user, { table: "school_ai_exam_assignments", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { paperId: record.id, paperVersion: created.paperVersion, classId: created.classId, status: created.status, mode: created.mode, students: input.studentIds.length, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() } });
     return created;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));

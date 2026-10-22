@@ -795,6 +795,7 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Fill rooms at exam spacing", "املأ القاعات بتباعد الامتحان", "امتحانی فاصلے پر کمرے بھریں"],
   ["Request each paper and track it", "اطلب كل ورقة وتابعها", "ہر پرچہ طلب کریں اور اس پر نظر رکھیں"],
   ["Open for marks", "فتح لإدخال الدرجات", "نمبروں کے لیے کھولیں"],
+  ["Quiz with Exam Studio", "اختبار قصير من استوديو الاختبارات", "ایگزام اسٹوڈیو سے کوئز"],
   ["Syllabus to approve: {0}", "منهج بانتظار الاعتماد: {0}", "منظوری کے لیے نصاب: {0}"],
   ["{0} sent it for approval on {1}.", "أرسله {0} للاعتماد في {1}.", "{0} نے اسے {1} کو منظوری کے لیے بھیجا۔"],
   ["Approve the syllabus or ask its head of department", "اعتمد المنهج أو اطلب ذلك من رئيس القسم", "نصاب منظور کریں یا شعبہ کے سربراہ سے کہیں"],

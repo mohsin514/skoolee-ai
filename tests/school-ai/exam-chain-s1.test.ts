@@ -194,3 +194,28 @@ test("Live Pulse reports shares and stalls without any answer text", () => {
   assert.deepEqual(pulse.stalled, [{ attemptId: "x2", minutes: 10 }], "a paused attempt is not stalled; a fresh save is not stalled");
   assert.equal(JSON.stringify(pulse).includes("secret"), false, "no response text leaves the read model");
 });
+
+test("paper deadline default: 15 working days back, never already past, never on the first sitting", async () => {
+  const { defaultPaperDue, workingDaysAfter } = await import("../../src/lib/school-ai/paper-slot-status");
+  // Weekend Sunday only (ISO 7). First sitting Friday 2026-11-20.
+  assert.equal(defaultPaperDue("2026-11-20", "2026-10-01", [7]), "2026-11-03");
+  // Requested late: three working days from today instead of a past date.
+  assert.equal(defaultPaperDue("2026-11-20", "2026-11-10", [7]), "2026-11-13");
+  // Requested the day before: the last working day before the sitting, never after it.
+  assert.equal(defaultPaperDue("2026-11-20", "2026-11-19", [7]), "2026-11-19");
+  assert.equal(workingDaysAfter("2026-11-20", 5, [6, 7]), "2026-11-27");
+});
+
+test("one term list: planner spellings normalise to the stored labels", async () => {
+  const { normaliseExamTerm, EXAM_TERM_LABELS } = await import("../../src/lib/academic/exam-terms");
+  assert.deepEqual(["TERM_1", "term 2", "Term-3", "ANNUAL", "full year", "Term 4", ""].map(normaliseExamTerm), ["Term 1", "Term 2", "Term 3", "Annual", "Annual", null, null]);
+  assert.deepEqual([...EXAM_TERM_LABELS], ["Term 1", "Term 2", "Term 3", "Annual"]);
+});
+
+test("approving a paper opens the review desk; a syllabus opens the brief space", () => {
+  const base: NextStepInput = { today: "2026-10-23", saveFailed: false, blockingRehearsals: [], mySlots: [], toModerate: [], toApprove: [], itemsToReview: [], openSittings: [], releasedWithoutNextLesson: [], hasApprovedCurriculum: true };
+  const paper = nextStudioStep({ ...base, toApprove: [{ id: "p", kind: "PAPER", title: "Paper" }] });
+  const syllabus = nextStudioStep({ ...base, toApprove: [{ id: "c", kind: "CURRICULUM", title: "Syllabus" }] });
+  assert.equal(nextStepHref(paper), "/ai/studio#space=review");
+  assert.equal(nextStepHref(syllabus), "/ai/studio#space=brief");
+});
