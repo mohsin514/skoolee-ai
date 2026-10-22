@@ -219,7 +219,11 @@ async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient
     const paper = paperDataSchema.parse(data);
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);
     if (curriculum.kind !== "CURRICULUM" || curriculum.status !== "APPROVED" || curriculum.version !== paper.curriculumVersion || curriculum.campusId !== record.campusId) issues.push("The curriculum changed or is not approved. Review the paper against the current approved curriculum version.");
-    else issues.push(...validatePaperApproval(paper, curriculumDataSchema.parse(curriculum.data)));
+    else {
+      // SKO-500: outcomes taught on the Teaching Line count as taught.
+      const { overlayTeachingLine } = await import("./teaching-progress-service");
+      issues.push(...validatePaperApproval(paper, await overlayTeachingLine(db, user.schoolId, curriculum.id, curriculumDataSchema.parse(curriculum.data))));
+    }
   }
   return issues;
 }

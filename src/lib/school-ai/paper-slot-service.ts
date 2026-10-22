@@ -228,7 +228,7 @@ export async function listSessionSlots(user: AuthUser, sessionId: string, today 
 /** The slots that concern this person: the ones they write or moderate, their department's (as head), and the campus's (as office). */
 export async function mySlots(user: AuthUser, today = todayUtc()) {
   return schoolAiTransaction(user, async tx => {
-    if (!user.campusId && user.role !== "SUPER_ADMIN") return { slots: [], scope: "NONE" as const };
+    if (!user.campusId && user.role !== "SUPER_ADMIN") return { viewerId: user.userId, slots: [], scope: "NONE" as const };
     const campus = user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId! };
     const office = user.campusId ? await assertExamOffice(user, user.campusId, tx).then(() => true, () => false) : canManageOperations(user);
     const members = await membersHeadedBy(tx, user.schoolId, user.userId);
@@ -236,7 +236,7 @@ export async function mySlots(user: AuthUser, today = todayUtc()) {
       ? { schoolId: user.schoolId, ...campus }
       : { schoolId: user.schoolId, ...campus, OR: [{ authorUserId: user.userId }, { moderatorUserId: user.userId }, ...(members.length ? [{ authorUserId: { in: members } }] : [])] };
     const slots = await viewSlots(user, tx, await loadSlots(tx, where), today);
-    return { slots: slots.filter(slot => slot.status !== "CANCELLED" || slot.authorUserId === user.userId), scope: office ? "OFFICE" as const : members.length ? "DEPARTMENT" as const : "MINE" as const };
+    return { viewerId: user.userId, slots: slots.filter(slot => slot.status !== "CANCELLED" || slot.authorUserId === user.userId), scope: office ? "OFFICE" as const : members.length ? "DEPARTMENT" as const : "MINE" as const };
   });
 }
 
@@ -333,7 +333,10 @@ export async function slotBrief(user: AuthUser, slotId: string) {
     if (row.cancelledAt) throw new ApiError("This paper request is cancelled.", 409);
     if (row.briefRecordId) {
       const existing = await tx.schoolAiRecord.findFirst({ where: { id: row.briefRecordId, schoolId: user.schoolId, kind: "BRIEF", status: { not: "ARCHIVED" } }, select: { id: true } });
-      if (existing) return { existing: existing.id, row, view };
+      if (existing) {
+        const brief = await tx.schoolAiRecord.findFirst({ where: { id: existing.id, schoolId: user.schoolId }, select: { subjectId: true, classId: true } });
+        return { existing: existing.id, row, view, subjectId: brief?.subjectId ?? undefined, classId: brief?.classId ?? undefined };
+      }
     }
     const sections = await tx.subject.findMany({ where: { schoolId: user.schoolId, campusId: row.campusId, classId: { in: view.sections.map(section => section.classId) } }, select: { id: true, name: true, classId: true, teacherId: true } });
     const matching = sections.filter(subject => slotKey(subject.name, "x").subjectName === row.subjectName);
@@ -341,7 +344,7 @@ export async function slotBrief(user: AuthUser, slotId: string) {
     if (!mine) throw new ApiError("This subject is no longer taught in the grade's sections.", 409);
     return { existing: null, row, view, subjectId: mine.id, classId: mine.classId };
   });
-  if (prepared.existing) return { briefId: prepared.existing, created: false };
+  if (prepared.existing) return { briefId: prepared.existing, created: false, subjectId: prepared.subjectId ?? null, classId: prepared.classId ?? null };
   const { row, view } = prepared;
   const { emptyAssessmentBrief, assessmentBriefSchema } = await import("./assessment-brief");
   const { createWorkspaceRecord } = await import("./repository");
@@ -356,7 +359,7 @@ export async function slotBrief(user: AuthUser, slotId: string) {
   const data = assessmentBriefSchema.parse(brief);
   const record = await createWorkspaceRecord(user, { kind: "BRIEF", title: `${view.subjectName} ${view.gradeName} · ${view.sessionTitle}`.slice(0, 180), campusId: row.campusId, idempotencyKey: `slot-brief-${row.id}`.slice(0, 128), data: data as unknown as Record<string, unknown> });
   await schoolAiTransaction(user, tx => tx.examPaperSlot.updateMany({ where: { id: row.id, schoolId: user.schoolId }, data: { briefRecordId: record.id } }));
-  return { briefId: record.id, created: true };
+  return { briefId: record.id, created: true, subjectId: scope.subjectId, classId: scope.classId };
 }
 
 /** After the PAPER save commits: sending a requested paper for review tells its moderator. */

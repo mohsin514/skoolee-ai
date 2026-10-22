@@ -37,7 +37,7 @@ export interface NextStepInput {
   hasApprovedCurriculum: boolean;
 }
 
-export interface NextStep { kind: NextStepKind; targetId: string | null; title: string | null; dueOn?: string; count?: number }
+export interface NextStep { kind: NextStepKind; targetId: string | null; title: string | null; dueOn?: string; count?: number; recordKind?: "SOURCE" | "CURRICULUM" | "PAPER" | "PRACTICE" }
 
 const byDue = <T extends { dueOn: string }>(rows: readonly T[]) => [...rows].sort((a, b) => a.dueOn.localeCompare(b.dueOn));
 
@@ -57,7 +57,7 @@ export function nextStudioStep(input: NextStepInput): NextStep {
   const moderate = byDue(input.toModerate)[0];
   if (moderate) return { kind: "MODERATE", targetId: moderate.id, title: moderate.title, dueOn: moderate.dueOn };
   const approve = input.toApprove[0];
-  if (approve) return { kind: "APPROVE", targetId: approve.id, title: approve.title, count: input.toApprove.length };
+  if (approve) return { kind: "APPROVE", targetId: approve.id, title: approve.title, count: input.toApprove.length, recordKind: approve.kind };
   const review = input.itemsToReview[0];
   if (review) return { kind: "REVIEW_ITEMS", targetId: review.paperId, title: review.title, count: review.count };
   const open = input.openSittings[0];
@@ -75,7 +75,7 @@ export function nextStepHref(step: NextStep): string {
     case "REHEARSAL_BLOCKING": return "/ai/studio#space=rehearsal";
     case "SLOT_OVERDUE": case "SLOT_DUE": return `/ai/studio#space=brief&slot=${encodeURIComponent(step.targetId ?? "")}`;
     case "MODERATE": case "REVIEW_ITEMS": return "/ai/studio#space=review";
-    case "APPROVE": return "/ai/studio#space=brief";
+    case "APPROVE": return step.recordKind === "PAPER" ? "/ai/studio#space=review" : "/ai/studio#space=brief";
     case "OPEN_SITTING": return "/ai/studio#space=control-room";
     case "NEXT_LESSON": return "/ai/studio#space=improve";
     case "ADD_SYLLABUS": case "CREATE_QUIZ": return "/ai/studio#space=brief";

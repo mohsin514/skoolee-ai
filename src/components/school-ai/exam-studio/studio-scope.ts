@@ -119,3 +119,6 @@ export function readStudioScopeChoice(userId: string): StudioScopeChoice {
 export function writeStudioScopeChoice(userId: string, choice: StudioScopeChoice): void {
   window.sessionStorage.setItem(studioScopeStorageKey(userId), JSON.stringify(choice));
 }
+
+/** SKO-500: a space asks the workspace to move the Studio scope to a subject (e.g. opening a requested paper). */
+export const STUDIO_SCOPE_EVENT = "exam-studio:scope";

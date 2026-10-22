@@ -17,6 +17,7 @@ import { readSetupDraft, setupReadiness, type SetupDraft, type SetupAnswers } fr
 import type { AiWorkspaceRecord, SourceData, WorkspaceCapabilities } from "@/lib/school-ai/types";
 import { StudioOverview, type StudioWorkspaceTab } from "./exam-studio/studio-overview";
 import { StudioSpaces } from "./exam-studio/studio-spaces";
+import { STUDIO_SCOPE_EVENT } from "./exam-studio/studio-scope";
 import { resolveStudioScope } from "./exam-studio/studio-scope";
 import { studioShellCopy } from "./exam-studio/studio-shell-copy";
 import { EXAM_STUDIO_HREF } from "@/lib/school-ai/navigation";
@@ -46,6 +47,7 @@ import styles from "./school-ai.module.css";
 import studioStyles from "./exam-studio/studio-shell.module.css";
 import { WorkspaceDraftBoundary, useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
 import { DemoWorkflowPanel } from "./demo-workflow-panel";
+import { studioHomeCopy } from "@/lib/school-ai/exam-studio-copy-home";
 import { prototypeCopy } from "./prototype-copy";
 import { useSearchParams } from "next/navigation";
 import { START_CAMPUS_SETUP_EVENT } from "@/lib/onboarding/launch-plan";
@@ -225,6 +227,15 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     setupLoad.current?.abort(); setOpeningSetup(false); setupRequested.current = false;
     setError(""); setNotice(""); setSetupRecord(undefined); setupCreateKey.current = null; setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); setWorkflowRecordId(null); setPolicyRecordId(null); next();
   });
+  // SKO-500: a Studio space may move the scope to a subject this person can open (a requested paper's class).
+  useEffect(() => {
+    const onScope = (event: Event) => {
+      const subjectId = (event as CustomEvent<{ subjectId?: string }>).detail?.subjectId;
+      if (subjectId && subjectId !== selectedSubject && subjects.some(item => item.id === subjectId)) changeScope(() => setSelectedSubject(subjectId));
+    };
+    window.addEventListener(STUDIO_SCOPE_EVENT, onScope);
+    return () => window.removeEventListener(STUDIO_SCOPE_EVENT, onScope);
+  });
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
@@ -357,9 +368,9 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
         </div> : null}
       </div>
     </header>}
-    {examOnly && <DemoWorkflowPanel language={language} initialWorkflow="paper" />}
     {manager && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mb-5 p-5"}`}><FormField name="ai-campus-scope" label={c.workspaceCampus} hint={c.workspaceCampusHint}><Select value={selectedCampus} onChange={event => { const value = event.target.value; if (value !== selectedCampus) changeScope(() => setSelectedCampus(value)); }}><option value="">{c.chooseCampus}</option>{capabilities.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select></FormField>{needsCampus && <p className="mt-3 text-sm text-ink-muted">{setupAfterCampus || setupIntent ? ui("Choose a campus to open the setup questionnaire.") : c.selectCampusToStart}</p>}</section>}
-    {role === "TEACHER" && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mb-5 p-5"}`}><FormField name="ai-teaching-scope" label={c.subject} hint={c.selectSubjectHint}><Select value={selectedSubject} onChange={event => { const value = event.target.value; if (value !== selectedSubject) changeScope(() => setSelectedSubject(value)); }}><option value="">{c.chooseSubject}</option>{subjects.map(item => <option key={item.id} value={item.id}>{item.className} · {item.name}</option>)}</Select></FormField></section>}
+    {/* SKO-500: in Exam Studio a principal or admin also picks a class and subject, to start a brief or read a map. */}
+    {(role === "TEACHER" || (examOnly && manager && Boolean(campusId))) && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mb-5 p-5"}`}><FormField name="ai-teaching-scope" label={c.subject} hint={c.selectSubjectHint}><Select value={selectedSubject} onChange={event => { const value = event.target.value; if (value !== selectedSubject) changeScope(() => setSelectedSubject(value)); }}><option value="">{c.chooseSubject}</option>{subjects.filter(item => role === "TEACHER" || item.campusId === campusId).map(item => <option key={item.id} value={item.id}>{item.className} · {item.name}</option>)}</Select></FormField></section>}
     {(examOnly || tab !== "overview") && <><nav className={styles.mobileNavigation} aria-label={c.workspace}><FormField name="ai-workspace-tool" label={prototype.navigation}><Select value={tab} onChange={event => selectTab(event.target.value as Tab)}>{visibleTabs.map(({ id }) => <option key={id} value={id}>{examOnly ? studioCopy[id as StudioWorkspaceTab] : c[id]}</option>)}</Select></FormField></nav>
     <nav className={`${styles.tabs} ${examOnly ? studioStyles.workspaceTabs : ""}`} aria-label={c.workspace}>{visibleTabs.map(({ id, Icon }) => <Button key={id} type="button" variant="choice" aria-pressed={tab === id} className={styles.tab} onClick={() => selectTab(id)}><Icon aria-hidden="true" />{examOnly ? studioCopy[id as StudioWorkspaceTab] : c[id]}</Button>)}</nav></>}
     {/* Exam Studio is the second flagship with its own row; from the AI Workflows landing it is a quiet link, never a second primary. */}
@@ -373,6 +384,8 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
       scope={resolveStudioScope(capabilities, { campusId: campusId ?? "", subjectId: selectedSubject })}>
       <StudioOverview records={visibleRecords} language={language} scopeReady={!needsCampus && !needsSubject} canReadSources={hasKind("SOURCE")} canReadPapers={hasKind("PAPER")} onNavigate={navigateStudio} />
     </StudioSpaces>}
+    {/* SKO-500: the sample sits below the rail, folded, and goes away once a live AI provider is configured. */}
+    {examOnly && !(featureStatusKnown && features.assistant) && <details className="sk-panel mt-5 p-3 sm:p-4" data-studio-sample><summary className="cursor-pointer text-sm font-semibold text-ink-muted">{studioHomeCopy(language).sampleDisclosure}</summary><div className="mt-3"><DemoWorkflowPanel language={language} initialWorkflow="paper" /></div></details>}
     {tab === "overview" && !examOnly && <>
       <WorkspaceLaunchpad language={language} tabs={visibleTabs} onboarding={onboarding} scopeName={subject ? `${subject.className} · ${subject.name}` : capabilities.campuses.find(item => item.id === campusId)?.name} needsCampus={needsCampus} needsSubject={needsSubject} hasCampuses={capabilities.campuses.length > 0} hasSubjects={subjects.length > 0} canCreate={canCreate} canOnboard={canRunQuestionnaire} openingSetup={openingSetup} featureState={featureStatusKnown ? features.assistant ? "live" : "prototype" : featureStatusFailed ? "unknown" : "checking"} onSetup={beginSetup} onOpen={selectTab} onRefreshFeatures={() => void refreshFeatures()} setupVariant={heroMode ? "outline" : "default"} />
       {nextCursor && <p className="text-xs text-ink-muted">{c.loadedRecords}</p>}

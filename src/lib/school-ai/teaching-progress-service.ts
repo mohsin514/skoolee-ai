@@ -156,3 +156,20 @@ export async function moveTeachingLine(user: AuthUser, raw: unknown, today: stri
     return { ...view(subject, current, nextRows, true), moved: { written: move.write.length, removed: move.remove.length, flagged: move.flagged } };
   });
 }
+
+/**
+ * SKO-500 (§14.1 "taught = outcome.taught || progress row"): the curriculum as the paper checks see it,
+ * with every outcome the Teaching Line records for this subject and class marked taught. The stored
+ * curriculum is not changed; generation, approval and brief coverage all read through this.
+ */
+export async function overlayTeachingLine(tx: TxClient, schoolId: string, curriculumId: string, curriculum: CurriculumData): Promise<CurriculumData> {
+  const rows = await tx.teachingProgress.findMany({ where: { schoolId, curriculumId, subjectId: curriculum.subjectId, classId: curriculum.classId }, select: { outcomeId: true } });
+  if (!rows.length) return curriculum;
+  const taught = new Set(rows.map(row => row.outcomeId));
+  return { ...curriculum, outcomes: curriculum.outcomes.map(outcome => (taught.has(outcome.id) && !outcome.taught ? { ...outcome, taught: true } : outcome)) };
+}
+
+/** The Teaching Line rows for one class across a curriculum, for coverage choices (dates included). */
+export async function lineRowsFor(tx: TxClient, schoolId: string, scope: { curriculumId: string; subjectId: string; classId: string }) {
+  return tx.teachingProgress.findMany({ where: { schoolId, curriculumId: scope.curriculumId, subjectId: scope.subjectId, classId: scope.classId }, select: { outcomeId: true, taughtOn: true } });
+}
