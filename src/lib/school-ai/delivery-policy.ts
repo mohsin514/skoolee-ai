@@ -134,6 +134,30 @@ export const SEPARATION_OF_DUTIES = ["NOT_REQUIRED", "REQUIRED"] as const;
 export const separationOfDutiesSchema = z.enum(SEPARATION_OF_DUTIES);
 export type SeparationOfDuties = z.infer<typeof separationOfDutiesSchema>;
 
+/* ------------------------------------------------------------------ the exam chain (SKO-500) */
+
+/** Who approves, moderates and seals; what may leave the school; when families hear results. */
+export const examChainPolicySchema = z.strictObject({
+  classroomTier: z.strictObject({
+    enabled: z.boolean(),
+    examTypes: z.array(z.enum(["QUIZ", "CLASS_TEST"])).min(1).max(2),
+    maxMarks: z.number().int().min(1).max(200),
+    requiresRehearsal: z.literal(true),
+    teacherApprovesSyllabus: z.boolean(),
+  }).optional(),
+  moderation: z.strictObject({
+    required: z.boolean(),
+    moderatorRule: z.enum(["DEPARTMENT_HEAD", "ACADEMIC_LEAD"]),
+    authorMayModerate: z.literal(false),
+  }).optional(),
+  sealedBy: z.enum(["PRINCIPAL", "HEAD_OF_DEPARTMENT"]).optional(),
+  providerConfidentiality: z.strictObject({ unreleasedPaperText: z.enum(["OPT_IN", "OFF"]) }).optional(),
+  familyResultsGate: z.enum(["AFTER_PUBLICATION", "ON_RELEASE"]).optional(),
+  discloseKeyAfterPublication: z.boolean().optional(),
+  solverFindings: z.enum(["BLOCK_DISAGREEMENT", "ADVISORY"]).optional(),
+});
+export type ExamChainPolicyInput = z.infer<typeof examChainPolicySchema>;
+
 /* ------------------------------------------------------------------ the policy record (R12.2) */
 
 export const deliveryPolicySchema = z
@@ -155,6 +179,11 @@ export const deliveryPolicySchema = z
     /** A school configures down from `MAX_FORMS_CEILING`, never up (R10.1). */
     maxForms: z.number().int().min(1).max(MAX_FORMS_CEILING),
     expiresOn: z.iso.date().nullable(),
+    /**
+     * SKO-500: who approves, moderates and seals in the exam chain. Optional so every stored policy
+     * still parses; `examChainPolicy` in `./exam-authority` fills the platform defaults.
+     */
+    chain: examChainPolicySchema.optional(),
   })
   // `.length(4)` alone would accept four copies of one gate. Each named gate appears exactly once,
   // so "every gate carries a dated pass" is a statement about all four and not about a subset.

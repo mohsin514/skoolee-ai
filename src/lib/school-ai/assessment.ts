@@ -21,6 +21,11 @@ export const curriculumDataSchema = z.object({
     approved: z.boolean(),
     edition: draftText(160).optional(),
     effectiveFrom: z.string().date().optional(),
+    // SKO-500: the approved SOURCE revision this entry cites, so the evidence chain points at the
+    // uploaded document rather than a pasted copy. Absent on entries typed by hand before SKO-500.
+    sourceRecordId: id.optional(),
+    sourceVersion: z.number().int().positive().optional(),
+    pageRange: draftText(40).optional(),
   }).strict()).max(30),
   lessonPlans: z.array(lessonPlanSchema).max(50).optional(),
   sectionCoverage: z.array(z.object({
@@ -38,6 +43,8 @@ export const curriculumDataSchema = z.object({
     code: draftText(80).optional(),
     description: draftText(2000).optional(),
     prerequisiteIds: z.array(id).max(20).optional(),
+    // SKO-500: the syllabus unit (chapter) the outcome sits in; the Syllabus Map's columns.
+    unit: draftText(200).optional(),
   }).strict()).max(200),
   pack: z.object({
     authority: draftText(200),
@@ -45,6 +52,10 @@ export const curriculumDataSchema = z.object({
     language: assessmentLanguageSchema,
     rights: z.enum(["APPROVED", "UNDER_REVIEW", "MANUAL"]),
   }).strict().optional(),
+  // SKO-500: approving this curriculum also approves the cited SOURCE revision (one approval, not two).
+  approvalBundle: z.object({ sourceRecordId: id, sourceVersion: z.number().int().positive() }).strict().optional(),
+  // SKO-500: "Same as last year" keeps where a curriculum was copied from.
+  lineage: z.object({ clonedFromRecordId: id, clonedFromVersion: z.number().int().positive(), academicYear: draftText(80) }).strict().optional(),
 }).strict();
 
 export const blueprintSchema = z.object({
@@ -130,8 +141,13 @@ export const paperDataSchema = z.object({
   coverageSection: id.optional(),
   resources: z.array(z.object({ id, title: draftText(200), content: draftText(20000), approved: z.boolean() }).strict()).max(10).optional(),
   questions: z.array(questionSchema).max(100),
+  // SKO-500: which kind of assessment this paper is. Decides who may approve it (classroom tier) and
+  // whether it needs moderation. Absent on older papers, which read as CLASS_TEST.
+  examType: z.enum(["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL"]).optional(),
+  // SKO-500: the office paper slot this paper answers, when it was requested from the date sheet.
+  slotId: id.optional(),
   generation: z.object({
-    kind: z.enum(["MANUAL", "AI"]),
+    kind: z.enum(["MANUAL", "AI", "UPLOADED"]),
     model: draftText(200).nullable(),
     generatedAt: z.string().datetime().nullable(),
   }).strict(),
