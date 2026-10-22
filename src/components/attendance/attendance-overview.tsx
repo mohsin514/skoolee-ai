@@ -69,6 +69,7 @@ interface ClassBreakdownItem {
   leave: number;
   marked: number;
   unmarked: number;
+  percentage: number;
 }
 
 interface MonthlyData {
@@ -451,8 +452,10 @@ export function AttendanceOverview({ campusId, exportRequest }: AttendanceOvervi
   const summaryTotal = summaryData?.totalStudents ?? 0;
   const summaryRate = summaryData?.attendanceRate ?? 0;
 
-  // classes from monthly data for the table
-  const monthlyClasses = monthlyData?.classes ?? [];
+  // The class rows follow the same period as the headline, not an unrelated month.
+  const monthlyClasses = period === "month" ? monthlyData?.classes ?? [] : (summaryData?.classBreakdown ?? []).map((cls) => ({
+    ...cls, studentCount: cls.totalStudents, total: cls.marked,
+  }));
   const filteredClasses = classSearch
     ? monthlyClasses.filter((c) =>
         c.className.toLowerCase().includes(classSearch.toLowerCase())
@@ -775,7 +778,7 @@ export function AttendanceOverview({ campusId, exportRequest }: AttendanceOvervi
             <div className="lg:col-span-2 sk-panel min-w-0 p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
                 <h3 className="text-sm font-bold text-ink-strong">
-                  {ui("Classes — {0}", [formatMonthLabel(selectedMonth, language)])}
+                  {ui("Classes — {0}", [period === "month" ? formatMonthLabel(selectedMonth, language) : ui(period === "today" ? "Today" : "Past 7 days")])}
                 </h3>
                 <InputGroup surfaceClassName="bg-muted" className="relative">
                   <Search aria-hidden="true" data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
@@ -790,12 +793,13 @@ export function AttendanceOverview({ campusId, exportRequest }: AttendanceOvervi
                 </InputGroup>
               </div>
 
-              {loadingMonthly ? (
+              {(period === "month" ? loadingMonthly : loadingSummary) ? (
                 <TableSkeleton />
               ) : filteredClasses.length === 0 ? (
-                <EmptyState size="sm" icon={BarChart3} title={ui("No class data for this month")} description={ui(classSearch ? "No class matches your search." : "Classes appear here once their registers are marked.")} />
+                <EmptyState size="sm" icon={BarChart3} title={ui("No class data for this period")} description={ui(classSearch ? "No class matches your search." : "Classes appear here once their registers are marked.")} />
               ) : (
                 <div className="space-y-2 max-h-[420px] overflow-y-auto pe-1">
+                  {period !== "today" ? <p className="text-xs text-ink-muted">{ui("Counts are attendance records across the selected days, not individual pupils.")}</p> : null}
                   {/* Header */}
                   <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-ink-subtle">
                     <span className="col-span-3">{ui("Class")}</span>

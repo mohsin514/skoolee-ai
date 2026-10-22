@@ -22,7 +22,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 // due and the one step that resolves it in its own workspace. Assign / acknowledge / snooze never close
 // an item — it leaves only when the source condition is resolved.
 
-type Item = { key: string; type: string; title: string; trigger: string; nextAction: string; sourceOwner: { id: string; name: string } | null; dueAt: string | null; link: string; overdue: boolean; reason: string; assignee: { id: string; name: string } | null; acknowledgedAt: string | null; snoozedUntil: string | null; snoozeReason: string | null; snoozed: boolean };
+type QueueMessage = { key: string; values: (string | number)[] };
+type Item = { titleMessage?: QueueMessage; triggerMessage?: QueueMessage; reasonMessage?: QueueMessage; key: string; type: string; title: string; trigger: string; nextAction: string; sourceOwner: { id: string; name: string } | null; dueAt: string | null; link: string; overdue: boolean; reason: string; assignee: { id: string; name: string } | null; acknowledgedAt: string | null; snoozedUntil: string | null; snoozeReason: string | null; snoozed: boolean };
 type Queue = { viewerId: string; items: Item[]; resolved: { key: string; title: string | null; resolvedAt: string }[]; counts: { active: number; overdue: number; snoozed: number; unassigned: number }; failedSources: string[]; checkedAt: string; sortingRule: string };
 type Staff = { id: string; fullName: string; role: string };
 const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments", CORRECTION_APPROVAL: "Record corrections", SUPPORT_CHECKIN: "Learning actions" };
@@ -112,12 +113,12 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
       : !visible.length ? <div data-queue-empty><EmptyState size="sm" icon={queue.items.length ? ListChecks : CheckCheck} title={queue.items.length ? ui("No items match these filters.") : ui("Nothing needs attention in this campus right now.")} secondaryAction={queue.items.length && (type || owner) ? <Button size="sm" variant="ghost" onClick={() => { setType(""); setOwner(""); }}>{ui("Clear filters")}</Button> : undefined} /></div>
       : <ol className="space-y-2" aria-label={ui("Waiting on you")}>{visible.map(item => <li key={item.key} className={`rounded-2xl border p-3 ${item.overdue ? "border-status-error-border bg-status-error-surface" : "border-border"}`} data-queue-item={item.key} data-queue-type={item.type} data-overdue={item.overdue} data-snoozed={item.snoozed}>
         <div className="flex items-start gap-3">
-          <Checkbox className="mt-1" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [item.title])} />
+          <Checkbox className="mt-1" checked={selected.has(item.key)} onChange={() => toggle(item.key)} aria-label={ui("Select {0}", [ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)])} />
           <div className="min-w-0 flex-1 space-y-0.5">
-            <p className="text-sm font-bold"><bdi>{ui(item.title)}</bdi></p>
-            <p className="text-xs text-ink-muted"><bdi>{ui(item.trigger)}</bdi></p>
+            <p className="text-sm font-bold"><bdi>{ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)}</bdi></p>
+            <p className="text-xs text-ink-muted"><bdi>{ui(item.triggerMessage?.key ?? item.trigger, item.triggerMessage?.values)}</bdi></p>
             <p className="flex flex-wrap gap-x-2 text-2xs font-semibold text-ink-subtle">
-              <Badge size="sm" variant={item.overdue ? "danger" : "neutral"} data-reason>{ui(item.reason)}</Badge>
+              <Badge size="sm" variant={item.overdue ? "danger" : "neutral"} data-reason>{ui(item.reasonMessage?.key ?? item.reason, item.reasonMessage?.values)}</Badge>
               <span>{ui(TYPE_LABEL[item.type])}</span>
               <span>{item.assignee ? ui("Assigned to {0}", [item.assignee.name]) : item.sourceOwner ? ui("Owner: {0}", [item.sourceOwner.name]) : ui("No owner yet")}</span>
               {item.acknowledgedAt ? <span>{ui("Acknowledged")}</span> : null}
@@ -125,11 +126,11 @@ export function ActionQueue({ campusId }: { campusId?: string }) {
             </p>
             {/* §4.5.2: one inline action per row (the next step); acknowledge, snooze and history sit in its overflow. */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <Link href={item.link} className={buttonVariants({ size: "sm" })} aria-label={ui("{0}: {1}", [ui(item.nextAction), item.title])} data-next-action>{ui(item.nextAction)}</Link>
+              <Link href={item.link} className={buttonVariants({ size: "sm" })} aria-label={ui("{0}: {1}", [ui(item.nextAction), ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)])} data-next-action>{ui(item.nextAction)}</Link>
               <Menu
-                label={ui("More actions for {0}", [ui(item.title)])}
+                label={ui("More actions for {0}", [ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)])}
                 align="end"
-                trigger={<IconButton label={ui("More actions for {0}", [ui(item.title)])} data-row-menu><MoreHorizontal aria-hidden="true" /></IconButton>}
+                trigger={<IconButton label={ui("More actions for {0}", [ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)])} data-row-menu><MoreHorizontal aria-hidden="true" /></IconButton>}
                 items={[
                   ...(item.acknowledgedAt ? [] : [{ id: "acknowledge", label: "Acknowledge", icon: CheckCheck, description: "It stays open until its source is resolved.", onSelect: () => void send({ action: "acknowledge", keys: [item.key] }, "Acknowledged. The item stays open until its source is resolved.") } satisfies MenuItem]),
                   item.snoozed
@@ -195,7 +196,7 @@ function HistoryDialog({ item, scope, staff, onClose }: { item: Item; scope: str
   }, [item.key, scope, attempt]);
   const name = (id: string | null) => staff.find(person => person.id === id)?.fullName ?? "";
   const KIND: Record<string, string> = { ASSIGNED: "Assigned", ACKNOWLEDGED: "Acknowledged", SNOOZED: "Snoozed", UNSNOOZED: "Snooze removed", RESOLVED: "Resolved at the source" };
-  return <Modal title={ui(item.title)} eyebrow={ui("Waiting on you")} subtitle={ui(item.trigger)} onClose={onClose}>
+  return <Modal title={ui(item.titleMessage?.key ?? item.title, item.titleMessage?.values)} eyebrow={ui("Waiting on you")} subtitle={ui(item.triggerMessage?.key ?? item.trigger, item.triggerMessage?.values)} onClose={onClose}>
     {failed ? <ErrorState title={ui("The history did not load")} onRetry={() => { setFailed(false); setEvents(null); setAttempt(n => n + 1); }} retryLabel={ui("Try again")} />
       : !events ? <SkeletonList rows={3} label={ui("Loading history…")} /> : !events.length ? <EmptyState size="sm" icon={History} title={ui("No changes recorded yet.")} />
       : <ol className="space-y-1.5 text-xs" data-queue-history>{events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2"><p className="font-bold">{ui(KIND[event.kind] ?? event.kind)} · {dateTime(event.createdAt)}{event.actorId ? <> · <bdi>{name(event.actorId)}</bdi></> : null}</p>{event.assigneeId ? <p>{ui("Assigned to {0}", [name(event.assigneeId)])}</p> : null}{event.note ? <p><bdi>{event.note}</bdi></p> : null}</li>)}</ol>}

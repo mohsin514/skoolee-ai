@@ -6,7 +6,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { getResourceCopy, type ResourceCopy } from "./resource-copy";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -51,11 +51,13 @@ const fileHref = (id: string, version?: number) => `/api/resources/${id}/file${v
  * `adding`/`onAddingChange` let a page put "Add resource" in its PageHeader (the screen's primary,
  * §4.4b); without them the library shows its own button.
  */
-export function ResourceLibrary({ audience, adding: addingProp, onAddingChange }: { audience: "staff" | "learner" | "guardian"; adding?: boolean; onAddingChange?: (adding: boolean) => void }) {
+export function ResourceLibrary({ audience, adding: addingProp, onAddingChange, onAvailabilityChange }: { audience: "staff" | "learner" | "guardian"; adding?: boolean; onAddingChange?: (adding: boolean) => void; onAvailabilityChange?: (available: boolean) => void }) {
   const { language } = useLocale();
   const t = getResourceCopy(language);
   const rtl = language === "ar" || language === "ur";
   const [view, setView] = useState<View | null>(null);
+  const ui = useUiText();
+  useEffect(() => { onAvailabilityChange?.(Boolean(view && view.mode !== "learner" && view.classes.length)); }, [view, onAvailabilityChange]);
   const [classId, setClassId] = useState("");
   const [viewAs, setViewAs] = useState<"" | "CLASS" | "GUARDIANS">("");
   const [q, setQ] = useState("");
@@ -109,6 +111,7 @@ export function ResourceLibrary({ audience, adding: addingProp, onAddingChange }
   if (loadFailed && !view) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={() => { setLoadFailed(false); load().catch(() => setLoadFailed(true)); }} /></div>;
   if (!view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner ?? <SkeletonList rows={3} label={t.loading} />}</div>;
   if (view.mode === "learner") return <div dir={rtl ? "rtl" : "ltr"} className="space-y-4">{banner}{search}{learnerList(view.resources)}</div>;
+  if (!view.classes.length) return <EmptyState icon={FolderOpen} title={ui("No classes assigned yet")} description={ui("Resources become available when a school administrator assigns your classes.")} />;
 
   return <div dir={rtl ? "rtl" : "ltr"} className="space-y-4">
     <div className="grid gap-3 sm:grid-cols-3">

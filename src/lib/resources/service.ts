@@ -80,7 +80,10 @@ export async function listResources(user: AuthUser, raw: unknown) {
     }
     const scope = await authorClassIds(tx, user);
     const classes = await tx.class.findMany({ where: { schoolId: user.schoolId, archivedAt: null, ...(scope === "campus" ? (user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) : { id: { in: scope } }) }, select: { id: true, name: true, section: true, campusId: true }, orderBy: [{ name: "asc" }] });
-    if (!classes.length) throw new ApiError("You have no classes to manage resources for.", 403);
+    if (!classes.length) {
+      if (input.classId || (user.role !== "TEACHER" && !canManageOperations(user))) throw new ApiError("You cannot manage resources for this class.", 403);
+      return { mode: "staff" as const, classId: "", classes, resources: [] };
+    }
     const classId = input.classId && classes.some(c => c.id === input.classId) ? input.classId : classes[0].id;
     if (input.classId && input.classId !== classId) throw new ApiError("You cannot manage resources for this class.", 403);
     if (input.viewAs) {

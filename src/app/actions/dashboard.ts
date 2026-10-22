@@ -1,6 +1,7 @@
 'use server'
 import { dominantInvoiceCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
+import { pendingReportReviewCount } from "@/lib/academic/report-review-count";
 
 import { getLocalePackage } from "@/lib/locale/store";
 import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
@@ -1062,25 +1063,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     prisma.class.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
     prisma.exam.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
     prisma.exam.count({ where: { campusId, campus: { schoolId: session.schoolId }, isLocked: true } }),
-    // Only report cards of exams in the review list (reviewExams below) wait on the principal; unapproved remarks
-    // on exams still being marked are the teachers' work, not "Review report cards (n)".
-    prisma.reportCard.count({
-      where: {
-        campusId,
-        campus: { schoolId: session.schoolId },
-        exam: {
-          campusId,
-          OR: [
-            { isLocked: true },
-            { status: { in: ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"] } },
-          ],
-        },
-        OR: [
-          { remarksApproved: false },
-          { remarksEn: null, remarksUr: null },
-        ],
-      },
-    }),
+    pendingReportReviewCount(session.schoolId, campusId),
     prisma.aIReviewItem.count({
       where: { schoolId: session.schoolId, campusId, status: "PENDING" },
     }),

@@ -580,8 +580,8 @@ export function StudentsPanel({
     },
     {
       key: "identity",
-      label: "Pupil ID",
-      render: (s) => <Tooltip content={s.id} describe={false}><a className="sk-link block max-w-40 truncate text-xs text-primary" href={`/pupils/${s.id}`} onClick={e => e.stopPropagation()}><bdi>{s.id}</bdi></a></Tooltip>,
+      label: "Enrolment history",
+      render: (s) => <a className="sk-link block max-w-40 truncate text-xs text-primary" href={`/pupils/${s.id}`} onClick={e => e.stopPropagation()} aria-label={ui("Enrolment history for {0}", [s.fullName || s.rollNo || "—"])}><bdi>{s.admissionNo || s.rollNo || ui("Enrolment history")}</bdi></a>,
     },
     {
       key: "classOrder",
@@ -634,7 +634,7 @@ export function StudentsPanel({
       secondary: true,
       // M40: whether the learner can sign in, carried over from the retired legacy roster.
       render: (s) => s.studentUser?.email
-        ? <span dir="ltr" className="block max-w-48 truncate text-start text-xs text-ink-muted">{s.studentUser.email}</span>
+        ? <Badge variant="success" size="sm">{ui("Login ready")}</Badge>
         : <Badge variant="warning" size="sm">{ui("No login")}</Badge>,
     },
     {
@@ -706,7 +706,7 @@ export function StudentsPanel({
           <>
             {ui("{0} of {1} shown", [filtered.length, students.length])}
             {missingGuardian > 0 ? <> · {ui("{0} with no guardian contact", [missingGuardian])}</> : null}
-            {untagged > 0 ? <> · {ui("{0} with no category", [untagged])}</> : null}
+            {!readOnly && untagged > 0 ? <> · {ui("{0} with no category", [untagged])}</> : null}
           </>
         }
         primaryAction={canAdd ? { id: "add-student", label: "Add student", icon: Plus, onClick: () => onAddStudent?.(), disabled: classes.length === 0, disabledReason: noClassReason } : undefined}
@@ -716,7 +716,7 @@ export function StudentsPanel({
         ]}
       />
 
-      <StatTiles tiles={tiles} />
+      <StatTiles tiles={readOnly ? tiles.filter(tile => tile.key !== "login") : tiles} />
 
       <WorkspaceToolbar
         trailing={
@@ -824,7 +824,7 @@ export function StudentsPanel({
       {prefs.view === "table" ? (
         <DataTable
           rows={paged.rows}
-          columns={columns}
+          columns={readOnly ? columns.filter(column => column.key !== "login") : columns}
           rowKey={(s) => s.id}
           selected={selected}
           onToggleSelect={toggleSelect}
@@ -903,7 +903,7 @@ export function StudentsPanel({
       {bulkMove ? (
         <Modal onClose={() => setBulkMove(false)} title={ui("Review enrollment changes")}>
           <p className="mb-4">{ui("Review each pupil’s permanent identity, effective date and preserved records before changing placement.")}</p>
-          <ul className="space-y-3">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id}><a className="sk-link text-primary underline" href={`/pupils/${student.id}`}><bdi>{student.fullName}</bdi> · <bdi>{student.id}</bdi></a></li>)}</ul>
+          <ul className="space-y-3">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id}><a className="sk-link text-primary underline" href={`/pupils/${student.id}`}><bdi>{student.fullName}</bdi> · <bdi>{student.rollNo || "—"}</bdi></a></li>)}</ul>
         </Modal>
       ) : null}
 
@@ -1026,7 +1026,7 @@ function StudentCard({
               </p>
               <p
                 className={cn(
-                  "truncate text-2xs font-medium",
+                  "break-words text-2xs font-medium",
                   noContact ? "text-status-warning-text" : "text-ink-subtle",
                 )}
               >
@@ -1035,7 +1035,7 @@ function StudentCard({
             </div>
             {/* Reaching a guardian used to mean opening the student, reading a
                 number and typing it into a phone. */}
-            <div><ContactActions student={student} /><a className="mt-2 block break-all text-xs text-primary underline" href={`/pupils/${student.id}`} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} aria-label={ui("Enrolment history for {0}", [student.fullName])}><bdi>{student.id}</bdi></a></div>
+            <div><ContactActions student={student} /><a className="mt-2 block text-xs text-primary underline" href={`/pupils/${student.id}`} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} aria-label={ui("Enrolment history for {0}", [student.fullName])}>{ui("Enrolment history")}</a></div>
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-2">

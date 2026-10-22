@@ -571,6 +571,27 @@ async function seedStudents(
     orderBy: { rollNo: "asc" },
   });
 
+  // `db push` fixtures do not install the admission trigger from the enrollment
+  // migration. Populate the same initial ledger so dated registers can see the
+  // seeded pupils. Existing enrollment history is always left intact.
+  const withoutEnrollment = await prisma.student.findMany({
+    where: { campusId, enrollments: { none: {} } },
+    select: {
+      id: true, schoolId: true, campusId: true, classId: true, rollNo: true, enrollmentDate: true,
+      campus: { select: { name: true, board: true } },
+      class: { select: { name: true, section: true, academicYear: true } },
+    },
+  });
+  for (const batch of chunkRows(withoutEnrollment)) {
+    await prisma.studentEnrollment.createMany({ data: batch.map((student) => ({
+      id: `initial-${student.id}`, schoolId: student.schoolId, studentId: student.id,
+      campusId: student.campusId, classId: student.classId, campusName: student.campus.name,
+      className: [student.class.name, student.class.section].filter(Boolean).join(" "),
+      curriculum: student.campus.board || "Unspecified", academicYear: student.class.academicYear,
+      rollNo: student.rollNo, startDate: student.enrollmentDate, origin: "DEMO_SEED",
+    })), skipDuplicates: true });
+  }
+
   // Roll numbers are per-class; find the created first student to link logins.
   const linked = await prisma.student.findUnique({ where: { id: rows[0].id } });
   if (linked && (!linked.studentUserId || !linked.parentUserId)) {

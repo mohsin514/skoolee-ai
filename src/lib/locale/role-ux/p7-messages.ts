@@ -5,6 +5,8 @@
  * Rows are [en, ar, ur]; placeholders ({0}, {1}…) are kept in every language.
  */
 const entries: readonly (readonly [string, string, string])[] = [
+  ["Resources become available when a school administrator assigns your classes.", "تتاح الموارد عندما يعيّن لك مسؤول المدرسة صفوفك.", "اسکول منتظم کی جانب سے جماعتیں تفویض ہونے کے بعد وسائل دستیاب ہوں گے۔"],
+  ["All published report cards", "جميع بطاقات التقارير المنشورة", "تمام شائع شدہ رپورٹ کارڈز"],
   ["(outside active cycle)", "(خارج الدورة الحالية)", "(فعال دور سے باہر)"],
   ["1 period puts you in more than one class at the same time.", "حصة واحدة تضعك في أكثر من صف في الوقت نفسه.", "ایک پیریڈ میں آپ ایک ہی وقت میں ایک سے زیادہ جماعتوں میں ہیں۔"],
   ["1 subject", "مادة واحدة", "1 مضمون"],

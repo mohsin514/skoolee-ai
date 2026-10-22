@@ -76,13 +76,13 @@ export function FlagshipCard({ kind, title, description, action, secondary, tour
       data-tour={tourAnchor}
       data-flagship={kind}
       className={cn(
-        "relative isolate overflow-hidden rounded-3xl bg-brand-50 p-5 ring-1 ring-brand-100 sm:p-6",
+        "@container/flagship relative isolate overflow-hidden rounded-3xl bg-brand-50 p-5 ring-1 ring-brand-100 sm:p-6",
         className,
       )}
     >
       {/* A soft brand glow at the end edge; mirrored in RTL, never behind text that needs contrast. */}
       <div aria-hidden="true" className="pointer-events-none absolute -end-20 -top-24 -z-10 size-64 rounded-full bg-brand-200/40 blur-3xl" />
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 @xl/flagship:flex-row @xl/flagship:items-center @xl/flagship:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-brand-500 text-primary-foreground shadow-md shadow-primary/20">
             <Icon className="size-5" strokeWidth={2.2} />
@@ -96,13 +96,13 @@ export function FlagshipCard({ kind, title, description, action, secondary, tour
             <p className="max-w-[62ch] text-sm leading-relaxed text-ink-muted">{t(description)}</p>
           </div>
         </div>
-        <div className="flex w-full shrink-0 flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <div className="flex w-full shrink-0 flex-col-reverse gap-2 @xl/flagship:w-auto @xl/flagship:flex-row @xl/flagship:items-center">
           {secondary ? (
-            <Link href={secondary.href} data-flagship-secondary="" className={buttonVariants({ variant: "ghost", className: "w-full sm:w-auto" })}>
+            <Link href={secondary.href} data-flagship-secondary="" className={buttonVariants({ variant: "ghost", className: "w-full @xl/flagship:w-auto" })}>
               {t(secondary.label)}
             </Link>
           ) : null}
-          <Link href={action.href} data-flagship-action="" className={buttonVariants({ variant: "default", className: "w-full gap-2 sm:w-auto" })}>
+          <Link href={action.href} data-flagship-action="" className={buttonVariants({ variant: "default", className: "w-full gap-2 @xl/flagship:w-auto" })}>
             <span className="[overflow-wrap:anywhere]">{t(action.label)}</span>
             <ArrowRight aria-hidden="true" className="size-4 shrink-0 rtl:rotate-180" />
           </Link>

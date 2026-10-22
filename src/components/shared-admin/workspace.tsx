@@ -354,13 +354,14 @@ export function SearchField({
   }, [autoFocusKey]);
 
   return (
-    <InputGroup surfaceClassName="bg-surface-subtle" className={cn("relative min-w-[190px] flex-1", className)}>
+    <InputGroup surfaceClassName="bg-surface-subtle" className={cn("relative min-w-0 grow basis-64", className)}>
       <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
       <SystemInput
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={autoFocusKey ? `${ui(placeholder)}   ( ${autoFocusKey} )` : ui(placeholder)}
+        placeholder={ui(placeholder)}
+        aria-keyshortcuts={autoFocusKey ?? undefined}
         aria-label={ui(label)}
         className="w-full ps-9 pe-9 transition-all"
       />

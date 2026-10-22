@@ -46,6 +46,7 @@ function clamp(v: number, min: number, max: number) {
 type TodayScheduleProps = {
   slots: TimetableSlot[];
   loading?: boolean;
+  availability?: "published" | "unpublished" | "failed";
   clashIds?: Set<string>;
   onOpenTimetable?: () => void;
 };
@@ -58,6 +59,7 @@ export function TodaySchedule(props: TodayScheduleProps) {
 function TodayScheduleBody({
   slots,
   loading = false,
+  availability = "published",
   clashIds,
   onOpenTimetable,
 }: TodayScheduleProps) {
@@ -142,7 +144,7 @@ function TodayScheduleBody({
           </span>
           <div className="min-w-0">
             <h2 className="text-base font-bold text-ink-strong">{ui("Your lessons today")}</h2>
-            <p className="text-sm text-ink-muted">{ui("No lessons on your timetable today.")}</p>
+            <p className="text-sm text-ink-muted">{ui(availability === "failed" ? "Couldn't load your timetable" : availability === "unpublished" ? "No published timetable yet" : "No lessons on your timetable today.")}</p>
           </div>
         </div>
         {timetableLink}

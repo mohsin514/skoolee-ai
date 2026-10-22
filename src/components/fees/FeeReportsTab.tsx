@@ -49,7 +49,7 @@ export const REPORT_TABS: { id: ReportTab; label: string }[] = [
  * reminders. `tab`/`onTabChange` let the console persist the report as `?tab=`; `command` runs
  * "send-reminders" or "export" from the PageHeader, which then owns those buttons (`hideHeader`).
  */
-export function FeeReportsTab({ campusId, readOnly = false, command, hideHeader = false, tab, onTabChange, sectionNav = "picker" }: { campusId?: string; readOnly?: boolean; command?: PanelCommand | null; hideHeader?: boolean; tab?: string | null; onTabChange?: (tab: ReportTab) => void; sectionNav?: "picker" | "none" }) {
+export function FeeReportsTab({ campusId, readOnly = false, command, hideHeader = false, tab, onTabChange, sectionNav = "picker", onDefaulterCountChange }: { campusId?: string; readOnly?: boolean; command?: PanelCommand | null; hideHeader?: boolean; tab?: string | null; onTabChange?: (tab: ReportTab) => void; sectionNav?: "picker" | "none"; onDefaulterCountChange?: (count: number | null) => void }) {
  const tr = useUiText();
   const [currency, setCurrency] = useState("");
   const [localTab, setLocalTab] = useState<ReportTab>("defaulters");
@@ -76,14 +76,14 @@ export function FeeReportsTab({ campusId, readOnly = false, command, hideHeader 
           campus admin's Fees tabs they are a report picker. */}
       {sectionNav === "picker" ? <SectionPicker label="Report" items={REPORT_TABS} value={subTab} onChange={select} /> : null}
 
-      {subTab === "defaulters" && <DefaultersReport campusId={campusId} currency={currency} readOnly={readOnly} command={commandFor("defaulters")} showToolbar={!hideHeader} />}
+      {subTab === "defaulters" && <DefaultersReport onCountChange={onDefaulterCountChange} campusId={campusId} currency={currency} readOnly={readOnly} command={commandFor("defaulters")} showToolbar={!hideHeader} />}
       {subTab === "collection" && <CollectionSummary campusId={campusId} currency={currency} command={commandFor("collection")} showToolbar={!hideHeader} />}
       {subTab === "methods" && <MethodBreakdown campusId={campusId} currency={currency} />}
     </div>
   );
 }
 
-function DefaultersReport({ campusId, currency, readOnly = false, command, showToolbar = true }: { campusId?: string; currency: string; readOnly?: boolean; command?: PanelCommand | null; showToolbar?: boolean }) {
+function DefaultersReport({ campusId, currency, readOnly = false, command, showToolbar = true, onCountChange }: { onCountChange?: (count: number | null) => void; campusId?: string; currency: string; readOnly?: boolean; command?: PanelCommand | null; showToolbar?: boolean }) {
  const { money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
   const [defaulters, setDefaulters] = useState<DefaulterRecord[]>([]);
@@ -92,6 +92,7 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
   const [remindingId, setRemindingId] = useState<string | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
   const [sendingAll, setSendingAll] = useState(false);
+  useEffect(() => { onCountChange?.(loading || failed ? null : defaulters.length); }, [loading, failed, defaulters.length, onCountChange]);
 
   const load = useCallback(async () => {
     setLoading(true);

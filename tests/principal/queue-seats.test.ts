@@ -207,3 +207,21 @@ test("the published sorting rule names every ranked category, with AR and UR", a
   assert.ok(arabicP1Ui[queue.SORTING_RULE], "Arabic");
   assert.ok(urduP1Ui[queue.SORTING_RULE], "Urdu");
 });
+
+test("queue titles and triggers carry translated templates while names remain data", async () => {
+  const { translateUi } = await import("../../src/lib/locale/ui-messages");
+  const result = await queue.collectSources({ ...actor("SUPER_ADMIN"), campusId: null }, CAMPUS);
+  assert.ok(result.items.length > 5);
+  for (const item of result.items) {
+    for (const message of [item.titleMessage, item.triggerMessage]) {
+      assert.ok(message, `${item.type} has a message template`);
+      for (const lang of ["ar", "ur"] as const) {
+        const translated = translateUi(message.key, lang);
+        assert.notEqual(translated, message.key, `${lang}: ${message.key}`);
+        assert.deepEqual(translated.match(/\{\d+\}/g)?.sort(), message.key.match(/\{\d+\}/g)?.sort());
+      }
+    }
+  }
+  const leave = result.items.find((item) => item.key === "LEAVE_PENDING:leave-teacher")!;
+  assert.ok(leave.titleMessage?.values.includes("Synthetic Teacher"));
+});

@@ -204,8 +204,8 @@ export function RoleHeader({
 
   return (
     <>
-      <header data-workspace-header className={cn("sk-panel relative z-40 flex shrink-0 flex-wrap items-center justify-between gap-[8px] px-[12px] py-[8px] sm:px-4 sm:py-2.5", compact ? "mb-3" : "mb-4")}>
-        <div data-tour="shell.header.identity" className="flex min-w-0 items-center gap-3">
+      <header data-workspace-header className={cn("sk-panel relative z-40 flex shrink-0 flex-nowrap items-center justify-between gap-[8px] px-[12px] py-[8px] sm:flex-wrap sm:px-4 sm:py-2.5", compact ? "mb-3" : "mb-4")}>
+        <div data-tour="shell.header.identity" className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-3">
           <Tooltip content={t("Home")} describe={false}>
             <Link href={home} aria-label={t("Home")} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-brand-400 shadow-md shadow-primary/15 sm:h-9 sm:w-9">
               <LayoutDashboard aria-hidden="true" className="h-[18px] w-[18px] text-primary-foreground" />
@@ -216,14 +216,15 @@ export function RoleHeader({
               disagree. The client value is the correct one; suppress the diff
               rather than degrade to a server guess. */}
           <div className="min-w-0">
-            {eyebrow && <p className="text-xs font-bold leading-tight text-ink-strong">{eyebrow}</p>}
+            {eyebrow && <p className="truncate text-xs font-bold leading-tight text-ink-strong">{eyebrow}</p>}
+            {scopeLine ? <p className="mt-1 truncate text-2xs text-ink-muted sm:hidden" title={scopeLine}><bdi>{scopeLine}</bdi></p> : null}
             {landing && <p suppressHydrationWarning className={cn("hidden text-xs font-semibold leading-tight tracking-tight text-ink-muted sm:block", eyebrow && "mt-1")}>{t(greeting)}, <bdi>{displayName}</bdi></p>}
             {landing && <p suppressHydrationWarning className="mt-px hidden text-2xs font-semibold leading-tight text-ink-muted sm:block">{today}</p>}
           </div>
         </div>
 
-        <div className="ms-auto flex w-full min-w-0 flex-wrap items-center justify-end gap-[6px] sm:w-auto sm:gap-2.5">
-          <div className="me-auto flex min-w-0 max-w-full flex-wrap items-center gap-[6px] [&_svg]:shrink-0">
+        <div className="ms-auto flex w-auto shrink-0 items-center justify-end gap-[6px] sm:min-w-0 sm:max-w-full sm:shrink sm:flex-wrap sm:gap-2.5">
+          <div className="me-auto hidden min-w-0 max-w-full flex-wrap items-center gap-[6px] sm:flex [&_svg]:shrink-0">
             <ScopeBadge />
             {showCycle ? <div data-tour="shell.header.cycle" className="hidden sm:block [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div> : null}
             {context ? <div data-tour="shell.header.context" className="flex min-w-0 max-w-full items-center gap-2">{context}</div> : null}

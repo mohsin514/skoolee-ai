@@ -9,6 +9,7 @@
  * فیس کی وصولی; group = گروپ (the reviewed "Group" / "Group policy" and the §1.5 console name گروپ کنسول).
  */
 const entries: ReadonlyArray<readonly [string, string, string]> = [
+  ["Register", "الحضور", "حاضری"],
   // ── Console names (registry eyebrows, SPEC §1.5) ─────────────────────────
   // The header reads each console name through its own "Console name: <EN>" key (role-nav `consoleName`), because
   // the bare words are also ordinary labels with a different meaning: "Teaching" is the principal's nav group and a

@@ -847,9 +847,9 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <InputGroup className="relative">
+        <InputGroup className="relative w-full sm:w-72">
           <Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <SystemInput className={`${inputCls} w-64 ps-9`} placeholder={ui("Search books…")} aria-label={ui("Search books")} value={search} onChange={(e) => setSearch(e.target.value)} />
+          <SystemInput className={`${inputCls} w-full ps-9`} placeholder={ui("Search books…")} aria-label={ui("Search books")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </InputGroup>
         {hideAdd ? null : <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add book")}</BrandButton>}
       </div>

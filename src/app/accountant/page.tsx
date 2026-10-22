@@ -98,6 +98,8 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
   // A header action for a panel on this view (or the view it opens). Cleared when the view changes so a panel
   // that mounts later never replays it.
   const [command, setCommand] = useState<PanelCommand | null>(null);
+  const [payrollReady, setPayrollReady] = useState(false);
+  const [defaulterCount, setDefaulterCount] = useState<number | null>(null);
   const run = (id: string, target?: string) => {
     if (target && target !== view) setView(target);
     setCommand({ id, nonce: Date.now() });
@@ -158,12 +160,12 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
           consoleId="accountant"
           view="fee-reports"
           description={DESCRIPTIONS["fee-reports"]}
-          primaryAction={{ id: "send-reminders", label: "Send reminders", onClick: () => run("send-reminders") }}
+          primaryAction={{ id: "send-reminders", label: "Send reminders", disabled: report === "defaulters" && defaulterCount === 0, disabledReason: "No families are behind on payments.", onClick: () => run("send-reminders") }}
           // The payment-method breakdown has no export; the defaulters and collection reports do.
           secondaryActions={report === "methods" ? [] : [{ id: "export", label: "Export CSV", icon: Download, onClick: () => run("export") }]}
           tabs={<ViewTabs ariaLabel="Fee reports" value={report} onChange={(id) => { setCommand(null); setTab(id); }} items={REPORT_TABS} />}
         >
-          <FeeReportsTab campusId={campusId} hideHeader command={command} tab={report} onTabChange={(next) => setTab(next)} sectionNav="none" />
+          <FeeReportsTab onDefaulterCountChange={setDefaulterCount} campusId={campusId} hideHeader command={command} tab={report} onTabChange={(next) => setTab(next)} sectionNav="none" />
         </ConsolePage>
       );
     }
@@ -206,10 +208,10 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
         <ConsolePage
           consoleId="accountant"
           view="payroll"
-          primaryAction={{ id: "prepare-run", label: "Prepare run", icon: Plus, onClick: () => run("prepare-run") }}
+          primaryAction={{ id: "prepare-run", label: "Prepare run", icon: Plus, disabled: !payrollReady, disabledReason: "Prepare run is unavailable until a payroll policy is saved.", onClick: () => run("prepare-run") }}
           secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: () => run("export") }]}
         >
-          <PayrollRunsPanel mode="prepare" hideHeader command={command} />
+          <PayrollRunsPanel mode="prepare" hideHeader command={command} onPrepareAvailabilityChange={setPayrollReady} />
         </ConsolePage>
       );
     case "fee-structures": {

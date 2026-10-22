@@ -161,7 +161,8 @@ export function PickupGate({ mode = "gate", hideHeader = false, command }: { mod
       <FormField name="pg-gate" label={ui("Gate")}><Input value={gate} onChange={e => setGate(e.target.value)} maxLength={40} /></FormField>
       {hideHeader ? null : <div className="flex items-end gap-2"><Button disabled={busy || code.trim().length < 20} onClick={() => void doScan()} data-pg-scan>{ui("Check code")}</Button></div>}
     </div>
-    <label className="inline-flex items-center gap-2 text-xs"><span>{ui("Or take a photo of the code")}</span><input ref={video} type="file" accept="image/*" capture="environment" className="max-w-full text-xs" onChange={e => void readPhoto(e.target.files?.[0])} /></label>
+    {!hideHeader ? <Button type="button" variant="outline" onClick={() => video.current?.click()}>{ui("Scan photo")}</Button> : null}
+    <input ref={video} aria-label={ui("Scan photo")} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => void readPhoto(e.target.files?.[0])} />
     </> : null}
     {error ? <div data-pg-error><Alert tone="danger" compact>{error}</Alert></div> : null}
 

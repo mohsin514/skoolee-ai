@@ -104,6 +104,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
   const [command, setCommand] = useState<PanelCommand | null>(null);
   // Published admission forms (reported by AdmissionsDesk); "Enter an application" waits for one.
   const [publishedForms, setPublishedForms] = useState<number | null>(null);
+  const [certificateReady, setCertificateReady] = useState(false);
   const run = (id: string, target?: string) => {
     if (target && target !== view) setView(target);
     setCommand({ id, nonce: Date.now() });
@@ -207,9 +208,9 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
           consoleId="receptionist"
           view="certificates"
           description={DESCRIPTIONS.certificates}
-          primaryAction={{ id: "issue-certificate", label: "Issue certificate", icon: Plus, onClick: () => run("issue-certificate") }}
+          primaryAction={{ id: "issue-certificate", label: "Issue certificate", icon: Plus, disabled: !certificateReady, disabledReason: "No template is approved yet. Your campus admin approves certificate templates before documents can be issued.", onClick: () => run("issue-certificate") }}
         >
-          <CertificatesDesk showTemplates={false} hideHeader command={command} />
+          <CertificatesDesk showTemplates={false} hideHeader command={command} onIssueAvailabilityChange={setCertificateReady} />
         </ConsolePage>
       );
     case "my-leave":

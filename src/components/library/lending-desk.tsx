@@ -185,7 +185,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
               <FormField name="cp-codes" label={ui("Barcodes")} hint={ui("One per copy, separated by spaces or commas.")}><Input dir="ltr" value={copyForm.barcodes} onChange={(e) => setCopyForm((f) => ({ ...f, barcodes: e.target.value }))} /></FormField>
               <Button type="submit" size="sm" variant="secondary" disabled={!copyForm.bookId || !copyForm.barcodes.trim()}>{ui("Register copies")}</Button>
             </form>
-            <p className="text-xs text-ink-subtle">{ui("Loan rules v{0}: {1} days, up to {2} loans, {3} renewals, fine {4} per open day after {5} grace days, cap {6}.", [overview.rules.version, overview.rules.loanDays, overview.rules.maxLoans, overview.rules.maxRenewals, money(overview.rules.finePerDay, overview.rules.currency), overview.rules.graceDays, overview.rules.fineCap ? money(overview.rules.fineCap, overview.rules.currency) : ui("none")])}</p>
+            <p className="text-xs text-ink-subtle">{ui("Loans last {0} days · up to {1} books · {2} renewals.", [overview.rules.loanDays, overview.rules.maxLoans, overview.rules.maxRenewals])}{" "}{overview.rules.finePerDay > 0 ? ui("Overdue fine: {0} per open day after {1} grace days.", [money(overview.rules.finePerDay, overview.rules.currency), overview.rules.graceDays]) : ui("No overdue fines.")}{overview.rules.finePerDay > 0 && overview.rules.fineCap ? ` ${ui("Maximum fine: {0}.", [money(overview.rules.fineCap, overview.rules.currency)])}` : null}</p>
           </div>
         </div>
       ) : null}

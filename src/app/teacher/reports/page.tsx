@@ -333,7 +333,7 @@ export default function ReportsPage() {
         <section aria-labelledby="report-cards-heading">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h2 id="report-cards-heading" className="flex items-center gap-2 text-base font-bold text-ink-strong">
-              {ui("Report cards")}
+              {ui("All published report cards")}
               <Badge variant="secondary" size="sm" aria-live="polite">
                 <bdi data-numeric className="tabular-nums">
                   {cardQuery || statusFilter || scopeLabel ? ui("{0} of {1}", [visibleCards.length, allCards.length]) : allCards.length}

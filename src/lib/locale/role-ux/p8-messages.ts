@@ -7,6 +7,10 @@
  * preserved in both. Keys shared with the navigation registry (P2) reuse P2's wording so one concept has one name.
  */
 const P8: Record<string, readonly [ar: string, ur: string]> = {
+  "Loans last {0} days · up to {1} books · {2} renewals.": ["مدة الإعارة {0} يومًا · حتى {1} كتب · {2} تجديدات.", "کتابیں {0} دن کے لیے · زیادہ سے زیادہ {1} کتابیں · {2} تجدیدیں۔"],
+  "Overdue fine: {0} per open day after {1} grace days.": ["غرامة التأخير: {0} لكل يوم عمل بعد مهلة {1} أيام.", "تاخیر کا جرمانہ: {1} دن کی مہلت کے بعد ہر کھلے دن کے لیے {0}۔"],
+  "No overdue fines.": ["لا توجد غرامات تأخير.", "تاخیر کا کوئی جرمانہ نہیں۔"],
+  "Maximum fine: {0}.": ["الحد الأقصى للغرامة: {0}.", "زیادہ سے زیادہ جرمانہ: {0}۔"],
   "Any month": ["أي شهر", "کوئی بھی مہینہ"],
   "{0} invoice": ["{0} فاتورة", "{0} انوائس"],
   "{0} invoices": ["{0} فواتير", "{0} انوائسز"],

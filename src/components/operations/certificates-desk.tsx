@@ -52,12 +52,13 @@ async function send(method: string, body: Record<string, unknown>) {
  * "issue-certificate" opens the issue dialog from the console's PageHeader and "export" saves the documents the
  * filters show as CSV (from Templates it returns to the documents first); `hideHeader` drops the panel title.
  */
-export function CertificatesDesk({ showTemplates = true, hideHeader = false, command }: { showTemplates?: boolean; hideHeader?: boolean; command?: PanelCommand | null }) {
+export function CertificatesDesk({ showTemplates = true, hideHeader = false, command, onIssueAvailabilityChange }: { showTemplates?: boolean; hideHeader?: boolean; command?: PanelCommand | null; onIssueAvailabilityChange?: (available: boolean) => void }) {
   const ui = useUiText();
   const [tab, setTab] = useState<"documents" | "templates">("documents");
   const [templates, setTemplates] = useState<Template[]>([]), [canApprove, setCanApprove] = useState(false);
   // "Issue certificate" from the header waits for the template list, so it never reports "none approved" mid-load.
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  useEffect(() => { onIssueAvailabilityChange?.(templatesLoaded && templates.some(template => template.currentVersion > 0)); }, [templatesLoaded, templates, onIssueAvailabilityChange]);
   const loadTemplates = useCallback(async () => {
     try {
       const response = await fetch("/api/front-desk/certificates", { cache: "no-store" });

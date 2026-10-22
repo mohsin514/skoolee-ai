@@ -95,7 +95,7 @@ export default function TeacherTimetablePage() {
         <div className="sk-panel sk-enter" style={{ "--sk-delay": "80ms" } as React.CSSProperties}>
           <EmptyState
             icon={CalendarX2}
-            title={ui("No classes assigned yet")}
+            title={ui("No published timetable yet")}
             description={ui("Your timetable appears here once your academic lead publishes a schedule with your classes.")}
           />
         </div>

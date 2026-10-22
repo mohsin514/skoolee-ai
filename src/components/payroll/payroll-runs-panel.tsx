@@ -52,7 +52,7 @@ async function call(url: string, init?: RequestInit) {
  * - "both" — a campus admin who also holds the finance desk (no accountant on the campus).
  * The server's own flags (canPrepare / canApprove) can only narrow what a mode shows.
  */
-export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false }: { mode?: PayrollMode; command?: PanelCommand | null; hideHeader?: boolean }) {
+export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false, onPrepareAvailabilityChange }: { mode?: PayrollMode; command?: PanelCommand | null; hideHeader?: boolean; onPrepareAvailabilityChange?: (available: boolean) => void }) {
   const ui = useUiText();
   const { money, date, dateTime } = useLocaleFormat();
   const { language } = useLocale();
@@ -91,6 +91,7 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
   };
 
   const preparer = mode !== "approve" && data?.canPrepare !== false;
+  useEffect(() => { onPrepareAvailabilityChange?.(Boolean(data?.policy && preparer && !busy)); }, [data?.policy, preparer, busy, onPrepareAvailabilityChange]);
   const approver = mode !== "prepare" && data?.canApprove !== false;
   // Policy and provider settings belong to whoever also prepares runs (no accountant on the campus); an approve-only
   // seat sees them only while no policy exists yet, since nobody else can set one.

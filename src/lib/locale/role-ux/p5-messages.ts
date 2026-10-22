@@ -7,6 +7,8 @@
  * اسکول منتظم, group admin = مدير المجموعة / ادارے کا منتظم, principal = المدير / پرنسپل.
  */
 const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
+  ["Login ready", "الدخول جاهز", "لاگ اِن تیار ہے"],
+  ["Enrolment history", "سجل التسجيل", "داخلے کی تاریخ"],
   ["\"{0}\" created with no sections", "تم إنشاء \"{0}\" بدون شُعب", "\"{0}\" بغیر سیکشن کے بنا دی گئی"],
   ["\"{0}\" created with section {1}", "تم إنشاء \"{0}\" مع الشعبة {1}", "\"{0}\" سیکشن {1} کے ساتھ بنا دی گئی"],
   ["\"{0}\" created with {1} sections", "تم إنشاء \"{0}\" مع {1} شُعب", "\"{0}\" {1} سیکشنز کے ساتھ بنا دی گئی"],

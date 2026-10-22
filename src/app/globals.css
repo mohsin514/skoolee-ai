@@ -2823,3 +2823,10 @@ html:has(.sk-step-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom
   .sk-tour-panel { forced-color-adjust: none; background: color-mix(in srgb, Canvas 60%, transparent); backdrop-filter: none; }
   .sk-tour-arrow { forced-color-adjust: none; background: CanvasText; }
 }
+
+/* Keep the chat launcher above a phone desk's sticky capture action. */
+@media (max-width: 767px) {
+  body:has([data-console-sticky-action]) .chat-launcher {
+    inset-block-end: calc(var(--mobile-nav-height, 5rem) + 6rem);
+  }
+}

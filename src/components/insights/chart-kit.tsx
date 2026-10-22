@@ -251,7 +251,7 @@ export function HeroFigure({
     <div className="min-w-0">
       <p className={cn("text-2xs font-semibold text-white/55", CAPS)}>{label}</p>
       <div className="mt-2 flex flex-wrap items-end gap-3">
-        <bdi className="text-5xl font-extrabold leading-none tracking-tight text-white sm:text-6xl">{value}</bdi>
+        <bdi className="min-w-0 break-words text-3xl font-extrabold leading-none tracking-tight text-white sm:text-5xl xl:text-6xl">{value}</bdi>
         {accent}
       </div>
       {caption ? <p className="mt-3 text-2xs font-medium leading-relaxed text-white/55">{caption}</p> : null}

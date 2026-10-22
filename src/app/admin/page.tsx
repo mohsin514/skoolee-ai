@@ -2198,7 +2198,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
         { id: "academic-rules", label: "Curriculum & grading", hidden: !has("academicLead") },
         { id: "policies", label: "Policies" },
         { id: "packages", label: "Packages" },
-        { id: "group-standards", label: "Group standards", hidden: !has("groupCampus") },
+        { id: "group-standards", label: "Group policy", hidden: !has("groupCampus") },
       ];
       const active = pickTab(items, tab);
       // §4.4b: each tab saves its own form; the Policies tab's first job is writing one, so "New policy" leads there.

@@ -50,6 +50,7 @@ export default function TeacherToday() {
 
   const [todaySlots, setTodaySlots] = useState<TimetableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
+  const [scheduleAvailability, setScheduleAvailability] = useState<"published" | "unpublished" | "failed">("published");
   const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked">("loading");
   const [selfAttendanceTime, setSelfAttendanceTime] = useState<string | null>(null);
   const [markingSelf, setMarkingSelf] = useState(false);
@@ -94,18 +95,19 @@ export default function TeacherToday() {
         const res = await fetch("/api/timetable/teacher");
         const json = await res.json();
         if (json.success) {
-          const today = new Date().getDay();
-          const dayNum = today === 0 ? 7 : today;
+          setScheduleAvailability(json.data.length ? "published" : "unpublished");
+          const weekday = new Intl.DateTimeFormat("en", { timeZone: locale.timezone, weekday: "short" }).format(new Date());
+          const dayNum = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday) + 1;
           setTodaySlots(
             (json.data as TimetableSlot[])
               .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
               .sort((a, b) => a.periodNumber - b.periodNumber)
           );
-        }
-      } catch { /* the timetable is not critical to this screen */ }
+        } else { setScheduleAvailability("failed"); }
+      } catch { setScheduleAvailability("failed"); }
       finally { setSlotsLoading(false); }
     })();
-  }, []);
+  }, [locale.timezone]);
 
   const todayClashIds = useMemo(() => clashingSlotIds(todaySlots), [todaySlots]);
 
@@ -220,6 +222,7 @@ export default function TeacherToday() {
         <TodaySchedule
           slots={todaySlots}
           loading={slotsLoading}
+          availability={scheduleAvailability}
           clashIds={todayClashIds}
           onOpenTimetable={() => router.push("/teacher/timetable")}
         />
