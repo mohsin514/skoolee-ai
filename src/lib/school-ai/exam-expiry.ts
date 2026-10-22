@@ -51,7 +51,7 @@ export async function expireSchoolAiAttempts(db: Database, options: { limit?: nu
         JOIN school_ai_exam_assignments e ON e.id = a.assignment_id AND e.school_id = a.school_id AND e.campus_id = a.campus_id
         WHERE a.id = ${reference.id} AND a.school_id = ${reference.schoolId} AND a.campus_id = ${reference.campusId}
           AND a.status = 'IN_PROGRESS' AND a.deadline_at <= (statement_timestamp() AT TIME ZONE 'UTC')
-          AND e.mode = 'STANDARD'
+          AND e.mode IN ('STANDARD', 'SECURE_BROWSER') -- SKO-501: secure-browser attempts expire the same way (verified gap)
         FOR UPDATE OF a SKIP LOCKED`;
       const attempt = rows[0];
       if (!attempt) return "skipped";

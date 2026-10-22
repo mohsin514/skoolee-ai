@@ -99,10 +99,31 @@ export async function supervisedAlternatives(db: TxClient, schoolId: string, ass
   return db.secureBrowserException.findMany({ where: { schoolId, assignmentId }, select: { studentId: true, reason: true, createdAt: true } });
 }
 
-/** Starting configuration for the exam's pinned profile; any learner or coordinator who can see the exam may download it. */
+/**
+ * SKO-501 (verified defect, formerly a per-exam start URL here): a Safe Exam Browser Config Key is a hash of
+ * the whole configuration, start URL included, so a per-exam file could never match the key registered
+ * on the profile. The profile owns one file: it starts at the exams list (the candidate picks the open
+ * sitting) and is byte-identical for every sitting of that profile version, so the Config Key the
+ * coordinator reads from this file in the SEB Configuration Tool is the key every candidate sends.
+ */
+export function profileConfigFile(profile: { allowedResources: string[] }, origin: string) {
+  const exams = `${origin.replace(/\/$/, "")}/ai/exams`;
+  return sebConfig({ startUrl: exams, quitUrl: `${exams}?seb=quit`, allowedResources: profile.allowedResources });
+}
+
+/** The pinned profile's file for an exam; any learner or coordinator who can see the exam may download it. */
 export async function configFile(db: TxClient, assignment: { id: string; schoolId: string; secureProfileId: string | null; secureProfileVersion: number | null }, origin: string) {
   const profile = await db.secureBrowserProfile.findFirst({ where: { id: assignment.secureProfileId ?? "", schoolId: assignment.schoolId, version: assignment.secureProfileVersion ?? -1 } });
   if (!profile) throw new ApiError("This exam has no secure browser profile.", 404);
-  const exam = `${origin}/ai/exams/${encodeURIComponent(assignment.id)}`;
-  return sebConfig({ startUrl: exam, quitUrl: `${exam}?seb=quit`, allowedResources: profile.allowedResources });
+  return profileConfigFile(profile, origin);
+}
+
+/** The profile's own file, for the coordinator to register its Config Key before any sitting exists. */
+export async function profileConfigDownload(user: AuthUser, profileId: string, origin: string) {
+  requireManager(user);
+  return schoolAiTransaction(user, async tx => {
+    const profile = await tx.secureBrowserProfile.findFirst({ where: { id: profileId, schoolId: user.schoolId, ...campusWhere(user) } });
+    if (!profile) throw new ApiError("Secure browser profile not found.", 404);
+    return { body: profileConfigFile(profile, origin), name: `${profile.profileKey}-v${profile.version}.seb` };
+  });
 }
