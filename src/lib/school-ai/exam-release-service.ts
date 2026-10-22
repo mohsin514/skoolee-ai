@@ -160,11 +160,13 @@ export async function releaseReadiness(user: AuthUser, recordId: string) {
       rehearsal: current ? { id: current.id, paperVersion: current.paperVersion, results, createdAt: current.createdAt } : null,
       history: rehearsals.map(row => ({ id: row.id, paperVersion: row.paperVersion, blocking: row.blocking, createdAt: row.createdAt })),
       // Codes, not prose: the studio localizes each blocker. A rehearsal blocker carries its check.
-      blockers: workbench ? [
+      // SKO-501 (audit 4.4): a paper nobody item-reviewed is never "Ready". Every paper, including one
+      // saved before the item workbench existed, reports its unreviewed items and a missing rehearsal.
+      blockers: [
         ...releaseBlockers(current ? { ...paper, staleness: { rehearsalValid: true, rehearsalId: current.id } } : paper, []).map(blocker => ({ code: blocker.code, questionIds: blocker.questionIds })),
         ...results.filter(result => result.severity === "BLOCKING").map(result => ({ code: "REHEARSAL_BLOCKER", check: result.check, questionIds: result.questionIds })),
         ...(current ? [] : [{ code: "NOT_REHEARSED", questionIds: [] }]),
-      ] as Array<{ code: string; check?: RehearsalResult["check"]; questionIds: string[] }> : [],
+      ] as Array<{ code: string; check?: RehearsalResult["check"]; questionIds: string[] }>,
     };
   });
 }
@@ -176,6 +178,9 @@ export async function releaseReadiness(user: AuthUser, recordId: string) {
  * its content hash and records that no rehearsal was relied on.
  */
 export async function sealRelease(tx: TxClient, user: AuthUser, record: { id: string; version: number; createdById: string; campusId: string | null }, paper: PaperData): Promise<{ contentHash: string | null; rehearsalId: string | null }> {
+  // A paper approved before the item workbench existed is still sealed by its content hash (existing
+  // schools' approved papers stay assignable). SKO-501: the Studio no longer reports such a paper as
+  // "Ready" and does not offer its release; it must enter item review and rehearsal there.
   if (!paper.questions.some(question => question.review)) {
     try { return { contentHash: contentHash(paper), rehearsalId: null }; } catch { throw new SchoolAiError("The candidate paper carries a protected field. Review the paper before assigning it.", 409, "RELEASE_PROTECTED_VALUE_IN_PROJECTION"); }
   }

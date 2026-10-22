@@ -46,6 +46,12 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
       setSittings((payload?.slots ?? []).filter(slot => slot.status !== "CANCELLED").flatMap(slot => slot.sections.map(section => ({ scheduleId: section.scheduleId, classId: section.classId, label: `${slot.subjectName} · ${section.name} · ${slot.sessionTitle}`, date: section.date, period: slot.period, durationMinutes: slot.durationMinutes, paperRecordId: slot.paperRecordId }))));
     }).catch(() => undefined);
   }, []);
+  // SKO-501: recompute a sealed sitting's hash and say whether it still matches its seal.
+  const [verified, setVerified] = useState<Record<string, { matches: boolean; prefix: string } | undefined>>({});
+  const verify = async (id: string) => {
+    const payload = await fetch(`/api/school-ai/exams/${encodeURIComponent(id)}/verify`, { cache: "no-store" }).then(response => (response.ok ? response.json() : null)).catch(() => null);
+    if (payload) setVerified(current => ({ ...current, [id]: { matches: Boolean(payload.matches), prefix: String(payload.recomputedPrefix ?? "") } }));
+  };
   const chooseSitting = (id: string) => {
     setScheduleId(id);
     const sitting = sittings.find(row => row.scheduleId === id);
@@ -106,7 +112,12 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
       <h3 id="room-delivered" className="font-semibold">{t.roomDelivered}</h3>
       {!exams.length ? <p className="text-sm text-ink-subtle">{t.roomNoneDelivered}</p> : <ul className="grid gap-2">{exams.map(exam => <li key={exam.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm" data-delivered-exam>
         <span><bdi dir="auto" className="font-semibold">{exam.title}</bdi> · {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(exam.startsAt))}{exam.contentHash ? <> · <Composed template={t.roomSealed} values={[<bdi key="hash" dir="ltr" className="font-mono text-xs">#{exam.contentHash.slice(0, 16)}</bdi>]} /></> : null}</span>
-        <Link href={`/ai/exams/${encodeURIComponent(exam.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>{t.openPaper}</Link>
+        <span className="flex flex-wrap gap-2">
+          {exam.contentHash ? <a href={`/api/school-ai/exams/${encodeURIComponent(exam.id)}/print`} target="_blank" rel="noopener" className={buttonVariants({ variant: "ghost", size: "sm" })} data-print-sitting>{home.printSealed}</a> : null}
+          {exam.contentHash ? <Button type="button" size="sm" variant="ghost" onClick={() => void verify(exam.id)} data-verify-sitting>{home.verifySeal}</Button> : null}
+          <Link href={`/ai/exams/${encodeURIComponent(exam.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>{t.openPaper}</Link>
+        </span>
+        {verified[exam.id] ? <p className={`w-full text-xs ${verified[exam.id]!.matches ? "text-status-success-text" : "text-status-error-text"}`} role="status">{fillStudioCopy(verified[exam.id]!.matches ? home.sealMatches : home.sealMismatch, [`#${verified[exam.id]!.prefix}`])}</p> : null}
       </li>)}</ul>}
     </section>
   </div>;

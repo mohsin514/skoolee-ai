@@ -30,3 +30,16 @@ test("Safe Exam Browser: every sitting of a profile serves the same file, starti
   assert.match(a, /<key>startURL<\/key><string>https:\/\/school\.example\.org\/ai\/exams<\/string>/);
   assert.doesNotMatch(a, /\/ai\/exams\/[a-z0-9-]{8,}/i, "no per-exam start URL");
 });
+
+test("a sealed snapshot edited after sealing no longer verifies, so it cannot be printed", async () => {
+  const { contentHash, contentHashPrefix, verifyContentHash } = await import("../../src/lib/school-ai/release");
+  const { paper } = assessmentFixture();
+  const seal = contentHash(paper);
+  const ok = verifyContentHash(paper, seal);
+  assert.equal(ok.matches, true);
+  if (ok.matches) assert.equal(ok.prefix, contentHashPrefix(seal), "the printed footer prefix is the sitting's stored prefix");
+  const edited = { ...paper, questions: paper.questions.map((question, index) => index === 0 ? { ...question, prompt: `${question.prompt} (edited)` } : question) };
+  const bad = verifyContentHash(edited, seal);
+  assert.equal(bad.matches, false);
+  if (!bad.matches) assert.notEqual(bad.recomputedPrefix, bad.storedPrefix);
+});
