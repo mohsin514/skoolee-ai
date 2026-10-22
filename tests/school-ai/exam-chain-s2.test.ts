@@ -43,3 +43,20 @@ test("a sealed snapshot edited after sealing no longer verifies, so it cannot be
   assert.equal(bad.matches, false);
   if (!bad.matches) assert.notEqual(bad.recomputedPrefix, bad.storedPrefix);
 });
+
+test("conformance report: marks, duration, taught coverage, review and language against the office's request", async () => {
+  const { conformanceReport, conformanceBlocking, signatureHolds } = await import("../../src/lib/school-ai/moderation");
+  const { paper, curriculum } = assessmentFixture();
+  const request = { totalMarks: paper.blueprint.totalMarks, durationMinutes: paper.blueprint.durationMinutes, languages: [paper.language] };
+  const report = conformanceReport({ paper, request, curriculum });
+  const byCode = Object.fromEntries(report.map(check => [check.code, check]));
+  assert.equal(byCode.MARKS_MATCH_REQUEST.ok, true);
+  assert.equal(byCode.DURATION_MATCHES_REQUEST.ok, true);
+  assert.equal(byCode.ITEMS_REVIEWED.ok, false, "fixture items carry no review yet");
+  const wrong = conformanceReport({ paper, request: { ...request, totalMarks: request.totalMarks + 10, languages: ["ar"] }, curriculum });
+  assert.deepEqual(conformanceBlocking(wrong).map(check => check.code).filter(code => code !== "ITEMS_REVIEWED" && code !== "WITHIN_TAUGHT").sort(), ["LANGUAGE_REQUESTED", "MARKS_MATCH_REQUEST"]);
+  assert.equal(signatureHolds({ decision: "SIGNED", contentHash: "h1" }, "h1"), true);
+  assert.equal(signatureHolds({ decision: "SIGNED", contentHash: "h1" }, "h2"), false, "any content change after signing undoes it");
+  assert.equal(signatureHolds({ decision: "RETURNED", contentHash: "h1" }, "h1"), false);
+  assert.equal(signatureHolds(null, "h1"), false);
+});

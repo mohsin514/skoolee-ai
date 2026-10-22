@@ -27,7 +27,7 @@ async function paperRecord(tx: TxClient, user: AuthUser, recordId: string) {
 }
 
 /** Writes a new immutable record version holding server-owned review or rehearsal state. */
-async function writePaperVersion(tx: TxClient, user: AuthUser, record: { id: string; version: number; status: string; campusId: string | null; title: string }, paper: PaperData) {
+export async function writePaperVersion(tx: TxClient, user: AuthUser, record: { id: string; version: number; status: string; campusId: string | null; title: string }, paper: PaperData) {
   const updated = await tx.schoolAiRecord.updateMany({ where: { id: record.id, schoolId: user.schoolId, version: record.version, status: record.status }, data: { data: json(paper), version: { increment: 1 }, updatedById: user.userId } });
   if (updated.count !== 1) throw new SchoolAiError("This paper changed meanwhile. Reload and review the current version.", 409);
   const next = await tx.schoolAiRecord.findFirstOrThrow({ where: { id: record.id, schoolId: user.schoolId } });
