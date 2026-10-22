@@ -26,6 +26,7 @@ import { localeTag } from "@/lib/locale/package";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { FlagshipCard } from "@/components/ui/flagship";
 import { DepartmentQueue } from "@/components/school-ai/exam-studio/department-queue";
+import { TeachingLinePrompt } from "@/components/school-ai/exam-studio/teaching-line-prompt";
 
 /**
  * Today — the teacher's landing screen (SPEC §4.4: one primary action, ≤ 4 KPI tiles, one queue).
@@ -229,6 +230,8 @@ export default function TeacherToday() {
           clashIds={todayClashIds}
           onOpenTimetable={() => router.push("/teacher/timetable")}
         />
+        {/* SKO-500: after a lesson, move the Teaching Line by one (renders nothing without a syllabus to move). */}
+        <TeachingLinePrompt slots={todaySlots} />
 
         {/* ── Four figures for the day ── */}
         <StatTiles

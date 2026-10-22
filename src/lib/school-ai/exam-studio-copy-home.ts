@@ -18,6 +18,16 @@ const en = {
   jumpsTitle: "Teaching Line jumps",
   jumpRow: "{0} marked {1} outcomes taught in {2} at once, across {3} units.",
   jumpBackdated: "Dated earlier than the day it was recorded.",
+  reachTitle: "Where did you reach?",
+  reachIntro: "After a lesson, mark the next outcome taught. Papers then ask only about what is taught.",
+  reachNext: "Next: {0}",
+  reachLast: "Last marked taught: {0}",
+  reachTaught: "Mark taught",
+  reachDone: "Saved. {0} is marked taught.",
+  reachAllTaught: "Every outcome in this syllabus is marked taught.",
+  reachNoSyllabus: "No approved syllabus yet. Add it in Exam Studio.",
+  reachOpenMap: "Open syllabus map",
+  reachFailed: "Could not save. Try again from the syllabus map.",
 };
 type Copy = typeof en;
 const ar: Copy = {
@@ -33,6 +43,16 @@ const ar: Copy = {
   jumpsTitle: "قفزات خط التدريس",
   jumpRow: "حدّد {0} عدد {1} من النواتج كمُدرَّسة في {2} دفعة واحدة، عبر {3} وحدات.",
   jumpBackdated: "بتاريخ أسبق من يوم تسجيله.",
+  reachTitle: "إلى أين وصلت؟",
+  reachIntro: "بعد الحصة، حدّد ناتج التعلم التالي كمُدرَّس. لا تسأل الأوراق إلا عمّا دُرِّس.",
+  reachNext: "التالي: {0}",
+  reachLast: "آخر ما حُدِّد كمُدرَّس: {0}",
+  reachTaught: "تحديد كمُدرَّس",
+  reachDone: "تم الحفظ. حُدِّد {0} كمُدرَّس.",
+  reachAllTaught: "كل نواتج التعلم في هذا المنهج محددة كمُدرَّسة.",
+  reachNoSyllabus: "لا يوجد منهج معتمد بعد. أضفه في استوديو الاختبارات.",
+  reachOpenMap: "فتح خريطة المنهج",
+  reachFailed: "تعذّر الحفظ. حاول مجددًا من خريطة المنهج.",
 };
 const ur: Copy = {
   queueTitle: "شعبہ کی منظوریاں",
@@ -47,6 +67,16 @@ const ur: Copy = {
   jumpsTitle: "تدریسی لکیر کی چھلانگیں",
   jumpRow: "{0} نے {2} میں ایک ساتھ {1} نتائج پڑھائے گئے نشان کیے، {3} یونٹس پار کر کے۔",
   jumpBackdated: "تاریخ اندراج کے دن سے پہلے کی ہے۔",
+  reachTitle: "آپ کہاں تک پہنچے؟",
+  reachIntro: "سبق کے بعد اگلا نتیجہ پڑھایا گیا نشان کریں۔ پرچے صرف پڑھائے گئے حصے سے سوال کرتے ہیں۔",
+  reachNext: "اگلا: {0}",
+  reachLast: "آخری بار پڑھایا گیا: {0}",
+  reachTaught: "پڑھایا گیا نشان کریں",
+  reachDone: "محفوظ ہو گیا۔ {0} پڑھایا گیا نشان ہو گیا۔",
+  reachAllTaught: "اس نصاب کے تمام نتائج پڑھائے گئے نشان ہیں۔",
+  reachNoSyllabus: "ابھی کوئی منظور شدہ نصاب نہیں۔ اسے ایگزام اسٹوڈیو میں شامل کریں۔",
+  reachOpenMap: "نصاب کا نقشہ کھولیں",
+  reachFailed: "محفوظ نہیں ہو سکا۔ نصاب کے نقشے سے دوبارہ کوشش کریں۔",
 };
 
 export const STUDIO_HOME_COPY: StudioCopyArea<Copy> = { area: "home", en, ar, ur };

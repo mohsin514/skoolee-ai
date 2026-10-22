@@ -24,6 +24,7 @@ import { createHash, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import type { AuthUser } from "../../src/lib/auth";
+import { recordTimetableVersion } from "../../src/lib/timetable/versions";
 
 export const DEMO_SCHOOL_ID = "skoolee-demo-synthetic";
 export const DEMO_LABEL = "[Synthetic demo]";
@@ -66,7 +67,16 @@ export async function resetDemoTenant(db: PrismaClient, password: string): Promi
   // SKO-500: the same subject in section B, so a mid-term paper is one common paper for the grade.
   const subjectIdB = (await db.subject.create({ data: { schoolId, campusId, classId: classIds[1], name: "Science", teacherId: ids.teacher, totalMarks: 20 } })).id;
   // SKO-500: Mathematics has no syllabus yet, so the demo can add one live (Syllabus Drop → outline → approve).
-  await db.subject.create({ data: { schoolId, campusId, classId: classIds[0], name: "Mathematics", teacherId: ids.teacher, totalMarks: 20 } });
+  const mathsId = (await db.subject.create({ data: { schoolId, campusId, classId: classIds[0], name: "Mathematics", teacherId: ids.teacher, totalMarks: 20 } })).id;
+  // SKO-500: a published Grade 7 A timetable (Science then Mathematics, Monday to Saturday, early
+  // morning), so Today lists lessons already taught and asks "where did you reach?".
+  const timetable = await db.timetable.create({ data: { schoolId, campusId, classId: classIds[0], academicYear: 2026, status: "PUBLISHED", publishedAt: new Date() } });
+  for (let day = 1; day <= 6; day += 1) {
+    await db.timetableSlot.create({ data: { schoolId, timetableId: timetable.id, dayOfWeek: day, periodNumber: 1, subjectId, teacherId: ids.teacher, startTime: "07:30", endTime: "08:10" } });
+    await db.timetableSlot.create({ data: { schoolId, timetableId: timetable.id, dayOfWeek: day, periodNumber: 2, subjectId: mathsId, teacherId: ids.teacher, startTime: "08:15", endTime: "08:55" } });
+  }
+  // Readers see published versions, never the working board: freeze it as version 1, in force from the start of the year.
+  await recordTimetableVersion(db as unknown as Parameters<typeof recordTimetableVersion>[0], { schoolId, campusId, timetableId: timetable.id, effectiveFrom: "2026-01-01", publishedById: ids.principal });
   // SKO-500: the Science department; its head moderates the teacher's papers.
   const department = await db.department.create({ data: { schoolId, campusId, name: `${DEMO_LABEL} Science`, headId: ids.hod } });
   await db.departmentMember.create({ data: { schoolId, departmentId: department.id, userId: ids.hod, role: "HEAD", isPrimary: true } });
