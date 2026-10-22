@@ -391,7 +391,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
           {/* ── The rail ──────────────────────────────────────────────── */}
           <nav
             aria-label={ui("Exam steps")}
-            className="sk-panel grid gap-2 p-2.5 sm:grid-cols-3 xl:grid-cols-6"
+            className="sk-panel grid gap-2 p-2.5 sm:grid-cols-3 2xl:grid-cols-6"
           >
             {STEPS.map((s) => {
               const value = progress[s.key];

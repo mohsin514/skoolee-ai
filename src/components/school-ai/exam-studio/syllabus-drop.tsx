@@ -203,13 +203,13 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
           <FormField name="syllabusFile" label={t.uploadLabel} hint={t.uploadHint}>
             <Input type="file" accept="image/*,application/pdf,text/plain" onChange={event => setFile(event.currentTarget.files?.[0] ?? null)} />
           </FormField>
-          <Button type="button" onClick={() => void upload()} disabled={!file}><FileUp aria-hidden="true" />{t.upload}</Button>
+          <Button type="button" onClick={() => void upload()} disabled={!file} data-drop-action="upload"><FileUp aria-hidden="true" />{t.upload}</Button>
         </div>
         <div className="space-y-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
           <FormField name="syllabusText" label={t.pasteLabel} hint={t.pasteHint}>
             <Textarea rows={6} dir="auto" value={pasted} maxLength={80000} onChange={event => setPasted(event.currentTarget.value)} />
           </FormField>
-          <Button type="button" variant="outline" onClick={() => void usePasted()} disabled={!pasted.trim()}>{t.usePasted}</Button>
+          <Button type="button" variant="outline" onClick={() => void usePasted()} disabled={!pasted.trim()} data-drop-action="paste">{t.usePasted}</Button>
         </div>
       </div>
     </> : null}
@@ -223,7 +223,7 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
         <Textarea rows={10} dir="auto" value={text} maxLength={80000} onChange={event => setText(event.currentTarget.value)} />
       </FormField>}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => void confirmText(step.source)} disabled={pages.length ? !pages.some(page => page.text.trim()) : !text.trim()}>{t.textLooksRight}</Button>
+        <Button type="button" data-drop-action="confirm" onClick={() => void confirmText(step.source)} disabled={pages.length ? !pages.some(page => page.text.trim()) : !text.trim()}>{t.textLooksRight}</Button>
         <Button type="button" variant="ghost" onClick={() => setStep({ kind: "drop" })}>{t.startOver}</Button>
       </div>
     </> : null}
@@ -252,7 +252,7 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
         <p className="pb-3 text-sm text-ink-muted">{fillStudioCopy(t.selected, [number(Object.values(rows).filter(row => row.keep).length), number(step.proposal.suggestions.length)])}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => void accept(step.source, step.proposal)} disabled={!Object.values(rows).some(row => row.keep)}>{t.acceptOutline}</Button>
+        <Button type="button" data-drop-action="accept" onClick={() => void accept(step.source, step.proposal)} disabled={!Object.values(rows).some(row => row.keep)}>{t.acceptOutline}</Button>
         <Button type="button" variant="ghost" onClick={() => setStep({ kind: "drop" })}>{t.startOver}</Button>
       </div>
     </> : null}
@@ -262,8 +262,8 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
       <p className="text-xs text-ink-subtle"><Isolated>{step.curriculum.title}</Isolated></p>
       {step.curriculum.status === "IN_REVIEW" && !step.canApprove ? <Alert tone="info" compact>{t.inReview}</Alert> : null}
       <div className="flex flex-wrap items-center gap-2">
-        {step.canApprove ? <Button type="button" onClick={() => void decide(step.curriculum, "approve")}><ShieldCheck aria-hidden="true" />{t.approve}</Button> : null}
-        {!step.canApprove && step.curriculum.status === "DRAFT" ? <Button type="button" onClick={() => void decide(step.curriculum, "review")}>{t.sendForReview}</Button> : null}
+        {step.canApprove ? <Button type="button" data-drop-action="approve" onClick={() => void decide(step.curriculum, "approve")}><ShieldCheck aria-hidden="true" />{t.approve}</Button> : null}
+        {!step.canApprove && step.curriculum.status === "DRAFT" ? <Button type="button" data-drop-action="review" onClick={() => void decide(step.curriculum, "review")}>{t.sendForReview}</Button> : null}
       </div>
       {step.canApprove ? <p className="text-xs text-ink-subtle">{t.approveHint}</p> : null}
     </> : null}
