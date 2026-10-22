@@ -12,6 +12,7 @@ import type { BriefView } from "@/lib/school-ai/brief-service";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { Composed, Isolated, SpaceStateRegion, type SpaceState } from "../space-state";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SyllabusMap } from "../syllabus-map";
 
 /** SKO-408 R3: the brief, one open decision at a time, with every value's classification shown. */
 const KEY_COPY: Record<BriefQuestionKey, { label: keyof StudioSpacesCopy; ask: keyof StudioSpacesCopy }> = {
@@ -88,6 +89,8 @@ export default function BriefSpace({ language, scope, records, capabilities, rel
 
   if (!scope.subjectId || !scope.classId) return <TaskFeedback kind="empty" title={t.briefTitle}><p>{t.briefNeedsSubject}</p></TaskFeedback>;
   return <div className="space-y-4" data-brief-space>
+    {/* SKO-500: the syllabus and how far it is taught come first; the brief is shaped from them. */}
+    <SyllabusMap language={language} subjectId={scope.subjectId} classId={scope.classId} subjectLabel={[scope.className, scope.subjectName].filter(Boolean).join(" · ")} onChanged={reload} />
     <p className="text-sm text-ink-subtle">{t.briefIntro}</p>
     <div className="flex flex-wrap items-end gap-3">
       {briefs.length > 0 && <label className="grid min-w-64 flex-1 gap-1 text-sm font-semibold">{t.briefPick}

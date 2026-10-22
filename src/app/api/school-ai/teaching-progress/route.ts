@@ -14,5 +14,9 @@ export async function GET(request: NextRequest) {
     const subjectId = request.nextUrl.searchParams.get("subjectId") ?? "", classId = request.nextUrl.searchParams.get("classId") ?? "";
     if (!subjectId || !classId || subjectId.length > 128 || classId.length > 128) throw new SchoolAiError("Choose a subject and class.", 400);
     return Response.json({ line: await getTeachingLine(await requireAuthUser(), { subjectId, classId }) }, { headers: noStore });
-  } catch (error) { return schoolAiError(error); }
+  } catch (error) {
+    // The map reacts to TEACHING_LINE_STALE (reload) and shows the others; keep the code in the body.
+    if (error instanceof SchoolAiError && error.code) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers: noStore });
+    return schoolAiError(error);
+  }
 }
