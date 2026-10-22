@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { paperDna } from "./paper-dna";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { SchoolAiError, assertSchoolAiAccess, isSchoolAiManager, loadWorkspacePermissionSnapshot } from "./access";
@@ -71,7 +72,10 @@ export async function reviewItem(user: AuthUser, recordId: string, raw: unknown)
 }
 
 // ─── Rehearsal ────────────────────────────────────────────────────
-export const REHEARSAL_CHECKS = ["KEY_MISSING", "OPTIONS_TOO_FEW", "PROJECTION_LEAK", "SECTION_COUNT", "REPORTED_DEFECT"] as const;
+export const REHEARSAL_CHECKS = ["KEY_MISSING", "OPTIONS_TOO_FEW", "PROJECTION_LEAK", "SECTION_COUNT", "REPORTED_DEFECT", "MARKS_DO_NOT_ADD_UP", "OPTION_TEXT_EMPTY", "PRINT_LENGTH", "TAUGHT_AFTER_SITTING"] as const;
+/** SKO-501: printed characters per A4 page, for the print-length estimate (an estimate, advisory only). */
+export const PRINT_CHARACTERS_PER_PAGE = 2400;
+export const PRINT_PAGES_ADVISORY = 8;
 export type RehearsalResult = { check: typeof REHEARSAL_CHECKS[number]; severity: "BLOCKING" | "ADVISORY"; questionIds: string[]; detail: string };
 const choice = (question: Question) => question.type === "SINGLE_CHOICE" || question.type === "MULTIPLE_CHOICE";
 
@@ -87,7 +91,44 @@ export function automatedRehearsal(paper: PaperData): RehearsalResult[] {
     const count = paper.questions.filter(question => question.sectionId === section.id).length;
     if (count !== section.questionCount) results.push({ check: "SECTION_COUNT", severity: "BLOCKING", questionIds: [], detail: `Section ${section.title} has ${count} of ${section.questionCount} questions.` });
   }
+  // SKO-501 (rehearsal 2.0, deterministic): marks add up (choice sections count the best answerCount items),
+  // every option has text a keyboard or screen-reader user can reach, and an estimated print length.
+  const dna = paperDna(paper, null, null);
+  if (paper.questions.length && Math.abs(dna.marks.items - dna.marks.blueprint) > 0.001) results.push({ check: "MARKS_DO_NOT_ADD_UP", severity: "BLOCKING", questionIds: [], detail: `Question marks total ${dna.marks.items}; the blueprint says ${dna.marks.blueprint}.` });
+  const emptyOptions = paper.questions.filter(question => choice(question) && question.options.some(option => !option.text.trim()));
+  if (emptyOptions.length) results.push({ check: "OPTION_TEXT_EMPTY", severity: "BLOCKING", questionIds: emptyOptions.map(question => question.id), detail: "An option has no text, so it cannot be read aloud or chosen by keyboard with confidence." });
+  const characters = paper.questions.reduce((sum, question) => sum + question.prompt.length + question.options.reduce((total, option) => total + option.text.length, 0) + 120, 0);
+  const pages = Math.ceil(characters / PRINT_CHARACTERS_PER_PAGE);
+  if (pages > PRINT_PAGES_ADVISORY) results.push({ check: "PRINT_LENGTH", severity: "ADVISORY", questionIds: [], detail: `About ${pages} printed pages (an estimate).` });
   return results;
+}
+
+/**
+ * SKO-501: TAUGHT_AFTER_SITTING. For a requested paper, every section that sits it must have been taught
+ * each assessed outcome by the sitting date (flagged in the syllabus, or a Teaching Line row dated on or
+ * before it). Blocking: a section would meet a question it was not taught.
+ */
+async function taughtBySitting(tx: TxClient, schoolId: string, paper: PaperData): Promise<RehearsalResult | null> {
+  if (!paper.slotId) return null;
+  const slot = await tx.examPaperSlot.findFirst({ where: { id: paper.slotId, schoolId }, select: { subjectName: true, schedules: { select: { date: true, exam: { select: { classId: true } } } } } });
+  if (!slot?.schedules.length) return null;
+  const curriculumRecord = await tx.schoolAiRecord.findFirst({ where: { id: paper.curriculumId, schoolId, kind: "CURRICULUM" }, select: { id: true, data: true } });
+  if (!curriculumRecord) return null;
+  const curriculum = curriculumDataSchema.parse(curriculumRecord.data);
+  const assessed = [...new Set(paper.questions.flatMap(question => question.outcomeIds))];
+  const { taughtAfterSitting } = await import("./teaching-progress");
+  const flagged: string[] = [];
+  const failing: string[] = [];
+  for (const schedule of slot.schedules) {
+    const subject = await tx.subject.findFirst({ where: { schoolId, classId: schedule.exam.classId, name: { equals: slot.subjectName, mode: "insensitive" } }, select: { id: true, class: { select: { name: true, section: true } } } });
+    if (!subject) continue;
+    const rows = await tx.teachingProgress.findMany({ where: { schoolId, curriculumId: curriculumRecord.id, subjectId: subject.id, classId: schedule.exam.classId }, select: { outcomeId: true, taughtOn: true } });
+    const late = taughtAfterSitting(assessed, curriculum, rows.map(row => ({ outcomeId: row.outcomeId, taughtOn: row.taughtOn.toISOString().slice(0, 10) })), schedule.date.toISOString().slice(0, 10));
+    if (late.length) { failing.push(`${subject.class.name}${subject.class.section ? ` ${subject.class.section}` : ""}`); flagged.push(...late); }
+  }
+  if (!failing.length) return null;
+  const questionIds = paper.questions.filter(question => question.outcomeIds.some(id => flagged.includes(id))).map(question => question.id);
+  return { check: "TAUGHT_AFTER_SITTING", severity: "BLOCKING", questionIds, detail: `Not taught by the sitting in ${failing.join(", ")}.` };
 }
 
 export const rehearsalInput = z.object({
@@ -103,7 +144,8 @@ export async function recordRehearsal(user: AuthUser, recordId: string, raw: unk
     if (record.version !== input.version) throw new SchoolAiError("Rehearse the current version. Reload first.", 409);
     const role = await assertStudioAction(user, "RUN_REHEARSAL", studioContext(record), permissions, tx);
     if (input.findings.some(finding => !paper.questions.some(question => question.id === finding.questionId))) throw new SchoolAiError("A finding names a question that is not in this version.", 400);
-    const results: RehearsalResult[] = [...automatedRehearsal(paper), ...input.findings.map(finding => ({ check: "REPORTED_DEFECT" as const, severity: finding.severity, questionIds: [finding.questionId], detail: finding.detail }))];
+    const taughtLate = await taughtBySitting(tx, user.schoolId, paper);
+    const results: RehearsalResult[] = [...automatedRehearsal(paper), ...(taughtLate ? [taughtLate] : []), ...input.findings.map(finding => ({ check: "REPORTED_DEFECT" as const, severity: finding.severity, questionIds: [finding.questionId], detail: finding.detail }))];
     const row = await tx.schoolAiRehearsal.create({ data: { schoolId: user.schoolId, campusId: record.campusId!, recordId: record.id, paperVersion: record.version, results: json(results), blocking: results.filter(result => result.severity === "BLOCKING").length, actorId: user.userId } });
     await recordStudioAction(tx, user, { action: "RUN_REHEARSAL", role, targetId: record.id, targetVersion: record.version, campusId: record.campusId });
     return { id: row.id, paperVersion: row.paperVersion, results, blocking: row.blocking };

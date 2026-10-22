@@ -60,3 +60,21 @@ test("conformance report: marks, duration, taught coverage, review and language 
   assert.equal(signatureHolds({ decision: "RETURNED", contentHash: "h1" }, "h1"), false);
   assert.equal(signatureHolds(null, "h1"), false);
 });
+
+test("rehearsal 2.0: empty option text blocks; a clean fixture passes the new checks", async () => {
+  const { automatedRehearsal } = await import("../../src/lib/school-ai/exam-release-service");
+  const { paper } = assessmentFixture();
+  assert.deepEqual(automatedRehearsal(paper).map(result => result.check), []);
+  const choiceIndex = paper.questions.findIndex(question => question.options.length >= 2);
+  const broken = { ...paper, questions: paper.questions.map((question, index) => index === choiceIndex ? { ...question, options: question.options.map((option, at) => at === 1 ? { ...option, text: " " } : option) } : question) };
+  const results = automatedRehearsal(broken);
+  assert.deepEqual(results.map(result => [result.check, result.severity]), [["OPTION_TEXT_EMPTY", "BLOCKING"]]);
+});
+
+test("taught-after-sitting: an outcome taught after the sitting date, or never, is flagged per section", async () => {
+  const { taughtAfterSitting } = await import("../../src/lib/school-ai/teaching-progress");
+  const curriculum = { outcomes: [{ id: "o1", taught: true }, { id: "o2", taught: false }, { id: "o3", taught: false }] } as never;
+  const rows = [{ outcomeId: "o2", taughtOn: "2026-11-05" }];
+  assert.deepEqual(taughtAfterSitting(["o1", "o2", "o3"], curriculum, rows, "2026-11-01"), ["o2", "o3"]);
+  assert.deepEqual(taughtAfterSitting(["o1", "o2"], curriculum, rows, "2026-11-10"), []);
+});
