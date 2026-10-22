@@ -111,3 +111,31 @@ export function slotKey(subjectName: string, gradeName: string): { subjectName: 
   const fold = (text: string) => text.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
   return { subjectName: fold(subjectName), gradeName: fold(gradeName) };
 }
+
+/** The marks deadline: `workingDays` working days after the last sitting. */
+export function workingDaysAfter(lastSitting: string, workingDays: number, weekendIsoDays: readonly number[]): string {
+  const date = new Date(`${lastSitting}T00:00:00Z`);
+  let remaining = workingDays;
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const iso = date.getUTCDay() === 0 ? 7 : date.getUTCDay();
+    if (!weekendIsoDays.includes(iso)) remaining -= 1;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+/** The defaults a new slot takes (plan §14.1): 15 working days before the first sitting, marks 5 after the last. */
+export const PAPER_DUE_WORKING_DAYS = 15;
+export const MARKS_DUE_WORKING_DAYS = 5;
+
+/**
+ * The default paper deadline: 15 working days before the first sitting, but never already past when
+ * the request is made (then three working days from today), and never on or after the first sitting.
+ */
+export function defaultPaperDue(firstSitting: string, today: string, weekendIsoDays: readonly number[]): string {
+  const planned = workingDaysBefore(firstSitting, PAPER_DUE_WORKING_DAYS, weekendIsoDays);
+  if (planned >= today) return planned;
+  const soonest = workingDaysAfter(today, 3, weekendIsoDays);
+  const lastDay = workingDaysBefore(firstSitting, 1, weekendIsoDays);
+  return soonest < lastDay ? soonest : lastDay < today ? today : lastDay;
+}

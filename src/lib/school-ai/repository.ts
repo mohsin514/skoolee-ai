@@ -345,6 +345,7 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
           const record = await tx.schoolAiRecord.create({ data: { schoolId: user.schoolId, campusId, kind: input.kind, title: input.title, data: json(data), ...subject, createdById: user.userId, updatedById: user.userId, idempotencyKey: input.idempotencyKey, requestHash } });
           if (options.onCreate) await options.onCreate(tx, publicRecord(record));
           await revision(tx, record, user, "CREATE");
+          await linkSlotIfNamed(user, record, tx, "create");
           return publicRecord(record);
         };
         return await (options.transactionClient ? save(options.transactionClient) : transaction(user, save));
@@ -404,8 +405,18 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   if (updated.count !== 1) throw new SchoolAiError("This item changed during review. Reload and review the current version.", 409);
   const record = await tx.schoolAiRecord.findFirstOrThrow({ where: { id, schoolId: user.schoolId } });
   await revision(tx, record, user, action.toUpperCase() as WorkspaceRevision["action"]);
+  if (!options.asDepartmentHead) await linkSlotIfNamed(user, record, tx, action);
   if (action === "approve" && current.kind === "CURRICULUM") await approveBundledSource(user, data, current.campusId, tx, permissions, options);
   return publicRecord(record);
+}
+
+/** SKO-500: a PAPER that names a paper slot keeps the slot pointing at it (same transaction). */
+async function linkSlotIfNamed(user: AuthUser, record: StoredRecord, tx: TxClient, action: string) {
+  if (record.kind !== "PAPER") return;
+  const slotId = (record.data as { slotId?: unknown } | null)?.slotId;
+  if (typeof slotId !== "string" || !slotId) return;
+  const { linkPaperToSlot } = await import("./paper-slot-service");
+  await linkPaperToSlot(user, { id: record.id, version: record.version, status: record.status, campusId: record.campusId }, slotId, tx, action);
 }
 
 /**
@@ -454,10 +465,17 @@ async function departmentHeadRecord(user: AuthUser, id: string, input: { action?
 }
 
 export async function updateWorkspaceRecord(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput): Promise<AiWorkspaceRecord> {
-  return withContext(user, async () => {
+  const record = await withContext(user, async () => {
     try { return await transaction(user, tx => updateWorkspaceRecordInTransaction(user, id, rawInput, tx)); }
     catch (error) { return translateDatabaseError(error); }
   });
+  // SKO-500: after commit, a requested paper sent for review tells its moderator.
+  const slotId = record.kind === "PAPER" ? (record.data as { slotId?: unknown }).slotId : undefined;
+  if (typeof slotId === "string" && (rawInput as { action?: string }).action === "review") {
+    const { notifyPaperSubmitted } = await import("./paper-slot-service");
+    await notifyPaperSubmitted(user, { id: record.id, campusId: record.campusId }, slotId).catch(error => console.error("[paper-slot] submit notice failed", error));
+  }
+  return record;
 }
 
 export async function listWorkspaceRevisionPage(user: AuthUser, id: string, options: { version?: number; beforeVersion?: number; limit?: number } = {}): Promise<WorkspaceRevisionPage> {

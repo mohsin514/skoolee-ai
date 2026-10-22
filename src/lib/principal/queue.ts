@@ -14,11 +14,11 @@ import { getCampusSeats } from "@/lib/auth/seats";
 // resolved, adjustment decided). Assignment, acknowledgement and a reasoned snooze are the only state it
 // stores (QueueItemState), with history (QueueItemEvent).
 
-export const QUEUE_TYPES = ["COMPLAINT", "ATTENDANCE_MISSING", "DELIVERY_FAILED", "LEAVE_PENDING", "REPORT_APPROVAL", "ADJUSTMENT_APPROVAL", "CORRECTION_APPROVAL", "SUPPORT_CHECKIN"] as const;
+export const QUEUE_TYPES = ["COMPLAINT", "ATTENDANCE_MISSING", "DELIVERY_FAILED", "LEAVE_PENDING", "REPORT_APPROVAL", "ADJUSTMENT_APPROVAL", "CORRECTION_APPROVAL", "SUPPORT_CHECKIN", "SYLLABUS_APPROVAL", "PAPER_DUE", "PAPER_MODERATION", "PAPER_SEAL", "RESULT_RELEASE"] as const;
 export type QueueType = typeof QUEUE_TYPES[number];
 /** Published ranking: overdue first, then this category order, then the earliest due time. */
-const RANK: Record<QueueType, number> = { COMPLAINT: 1, ATTENDANCE_MISSING: 2, DELIVERY_FAILED: 3, LEAVE_PENDING: 4, REPORT_APPROVAL: 5, ADJUSTMENT_APPROVAL: 6, CORRECTION_APPROVAL: 7, SUPPORT_CHECKIN: 8 };
-export const SORTING_RULE = "Overdue items first; then confidential and late complaints, missing attendance today, failed family messages, leave to decide, report versions to approve, fee adjustments to decide, record corrections to decide, and missed learning-action check-ins; then the earliest due time. No pupil risk score is used.";
+const RANK: Record<QueueType, number> = { COMPLAINT: 1, ATTENDANCE_MISSING: 2, DELIVERY_FAILED: 3, LEAVE_PENDING: 4, REPORT_APPROVAL: 5, ADJUSTMENT_APPROVAL: 6, CORRECTION_APPROVAL: 7, SUPPORT_CHECKIN: 8, SYLLABUS_APPROVAL: 9, PAPER_DUE: 10, PAPER_MODERATION: 11, PAPER_SEAL: 12, RESULT_RELEASE: 13 };
+export const SORTING_RULE = "Overdue items first; then confidential and late complaints, missing attendance today, failed family messages, leave to decide, report versions to approve, fee adjustments to decide, record corrections to decide, missed learning-action check-ins, syllabi to approve, papers due, papers waiting for moderation, papers to seal and results to release; then the earliest due time. No pupil risk score is used.";
 
 export type SourceItem = {
   key: string; type: QueueType; sourceId: string; title: string; trigger: string; nextAction: string;
@@ -77,6 +77,7 @@ type SeatedItem = SourceItem & { family: Family };
 const TYPE_FAMILIES: Record<QueueType, Family[]> = {
   COMPLAINT: ["operations"], ATTENDANCE_MISSING: ["academic"], DELIVERY_FAILED: ["operations"], LEAVE_PENDING: ["academic", "operations"],
   REPORT_APPROVAL: ["academic"], ADJUSTMENT_APPROVAL: ["operations"], CORRECTION_APPROVAL: ["academic", "operations"], SUPPORT_CHECKIN: ["academic"],
+  SYLLABUS_APPROVAL: ["academic"], PAPER_DUE: ["academic"], PAPER_MODERATION: ["academic"], PAPER_SEAL: ["academic"], RESULT_RELEASE: ["academic"],
 };
 
 /**
@@ -157,6 +158,49 @@ async function collectCampusSources(user: AuthUser, campusId: string, db: TxClie
     for (const plan of overdue) {
       const due = plan.nextCheckInDate!.toISOString().slice(0, 10);
       items.push({ family: "academic", key: `SUPPORT_CHECKIN:${plan.id}:${due}`, type: "SUPPORT_CHECKIN", sourceId: plan.id, title: `Learning-action check-in missed: ${plan.title}`, titleMessage: { key: "Learning-action check-in missed: {0}", values: [plan.title] }, triggerMessage: { key: "The check-in due on {0} is not recorded or rescheduled.", values: [due] }, trigger: `The check-in due on ${due} is not recorded or rescheduled.`, nextAction: "Ask the responsible adult to record or reschedule the check-in", sourceOwner: plan.ownerId ? { id: plan.ownerId, name: owners.get(plan.ownerId) ?? "" } : null, dueAt: endOfDay(due).toISOString(), link: link("overview") });
+    }
+  });
+  // SKO-500: the exam chain. A syllabus sent for approval; a requested paper due within three days (or late) that is
+  // not yet ready for review; a paper sent for review that nobody has moderated; results reviewed but not released.
+  // PAPER_SEAL has no source until the seal lands (slice 2).
+  await run("SYLLABUS_APPROVAL", async () => {
+    const waiting = await db.schoolAiRecord.findMany({ where: { ...scope, kind: "CURRICULUM", status: "IN_REVIEW" }, select: { id: true, title: true, updatedAt: true, createdById: true }, orderBy: { updatedAt: "asc" }, take: 50 });
+    const authors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: waiting.map(row => row.createdById) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+    for (const row of waiting) {
+      const sent = row.updatedAt.toISOString().slice(0, 10);
+      items.push({ family: "academic", key: `SYLLABUS_APPROVAL:${row.id}`, type: "SYLLABUS_APPROVAL", sourceId: row.id, title: `Syllabus to approve: ${row.title}`, titleMessage: { key: "Syllabus to approve: {0}", values: [row.title] }, triggerMessage: { key: "{0} sent it for approval on {1}.", values: [authors.get(row.createdById) ?? "", sent] }, trigger: `${authors.get(row.createdById) ?? ""} sent it for approval on ${sent}.`, nextAction: "Approve the syllabus or ask its head of department", sourceOwner: { id: row.createdById, name: authors.get(row.createdById) ?? "" }, dueAt: new Date(row.updatedAt.getTime() + 2 * 86_400_000).toISOString(), link: link("exam-cycles") });
+    }
+  });
+  await run("PAPER_DUE", async () => {
+    const soon = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + 3 * 86_400_000);
+    const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, dueOn: { lte: soon } }, select: { id: true, dueOn: true, subjectName: true, gradeName: true, authorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } }, take: 100 });
+    const papers = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.paperRecordId).filter((x): x is string => Boolean(x)) } }, select: { id: true, status: true } })).map(row => [row.id, row.status]));
+    const authors = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.authorUserId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+    for (const slot of slots) {
+      const status = slot.paperRecordId ? papers.get(slot.paperRecordId) : undefined;
+      if (status === "IN_REVIEW" || status === "APPROVED") continue;
+      const name = `${slot.schedules[0]?.subject.name ?? slot.subjectName} ${slot.schedules[0]?.exam.class.name ?? slot.gradeName}`;
+      const due = slot.dueOn.toISOString().slice(0, 10);
+      items.push({ family: "academic", key: `PAPER_DUE:${slot.id}`, type: "PAPER_DUE", sourceId: slot.id, title: `Paper due: ${name}`, titleMessage: { key: "Paper due: {0}", values: [name] }, triggerMessage: { key: "Due on {0} and not yet sent for review.", values: [due] }, trigger: `Due on ${due} and not yet sent for review.`, nextAction: "Remind the author from the Papers step", sourceOwner: slot.authorUserId ? { id: slot.authorUserId, name: authors.get(slot.authorUserId) ?? "" } : null, dueAt: endOfDay(due).toISOString(), link: link("exam-cycles") });
+    }
+  });
+  await run("PAPER_MODERATION", async () => {
+    const slots = await db.examPaperSlot.findMany({ where: { ...scope, cancelledAt: null, sealedAt: null, paperRecordId: { not: null } }, select: { id: true, subjectName: true, gradeName: true, moderatorUserId: true, paperRecordId: true, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } }, take: 200 });
+    const inReview = new Map((await db.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, status: "IN_REVIEW", id: { in: slots.map(slot => slot.paperRecordId!) } }, select: { id: true, updatedAt: true } })).map(row => [row.id, row.updatedAt]));
+    const moderators = new Map((await db.user.findMany({ where: { schoolId: user.schoolId, id: { in: slots.map(slot => slot.moderatorUserId).filter((x): x is string => Boolean(x)) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
+    for (const slot of slots) {
+      const sentAt = inReview.get(slot.paperRecordId!);
+      if (!sentAt) continue;
+      const name = `${slot.schedules[0]?.subject.name ?? slot.subjectName} ${slot.schedules[0]?.exam.class.name ?? slot.gradeName}`;
+      const sent = sentAt.toISOString().slice(0, 10);
+      items.push({ family: "academic", key: `PAPER_MODERATION:${slot.id}`, type: "PAPER_MODERATION", sourceId: slot.id, title: `Paper waiting for moderation: ${name}`, titleMessage: { key: "Paper waiting for moderation: {0}", values: [name] }, triggerMessage: { key: "Sent for review on {0}.", values: [sent] }, trigger: `Sent for review on ${sent}.`, nextAction: "Ask the moderator to review the paper", sourceOwner: slot.moderatorUserId ? { id: slot.moderatorUserId, name: moderators.get(slot.moderatorUserId) ?? "" } : null, dueAt: new Date(sentAt.getTime() + 2 * 86_400_000).toISOString(), link: link("exam-cycles") });
+    }
+  });
+  await run("RESULT_RELEASE", async () => {
+    const exams = await db.exam.findMany({ where: { ...scope, status: "PRINCIPAL_REVIEWED" }, select: { id: true, title: true, reviewedAt: true, class: { select: { name: true, section: true } } }, take: 100 });
+    for (const exam of exams) {
+      const name = `${exam.title} · ${exam.class.name}${exam.class.section ? ` ${exam.class.section}` : ""}`;
+      items.push({ family: "academic", key: `RESULT_RELEASE:${exam.id}`, type: "RESULT_RELEASE", sourceId: exam.id, title: `Results ready to publish: ${name}`, titleMessage: { key: "Results ready to publish: {0}", values: [name] }, triggerMessage: { key: "Review is recorded and families cannot see the results yet.", values: [] }, trigger: "Review is recorded and families cannot see the results yet.", nextAction: "Publish the results", sourceOwner: null, dueAt: exam.reviewedAt ? new Date(exam.reviewedAt.getTime() + 2 * 86_400_000).toISOString() : null, link: link("exam-cycles") });
     }
   });
   return { items, failed, checkedAt: new Date().toISOString(), today };

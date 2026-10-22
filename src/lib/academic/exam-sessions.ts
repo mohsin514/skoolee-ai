@@ -28,6 +28,8 @@ async function transaction<T>(db: TxClient | undefined, work: (tx: TxClient) => 
 
 /** What the office may actually run. Quizzes and class tests are teachers'. */
 export const SESSION_EXAM_TYPES = ["MID_TERM", "FINAL"] as const;
+
+export { EXAM_TERM_LABELS, normaliseExamTerm, type ExamTermLabel } from "./exam-terms";
 export type SessionExamType = (typeof SESSION_EXAM_TYPES)[number];
 
 export interface SessionSummary {
@@ -54,6 +56,10 @@ export interface SessionSummary {
   publishedCount: number;
   firstDate: string | null;
   lastDate: string | null;
+  /** SKO-500: paper requests (one per grade and subject), excluding withdrawn ones. */
+  paperSlots: number;
+  /** SKO-500: requests whose paper is approved or sealed. */
+  papersSealed: number;
   classes: {
     examId: string;
     classId: string;
@@ -243,6 +249,11 @@ export async function getSessionSummary(
     };
   });
 
+  const slots = await prisma.examPaperSlot.findMany({ where: { schoolId: session.schoolId, examSessionId: session.id, campusId, cancelledAt: null }, select: { sealedAt: true, paperRecordId: true } });
+  const paperIds = slots.map((slot) => slot.paperRecordId).filter((value): value is string => Boolean(value));
+  const approvedPapers = paperIds.length ? new Set((await prisma.schoolAiRecord.findMany({ where: { schoolId: session.schoolId, id: { in: paperIds }, campusId, kind: "PAPER", status: "APPROVED" }, select: { id: true } })).map((row) => row.id)) : new Set<string>();
+  const papersSealed = slots.filter((slot) => slot.sealedAt || (slot.paperRecordId && approvedPapers.has(slot.paperRecordId))).length;
+
   const allDates = session.exams
     .flatMap((e) => e.schedules.map((s) => s.date.toISOString().slice(0, 10)))
     .sort();
@@ -268,6 +279,8 @@ export async function getSessionSummary(
     publishedCount: classes.filter((c) => c.status === "PUBLISHED").length,
     firstDate: allDates[0] ?? null,
     lastDate: allDates[allDates.length - 1] ?? null,
+    paperSlots: slots.length,
+    papersSealed,
     classes,
   };
 }
