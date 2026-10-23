@@ -53,3 +53,9 @@ test("every card the model can see renders in each language with a class note an
   }
   assert.ok(!JSON.stringify(cardFor(REGISTRY.get("work.save")!, "en")).includes("fees.generate_invoices"), "a draft plan cannot carry an operation");
 });
+
+test("amounts written with thousands separators count as the user's own number", () => {
+  const segments = [{ id: "s0", normalized: "record rs 12,500 cash for bilal" }];
+  assert.deepEqual(checkEvidence({ amount: 12500 }, ["/amount"], [{ pointer: "/amount", quote: "rs 12,500 cash" }], segments).missing, []);
+  assert.deepEqual(checkEvidence({ amount: 12600 }, ["/amount"], [{ pointer: "/amount", quote: "rs 12,500 cash" }], segments).missing, ["/amount"], "a different number is not supported");
+});

@@ -2517,6 +2517,9 @@ model Payment {
   @@index([invoiceId])
   @@index([studentId])
   @@index([schoolId])
+  /// AI Workflows (Slice 5, RT6): the AI-prepared hand-off this row completed; unique so it posts once.
+  workflowHandoffId String? @map("workflow_handoff_id")
+  @@unique([schoolId, workflowHandoffId])
   @@map("payments")
 }
 
@@ -2787,6 +2790,9 @@ model FinancialAdjustment {
   @@index([schoolId, campusId, status])
   @@index([invoiceId])
   @@index([paymentId])
+  /// AI Workflows (Slice 5, RT6): the AI-prepared hand-off this row completed; unique so it posts once.
+  workflowHandoffId String? @map("workflow_handoff_id")
+  @@unique([schoolId, workflowHandoffId])
   @@map("financial_adjustments")
 }
 

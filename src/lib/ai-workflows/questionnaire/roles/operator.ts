@@ -37,8 +37,8 @@ export const GRADES = [
   { id: "PG", name: "Playgroup", band: "EARLY" }, { id: "NUR", name: "Nursery", band: "EARLY" }, { id: "KG", name: "KG", band: "EARLY" },
   ...Array.from({ length: 12 }, (_, index) => ({ id: `G${index + 1}`, name: `Grade ${index + 1}`, band: index < 5 ? "PRIMARY" : index < 8 ? "MIDDLE" : "SENIOR" })),
 ] as const;
-const BANDS = { EARLY: l("Early years", "الطفولة المبكرة", "ابتدائی جماعتیں (پری)"), PRIMARY: l("Primary (1–5)", "الابتدائي (1–5)", "پرائمری (1–5)"), MIDDLE: l("Middle (6–8)", "المتوسط (6–8)", "مڈل (6–8)"), SENIOR: l("Senior (9–12)", "الثانوي (9–12)", "سینئر (9–12)") } as const;
-type Band = keyof typeof BANDS;
+export const BANDS = { EARLY: l("Early years", "الطفولة المبكرة", "ابتدائی جماعتیں (پری)"), PRIMARY: l("Primary (1–5)", "الابتدائي (1–5)", "پرائمری (1–5)"), MIDDLE: l("Middle (6–8)", "المتوسط (6–8)", "مڈل (6–8)"), SENIOR: l("Senior (9–12)", "الثانوي (9–12)", "سینئر (9–12)") } as const;
+export type Band = keyof typeof BANDS;
 
 /** Starting subject chips per band; the person adds or removes freely. */
 function subjectPreset(band: Band, country: string): string[] {
