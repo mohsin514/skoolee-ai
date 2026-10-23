@@ -29,6 +29,9 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
     steps:
       - uses: actions/checkout@v4
+      # Set after checkout so the loader exists: tsc needs more than Node's default heap, and the loader resolves
+      # `server-only` (which Next.js supplies when it bundles) for the plain Node test runs below.
+      - run: echo "NODE_OPTIONS=--max-old-space-size=6144 --import=$GITHUB_WORKSPACE/tests/support/server-only.mjs" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 9
