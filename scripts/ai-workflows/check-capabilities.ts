@@ -27,7 +27,9 @@ export function evaluate() {
   if (JSON.stringify(JSON.parse(committed)) !== JSON.stringify(JSON.parse(JSON.stringify(inventory)))) errors.push("generated inventory.json is stale: run npx tsx scripts/ai-workflows/inventory-to-json.ts");
 
   const known = new Set(inventory.map(row => `${row.method} ${normaliseRoute(row.route)}`));
-  const unmappedHandlers = scanWriteHandlers().map(handler => `${handler.method} ${handler.route}`).filter(id => !known.has(id));
+  // The engine's own endpoints start and drive jobs; they are not capabilities a role holds.
+  const ENGINE_ROUTES = ["/api/ai-workflows", "/api/automation"];
+  const unmappedHandlers = scanWriteHandlers().filter(handler => !ENGINE_ROUTES.some(prefix => handler.route === prefix || handler.route.startsWith(`${prefix}/`))).map(handler => `${handler.method} ${handler.route}`).filter(id => !known.has(id));
 
   const covered = coveredInventoryKeys();
   const unconnectedKeys = inventory.filter(row => !covered.has(row.key) && !exclusionFor(row.key)).map(row => row.key).sort();

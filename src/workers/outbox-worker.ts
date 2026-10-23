@@ -1,4 +1,5 @@
 import { sweepAutomaticJobs } from "../lib/automation/worker";
+import { sweepWorkflowJobs } from "../lib/ai-workflows/jobs/worker";
 import { sweepDocumentJobs } from "../lib/school-ai/document-jobs-service";
 import { sweepExamProctorRecordings } from "../lib/school-ai/exam-proctor-sweep";
 import { sweepExamIntegrity } from "../lib/school-ai/exam-integrity-sweep";
@@ -28,6 +29,7 @@ let nextSupportExpirySweep = 0;
 let nextExamExpirySweep = 0;
 let nextSchoolRunSweep = 0;
 let automaticSweep: Promise<unknown> | null = null;
+let workflowSweep: Promise<unknown> | null = null;
 let documentSweep: Promise<unknown> | null = null;
 let proctorSweep: Promise<unknown> | null = null;
 let proctorCursor: string | null = null;
@@ -46,6 +48,7 @@ async function pump() {
     }
     if (Date.now() >= nextSchoolRunSweep) {
       nextSchoolRunSweep = Date.now() + 5000;
+      if (!workflowSweep) workflowSweep = sweepWorkflowJobs(db).catch(() => console.error(JSON.stringify({ component: "ai-workflows", reason: "SWEEP_UNAVAILABLE" }))).finally(() => { workflowSweep = null; });
       if (!automaticSweep) automaticSweep = sweepAutomaticJobs(db).catch(() => console.error(JSON.stringify({ component: "automatic-setup", reason: "SWEEP_UNAVAILABLE" }))).finally(() => { automaticSweep = null; });
       if (!documentSweep) documentSweep = sweepDocumentJobs(db).catch(() => console.error(JSON.stringify({ component: "school-ai-documents", reason: "DOCUMENT_SWEEP_UNAVAILABLE" }))).finally(() => { documentSweep = null; });
       try { await sweepSchoolRuns(db); }
@@ -93,6 +96,7 @@ async function shutdown() {
   await running;
   await documentSweep;
   await automaticSweep;
+  await workflowSweep;
   await proctorSweep;
   await integritySweep;
   await worker.close();

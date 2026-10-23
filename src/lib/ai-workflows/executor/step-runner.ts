@@ -1,0 +1,101 @@
+import { Prisma } from "@prisma/client";
+import type { AiWorkflowJob, AiWorkflowStep } from "@prisma/client";
+import { prisma } from "@/lib/db/prisma";
+import { capability } from "../registry";
+import { runGates } from "../registry/gates";
+import type { CapabilityContext, ExecEntry, HandoffEntry, Receipt } from "../registry/types";
+import { WorkflowError, toWorkflowError } from "../errors";
+import { appendEvent } from "../jobs/events";
+import { sha256 } from "./canonical";
+
+/**
+ * Runs one step. Every write goes through the intent ledger:
+ *   INTENT row (unique per school, actor, key) → domain write with the same key → COMMITTED + receipt.
+ * A replay that finds COMMITTED returns the stored receipt without touching the domain. A replay that
+ * finds a bare INTENT (crash between write and commit) retries only when the adapter's own write is
+ * idempotent; otherwise the step becomes UNCERTAIN and a person checks the domain screen.
+ * Class C steps never execute: they prepare a hand-off.
+ */
+const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+const isUnique = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+
+async function settle(step: AiWorkflowStep, job: AiWorkflowJob, data: Prisma.AiWorkflowStepUpdateManyMutationInput, event: Parameters<typeof appendEvent>[2], payload: Record<string, string | number | boolean | null> = {}) {
+  await prisma.$transaction(async tx => {
+    const updated = await tx.aiWorkflowStep.updateMany({ where: { id: step.id, schoolId: step.schoolId, version: step.version }, data: { ...data, version: { increment: 1 } } });
+    if (updated.count !== 1) throw new WorkflowError("STALE_VERSION");
+    await appendEvent(tx, job, event, step.id, payload);
+  });
+}
+
+export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, step: AiWorkflowStep, entry: ExecEntry, input: unknown): Promise<Receipt | null> {
+  const inputHash = sha256({ capability: entry.key, version: entry.version, input });
+  let intent = await prisma.aiWorkflowIntent.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: job.schoolId, actorId: job.actorId, idempotencyKey: step.idempotencyKey } } });
+  if (intent && (intent.inputHash !== inputHash || intent.stepId !== step.id)) throw new WorkflowError("KEY_CONFLICT");
+  if (intent?.state === "COMMITTED" || intent?.state === "RECONCILED") {
+    const receipt = { ...(intent.receipt as unknown as Receipt), replayed: true };
+    await settle(step, job, { status: "SUCCEEDED", receipt: json(receipt), inputHash, finishedAt: new Date() }, "STEP_SUCCEEDED", { replayed: true });
+    return receipt;
+  }
+  if (intent && entry.idempotency.mode === "natural") {
+    await prisma.aiWorkflowIntent.update({ where: { id: intent.id }, data: { state: "UNCERTAIN" } });
+    await settle(step, job, { status: "UNCERTAIN", errorCode: "UNCERTAIN", finishedAt: new Date() }, "STEP_UNCERTAIN");
+    return null;
+  }
+  if (!intent) {
+    try {
+      intent = await prisma.aiWorkflowIntent.create({ data: { schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, actorId: job.actorId, stepId: step.id, idempotencyKey: step.idempotencyKey, capabilityKey: entry.key, capabilityVersion: entry.version, inputHash } });
+    } catch (error) {
+      if (isUnique(error)) throw new WorkflowError("LEASED");
+      throw error;
+    }
+  }
+  await settle(step, job, { status: "RUNNING", inputHash, boundInput: json(input), startedAt: new Date() }, "STEP_RUNNING");
+  const running = { ...step, version: step.version + 1 };
+  try {
+    const gate = await runGates(ctx, entry.gates);
+    if (!gate.ok) throw new WorkflowError(gate.code === "SEAT" ? "SEAT_HELD" : gate.code === "SCOPE" ? "SCOPE_DENIED" : "ROLE_NOT_ALLOWED");
+    const receipt = await entry.execute(ctx, input, { idempotencyKey: step.idempotencyKey });
+    await prisma.$transaction(async tx => {
+      await tx.aiWorkflowIntent.update({ where: { id: intent!.id }, data: { state: "COMMITTED", receipt: json(receipt), committedAt: new Date() } });
+      const updated = await tx.aiWorkflowStep.updateMany({ where: { id: step.id, schoolId: step.schoolId, version: running.version }, data: { status: "SUCCEEDED", receipt: json(receipt), finishedAt: new Date(), version: { increment: 1 } } });
+      if (updated.count !== 1) throw new WorkflowError("STALE_VERSION");
+      await appendEvent(tx, job, "STEP_SUCCEEDED", step.id, { kind: receipt.kind, entities: receipt.entities.length });
+    });
+    return receipt;
+  } catch (thrown) {
+    const error = toWorkflowError(thrown);
+    // A domain refusal or a gate means nothing was written; a deadline or internal error might have been.
+    const maybeWritten = error.code === "DEADLINE" || error.code === "INTERNAL";
+    const status = maybeWritten ? (entry.idempotency.mode === "natural" ? "UNCERTAIN" : "FAILED_UNVERIFIED") : "FAILED";
+    await prisma.aiWorkflowIntent.update({ where: { id: intent.id }, data: { state: maybeWritten ? "UNCERTAIN" : "FAILED" } });
+    await settle(running, job, { status, errorCode: error.code, errorParams: json(error.params), finishedAt: new Date() }, status === "FAILED" ? "STEP_FAILED" : "STEP_UNCERTAIN", { code: error.code });
+    return null;
+  }
+}
+
+export async function runHandoffStep(ctx: CapabilityContext, job: AiWorkflowJob, step: AiWorkflowStep, entry: HandoffEntry, input: unknown) {
+  const gate = await runGates(ctx, entry.gates);
+  if (!gate.ok) {
+    await settle(step, job, { status: "BLOCKED", errorCode: gate.code === "SEAT" ? "SEAT_HELD" : "ROLE_NOT_ALLOWED", finishedAt: new Date() }, "STEP_FAILED", { code: gate.code });
+    return null;
+  }
+  const existing = await prisma.aiWorkflowHandoff.findUnique({ where: { schoolId_idempotencyKey: { schoolId: job.schoolId, idempotencyKey: step.idempotencyKey } } });
+  const handoff = existing ?? await (async () => {
+    const prepared = await entry.handoff.prepare(ctx, input, { idempotencyKey: step.idempotencyKey });
+    return prisma.aiWorkflowHandoff.create({ data: {
+      schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, stepId: step.id, kind: prepared.kind, targetRoute: prepared.link, targetRoles: [...prepared.targetRoles],
+      originRole: job.actorRole, originUserId: job.actorId, recordId: typeof prepared.prefill.recordId === "string" ? prepared.prefill.recordId : null,
+      recordVersion: typeof prepared.prefill.version === "number" ? prepared.prefill.version : null, prefill: json(prepared.prefill), prefillHash: sha256(prepared.prefill),
+      idempotencyKey: step.idempotencyKey, expiresAt: new Date(Date.now() + 14 * 86_400_000),
+    } });
+  })();
+  await settle(step, job, { status: "WAITING_HANDOFF", handoffId: handoff.id, boundInput: json(input) }, "STEP_HANDED_OFF", { kind: handoff.kind });
+  return handoff;
+}
+
+/** Validates the step's input against its entry; the planner (Slice 1e) binds EntityRefs before this. */
+export function entryFor(step: Pick<AiWorkflowStep, "capabilityKey" | "capabilityVersion">) {
+  const entry = capability(step.capabilityKey);
+  if (!entry || entry.version !== step.capabilityVersion) throw new WorkflowError("NOT_CONNECTED");
+  return entry;
+}

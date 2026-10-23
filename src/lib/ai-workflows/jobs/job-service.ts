@@ -1,0 +1,182 @@
+import { Prisma } from "@prisma/client";
+import type { AiWorkflowJob, AiWorkflowStep } from "@prisma/client";
+import { z } from "zod";
+import type { AuthUser } from "@/lib/auth";
+import { prisma } from "@/lib/db/prisma";
+import { resolveWorkspaceCampus } from "@/lib/school-ai/access";
+import { WorkflowError } from "../errors";
+import { sha256 } from "../executor/canonical";
+import { deriveJobStatus, deriveOutcome, nextStepAction, type StepStatus } from "../executor/scheduler";
+import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
+import { capability } from "../registry";
+import { appendEvent } from "./events";
+import { authorizeActor, capabilityContext, inTenant } from "./actor";
+import { withLease } from "./lease";
+
+/** Requests are bounded; questionnaire jobs come from compiled sheets (Slice 2), not from this route. */
+export const startJobSchema = z.strictObject({
+  message: z.string().trim().min(1).max(8000),
+  campusId: z.string().min(1).max(128).nullable().optional(),
+  language: z.enum(["en", "ar", "ur"]),
+  idempotencyKey: z.string().min(8).max(128).regex(/^[\w-]+$/),
+});
+const JOB_TTL_MS = 7 * 86_400_000;
+const STEP_CAP = 25;
+export const DEFAULT_BUDGET = { maxSteps: STEP_CAP, maxModelCalls: 12, maxQuestions: 8, maxReplans: 2 };
+
+const jobWhere = (user: AuthUser, id: string) => ({ id, schoolId: user.schoolId, actorId: user.userId });
+
+export function startJob(user: AuthUser, raw: unknown): Promise<AiWorkflowJob> {
+  return inTenant(user, async () => {
+    await authorizeActor(user);
+    const input = startJobSchema.parse(raw);
+    const campusId = user.role === "APP_OWNER" ? null : user.role === "STUDENT" || user.role === "PARENT" ? user.campusId : await resolveWorkspaceCampus(user, input.campusId);
+    if (input.campusId && input.campusId !== campusId) throw new WorkflowError("SCOPE_DENIED");
+    const requestHash = sha256({ message: input.message, campusId, role: user.role });
+    const existing = await prisma.aiWorkflowJob.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: user.schoolId, actorId: user.userId, idempotencyKey: input.idempotencyKey } } });
+    if (existing) { if (existing.requestHash !== requestHash) throw new WorkflowError("KEY_CONFLICT"); return existing; }
+    try {
+      return await prisma.$transaction(async tx => {
+        const job = await tx.aiWorkflowJob.create({ data: {
+          schoolId: user.schoolId, campusId, actorId: user.userId, actorRole: user.role, accessVersion: user.accessVersion ?? 0, origin: "FREEFORM",
+          language: input.language, requestHash, idempotencyKey: input.idempotencyKey, budget: DEFAULT_BUDGET, expiresAt: new Date(Date.now() + JOB_TTL_MS),
+          ...(user.role === "APP_OWNER" ? { unscopedReason: "platform owner request" } : {}),
+        } });
+        // The user's own words are the only evidence base an action may quote.
+        await tx.aiWorkflowSegment.create({ data: { schoolId: user.schoolId, jobId: job.id, ordinal: 0, kind: "REQUEST", text: input.message, normalized: input.message.normalize("NFKC").replace(/\s+/g, " ").trim() } });
+        await appendEvent(tx, job, "JOB_STARTED");
+        return tx.aiWorkflowJob.findUniqueOrThrow({ where: { id: job.id } });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const replay = await prisma.aiWorkflowJob.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: user.schoolId, actorId: user.userId, idempotencyKey: input.idempotencyKey } } });
+        if (replay?.requestHash === requestHash) return replay;
+        throw new WorkflowError("KEY_CONFLICT");
+      }
+      throw error;
+    }
+  });
+}
+
+export interface PlannedStep { stepKey: string; capabilityKey: string; dependsOn?: string[]; input: unknown; missingFields?: string[] }
+
+/** Persists a plan. The planner (Slice 1e) is the normal caller; class floors come from the registry, never the plan. */
+export async function savePlan(user: AuthUser, jobId: string, steps: PlannedStep[]) {
+  return inTenant(user, async () => {
+    if (steps.length > STEP_CAP) throw new WorkflowError("BUDGET_EXHAUSTED", { cap: STEP_CAP });
+    const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId) });
+    if (!job) throw new WorkflowError("NOT_FOUND");
+    const planVersion = job.planVersion + 1;
+    await prisma.$transaction(async tx => {
+      for (const planned of steps) {
+        const entry = capability(planned.capabilityKey);
+        if (!entry) throw new WorkflowError("NOT_CONNECTED");
+        await tx.aiWorkflowStep.create({ data: {
+          schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, planVersion, stepKey: planned.stepKey, capabilityKey: entry.key, capabilityVersion: entry.version,
+          staticClass: entry.class, effectiveClass: entry.class, dependsOn: planned.dependsOn ?? [], modelInput: planned.input as Prisma.InputJsonValue,
+          missingFields: planned.missingFields ?? [], idempotencyKey: `wf-${job.id}-${planVersion}-${planned.stepKey}`,
+          status: planned.missingFields?.length ? "NEEDS_INPUT" : "PENDING",
+        } });
+      }
+      await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { planVersion, status: "RUNNING", version: { increment: 1 } } });
+      await appendEvent(tx, job, "PLAN_READY", null, { steps: steps.length });
+    });
+  });
+}
+
+const kindOf = (step: AiWorkflowStep): "write" | "read" | "draft" | "handoff" | null =>
+  step.handoffId ? "handoff" : ((step.receipt as { kind?: string } | null)?.kind as "write" | "read" | "draft" | undefined) ?? null;
+
+/**
+ * Advances class-A and class-C steps and surfaces class-B steps for confirmation. Class-B steps never
+ * run here (control P5): only the confirming request executes them (Slice 1f).
+ */
+export async function advanceJob(user: AuthUser, jobId: string, owner = "request") {
+  return inTenant(user, async () => {
+    await authorizeActor(user);
+    const result = await withLease(jobId, user.schoolId, owner, async () => {
+      const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId) });
+      if (!job) throw new WorkflowError("NOT_FOUND");
+      if (["PAUSED", "CANCELLED", "COMPLETED", "EXPIRED", "FAILED"].includes(job.status)) return job;
+      const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
+      for (let pass = 0; pass < STEP_CAP; pass++) {
+        const steps = await prisma.aiWorkflowStep.findMany({ where: { jobId: job.id, schoolId: job.schoolId, planVersion: job.planVersion }, orderBy: { createdAt: "asc" } });
+        const statuses = new Map(steps.map(step => [step.stepKey, step.status as StepStatus]));
+        let progressed = false;
+        for (const step of steps) {
+          const action = nextStepAction({ status: step.status as StepStatus, effectiveClass: step.effectiveClass as "A" | "B" | "C", dependsOn: step.dependsOn, missingFields: step.missingFields, confirmed: false }, statuses);
+          if (action === "none" || action === "wait" || action === "ask") continue;
+          const entry = entryFor(step);
+          if (action === "skip") { await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "SKIPPED", finishedAt: new Date(), version: { increment: 1 } } }); progressed = true; continue; }
+          const parsed = entry.input.safeParse(step.modelInput);
+          if (!parsed.success) { await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "NEEDS_INPUT", missingFields: parsed.error.issues.map(issue => `/${issue.path.join("/")}`), version: { increment: 1 } } }); progressed = true; continue; }
+          if (action === "await-confirm") {
+            if (step.status !== "WAITING_CONFIRM") {
+              const input = parsed.data;
+              const preview = entry.class !== "C" && entry.preview ? await entry.preview(ctx, input) : null;
+              await prisma.$transaction(async tx => {
+                await tx.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "WAITING_CONFIRM", boundInput: input as Prisma.InputJsonValue, inputHash: sha256({ capability: entry.key, version: entry.version, input }), preview: preview as unknown as Prisma.InputJsonValue, previewHash: preview ? sha256(preview) : null, previewVersion: { increment: 1 }, version: { increment: 1 } } });
+                await appendEvent(tx, job, "STEP_WAITING_CONFIRM", step.id);
+              });
+              progressed = true;
+            }
+            continue;
+          }
+          if (action === "handoff" && entry.class === "C") await runHandoffStep(ctx, job, step, entry, parsed.data);
+          else if (action === "run" && entry.class === "A") await runExecStep(ctx, job, step, entry, parsed.data);
+          progressed = true;
+        }
+        if (!progressed) break;
+      }
+      const steps = await prisma.aiWorkflowStep.findMany({ where: { jobId: job.id, schoolId: job.schoolId, planVersion: job.planVersion } });
+      const summaries = steps.map(step => ({ status: step.status as StepStatus, kind: kindOf(step) }));
+      const status = job.planVersion === 0 ? "PLANNING" : deriveJobStatus(summaries);
+      const completed = status === "COMPLETED";
+      return prisma.$transaction(async tx => {
+        const updated = await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { status, version: { increment: 1 }, ...(completed ? { outcome: deriveOutcome(summaries), completedAt: new Date() } : {}) } });
+        if (completed && job.status !== "COMPLETED") await appendEvent(tx, job, "JOB_COMPLETED", null, { outcome: updated.outcome });
+        return updated;
+      });
+    });
+    if (result === null) throw new WorkflowError("LEASED");
+    return result;
+  });
+}
+
+export function getJob(user: AuthUser, jobId: string) {
+  return inTenant(user, async () => {
+    const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId), include: { steps: { orderBy: { createdAt: "asc" } }, handoffs: true, questions: { where: { status: "OPEN" } } } });
+    if (!job) throw new WorkflowError("NOT_FOUND");
+    return job;
+  });
+}
+
+export function listJobs(user: AuthUser) {
+  return inTenant(user, () => prisma.aiWorkflowJob.findMany({ where: { schoolId: user.schoolId, actorId: user.userId }, orderBy: { updatedAt: "desc" }, take: 20 }));
+}
+
+/** Events after `seq` for live progress; only the job's own actor may read them (control P14). */
+export function eventsAfter(user: AuthUser, jobId: string, seq: number) {
+  return inTenant(user, async () => {
+    const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId), select: { id: true, status: true, version: true, eventSeq: true } });
+    if (!job) throw new WorkflowError("NOT_FOUND");
+    const events = await prisma.aiWorkflowEvent.findMany({ where: { jobId, schoolId: user.schoolId, seq: { gt: seq } }, orderBy: { seq: "asc" }, take: 200, select: { seq: true, type: true, stepId: true, payload: true, createdAt: true } });
+    return { job, events };
+  });
+}
+
+export function cancelJob(user: AuthUser, jobId: string, version: number) {
+  return inTenant(user, async () => {
+    const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId) });
+    if (!job) throw new WorkflowError("NOT_FOUND");
+    if (job.version !== version) throw new WorkflowError("STALE_VERSION");
+    if (["COMPLETED", "CANCELLED", "EXPIRED"].includes(job.status)) return job;
+    return prisma.$transaction(async tx => {
+      // Cancelling stops what has not run. Completed steps and open hand-offs are reported, not undone.
+      await tx.aiWorkflowStep.updateMany({ where: { jobId, schoolId: user.schoolId, status: { in: ["PENDING", "NEEDS_INPUT", "READY", "WAITING_CONFIRM"] } }, data: { status: "CANCELLED", finishedAt: new Date() } });
+      const updated = await tx.aiWorkflowJob.update({ where: { id: jobId }, data: { status: "CANCELLED", version: { increment: 1 } } });
+      await appendEvent(tx, job, "JOB_CANCELLED");
+      return updated;
+    });
+  });
+}
