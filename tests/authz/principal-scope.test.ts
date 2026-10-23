@@ -55,8 +55,9 @@ test("G42: a campus admin holds the academic or finance tools only while that se
   for (const op of ACADEMIC) assert.equal(noAccountant.has(op as never), false);
 });
 
-test("G42: teachers and office staff execute no school AI tools", () => {
-  for (const role of ["TEACHER", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN", "PARENT", "STUDENT", "APP_OWNER"]) {
+test("G42: non-finance desk roles execute no school AI tools; accountants get finance only", () => {
+  assert.deepEqual([...schoolAiOperationsFor("ACCOUNTANT", { academicLead: false, financeDesk: true })].sort(), [...FINANCE].sort());
+  for (const role of ["TEACHER", "RECEPTIONIST", "LIBRARIAN", "PARENT", "STUDENT", "APP_OWNER"]) {
     assert.equal(schoolAiOperationsFor(role, { academicLead: true, financeDesk: true }).size, 0, role);
   }
 });
@@ -118,7 +119,7 @@ test("§7.6 split routes: reads stay academic, writes become campus operations",
     assert.match(source, /canManageCampusOps\(user\)/, `${file} moves writes to campus ops`);
     assert.doesNotMatch(source, /canManageOperations\(/, file);
   }
-  const students = code("src/app/api/students/route.ts");
+  const students = code("src/app/api/students/route.ts") + code("src/lib/students/create.ts");
   assert.equal((students.match(/if \(!canManageCampusOps\(user\)\)/g) ?? []).length, 3, "student POST, PATCH and DELETE are campus operations");
   // §2.2 #26: class-teacher assignment and the teaching mode are the academic lead's (PR O, CA only while the
   // principal seat is vacant, SA —); class identity (name, section, year, restore) is campus operations, and a

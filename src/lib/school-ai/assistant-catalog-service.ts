@@ -22,7 +22,7 @@ export function assertCatalogFocus(domain: AssistantFocus["domain"] | undefined,
 /** Existing domain options remain the authority for roles, current access and campus scope. */
 export async function getAssistantCatalog(user: AuthUser, requestedCampusId: string | null | undefined, raw: unknown, historical = false): Promise<AssistantCatalog> {
   const query = assistantCatalogQuerySchema.parse(raw);
-  const campusId = await schoolAiTransaction(user, async tx => { await assertConversationActor(user, tx, "add"); assertApprovalRole(user); const campus = await resolveWorkspaceCampus(user, requestedCampusId, tx); if (!campus) fail("Choose a campus.", 422); return campus!; });
+  const campusId = await schoolAiTransaction(user, async tx => { await assertConversationActor(user, tx, "add"); assertApprovalRole(user, query.operation); const campus = await resolveWorkspaceCampus(user, requestedCampusId, tx); if (!campus) fail("Choose a campus.", 422); return campus!; });
   const entities: AssistantEntity[] = []; let truncated = false; const facts: Record<string, unknown> = {};
   const add = (kind: AssistantEntityKind, id: string, label: string, values: AssistantEntity["facts"] = {}) => entities.push({ kind, id, label, facts: values });
   const addClass = (row: { id: string; name: string; section?: string | null; academicYear: number }) => add("class", row.id, [row.name, row.section, row.academicYear].filter(Boolean).join(" · "), { academicYear: row.academicYear });

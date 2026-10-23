@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertDelegatedChanges, dateOnly, defaultLocale, formatDateOnly, formatInstant, formatMoney, localePackageSchema, minorUnits, parseMoney, resolvePackage, sumMoney } from "../../src/lib/locale/package";
+import { assertDelegatedChanges, dateOnly, defaultLocale, formatDateOnly, formatInstant, formatMoney, localePackageSchema, localePatchSchema, parseStoredLocaleSettings, POLICY_KEYS, minorUnits, parseMoney, resolvePackage, sumMoney } from "../../src/lib/locale/package";
 import { catalogs } from "../../src/lib/locale/messages";
 import { workflowSample } from "../../src/lib/locale/samples";
 
@@ -71,3 +71,19 @@ test("all supported notification templates carry Arabic copy and escaped RTL HTM
  for(const currency of ["PKR","SAR","AED","USD"]) {assert.equal(parseMoney("1234.56",currency).minor,123456);assert.match(formatMoney({minor:123456,currency},defaultLocale),/1,234\.56/);}
  assert.equal(parseMoney("1234.567","KWD").minor,1234567);
  });
+
+
+test("registration country metadata does not break locale loading or widen editable policy keys", () => {
+ const stored = { country: "PK", countryIso: "PK", currency: "PKR" };
+ const settings = parseStoredLocaleSettings(stored);
+ assert.deepEqual(settings, { country: "PK", currency: "PKR" });
+ assert.equal(resolvePackage(settings).currency, "PKR");
+ assert.equal(stored.countryIso, "PK", "persisted country identity must remain intact");
+ assert.equal(resolvePackage(parseStoredLocaleSettings({ country: "OTHER", countryIso: "CA", currency: "USD" })).country, "OTHER");
+ assert.deepEqual(parseStoredLocaleSettings({}), {});
+ assert.throws(() => localePatchSchema.parse(stored), "country identity is not an editable locale preference");
+ assert.ok(!POLICY_KEYS.includes("countryIso" as never));
+ assert.throws(() => parseStoredLocaleSettings({ countryIso: "invalid" }));
+ assert.throws(() => parseStoredLocaleSettings({ currency: "invalid", countryIso: "PK" }));
+ assert.throws(() => parseStoredLocaleSettings({ unexpected: true }));
+});

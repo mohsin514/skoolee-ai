@@ -1,3 +1,4 @@
+import { canConfigureCampus } from "./setup-role";
 import { riskIndicatorSchema,riskModules } from "./school-operations-risk";
 import { approvalSeparationDecision, type ApprovalSeparationDecision, type DeliveryPolicySource, type ResolvedDeliveryPolicy } from "./delivery-policy";
 import type { AuthUser } from "@/lib/auth";
@@ -68,6 +69,7 @@ const PRINCIPAL_TOOLS: readonly SchoolAiToolOperation[] = [...ACADEMIC_TOOLS, "o
  */
 export function schoolAiOperationsFor(role: string, seats: { academicLead: boolean; financeDesk: boolean }): Set<SchoolAiToolOperation> {
   if (role === "PRINCIPAL") return new Set(PRINCIPAL_TOOLS);
+  if (role === "ACCOUNTANT") return new Set(FINANCE_TOOLS);
   if (role === "CAMPUS_ADMIN" || role === "ADMIN") {
     return new Set([...OPERATOR_TOOLS, ...(seats.financeDesk ? FINANCE_TOOLS : []), ...(seats.academicLead ? ACADEMIC_TOOLS : [])]);
   }
@@ -150,7 +152,8 @@ export function canAccessWorkspaceRecord(user: AuthUser, record: WorkspaceAccess
   }
   return record.createdById === user.userId;
 }
-export function assertApprovalRole(user: AuthUser) {
+export function assertApprovalRole(user: AuthUser, operation?: string) {
+  if (user.role === "ACCOUNTANT" && (operation === "finance.apply_operation" || operation === "fees.generate_invoices")) return;
   if (!isSchoolAiManager(user)) throw new SchoolAiError("Only an authorized school administrator or principal can approve this saved version.", 403);
 }
 
@@ -241,6 +244,7 @@ const workflowPermissions: Record<string, PermissionModule> = {
 export async function assertWorkspaceDomainPermission(user: AuthUser, kind: WorkspaceKind, data: Record<string, unknown>, action: "view" | "add" | "edit", permissions?: WorkspacePermissionSnapshot) {
   const assertPermission = (actor: AuthUser, module: PermissionModule, required: PermissionAction) => assertWorkspacePermission(actor, module, required, permissions);
   if (!allowedWorkspaceKinds(user).includes(kind)) throw new SchoolAiError("This workspace type is outside your role.", 403);
+  if (kind === "ONBOARDING" && action !== "view" && !canConfigureCampus(user.role)) throw new SchoolAiError("Campus setup must be completed by a campus administrator.", 403);
   if (EXAM_DOMAIN_WORKSPACE_KINDS.includes(kind)) await assertPermission(user, "exams", action);
   if (kind === "SOURCE") {
     const sourceModules: Record<string, PermissionModule> = { fee_sheet: "fees", register: "students", staff_list: "staff", timetable: "timetable", paper: "exams", answer_script: "exams", syllabus: "exams" };
@@ -250,8 +254,8 @@ export async function assertWorkspaceDomainPermission(user: AuthUser, kind: Work
   if (kind === "POLICY" && data.scope === "finance") await assertPermission(user, "fees", action);
   if (kind === "WORKFLOW") {
     if (data.proposal) {
-      assertApprovalRole(user);
       const operation = (data.proposal as { operation?: string }).operation;
+      assertApprovalRole(user, operation);
       if(operation === "operations.record_risk_decision") {
         const indicator=riskIndicatorSchema.parse((data.proposal as {indicator?:unknown}).indicator); for(const moduleName of riskModules(indicator))await assertPermission(user,moduleName,"view");
       } else if (operation === "setup.apply_changes") {
@@ -346,13 +350,13 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
   // Decoupled from announcements (G42): promotion is its own campus-operations tool.
   const canPromote = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && students?.canView && students?.canEdit));
   const fees = permissions.get("fees");
-  const canGenerateInvoices = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd));
+  const canGenerateInvoices = (isSchoolAiManager(user) || user.role === "ACCOUNTANT") && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd));
   const canPlanExams = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && exam?.canView && exam?.canAdd && exam?.canEdit && students?.canView));
   const accounts = permissions.get("accounts"), attendance = permissions.get("attendance");
   const staff = permissions.get("staff");
   const canReviewRisks = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && (attendance?.canView && students?.canView || timetable?.canView && permissions.get("leave")?.canView || exam?.canView && permissions.get("reports")?.canView)));
   const canSchoolSetup = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && timetable?.canView && timetable?.canAdd && staff?.canView && staff?.canAdd && students?.canView && students?.canEdit));
-  const canFinance = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd && fees?.canEdit && accounts?.canView && accounts?.canAdd));
+  const canFinance = (isSchoolAiManager(user) || user.role === "ACCOUNTANT") && (fixed || Boolean(ai?.canEdit && fees?.canView && fees?.canAdd && fees?.canEdit && accounts?.canView && accounts?.canAdd));
   const canAttendance = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && attendance?.canView && attendance?.canAdd && students?.canView));
   const canSubstitutes = isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit && timetable?.canView && timetable?.canEdit));
   // G42: the matrix flags above say what the role's permissions allow; the seat allow-list says which tools
@@ -364,7 +368,7 @@ export async function getWorkspaceCapabilities(user: AuthUser): Promise<Workspac
     canCreate: fixed || Boolean(ai?.canAdd),
     canApprove: isSchoolAiManager(user) && (fixed || Boolean(ai?.canEdit)),
     canArchive: fixed || Boolean(ai?.canDelete),
-    canImportRoster: isSchoolAiManager(user) && (fixed || Boolean(ai?.canView && ai?.canAdd && students?.canView && students?.canAdd)),
+    canImportRoster: canConfigureCampus(user.role) && Boolean(ai?.canView && ai?.canAdd && students?.canView && students?.canAdd),
     kinds: allowedWorkspaceKinds(user).filter((kind) => !EXAM_DOMAIN_WORKSPACE_KINDS.includes(kind) || fixed || exam?.canView),
     campuses,
     subjects: subjects.map(({ class: cls, ...subject }) => ({ ...subject, className: [cls.name, cls.section].filter(Boolean).join(" · ") })),
