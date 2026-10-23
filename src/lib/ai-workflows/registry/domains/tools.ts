@@ -6,7 +6,7 @@ import { assistantCatalogQuerySchema } from "@/lib/school-ai/assistant-catalog";
 import { createWorkspaceRecord } from "@/lib/school-ai/repository";
 import { workspaceIdSchema, workflowModuleSchema } from "@/lib/school-ai/schemas";
 import { executeRoleAction } from "../../adapters/tool-actions";
-import { campusCreateSchema, libraryCreateSchema, personalPlanSchema, phoneCallSchema, platformInspectSchema, platformUpdateSchema, profileActionSchema, studentsCreateSchema, type ToolAction } from "../../adapters/tool-schemas";
+import { campusCreateSchema, personalPlanSchema, phoneCallSchema, platformInspectSchema, platformUpdateSchema, profileActionSchema, studentsCreateSchema, type ToolAction } from "../../adapters/tool-schemas";
 import { z } from "zod";
 import { defineCapability } from "../define";
 import { ownCampus, permission, predicate, roles } from "../gates";
@@ -71,14 +71,7 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
     preview: async (_ctx, input) => ({ title: "Add a campus", lines: [{ label: input.name, value: input.city }], counts: { campuses: 1 }, basis: input }),
     execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "campus.create", `Add campus ${input.name}`, input, idempotencyKey, "/super?view=campuses"),
   }),
-  defineCapability({
-    key: "library.book_create", version: 1, cluster: "C7", inventoryKeys: ["library.book_create", "library.create_books"], risk: "CREATE", roles: ["LIBRARIAN", "ADMIN", "CAMPUS_ADMIN"], class: "A",
-    classOverride: "Append-only; duplicate ISBNs refused.", input: libraryCreateSchema, evidence: ["/books"],
-    gates: [predicate("canManageLibrary|isCampusOperator", user => user.role === "LIBRARIAN" || isCampusOperator(user), ["LIBRARIAN", "ADMIN", "CAMPUS_ADMIN"]), ownCampus(), permission("library", "add")], scope: { kind: "own-campus" },
-    copy: c(["Add books to the catalogue", "Add titles with their copy counts to the library catalogue.", "Add 'Atlas of the World' by Collins, 2 copies"], ["إضافة كتب للفهرس", "إضافة عناوين مع عدد النسخ.", "أضف أطلس العالم، نسختان"], ["کیٹلاگ میں کتابیں شامل کریں", "عنوانات نسخوں کی تعداد کے ساتھ شامل کریں۔", "اٹلس آف دی ورلڈ کی 2 کاپیاں شامل کریں"]),
-    idempotency: { mode: "tx-receipt" }, source: { route: "POST /api/library", service: "src/lib/ai-workflows/adapters/tool-actions.ts:executeRoleAction", reuse: "automation-tool" },
-    execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "library.create_books", "Add books", input, idempotencyKey, "/librarian?view=catalogue"),
-  }),
+  // library.book_create moved to domains/desk/library.ts (Slice 6: ISBN merge, categories).
   defineCapability({
     key: "front_desk.call_log", version: 1, cluster: "C7", inventoryKeys: ["front_desk.call_log", "front_desk.log_call"], risk: "CREATE", roles: ["RECEPTIONIST", "ADMIN", "CAMPUS_ADMIN"], class: "A",
     classOverride: "Append-only record; nothing is sent.", input: phoneCallSchema, evidence: ["/name", "/phone", "/purpose"],

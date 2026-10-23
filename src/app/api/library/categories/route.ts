@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { createCategory } from "@/lib/library/catalogue-command";
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,16 +35,7 @@ export async function POST(req: NextRequest) {
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name || "").trim();
-    if (!name) throw new ApiError("name is required", 400);
-
-    const existing = await prisma.bookCategory.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("Category with this name already exists", 409);
-
-    const data = await prisma.bookCategory.create({
-      data: { campusId, name },
-    });
+    const data = await createCategory(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {
