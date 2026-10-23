@@ -1,5 +1,5 @@
 "use client";
-import { AutomaticWorkspace } from "@/components/automation/automatic-workspace";
+import { AskWorkspace } from "@/components/ai-workflows/ask-workspace";
 
 import { roleGuideCopy } from "@/components/onboarding/role-guide-copy";
 import { canConfigureCampus, roleAllowsWorkflowTab } from "@/lib/school-ai/setup-role";
@@ -65,11 +65,11 @@ const tabs = [
   { id: "overview", Icon: LayoutDashboard }, { id: "schoolSetup", Icon: ListChecks }, { id: "schoolOperations", Icon: CalendarDays }, { id: "financeOperations", Icon: ReceiptText }, { id: "runs", Icon: ListChecks }, { id: "sources", Icon: FileText }, { id: "curriculum", Icon: BookOpen }, { id: "academicSetup", Icon: CalendarDays }, { id: "timetableSetup", Icon: Clock3 }, { id: "announcements", Icon: Mail }, { id: "examPlanning", Icon: CalendarDays }, { id: "feeInvoices", Icon: ReceiptText }, { id: "setupTasks", Icon: ListChecks }, { id: "work", Icon: ClipboardList }, { id: "policies", Icon: ShieldCheck }, {id:"knowledge",Icon:BookOpen}, { id: "history", Icon: History },
 ] as const;
 
-export function SchoolAIWorkspace(props: { role?: string; campusId?: string | null; examOnly?: boolean } = {}) {
+export function SchoolAIWorkspace(props: { role?: string; campusId?: string | null; examOnly?: boolean; workflowsV2?: { practiceMode: boolean } | null } = {}) {
   return <WorkspaceDraftBoundary><SchoolAIWorkspaceContent {...props} /></WorkspaceDraftBoundary>;
 }
 
-function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId, examOnly = false }: { role?: string; campusId?: string | null; examOnly?: boolean }) {
+function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId, examOnly = false, workflowsV2 = null }: { role?: string; campusId?: string | null; examOnly?: boolean; workflowsV2?: { practiceMode: boolean } | null }) {
   const searchParams = useSearchParams();
   const setupIntent = searchParams.get("setup") === "1" && !searchParams.has("workflow");
   const { language } = useLocale();
@@ -390,7 +390,7 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     {/* SKO-500: the sample sits below the rail, folded, and goes away once a live AI provider is configured. */}
     {examOnly && !(featureStatusKnown && features.assistant) && <details className="sk-panel mt-5 p-3 sm:p-4" data-studio-sample><summary className="cursor-pointer text-sm font-semibold text-ink-muted">{studioHomeCopy(language).sampleDisclosure}</summary><div className="mt-3"><DemoWorkflowPanel language={language} initialWorkflow="paper" /></div></details>}
     {tab === "overview" && !examOnly && <>
-      {(!needsCampus || role === "SUPER_ADMIN") && <AutomaticWorkspace key={`automatic-${campusId}`} campusId={campusId} role={role} roleSetup={!canConfigureCampus(role) && setupIntent} autoStart={!canConfigureCampus(role) && setupIntent} />}
+      {(!needsCampus || role === "SUPER_ADMIN") && <AskWorkspace key={`ask-${campusId}`} campusId={campusId ?? null} practiceMode={workflowsV2?.practiceMode ?? false} enabled={Boolean(workflowsV2)} />}
       <WorkspaceLaunchpad language={language} tabs={visibleTabs} onboarding={onboarding} scopeName={subject ? `${subject.className} · ${subject.name}` : capabilities.campuses.find(item => item.id === campusId)?.name} needsCampus={needsCampus} needsSubject={needsSubject} hasCampuses={capabilities.campuses.length > 0} hasSubjects={subjects.length > 0} canCreate={canCreate} canOnboard={canRunQuestionnaire} openingSetup={openingSetup} featureState={featureStatusKnown ? features.assistant ? "live" : "prototype" : featureStatusFailed ? "unknown" : "checking"} onSetup={beginSetup} onOpen={selectTab} onRefreshFeatures={() => void refreshFeatures()} setupVariant={heroMode ? "outline" : "default"} />
       {nextCursor && <p className="text-xs text-ink-muted">{c.loadedRecords}</p>}
       <div className={styles.metrics}>{[{ label: c.savedPlans, count: active.filter(record => record.kind === "WORKFLOW").length }, { label: c.reviewCount, count: active.filter(record => record.status === "IN_REVIEW").length }, { label: c.approvedSources, count: active.filter(record => record.kind === "SOURCE" && record.status === "APPROVED").length }].map(metric => <div className={`sk-panel ${styles.metric}`} key={metric.label}><span className={styles.metricNumber}>{new Intl.NumberFormat(language).format(metric.count)}</span><span className={styles.metricLabel}>{metric.label}</span></div>)}</div>

@@ -1,8 +1,22 @@
-import { requireAutomaticUser as requireAuthUser } from "@/lib/automation/auth";
-import { assertSameOrigin } from "@/lib/auth/same-origin";
-import { authRateLimit } from "@/lib/auth/rate-limit";
-import { readBoundedJson, schoolAiError } from "@/lib/school-ai/http";
-import { SchoolAiError } from "@/lib/school-ai/access";
-import { listAutomaticJobs, startAutomaticJob } from "@/lib/automation/service";
-export async function GET() { try { return Response.json({ jobs: await listAutomaticJobs(await requireAuthUser()) }, { headers: { "Cache-Control": "private, no-store" } }); } catch (error) { return schoolAiError(error); } }
-export async function POST(request: Request) { try { assertSameOrigin(request); const user = await requireAuthUser(); if (!(await authRateLimit(`automatic:${user.userId}`, { limit: 10, windowMs: 300000 })).ok) throw new SchoolAiError("Please wait before starting more workflows.", 429); return Response.json({ job: await startAutomaticJob(user, await readBoundedJson(request, 32000)) }); } catch (error) { return schoolAiError(error); } }
+import { requireAutomaticUser } from "@/lib/ai-workflows/auth";
+import { prisma } from "@/lib/db/prisma";
+import { inTenant } from "@/lib/ai-workflows/jobs/actor";
+import { workflowErrorResponse, workflowJson } from "@/lib/ai-workflows/http";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * Retired engine (SKO-550 Slice 1h). Earlier jobs stay readable for one release; nothing new starts here.
+ * New requests use /api/ai-workflows, where each change is confirmed or handed to its approver.
+ */
+export async function GET() {
+  try {
+    const user = await requireAutomaticUser();
+    const rows = await inTenant(user, () => prisma.schoolAiRequest.findMany({ where: { schoolId: user.schoolId, actorId: user.userId, feature: "AUTOMATIC_SETUP_V1" }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, status: true, createdAt: true, reply: true } }));
+    return workflowJson({ retired: true, jobs: rows.map(row => ({ id: row.id, status: row.status, createdAt: row.createdAt, job: row.reply ? JSON.parse(row.reply) : null })) });
+  } catch (error) { return workflowErrorResponse(error); }
+}
+
+export function POST() {
+  return workflowJson({ code: "NOT_CONNECTED", successor: "/api/ai-workflows" }, { status: 410 });
+}

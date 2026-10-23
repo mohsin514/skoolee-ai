@@ -6,9 +6,12 @@ import { z } from "zod";
  * Omit only these redundant bounds in the provider's schema; preserve integer
  * types, business limits and all text. The original Zod schema still validates
  * the response, and the complete outgoing prompt still passes the PII scanner.
+ * The model writes what the schema parses, so describe the input side: output
+ * mode cannot represent transforms (e.g. exam term normalisation) and throws.
  */
 export function aiOutputSchema(schema: z.ZodType) {
   return z.toJSONSchema(schema, {
+    io: "input",
     override: ({ jsonSchema }) => {
       if (jsonSchema.type !== "integer") return;
       if (jsonSchema.maximum === Number.MAX_SAFE_INTEGER) delete jsonSchema.maximum;

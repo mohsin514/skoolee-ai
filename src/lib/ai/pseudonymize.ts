@@ -31,21 +31,60 @@ export type PIIKind = "STUDENT" | "PERSON" | "PHONE" | "EMAIL" | "ADDRESS" | "ID
 
 // Object keys whose values are personal identifiers. Matched case-insensitively
 // against the whole key, so `guardianWhatsapp`, `parent_email` etc. are covered.
+// Deny by default: every key ending in "name" (and its localised `nameUr`/`nameAr`
+// variants) is a person unless it is explicitly cleared below.
 const SENSITIVE_KEYS: Array<{ pattern: RegExp; kind: PIIKind }> = [
   { pattern: /studentname|student_name/i, kind: "STUDENT" },
-  { pattern: /(full|guardian|parent|father|mother|teacher|staff|contact|principal)?_?name$/i, kind: "PERSON" },
-  { pattern: /^name$/i, kind: "PERSON" },
+  { pattern: /name_?(ur|ar|en)?$/i, kind: "PERSON" },
   { pattern: /whatsapp|phone|mobile|contact_?no|cell/i, kind: "PHONE" },
   { pattern: /email/i, kind: "EMAIL" },
   { pattern: /address/i, kind: "ADDRESS" },
   { pattern: /cnic|nic|b_?form|nationalid|national_id/i, kind: "ID" },
 ];
 
-function classifyKey(key: string): PIIKind | null {
+/**
+ * Reviewed non-person labels. Checked before SENSITIVE_KEYS so the model sees
+ * "7B" and "Mathematics" instead of [PERSON_n]. Adding a key here is a privacy
+ * decision: tests/ai/pseudonymize-schema.test.ts fails on any Prisma `*name*`
+ * field that is neither a person nor reviewed here.
+ */
+export const CLEAR_KEYS = new Set([
+  "className", "subjectName", "campusName", "schoolName", "stopName", "gradeName", "departmentName",
+  "designationName", "sourceCurriculumName", "bankName", "tableName", "shortName",
+]);
+
+/** Models whose bare `name` column is a label, not a person (reviewed with the schema test). */
+export const CLEAR_NAME_MODELS = new Set([
+  "School", "Campus", "StaffDesignation", "Department", "LeaveType", "Class", "AdmissionForm", "StudentCategory",
+  "StudentGroup", "Subject", "Holiday", "FeeType", "FeeGroup", "FeeDiscount", "ChartOfAccount", "PaymentMethodRef",
+  "FeeFineRule", "ServiceCategory", "TransportStop", "IntegrationConnection", "IdentityConnection", "DormRoomType",
+  "BookCategory", "ItemCategory", "Item", "ItemStore", "CertificateTemplate", "SecureBrowserProfile", "Pilot",
+  "PayrollProvider", "PlanningScenario", "QuestionNetwork", "EvidenceFramework", "CanteenItem",
+]);
+/** Models whose bare `name` is a person (an enquirer, visitor, caller, account holder or sole trader). */
+export const PERSON_NAME_MODELS = new Set(["AdmissionQuery", "Supplier", "VisitorLog", "PhoneCallLog", "IdentityLinkRequest", "BankAccount"]);
+
+// A bare `name` is cleared only inside a container named after a cleared model,
+// e.g. { classes: [{ name: "7B" }] } or { subject: { name: "Physics" } }.
+const CLEAR_NAME_CONTAINERS = new Set([...CLEAR_NAME_MODELS].flatMap(model => {
+  const singular = model[0].toLowerCase() + model.slice(1);
+  return [singular, `${singular}s`, `${singular}es`, singular.replace(/y$/, "ies")];
+}));
+
+export function classifyKey(key: string, container: string | null = null): PIIKind | null {
+  if (CLEAR_KEYS.has(key)) return null;
+  if (/^name$/i.test(key) && container && CLEAR_NAME_CONTAINERS.has(container)) return null;
   for (const { pattern, kind } of SENSITIVE_KEYS) {
     if (pattern.test(key)) return kind;
   }
   return null;
+}
+
+// Replacement respects Unicode word boundaries so a registered "Ali" never
+// rewrites "Alignment" and a short token never corrupts ids, numbers or JSON.
+function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function replaceWhole(text: string, original: string, replacement: string) {
+  return text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(original)}(?![\\p{L}\\p{N}])`, "gu"), () => replacement);
 }
 
 /**
@@ -78,7 +117,7 @@ export class Pseudonymizer {
     let out = text;
     const originals = [...this.forward.keys()].sort((a, b) => b.length - a.length);
     for (const original of originals) {
-      out = out.split(original).join(this.forward.get(original)!);
+      out = replaceWhole(out, original, this.forward.get(original)!);
     }
     return out;
   }
@@ -112,20 +151,20 @@ export class Pseudonymizer {
    * into a prompt.
    */
   maskObject<T>(value: T): T {
-    return this.walk(value, null) as T;
+    return this.walk(value, null, null) as T;
   }
 
-  private walk(value: unknown, keyKind: PIIKind | null): unknown {
+  private walk(value: unknown, keyKind: PIIKind | null, container: string | null): unknown {
     if (typeof value === "string") {
       return keyKind ? this.token(value, keyKind) : value;
     }
     if (Array.isArray(value)) {
-      return value.map((item) => this.walk(item, keyKind));
+      return value.map((item) => this.walk(item, keyKind, container));
     }
     if (value && typeof value === "object") {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value)) {
-        out[k] = this.walk(v, classifyKey(k));
+        out[k] = this.walk(v, classifyKey(k, container), k);
       }
       return out;
     }

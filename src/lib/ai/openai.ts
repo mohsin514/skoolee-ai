@@ -218,18 +218,22 @@ async function completeWithOpenAI({
   temperature,
   maxTokens,
   signal,
+  json,
 }: {
   messages: ChatMessage[];
   temperature: number;
   maxTokens: number;
   /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
   signal?: AbortSignal;
+  /** Ask for a single JSON object (callers still validate it). */
+  json?: boolean;
 }): Promise<ProviderResult> {
   if (!approvedOpenAIEndpoint()) throw new Error("AI gateway policy blocks this OpenAI destination");
   const response = await getOpenAIClient().chat.completions.create({
     model: OPENAI_MODEL,
     messages,
     ...openAICompletionSettings(OPENAI_MODEL, temperature, maxTokens),
+    ...(json ? { response_format: { type: "json_object" as const } } : {}),
   }, { timeout: AI_TIMEOUT_MS, ...(signal ? { signal } : {}) });
 
   const text = response.choices[0]?.message?.content?.trim() || "";
@@ -352,6 +356,7 @@ async function completeWithProvider(
     temperature: number;
     maxTokens: number;
     signal?: AbortSignal;
+    json?: boolean;
   }
 ) {
   // Apply the same full-payload scanner to every destination, including a
@@ -376,18 +381,20 @@ async function completeChat({
   temperature,
   maxTokens,
   signal,
+  json,
 }: {
   messages: ChatMessage[];
   temperature: number;
   maxTokens: number;
   /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
   signal?: AbortSignal;
+  json?: boolean;
 }): Promise<ProviderResult> {
   const failures: string[] = [];
 
   for (const provider of providerOrder()) {
     try {
-      return await completeWithProvider(provider, { messages, temperature, maxTokens, signal });
+      return await completeWithProvider(provider, { messages, temperature, maxTokens, signal, json });
     } catch (error) {
       if (error instanceof PIILeakError) throw error;
       // A cancelled request is not a provider outage: never retry it against a fallback.
@@ -590,6 +597,7 @@ export async function generateAIDraft({
   temperature = 0.4,
   maxTokens = 700,
   signal,
+  json,
 }: {
   system: string;
   prompt: string;
@@ -597,6 +605,8 @@ export async function generateAIDraft({
   maxTokens?: number;
   /** SKO-408 R5.12: aborting stops the provider request; nothing is charged for it. */
   signal?: AbortSignal;
+  /** OpenAI JSON mode: the reply is one JSON object. Other providers ignore it; callers still validate. */
+  json?: boolean;
 }): Promise<AIDraftResult> {
   const result = await completeChat({
     messages: [
@@ -606,6 +616,7 @@ export async function generateAIDraft({
     temperature,
     maxTokens,
     signal,
+    json,
   });
 
   return {

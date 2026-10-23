@@ -27,6 +27,9 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  aiWorkflowJobs AiWorkflowJob[]
+  aiCapabilityGaps AiCapabilityGap[]
+  aiSetupResponses AiSetupResponse[]
   guardianChannelPreferences GuardianChannelPreference[]
   schoolAiSubstituteDuties SchoolAiSubstituteDuty[]
   schoolAiExamResultRevisions SchoolAiExamResultRevision[]
@@ -546,6 +549,8 @@ model RolePermission {
 model Campus {
   /// SKO-500: the exam coordinator (controller of examinations) seat; schedules and requests papers, never approves.
   examCoordinatorUserId String? @map("exam_coordinator_user_id")
+  aiWorkflowJobs AiWorkflowJob[]
+  aiSetupResponses AiSetupResponse[]
   guardianChannelPreferences GuardianChannelPreference[]
   schoolAiSubstituteDuties SchoolAiSubstituteDuty[]
   schoolAiExamResultRevisions SchoolAiExamResultRevision[]
@@ -9794,4 +9799,288 @@ model PilotLedgerSnapshot {
 
   @@index([schoolId, computedAt])
   @@map("pilot_ledger_snapshots")
+}
+
+// SKO-550 AI Workflows: one durable job per request or questionnaire. Children carry school_id and a
+// composite (job_id, school_id) key so a row can never point at another school's job. Typed school
+// operations keep their SchoolAiExecution receipts; other adapters record receipts on the intent ledger.
+model AiWorkflowJob {
+  id                   String    @id @default(uuid())
+  schoolId             String    @map("school_id")
+  school               School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId             String?   @map("campus_id")
+  campus               Campus?   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  actorId              String    @map("actor_id")
+  actorRole            String    @map("actor_role")
+  accessVersion        Int       @map("access_version")
+  sessionTokenHash     String?   @map("session_token_hash")
+  origin               String
+  conversationId       String?   @map("conversation_id")
+  setupResponseId      String?   @map("setup_response_id")
+  setupResponseVersion Int?      @map("setup_response_version")
+  parentJobId          String?   @map("parent_job_id")
+  schoolAiRunId        String?   @map("school_ai_run_id")
+  language             String
+  requestHash          String    @map("request_hash")
+  idempotencyKey       String    @map("idempotency_key")
+  status               String    @default("PLANNING")
+  outcome              String?
+  planVersion          Int       @default(0) @map("plan_version")
+  planMode             String    @default("STEPWISE") @map("plan_mode")
+  version              Int       @default(1)
+  eventSeq             Int       @default(0) @map("event_seq")
+  leaseToken           String?   @map("lease_token")
+  leaseOwner           String?   @map("lease_owner")
+  leaseExpiresAt       DateTime? @map("lease_expires_at")
+  nextWakeAt           DateTime? @map("next_wake_at")
+  budget               Json
+  usage                Json      @default("{}")
+  reservedCredits      Int       @default(0) @map("reserved_credits")
+  creditsCharged       Int       @default(0) @map("credits_charged")
+  reservationExpiresAt DateTime? @map("reservation_expires_at")
+  errorCode            String?   @map("error_code")
+  errorParams          Json?     @map("error_params")
+  unscopedReason       String?   @map("unscoped_reason")
+  expiresAt            DateTime  @map("expires_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  completedAt          DateTime? @map("completed_at")
+  segments             AiWorkflowSegment[]
+  steps                AiWorkflowStep[]
+  intents              AiWorkflowIntent[]
+  questions            AiWorkflowQuestion[]
+  confirmations        AiWorkflowConfirmation[]
+  handoffs             AiWorkflowHandoff[]
+  events               AiWorkflowEvent[]
+
+  @@unique([id, schoolId])
+  @@unique([schoolId, actorId, idempotencyKey])
+  @@index([status, nextWakeAt])
+  @@index([schoolId, actorId, updatedAt])
+  @@map("ai_workflow_jobs")
+}
+
+/// User-authored text only (the evidence base). Never sent back to clients verbatim from other users.
+model AiWorkflowSegment {
+  id         String        @id @default(uuid())
+  schoolId   String        @map("school_id")
+  jobId      String        @map("job_id")
+  job        AiWorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  ordinal    Int
+  kind       String
+  fieldKey   String?       @map("field_key")
+  text       String
+  normalized String
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@unique([jobId, ordinal])
+  @@index([schoolId, jobId])
+  @@map("ai_workflow_segments")
+}
+
+model AiWorkflowStep {
+  id                 String        @id @default(uuid())
+  schoolId           String        @map("school_id")
+  campusId           String?       @map("campus_id")
+  jobId              String        @map("job_id")
+  job                AiWorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  planVersion        Int           @map("plan_version")
+  stepKey            String        @map("step_key")
+  capabilityKey      String        @map("capability_key")
+  capabilityVersion  Int           @map("capability_version")
+  staticClass        String        @map("static_class")
+  effectiveClass     String        @map("effective_class")
+  status             String        @default("PENDING")
+  dependsOn          String[]      @default([]) @map("depends_on")
+  modelInput         Json          @map("model_input")
+  boundInput         Json?         @map("bound_input")
+  inputHash          String?       @map("input_hash")
+  inputProvenance    Json          @default("{}") @map("input_provenance")
+  evidence           Json          @default("[]")
+  missingFields      String[]      @default([]) @map("missing_fields")
+  preview            Json?
+  previewHash        String?       @map("preview_hash")
+  previewVersion     Int           @default(0) @map("preview_version")
+  contextFingerprint String?       @map("context_fingerprint")
+  idempotencyKey     String        @map("idempotency_key")
+  attempt            Int           @default(1)
+  handoffId          String?       @map("handoff_id")
+  receipt            Json?
+  errorCode          String?       @map("error_code")
+  errorParams        Json?         @map("error_params")
+  version            Int           @default(1)
+  startedAt          DateTime?     @map("started_at")
+  finishedAt         DateTime?     @map("finished_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  @@unique([id, schoolId])
+  @@unique([jobId, planVersion, stepKey])
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId, jobId, status])
+  @@map("ai_workflow_steps")
+}
+
+/// Write-ahead ledger: INTENT before the domain write, COMMITTED (with receipt) after it. A replay finds
+/// the committed receipt; an INTENT without a commit is retried only when the adapter's write is idempotent.
+model AiWorkflowIntent {
+  id                String        @id @default(uuid())
+  schoolId          String        @map("school_id")
+  campusId          String?       @map("campus_id")
+  jobId             String        @map("job_id")
+  job               AiWorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  actorId           String        @map("actor_id")
+  stepId            String        @map("step_id")
+  idempotencyKey    String        @map("idempotency_key")
+  capabilityKey     String        @map("capability_key")
+  capabilityVersion Int           @map("capability_version")
+  inputHash         String        @map("input_hash")
+  state             String        @default("INTENT")
+  receipt           Json?
+  createdAt         DateTime      @default(now()) @map("created_at")
+  committedAt       DateTime?     @map("committed_at")
+
+  @@unique([schoolId, actorId, idempotencyKey])
+  @@index([schoolId, state, createdAt])
+  @@map("ai_workflow_intents")
+}
+
+model AiWorkflowQuestion {
+  id           String        @id @default(uuid())
+  schoolId     String        @map("school_id")
+  jobId        String        @map("job_id")
+  job          AiWorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  stepId       String?       @map("step_id")
+  pointer      String?
+  kind         String
+  promptKey    String        @map("prompt_key")
+  promptParams Json          @default("{}") @map("prompt_params")
+  options      Json          @default("[]")
+  status       String        @default("OPEN")
+  answer       Json?
+  answeredById String?       @map("answered_by_id")
+  answeredAt   DateTime?     @map("answered_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@index([schoolId, jobId, status])
+  @@map("ai_workflow_questions")
+}
+
+/// A class-B step runs only with a confirmation bound to its exact input, preview and session.
+model AiWorkflowConfirmation {
+  id               String        @id @default(uuid())
+  schoolId         String        @map("school_id")
+  jobId            String        @map("job_id")
+  job              AiWorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  stepId           String        @map("step_id")
+  previewVersion   Int           @map("preview_version")
+  previewHash      String        @map("preview_hash")
+  inputHash        String        @map("input_hash")
+  jobVersion       Int           @map("job_version")
+  batchId          String?       @map("batch_id")
+  setHash          String?       @map("set_hash")
+  confirmedById    String        @map("confirmed_by_id")
+  sessionTokenHash String?       @map("session_token_hash")
+  clientCommandId  String        @map("client_command_id")
+  expiresAt        DateTime      @map("expires_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  @@unique([stepId, previewVersion])
+  @@unique([schoolId, confirmedById, clientCommandId])
+  @@map("ai_workflow_confirmations")
+}
+
+model AiWorkflowHandoff {
+  id               String        @id @default(uuid())
+  schoolId         String        @map("school_id")
+  campusId         String?       @map("campus_id")
+  jobId            String        @map("job_id")
+  job              AiWorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  stepId           String        @unique @map("step_id")
+  kind             String
+  targetRoute      String        @map("target_route")
+  targetRoles      String[]      @default([]) @map("target_roles")
+  originRole       String        @map("origin_role")
+  originUserId     String        @map("origin_user_id")
+  recordId         String?       @map("record_id")
+  recordVersion    Int?          @map("record_version")
+  domainRef        Json?         @map("domain_ref")
+  prefill          Json?
+  prefillHash      String?       @map("prefill_hash")
+  idempotencyKey   String        @map("idempotency_key")
+  status           String        @default("OPEN")
+  claimedById      String?       @map("claimed_by_id")
+  claimedAt        DateTime?     @map("claimed_at")
+  claimExpiresAt   DateTime?     @map("claim_expires_at")
+  completedById    String?       @map("completed_by_id")
+  completedModel   String?       @map("completed_model")
+  completedId      String?       @map("completed_id")
+  completedReceipt Json?         @map("completed_receipt")
+  diff             Json?
+  expiresAt        DateTime      @map("expires_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId, campusId, status, kind])
+  @@map("ai_workflow_handoffs")
+}
+
+/// Ids and template keys only; never free text (scanned for PII in tests).
+model AiWorkflowEvent {
+  id        String        @id @default(uuid())
+  schoolId  String        @map("school_id")
+  jobId     String        @map("job_id")
+  job       AiWorkflowJob @relation(fields: [jobId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  seq       Int
+  type      String
+  stepId    String?       @map("step_id")
+  payload   Json          @default("{}")
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@unique([jobId, seq])
+  @@index([schoolId, jobId])
+  @@map("ai_workflow_events")
+}
+
+/// What people asked for that AI could not do yet, masked; drives which adapters come next.
+model AiCapabilityGap {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  actorRole     String   @map("actor_role")
+  language      String
+  reason        String
+  nearestKey    String   @default("") @map("nearest_key")
+  maskedSummary String   @map("masked_summary")
+  count         Int      @default(1)
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at")
+
+  @@unique([schoolId, actorRole, nearestKey, reason])
+  @@map("ai_capability_gaps")
+}
+
+/// One per user per role questionnaire (first-login setup).
+model AiSetupResponse {
+  id                String    @id @default(uuid())
+  schoolId          String    @map("school_id")
+  school            School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId          String?   @map("campus_id")
+  campus            Campus?   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  userId            String    @map("user_id")
+  role              String
+  questionnaireKey  String    @map("questionnaire_key")
+  definitionVersion Int       @map("definition_version")
+  version           Int       @default(1)
+  answers           Json      @default("{}")
+  confirmedKeys     String[]  @default([]) @map("confirmed_keys")
+  status            String    @default("DRAFT")
+  deferrals         Int       @default(0)
+  jobId             String?   @map("job_id")
+  submittedAt       DateTime? @map("submitted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([schoolId, userId, questionnaireKey])
+  @@map("ai_setup_responses")
 }
