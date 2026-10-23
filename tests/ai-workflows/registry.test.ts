@@ -73,3 +73,12 @@ test("never-automatable surfaces are excluded with a reason", () => {
   for (const key of ["auth.login", "payments.stripe_webhook", "system.risk_digest", "exams.attempt.save_or_submit", "uploads.presign_document"]) assert.ok(exclusionFor(key)?.reason, key);
   assert.equal(exclusionFor("library.issue_copy"), null);
 });
+
+test("lint 14: Exam Studio's chain is only ever deep-linked, never run", async () => {
+  const { examStudioViolation, isExamStudioOwned } = await import("../../src/lib/ai-workflows/registry/exam-studio");
+  for (const entry of REGISTRY.values()) assert.equal(examStudioViolation(entry), null, entry.key);
+  for (const key of ["exams.paper.generate", "studio.seal_paper", "syllabus.import", "exams.datesheet.publish"]) assert.ok(isExamStudioOwned(key), key);
+  for (const key of ["exams.create", "curriculum.import_topics", "exams.session.create"]) assert.ok(!isExamStudioOwned(key), key);
+  const runner = { ...[...REGISTRY.values()].find(entry => entry.class === "B")!, key: "exams.paper.generate", inventoryKeys: [] } as never;
+  assert.match(examStudioViolation(runner) ?? "", /only a class C DEEP_LINK/);
+});
