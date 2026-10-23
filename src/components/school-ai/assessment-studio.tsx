@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
-import { curriculumDataSchema, paperDataSchema, validateBlueprint, validateCurriculumApproval, validatePaperApproval, type AssessmentLocale, type Blueprint, type CurriculumData, type PaperData, type Question } from "@/lib/school-ai/assessment";
+import { revisedDraftFrom, curriculumDataSchema, paperDataSchema, validateBlueprint, validateCurriculumApproval, validatePaperApproval, type AssessmentLocale, type Blueprint, type CurriculumData, type PaperData, type Question } from "@/lib/school-ai/assessment";
 import { AdvancedQuestionOptions, AdvancedQuestionKey, CurriculumCoverage, PaperResources } from "./assessment-extensions";
 import { assessmentExtensionCopy } from "./assessment-extension-copy";
 import { assessmentCopy } from "./assessment-copy";
@@ -192,7 +192,7 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
     {issues.length > 0 && <div role="alert" className="rounded-xl border border-status-error-border bg-status-error-surface p-4 text-sm text-status-error-text"><p className="font-semibold">{t.invalid}</p><ul className="mt-2 list-disc space-y-1 ps-5">{issues.map((issue, index) => <li key={index}>{issue}</li>)}</ul></div>}
     {!curriculum && !paper && <p className="sk-panel p-8 text-center text-ink-subtle">{records.some(record => ["CURRICULUM", "PAPER"].includes(record.kind)) ? prototypeCopy(locale).selectSaved : t.empty}</p>}
     {(curriculum || paper) && <>
-      {readonly && <div className="sk-panel flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm">{t.readonly}</p><Button variant="outline" disabled={!canCreate || busy} onClick={() => { setSelected(null); setDirty(true); idempotencyKey.current = uid(); }}>{t.clone}</Button></div>}
+      {readonly && <div className="sk-panel flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm">{t.readonly}</p><Button variant="outline" disabled={!canCreate || busy} onClick={() => { if (paper) setPaper(revisedDraftFrom(paper)); setSelected(null); setDirty(true); idempotencyKey.current = uid(); }}>{t.clone}</Button></div>}
       <fieldset disabled={readonly || busy} className="space-y-5">
         {curriculum && <>
           <div className="sk-panel grid gap-4 p-5 md:grid-cols-2"><TextField name="curriculum-title" label={t.curriculum} value={title} onChange={(value) => { setTitle(value); setDirty(true); }} /><FormField name="curriculum-subject" label={t.subject}><Select value={curriculum.subjectId} onChange={(event) => { const subject = subjects.find((item) => item.id === event.target.value); if (subject) changeCurriculum({ ...curriculum, subjectId: subject.id, classId: subject.classId }); }}>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name} · {subject.className}</option>)}</Select></FormField><TextField name="curriculum-year" label={t.year} value={curriculum.academicYear} onChange={(value) => changeCurriculum({ ...curriculum, academicYear: value })} /><TextField name="curriculum-board" label={t.board} value={curriculum.board} onChange={(value) => changeCurriculum({ ...curriculum, board: value })} /></div>

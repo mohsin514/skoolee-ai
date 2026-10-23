@@ -9,6 +9,9 @@ import { useLocale } from "@/components/locale/LocaleProvider";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSlotsCopy } from "@/lib/school-ai/exam-studio-copy-slots";
 import type { SlotView } from "@/lib/school-ai/paper-slot-service";
+import { Modal } from "@/components/ui/modal";
+import { ModerationPanel } from "./moderation-panel";
+import { UploadPaper } from "./upload-paper";
 
 /**
  * SKO-500: the papers the exam office asked this teacher to write. "Start the paper" opens (or creates
@@ -24,6 +27,8 @@ export function PapersOwed({ onOpenBrief }: { onOpenBrief?: (briefId: string, sl
   const [slots, setSlots] = useState<SlotView[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [comments, setComments] = useState<SlotView | null>(null);
+  const [uploading, setUploading] = useState<SlotView | null>(null);
   const load = useCallback(async () => {
     const response = await fetch("/api/school-ai/paper-slots/mine", { cache: "no-store" }).catch(() => null);
     const payload = response?.ok ? await response.json().catch(() => null) : null;
@@ -57,8 +62,16 @@ export function PapersOwed({ onOpenBrief }: { onOpenBrief?: (briefId: string, sl
             <Badge variant={slot.overdue ? "danger" : "neutral"} size="sm">{slot.overdue ? t.overdue : (t as Record<string, string>)[`status${slot.status}`] ?? slot.status}</Badge>
           </div>
         </div>
-        <Button type="button" size="sm" loading={busy === slot.id} disabled={Boolean(busy)} onClick={() => void open(slot)}>{slot.paperRecordId ? t.continueBrief : t.openBrief}</Button>
+        <span className="flex flex-wrap gap-2">
+          {/* SKO-501: a returned paper shows the moderator's comments. */}
+          {slot.status === "NEEDS_CORRECTION" ? <Button type="button" size="sm" variant="outline" onClick={() => setComments(slot)} data-see-comments>{t.seeComments}</Button> : null}
+          {/* SKO-501 (F2b): a paper already written elsewhere comes in as drafts to check. */}
+          {!slot.paperRecordId ? <Button type="button" size="sm" variant="outline" onClick={() => setUploading(slot)} data-upload-own>{t.uploadPaper}</Button> : null}
+          <Button type="button" size="sm" loading={busy === slot.id} disabled={Boolean(busy)} onClick={() => void open(slot)}>{slot.paperRecordId ? t.continueBrief : t.openBrief}</Button>
+        </span>
       </li>)}
     </ul>
+    {uploading ? <Modal title={t.uploadPaper} size="lg" onClose={() => setUploading(null)}><UploadPaper slotId={uploading.id} subjectId={(uploading.sections.find(section => section.teacherId === uploading.authorUserId) ?? uploading.sections[0])?.subjectId ?? null} classId={(uploading.sections.find(section => section.teacherId === uploading.authorUserId) ?? uploading.sections[0])?.classId ?? null} onDone={() => void load()} /></Modal> : null}
+    {comments ? <Modal title={t.returnedComments} size="lg" onClose={() => setComments(null)}><ModerationPanel slotId={comments.id} /></Modal> : null}
   </section>;
 }

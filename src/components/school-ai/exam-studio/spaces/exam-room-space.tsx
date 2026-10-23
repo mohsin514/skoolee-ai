@@ -23,7 +23,7 @@ import type { SlotView } from "@/lib/school-ai/paper-slot-service";
 type Exam = { id: string; title: string; classId: string; campusId: string; startsAt: string; endsAt: string; status: string; contentHash: string | null };
 const localInput = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
-export default function ExamRoomSpace({ language, scope, records }: StudioSpaceProps) {
+export default function ExamRoomSpace({ language, scope, records, capabilities }: StudioSpaceProps) {
   const t = studioSpacesCopy(language);
   const approved = useMemo(() => records.filter(record => record.kind === "PAPER" && record.status === "APPROVED" && (!scope.subjectId || record.data.subjectId === scope.subjectId)), [records, scope.subjectId]);
   const [paperId, setPaperId] = useState("");
@@ -46,6 +46,25 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
       setSittings((payload?.slots ?? []).filter(slot => slot.status !== "CANCELLED").flatMap(slot => slot.sections.map(section => ({ scheduleId: section.scheduleId, classId: section.classId, label: `${slot.subjectName} · ${section.name} · ${slot.sessionTitle}`, date: section.date, period: slot.period, durationMinutes: slot.durationMinutes, paperRecordId: slot.paperRecordId }))));
     }).catch(() => undefined);
   }, []);
+  // SKO-501: recompute a sealed sitting's hash and say whether it still matches its seal.
+  const [verified, setVerified] = useState<Record<string, { matches: boolean; prefix: string } | undefined>>({});
+  const verify = async (id: string) => {
+    const payload = await fetch(`/api/school-ai/exams/${encodeURIComponent(id)}/verify`, { cache: "no-store" }).then(response => (response.ok ? response.json() : null)).catch(() => null);
+    if (payload) setVerified(current => ({ ...current, [id]: { matches: Boolean(payload.matches), prefix: String(payload.recomputedPrefix ?? "") } }));
+  };
+  // SKO-501: the delivery selector (audit: the room hard-coded STANDARD). Secure delivery and its profile are the
+  // coordinator's choice; a teacher sees who sets it. Times are labelled with the campus time zone.
+  const [mode, setMode] = useState<"STANDARD" | "SECURE_BROWSER">("STANDARD");
+  const [profiles, setProfiles] = useState<Array<{ id: string; name: string; version: number; status: string }>>([]);
+  const [profileId, setProfileId] = useState("");
+  useEffect(() => {
+    if (!capabilities.canApprove) return;
+    void fetch("/api/school-ai/secure-profiles", { cache: "no-store" }).then(response => (response.ok ? response.json() : null)).then(payload => {
+      const approved = ((payload?.profiles ?? []) as Array<{ id: string; name: string; version: number; status: string }>).filter(profile => profile.status === "APPROVED");
+      setProfiles(approved); setProfileId(current => current || approved[0]?.id || "");
+    }).catch(() => undefined);
+  }, [capabilities.canApprove]);
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const chooseSitting = (id: string) => {
     setScheduleId(id);
     const sitting = sittings.find(row => row.scheduleId === id);
@@ -75,7 +94,7 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
   const blockers = readiness ? readiness.blockers.length : 0;
   const release = async () => {
     setBusy(true); setMessage(null);
-    const response = await fetch("/api/school-ai/exams", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idempotencyKey: key, paperId: current, title, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), studentIds: chosen, mode: "STANDARD", ...(scheduleId ? { examScheduleId: scheduleId } : {}) }) });
+    const response = await fetch("/api/school-ai/exams", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idempotencyKey: key, paperId: current, title, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), studentIds: chosen, mode, ...(mode === "SECURE_BROWSER" && profileId ? { secureProfileId: profileId } : {}), ...(scheduleId ? { examScheduleId: scheduleId } : {}) }) });
     const payload = await response.json().catch(() => ({}));
     setBusy(false);
     if (!response.ok) { setMessage({ tone: "error", text: typeof payload.error === "string" ? payload.error : t.failed }); return; }
@@ -90,23 +109,33 @@ export default function ExamRoomSpace({ language, scope, records }: StudioSpaceP
       {readiness && (blockers ? <Alert tone="warning" compact live="polite" data-room-state="blocked">{fillStudioCopy(t.roomBlocked, [new Intl.NumberFormat(language).format(blockers)])}</Alert>
         : <Alert tone="success" compact live="polite" data-room-state="ready">{t.roomReady}{readiness.contentHashPrefix ? <> · <bdi dir="ltr" className="font-mono text-xs">#{readiness.contentHashPrefix}</bdi></> : null}</Alert>)}
       {sittings.length ? <label className="grid max-w-xl gap-1 text-sm font-semibold">{home.roomSitting}<Select aria-label={home.roomSitting} value={scheduleId} onChange={event => chooseSitting(event.target.value)}><option value="">{home.roomSittingNone}</option>{sittings.filter(row => !row.paperRecordId || row.paperRecordId === current).map(row => <option key={row.scheduleId} value={row.scheduleId}>{row.label} · {row.date}</option>)}</Select><span className="text-xs font-normal text-ink-subtle">{home.roomSittingHint}</span></label> : null}
+      {capabilities.canApprove ? <div className="grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1 text-sm font-semibold">{home.roomDelivery}<Select aria-label={home.roomDelivery} value={mode} onChange={event => setMode(event.target.value as "STANDARD" | "SECURE_BROWSER")} data-room-delivery><option value="STANDARD">{home.roomDeliveryStandard}</option><option value="SECURE_BROWSER">{home.roomDeliverySecure}</option></Select></label>
+        {mode === "SECURE_BROWSER" ? (profiles.length ? <label className="grid gap-1 text-sm font-semibold">{home.roomProfile}<Select aria-label={home.roomProfile} value={profileId} onChange={event => setProfileId(event.target.value)}>{profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name} · v{profile.version}</option>)}</Select></label> : <p className="text-sm text-status-warning-text">{home.roomNoProfiles}</p>) : null}
+      </div> : <p className="text-xs text-ink-subtle">{home.roomDeliveryTeacher}</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="grid gap-1 text-sm font-semibold">{t.roomTitle}<Input value={title} maxLength={160} onChange={event => setTitle(event.target.value)} /></label>
         <label className="grid gap-1 text-sm font-semibold">{t.roomOpens}<Input type="datetime-local" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label>
         <label className="grid gap-1 text-sm font-semibold">{t.roomCloses}<Input type="datetime-local" value={endsAt} onChange={event => setEndsAt(event.target.value)} /></label>
       </div>
+      <p className="text-xs text-ink-subtle" data-room-timezone>{fillStudioCopy(home.roomTimeZone, [timeZone])}</p>
       <fieldset className="space-y-1"><legend className="text-sm font-semibold">{t.roomCandidates}</legend>
         <label className="flex items-center gap-2 text-sm"><Checkbox checked={students.length > 0 && chosen.length === students.length} onChange={event => setChosen(event.target.checked ? students.map(student => student.id) : [])} />{t.roomAll}</label>
         <div className="grid gap-1 sm:grid-cols-2">{students.map(student => <label key={student.id} className="flex items-center gap-2 text-sm"><Checkbox checked={chosen.includes(student.id)} onChange={event => setChosen(previous => event.target.checked ? [...previous, student.id] : previous.filter(id => id !== student.id))} /><bdi dir="auto">{student.fullName}</bdi></label>)}</div>
       </fieldset>
-      <Button disabled={busy || !title.trim() || !chosen.length || !readiness || blockers > 0} onClick={() => void release()}>{t.roomRelease}</Button>
+      <Button disabled={busy || !title.trim() || !chosen.length || !readiness || blockers > 0 || (mode === "SECURE_BROWSER" && !profileId)} onClick={() => void release()}>{t.roomRelease}</Button>
       {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl border px-3 py-2 text-sm ${message.tone === "ok" ? "border-status-success-border bg-status-success-surface text-status-success-text" : "border-status-error-border bg-status-error-surface text-status-error-text"}`} data-room-result><bdi dir="auto">{message.text}</bdi></p>}
     </section>
     <section className="sk-panel space-y-2 p-5" aria-labelledby="room-delivered">
       <h3 id="room-delivered" className="font-semibold">{t.roomDelivered}</h3>
       {!exams.length ? <p className="text-sm text-ink-subtle">{t.roomNoneDelivered}</p> : <ul className="grid gap-2">{exams.map(exam => <li key={exam.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm" data-delivered-exam>
         <span><bdi dir="auto" className="font-semibold">{exam.title}</bdi> · {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(exam.startsAt))}{exam.contentHash ? <> · <Composed template={t.roomSealed} values={[<bdi key="hash" dir="ltr" className="font-mono text-xs">#{exam.contentHash.slice(0, 16)}</bdi>]} /></> : null}</span>
-        <Link href={`/ai/exams/${encodeURIComponent(exam.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>{t.openPaper}</Link>
+        <span className="flex flex-wrap gap-2">
+          {exam.contentHash ? <a href={`/api/school-ai/exams/${encodeURIComponent(exam.id)}/print`} target="_blank" rel="noopener" className={buttonVariants({ variant: "ghost", size: "sm" })} data-print-sitting>{home.printSealed}</a> : null}
+          {exam.contentHash ? <Button type="button" size="sm" variant="ghost" onClick={() => void verify(exam.id)} data-verify-sitting>{home.verifySeal}</Button> : null}
+          <Link href={`/ai/exams/${encodeURIComponent(exam.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>{t.openPaper}</Link>
+        </span>
+        {verified[exam.id] ? <p className={`w-full text-xs ${verified[exam.id]!.matches ? "text-status-success-text" : "text-status-error-text"}`} role="status">{fillStudioCopy(verified[exam.id]!.matches ? home.sealMatches : home.sealMismatch, [`#${verified[exam.id]!.prefix}`])}</p> : null}
       </li>)}</ul>}
     </section>
   </div>;

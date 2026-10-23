@@ -19,6 +19,7 @@ import { headsOfAuthor, membersHeadedBy } from "./department-heads";
 import { examChainPolicy, moderatorFor, validModerator } from "./exam-authority";
 import { resolveScopeDeliveryPolicy } from "./repository";
 import { paperDataSchema } from "./assessment";
+import { contentHash } from "./release";
 import { itemStateFor } from "./item-review";
 import { MARKS_DUE_WORKING_DAYS, defaultPaperDue, deriveSlotStatus, slotKey, slotOverdue, slotReadiness, workingDaysAfter, type PaperSlotStatus, type SlotFacts } from "./paper-slot-status";
 
@@ -153,7 +154,7 @@ type SlotRow = Awaited<ReturnType<typeof loadSlots>>[number];
 async function loadSlots(tx: TxClient, where: Record<string, unknown>) {
   return tx.examPaperSlot.findMany({ where, orderBy: [{ dueOn: "asc" }, { subjectName: "asc" }, { gradeName: "asc" }], take: 500, include: {
     examSession: { select: { id: true, title: true } },
-    schedules: { select: { id: true, date: true, subject: { select: { name: true } }, periodDefinition: { select: { periodNumber: true, startTime: true, endTime: true } }, exam: { select: { id: true, status: true, class: { select: { id: true, name: true, section: true } } } } }, orderBy: { date: "asc" } },
+    schedules: { select: { id: true, date: true, subject: { select: { id: true, name: true, teacherId: true } }, periodDefinition: { select: { periodNumber: true, startTime: true, endTime: true } }, exam: { select: { id: true, status: true, class: { select: { id: true, name: true, section: true } } } } }, orderBy: { date: "asc" } },
   } });
 }
 
@@ -166,7 +167,9 @@ export interface SlotView {
   authorUserId: string | null; authorName: string | null; moderatorUserId: string | null; moderatorName: string | null;
   paperRecordId: string | null; paperVersion: number | null; copiesRequested: number | null; printedAt: string | null;
   cancelledAt: string | null; cancelReason: string | null; lastNudgeAt: string | null; nudgeCount: number;
-  sections: Array<{ classId: string; name: string; examId: string; scheduleId: string; date: string }>;
+  sealedAt: string | null; sealPrefix: string | null; compromisedAt: string | null; lastDecision: { decision: string; at: string } | null;
+  corrigenda: Array<{ id: string; text: string; at: string }>;
+  sections: Array<{ classId: string; subjectId: string; teacherId: string | null; name: string; examId: string; scheduleId: string; date: string }>;
   dates: string[]; period: string | null;
 }
 
@@ -175,6 +178,12 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
   const name = new Map(people.map(row => [row.id, row.fullName]));
   const papers = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(row => row.paperRecordId).filter((value): value is string => Boolean(value)) }, kind: "PAPER" }, select: { id: true, status: true, version: true, data: true } });
   const paperById = new Map(papers.map(row => [row.id, row]));
+  // SKO-501: the latest moderation decision per slot. A signature binds to content, so it keeps holding
+  // across an approval's version bump (same hash) and lapses on any edit (new hash).
+  const moderations = rows.length ? await tx.examPaperModeration.findMany({ where: { schoolId: user.schoolId, slotId: { in: rows.map(row => row.id) } }, orderBy: { createdAt: "desc" }, select: { slotId: true, decision: true, contentHash: true, paperVersion: true, moderatorId: true, createdAt: true } }) : [];
+  const latestModeration = new Map<string, (typeof moderations)[number]>();
+  for (const row of moderations) if (!latestModeration.has(row.slotId)) latestModeration.set(row.slotId, row);
+  const hashOf = (data: unknown) => { const parsed = paperDataSchema.safeParse(data); if (!parsed.success) return null; try { return contentHash(parsed.data); } catch { return null; } };
   return rows.map(row => {
     const record = row.paperRecordId ? paperById.get(row.paperRecordId) : undefined;
     const parsed = record ? paperDataSchema.safeParse(record.data) : null;
@@ -182,7 +191,12 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
     const facts: SlotFacts = {
       cancelledAt: row.cancelledAt?.toISOString() ?? null, dueOn: ymd(row.dueOn)!,
       paper: record ? { status: record.status as "DRAFT" | "IN_REVIEW" | "APPROVED" | "ARCHIVED", version: record.version, itemStates: parsed?.success ? parsed.data.questions.map(itemStateFor) : [] } : null,
-      moderation: null,
+      moderation: (() => {
+        const latest = latestModeration.get(row.id);
+        if (!latest || !record) return null;
+        const current = hashOf(record.data);
+        return { decision: latest.decision as "SIGNED" | "RETURNED", paperVersion: current && current === latest.contentHash ? record.version : latest.paperVersion };
+      })(),
       seal: row.sealedAt ? { paperVersion: row.paperVersion ?? 0, sittingDate: ymd(row.sealedSittingDate) } : null,
       sittingDates: dates, printed: Boolean(row.printedAt), windowOpen: false, attendanceComplete: false, marksComplete: false,
       published: row.schedules.length > 0 && row.schedules.every(schedule => schedule.exam.status === "PUBLISHED"),
@@ -201,7 +215,10 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
       moderatorUserId: row.moderatorUserId, moderatorName: row.moderatorUserId ? name.get(row.moderatorUserId) ?? null : null,
       paperRecordId: row.paperRecordId, paperVersion: row.paperVersion, copiesRequested: row.copiesRequested, printedAt: row.printedAt?.toISOString() ?? null,
       cancelledAt: row.cancelledAt?.toISOString() ?? null, cancelReason: row.cancelReason, lastNudgeAt: row.lastNudgeAt?.toISOString() ?? null, nudgeCount: row.nudgeCount,
-      sections: row.schedules.map(schedule => ({ classId: schedule.exam.class.id, name: schedule.exam.class.section ? `${schedule.exam.class.name} ${schedule.exam.class.section}` : schedule.exam.class.name, examId: schedule.exam.id, scheduleId: schedule.id, date: ymd(schedule.date)! })),
+      sealedAt: row.sealedAt?.toISOString() ?? null, sealPrefix: row.sealHash ? row.sealHash.slice(0, 16) : null, compromisedAt: row.compromisedAt?.toISOString() ?? null,
+      corrigenda: (Array.isArray(row.corrigenda) ? row.corrigenda as Array<{ id: string; text: string; at: string }> : []).map(entry => ({ id: entry.id, text: entry.text, at: entry.at })),
+      lastDecision: latestModeration.get(row.id) ? { decision: latestModeration.get(row.id)!.decision, at: latestModeration.get(row.id)!.createdAt.toISOString() } : null,
+      sections: row.schedules.map(schedule => ({ classId: schedule.exam.class.id, subjectId: schedule.subject.id, teacherId: schedule.subject.teacherId, name: schedule.exam.class.section ? `${schedule.exam.class.name} ${schedule.exam.class.section}` : schedule.exam.class.name, examId: schedule.exam.id, scheduleId: schedule.id, date: ymd(schedule.date)! })),
       dates, period: period ? `${period.startTime}–${period.endTime}` : null,
     };
   });
@@ -312,11 +329,12 @@ export async function nudgeSlot(user: AuthUser, slotId: string, now = new Date()
  * tells the moderator.
  */
 export async function linkPaperToSlot(user: AuthUser, paper: { id: string; version: number; status: string; campusId: string | null }, slotId: string, tx: TxClient, action: string) {
-  const slot = await tx.examPaperSlot.findFirst({ where: { id: slotId, schoolId: user.schoolId, campusId: paper.campusId ?? "" }, select: { id: true, authorUserId: true, moderatorUserId: true, paperRecordId: true, cancelledAt: true, subjectName: true, gradeName: true, examSession: { select: { title: true } }, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
+  const slot = await tx.examPaperSlot.findFirst({ where: { id: slotId, schoolId: user.schoolId, campusId: paper.campusId ?? "" }, select: { id: true, authorUserId: true, moderatorUserId: true, paperRecordId: true, cancelledAt: true, sealedAt: true, subjectName: true, gradeName: true, examSession: { select: { title: true } }, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
   if (!slot) throw new ApiError("This paper names a request that is not in your campus.", 403);
   if (slot.authorUserId !== user.userId && !canManageOperations(user)) throw new ApiError("Only the paper's author writes the requested paper.", 403);
   if (slot.paperRecordId && slot.paperRecordId !== paper.id) throw new ApiError("Another paper already answers this request.", 409);
-  await tx.examPaperSlot.update({ where: { id: slot.id }, data: { paperRecordId: paper.id, paperVersion: paper.version } });
+  // A sealed slot keeps its sealed version, so a later edit reads CHANGED_AFTER_APPROVAL and cannot print.
+  await tx.examPaperSlot.update({ where: { id: slot.id }, data: slot.sealedAt ? { paperRecordId: paper.id } : { paperRecordId: paper.id, paperVersion: paper.version } });
 }
 
 /**

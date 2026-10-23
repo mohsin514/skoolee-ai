@@ -26,6 +26,7 @@ import { localeTag } from "@/lib/locale/package";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { FlagshipCard } from "@/components/ui/flagship";
 import { DepartmentQueue } from "@/components/school-ai/exam-studio/department-queue";
+import { ModerationQueue } from "@/components/school-ai/exam-studio/moderation-queue";
 import { PapersOwed } from "@/components/school-ai/exam-studio/papers-owed";
 import { TeachingLinePrompt } from "@/components/school-ai/exam-studio/teaching-line-prompt";
 
@@ -184,6 +185,8 @@ export default function TeacherToday() {
       <div className="space-y-3">
         {/* SKO-500: a head of department's approvals and Teaching Line jumps (renders nothing for others). */}
         <DepartmentQueue />
+        {/* SKO-501: papers waiting for this person's moderation. */}
+        <ModerationQueue />
         {/* SKO-500: papers the exam office asked this teacher to write (renders nothing when none are owed). */}
         <PapersOwed />
         {/* ── What needs you, before anything else (the one queue) ── */}

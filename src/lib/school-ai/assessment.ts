@@ -384,3 +384,14 @@ export function candidatePaper(paper: PaperData): CandidatePaper {
     questions: paper.questions.map(({ id: questionId, sectionId, type, prompt, marks, options, figures }) => ({ id: questionId, sectionId, type, prompt, marks, options: options.map(({ id: optionId, text }) => ({ id: optionId, text })), ...(figures?.length ? {figures:figures.filter(figure=>figure.approved).map(candidateFigure)} : {}) })),
   };
 }
+
+/**
+ * SKO-501 (audit 4.4, `assessment-studio.tsx:195`): "Create revised draft" from a reviewed, rehearsed,
+ * form-set or requested paper. A new record may not carry another record's review history, form-set
+ * membership, rehearsal state or paper request, so the revised draft drops exactly those and keeps the
+ * content (bank provenance included). Every item starts unreviewed, so review and rehearsal run again.
+ */
+export function revisedDraftFrom(paper: PaperData): PaperData {
+  const { formSet: _formSet, itemGroupIds: _groups, staleness: _staleness, slotId: _slot, ...rest } = paper;
+  return { ...rest, questions: paper.questions.map(({ review: _review, ...question }) => question) };
+}

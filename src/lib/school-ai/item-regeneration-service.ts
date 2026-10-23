@@ -52,7 +52,10 @@ export async function regenerateItem(user: AuthUser, recordId: string, questionI
   const target = paper.questions.find(question => question.id === questionId);
   if (!target) throw new SchoolAiError("That item is not in this paper.", 404);
   if (target.locked) throw new SchoolAiError("This item is pinned. Unpin it before regenerating it.", 409, "ITEM_PINNED");
-  const lockedQuestions = paper.questions.filter(question => question.id !== questionId).map(question => ({ ...question, locked: true }));
+  // SKO-501 (audit 4.4, critical): locked items are sent as content only; an item's review record is
+  // the paper's own history and the generation request refuses it, which broke regeneration for any
+  // paper with one reviewed item. The accepted candidate is merged back by id, so reviews are kept.
+  const lockedQuestions = paper.questions.filter(question => question.id !== questionId).map(question => ({ ...withoutReview(question), locked: true }));
   const receipt = await generatePaperWithReceipt(user, {
     idempotencyKey: input.idempotencyKey, curriculumId: paper.curriculumId, curriculumVersion: paper.curriculumVersion,
     blueprint: paper.blueprint, language: paper.language, ...(paper.coverageSection ? { coverageSection: paper.coverageSection } : {}), lockedQuestions,

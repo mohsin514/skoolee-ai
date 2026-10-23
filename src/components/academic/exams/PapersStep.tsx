@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, Check, Circle, FileText, PencilLine, Undo2, XCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { BellRing, Check, Circle, FileText, PencilLine, Printer, ShieldAlert, Stamp, Undo2, XCircle } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -44,6 +44,9 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
   const [notice, setNotice] = useState<{ tone: "success" | "danger" | "info"; text: string } | null>(null);
   const [editing, setEditing] = useState<SlotView | null>(null);
   const [withdrawing, setWithdrawing] = useState<SlotView | null>(null);
+  const [sealing, setSealing] = useState<SlotView | null>(null);
+  const [compromising, setCompromising] = useState<SlotView | null>(null);
+  const [correcting, setCorrecting] = useState<SlotView | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/academic/exam-sessions/${encodeURIComponent(sessionId)}/paper-slots`, { cache: "no-store" }).catch(() => null);
@@ -101,6 +104,8 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge variant={TONE[slot.status] ?? "neutral"}>{statusWord(t, slot.status)}</Badge>
+              {slot.sealPrefix ? <Badge variant="secondary"><bdi dir="ltr" className="font-mono">#{slot.sealPrefix}</bdi></Badge> : null}
+              {slot.compromisedAt ? <Badge variant="danger">{t.compromised}</Badge> : null}
               {slot.overdue ? <Badge variant="danger">{t.overdue}</Badge> : null}
             </div>
           </div>
@@ -118,9 +123,18 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
               </li>)}
             </ul>
           </div>
+          {slot.corrigenda.length ? <div className="space-y-1 rounded-lg border border-status-warning-border bg-status-warning-surface p-2 text-xs" data-corrigenda>
+            <p className="font-semibold">{t.corrigendaTitle}</p>
+            <ol className="list-decimal space-y-0.5 ps-5">{slot.corrigenda.map(entry => <li key={entry.id}><bdi dir="auto">{entry.text}</bdi></li>)}</ol>
+          </div> : null}
           {data.office ? <div className="flex flex-wrap gap-2">
             {!cancelled && OWED.has(slot.status) && slot.authorUserId ? <Button type="button" size="sm" variant="outline" loading={busy === `nudge-${slot.id}`} disabled={Boolean(busy)} onClick={() => void send(`nudge-${slot.id}`, `/api/academic/paper-slots/${slot.id}/nudge`, "POST", {}, () => fillStudioCopy(t.nudged, [slot.authorName ?? ""]))}><BellRing aria-hidden="true" />{t.nudge}</Button> : null}
-            {!cancelled ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setEditing(slot)}><PencilLine aria-hidden="true" />{t.edit}</Button> : null}
+            {/* SKO-501: the Seal after a signature on the current content; print only the sealed version. */}
+            {!cancelled && (slot.status === "MODERATED" || slot.status === "APPROVED") && slot.lastDecision?.decision === "SIGNED" ? <Button type="button" size="sm" disabled={Boolean(busy)} onClick={() => setSealing(slot)} data-seal-slot><Stamp aria-hidden="true" />{t.sealAction}</Button> : null}
+            {slot.sealedAt && !slot.compromisedAt && (slot.status === "SEALED" || slot.status === "PRINTED") ? <a href={`/api/academic/paper-slots/${encodeURIComponent(slot.id)}/print`} target="_blank" rel="noopener" className={buttonVariants({ size: "sm", variant: "outline" })} data-print-slot><Printer aria-hidden="true" />{t.printSealed}</a> : null}
+            {slot.sealedAt && !slot.compromisedAt ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setCorrecting(slot)} data-corrigendum><PencilLine aria-hidden="true" />{t.corrigendumAdd}</Button> : null}
+            {slot.sealedAt && !slot.compromisedAt ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setCompromising(slot)}><ShieldAlert aria-hidden="true" />{t.reportCompromise}</Button> : null}
+            {!cancelled && !slot.sealedAt ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setEditing(slot)}><PencilLine aria-hidden="true" />{t.edit}</Button> : null}
             {!cancelled ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setWithdrawing(slot)}><XCircle aria-hidden="true" />{t.cancelRequest}</Button>
               : <Button type="button" size="sm" variant="ghost" loading={busy === `restore-${slot.id}`} disabled={Boolean(busy)} onClick={() => void send(`restore-${slot.id}`, `/api/academic/paper-slots/${slot.id}`, "PATCH", { version: slot.version, restore: true }, () => t.saved)}><Undo2 aria-hidden="true" />{t.restore}</Button>}
           </div> : null}
@@ -129,6 +143,9 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
     </ul> : null}
 
     {editing ? <EditSlot t={t} slot={editing} staff={data.staff} busy={busy === "edit"} onClose={() => setEditing(null)} onSave={async body => { if (await send("edit", `/api/academic/paper-slots/${editing.id}`, "PATCH", { version: editing.version, ...body }, () => t.saved)) setEditing(null); }} /> : null}
+    {sealing ? <SealSheet t={t} slot={sealing} busy={busy === "seal"} onClose={() => setSealing(null)} onSeal={async (paperVersion, reason) => { if (await send("seal", `/api/academic/paper-slots/${sealing.id}/seal`, "POST", { paperVersion, ...(reason ? { reason } : {}) }, () => fillStudioCopy(t.sealedOn, [sealing.subjectName]))) setSealing(null); }} /> : null}
+    {correcting ? <CorrigendumSlot t={t} busy={busy === "corrigendum"} onClose={() => setCorrecting(null)} onSave={async text => { if (await send("corrigendum", `/api/academic/paper-slots/${correcting.id}/corrigendum`, "POST", { text }, () => t.corrigendumSaved)) setCorrecting(null); }} /> : null}
+    {compromising ? <CompromiseSlot t={t} busy={busy === "compromise"} onClose={() => setCompromising(null)} onSave={async reason => { if (await send("compromise", `/api/academic/paper-slots/${compromising.id}/compromise`, "POST", { reason }, () => t.compromised)) setCompromising(null); }} /> : null}
     {withdrawing ? <WithdrawSlot t={t} busy={busy === "withdraw"} onClose={() => setWithdrawing(null)} onSave={async reason => { if (await send("withdraw", `/api/academic/paper-slots/${withdrawing.id}`, "PATCH", { version: withdrawing.version, cancel: { reason } }, () => t.saved)) setWithdrawing(null); }} /> : null}
   </section>;
 }
@@ -152,5 +169,42 @@ function WithdrawSlot({ t, busy, onClose, onSave }: { t: StudioSlotsCopy; busy: 
   const [reason, setReason] = useState("");
   return <Modal title={t.cancelRequest} subtitle={t.cancelHint} onClose={onClose} footer={<ModalActions busy={busy} tone="rose" actionLabel={t.cancelRequest} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(reason.trim())} blockedReason={reason.trim().length < 3 ? t.cancelReason : null} />}>
     <FormField name="withdrawReason" label={t.cancelReason}><Input value={reason} maxLength={500} onChange={event => setReason(event.currentTarget.value)} /></FormField>
+  </Modal>;
+}
+
+/** SKO-501: the Seal sheet. Shows what is being sealed before the approver confirms. */
+function SealSheet({ t, slot, busy, onClose, onSeal }: { t: StudioSlotsCopy; slot: SlotView; busy: boolean; onClose: () => void; onSeal: (paperVersion: number, reason: string) => void }) {
+  const [facts, setFacts] = useState<{ paperVersion: number; prefix: string | null; moderator: string | null } | null>(null);
+  const [reason, setReason] = useState("");
+  useEffect(() => {
+    void fetch(`/api/academic/paper-slots/${encodeURIComponent(slot.id)}/moderation`, { cache: "no-store" }).then(response => (response.ok ? response.json() : null)).then(payload => {
+      if (payload?.data) setFacts({ paperVersion: payload.data.paperVersion, prefix: payload.data.contentHashPrefix, moderator: slot.moderatorName });
+    }).catch(() => undefined);
+  }, [slot.id, slot.moderatorName]);
+  return <Modal title={fillStudioCopy(t.sealTitle, [`${slot.subjectName} · ${slot.gradeName}`])} subtitle={t.sealIntro} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.sealConfirm} cancelLabel={t.cancel} onCancel={onClose} onAction={() => facts && onSeal(facts.paperVersion, reason.trim())} blockedReason={facts ? null : t.sealConfirm} />}>
+    <dl className="grid gap-2 text-sm" data-seal-sheet>
+      {facts ? <>
+        <div><dt className="sr-only">{t.sealVersion}</dt><dd>{fillStudioCopy(t.sealVersion, [String(facts.paperVersion)])}</dd></div>
+        {facts.prefix ? <div><dd>{fillStudioCopy(t.sealHash, [""])}<bdi dir="ltr" className="font-mono">#{facts.prefix}</bdi></dd></div> : null}
+        {facts.moderator ? <div><dd>{fillStudioCopy(t.sealModerator, [facts.moderator])}</dd></div> : null}
+      </> : null}
+      {slot.dates.length ? <div><dd>{fillStudioCopy(t.sealSitting, [slot.dates.join(" · ")])}</dd></div> : null}
+      {slot.copiesRequested ? <div><dd>{fillStudioCopy(t.sealCopies, [String(slot.copiesRequested)])}</dd></div> : null}
+    </dl>
+    <FormField name="sealReason" label={t.sealReason} className="mt-3"><Input value={reason} maxLength={500} onChange={event => setReason(event.currentTarget.value)} /></FormField>
+  </Modal>;
+}
+
+function CompromiseSlot({ t, busy, onClose, onSave }: { t: StudioSlotsCopy; busy: boolean; onClose: () => void; onSave: (reason: string) => void }) {
+  const [reason, setReason] = useState("");
+  return <Modal title={t.reportCompromise} subtitle={t.compromiseHint} onClose={onClose} footer={<ModalActions busy={busy} tone="rose" actionLabel={t.reportCompromise} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(reason.trim())} blockedReason={reason.trim().length < 5 ? t.compromiseReason : null} />}>
+    <FormField name="compromiseReason" label={t.compromiseReason}><Input value={reason} maxLength={1000} onChange={event => setReason(event.currentTarget.value)} /></FormField>
+  </Modal>;
+}
+
+function CorrigendumSlot({ t, busy, onClose, onSave }: { t: StudioSlotsCopy; busy: boolean; onClose: () => void; onSave: (text: string) => void }) {
+  const [text, setText] = useState("");
+  return <Modal title={t.corrigendumAdd} subtitle={t.corrigendumHint} onClose={onClose} footer={<ModalActions busy={busy} actionLabel={t.corrigendumAdd} cancelLabel={t.close} onCancel={onClose} onAction={() => onSave(text.trim())} blockedReason={text.trim().length < 5 ? t.corrigendumText : null} />}>
+    <FormField name="corrigendumText" label={t.corrigendumText}><Input dir="auto" value={text} maxLength={1000} onChange={event => setText(event.currentTarget.value)} /></FormField>
   </Modal>;
 }

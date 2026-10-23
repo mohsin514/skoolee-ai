@@ -9596,6 +9596,16 @@ model ExamPaperSlot {
   cancelReason      String?     @map("cancel_reason")
   lastNudgeAt       DateTime?   @map("last_nudge_at")
   nudgeCount        Int         @default(0) @map("nudge_count")
+  /// SKO-501: the Seal. The content hash the approver sealed, who sealed it and why.
+  sealHash          String?     @map("seal_hash")
+  sealedById        String?     @map("sealed_by_id")
+  sealReason        String?     @map("seal_reason") @db.Text
+  /// SKO-501: a sealed paper reported compromised (cancel the sitting or release the reserve form).
+  compromisedAt     DateTime?   @map("compromised_at")
+  compromiseReason  String?     @map("compromise_reason") @db.Text
+  /// SKO-501: corrigenda against the seal: [{ id, text, questionId?, at, byId, hashPrefix }], read out in every room.
+  corrigenda        Json        @default("[]")
+  moderations       ExamPaperModeration[]
   version           Int         @default(1)
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")
@@ -9604,4 +9614,26 @@ model ExamPaperSlot {
   @@index([schoolId, campusId, authorUserId, dueOn])
   @@index([schoolId, campusId, moderatorUserId])
   @@map("exam_paper_slots")
+}
+
+/// SKO-501: a moderator's decision on a requested paper, bound to the exact content it was taken on.
+/// The content hash (not the record version) is the binding, so an approval's version bump does not
+/// undo a signature while any content change does.
+model ExamPaperModeration {
+  id            String        @id @default(uuid())
+  schoolId      String        @map("school_id")
+  campusId      String        @map("campus_id")
+  slotId        String        @map("slot_id")
+  slot          ExamPaperSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  paperRecordId String        @map("paper_record_id")
+  paperVersion  Int           @map("paper_version")
+  contentHash   String        @map("content_hash")
+  decision      String        // SIGNED | RETURNED
+  comments      Json          @default("[]")   // [{ questionId?, text }]
+  conformance   Json          @default("[]")   // the report the moderator saw
+  moderatorId   String        @map("moderator_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, slotId, createdAt])
+  @@map("exam_paper_moderations")
 }

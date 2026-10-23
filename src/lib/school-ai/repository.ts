@@ -18,7 +18,7 @@ import { legacyWorkspaceRequestHash } from "./canonical";
 import { createWorkspaceSchema, parseWorkspaceData, updateWorkspaceSchema, workspaceIdSchema } from "./schemas";
 import { curriculumDataSchema, paperDataSchema, validatePaperApproval } from "./assessment";
 import { protectLessonPlans } from "./learning";
-import { canManageOperations } from "@/lib/api/scope";
+import { canLeadAcademics, canManageOperations } from "@/lib/api/scope";
 import { PaperReviewWriteError, preparePaperContentWrite } from "./item-review";
 import { nextWorkspaceStatus, protectSourceMetadata, TRUSTED_SOURCE_FIELDS, workspaceApprovalIssues, type TrustedSourceMetadata } from "./workflows";
 import type { AiWorkspaceRecord, WorkspaceCreateInput, WorkspaceKind, WorkspaceRevision, WorkspaceStatus, WorkspaceUpdateInput } from "./types";
@@ -211,7 +211,7 @@ async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId:
   }
 }
 
-async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient, permissions: WorkspacePermissionSnapshot) {
+async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient, permissions: WorkspacePermissionSnapshot, action: "approve" | "review" = "approve") {
   const data = parseWorkspaceData(record.kind as WorkspaceKind, dataOf(record));
   const issues = workspaceApprovalIssues(record.kind as WorkspaceKind, data);
   if(record.kind==="POLICY")await validateKnowledgeReferences(user,record.id,record.campusId,data,db,permissions,true);
@@ -222,7 +222,12 @@ async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient
     else {
       // SKO-500: outcomes taught on the Teaching Line count as taught.
       const { overlayTeachingLine } = await import("./teaching-progress-service");
-      issues.push(...validatePaperApproval(paper, await overlayTeachingLine(db, user.schoolId, curriculum.id, curriculumDataSchema.parse(curriculum.data))));
+      const found = validatePaperApproval(paper, await overlayTeachingLine(db, user.schoolId, curriculum.id, curriculumDataSchema.parse(curriculum.data)));
+      // SKO-501: sending for review needs every item ready, not yet approved; approval belongs to the
+      // reviewer (in the exam chain, the moderator's signature approves the items).
+      const { itemStateFor } = await import("./item-review");
+      const allReady = paper.questions.length > 0 && paper.questions.every(question => ["READY_FOR_REVIEW", "APPROVED"].includes(itemStateFor(question)));
+      issues.push(...(action === "review" && allReady ? found.filter(issue => !issue.startsWith("Approve every item before approving the paper")) : found));
     }
   }
   return issues;
@@ -399,7 +404,7 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   const subject = options.asDepartmentHead ? { subjectId: current.subjectId, classId: current.classId } : await assertWorkspaceSubject(user, current.campusId, data, tx);
   await validateReferences(user, current.kind as WorkspaceKind, current.campusId, data, tx, permissions);
   if (action === "approve" || action === "review") {
-    const issues = await approvalIssues(user, current, tx, permissions);
+    const issues = await approvalIssues(user, current, tx, permissions, action === "review" ? "review" : "approve");
     if (issues.length) throw new SchoolAiError(issues.slice(0, 15).join(" "), 422);
   }
   const updated = await tx.schoolAiRecord.updateMany({
@@ -453,6 +458,11 @@ async function assertMayApprove(user: AuthUser, current: StoredRecord, policy: R
     { kind: current.kind, createdById: current.createdById, ...(paper?.success ? { examType: paper.data.examType, totalMarks: paper.data.blueprint.totalMarks } : {}) },
     examChainPolicy(policy.policy),
   );
+  // SKO-501 (authority narrowing, plan 4.8): a term paper (mid-term, final) is approved by the academic lead
+  // only — the principal, or a campus admin while the campus has no principal. Other kinds keep the manager rule.
+  if (decision.allowed && decision.as === "MANAGER" && current.kind === "PAPER" && paper?.success && (paper.data.examType === "MID_TERM" || paper.data.examType === "FINAL") && !(await canLeadAcademics(user, current.campusId))) {
+    throw new SchoolAiError("A term paper is approved by the principal or academic lead, after moderation.", 403, "APPROVAL_TERM_PAPER_NEEDS_SEAL_AUTHORITY");
+  }
   if (decision.allowed) return decision.as;
   const messages: Record<typeof decision.reason, string> = {
     NOT_AN_APPROVER: "Only your head of department or an academic lead can approve this saved version.",
