@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
       plan: school.plan,
       aiCreditsUsed: school.aiCreditsUsed,
       aiCreditsLimit: school.aiCreditsLimit,
+      aiWorkflowsLiveAt: school.aiWorkflowsLiveAt,
       createdAt: school.createdAt,
       campusCount: school.campuses.length,
       totalStudents: school.campuses.reduce((sum, c) => sum + c._count.students, 0),

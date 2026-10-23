@@ -22,6 +22,7 @@ import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { roleLabel, type UserRole } from "@/lib/roles";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -177,6 +178,8 @@ interface SchoolRow {
   plan: string;
   aiCreditsUsed: number;
   aiCreditsLimit: number;
+  /** Set when an APP_OWNER switched AI Workflows live: AI may save this school's real records (practice.ts). */
+  aiWorkflowsLiveAt: string | null;
   createdAt: string;
   campusCount: number;
   totalStudents: number;
@@ -306,6 +309,8 @@ const ACTION_META: Record<string, { icon: LucideIcon; label: string; tone: strin
   school_suspended: { icon: Pause, label: "School suspended", tone: "bg-status-error-surface text-status-error-text" },
   school_activated: { icon: Play, label: "School activated", tone: "bg-status-success-surface text-status-success-text" },
   session_terminated: { icon: LogOut, label: "Session ended", tone: "bg-status-warning-surface text-status-warning-text" },
+  ai_workflows_live_on: { icon: Zap, label: "AI Workflows turned live", tone: "bg-status-warning-surface text-status-warning-text" },
+  ai_workflows_live_off: { icon: ShieldCheck, label: "AI Workflows back in practice mode", tone: "bg-surface-subtle text-ink-muted" },
 };
 
 function getActionMeta(action: string) {
@@ -1147,6 +1152,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
                             <h3 className="min-w-0 truncate text-base font-bold text-ink-strong"><bdi>{school.name}</bdi></h3>
                             <PlanBadge plan={school.plan} />
                             {school.status !== "ACTIVE" ? <StatusPill status={school.status} /> : null}
+                            {school.aiWorkflowsLiveAt ? <Badge variant="warning" size="sm" dot>{t("AI live")}</Badge> : null}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-subtle">
                             <span className="min-w-0 max-w-full truncate"><bdi dir="ltr">{school.contactEmail || "—"}</bdi></span>
@@ -1228,6 +1234,10 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
           onPlanChange={async (schoolId, newPlan) => {
             const ok = await changeSchoolPlan(schoolId, newPlan);
             if (ok) setDetailSchool(null);
+          }}
+          onAiWorkflowsLiveChange={(schoolId, aiWorkflowsLiveAt) => {
+            setSchools((rows) => rows.map((row) => row.id === schoolId ? { ...row, aiWorkflowsLiveAt } : row));
+            setDetailSchool((row) => row && row.id === schoolId ? { ...row, aiWorkflowsLiveAt } : row);
           }}
         />
       )}
@@ -1506,7 +1516,7 @@ function UsersView() {
   );
 }
 
-const AUDIT_ACTIONS = ["login", "login_failed", "logout", "password_change", "school_suspended", "school_activated", "session_terminated"] as const;
+const AUDIT_ACTIONS = ["login", "login_failed", "logout", "password_change", "school_suspended", "school_activated", "session_terminated", "ai_workflows_live_on", "ai_workflows_live_off"] as const;
 
 function AuditLogView() {
   const t = useUiText();
@@ -2514,14 +2524,86 @@ function PaymentSettingsView() {
   );
 }
 
+/**
+ * APP_OWNER-only switch that takes one school out of AI Workflows practice mode before the release evaluation
+ * (src/lib/ai-workflows/practice.ts). Turning it on is confirmed in a dialog that says AI may then change the
+ * school's real records; turning it off is immediate, because practice mode is the safe state. The server
+ * re-checks the role and audits both directions.
+ */
+function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void }) {
+  const t = useUiText();
+  const dates = useOwnerDates();
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const live = Boolean(school.aiWorkflowsLiveAt);
+
+  const save = async (next: boolean) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/owner/schools/${school.id}/ai-workflows-live`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next ? { live: true, acknowledgeRealRecords: true } : { live: false }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error);
+      onChange(school.id, json.data.aiWorkflowsLiveAt ?? null);
+      toast.success(next ? t("AI Workflows are live for {0}.", [school.name]) : t("{0} is back in practice mode.", [school.name]));
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The AI Workflows setting could not be changed. Please try again.")));
+    } finally {
+      setSaving(false);
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="sk-eyebrow text-primary">{t("AI Workflows")}</p>
+        {live ? <Badge variant="warning" size="sm" dot>{t("Live · saves real records")}</Badge> : <Badge variant="neutral" size="sm" dot>{t("Practice mode")}</Badge>}
+      </div>
+      <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-ink-strong">{t("Let AI save real records")}</span>
+          <span id={`ai-live-${school.id}`} className="mt-0.5 block text-xs leading-relaxed text-ink-muted">
+            {live && school.aiWorkflowsLiveAt
+              ? <>{t("Live since")} <bdi className="tabular-nums">{dates.instant(school.aiWorkflowsLiveAt)}</bdi> · {t("Staff-confirmed AI steps change this school's records.")}</>
+              : t("AI shows what it would do and saves nothing until the release evaluation is recorded.")}
+          </span>
+        </span>
+        <Switch
+          checked={live}
+          disabled={saving}
+          aria-describedby={`ai-live-${school.id}`}
+          onChange={(event) => { if (event.target.checked) setConfirming(true); else void save(false); }}
+        />
+      </label>
+      <ConfirmAction
+        open={confirming}
+        tone="warning"
+        title={t("Turn AI Workflows live for {0}?", [school.name])}
+        description={t("AI Workflows can then change {0}'s real records, such as students, attendance and fees, whenever its staff confirm a step. Practice mode ends for this school only. You can switch it back at any time.", [school.name])}
+        confirmLabel={t("Turn live")}
+        cancelLabel={t("Keep practice mode")}
+        busy={saving}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => save(true)}
+      />
+    </div>
+  );
+}
+
 function SchoolDetailModal({
   school,
   onClose,
   onPlanChange,
+  onAiWorkflowsLiveChange,
 }: {
   school: SchoolRow;
   onClose: () => void;
   onPlanChange: (schoolId: string, newPlan: string) => Promise<void>;
+  onAiWorkflowsLiveChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void;
 }) {
   const t = useUiText();
   const dates = useOwnerDates();
@@ -2612,6 +2694,7 @@ function SchoolDetailModal({
                   </div>
                 </div>
               </div>
+              <AiWorkflowsLivePanel school={school} onChange={onAiWorkflowsLiveChange} />
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
                 <div>
                   <p className="text-xs font-medium text-ink-subtle">{t("Plan")}</p>

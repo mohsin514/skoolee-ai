@@ -25,8 +25,8 @@ export default async function SchoolAiPage() {
   if (!allowed) redirect(dashboardPathForRole(user.role));
   // Campus logo, else school logo: what the console's own sidebar shows (dashboard.ts). Read on the server so
   // the first paint has it (the session's `logoUrl` arrives only after the client's read); a failed read only costs the image.
-  const brand = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true, logoUrl: true, campuses: { where: { id: user.campusId ?? "" }, select: { logoUrl: true } } } }).catch(() => null);
-  const workflowsV2 = aiWorkflowsV2Enabled(brand?.slug) ? { practiceMode: practiceModeApplies(brand?.slug) } : null;
+  const brand = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true, logoUrl: true, aiWorkflowsLiveAt: true, campuses: { where: { id: user.campusId ?? "" }, select: { logoUrl: true } } } }).catch(() => null);
+  const workflowsV2 = aiWorkflowsV2Enabled(brand?.slug) ? { practiceMode: practiceModeApplies(brand?.slug, process.env, undefined, brand?.aiWorkflowsLiveAt) } : null;
   const personalCampus = user.role === "APP_OWNER" ? null : user.campusId;
   return (
     <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.campuses[0]?.logoUrl || brand?.logoUrl || null} chatDock={user.schoolStatus !== "SUSPENDED"}>

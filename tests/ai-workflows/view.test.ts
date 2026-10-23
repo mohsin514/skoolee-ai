@@ -43,6 +43,17 @@ test("practice mode: production with the release gate closed refuses real school
   assert.equal(practiceModeApplies("real-school", { NODE_ENV: "production" }, { recorded: true }), false, "an approved evaluation lifts it");
 });
 
+test("practice mode: the owner's per-school live switch lifts it for that school only; the env list stays a fallback", () => {
+  const production = { NODE_ENV: "production" };
+  assert.equal(practiceModeApplies("real-school", production, null, new Date("2026-10-24T09:00:00Z")), false, "switched live in the console");
+  assert.equal(practiceModeApplies("real-school", production, null, "2026-10-24T09:00:00.000Z"), false, "a serialized timestamp counts too");
+  assert.equal(practiceModeApplies("other-school", production, null, null), true, "a school not switched live stays in practice");
+  assert.equal(practiceModeApplies("real-school", production, null), true, "no flag passed means not live");
+  assert.equal(practiceModeApplies(null, production, null, new Date()), false, "the flag alone is enough");
+  assert.equal(practiceModeApplies("demo-school", { ...production, AI_WORKFLOWS_LIVE_SCHOOLS: "demo-school" }, null, null), false, "env fallback still works without the flag");
+  assert.equal(practiceModeApplies("real-school", { NODE_ENV: "development" }, null, null), false, "development is always live");
+});
+
 test("the rollout flag defaults on outside production and is per school in production", () => {
   assert.equal(aiWorkflowsV2Enabled("a", { NODE_ENV: "development" }), true);
   assert.equal(aiWorkflowsV2Enabled("a", { NODE_ENV: "production" }), false);

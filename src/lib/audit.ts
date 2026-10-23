@@ -16,7 +16,7 @@ export async function logSuperAdminAction(params: {
   errorMessage?: string;
   ipAddress?: string;
   userAgent?: string;
-}) {
+}, db: Pick<typeof prisma, "superAdminAuditLog"> = prisma) {
   let ip = params.ipAddress;
   let ua = params.userAgent;
 
@@ -30,7 +30,7 @@ export async function logSuperAdminAction(params: {
     }
   }
 
-  await prisma.superAdminAuditLog.create({
+  await db.superAdminAuditLog.create({
     data: {
       userId: params.userId,
       action: params.action,
