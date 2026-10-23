@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { examBriefSentence } from "@/components/exams/exam-brief-text";
 import { useParentData } from "@/app/parent/parent-data-context";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
@@ -27,6 +28,7 @@ const kindLabel = (ui: Ui, item: Item) => ({
   FEEDBACK_RETURNED: ui("Feedback returned"),
   REPORT_PUBLISHED: ui("Report card published"),
   RESULT_NOTE: ui("Note from a teacher"),
+  EXAM_CHANGED: ui("Exam date sheet changed"),
   TRIP_CONSENT: item.state === "UPDATE" ? ui("Trip notice (another guardian answers)") : item.detail?.includes("changed") ? ui("Trip details changed — answer again") : ui("Trip permission"),
   MEETING_RESCHEDULE: ui("A meeting needs a new time"),
   MEETING_ACTION: item.state === "COMPLETED" ? ui("Meeting action done") : ui("Meeting action"),
@@ -65,6 +67,7 @@ export function inboxActionLabel(ui: Ui, formatDate: (value: string) => string, 
     if (item.title === "LATE") return day ? ui("Explain the late arrival on {0}", [day]) : ui("Explain a late arrival");
     return day ? ui("Explain the absence on {0}", [day]) : ui("Explain an absence");
   }
+  if (item.kind === "EXAM_CHANGED") return ui("Acknowledge the date-sheet change");
   if (item.kind === "TRIP_CONSENT") return ui("Answer the trip request");
   if (item.kind === "MEETING_RESCHEDULE") return ui("Choose a new meeting time");
   return kindLabel(ui, item as Item);
@@ -79,6 +82,7 @@ const outcome = (ui: Ui, item: Item) => item.kind === "EXPLAIN_ABSENCE" && item.
  */
 export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAction) => void } = {}) {
   const ui = useUiText();
+  const { language } = useLocale();
   const router = useRouter();
   const { date, dateTime, money } = useLocaleFormat();
   const { selectChild } = useParentData();
@@ -102,6 +106,12 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
 
   const shown = useMemo(() => (data?.items ?? []).filter(item => (child === "all" || item.childId === child) && (view === "COMPLETED" ? item.state === "COMPLETED" || item.state === "EXPIRED" : item.state === view)), [data, child, view]);
   const loadingFirst = !data && !error;
+  // SKO-505: "<kind>|<date>|<further changes>" from the inbox source, phrased in the reader's language.
+  const examChange = (item: Item) => {
+    const [kind, day, more] = (item.detail ?? "").split("|");
+    const sentence = examBriefSentence(ui, language, { kind, subject: item.title, date: day || null });
+    return Number(more) > 0 ? `${sentence} · ${ui("{0} more changes", [String(more)])}` : sentence;
+  };
   const open = (item: Item) => { selectChild(item.childId); router.push(inboxDestination(item)); };
   const views: { key: View; label: string; count?: number }[] = [
     { key: "ACTION", label: ui("Needs action"), count: data?.counts.action }, { key: "WAITING", label: ui("Waiting for the school"), count: data?.counts.waiting },
@@ -129,6 +139,7 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
           <p className="text-xs text-ink-muted">
             {item.kind === "EXPLAIN_ABSENCE" || item.kind === "CLARIFY_ABSENCE" ? <><bdi>{item.detail && /^\d{4}-\d{2}-\d{2}$/.test(item.detail) ? date(item.detail) : item.detail}</bdi></> : item.kind === "PAY_FEE" && item.detail ? <bdi>{inboxAmount(money, item.detail) ?? item.detail}</bdi> : null}
             {item.kind === "LEAVE_REQUEST" || item.kind === "TRIP_CONSENT" ? <bdi>{item.detail}</bdi> : null}
+            {item.kind === "EXAM_CHANGED" ? <span className="font-semibold text-ink" data-exam-change>{examChange(item)}</span> : null}
             {item.dueAt && item.state === "ACTION" ? <> · {item.kind === "PAY_FEE" || item.kind === "MEETING_ACTION" ? ui("Due") : item.kind === "TRIP_CONSENT" ? ui("Answer by") : item.kind === "MEETING_RESCHEDULE" ? ui("Booked for") : ui("Explain by")} <bdi>{item.kind === "TRIP_CONSENT" || item.kind === "MEETING_RESCHEDULE" ? dateTime(item.dueAt) : item.kind === "MEETING_ACTION" && item.detail ? date(item.detail) : date(item.dueAt)}</bdi></> : null}
             {item.state === "ACTION" && item.overdue ? <> · <span className="font-bold text-status-error-text">{ui("Overdue")}</span></> : null}
             {item.state === "EXPIRED" ? <> · <span className="font-bold">{ui("The time to respond has passed")}</span></> : null}

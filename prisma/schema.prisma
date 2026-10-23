@@ -9732,3 +9732,19 @@ model FamilyResultNote {
   @@index([schoolId, studentId, status])
   @@map("family_result_notes")
 }
+
+/// SKO-505 Family Exam Brief: a guardian's acknowledgement of one published date-sheet version for one child.
+/// Families of children whose papers changed are asked to acknowledge; the office reads who has.
+model ExamBriefReceipt {
+  id             String   @id @default(uuid())
+  schoolId       String   @map("school_id")
+  campusId       String   @map("campus_id")
+  versionId      String   @map("version_id")
+  studentId      String   @map("student_id")
+  guardianUserId String   @map("guardian_user_id")
+  acknowledgedAt DateTime @default(now()) @map("acknowledged_at")
+
+  @@unique([versionId, studentId, guardianUserId])
+  @@index([schoolId, versionId])
+  @@map("exam_brief_receipts")
+}
