@@ -353,10 +353,12 @@ async function applyStep(tx: TxClient, user: AuthUser, repair: RepairRow, step: 
   // NOTICE: one row per recipient and repair; a replay finds the same dedupe key and adds nothing.
   const assignment = await tx.schoolAiExamAssignment.findFirstOrThrow({ where: { id: repair.assignmentId, schoolId: user.schoolId }, select: { title: true } });
   let sent = 0;
+  // SKO-505: a guardian cannot open the staff exam page (it answered 404); they land on their child's Results.
+  const guardians = new Set((await tx.user.findMany({ where: { schoolId: user.schoolId, id: { in: step.recipientIds }, role: "PARENT" }, select: { id: true } })).map(row => row.id));
   for (const userId of step.recipientIds) {
     const dedupeKey = `ASSESSMENT_REPAIR:${repair.id}:${step.studentId}`;
     if (await tx.notification.findUnique({ where: { userId_dedupeKey: { userId, dedupeKey } } })) continue;
-    await tx.notification.create({ data: { schoolId: user.schoolId, campusId: repair.campusId, userId, type: "ASSESSMENT_RESULT_CORRECTED", category: "UPDATE", title: `Corrected result: ${assignment.title}`, message: repair.publicExplanation, icon: "ClipboardCheck", link: `/ai/exams/${repair.assignmentId}`, sourceType: "SCHOOL_AI_ASSESSMENT_REPAIR", sourceId: repair.id, dedupeKey } });
+    await tx.notification.create({ data: { schoolId: user.schoolId, campusId: repair.campusId, userId, type: "ASSESSMENT_RESULT_CORRECTED", category: "UPDATE", title: `Corrected result: ${assignment.title}`, message: repair.publicExplanation, icon: "ClipboardCheck", link: guardians.has(userId) ? `/parent/results?student=${encodeURIComponent(step.studentId)}` : `/ai/exams/${repair.assignmentId}`, sourceType: "SCHOOL_AI_ASSESSMENT_REPAIR", sourceId: repair.id, dedupeKey } });
     sent++;
   }
   return `${sent} of ${step.recipientIds.length} notices created`;

@@ -5,6 +5,7 @@ import { publishedReportsWhere } from "@/lib/auth/policy";
 import { currentGuardianRelationship, type GuardianPermissions } from "@/lib/parent/guardian-access";
 import { EXPLAIN_WINDOW_DAYS } from "@/lib/attendance/rule";
 import { guardianTrips } from "@/lib/family/trips";
+import { familyExamBrief } from "@/lib/academic/exam-brief";
 
 // SKO-419: the family action inbox. One list across every child the guardian is verified for, each item
 // read from its own source under that child's current permissions (they can differ per sibling). Every
@@ -15,7 +16,7 @@ import { guardianTrips } from "@/lib/family/trips";
 
 export type InboxState = "ACTION" | "WAITING" | "COMPLETED" | "EXPIRED" | "UPDATE";
 export type InboxItem = {
-  id: string; kind: "EXPLAIN_ABSENCE" | "CLARIFY_ABSENCE" | "PAY_FEE" | "FEEDBACK_RETURNED" | "REPORT_PUBLISHED" | "RESULT_NOTE" | "TRIP_CONSENT" | "LEAVE_REQUEST" | "MEETING_ACTION" | "MEETING_RESCHEDULE";
+  id: string; kind: "EXPLAIN_ABSENCE" | "CLARIFY_ABSENCE" | "PAY_FEE" | "FEEDBACK_RETURNED" | "REPORT_PUBLISHED" | "RESULT_NOTE" | "EXAM_CHANGED" | "TRIP_CONSENT" | "LEAVE_REQUEST" | "MEETING_ACTION" | "MEETING_RESCHEDULE";
   state: InboxState; childId: string; childName: string; schoolName: string; campusName: string;
   title: string; detail: string | null; dueAt: string | null; overdue: boolean; at: string; href: string;
   completedByOther: boolean; receipt: string | null; timezone: string;
@@ -23,7 +24,7 @@ export type InboxItem = {
 
 const DAY = 86_400_000;
 
-type Child = { id: string; fullName: string; campusId: string; campus: { name: string; school: { name: string } } };
+type Child = { id: string; fullName: string; campusId: string; classId: string; campus: { name: string; school: { name: string } } };
 
 async function itemsFor(guardianUserId: string, schoolId: string, child: Child, permissions: GuardianPermissions, linkQuery: string, now: Date): Promise<InboxItem[]> {
   const locale = await getLocalePackage(schoolId, child.campusId, now);
@@ -91,6 +92,12 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
       // SKO-504: a sent family note (one sentence, already in this guardian's language).
       prisma.familyResultNote.findMany({ where: { schoolId, studentId: child.id, status: "SENT", sentAt: { gte: new Date(now.getTime() - 45 * DAY) } }, select: { id: true, sentence: true, sentAt: true }, orderBy: { sentAt: "desc" }, take: 5 }),
     ]);
+    // SKO-505 Family Exam Brief: a republished date sheet that changed this child's papers, to acknowledge once.
+    // `title` is the first changed subject; `detail` is "<kind>|<date>|<further changes>" for the reader's language.
+    for (const brief of await familyExamBrief(schoolId, child, guardianUserId, now)) {
+      const first = brief.items[0];
+      items.push({ ...base, id: `exam-change:${brief.versionId}:${child.id}`, kind: "EXAM_CHANGED", state: brief.acknowledgedAt ? "COMPLETED" : "ACTION", title: first.subject, detail: `${first.kind}|${first.date ?? first.previousDate ?? ""}|${brief.items.length - 1}`, dueAt: null, overdue: false, at: brief.publishedAt.toISOString(), href: `/parent/timetable${linkQuery}`, completedByOther: false, receipt: brief.versionId });
+    }
     for (const note of notes) items.push({ ...base, id: `result-note:${note.id}`, kind: "RESULT_NOTE", state: "UPDATE", title: note.sentence, detail: null, dueAt: null, overdue: false, at: note.sentAt!.toISOString(), href: `/parent/results${linkQuery}`, completedByOther: false, receipt: null });
     for (const report of reports) items.push({ ...base, id: `report:${report.id}`, kind: "REPORT_PUBLISHED", state: "UPDATE", title: report.exam.title, detail: null, dueAt: null, overdue: false, at: report.generatedAt.toISOString(), href: `/parent/results${linkQuery}`, completedByOther: false, receipt: null });
     for (const row of feedback) items.push({ ...base, id: `feedback:${row.id}`, kind: "FEEDBACK_RETURNED", state: "UPDATE", title: row.submissionVersion.submission.assignment.title, detail: null, dueAt: null, overdue: false, at: row.returnedAt!.toISOString(), href: `/parent/assignments${linkQuery}`, completedByOther: false, receipt: null });
@@ -103,7 +110,7 @@ const ORDER: Record<InboxState, number> = { ACTION: 0, WAITING: 1, UPDATE: 2, CO
 /** The inbox for a signed-in guardian (all verified children) or a single-child link (that child only). */
 export async function familyInbox(input: { guardianUserId: string | null; schoolId: string; children: { id: string }[]; singleStudentId: string | null; tokenPermissions?: GuardianPermissions; linkQuery: (childId: string) => string }, now = new Date()) {
   const ids = input.singleStudentId ? [input.singleStudentId] : input.children.map(c => c.id);
-  const children = await prisma.student.findMany({ where: { schoolId: input.schoolId, id: { in: ids }, archivedAt: null }, select: { id: true, fullName: true, campusId: true, campus: { select: { name: true, school: { select: { name: true } } } } }, orderBy: [{ fullName: "asc" }] });
+  const children = await prisma.student.findMany({ where: { schoolId: input.schoolId, id: { in: ids }, archivedAt: null }, select: { id: true, fullName: true, campusId: true, classId: true, campus: { select: { name: true, school: { select: { name: true } } } } }, orderBy: [{ fullName: "asc" }] });
   const groups = await Promise.all(children.map(async child => {
     try {
       // Permissions are checked per child on every read: a sibling's grants never carry over.
