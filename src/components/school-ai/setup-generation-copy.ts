@@ -2,10 +2,10 @@ import type { Language } from "@/lib/locale/package";
 
 const messages = {
   reviewTitle: ["Your school workspace", "مساحة عمل مدرستك", "آپ کے اسکول کی ورک اسپیس"],
-  reviewHint: ["Your answers become saved, editable plans and policies. Open a generated draft to review the details and continue the workflow.", "تتحول إجاباتك إلى خطط وسياسات محفوظة وقابلة للتعديل. افتح مسودة مُعدّة لمراجعة التفاصيل ومتابعة العمل.", "آپ کے جوابات محفوظ، قابلِ ترمیم منصوبوں اور پالیسیوں میں بدلتے ہیں۔ تفصیلات کا جائزہ لینے اور کام جاری رکھنے کے لیے تیار مسودہ کھولیں۔"],
+  reviewHint: ["AI uses your confirmed answers to create the requested records. Follow saved progress and answer any missing details below.", "يستخدم الذكاء الاصطناعي إجاباتك المؤكدة لإنشاء السجلات المطلوبة. تابع التقدم المحفوظ وأجب عن التفاصيل الناقصة أدناه.", "اے آئی تصدیق شدہ جوابات سے مطلوبہ ریکارڈ بناتا ہے۔ محفوظ پیش رفت دیکھیں اور نیچے نامکمل تفصیل کا جواب دیں۔"],
   generate: ["Generate my workspace", "جهّز مساحة عملي", "میری ورک اسپیس تیار کریں"],
-  finish: ["Finish and generate", "إنهاء وتجهيز", "مکمل کریں اور تیار کریں"],
-  skipFinish: ["Skip and generate", "تخطي وتجهيز", "چھوڑیں اور تیار کریں"],
+  finish: ["Finish and set up automatically", "إنهاء وإعداد تلقائي", "مکمل کریں اور خودکار سیٹ اپ چلائیں"],
+  skipFinish: ["Skip and start setup", "تخطي وبدء الإعداد", "چھوڑیں اور سیٹ اپ شروع کریں"],
   regenerate: ["Save and regenerate", "حفظ وإعادة التجهيز", "محفوظ کر کے دوبارہ تیار کریں"],
   retry: ["Retry preparation", "إعادة محاولة التجهيز", "تیاری دوبارہ کریں"],
   saving: ["Saving your answers", "جارٍ حفظ إجاباتك", "آپ کے جوابات محفوظ ہو رہے ہیں"],

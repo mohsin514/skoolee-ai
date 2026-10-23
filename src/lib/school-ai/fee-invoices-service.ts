@@ -14,7 +14,7 @@ import { applyInvoiceCarry, calculateInvoiceAmounts, feeInvoiceProposalSchema, i
 import { activationFor } from "@/lib/tax/service";
 
 export async function assertFeeInvoiceAccess(user: AuthUser, db: TxClient = prisma) {
-  assertApprovalRole(user);
+  assertApprovalRole(user, "fees.generate_invoices");
   const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
   if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) throw new SchoolAiError("Your account access changed. Sign in again.", 403, "PERMISSION_DENIED");
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
