@@ -53,12 +53,13 @@ async function policy(user: AuthUser, run: Pick<SchoolAiRun, "campusId" | "polic
 async function audit(user: AuthUser, row: SchoolAiRun, action: string, db: TxClient) { await db.auditLog.create({ data: { schoolId: user.schoolId, tableName: "school_ai_runs", recordId: row.id, userId: user.userId, oldValue: Prisma.DbNull, newValue: { action, version: row.version, status: row.status, nextStep: row.nextStep } } }); }
 export async function createSchoolRun(user: AuthUser, raw: unknown) {
   const input = runCreateSchema.parse(raw), scheduledAt = new Date(input.scheduledAt), expiresAt = new Date(input.expiresAt), hash = workspaceRequestHash(input);
-  const replay = await schoolAiTransaction(user, async db => { await access(user, db); const saved = await db.schoolAiRun.findFirst({ where: { schoolId: user.schoolId, actorId: user.userId, idempotencyKey: input.idempotencyKey } }); if (!saved) return null; if (saved.requestHash !== hash) throw new SchoolAiError("This run key belongs to different work.", 409); await checkSteps(user, runStepsSchema.parse(saved.steps), saved.campusId, db, false); return output(saved); });
+  const readReplay = () => schoolAiTransaction(user, async db => { await access(user, db); const saved = await db.schoolAiRun.findFirst({ where: { schoolId: user.schoolId, actorId: user.userId, idempotencyKey: input.idempotencyKey } }); if (!saved) return null; if (saved.requestHash !== hash) throw new SchoolAiError("This run key belongs to different work.", 409); await checkSteps(user, runStepsSchema.parse(saved.steps), saved.campusId, db, false); return output(saved); });
+  const replay = await readReplay();
   if (replay) return replay;
   validateRunWindow(scheduledAt, expiresAt, new Date());
   // User-reviewed hashes are rechecked now and again atomically at execution.
   for (const step of input.steps) { const actual = await previewSchoolAiExecution(user, step.recordId, executionOperationSchema.parse(step.operation), step.version); if (actual.previewHash !== step.previewHash) throw new SchoolAiError("Review a fresh preview before scheduling this action.", 409, "STALE_EXECUTION_PREVIEW"); }
-  return schoolAiTransaction(user, async db => {
+  try { return await schoolAiTransaction(user, async db => {
     await access(user, db); const campusId = await resolveWorkspaceCampus(user, input.campusId, db); if (!campusId) throw new SchoolAiError("Choose a campus.", 422);
     const previous = await db.schoolAiRun.findFirst({ where: { schoolId: user.schoolId, actorId: user.userId, idempotencyKey: input.idempotencyKey } });
     if (previous) { if (previous.requestHash !== hash) throw new SchoolAiError("This run key already belongs to different work.", 409); await checkSteps(user, runStepsSchema.parse(previous.steps), previous.campusId, db, false); return output(previous); }
@@ -66,7 +67,17 @@ export async function createSchoolRun(user: AuthUser, raw: unknown) {
     await checkSteps(user, input.steps, campusId, db);
     const policyVersion = await policy(user, { campusId, policyId: input.policyId ?? null, policyVersion: null, expiresAt }, input.steps, db, true);
     const row = await db.schoolAiRun.create({ data: { schoolId: user.schoolId, campusId, title: input.title, actorId: user.userId, actorRole: user.role, accessVersion: user.accessVersion ?? 0, policyId: input.policyId ?? null, policyVersion: policyVersion ?? null, idempotencyKey: input.idempotencyKey, requestHash: hash, steps: json(input.steps), scheduledAt, expiresAt } }); await audit(user, row, "CREATE", db); return output(row);
-  });
+  }); } catch (error) {
+    // A simultaneous first request can win the unique key before this serializable
+    // snapshot observes it. Reload in a fresh transaction and recheck actor, hash
+    // and access; never turn an unrelated uniqueness failure into success.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const saved = await readReplay();
+      if (saved) return saved;
+    }
+    throw error;
+  }
+
 }
 export async function listSchoolRuns(user: AuthUser, campusId: string) { return schoolAiTransaction(user, async db => { await access(user, db); await resolveWorkspaceCampus(user, campusId, db); const rows = await db.schoolAiRun.findMany({ where: { ...scope(user), campusId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100 }); const allowed: SchoolRun[] = []; for (const row of rows) { try { await checkSteps(user, runStepsSchema.parse(row.steps), campusId, db, false); allowed.push({ ...output(row), updatedAt: row.updatedAt.toISOString(), owner: { name: "", mine: row.actorId === user.userId } }); } catch (error) { if (!(error instanceof SchoolAiError) || ![403, 404].includes(error.status)) throw error; } }
   // SKO-470: each run names the approver who owns its recovery, and each committed step carries the

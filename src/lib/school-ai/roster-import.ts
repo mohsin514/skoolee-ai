@@ -1,6 +1,6 @@
 import { parseImportCsv } from "@/lib/imports/csv";
 
-export const ROSTER_FIELDS = ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes", "guardianName", "gender", "dateOfBirth", "phone", "guardianRelationship"] as const;
+export const ROSTER_FIELDS = ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes", "guardianName", "gender", "dateOfBirth", "phone", "guardianRelationship", "className", "classSection", "studentEmail", "guardianEmail"] as const;
 export type RosterField = typeof ROSTER_FIELDS[number];
 export type RosterMapping = Partial<Record<RosterField, number>>;
 export const ROSTER_REQUIRED_FIELDS: readonly RosterField[] = ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes"];
@@ -10,6 +10,10 @@ export class RosterMappingError extends Error {
   constructor(readonly code: "size" | "encoding" | "format" | "rows" | "headers" | "mapping" | "required") { super(code); }
 }
 const aliases: Record<RosterField, readonly string[]> = {
+  className: ["className", "class", "grade", "اسم الصف", "الصف", "جماعت"],
+  classSection: ["classSection", "section", "الشعبة", "سیکشن"],
+  studentEmail: ["studentEmail", "studentLoginEmail", "بريد الطالب", "طالب علم کا ای میل"],
+  guardianEmail: ["guardianEmail", "parentEmail", "بريد ولي الأمر", "سرپرست کا ای میل"],
   fullName: ["fullName", "studentName", "name", "اسم الطالب", "نام", "طالب علم کا نام"],
   rollNo: ["rollNo", "rollNumber", "registrationNo", "regNo", "رقم الطالب", "الرقم التسلسلي", "رول نمبر", "رجسٹریشن نمبر"],
   guardianPhone: ["guardianPhone", "parentPhone", "هاتف ولي الأمر", "هاتف ولي الامر", "سرپرست کا فون", "والدین کا فون"],

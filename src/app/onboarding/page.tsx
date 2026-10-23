@@ -1,5 +1,6 @@
 'use client'
 
+import { institutionSetupDestination } from "@/lib/school-ai/setup-role";
 import { useId } from "react";
 import { unresolvedOptionalWork, type SetupStepId } from "@/lib/onboarding/setup-state";
 import { FlagshipChip } from "@/components/ui/flagship";
@@ -47,7 +48,7 @@ const NEXT_COPY = {
   ],
 } as const;
 
-function FlagshipsNext({ language }: { language: Language }) {
+function FlagshipsNext({ language, group }: { language: Language; group: boolean }) {
   const index = language === "ar" ? 1 : language === "ur" ? 2 : 0;
   const titleId = useId();
   return (
@@ -57,7 +58,7 @@ function FlagshipsNext({ language }: { language: Language }) {
         {NEXT_COPY.items.map((item) => (
           <li key={item.key} className="min-w-0 space-y-1" data-flagship={item.key}>
             <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-strong"><FlagshipChip />{item.name[index]}</p>
-            <p className="text-sm leading-relaxed text-ink-muted">{item.body[index]}</p>
+            <p className="text-sm leading-relaxed text-ink-muted">{group && item.key === "ai-workflows" ? ["Review campus readiness and delegate setup to campus administrators. Each campus team reviews and applies its own setup.", "راجع جاهزية الفروع وفوّض الإعداد إلى مسؤوليها. يراجع كل فريق إعداد فرعه ويطبّقه.", "کیمپس کی تیاری دیکھیں اور سیٹ اپ کیمپس منتظمین کو سونپیں۔ ہر کیمپس کی ٹیم اپنے سیٹ اپ کا جائزہ لے کر اسے نافذ کرتی ہے۔"][index] : item.body[index]}</p>
           </li>
         ))}
       </ul>
@@ -209,7 +210,7 @@ export default function OnboardingWizard() {
           offDays={ready.offDays}
           listSeparator={ready.listSeparator}
           success={success}
-          workspaceHref="/ai?setup=1"
+          workspaceHref={institutionSetupDestination(w.type)}
           failure={failure}
           activating={activating}
           saving={saving}
@@ -221,7 +222,7 @@ export default function OnboardingWizard() {
         />
       )}
 
-      {step === 'review' && <FlagshipsNext language={lang} />}
+      {step === 'review' && <FlagshipsNext language={lang} group={w.type === "GROUP"} />}
 
       {w.packages.open && v.actor.canPurchase && (
         <PackageChooser

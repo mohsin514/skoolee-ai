@@ -139,7 +139,7 @@ export async function capabilitiesFor(user: AuthUser, permissions: Map<string, P
   caps.improvementLead = role === "PRINCIPAL" || operator;
   caps.recordSearch = RECORD_SEARCH.includes(role);
   // Flagship 1 — AI Workflows (`/ai`): the School AI workspace gate (`assertSchoolAiAccess(user, "view")`).
-  caps.schoolAi = (SCHOOL_AI_STAFF_ROLES as readonly string[]).includes(role) && permissions.get("ai")?.canView === true;
+  caps.schoolAi = role === "APP_OWNER" || ([...SCHOOL_AI_STAFF_ROLES, "PARENT", "STUDENT"] as readonly string[]).includes(role) && permissions.get("ai")?.canView === true;
   // Flagship 2 — Exam Studio (`/ai/studio`) for the academic roles, set below once the academic-lead seat is known;
   // a student's `schoolAiExams` is secure exam delivery ("My online exams", `/ai/exams`).
   caps.schoolAiExams = role === "STUDENT";

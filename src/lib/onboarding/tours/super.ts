@@ -18,9 +18,9 @@ export const superTour: TourDef = {
       ],
     },
     flagshipCardStep("super", "ai", [
-      "From a short questionnaire, AI drafts your school's launch plan and routine work; nothing applies until the drafts are reviewed and approved.",
-      "من استبيان قصير يُعدّ الذكاء الاصطناعي مسودات خطة انطلاق مدرستك وأعمالها الدورية؛ ولا يُطبَّق شيء قبل مراجعة المسودات واعتمادها.",
-      "ایک مختصر سوالنامے سے اے آئی آپ کے اسکول کے آغاز کا منصوبہ اور معمول کے کاموں کے مسودے بناتا ہے؛ مسودوں کے جائزے اور منظوری سے پہلے کچھ لاگو نہیں ہوتا۔",
+      "Review campus readiness and delegate setup to campus administrators. Each campus team reviews and applies its own operational changes.",
+      "راجع جاهزية الفروع وفوّض الإعداد إلى مسؤوليها. يراجع كل فريق تغييرات فرعه ويطبقها.",
+      "کیمپس کی تیاری دیکھیں اور سیٹ اپ کیمپس منتظمین کو سونپیں۔ ہر کیمپس کی ٹیم اپنی تبدیلیوں کا جائزہ لے کر انہیں نافذ کرتی ہے۔",
     ], { view: "overview" }),
     {
       id: "attention", anchor: "super.overview.attention", view: "overview",
@@ -32,9 +32,9 @@ export const superTour: TourDef = {
       ],
     },
     aiWorkflowsStep([
-      "The setup questionnaire and every AI draft for your school live here; none applies before it is reviewed.",
-      "هنا استبيان الإعداد وكل مسودات الذكاء الاصطناعي لمدرستك، ولا يُطبَّق أي منها قبل مراجعته.",
-      "سیٹ اپ سوالنامہ اور آپ کے اسکول کے اے آئی کے تمام مسودے یہیں ہیں؛ کوئی مسودہ جائزے کے بغیر لاگو نہیں ہوتا۔",
+      "Use this workspace to review shared policies and delegated setup tasks. Campus administrators complete their campus questionnaire.",
+      "راجع السياسات المشتركة ومهام الإعداد المفوّضة هنا. يُكمل مسؤولو الفروع استبيان كل فرع.",
+      "یہاں مشترکہ پالیسیوں اور سونپے گئے سیٹ اپ کاموں کا جائزہ لیں۔ کیمپس منتظمین اپنے کیمپس کا سوالنامہ مکمل کرتے ہیں۔",
     ]),
     {
       id: "campuses", anchor: "shell.nav.campuses",
