@@ -1,3 +1,4 @@
+import { resolveRosterClass } from "@/lib/imports/roster-class";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { bankRowKeys } from "@/lib/fees/bank-reconciliation";
@@ -137,9 +138,13 @@ export async function POST(request: NextRequest) {
     if (kind === "STUDENT_ROSTER") {
       const defaultClassId = typeof body.defaultClassId === "string" ? body.defaultClassId : "";
       if (!defaultClassId) throw new ApiError("Choose a class before validating the roster", 400);
+      const rosterClasses = await prisma.class.findMany({ where: { campusId, schoolId: user.schoolId, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true } });
       const rawRows = records.slice(1).map((cells, index) => {
         const source = headers.reduce<Record<string, string>>((result, header, column) => { result[header] = cells[column] || ""; return result; }, {});
-        return { rowNumber: index + 2, source, raw: studentFromCsv(source, defaultClassId) };
+        const explicitClass = importField(source, ["className"]), section = importField(source, ["classSection"]);
+        const raw = studentFromCsv(source, defaultClassId);
+        if (explicitClass || section) raw.classId = resolveRosterClass(rosterClasses, explicitClass, section, defaultClassId);
+        return { rowNumber: index + 2, source, raw };
       });
       const proposals = rawRows.map(({ raw }) => studentSchema.safeParse(raw));
       const classIds = [...new Set(proposals.flatMap((parsed) => parsed.success ? [parsed.data.classId] : []))];

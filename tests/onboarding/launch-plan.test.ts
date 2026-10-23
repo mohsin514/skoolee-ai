@@ -18,7 +18,8 @@ test("every role has a useful localized route; families and staff never inherit 
       for (const action of plan.actions) { assert.ok(c.task(action.task)); assert.ok(c.taskDetail(action.task)); }
     }
     if (!["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER"].includes(role)) {
-      assert.equal(plan.actions[0].href, dashboardPathForRole(role));
+      assert.equal(plan.actions[0].task, "roleSetup");
+      assert.ok(plan.actions.some(action => action.href === dashboardPathForRole(role)));
       assert.equal(requiredOnboardingPath(role, false), null);
     }
   }
@@ -33,20 +34,18 @@ test("campus instructions honor missing assignments, role scope and revoked perm
   const principal = launchPlan({ ...base, role: "PRINCIPAL" });
   assert.equal(principal.journey, "campus");
   // The setup questionnaire is not the principal's (SPEC M51, G42: no setup tools): AI Workflows and Exam Studio are.
-  assert.ok(!principal.actions.some(action => action.task === "aiSetup" || action.href === AI_SETUP_HREF), "no setup questionnaire for the principal");
-  assert.deepEqual(principal.actions.slice(0, 2), [{ task: "aiWorkspace", href: "/ai" }, { task: "studio", href: "/ai/studio" }]);
+  assert.ok(!principal.actions.some(action => action.task === "aiSetup"), "no setup questionnaire for the principal");
+  assert.deepEqual(principal.actions.slice(0, 2), [{ task: "roleSetup", href: AI_SETUP_HREF }, { task: "studio", href: "/ai/studio" }]);
   for (const role of ["ADMIN", "CAMPUS_ADMIN"] as const) {
     const plan = launchPlan({ ...base, role });
     assert.equal(plan.actions[0].href, AI_SETUP_HREF, role);
     assert.ok(!plan.actions.some(action => action.task === "aiWorkspace"), `${role}: the questionnaire comes first, workflows after it`);
     assert.ok(!plan.actions.some(action => action.task === "studio"), `${role}: Exam Studio only while academic lead, which the welcome cannot see`);
   }
-  // Addendum 2026-10-22 (supersedes P3-R1): the group admin is the institution authority whose AI setup is not done at
-  // first sign-in, so "Set up my school with AI" comes first. The group admin drafts; campus operators apply the
-  // approved drafts (G42), and nothing applies before review.
+  // Group owners coordinate campus setup rather than completing the campus interview.
   for (const campusId of ["campus-a", null]) {
     const groupAdmin = launchPlan({ ...base, role: "SUPER_ADMIN", campusId });
-    assert.deepEqual(groupAdmin.actions, [{ task: "aiSetup", href: AI_SETUP_HREF }, { task: "workspace", href: "/super" }], `group admin (campus ${campusId})`);
+    assert.deepEqual(groupAdmin.actions, [{ task: "roleSetup", href: AI_SETUP_HREF }, { task: "workspace", href: "/super" }], `group admin (campus ${campusId})`);
   }
   assert.ok(!principal.actions.some(action => action.href.startsWith("/admin")));
   for (const role of ["ADMIN", "PRINCIPAL", "CAMPUS_ADMIN", "TEACHER"] as const) {
@@ -69,9 +68,9 @@ test("campus instructions honor missing assignments, role scope and revoked perm
   assert.equal(viewOnlyOperator.actions[0].task, "aiWorkspace");
   // The desks and the teacher have no AI Workflows entry (addendum: SA, standalone ADMIN, CA and PRINCIPAL only).
   for (const role of ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST", "TEACHER"] as const) {
-    assert.ok(!launchPlan({ ...base, role }).actions.some(action => action.task === "aiWorkspace" || action.task === "aiSetup"), role);
+    assert.ok(launchPlan({ ...base, role }).actions.some(action => action.task === "roleSetup"), role);
   }
-  assert.equal(launchPlan({ ...base, role: "TEACHER" }).actions[0].task, "studio", "the teacher's flagship comes first");
+  assert.equal(launchPlan({ ...base, role: "TEACHER" }).actions[0].task, "roleSetup");
 });
 test("welcome is limited to entry routes, never timed exams, billing or password setup", () => {
   for (const path of ["/first-login", "/login", "/protect-account", "/subscription", "/onboarding/package", "/ai/studio", "/ai/exams/attempt", "/teacher/attendance"]) assert.equal(isLaunchEntry(path), false, path);
@@ -210,9 +209,9 @@ test("flagships: the welcome leads each role to the flagships it may use, marked
   assert.deepEqual(flagships("ADMIN"), ["ai-workflows"]);
   assert.deepEqual(flagships("CAMPUS_ADMIN"), ["ai-workflows"]);
   assert.deepEqual(flagships("PRINCIPAL"), ["ai-workflows", "exam-studio"]);
-  assert.deepEqual(flagships("TEACHER"), ["exam-studio"]);
+  assert.deepEqual(flagships("TEACHER"), ["ai-workflows", "exam-studio"]);
   assert.deepEqual(flagships("ADMIN", { institutionSetup: true }), ["ai-workflows"], "the institution wizard ends in the AI setup questionnaire");
-  for (const role of ["STUDENT", "PARENT", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST", "APP_OWNER"] as const) assert.deepEqual(flagships(role), [], role);
+  for (const role of ["STUDENT", "PARENT", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST", "APP_OWNER"] as const) assert.deepEqual(flagships(role), ["ai-workflows"], role);
   assert.deepEqual(flagships("PRINCIPAL", { permissions: new Map() }), [], "no AI module, no flagship");
   assert.equal(flagshipOf("aiSetup"), "ai-workflows");
   assert.equal(flagshipOf("aiWorkspace"), "ai-workflows");
@@ -235,5 +234,6 @@ test("flagships: the welcome leads each role to the flagships it may use, marked
   assert.equal(en.flagshipName("ai-workflows"), "AI Workflows", "the sidebar's name");
   assert.equal(en.flagshipName("exam-studio"), "Exam Studio", "the sidebar's name");
   // Truthful copy: AI drafts are reviewed and approved before anything applies.
-  for (const text of [en.taskDetail("aiSetup"), en.taskDetail("aiWorkspace"), en.taskDetail("studio"), en.flagshipPitch("ai-workflows")]) assert.match(text, /review|approv/i, text);
+  for (const text of [en.taskDetail("aiSetup"), en.taskDetail("aiWorkspace")]) assert.match(text, /creates|automatically/i, text);
+  for (const text of [en.taskDetail("studio"), en.flagshipPitch("ai-workflows")]) assert.match(text, /review|approv/i, text);
 });

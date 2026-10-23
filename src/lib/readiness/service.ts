@@ -1,3 +1,4 @@
+import { canConfigureCampus } from "@/lib/school-ai/setup-role";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
@@ -10,12 +11,7 @@ import { parseSetupDraft, unresolvedOptionalWork, type AdoptionMode as SetupAdop
 import { evaluateReadiness, isUnknownClassError, REHEARSAL_STEPS, type AdoptionMode, type ImportFacts, type ReadinessFacts, type RehearsalStep } from "./checks";
 
 type ImportRowJson = { state?: string; errors?: string[] };
-/**
- * Roles whose console has the AI Workflows flagship (addendum 2026-10-22: SUPER_ADMIN, the school admin, campus admins
- * and the principal; teachers have Exam Studio only), and so the "Set up your school with AI" questionnaire link.
- * Only readiness leads (authority or named delegate) see the checks page where the link appears.
- */
-const AI_SETUP_ROLES = new Set(["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"]);
+// Campus operators configure their campus; group owners and academic leads have separate workspaces.
 type ImportDataJson = { rows?: ImportRowJson[] };
 
 /**
@@ -102,8 +98,8 @@ export async function readinessView(user: AuthUser, now = new Date()) {
     ]);
     return { lead: true as const, readiness: { status: row.status, version: row.version, approvedById: row.approvedById, approvedAt: row.approvedAt, evidence: row.evidence, rehearsal: row.rehearsal },
       facts, ...evaluateReadiness(facts, { role: user.role, institutionKind: user.institutionKind, isInstitutionOwner: user.isInstitutionOwner }), tasks, staff, locale: { country: locale.country, timezone: locale.timezone, currency: locale.currency },
-      // The setup questionnaire lives in AI Workflows (/ai?workflow=schoolSetup).
-      aiSetup: AI_SETUP_ROLES.has(user.role) };
+      // The setup questionnaire lives in AI Workflows (/ai?setup=1).
+      aiSetup: canConfigureCampus(user.role) };
   });
 }
 

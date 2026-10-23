@@ -71,8 +71,8 @@ test("no console shows more than 10 top-level entries (plus the flagship pair) o
 
 test("the flagship leaves sit right after the landing leaf, for exactly the roles that may use them", () => {
   const EXPECTED: Record<ConsoleId, string[]> = {
-    super: ["ai-workflows"], admin: ["ai-workflows", "exam-studio"], principal: ["ai-workflows", "exam-studio"], teacher: ["exam-studio"],
-    accountant: [], receptionist: [], librarian: [], parent: [], student: [], owner: [],
+    super: ["ai-workflows"], admin: ["ai-workflows", "exam-studio"], principal: ["ai-workflows", "exam-studio"], teacher: ["ai-workflows", "exam-studio"],
+    accountant: ["ai-workflows"], receptionist: ["ai-workflows"], librarian: ["ai-workflows"], parent: ["ai-workflows"], student: ["ai-workflows"], owner: ["ai-workflows"],
   };
   for (const id of CONSOLES) {
     const nav = ROLE_NAV[id];
@@ -110,7 +110,7 @@ test("the flagship leaves sit right after the landing leaf, for exactly the role
   }
   // Learners keep their delivery entry one tap from Today, outside More.
   const student = ROLE_NAV.student;
-  assert.equal(student.entries[1].id, "online-exams");
+  assert.equal(student.entries[2].id, "online-exams");
   assert.equal(groupOf(student, "online-exams"), undefined);
 });
 
@@ -213,7 +213,7 @@ test("leafForPath finds every activePaths owner, view leaves included", () => {
   assert.equal(leafForPath("principal", "/ai")?.id, "ai-workflows");
   assert.equal(leafForPath("principal", "/ai/studio")?.id, "exam-studio");
   assert.equal(leafForPath("teacher", "/ai/studio")?.id, "exam-studio");
-  assert.equal(leafForPath("teacher", "/ai")?.id, "ai", "a teacher on /ai stays on their own assistant row");
+  assert.equal(leafForPath("teacher", "/ai")?.id, "ai-workflows", "a teacher on /ai opens their role-scoped workflows");
   assert.equal(leafForPath("student", "/student/resources")?.id, "work");
   assert.equal(leafForPath("parent", "/parent/resources")?.id, "homework");
   assert.equal(leafForPath("teacher", "/teacher/leave")?.id, "my-leave", "account-menu leaves are not sidebar rows but still resolve by href");

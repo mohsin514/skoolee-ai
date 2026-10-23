@@ -1,3 +1,4 @@
+import { institutionSetupDestination } from "@/lib/school-ai/setup-role";
 import { createElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import Image from "next/image";
 import { useStepMorph } from "@/components/auth/use-step-morph";
@@ -485,9 +486,9 @@ export function useSetupWizard(): SetupWizard {
       const res = await finishOnboarding(version);
       if (res.success) {
         setSuccess({ activated: res.activated, drafts: res.drafts });
-        // Continue directly into the existing, campus-scoped AI interview.
-        // Its generated drafts still require review; activation is only the institution foundation.
-        const target = "/ai?setup=1";
+        // Group owners delegate campus work; standalone operators continue the campus interview.
+        // Activation creates the institution foundation, not completed operational setup.
+        const target = institutionSetupDestination(type);
         const reduced = prefersReducedMotion();
         // Bring the charter head (the sealed line, the success alert) into view.
         requestAnimationFrame(() => document.querySelector("[data-step-card]")?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" }));

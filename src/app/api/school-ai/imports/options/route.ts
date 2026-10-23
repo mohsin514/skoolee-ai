@@ -1,3 +1,4 @@
+import { assertRosterPermission } from "@/lib/imports/roster-access";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { resolveCampusId } from "@/lib/api/scope";
@@ -8,6 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireSchoolAiUser("add");
     assertApprovalRole(user);
+    await assertRosterPermission(user, "add");
     await assertWorkspacePermission(user, "students", "view");
     await assertWorkspacePermission(user, "students", "add");
     const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
