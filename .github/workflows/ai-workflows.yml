@@ -45,6 +45,7 @@ jobs:
       - run: pnpm prisma generate
       - run: pnpm prisma migrate deploy
       - run: pnpm exec tsc --noEmit --incremental false
+      - run: pnpm check:capabilities
       - run: pnpm test:ai-workflows
       - run: pnpm test:ai-workflows:db
       - run: pnpm check:ui

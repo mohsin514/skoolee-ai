@@ -11,6 +11,6 @@ const files = dirs.filter(dir => existsSync(new URL(`../${dir}/`, import.meta.ur
   .filter(name => name.endsWith(".test.ts") && !name.endsWith(".browser.test.ts") && name.endsWith(".database.test.ts") === database)
   .sort().map(name => `${dir}/${name}`));
 if (!files.length) throw new Error("No AI Workflows test files found.");
-const result = spawnSync(process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", ...files], { cwd: new URL("..", import.meta.url), stdio: "inherit", env: process.env });
+const result = spawnSync(process.execPath, ["--import", "./tests/support/server-only.mjs", "--import", "tsx", "--test", "--test-concurrency=1", ...files], { cwd: new URL("..", import.meta.url), stdio: "inherit", env: process.env });
 if (result.error) throw result.error;
 process.exit(result.status ?? 1);

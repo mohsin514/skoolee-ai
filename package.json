@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && tsx scripts/check-commercial-contract.ts && npm run check:ui && next build",
+    "build": "prisma generate && tsx scripts/check-commercial-contract.ts && npm run check:ui && npm run check:capabilities && next build",
     "start": "next start",
     "lint": "eslint",
     "check:ui": "node --import tsx --test tests/design-system/adoption.test.ts",
+    "check:capabilities": "node --import ./tests/support/server-only.mjs --import tsx scripts/ai-workflows/check-capabilities.ts",
     "test:navigation": "node --import tsx --test \"tests/navigation/*.test.{ts,tsx}\"",
     "test:tour": "node --import tsx --test tests/tour/*.test.ts",
     "test:authz": "node --import tsx --test tests/authz/*.test.ts",
