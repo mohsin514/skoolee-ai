@@ -30,14 +30,14 @@ export async function expireSchoolAiAttempts(db: Database, options: { limit?: nu
     ? await db.$queryRaw<Reference[]>`
       SELECT id, school_id AS "schoolId", campus_id AS "campusId", deadline_at AS "deadlineAt"
       FROM school_ai_exam_attempts
-      WHERE status = 'IN_PROGRESS' AND deadline_at <= (statement_timestamp() AT TIME ZONE 'UTC')
+      WHERE status = 'IN_PROGRESS' AND paused_at IS NULL AND deadline_at <= (statement_timestamp() AT TIME ZONE 'UTC') -- SKO-502: a paused attempt never auto-expires
         AND (${schoolId}::text IS NULL OR school_id = ${schoolId})
         AND (deadline_at, id) > ((${cursor.deadlineAt}::timestamptz AT TIME ZONE 'UTC'), ${cursor.id})
       ORDER BY deadline_at, id LIMIT ${requested}`
     : await db.$queryRaw<Reference[]>`
       SELECT id, school_id AS "schoolId", campus_id AS "campusId", deadline_at AS "deadlineAt"
       FROM school_ai_exam_attempts
-      WHERE status = 'IN_PROGRESS' AND deadline_at <= (statement_timestamp() AT TIME ZONE 'UTC')
+      WHERE status = 'IN_PROGRESS' AND paused_at IS NULL AND deadline_at <= (statement_timestamp() AT TIME ZONE 'UTC') -- SKO-502: a paused attempt never auto-expires
         AND (${schoolId}::text IS NULL OR school_id = ${schoolId})
       ORDER BY deadline_at, id LIMIT ${requested}`;
   let submitted = 0, invalid = 0;
@@ -50,8 +50,8 @@ export async function expireSchoolAiAttempts(db: Database, options: { limit?: nu
         FROM school_ai_exam_attempts a
         JOIN school_ai_exam_assignments e ON e.id = a.assignment_id AND e.school_id = a.school_id AND e.campus_id = a.campus_id
         WHERE a.id = ${reference.id} AND a.school_id = ${reference.schoolId} AND a.campus_id = ${reference.campusId}
-          AND a.status = 'IN_PROGRESS' AND a.deadline_at <= (statement_timestamp() AT TIME ZONE 'UTC')
-          AND e.mode = 'STANDARD'
+          AND a.status = 'IN_PROGRESS' AND a.paused_at IS NULL AND a.deadline_at <= (statement_timestamp() AT TIME ZONE 'UTC')
+          AND e.mode IN ('STANDARD', 'SECURE_BROWSER') -- SKO-501: secure-browser attempts expire the same way (verified gap)
         FOR UPDATE OF a SKIP LOCKED`;
       const attempt = rows[0];
       if (!attempt) return "skipped";

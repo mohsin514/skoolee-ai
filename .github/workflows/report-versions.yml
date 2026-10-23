@@ -18,6 +18,8 @@ jobs:
         ports: ['55410:5432']
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # tsc --noEmit needs about 12 GB in this repository (the hosted runner has 16 GB).
+      NODE_OPTIONS: --max-old-space-size=12288
       DATABASE_URL: postgresql://postgres:synthetic-report-only@127.0.0.1:55410/sko210
       DIRECT_URL: postgresql://postgres:synthetic-report-only@127.0.0.1:55410/sko210
       AUTH_SECRET: synthetic-sko210-local-validation-only
@@ -33,13 +35,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma generate
       - run: pnpm exec prisma migrate deploy
-      - run: node --import tsx --test tests/locale/package.test.ts tests/locale/country.test.ts tests/locale/events.test.ts tests/locale/ui-coverage.test.ts tests/locale/database.test.ts tests/locale/money-database.test.ts
+      - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/locale/package.test.ts tests/locale/country.test.ts tests/locale/events.test.ts tests/locale/ui-coverage.test.ts tests/locale/database.test.ts tests/locale/money-database.test.ts
       - run: pnpm exec next build
       - name: Start isolated app and verify exact-version invariants
         run: |
           pnpm exec next start --hostname 127.0.0.1 --port 3210 > /tmp/report-app.log 2>&1 &
           for i in $(seq 1 40); do curl -s http://127.0.0.1:3210/login >/dev/null && break; sleep 1; done
-          node --import tsx --test tests/report-versions/version.test.ts
+          node --import ./tests/support/server-only.mjs --import tsx --test tests/report-versions/version.test.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:

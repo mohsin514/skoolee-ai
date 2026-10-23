@@ -2,6 +2,12 @@ import type { Language } from "@/lib/locale/package";
 import { STUDIO_SHELL_COPY } from "./exam-studio-copy-shell";
 import { STUDIO_SPACES_COPY } from "./exam-studio-copy-spaces";
 import { STUDIO_EVIDENCE_COPY } from "./exam-studio-copy-evidence";
+import { STUDIO_SYLLABUS_COPY } from "./exam-studio-copy-syllabus";
+import { STUDIO_HOME_COPY } from "./exam-studio-copy-home";
+import { STUDIO_SLOTS_COPY } from "./exam-studio-copy-slots";
+import { STUDIO_RESULTS_COPY } from "./exam-studio-copy-results";
+import { STUDIO_OFFICE_COPY } from "./exam-studio-copy-office";
+import { STUDIO_INTEL_COPY } from "./exam-studio-copy-intel";
 
 /**
  * Exam Studio interface copy — shared index (R22.1, R22.8, R22.9).
@@ -77,4 +83,4 @@ export const studioStatusLabel = (token: StudioStatusToken, language: Language) 
 export { STUDIO_SHELL_COPY, studioShellSpaceCopy, type StudioShellCopy } from "./exam-studio-copy-shell";
 
 /** Every registered area, in registration order. Each later UI task appends exactly one entry. */
-export const EXAM_STUDIO_COPY_AREAS: readonly StudioCopyArea[] = [STUDIO_STATUS_COPY, STUDIO_SHELL_COPY, STUDIO_SPACES_COPY, STUDIO_EVIDENCE_COPY];
+export const EXAM_STUDIO_COPY_AREAS: readonly StudioCopyArea[] = [STUDIO_STATUS_COPY, STUDIO_SHELL_COPY, STUDIO_SPACES_COPY, STUDIO_EVIDENCE_COPY, STUDIO_SYLLABUS_COPY, STUDIO_HOME_COPY, STUDIO_SLOTS_COPY, STUDIO_RESULTS_COPY, STUDIO_OFFICE_COPY, STUDIO_INTEL_COPY];

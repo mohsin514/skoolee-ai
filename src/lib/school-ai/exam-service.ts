@@ -29,7 +29,7 @@ async function studentFor(user: AuthUser, db: TxClient = prisma) {
   return student;
 }
 
-export async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma) {
+export async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown; examScheduleId?: string | null }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma) {
   const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, role: user.role, campusId: user.campusId, isActive: true }, select: { id: true, accessVersion: true } });
   if (!actor || (user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion)) throw new ApiError("Your exam access changed. Sign in again before continuing.", 403);
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
@@ -37,9 +37,40 @@ export async function staffExamAccess(user: AuthUser, assignment: { createdById:
   await assertWorkspacePermission(user, "exams", action, permissions);
   if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Exam access is restricted to authorized teaching staff.", 403);
   if (user.role !== "SUPER_ADMIN" && assignment.campusId !== user.campusId) throw new ApiError("Exam unavailable.", 404);
-  if (user.role === "TEACHER" && assignment.createdById !== user.userId) throw new ApiError("Exam unavailable.", 404);
   const paper = paperDataSchema.parse(assignment.paperSnapshot);
+  if (user.role === "TEACHER" && assignment.createdById !== user.userId) {
+    // SKO-502: the on-duty invigilator of a room of this sitting's date-sheet row supervises it (view, notices,
+    // pause, bounded extension); any teacher of the paper's subject and class may also mark it.
+    const invigilates = assignment.examScheduleId && action !== "edit" ? await db.examInvigilation.count({ where: { schoolId: user.schoolId, campusId: assignment.campusId, teacherId: user.userId, examRoom: { examScheduleId: assignment.examScheduleId } } }) : 0;
+    if (invigilates) return paper;
+    try { await assertWorkspaceSubject(user, assignment.campusId, paper, db); } catch { throw new ApiError("Exam unavailable.", 404); }
+    return paper;
+  }
   await assertWorkspaceSubject(user, assignment.campusId, paper, db);
+  return paper;
+}
+
+/**
+ * SKO-504 (plan §5, re-check policy: "HOD/office decides"): who decides an appeal or a result correction.
+ * Staff with edit access to the sitting decide, as before. In addition, the head of the primary department
+ * of the sitting's author or of the paper's subject teacher decides with authoring access — never as the
+ * head of themselves (`headsAuthorDepartment` excludes self).
+ */
+export async function resultDecisionAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown; examScheduleId?: string | null }, db: TxClient = prisma) {
+  if (user.role !== "TEACHER") return staffExamAccess(user, assignment, "edit", db);
+  const paper = paperDataSchema.parse(assignment.paperSnapshot);
+  if (assignment.campusId !== user.campusId) throw new ApiError("Exam unavailable.", 404);
+  const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, role: user.role, campusId: user.campusId, isActive: true }, select: { accessVersion: true } });
+  if (!actor || (user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion)) throw new ApiError("Your exam access changed. Sign in again before continuing.", 403);
+  const subject = await db.subject.findFirst({ where: { id: paper.subjectId, schoolId: user.schoolId }, select: { teacherId: true } });
+  const { headsAuthorDepartment } = await import("./department-heads");
+  let heads = false;
+  for (const person of new Set([assignment.createdById, subject?.teacherId].filter((value): value is string => Boolean(value)))) if (await headsAuthorDepartment(db, user.schoolId, user.userId, person)) { heads = true; break; }
+  // Anyone else keeps the previous rule: authorized staff with edit access to this sitting.
+  if (!heads) return staffExamAccess(user, assignment, "edit", db);
+  const permissions = await loadWorkspacePermissionSnapshot(user, db);
+  await assertSchoolAiAccess(user, "add", permissions);
+  await assertWorkspacePermission(user, "exams", "add", permissions);
   return paper;
 }
 
@@ -64,7 +95,8 @@ export async function listSchoolAiExams(user: AuthUser) {
   await assertSchoolAiAccess(user, "view"); await assertWorkspacePermission(user, "exams", "view");
   if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Exam access is restricted to teaching staff.", 403);
   const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user) : [];
-  return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}), ...(user.role === "TEACHER" ? { createdById: user.userId, paper: { subjectId: { in: subjects.map((subject) => subject.id) } } } : {}) }, select: { ...selection, _count: { select: { attempts: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
+  // SKO-504: a teacher lists every sitting of a subject they teach, as `staffExamAccess` lets them mark it.
+  return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}), ...(user.role === "TEACHER" ? { paper: { subjectId: { in: subjects.map((subject) => subject.id) } } } : {}) }, select: { ...selection, _count: { select: { attempts: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
 }
 
 export async function examRoster(user: AuthUser, paperId: string) {
@@ -90,6 +122,10 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
   const record = await getWorkspaceRecord(user, input.paperId);
   if (record.kind !== "PAPER" || record.status !== "APPROVED" || !record.campusId) throw new ApiError("Only an approved campus paper can be assigned.", 409);
   const paper = paperDataSchema.parse(record.data);
+  // SKO-500: a sitting that names its date-sheet row is linked to that row and its paper request; the row must be
+  // this paper's class and subject in this campus.
+  const schedule = input.examScheduleId ? await prisma.examSchedule.findFirst({ where: { id: input.examScheduleId, schoolId: user.schoolId, campusId: record.campusId }, select: { id: true, subjectId: true, paperSlotId: true, exam: { select: { classId: true } } } }) : null;
+  if (input.examScheduleId && (!schedule || schedule.exam.classId !== paper.classId || schedule.subjectId !== paper.subjectId)) throw new ApiError("Choose a date-sheet sitting for this paper's class and subject.", 409);
   await assertWorkspaceSubject(user, record.campusId, paper);
   const count = await prisma.student.count({ where: { id: { in: input.studentIds }, schoolId: user.schoolId, campusId: record.campusId, classId: paper.classId, archivedAt: null, status: "active", studentUserId: { not: null } } });
   if (count !== input.studentIds.length) throw new ApiError("Every selected student must have an active account in this paper's class.", 403);
@@ -117,7 +153,7 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
     // SKO-408: the sealed release — workbench papers must pass every release precondition; the hash is recorded either way.
     const stored = await tx.schoolAiRecord.findFirstOrThrow({ where: { id: record.id, schoolId: user.schoolId }, select: { createdById: true } });
     const seal = await sealRelease(tx, user, { id: record.id, version: record.version, createdById: stored.createdById, campusId: record.campusId }, paper);
-    const created = await tx.schoolAiExamAssignment.create({ data: { contentHash: seal.contentHash, rehearsalId: seal.rehearsalId, ...(secureProfile ? { secureProfileId: secureProfile.id, secureProfileVersion: secureProfile.version } : {}), id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: input.mode, status: "ACTIVE" }, select: selection });
+    const created = await tx.schoolAiExamAssignment.create({ data: { contentHash: seal.contentHash, rehearsalId: seal.rehearsalId, ...(secureProfile ? { secureProfileId: secureProfile.id, secureProfileVersion: secureProfile.version } : {}), id: assignmentId, schoolId: user.schoolId, campusId: record.campusId!, classId: paper.classId, paperId: record.id, paperVersion: record.version, paperSnapshot: json(paper), createdById: user.userId, title: input.title, startsAt, endsAt, studentIds: input.studentIds, mode: input.mode, status: "ACTIVE", ...(schedule ? { examScheduleId: schedule.id, paperSlotId: schedule.paperSlotId } : {}) }, select: selection });
     await writeAuditEvent(tx, user, { table: "school_ai_exam_assignments", recordId: created.id, action: "CREATE", campusId: created.campusId, after: { paperId: record.id, paperVersion: created.paperVersion, classId: created.classId, status: created.status, mode: created.mode, students: input.studentIds.length, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() } });
     return created;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));

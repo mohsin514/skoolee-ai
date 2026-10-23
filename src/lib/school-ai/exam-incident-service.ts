@@ -37,11 +37,12 @@ export async function listClarifications(user: AuthUser, assignmentId: string) {
     const rows = await tx.schoolAiExamClarification.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { version: "asc" } });
     const number = (questionId: string | null) => questionId ? paper.questions.findIndex(question => question.id === questionId) + 1 || null : null;
     if (student) {
-      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId }, select: { id: true, pausedAt: true } });
-      if (!attempt) return { notices: [], pausedAt: null };
+      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId }, select: { id: true, pausedAt: true, deadlineAt: true } });
+      if (!attempt) return { notices: [], pausedAt: null, deadlineAt: null };
       const mine = latest(rows.filter(row => inAudience(row.audience, attempt.id)));
       const acks = new Set((await tx.schoolAiExamClarificationAck.findMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, clarificationId: { in: mine.map(row => row.id) } }, select: { clarificationId: true } })).map(row => row.clarificationId));
-      return { pausedAt: attempt.pausedAt, notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
+      // SKO-502: the deadline travels with the notice poll, so an extension reaches an idle candidate's clock.
+      return { pausedAt: attempt.pausedAt, deadlineAt: attempt.deadlineAt, notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
     }
     await staffExamAccess(user, assignment, "view", tx);
     const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { id: true, status: true, studentId: true, pausedAt: true, deadlineAt: true } });
@@ -179,6 +180,8 @@ export async function applyRemedy(user: AuthUser, assignmentId: string, remedyId
     if (student) throw new ApiError("Exam unavailable.", 404);
     await staffExamAccess(user, assignment, "edit", tx);
     await assertStudioAction(user, "AUTHORIZE_REMEDY", { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, undefined, tx);
+    // SKO-504: after release every per-candidate revision would fail, yet the remedy used to be marked APPLIED.
+    if (assignment.resultsReleasedAt) throw new ApiError("Results are released, so this remedy cannot change them directly. Propose a correction for each affected result instead; another reviewer approves it.", 409);
     const remedy = await tx.schoolAiExamRemedy.findFirst({ where: { id: remedyId, assignmentId, schoolId: user.schoolId } });
     if (!remedy) throw new ApiError("Remedy unavailable.", 404);
     if (remedy.status !== "PROPOSED") throw new ApiError("This remedy was already applied or withdrawn.", 409);

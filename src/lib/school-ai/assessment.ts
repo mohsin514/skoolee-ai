@@ -21,6 +21,11 @@ export const curriculumDataSchema = z.object({
     approved: z.boolean(),
     edition: draftText(160).optional(),
     effectiveFrom: z.string().date().optional(),
+    // SKO-500: the approved SOURCE revision this entry cites, so the evidence chain points at the
+    // uploaded document rather than a pasted copy. Absent on entries typed by hand before SKO-500.
+    sourceRecordId: id.optional(),
+    sourceVersion: z.number().int().positive().optional(),
+    pageRange: draftText(40).optional(),
   }).strict()).max(30),
   lessonPlans: z.array(lessonPlanSchema).max(50).optional(),
   sectionCoverage: z.array(z.object({
@@ -38,6 +43,8 @@ export const curriculumDataSchema = z.object({
     code: draftText(80).optional(),
     description: draftText(2000).optional(),
     prerequisiteIds: z.array(id).max(20).optional(),
+    // SKO-500: the syllabus unit (chapter) the outcome sits in; the Syllabus Map's columns.
+    unit: draftText(200).optional(),
   }).strict()).max(200),
   pack: z.object({
     authority: draftText(200),
@@ -45,6 +52,10 @@ export const curriculumDataSchema = z.object({
     language: assessmentLanguageSchema,
     rights: z.enum(["APPROVED", "UNDER_REVIEW", "MANUAL"]),
   }).strict().optional(),
+  // SKO-500: approving this curriculum also approves the cited SOURCE revision (one approval, not two).
+  approvalBundle: z.object({ sourceRecordId: id, sourceVersion: z.number().int().positive() }).strict().optional(),
+  // SKO-500: "Same as last year" keeps where a curriculum was copied from.
+  lineage: z.object({ clonedFromRecordId: id, clonedFromVersion: z.number().int().positive(), academicYear: draftText(80) }).strict().optional(),
 }).strict();
 
 export const blueprintSchema = z.object({
@@ -130,8 +141,13 @@ export const paperDataSchema = z.object({
   coverageSection: id.optional(),
   resources: z.array(z.object({ id, title: draftText(200), content: draftText(20000), approved: z.boolean() }).strict()).max(10).optional(),
   questions: z.array(questionSchema).max(100),
+  // SKO-500: which kind of assessment this paper is. Decides who may approve it (classroom tier) and
+  // whether it needs moderation. Absent on older papers, which read as CLASS_TEST.
+  examType: z.enum(["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL"]).optional(),
+  // SKO-500: the office paper slot this paper answers, when it was requested from the date sheet.
+  slotId: id.optional(),
   generation: z.object({
-    kind: z.enum(["MANUAL", "AI"]),
+    kind: z.enum(["MANUAL", "AI", "UPLOADED"]),
     model: draftText(200).nullable(),
     generatedAt: z.string().datetime().nullable(),
   }).strict(),
@@ -215,7 +231,11 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
   if (!curriculum.sources.some((source) => source.kind !== "PAST_PAPER" && source.approved)) {
     errors.push("A past paper alone cannot establish curriculum coverage; add a syllabus, textbook or approved teacher plan.");
   }
-  if (!curriculum.outcomes.some((outcome) => outcome.included && outcome.taught)) errors.push("Include at least one taught outcome.");
+  // SKO-500: a syllabus drawn from an uploaded source records teaching on the Teaching Line, so it is
+  // approved before anything is taught. A hand-typed curriculum still needs one taught outcome.
+  const tracksTeachingLine = curriculum.sources.some((source) => source.sourceRecordId);
+  if (!tracksTeachingLine && !curriculum.outcomes.some((outcome) => outcome.included && outcome.taught)) errors.push("Include at least one taught outcome.");
+  if (tracksTeachingLine && !curriculum.outcomes.some((outcome) => outcome.included)) errors.push("Include at least one outcome.");
   for (const outcome of curriculum.outcomes) {
     if (!outcome.title.trim() || !outcome.sourcePage.trim() || !curriculum.sources.some((source) => source.id === outcome.sourceId && source.approved)) {
       errors.push(`Outcome ${outcome.title || outcome.id} needs an approved source and page reference.`);
@@ -363,4 +383,15 @@ export function candidatePaper(paper: PaperData): CandidatePaper {
     ...(paper.resources?.length ? { resources: paper.resources.filter(resource => resource.approved).map(({ id, title, content }) => ({ id, title, content })) } : {}),
     questions: paper.questions.map(({ id: questionId, sectionId, type, prompt, marks, options, figures }) => ({ id: questionId, sectionId, type, prompt, marks, options: options.map(({ id: optionId, text }) => ({ id: optionId, text })), ...(figures?.length ? {figures:figures.filter(figure=>figure.approved).map(candidateFigure)} : {}) })),
   };
+}
+
+/**
+ * SKO-501 (audit 4.4, `assessment-studio.tsx:195`): "Create revised draft" from a reviewed, rehearsed,
+ * form-set or requested paper. A new record may not carry another record's review history, form-set
+ * membership, rehearsal state or paper request, so the revised draft drops exactly those and keeps the
+ * content (bank provenance included). Every item starts unreviewed, so review and rehearsal run again.
+ */
+export function revisedDraftFrom(paper: PaperData): PaperData {
+  const { formSet: _formSet, itemGroupIds: _groups, staleness: _staleness, slotId: _slot, ...rest } = paper;
+  return { ...rest, questions: paper.questions.map(({ review: _review, ...question }) => question) };
 }

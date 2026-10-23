@@ -26,7 +26,7 @@ export type NotificationIntent =
   | "fee-setup" | "invoices" | "payments" | "timetable" | "datesheet" | "cover" | "academic-year" | "promotion"
   | "family-home" | "family-attendance" | "activities" | "pickup" | "study-help" | "service-desk" | "meetings"
   | "transport" | "care" | "phone-calls" | "postal" | "certificates" | "applications" | "leave-review" | "my-leave"
-  | "billing" | "campus" | "corrections" | "self-approval" | "support-approvals" | "tax-signoff" | "home";
+  | "billing" | "campus" | "corrections" | "self-approval" | "support-approvals" | "tax-signoff" | "exam-papers" | "home";
 
 /** Every notification kind the product emits (events.ts plus the rows written directly by other services). */
 export const NOTIFICATION_KIND_INTENT: Record<string, NotificationIntent> = {
@@ -44,6 +44,9 @@ export const NOTIFICATION_KIND_INTENT: Record<string, NotificationIntent> = {
   INVOICES_GENERATED: "invoices", PAYMENT_RECORDED: "payments",
   TIMETABLE_CREATED: "timetable", TIMETABLE_PUBLISHED: "timetable", TIMETABLE_DELETED: "timetable", TIMETABLE_CHANGED: "timetable",
   EXAM_DATESHEET_PUBLISHED: "datesheet",
+  // SKO-500: the exam chain. The author and moderator work in Exam Studio; the office reads Exam cycles.
+  EXAM_SESSION_SCHEDULED: "exam-papers", EXAM_PAPER_REQUESTED: "exam-papers", EXAM_PAPER_DUE_SOON: "exam-papers",
+  EXAM_PAPER_SUBMITTED: "exam-papers", EXAM_PAPER_MODERATED: "exam-papers",
   COVER_HANDOVER_READY: "cover", LESSON_RECOVERY_NEEDED: "cover",
   ACADEMIC_YEAR_CLOSED: "academic-year", ACADEMIC_CYCLE_CHANGED: "academic-year",
   STUDENTS_PROMOTED: "promotion",
@@ -232,6 +235,7 @@ const TARGETS: Record<NotificationIntent, Partial<Record<ConsoleId, Target>>> = 
     super: view("super", "approvals", { tab: "tax" }),
     admin: (_c, viewer) => (schoolAdmin(viewer) ? view("admin", "approvals", { tab: "tax" }) : null),
   },
+  "exam-papers": { teacher: "/ai/studio#space=brief", principal: view("principal", "exam-cycles"), admin: view("admin", "exam-cycles") },
   home: {},
 };
 

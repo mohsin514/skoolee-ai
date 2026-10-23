@@ -17,6 +17,9 @@ import { AssessmentRepairPanel } from "../../assessment-repair-panel";
 import { EvidencePackPanel } from "../evidence-pack-panel";
 import { ExamModerationPanel } from "../../exam-moderation-panel";
 import { PracticeProgressPanel } from "../../practice-progress-panel";
+import type { MistakeMap } from "@/lib/school-ai/mistake-map";
+import { FamilyNotesPanel, MistakeMapPanel } from "../mistake-map-panel";
+import { TwinPanel } from "../twin-panel";
 
 /**
  * SKO-408 Results and improvement (R18). The evidence base is stated before any reading of it, an
@@ -27,7 +30,7 @@ type Exam = { id: string; title: string; classId: string; campusId: string; star
 type Staff = {
   role: "STAFF"; exam: { id: string; title: string; endsAt: string; resultsReleasedAt: string | null; paperVersion: number };
   counts: { assigned: number; absent: number; inProgress: number; unmarked: number; reviewed: number };
-  items: ItemAnalysis[]; learners: Array<{ attemptId: string; name: string | null; resultVersion: number; feedback: OutcomeFeedback[] }>;
+  items: ItemAnalysis[]; map: MistakeMap; learners: Array<{ attemptId: string; name: string | null; resultVersion: number; feedback: OutcomeFeedback[] }>;
 };
 const READING: Record<ItemAnalysis["reading"], keyof StudioSpacesCopy> = { LEARNING_EVIDENCE: "readingLearning", CHECK_ITEM: "readingCheck", INSUFFICIENT_EVIDENCE: "readingThin" };
 
@@ -79,6 +82,9 @@ export default function ImproveSpace({ language, scope, capabilities, records, r
           </tr>)}</tbody>
         </table></div>
       </section>
+      <TwinPanel examId={data.exam.id} language={language} />
+      {data.exam.resultsReleasedAt && <MistakeMapPanel examId={data.exam.id} map={data.map} language={language} canCreate={capabilities.canCreate} onPractice={reload} />}
+      {data.exam.resultsReleasedAt && (capabilities.canApprove || capabilities.canCreate) && <FamilyNotesPanel examId={data.exam.id} language={language} canCreate={capabilities.canApprove || capabilities.canCreate} />}
       <ExamRemedyPanel examId={data.exam.id} locale={language} canAuthorize={capabilities.canApprove} onApplied={() => void load()} />
       {capabilities.canApprove || capabilities.canCreate ? <AssessmentRepairPanel examId={data.exam.id} /> : null}
       {capabilities.canApprove || capabilities.canCreate ? <EvidencePackPanel examId={data.exam.id} language={language} canIncludeKeys={capabilities.canApprove || capabilities.canCreate} /> : null}

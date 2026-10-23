@@ -55,7 +55,7 @@ test("connected exam plan previews candidates, retries a lost creation response 
   await page.getByRole("checkbox", { name: t.confirm, exact: true }).check(); await page.getByRole("button", { name: t.apply, exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: c.failed })).toBeVisible(); await page.getByRole("button", { name: t.apply, exact: true }).click();
   await expect(page.getByRole("heading", { name: t.receipt, exact: true })).toBeVisible(); expect(keys.length).toBe(2); expect(keys[0]).toBe(keys[1]);
-  expect(await db.examSession.count({ where: { campusId, status: "PLANNING" } })).toBe(1); expect(await db.exam.count({ where: { campusId, status: "DRAFT" } })).toBe(1);
+  expect(await db.examSession.count({ where: { campusId, status: "PLANNING" } })).toBe(1); expect(await db.exam.count({ where: { campusId, status: "ACTIVE" } })).toBe(1);
   const duties = page.locator("section").filter({ has: page.getByRole("heading", { name: t.duties, exact: true }) }).last();
   await duties.getByRole("combobox", { name: t.invigilator, exact: true }).selectOption(alternateId); await duties.getByRole("button", { name: c.save, exact: true }).click();
   await expect(duties.getByText(t.dutySaved, { exact: true })).toBeVisible(); expect((await db.examInvigilation.findFirstOrThrow({ where: { campusId } })).teacherId).toBe(alternateId);

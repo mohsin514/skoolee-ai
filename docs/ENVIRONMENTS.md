@@ -119,3 +119,25 @@ feature branch → dev → staging → qa → production
 ```
 
 Merge forward; never push straight to `production` without going through QA.
+
+## Demo tenant (exam chain, SKO-500)
+
+The synthetic demo school (`skoolee-demo-synthetic`) is rebuilt by `scripts/demo/reset-demo-tenant.ts`. It only ever
+deletes and recreates that one school, labelled `[Synthetic demo]`.
+
+1. Use the demo database only. A non-local database also needs `DEMO_RESET_ALLOW_REMOTE=1`.
+2. Run the reset with a fresh password of 12 or more characters:
+
+   ```bash
+   DEMO_PASSWORD=<12+ chars> DATABASE_URL=<demo database> npx tsx scripts/demo/reset-demo-tenant.ts
+   ```
+
+3. Check the printed manifest against `docs/leap/demo-runbook.md` (counts and fingerprint).
+4. Sign in as `demo-teacher@example.invalid` for the Syllabus Drop (Grade 7 A Mathematics), the Teaching Line
+   (Science) and "Papers you owe"; as `demo-principal@example.invalid` for Exams → Papers (request papers, remind,
+   change author or moderator); as `demo-hod@example.invalid` for Department approvals and moderation.
+5. For a fast local rehearsal, run Postgres on loopback and point `DATABASE_URL` and `DIRECT_URL` at it; a
+   remote database makes every page wait on round trips. Load the schema with `npx prisma db push` first.
+6. Text uploads extract without an AI provider when `SCHOOL_AI_STORAGE_DIR` points at a writable private folder;
+   photos and PDFs need the approved media provider (`SCHOOL_AI_MEDIA_EGRESS_APPROVED=true`). The outline step uses
+   fixed rules when no text provider is configured.

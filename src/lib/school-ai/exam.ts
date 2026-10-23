@@ -11,6 +11,8 @@ export const examAssignmentSchema = z.object({
   studentIds: z.array(id).min(1).max(500),
   mode: z.enum(["STANDARD", "SECURE_BROWSER", "PROCTORED"]),
   secureProfileId: id.optional(),
+  /** SKO-500: the date-sheet row this sitting delivers; links the sitting to its paper request. */
+  examScheduleId: id.optional(),
 }).strict();
 
 export const responsesSchema = z.record(id, z.string().max(20000)).refine((value) => Object.keys(value).length <= 100, "At most 100 answers are allowed.");

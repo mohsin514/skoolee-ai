@@ -26,7 +26,7 @@ type QueueMessage = { key: string; values: (string | number)[] };
 type Item = { titleMessage?: QueueMessage; triggerMessage?: QueueMessage; reasonMessage?: QueueMessage; key: string; type: string; title: string; trigger: string; nextAction: string; sourceOwner: { id: string; name: string } | null; dueAt: string | null; link: string; overdue: boolean; reason: string; assignee: { id: string; name: string } | null; acknowledgedAt: string | null; snoozedUntil: string | null; snoozeReason: string | null; snoozed: boolean };
 type Queue = { viewerId: string; items: Item[]; resolved: { key: string; title: string | null; resolvedAt: string }[]; counts: { active: number; overdue: number; snoozed: number; unassigned: number }; failedSources: string[]; checkedAt: string; sortingRule: string };
 type Staff = { id: string; fullName: string; role: string };
-const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments", CORRECTION_APPROVAL: "Record corrections", SUPPORT_CHECKIN: "Learning actions" };
+const TYPE_LABEL: Record<string, string> = { COMPLAINT: "Complaints", ATTENDANCE_MISSING: "Attendance", DELIVERY_FAILED: "Family messages", LEAVE_PENDING: "Leave", REPORT_APPROVAL: "Report approval", ADJUSTMENT_APPROVAL: "Fee adjustments", CORRECTION_APPROVAL: "Record corrections", SUPPORT_CHECKIN: "Learning actions", SYLLABUS_APPROVAL: "Syllabi", PAPER_DUE: "Papers due", PAPER_MODERATION: "Paper moderation", PAPER_SEAL: "Papers to seal", RESULT_RELEASE: "Results to publish" };
 
 export function ActionQueue({ campusId }: { campusId?: string }) {
   const ui = useUiText();

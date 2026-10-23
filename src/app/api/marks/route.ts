@@ -131,6 +131,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // SKO-503: the room sheet is authoritative. A pupil recorded absent for this exam and subject gets no mark
+    // until the exam office reopens the entry; recording them absent here stays allowed.
+    const absentees = await prisma.examAttendance.findMany({
+      where: { schoolId: user.schoolId, status: "ABSENT", studentId: { in: entries.filter((entry) => !entry.isAbsent && !entry.isExempt).map((entry) => entry.studentId) }, scheduleId: { in: (await prisma.examSchedule.findMany({ where: { schoolId: user.schoolId, examId, subjectId: { in: entries.map((entry) => entry.subjectId) } }, select: { id: true } })).map((row) => row.id) } },
+      select: { studentId: true },
+    });
+    if (absentees.length) {
+      return Response.json({ error: "A pupil is recorded absent on the room sheet. The exam office must reopen the entry before a mark is entered.", code: "ROOM_SHEET_ABSENT" }, { status: 409 });
+    }
+
     // Per-subject grades follow the class's configured ladder, the same one
     // the report card uses — otherwise a mark shows "B" on the marks screen
     // and "A" on the report card for the identical score.

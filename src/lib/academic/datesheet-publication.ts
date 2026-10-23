@@ -164,6 +164,10 @@ export async function publishDatesheet(user: AuthUser, sessionId: string, expect
   const staffIds = [...new Set(all.filter(p => touched.has(p.scheduleId)).flatMap(p => p.rooms.map(r => r.invigilatorId)).filter((id): id is string => Boolean(id)))];
   const students = classIds.length ? await prisma.student.findMany({ where: { classId: { in: classIds }, status: "active", archivedAt: null }, select: { id: true, studentUserId: true } }) : [];
   const guardians = students.length ? await prisma.guardianRelationship.findMany({ where: { studentId: { in: students.map(s => s.id) }, ...liveGuardianRelationshipWhere(null, "learningRecords", new Date(), user.schoolId) }, select: { guardianUserId: true } }) : [];
+  // SKO-500: the subject teachers of the papers that changed are told too (they write and mark them).
+  const touchedScheduleIds = all.filter(p => touched.has(p.scheduleId)).map(p => p.scheduleId);
+  const subjectTeacherIds = touchedScheduleIds.length ? (await prisma.examSchedule.findMany({ where: { schoolId: user.schoolId, id: { in: touchedScheduleIds } }, select: { subject: { select: { teacherId: true } } } })).map(row => row.subject.teacherId).filter((id): id is string => Boolean(id)) : [];
+  for (const teacherId of subjectTeacherIds) if (!staffIds.includes(teacherId)) staffIds.push(teacherId);
   const affected = { classes: classIds.length, students: students.length, staff: staffIds.length };
 
   const created = await prisma.$transaction(async tx => {

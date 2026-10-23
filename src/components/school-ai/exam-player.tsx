@@ -208,7 +208,7 @@ export function ExamPlayer({ id, locale }: { id: string; locale: AssessmentLocal
     {finished && <ExamResults id={id} locale={locale} student />}
     {finished && <LearnerFeedback id={id} language={locale} />}
     {finished && (exam?.secureBrowser?.required && exam.secureBrowser.via === "SEB" ? <a href={`/ai/exams/${encodeURIComponent(id)}?seb=quit`} className={buttonVariants({ variant: "outline" })}>{examReleaseCopy(locale).exitSeb}</a> : <Link href="/student" className={buttonVariants({ variant: "outline" })}>{t.studentHome}</Link>)}
-    {attempt && <ExamNotices id={id} locale={locale} active={!finished} onPaused={pausedAt => { if ((pausedAt ?? null) !== (attemptRef.current?.pausedAt ?? null)) void load(); }} />}
+    {attempt && <ExamNotices id={id} locale={locale} active={!finished} onPaused={(pausedAt, deadlineAt) => { if ((pausedAt ?? null) !== (attemptRef.current?.pausedAt ?? null) || (deadlineAt && attemptRef.current && new Date(deadlineAt).getTime() !== new Date(attemptRef.current.deadlineAt).getTime())) void load(); }} />}
     {attempt && !finished && paused && <section role="status" aria-live="polite" className="sk-panel space-y-2 border-status-warning-border bg-status-warning-surface p-6 text-status-warning-text" data-exam-paused>
       <h2 className="text-xl font-bold">{examIncidentCopy(locale).pausedTitle}</h2>
       <p>{examIncidentCopy(locale).pausedBody}</p>

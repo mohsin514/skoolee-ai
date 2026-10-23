@@ -50,6 +50,21 @@ export const sourceDataSchema = z.strictObject({
   extractionModel: z.string().max(120).optional(),
   extractedAt: z.iso.datetime().optional(),
   sourceLanguage: z.enum(["en", "ar", "ur"]).optional(),
+  // SKO-500: the outline the AI proposed from this syllabus, kept unreviewed until a teacher accepts
+  // it into a curriculum. Every suggestion cites a page and an exact excerpt.
+  outlineProposal: z.strictObject({
+    generatedAt: z.iso.datetime(),
+    model: z.string().max(120),
+    requestHash: z.string().regex(/^[a-f0-9]{64}$/),
+    suggestions: z.array(z.strictObject({
+      id: workspaceIdSchema,
+      unit: z.string().trim().max(200),
+      title: z.string().trim().min(1).max(1200),
+      code: z.string().trim().max(80).optional(),
+      page: z.string().trim().max(80),
+      excerpt: z.string().max(3000),
+    })).max(200),
+  }).optional(),
 }).superRefine((value, ctx) => {
   if (Boolean(value.subjectId) !== Boolean(value.classId)) ctx.addIssue({ code: "custom", path: ["subjectId"], message: "Choose both the subject and its class." });
   if (value.sourcePages && new Set(value.sourcePages.map((page) => page.page)).size !== value.sourcePages.length) ctx.addIssue({ code: "custom", path: ["sourcePages"], message: "Source page numbers must be unique." });
