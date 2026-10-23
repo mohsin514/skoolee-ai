@@ -40,7 +40,7 @@ export interface StepView {
 export interface RunView {
   id: string; version: number; language: Locale; status: string; outcome: string | null; errorCode: string | null;
   createdAt: string; updatedAt: string; eventSeq: number;
-  steps: StepView[]; questions: Array<{ id: string; promptKey: string; text: string | null; pointer: string | null; capabilityTitle: string | null }>;
+  steps: StepView[]; questions: Array<{ id: string; promptKey: string; text: string | null; pointer: string | null; capabilityTitle: string | null; params: Record<string, string | number>; options: Array<{ value: string; label: string }> }>;
   credits: { used: number };
 }
 
@@ -64,8 +64,9 @@ export function toRunView(job: JobWithParts): RunView {
     };
   });
   const questions = job.questions.filter(question => question.status === "OPEN").map(question => {
-    const params = question.promptParams as { text?: string; capability?: string };
-    return { id: question.id, promptKey: question.promptKey, text: params.text ?? null, pointer: question.pointer, capabilityTitle: params.capability ? capability(params.capability)?.copy.title[language] ?? null : null };
+    const params = question.promptParams as { text?: string; capability?: string } & Record<string, string | number>;
+    const { text, capability: capabilityKey, ...rest } = params;
+    return { id: question.id, promptKey: question.promptKey, text: text ?? null, pointer: question.pointer, capabilityTitle: capabilityKey ? capability(capabilityKey)?.copy.title[language] ?? null : null, params: rest, options: Array.isArray(question.options) ? question.options as Array<{ value: string; label: string }> : [] };
   });
   return {
     id: job.id, version: job.version, language, status: job.status, outcome: job.outcome, errorCode: job.errorCode,

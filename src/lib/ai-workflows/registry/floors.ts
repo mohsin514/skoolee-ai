@@ -23,6 +23,9 @@ export const CLASS_A_ALLOWLIST: Readonly<Record<string, string>> = {
   "front_desk.call_log": "Append-only call record keyed by the request; nothing is sent or decided.",
   "library.book_create": "Append-only catalogue titles; duplicate ISBNs are refused by the domain.",
   "work.save": "Saves an unapproved draft plan; no operational record changes.",
+  "digests.prepare": "Builds an unsent draft only from evidence already released to families; sending is a separate reviewed step.",
+  "marks_scan.create_template": "Prints a blank paper marks sheet from the class roster; no mark changes until a scanned batch is reviewed and approved.",
+  "resources.create": "Saves a link as a staff-only DRAFT; nothing is visible to learners or families until it is published on the Resources screen; the same link in a class is never added twice.",
   "curriculum.import_topics": "Appends missing topics only from approved, page-referenced sources; existing topics are kept.",
 };
 

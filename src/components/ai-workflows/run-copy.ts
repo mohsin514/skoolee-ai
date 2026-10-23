@@ -84,3 +84,38 @@ export function t(table: Record<string, T>, key: string, language: Lang, ...valu
   const text = table[key]?.[language] ?? table[key]?.en ?? key;
   return text.replace(/\{(\d+)\}/g, (match, index) => (index in values ? String(values[Number(index)]) : match));
 }
+
+/** Questions a resolver asks (promptKey); `{0}` is the field pointer. */
+export const QUESTION_WORDS: Record<string, T> = {
+  PUPIL_AMBIGUOUS: { en: "More than one pupil matches. Which one did you mean?", ar: "أكثر من طالب يطابق الاسم. من تقصد؟", ur: "ایک سے زیادہ طالب علم ملتے ہیں۔ آپ کس کی بات کر رہے ہیں؟" },
+  PUPIL_NOT_FOUND: { en: "No pupil in this class matches that name. Give the full name or roll number.", ar: "لا يوجد طالب بهذا الاسم في الفصل. اكتب الاسم الكامل أو رقم القيد.", ur: "اس کلاس میں اس نام کا کوئی طالب علم نہیں۔ پورا نام یا رول نمبر لکھیں۔" },
+  PUPIL_TWICE: { en: "The same pupil is named twice. Which status is right?", ar: "ذُكر الطالب نفسه مرتين. أي حالة صحيحة؟", ur: "ایک ہی طالب علم دو بار لکھا گیا ہے۔ کون سی حالت درست ہے؟" },
+  PUPIL_NEGATED: { en: "This sounds like a \"not\". What should this pupil be marked?", ar: "يبدو أن العبارة منفية. بماذا يُسجَّل هذا الطالب؟", ur: "یہ نفی لگتی ہے۔ اس طالب علم کی حاضری کیا لگائیں؟" },
+  ASSIGNMENT_AMBIGUOUS: { en: "More than one homework matches. Which one?", ar: "أكثر من واجب يطابق. أيها؟", ur: "ایک سے زیادہ ہوم ورک ملتے ہیں۔ کون سا؟" },
+  ASSIGNMENT_NOT_FOUND: { en: "No draft homework of yours matches that. Give its title.", ar: "لا يوجد واجب مسودة بهذا الاسم. اكتب عنوانه.", ur: "آپ کا کوئی مسودہ ہوم ورک نہیں ملا۔ عنوان لکھیں۔" },
+  RESOURCE_AMBIGUOUS: { en: "More than one resource matches. Which one?", ar: "أكثر من مصدر يطابق. أيها؟", ur: "ایک سے زیادہ وسائل ملتے ہیں۔ کون سا؟" },
+  RESOURCE_NOT_FOUND: { en: "No draft resource of yours matches that. Give its title.", ar: "لا يوجد مصدر مسودة بهذا الاسم.", ur: "آپ کا کوئی مسودہ وسیلہ نہیں ملا۔" },
+  CLASS_REQUIRED: { en: "Which class is this for?", ar: "لأي فصل؟", ur: "یہ کس کلاس کے لیے ہے؟" },
+  GOAL_REQUIRED: { en: "Which goal does this portfolio entry show?", ar: "أي هدف يظهره هذا المدخل؟", ur: "یہ پورٹ فولیو اندراج کون سا ہدف دکھاتا ہے؟" },
+  DATE_INVALID: { en: "That date is not clear. Which date?", ar: "التاريخ غير واضح. أي تاريخ؟", ur: "تاریخ واضح نہیں۔ کون سی تاریخ؟" },
+  LEAVE_TO_BEFORE_FROM: { en: "The leave ends before it starts. Which dates?", ar: "الإجازة تنتهي قبل أن تبدأ. ما التواريخ؟", ur: "چھٹی شروع ہونے سے پہلے ختم ہو رہی ہے۔ تاریخیں کیا ہیں؟" },
+  LEAVE_TYPE_NOT_FOUND: { en: "Which type of leave?", ar: "أي نوع من الإجازة؟", ur: "کس قسم کی چھٹی؟" },
+  LEAVE_TYPE_AMBIGUOUS: { en: "Which type of leave?", ar: "أي نوع من الإجازة؟", ur: "کس قسم کی چھٹی؟" },
+  MEETING_DATE_PAST: { en: "That date has passed. Which date?", ar: "هذا التاريخ مضى. أي تاريخ؟", ur: "یہ تاریخ گزر چکی۔ کون سی تاریخ؟" },
+  MEETING_END_BEFORE_START: { en: "The window ends before it starts. What times?", ar: "النافذة تنتهي قبل أن تبدأ. ما الأوقات؟", ur: "وقت شروع ہونے سے پہلے ختم ہو رہا ہے۔ اوقات کیا ہیں؟" },
+  MEETING_WINDOW_TOO_SHORT: { en: "That is shorter than one meeting slot. What times?", ar: "أقصر من موعد واحد. ما الأوقات؟", ur: "یہ ایک سلاٹ سے کم ہے۔ اوقات کیا ہیں؟" },
+  MEETING_LOCATION_NEEDED: { en: "Where will families meet you?", ar: "أين تلتقي بك الأسر؟", ur: "والدین آپ سے کہاں ملیں گے؟" },
+  MEETING_CANCELLATION_POLICY_NEEDED: { en: "How can families cancel or change a meeting?", ar: "كيف تلغي الأسر أو تغير اللقاء؟", ur: "والدین ملاقات کیسے منسوخ یا تبدیل کریں؟" },
+  DIGEST_WEEK_NOT_STARTED: { en: "That week has not started yet. Which week?", ar: "هذا الأسبوع لم يبدأ. أي أسبوع؟", ur: "یہ ہفتہ ابھی شروع نہیں ہوا۔ کون سا ہفتہ؟" },
+  EXAM_AMBIGUOUS: { en: "More than one test matches. Which one?", ar: "أكثر من اختبار يطابق. أيها؟", ur: "ایک سے زیادہ ٹیسٹ ملتے ہیں۔ کون سا؟" },
+  EXAM_NOT_FOUND: { en: "No open test of yours matches that. Which test?", ar: "لا يوجد اختبار مفتوح بهذا الاسم. أي اختبار؟", ur: "آپ کا کوئی کھلا ٹیسٹ نہیں ملا۔ کون سا ٹیسٹ؟" },
+  SUBJECT_REQUIRED: { en: "Which subject?", ar: "أي مادة؟", ur: "کون سا مضمون؟" },
+  SUBJECT_NOT_IN_EXAM: { en: "That subject is not in this test. Which subject?", ar: "هذه المادة ليست في الاختبار. أي مادة؟", ur: "یہ مضمون اس ٹیسٹ میں نہیں۔ کون سا مضمون؟" },
+  MARK_OVER_TOTAL: { en: "That mark is above the total. What is the right mark?", ar: "الدرجة أعلى من الكلية. ما الدرجة الصحيحة؟", ur: "نمبر کل سے زیادہ ہیں۔ درست نمبر کیا ہیں؟" },
+  MARK_NOT_SAID: { en: "This mark is not in your words. What mark did this pupil get?", ar: "هذه الدرجة ليست في كلامك. ما درجة الطالب؟", ur: "یہ نمبر آپ کے الفاظ میں نہیں۔ اس طالب علم کے نمبر کیا ہیں؟" },
+  MARK_REQUIRED: { en: "What mark should it be?", ar: "ما الدرجة؟", ur: "نمبر کیا ہونے چاہییں؟" },
+  MARK_NOT_FOUND: { en: "No mark is saved for this pupil in that test yet.", ar: "لا توجد درجة محفوظة لهذا الطالب.", ur: "اس ٹیسٹ میں اس طالب علم کے نمبر ابھی محفوظ نہیں۔" },
+  TERM_REQUIRED: { en: "Which term is this for?", ar: "لأي فصل دراسي؟", ur: "یہ کس ٹرم کے لیے ہے؟" },
+  REPORT_AMBIGUOUS: { en: "More than one report matches. Which term?", ar: "أكثر من تقرير يطابق. أي فصل؟", ur: "ایک سے زیادہ رپورٹ ملتی ہیں۔ کون سی ٹرم؟" },
+  REPORT_NOT_FOUND: { en: "No report of this pupil is open for remarks.", ar: "لا يوجد تقرير مفتوح للملاحظات لهذا الطالب.", ur: "اس طالب علم کی کوئی رپورٹ تبصروں کے لیے کھلی نہیں۔" },
+};

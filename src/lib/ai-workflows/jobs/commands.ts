@@ -24,6 +24,7 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("confirm"), jobVersion: z.number().int().positive(), clientCommandId: commandId,
     steps: z.array(z.strictObject({ stepId: z.string().min(1).max(128), previewVersion: z.number().int().positive(), previewHash: hex, inputHash: hex })).min(1).max(10) }),
   z.strictObject({ type: z.literal("answer"), jobVersion: z.number().int().positive(), clientCommandId: commandId, text: z.string().trim().min(1).max(4000) }),
+  z.strictObject({ type: z.literal("amend"), jobVersion: z.number().int().positive(), stepId: z.string().min(1).max(128), previewVersion: z.number().int().positive(), actionId: z.string().min(1).max(64), expect: z.number().int().min(0) }),
   z.strictObject({ type: z.literal("pause"), jobVersion: z.number().int().positive() }),
   z.strictObject({ type: z.literal("resume"), jobVersion: z.number().int().positive() }),
   z.strictObject({ type: z.literal("cancel"), jobVersion: z.number().int().positive() }),
@@ -85,6 +86,35 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
     }
 
     if (job.version !== command.jobVersion) throw new WorkflowError("STALE_VERSION");
+    if (command.type === "amend") {
+      // A person's own change to a waiting step ("Mark the other 31 present"). Only fields the entry
+      // reserves for people can change, only to a value the preview offered, and only while the count
+      // they saw is still true. The step then waits for a fresh confirmation of the new preview.
+      const ran = await withLease(jobId, user.schoolId, "amend", async () => {
+        const step = await prisma.aiWorkflowStep.findFirst({ where: { id: command.stepId, jobId, schoolId: user.schoolId } });
+        if (!step || step.status !== "WAITING_CONFIRM") throw new WorkflowError("SUPERSEDED");
+        if (step.previewVersion !== command.previewVersion) throw new WorkflowError("STALE_VERSION");
+        const entry = entryFor(step);
+        const offered = (step.preview as { actions?: Array<{ id: string; patch: Record<string, unknown>; expect: number }> } | null)?.actions?.find(action => action.id === command.actionId);
+        if (!offered || offered.expect !== command.expect || Object.keys(offered.patch).some(key => !entry.humanFields?.includes(key))) throw new WorkflowError("INVALID_INPUT");
+        if (entry.class === "C" || !entry.preview) throw new WorkflowError("INVALID_INPUT");
+        const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
+        // The count the person saw must still hold against today's records (a pupil joined, a mark arrived).
+        const current = await entry.preview(ctx, entry.input.parse(step.boundInput));
+        if (current.actions?.find(action => action.id === command.actionId)?.expect !== command.expect) throw new WorkflowError("STALE_VERSION");
+        const input = entry.input.parse({ ...(step.boundInput as Record<string, unknown>), ...offered.patch });
+        const resolved = entry.resolve ? await entry.resolve(ctx, input) : input;
+        const preview = await entry.preview(ctx, resolved);
+        await prisma.$transaction(async tx => {
+          await tx.aiWorkflowStep.update({ where: { id: step.id }, data: { boundInput: resolved as Prisma.InputJsonValue, inputHash: sha256({ capability: entry.key, version: entry.version, input: resolved }), preview: preview as unknown as Prisma.InputJsonValue, previewHash: sha256(preview), previewVersion: { increment: 1 }, version: { increment: 1 } } });
+          await tx.aiWorkflowJob.update({ where: { id: jobId }, data: { version: { increment: 1 } } });
+          await appendEvent(tx, job, "STEP_WAITING_CONFIRM", step.id, { amended: command.actionId });
+        });
+        return true;
+      });
+      if (ran === null) throw new WorkflowError("LEASED");
+      return prisma.aiWorkflowJob.findFirstOrThrow({ where: { id: jobId } });
+    }
     if (command.type === "pause") {
       if (["COMPLETED", "CANCELLED", "EXPIRED", "FAILED"].includes(job.status)) return job;
       return prisma.$transaction(async tx => { const updated = await tx.aiWorkflowJob.update({ where: { id: jobId }, data: { status: "PAUSED", version: { increment: 1 } } }); await appendEvent(tx, job, "JOB_PAUSED"); return updated; });

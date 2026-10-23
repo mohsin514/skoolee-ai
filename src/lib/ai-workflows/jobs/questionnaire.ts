@@ -71,6 +71,9 @@ export function startQuestionnaireJob(user: AuthUser, raw: unknown): Promise<AiW
 /** A questionnaire job runs only while its questionnaire is unchanged. */
 export async function assertQuestionnaireCurrent(user: AuthUser, job: AiWorkflowJob) {
   if (job.origin !== "QUESTIONNAIRE" || !job.setupResponseId) return;
+  // Role questionnaires (Slice 2) live in ai_setup_responses; the campus questionnaire in school_ai_records.
+  const response = await prisma.aiSetupResponse.findFirst({ where: { id: job.setupResponseId, schoolId: user.schoolId, userId: user.userId }, select: { version: true } });
+  if (response) { if (response.version !== job.setupResponseVersion) throw new WorkflowError("STALE_VERSION"); return; }
   const record = await loadQuestionnaire(user, job.setupResponseId).catch(() => null);
   if (!record || record.status === "ARCHIVED" || record.version !== job.setupResponseVersion) throw new WorkflowError("STALE_VERSION");
 }

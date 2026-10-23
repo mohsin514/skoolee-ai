@@ -10,14 +10,11 @@ import { studentScope } from "@/lib/auth/policy";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { examSchema, examStatusSchema } from "@/lib/validators/schemas";
-import { notify } from "@/lib/notifications/in-app";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { resolveAcademicModelVersionForTerm } from "@/lib/academic/model-service";
 import { assertPermission } from "@/lib/permissions";
+import { createExamCommand, defaultExamType } from "@/lib/exams/create-command";
 import {
-  canCreateExamType,
   canManageExamType,
-  CLASSROOM_EXAM_DENIED_MESSAGE,
   isOfficeRole,
   TERM_EXAM_DENIED_MESSAGE,
 } from "@/lib/academic/exam-permissions";
@@ -159,110 +156,10 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const cls = await prisma.class.findFirst({
-      where: {
-        id: parsed.data.classId,
-        // Exam creators are campus-pinned (the group admin no longer schedules campus exams).
-        campus: { schoolId: user.schoolId, id: user.campusId || "" },
-      },
-      select: { id: true, campusId: true },
-    });
-
-    if (!cls) return Response.json({ error: "Class not found" }, { status: 404 });
-
-    const result = await withExamSchedulingWrite(user, cls.campusId, "add", async (prisma) => {
-    const currentClass = await prisma.class.findFirst({ where: { id: cls.id, schoolId: user.schoolId, campusId: cls.campusId, status: "ACTIVE", archivedAt: null, academicYear: parsed.data.academicYear } });
-    if (!currentClass) throw new ApiError("Class is not active in this academic year.", 409);
-    // If teacher, verify they are assigned to this class
-    if (user.role === "TEACHER") {
-      const isAssigned = await prisma.subject.findFirst({
-        where: { classId: parsed.data.classId, teacherId: user.userId, campusId: cls.campusId },
-      });
-      const isClassTeacher = await prisma.class.findFirst({
-        where: { id: parsed.data.classId, classTeacherId: user.userId },
-      });
-      if (!isAssigned && !isClassTeacher) {
-        return Response.json({ error: "You are not assigned to this class" }, { status: 403 });
-      }
-    }
-
-    // Teachers own quizzes and class tests; term exams belong to the office.
-    // Since §80 the split is enforced in both directions — the office creating
-    // a quiz was how classroom assessments ended up on the exam board needing
-    // date sheets and seating plans they would never have.
-    const examType = body.examType || (user.role === "TEACHER" ? "CLASS_TEST" : "MID_TERM");
-    if (!canCreateExamType(user.role, examType)) {
-      return Response.json(
-        {
-          error: isOfficeRole(user.role)
-            ? CLASSROOM_EXAM_DENIED_MESSAGE
-            : TERM_EXAM_DENIED_MESSAGE,
-        },
-        { status: 403 },
-      );
-    }
-
-    if (["MID_TERM", "FINAL"].includes(examType)) {
-      const duplicate = await prisma.exam.findFirst({ where: { schoolId: user.schoolId, campusId: cls.campusId, classId: cls.id, academicYear: parsed.data.academicYear, examType, term: { equals: parsed.data.term, mode: "insensitive" } } });
-      if (duplicate) throw new ApiError("This class already has this term exam. Edit its existing session.", 409);
-    }
-    const subjectFilter = parsed.data.subjectId
-      ? { id: parsed.data.subjectId }
-      : {};
-    const subjects = await prisma.subject.findMany({
-      where: { classId: parsed.data.classId, campusId: cls.campusId, ...subjectFilter },
-      select: { totalMarks: true },
-    });
-    const totalMarks = subjects.reduce((sum, s) => sum + s.totalMarks, 0);
-
-    const academicModelVersionId = await resolveAcademicModelVersionForTerm({
-      campusId: cls.campusId,
-      classId: parsed.data.classId,
-      academicYear: parsed.data.academicYear,
-      term: parsed.data.term,
-    }, prisma);
-
-    // If a specific subject is selected, verify it belongs to the class
-    if (parsed.data.subjectId && subjects.length === 0) {
-      return Response.json({ error: "Selected subject not found in this class" }, { status: 400 });
-    }
-
-    const exam = await prisma.exam.create({
-      data: {
-        campusId: cls.campusId,
-        classId: parsed.data.classId,
-        title: parsed.data.title,
-        term: parsed.data.term,
-        academicYear: parsed.data.academicYear,
-        academicModelVersionId,
-        examType,
-        subjectId: parsed.data.subjectId || null,
-        totalMarks,
-        status: "ACTIVE",
-        activatedAt: new Date(),
-      },
-  include: {
-        class: { select: { id: true, name: true, section: true, academicYear: true } },
-        _count: { select: { marks: true, reportCards: true } },
-      },
-    });
-
-    await writeAuditEvent(prisma, user, {
-      table: "exams", recordId: exam.id, action: "CREATE", campusId: exam.campusId,
-      after: { status: exam.status, examType: exam.examType, academicYear: exam.academicYear, totalMarks: exam.totalMarks },
-    });
-    return exam;
-    }, true);
-    if (result instanceof Response) return result;
-    const exam = result;
-    notify("EXAM_CREATED", {
-      schoolId: user.schoolId,
-      campusId: cls.campusId,
-      actorId: user.userId,
-      actorName: user.fullName,
-      examTitle: exam.title,
-      className: [exam.class?.name, exam.class?.section].filter(Boolean).join(" "),
-      classId: parsed.data.classId,
+    // Teachers own quizzes and class tests; term exams belong to the office (enforced in the command).
+    const exam = await createExamCommand(user, {
+      ...parsed.data,
+      examType: body.examType || defaultExamType(user.role),
     });
 
     return Response.json({ success: true, exam }, { status: 201 });

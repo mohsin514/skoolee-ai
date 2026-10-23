@@ -43,6 +43,15 @@ export class EscalationRequired extends Error {
   constructor(readonly prepared: HandoffPrepared) { super("ESCALATED"); this.name = "EscalationRequired"; }
 }
 
+/**
+ * A resolver or preview could not bind the step to records without asking: a name matched no pupil or
+ * several, a quote was negated, a date is ambiguous. Nothing ran; each field becomes a question.
+ */
+export interface RequiredField { pointer: string; promptKey: string; params?: Record<string, string | number>; options?: Array<{ value: string; label: string }> }
+export class InputRequired extends Error {
+  constructor(readonly fields: RequiredField[]) { super("INPUT_REQUIRED"); this.name = "InputRequired"; }
+}
+
 /** Maps any thrown value to a code. Domain messages are kept server-side (logged by kind only). */
 export function toWorkflowError(error: unknown): WorkflowError {
   if (error instanceof WorkflowError) return error;

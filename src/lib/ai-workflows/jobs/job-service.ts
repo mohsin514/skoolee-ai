@@ -8,6 +8,8 @@ import { WorkflowError, toWorkflowError } from "../errors";
 import { planJob, type Generate } from "../planner/plan";
 import { observeHandoffs } from "../executor/handoff";
 import { assertQuestionnaireCurrent } from "./questionnaire";
+import { prepareStep } from "../executor/prepare";
+import { settleSetupResponse } from "../questionnaire/settle";
 import { sha256 } from "../executor/canonical";
 import { deriveJobStatus, deriveOutcome, nextStepAction, type StepStatus } from "../executor/scheduler";
 import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
@@ -134,18 +136,19 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
           if (!parsed.success) { await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "NEEDS_INPUT", missingFields: parsed.error.issues.map(issue => `/${issue.path.join("/")}`), version: { increment: 1 } } }); progressed = true; continue; }
           if (action === "await-confirm") {
             if (step.status !== "WAITING_CONFIRM") {
-              const input = parsed.data;
-              const preview = entry.class !== "C" && entry.preview ? await entry.preview(ctx, input) : null;
-              await prisma.$transaction(async tx => {
-                await tx.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "WAITING_CONFIRM", boundInput: input as Prisma.InputJsonValue, inputHash: sha256({ capability: entry.key, version: entry.version, input }), preview: preview as unknown as Prisma.InputJsonValue, previewHash: preview ? sha256(preview) : null, previewVersion: { increment: 1 }, version: { increment: 1 } } });
-                await appendEvent(tx, job, "STEP_WAITING_CONFIRM", step.id);
+              await prepareStep(job, step, entry, ctx, parsed.data, async input => {
+                const preview = entry.class !== "C" && entry.preview ? await entry.preview(ctx, input) : null;
+                await prisma.$transaction(async tx => {
+                  await tx.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "WAITING_CONFIRM", boundInput: input as Prisma.InputJsonValue, inputHash: sha256({ capability: entry.key, version: entry.version, input }), preview: preview as unknown as Prisma.InputJsonValue, previewHash: preview ? sha256(preview) : null, previewVersion: { increment: 1 }, version: { increment: 1 } } });
+                  await appendEvent(tx, job, "STEP_WAITING_CONFIRM", step.id);
+                });
               });
               progressed = true;
             }
             continue;
           }
-          if (action === "handoff" && entry.class === "C") await runHandoffStep(ctx, job, step, entry, parsed.data);
-          else if (action === "run" && entry.class === "A") await runExecStep(ctx, job, step, entry, parsed.data);
+          if (action === "handoff" && entry.class === "C") await prepareStep(job, step, entry, ctx, parsed.data, input => runHandoffStep(ctx, job, step, entry, input));
+          else if (action === "run" && entry.class === "A") await prepareStep(job, step, entry, ctx, parsed.data, input => runExecStep(ctx, job, step, entry, input));
           progressed = true;
         }
         if (!progressed) break;
@@ -157,6 +160,7 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
       return prisma.$transaction(async tx => {
         const updated = await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { status, version: { increment: 1 }, ...(completed ? { outcome: deriveOutcome(summaries), completedAt: new Date() } : {}) } });
         if (completed && job.status !== "COMPLETED") await appendEvent(tx, job, "JOB_COMPLETED", null, { outcome: updated.outcome });
+        if (completed) await settleSetupResponse(tx, job, status, updated.outcome);
         return updated;
       });
     });

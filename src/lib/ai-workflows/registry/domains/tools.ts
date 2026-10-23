@@ -34,12 +34,15 @@ const draftPlanSchema = z.strictObject({
   steps: z.array(z.strictObject({ id: workspaceIdSchema, title: z.string().trim().min(1).max(500), status: z.enum(["proposed", "blocked", "ready"]), module: workflowModuleSchema.optional() })).min(1).max(30),
   sourceIds: z.array(workspaceIdSchema).max(40).default([]),
   missingInformation: z.array(z.string().max(1000)).max(50).default([]),
+  // A teacher's plan belongs to one of their own subjects (school-ai access: assigned subject and class).
+  classId: z.string().min(1).max(128).optional(),
+  subjectId: z.string().min(1).max(128).optional(),
 }).refine(value => new Set(value.steps.map(step => step.id)).size === value.steps.length, "Workflow step IDs must be unique.");
 const STAFF = SCHOOL_AI_STAFF_ROLES;
 
 export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
   defineCapability({
-    key: "profile.update", version: 1, cluster: "PERSONAL", inventoryKeys: ["profile.update"], risk: "UPDATE", roles: ALL, class: "A",
+    key: "profile.update", version: 1, cluster: "PERSONAL", inventoryKeys: ["profile.update", "profile.update_own"], risk: "UPDATE", roles: ALL, class: "A",
     classOverride: "Own profile only.", input: profileActionSchema, evidence: [], gates: [roles(ALL)], scope: { kind: "self" },
     copy: c(["Update my profile", "Change your own name, language, city or (teachers) teaching details.", "Set my language to Urdu"], ["تحديث ملفي", "تغيير اسمك أو لغتك أو مدينتك.", "اجعل لغتي العربية"], ["میری پروفائل اپ ڈیٹ کریں", "اپنا نام، زبان، شہر یا تدریسی تفصیل بدلیں۔", "میری زبان اردو کر دیں"]),
     idempotency: { mode: "tx-receipt" }, source: { service: "src/lib/ai-workflows/adapters/tool-actions.ts:executeRoleAction", reuse: "automation-tool" },
