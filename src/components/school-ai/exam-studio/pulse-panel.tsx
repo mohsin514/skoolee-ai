@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import type { Language } from "@/lib/locale/package";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioHomeCopy } from "@/lib/school-ai/exam-studio-copy-home";
@@ -15,7 +16,7 @@ import type { ExamPulse } from "@/lib/school-ai/exam-pulse";
 const REFRESH_MS = 20_000;
 type PulseView = { checkedAt: string; sections: Array<{ id: string; title: string }>; pulse: ExamPulse };
 
-export function PulsePanel({ language, examId }: { language: Language; examId: string }) {
+export function PulsePanel({ language, examId, onDraft }: { language: Language; examId: string; onDraft?: (questionId: string, number: number) => void }) {
   const t = studioHomeCopy(language);
   const number = (value: number) => new Intl.NumberFormat(language).format(value);
   const time = (value: string) => new Intl.DateTimeFormat(language, { timeStyle: "short" }).format(new Date(value));
@@ -49,6 +50,8 @@ export function PulsePanel({ language, examId }: { language: Language; examId: s
           <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true"><div className="h-full rounded-full bg-primary" style={{ width: `${row.answeredShare}%` }} /></div>
           <p>{fillStudioCopy(t.pulseAnswered, [number(row.answeredShare)])}</p>
           {row.skippedShare > 0 ? <p className="text-status-warning-text">{fillStudioCopy(t.pulseSkipped, [number(row.skippedShare)])}</p> : null}
+          {/* SKO-502: a question many skip becomes one clarification for the room. */}
+          {onDraft && row.skippedShare >= 25 ? <Button type="button" size="sm" variant="ghost" className="h-auto min-h-0 px-1 py-0.5 text-2xs" onClick={() => onDraft(row.questionId, row.number)} data-pulse-draft>{t.pulseDraft}</Button> : null}
         </li>)}
       </ol>
       <p className="text-xs text-ink-subtle">{t.pulseSkippedNote}</p>
