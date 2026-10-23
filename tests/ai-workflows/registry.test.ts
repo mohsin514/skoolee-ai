@@ -58,7 +58,7 @@ test("gates mirror roles and the live permission matrix; SUPER_ADMIN keeps fixed
 });
 
 test("roles only see entries listed for them; families cannot reach school operations", () => {
-  for (const role of ["STUDENT", "PARENT"] as const) assert.deepEqual(entriesForRole(role).map(entry => entry.key).sort(), ["personal.save_plan", "profile.update"]);
+  for (const role of ["STUDENT", "PARENT"] as const) assert.deepEqual(entriesForRole(role).map(entry => entry.key).sort(), ["assistant.answer", "personal.save_plan", "profile.update"]);
   assert.ok(entriesForRole("TEACHER").every(entry => !entry.key.startsWith("setup.")));
 });
 

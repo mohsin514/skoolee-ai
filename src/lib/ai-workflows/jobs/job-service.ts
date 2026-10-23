@@ -4,7 +4,8 @@ import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { resolveWorkspaceCampus } from "@/lib/school-ai/access";
-import { WorkflowError } from "../errors";
+import { WorkflowError, toWorkflowError } from "../errors";
+import { planJob, type Generate } from "../planner/plan";
 import { sha256 } from "../executor/canonical";
 import { deriveJobStatus, deriveOutcome, nextStepAction, type StepStatus } from "../executor/scheduler";
 import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
@@ -91,13 +92,24 @@ const kindOf = (step: AiWorkflowStep): "write" | "read" | "draft" | "handoff" | 
  * Advances class-A and class-C steps and surfaces class-B steps for confirmation. Class-B steps never
  * run here (control P5): only the confirming request executes them (Slice 1f).
  */
-export async function advanceJob(user: AuthUser, jobId: string, owner = "request") {
+export async function advanceJob(user: AuthUser, jobId: string, owner = "request", generate?: Generate) {
   return inTenant(user, async () => {
     await authorizeActor(user);
     const result = await withLease(jobId, user.schoolId, owner, async () => {
       const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId) });
       if (!job) throw new WorkflowError("NOT_FOUND");
-      if (["PAUSED", "CANCELLED", "COMPLETED", "EXPIRED", "FAILED"].includes(job.status)) return job;
+      if (["PAUSED", "CANCELLED", "COMPLETED", "EXPIRED", "FAILED", "BLOCKED", "NEEDS_INPUT"].includes(job.status)) return job;
+      if (job.status === "PLANNING") {
+        // Planning calls the model; a failure is recorded on the job, never thrown past the lease.
+        try { await planJob(user, job, generate); }
+        catch (error) {
+          const failure = toWorkflowError(error);
+          return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: failure.code === "BUDGET_EXHAUSTED" || failure.code === "CREDITS_EXHAUSTED" ? "PAUSED" : "FAILED", errorCode: failure.code, version: { increment: 1 } } });
+        }
+        const planned = await prisma.aiWorkflowJob.findFirstOrThrow({ where: { id: job.id } });
+        if (planned.status !== "RUNNING") return planned;
+        job.planVersion = planned.planVersion; job.status = planned.status;
+      }
       const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
       for (let pass = 0; pass < STEP_CAP; pass++) {
         const steps = await prisma.aiWorkflowStep.findMany({ where: { jobId: job.id, schoolId: job.schoolId, planVersion: job.planVersion }, orderBy: { createdAt: "asc" } });

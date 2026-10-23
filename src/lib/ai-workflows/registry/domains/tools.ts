@@ -4,11 +4,12 @@ import { SCHOOL_AI_STAFF_ROLES } from "@/lib/school-ai/access";
 import { getAssistantCatalog } from "@/lib/school-ai/assistant-catalog-service";
 import { assistantCatalogQuerySchema } from "@/lib/school-ai/assistant-catalog";
 import { createWorkspaceRecord } from "@/lib/school-ai/repository";
-import { workflowDataSchema } from "@/lib/school-ai/schemas";
+import { workspaceIdSchema, workflowModuleSchema } from "@/lib/school-ai/schemas";
 import { executeRoleAction } from "@/lib/automation/role-action-service";
 import type { AutomaticAction } from "@/lib/automation/schema";
 import { profileActionSchema } from "@/lib/automation/schema";
 import { campusCreateSchema, libraryCreateSchema, personalPlanSchema, phoneCallSchema, platformInspectSchema, platformUpdateSchema, studentsCreateSchema } from "@/lib/automation/role-actions";
+import { z } from "zod";
 import { defineCapability } from "../define";
 import { ownCampus, permission, predicate, roles } from "../gates";
 import type { CapabilityContext, CapabilityEntry, EntryCopy, Receipt } from "../types";
@@ -30,6 +31,13 @@ async function legacy(ctx: CapabilityContext, tool: AutomaticAction["tool"], tit
 }
 
 const ALL = USER_ROLES;
+/** A saved draft plan: the workflow record shape without `proposal`, so a draft can never carry an executable operation. */
+const draftPlanSchema = z.strictObject({
+  goal: z.string().trim().min(1).max(4000),
+  steps: z.array(z.strictObject({ id: workspaceIdSchema, title: z.string().trim().min(1).max(500), status: z.enum(["proposed", "blocked", "ready"]), module: workflowModuleSchema.optional() })).min(1).max(30),
+  sourceIds: z.array(workspaceIdSchema).max(40).default([]),
+  missingInformation: z.array(z.string().max(1000)).max(50).default([]),
+}).refine(value => new Set(value.steps.map(step => step.id)).size === value.steps.length, "Workflow step IDs must be unique.");
 const STAFF = SCHOOL_AI_STAFF_ROLES;
 
 export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
@@ -106,12 +114,19 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
   }),
   defineCapability({
     key: "work.save", version: 1, cluster: "PERSONAL", inventoryKeys: ["work.save"], risk: "CREATE", roles: STAFF, class: "A",
-    classOverride: "Saves an unapproved draft plan; no operational record changes.", input: workflowDataSchema, evidence: [], gates: [roles(STAFF), permission("ai", "add")], scope: { kind: "own-campus" },
+    classOverride: "Saves an unapproved draft plan; no operational record changes.", input: draftPlanSchema, evidence: [], gates: [roles(STAFF), permission("ai", "add")], scope: { kind: "own-campus" },
     copy: c(["Save a work plan", "Save a draft work or teaching plan for later review; it changes no school records.", "Save a plan for next week's science lessons"], ["حفظ خطة عمل", "حفظ مسودة خطة عمل للمراجعة؛ لا تغير السجلات.", "احفظ خطة دروس العلوم للأسبوع القادم"], ["کام کا منصوبہ محفوظ کریں", "جائزے کے لیے مسودہ منصوبہ؛ اسکول ریکارڈ نہیں بدلتا۔", "اگلے ہفتے کے سائنس اسباق کا منصوبہ محفوظ کریں"]),
     idempotency: { mode: "native" }, source: { service: "src/lib/school-ai/repository.ts:createWorkspaceRecord", reuse: "direct" },
     execute: async (ctx, input, { idempotencyKey }) => {
-      const record = await createWorkspaceRecord(ctx.user, { kind: "WORKFLOW", title: input.goal.slice(0, 180), campusId: ctx.campusId, idempotencyKey, data: { ...input, proposal: undefined } });
+      const record = await createWorkspaceRecord(ctx.user, { kind: "WORKFLOW", title: input.goal.slice(0, 180), campusId: ctx.campusId, idempotencyKey, data: input });
       return { kind: "draft", capability: "work.save", entities: [{ model: "schoolAiRecord", id: record.id }], counts: {}, link: "/ai?workflow=work", replayed: false };
     },
+  }),
+  defineCapability({
+    key: "assistant.answer", version: 1, cluster: "PERSONAL", inventoryKeys: ["assistant.answer"], risk: "READ", roles: ALL, class: "A",
+    input: z.strictObject({ text: z.string().trim().min(1).max(1200) }), evidence: [], gates: [roles(ALL)], scope: { kind: "self" },
+    copy: c(["Answer a question", "Answer from the records shown to you; nothing is changed.", "How many classes do we have?"], ["الإجابة عن سؤال", "إجابة من السجلات المعروضة؛ لا يتغير شيء.", "كم فصلاً لدينا؟"], ["سوال کا جواب", "دکھائے گئے ریکارڈ سے جواب؛ کچھ نہیں بدلتا۔", "ہماری کتنی کلاسیں ہیں؟"]),
+    idempotency: { mode: "convergent" }, source: { service: "planner answer", reuse: "automation-tool" },
+    execute: async (_ctx, input) => ({ kind: "read", capability: "assistant.answer", entities: [], counts: {}, link: null, replayed: false, detail: { text: input.text } }),
   }),
 ];
