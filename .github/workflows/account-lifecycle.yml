@@ -21,6 +21,8 @@ jobs:
         image: redis:7
         ports: ["6379:6379"]
     env:
+      # tsc --noEmit needs more than Node's default heap in this repository.
+      NODE_OPTIONS: --max-old-space-size=6144
       DATABASE_URL: postgresql://postgres@127.0.0.1:55409/postgres
       DIRECT_URL: postgresql://postgres@127.0.0.1:55409/postgres
       AUTH_SECRET: sko209-local-synthetic-validation-secret-please-change
@@ -29,9 +31,6 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
-      # Set after checkout so the loader exists: tsc needs more than Node's default heap, and the loader resolves
-      # `server-only` (which Next.js supplies when it bundles) for the plain Node test runs below.
-      - run: echo "NODE_OPTIONS=--max-old-space-size=6144 --import=$GITHUB_WORKSPACE/tests/support/server-only.mjs" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -51,9 +50,9 @@ jobs:
             if curl -s -o /dev/null http://localhost:3209/api/auth/session; then break; fi
             sleep 1
           done
-          node --import tsx --test tests/account-lifecycle/lifecycle.test.ts tests/logout/session-revocation.test.ts
-          node --import tsx --test tests/account-lifecycle/browser.test.ts
-          node --import tsx --test tests/account-lifecycle/delivery.test.ts
+          node --import ./tests/support/server-only.mjs --import tsx --test tests/account-lifecycle/lifecycle.test.ts tests/logout/session-revocation.test.ts
+          node --import ./tests/support/server-only.mjs --import tsx --test tests/account-lifecycle/browser.test.ts
+          node --import ./tests/support/server-only.mjs --import tsx --test tests/account-lifecycle/delivery.test.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
