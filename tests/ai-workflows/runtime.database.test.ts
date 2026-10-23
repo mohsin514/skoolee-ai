@@ -135,3 +135,23 @@ test("cancel stops what has not run and is version-checked", async () => {
   assert.equal(cancelled.status, "CANCELLED");
   assert.equal((await db.aiWorkflowStep.findFirstOrThrow({ where: { jobId: job.id } })).status, "CANCELLED");
 });
+
+test("practice mode in production refuses the write and says so; the flag off stops new requests (drain)", async () => {
+  const { user } = await fixture("TEACHER");
+  const job = await start(user, "Set my city to Quetta");
+  await savePlan(user, job.id, [{ stepKey: "s1", capabilityKey: "profile.update", input: { city: "Quetta" } }]);
+  const env = { NODE_ENV: process.env.NODE_ENV, V2: process.env.AI_WORKFLOWS_V2 };
+  try {
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+    process.env.AI_WORKFLOWS_V2 = "all";
+    await advanceJob(user, job.id);
+    const step = await db.aiWorkflowStep.findFirstOrThrow({ where: { jobId: job.id } });
+    assert.equal(step.errorCode, "PRACTICE_MODE");
+    assert.notEqual((await db.user.findUniqueOrThrow({ where: { id: user.userId } })).city, "Quetta");
+    process.env.AI_WORKFLOWS_V2 = "off";
+    await assert.rejects(start(user, "Anything"), { code: "NOT_CONNECTED" });
+  } finally {
+    (process.env as Record<string, string | undefined>).NODE_ENV = env.NODE_ENV;
+    if (env.V2 === undefined) delete process.env.AI_WORKFLOWS_V2; else process.env.AI_WORKFLOWS_V2 = env.V2;
+  }
+});

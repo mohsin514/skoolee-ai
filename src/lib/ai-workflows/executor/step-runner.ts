@@ -7,6 +7,7 @@ import type { CapabilityContext, ExecEntry, HandoffEntry, HandoffPrepared, Recei
 import { EscalationRequired, WorkflowError, toWorkflowError } from "../errors";
 import { appendEvent } from "../jobs/events";
 import { sha256 } from "./canonical";
+import { isPracticeSchool } from "../practice";
 
 /**
  * Runs one step. Every write goes through the intent ledger:
@@ -38,6 +39,10 @@ export function effectKey(jobId: string, capabilityKey: string, capabilityVersio
 export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, step: AiWorkflowStep, entry: ExecEntry, input: unknown, opts: { confirmed?: boolean } = {}): Promise<Receipt | null> {
   // Class B runs only inside the user's confirming request (control P5); the worker and advance never pass this.
   if (step.effectiveClass !== "A" && !opts.confirmed) throw new WorkflowError("CONFIRM_REQUIRED");
+  if (entry.risk !== "READ" && await isPracticeSchool(job.schoolId)) {
+    await settle(step, job, { status: "FAILED", errorCode: "PRACTICE_MODE", boundInput: json(input), finishedAt: new Date() }, "STEP_FAILED", { code: "PRACTICE_MODE" });
+    return null;
+  }
   const inputHash = sha256({ capability: entry.key, version: entry.version, input });
   const key = effectKey(job.id, entry.key, entry.version, input);
   let intent = await prisma.aiWorkflowIntent.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: job.schoolId, actorId: job.actorId, idempotencyKey: key } } });
@@ -92,6 +97,10 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
 }
 
 export async function runHandoffStep(ctx: CapabilityContext, job: AiWorkflowJob, step: AiWorkflowStep, entry: HandoffEntry, input: unknown) {
+  if (await isPracticeSchool(job.schoolId)) {
+    await settle(step, job, { status: "FAILED", errorCode: "PRACTICE_MODE", boundInput: json(input), finishedAt: new Date() }, "STEP_FAILED", { code: "PRACTICE_MODE" });
+    return null;
+  }
   const gate = await runGates(ctx, entry.gates);
   if (!gate.ok) {
     await settle(step, job, { status: "BLOCKED", errorCode: gate.code === "SEAT" ? "SEAT_HELD" : "ROLE_NOT_ALLOWED", finishedAt: new Date() }, "STEP_FAILED", { code: gate.code });

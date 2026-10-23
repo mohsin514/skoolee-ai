@@ -24,6 +24,7 @@ export const WORKFLOW_ERROR_CODES = {
   PROVIDER_UNAVAILABLE: 503,
   DEADLINE: 504,
   DOMAIN_REFUSED: 422,
+  PRACTICE_MODE: 423,
   INTERNAL: 500,
 } as const;
 export type WorkflowErrorCode = keyof typeof WORKFLOW_ERROR_CODES;
