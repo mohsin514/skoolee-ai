@@ -19,6 +19,7 @@ import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { getReadinessCopy } from "./readiness-copy";
 import { getLaunchCopy } from "./readiness-launch-copy";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
 /**
  * School readiness as "launch control": a hero with the share of required checks done, a spotlight on the
@@ -126,6 +127,9 @@ export function ReadinessHome() {
     <div lang={language} dir={rtl ? "rtl" : "ltr"} className="sk-launch" data-readiness>
       {/* Copy is already in the reader's language (readiness-copy.ts), so it goes in as nodes and is not looked up again. */}
       {standalone ? <PageHeader title={<>{t.title}</>} description={<>{t.intro}</>} icon={Rocket} /> : null}
+
+      {/* Group owners finish first-login setup here (AI Workflows Slice 8; this page was a dead end). */}
+      <SetupPrompt />
 
       {/* ── Hero (once the view is known, so a denied reader never sees a status that is not theirs) ── */}
       {view ? <section aria-labelledby="readiness-status" className="sk-launch-hero">

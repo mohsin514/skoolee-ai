@@ -3,26 +3,31 @@ import { appendEvent } from "./events";
 import { resolveJobActor } from "./actor";
 import { advanceJob } from "./job-service";
 
-/**
- * Background pass (outbox worker, every 5 s). Advances class-A and hand-off steps for jobs whose user
- * closed the tab. Never confirms or runs a class-B step (control P5). Bounded per sweep and per school.
- */
+const OWNER_ROLE = "APP_OWNER";
+
 export const SWEEP_LIMIT = 24;
 export const PER_SCHOOL = 2;
 
+/**
+ * Background pass (outbox worker, every 5 s). Advances class-A and hand-off steps for jobs whose user
+ * closed the tab. Never confirms or runs a class-B step (control P5). Bounded per sweep and per school.
+ * RT9: APP_OWNER jobs are never claimed here. Platform work leaves the tenant guard, so it advances only
+ * inside the owner's own request, after requirePlatformOwner (session, MFA and support-grant fence).
+ */
 export async function sweepWorkflowJobs(db: PrismaClient, now = new Date()) {
   const rows = await db.$queryRaw<Array<{ id: string; schoolId: string; actorId: string; actorRole: string; accessVersion: number }>>`
     SELECT id, school_id AS "schoolId", actor_id AS "actorId", actor_role AS "actorRole", access_version AS "accessVersion"
     FROM (
       SELECT *, row_number() OVER (PARTITION BY school_id ORDER BY updated_at, id) AS n
       FROM ai_workflow_jobs
-      WHERE status = 'RUNNING' AND (lease_expires_at IS NULL OR lease_expires_at <= ${now}) AND (next_wake_at IS NULL OR next_wake_at <= ${now})
+      WHERE status = 'RUNNING' AND actor_role <> ${OWNER_ROLE} AND (lease_expires_at IS NULL OR lease_expires_at <= ${now}) AND (next_wake_at IS NULL OR next_wake_at <= ${now})
     ) ranked
     WHERE n <= ${PER_SCHOOL}
     ORDER BY updated_at, id
     LIMIT ${SWEEP_LIMIT}`;
   let advanced = 0;
   for (const row of rows) {
+    if (row.actorRole === OWNER_ROLE) continue; // defence in depth: never resolve, lease or block an owner job
     const actor = await resolveJobActor(row);
     if (!actor) {
       // Access changed since the job started: stop it without calling any service or model.

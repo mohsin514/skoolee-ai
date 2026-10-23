@@ -36,3 +36,19 @@ test("the principal's answers compile to teacher assignments by name, a weekly c
   for (const step of steps) assert.ok(capability(step.capabilityKey)!.input.safeParse(step.input).success, `${step.capabilityKey} ${JSON.stringify(step.input)}`);
   assert.ok(!steps.some(step => /period|room|holiday|publish|activate/.test(step.capabilityKey)), "periods, rooms, publishing and activation are never compiled for the principal");
 });
+
+test("the group sheet creates campuses only within the plan, and the rest becomes a plan-change task", async () => {
+  const { compileGroup, GROUP_QUESTIONNAIRE } = await import("../../src/lib/ai-workflows/questionnaire/roles/group");
+  const prefill = { language: null, campuses: [{ id: "c1", name: "Main", city: "Lahore" }], maxCampuses: 2 };
+  const answers = { newCampuses: [{ name: "Gulberg", city: "Lahore" }, { name: "DHA", city: "Lahore" }, { name: "Main", city: "Lahore" }] };
+  const steps = compileGroup(answers, prefill);
+  assert.deepEqual(steps.map(step => (step.input as { name: string }).name), ["Gulberg"], "one free place on the plan; an existing campus is never re-created");
+  assert.ok(GROUP_QUESTIONNAIRE.remains(answers, prefill).some(task => /bigger plan/.test(task.title.en)));
+});
+
+test("the owner sheet never compiles pricing, capacity, provisioning or payments", async () => {
+  const { compileOwner } = await import("../../src/lib/ai-workflows/questionnaire/roles/owner");
+  const steps = compileOwner({ language: "ur", focusAreas: ["PAYMENTS", "CAPACITY"], institutionFixes: { s1: "Karachi", ghost: "X" } }, { language: "en", missingCity: [{ id: "s1", name: "Al-Noor" }] });
+  assert.deepEqual(steps.map(step => step.capabilityKey), ["profile.update", "personal.save_plan", "platform.update_institution"]);
+  assert.ok(!steps.some(step => /pricing|capacity|provision|payment|plan_status|session/.test(step.capabilityKey)));
+});
