@@ -24,8 +24,8 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      # tsc --noEmit needs more than Node's default heap in this repository.
-      NODE_OPTIONS: --max-old-space-size=6144
+      # tsc --noEmit needs about 12 GB in this repository (the hosted runner has 16 GB).
+      NODE_OPTIONS: --max-old-space-size=12288
       DATABASE_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
       DIRECT_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
       REDIS_URL: redis://127.0.0.1:56420
