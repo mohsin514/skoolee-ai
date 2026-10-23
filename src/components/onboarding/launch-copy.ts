@@ -119,6 +119,7 @@ const tasks: Record<LaunchTask, readonly [string, string, string]> = {
   campus: ["Review campus details", "مراجعة تفاصيل الفرع", "کیمپس کی تفصیلات دیکھیں"],
   profile: ["Set up my teacher profile", "إعداد ملف المعلم", "استاد کا پروفائل تیار کریں"],
   aiSetup: ["Set up my campus with AI", "إعداد فرعي بالذكاء الاصطناعي", "اے آئی سے اپنا کیمپس ترتیب دیں"],
+  roleSetup: ["Set up my role with AI", "إعداد دوري بالذكاء الاصطناعي", "اے آئی سے میرے کردار کا سیٹ اپ"],
   aiWorkspace: ["Open AI Workflows", "فتح مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز کھولیں"],
   studio: ["Create an exam in Exam Studio", "إنشاء اختبار في استوديو الاختبارات", "ایگزام اسٹوڈیو میں امتحان بنائیں"],
   academics: ["Review academic setup", "مراجعة الإعداد الأكاديمي", "تعلیمی ترتیب دیکھیں"],
@@ -143,8 +144,9 @@ const taskDetails: Record<LaunchTask, readonly [string, string, string]> = {
   institution: ["Confirm school details, choose your country and create the first campus. Then continue to the AI campus interview.", "أكد بيانات المدرسة واختر الدولة وأنشئ الفرع الأول، ثم تابع حوار إعداد الفرع بالذكاء الاصطناعي.", "اسکول کی تفصیلات، ملک اور پہلا کیمپس درج کریں، پھر اے آئی کیمپس گفتگو جاری رکھیں۔"],
   campus: ["Check campus records and contact details before starting campus-specific plans.", "راجع سجلات الفرع وبيانات التواصل قبل بدء خططه.", "کیمپس کے منصوبوں سے پہلے ریکارڈ اور رابطوں کی تفصیلات دیکھیں۔"],
   profile: ["Complete your contact details and teaching specialties. Your school assigns classes and subjects.", "أكمل بيانات التواصل والتخصصات؛ تعيّن مدرستك الصفوف والمواد.", "رابطے اور تدریسی مضامین مکمل کریں۔ جماعتیں اور مضامین اسکول مقرر کرتا ہے۔"],
-  aiSetup: ["Answer the setup questionnaire and AI drafts your launch plan: academic year, classes, calendar, timetable, fees and messages. Nothing applies until it is reviewed and approved.", "أجب عن استبيان الإعداد ليُعدّ الذكاء الاصطناعي مسودة خطة الانطلاق: العام الدراسي والصفوف والتقويم والجدول والرسوم والرسائل. ولا يُطبَّق شيء قبل مراجعته واعتماده.", "سیٹ اپ سوالنامے کے جواب دیں، اے آئی آغاز کے منصوبے کا مسودہ بناتا ہے: تعلیمی سال، جماعتیں، کیلنڈر، نظام الاوقات، فیس اور پیغامات۔ جائزے اور منظوری سے پہلے کچھ لاگو نہیں ہوتا۔"],
-  aiWorkspace: ["Open AI Workflows and pick a workflow, such as timetables, exam sessions or announcements. You review every draft before it applies.", "افتح مسارات الذكاء الاصطناعي واختر مسارًا مثل الجداول أو جلسات الامتحانات أو الإعلانات. وتراجع كل مسودة قبل تطبيقها.", "اے آئی ورک فلوز کھولیں اور کوئی ورک فلو چنیں، جیسے نظام الاوقات، امتحانی سیشن یا اعلانات۔ ہر مسودہ لاگو ہونے سے پہلے آپ اس کا جائزہ لیتے ہیں۔"],
+  aiSetup: ["Answer the campus questions. AI creates the requested records from your confirmed answers and asks for missing details.", "أجب عن أسئلة الحرم. ينشئ الذكاء الاصطناعي السجلات المطلوبة من إجاباتك المؤكدة ويسأل عن التفاصيل الناقصة.", "کیمپس کے سوالات کے جواب دیں۔ اے آئی تصدیق شدہ جوابات سے مطلوبہ ریکارڈ بناتا ہے اور نامکمل تفصیل پوچھتا ہے۔"],
+  roleSetup: ["Answer questions for your role. AI saves your preferences and carries out the work you request within your permissions.", "أجب عن أسئلة دورك. يحفظ الذكاء الاصطناعي تفضيلاتك وينفذ طلباتك ضمن صلاحياتك.", "اپنے کردار کے سوالات کا جواب دیں۔ اے آئی ترجیحات محفوظ کرتا ہے اور آپ کی اجازت کے مطابق کام کرتا ہے۔"],
+  aiWorkspace: ["Describe the work you need. AI runs permitted actions automatically and shows saved results or the details still needed.", "صف العمل المطلوب. ينفذ الذكاء الاصطناعي الإجراءات المسموحة تلقائيًا ويعرض النتائج المحفوظة أو التفاصيل الناقصة.", "مطلوبہ کام بتائیں۔ اے آئی اجازت یافتہ کام خودکار طور پر کرتا ہے اور محفوظ نتائج یا نامکمل تفصیل دکھاتا ہے۔"],
   studio: ["Choose a subject, add your source material and AI builds the paper. Review it before it is delivered securely and marked.", "اختر مادة وأضف موادك المرجعية ليبني الذكاء الاصطناعي الورقة. راجعها قبل تقديمها بأمان وتصحيحها.", "مضمون چنیں، اپنا ماخذی مواد شامل کریں اور اے آئی پرچہ تیار کرتا ہے۔ محفوظ طریقے سے لینے اور جانچنے سے پہلے اس کا جائزہ لیں۔"],
   academics: ["Review grades, subjects and class structure for your campus.", "راجع الصفوف والمواد وبنية الفصول في فرعك.", "اپنے کیمپس کی جماعتیں، مضامین اور کلاسوں کی ترتیب دیکھیں۔"],
   timetable: ["See your assigned lessons and teaching schedule. Missing assignments are managed by your school.", "اطلع على حصصك وجدول التدريس؛ تدير المدرسة التكليفات الناقصة.", "اپنے مقررہ اسباق اور تدریسی اوقات دیکھیں۔ نامکمل ذمہ داریاں اسکول طے کرتا ہے۔"],
@@ -159,7 +161,7 @@ const taskDetails: Record<LaunchTask, readonly [string, string, string]> = {
 const flagships: Record<Flagship, { name: readonly [string, string, string]; pitch: readonly [string, string, string] }> = {
   "ai-workflows": {
     name: ["AI Workflows", "مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز"],
-    pitch: ["AI drafts your setup and routine work such as timetables and announcements; nothing applies until it is approved.", "يُعدّ الذكاء الاصطناعي مسودات الإعداد والأعمال الدورية مثل الجداول والإعلانات؛ ولا يُطبَّق شيء قبل اعتماده.", "اے آئی ترتیب اور نظام الاوقات و اعلانات جیسے معمول کے کاموں کے مسودے بناتا ہے؛ منظوری سے پہلے کچھ لاگو نہیں ہوتا۔"],
+    pitch: ["AI carries out setup and routine work within your role, with saved progress and required domain approvals.", "ينفذ الذكاء الاصطناعي الإعداد والعمل اليومي ضمن دورك مع تقدم محفوظ وموافقات المجال المطلوبة.", "اے آئی آپ کے کردار کے مطابق سیٹ اپ اور روزمرہ کام کرتا ہے، محفوظ پیش رفت اور ضروری منظوریوں کے ساتھ۔"],
   },
   "exam-studio": {
     name: ["Exam Studio", "استوديو الاختبارات", "ایگزام اسٹوڈیو"],

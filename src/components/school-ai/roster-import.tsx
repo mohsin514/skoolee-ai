@@ -1,5 +1,6 @@
 "use client";
 
+import type { AiWorkspaceRecord } from "@/lib/school-ai/types";
 import { useRef, useState } from "react";
 import { CheckCircle2, FileSpreadsheet, History, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { rosterImportCopy } from "./roster-import-copy";
 import { useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
 import styles from "./school-ai.module.css";
 
+const CORRECTION_FIELDS = ROSTER_FIELDS.filter(field => field !== "className" && field !== "classSection");
 interface RosterRow { rowNumber: number; state: string; selected: boolean; source?: Record<string, string>; proposal?: Record<string, unknown> | null; errors: string[]; matchLabel?: string | null; result?: Record<string, unknown> }
 interface ImportBatch { id: string; campusId: string; state: string; sourceName: string; expiresAt: string; reviewToken: string; rows?: RosterRow[]; summary: { total: number; accepted: number; rejected: number; skipped: number; unresolved: number }; receipt?: { rows?: RosterRow[]; summary?: { created?: number; committed?: number }; externalEffects?: Record<string, unknown> } | null }
 interface ClassChoice { id: string; name: string; section: string | null; academicYear: number }
@@ -24,8 +26,10 @@ async function importRequest<T>(url: string, body?: unknown, method = "POST"): P
   return response.json();
 }
 
-export function RosterImport({ language, campusId }: { language: Language; campusId?: string | null }) {
+export function RosterImport({ language, campusId, sources = [] }: { language: Language; campusId?: string | null; sources?: AiWorkspaceRecord[] }) {
   const c = rosterImportCopy(language);
+  const sourceLabel = language === "ar" ? "استيراد سجل طلاب تمت مراجعته" : language === "ur" ? "جائزہ شدہ طلبہ ریکارڈ درآمد کریں" : "Import a reviewed student document";
+  const availableSources = sources.filter(record => record.kind === "SOURCE" && record.campusId === campusId && record.status === "APPROVED" && record.data.documentKind === "register");
   const guard = useWorkspaceDraftNavigation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -106,6 +110,14 @@ export function RosterImport({ language, campusId }: { language: Language; campu
     </div>
     {!campusId && <p className="mt-2 text-sm text-ink-muted">{c.campus}</p>}
     {open && <div className="mt-5 space-y-5">
+      {availableSources.length > 0 && <FormField name="roster-reviewed-source" label={sourceLabel}><Select disabled={busy || !classes.length} value="" onChange={event => {
+        const record = availableSources.find(item => item.id === event.target.value);
+        if (!record) return;
+        guard(() => void run(async () => {
+          const result = await importRequest<{ source: RosterSource; fileName: string }>("/api/school-ai/imports/source", { recordId: record.id, expectedVersion: record.version, campusId });
+          setSource(result.source); setFileName(result.fileName); setMapping(suggestRosterMapping(result.source.headers)); setMappingConfirmed(false); setReviewed(false); setBatch(null); setHistory(null); setCorrection(null); setPage(0);
+        }));
+      }}><option value="">{sourceLabel}</option>{availableSources.map(record => <option key={record.id} value={record.id}>{record.title}</option>)}</Select></FormField>}
       <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || !classes.length} onClick={() => guard(() => fileRef.current?.click())}><Upload aria-hidden="true" />{c.choose}</Button>
         <Button variant="ghost" disabled={busy} onClick={() => guard(() => void run(async () => { const result = await importRequest<{ data: ImportBatch[] }>(`/api/import-batches${query}&kind=STUDENT_ROSTER`); setHistory(result.data.map(item => ({ ...item, rows: undefined, receipt: undefined }))); }))}><History aria-hidden="true" />{c.history}</Button>
       </div>
@@ -134,12 +146,12 @@ export function RosterImport({ language, campusId }: { language: Language; campu
           {row.result?.classId ? <p className="mt-2 text-sm text-ink-muted">{c.class}: {destination(row.result.classId)}</p> : null}
           {row.errors?.length > 0 && <ul className="mt-2 list-disc space-y-1 ps-5 text-sm text-ink-muted">{row.errors.map((message, index) => <li key={index}>{reviewIssue(message, row)}</li>)}</ul>}
           {batch.state === "STAGED" && <div className="mt-3 flex flex-wrap items-center gap-2">{row.state === "ACCEPTED" && <label className="me-2 flex min-h-11 items-center gap-2 text-sm"><Checkbox disabled={busy || Boolean(correction)} checked={row.selected} onChange={event => void run(() => saveCorrection({ rowNumber: row.rowNumber, selected: event.target.checked }))} />{c.select} {number(row.rowNumber)}</label>}
-            <Button variant="outline" disabled={busy || Boolean(correction)} onClick={() => setCorrection({ rowNumber: row.rowNumber, classId: typeof row.proposal?.classId === "string" ? row.proposal.classId : classId, values: Object.fromEntries(ROSTER_FIELDS.map(field => [field, fieldValue(row, field)])) })}>{c.edit}</Button>
+            <Button variant="outline" disabled={busy || Boolean(correction)} onClick={() => setCorrection({ rowNumber: row.rowNumber, classId: typeof row.proposal?.classId === "string" ? row.proposal.classId : classId, values: Object.fromEntries(CORRECTION_FIELDS.map(field => [field, fieldValue(row, field)])) })}>{c.edit}</Button>
             {row.state !== "SKIPPED" && <Button variant="ghost" disabled={busy || Boolean(correction)} onClick={() => void run(() => saveCorrection({ rowNumber: row.rowNumber, skip: true }))}>{c.skip}</Button>}
           </div>}
           {correction?.rowNumber === row.rowNumber && <div className="mt-4 space-y-4 border-t border-border-subtle pt-4"><p className="text-sm text-ink-muted">{c.rowHint}</p>
             <FormField name={`row-${row.rowNumber}-class`} label={c.class} required><Select value={correction.classId} disabled={busy} onChange={event => setCorrection({ ...correction, classId: event.target.value })}><option value="">{c.selectClass}</option>{classes.map(item => <option key={item.id} value={item.id}>{[item.name, item.section, item.academicYear].filter(Boolean).join(" · ")}</option>)}</Select></FormField>
-            <div className="grid gap-4 md:grid-cols-2">{ROSTER_FIELDS.map(field => <FormField key={field} name={`row-${row.rowNumber}-${field}`} label={c[field]} required={ROSTER_REQUIRED_FIELDS.includes(field)}>{field === "gender" || field === "guardianRelationship" ? <Select disabled={busy} value={correction.values[field] ?? ""} onChange={event => setCorrection({ ...correction, values: { ...correction.values, [field]: event.target.value } })}><option value="">{c.ignored}</option>{(field === "gender" ? ["male", "female", "other"] as const : ["father", "mother", "uncle", "aunt", "sibling", "other"] as const).map(value => <option key={value} value={field === "gender" ? value.toUpperCase() : value}>{c[value]}</option>)}</Select> : <Input maxLength={4000} disabled={busy} value={correction.values[field] ?? ""} onChange={event => setCorrection({ ...correction, values: { ...correction.values, [field]: event.target.value } })} />}</FormField>)}</div>
+            <div className="grid gap-4 md:grid-cols-2">{CORRECTION_FIELDS.map(field => <FormField key={field} name={`row-${row.rowNumber}-${field}`} label={c[field]} required={ROSTER_REQUIRED_FIELDS.includes(field)}>{field === "gender" || field === "guardianRelationship" ? <Select disabled={busy} value={correction.values[field] ?? ""} onChange={event => setCorrection({ ...correction, values: { ...correction.values, [field]: event.target.value } })}><option value="">{c.ignored}</option>{(field === "gender" ? ["male", "female", "other"] as const : ["father", "mother", "uncle", "aunt", "sibling", "other"] as const).map(value => <option key={value} value={field === "gender" ? value.toUpperCase() : value}>{c[value]}</option>)}</Select> : <Input maxLength={4000} disabled={busy} value={correction.values[field] ?? ""} onChange={event => setCorrection({ ...correction, values: { ...correction.values, [field]: event.target.value } })} />}</FormField>)}</div>
             <div className="flex flex-wrap gap-2"><Button disabled={busy || !correction.classId} onClick={() => void run(() => saveCorrection({ rowNumber: correction.rowNumber, proposal: { ...Object.fromEntries(Object.entries(correction.values).map(([key, value]) => [key, value.trim() || null])), classId: correction.classId } }))}>{c.saveRow}</Button><Button variant="ghost" disabled={busy} onClick={() => guard(() => setCorrection(null))}>{c.cancel}</Button></div>
           </div>}
         </article>)}</div>

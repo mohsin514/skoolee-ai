@@ -129,7 +129,7 @@ test("the delivery policy body is the schema that owns it, and the placeholder b
 });
 
 test("assertApprovalRole keeps its signature and its answer to R2.3", () => {
-  assert.equal(assertApprovalRole.length, 1);
+  assert.equal(assertApprovalRole.length, 2);
   for (const role of ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL"] as const) assert.doesNotThrow(() => assertApprovalRole(actor(role)));
   for (const role of ["TEACHER", "ACCOUNTANT", "STUDENT"] as const) assert.throws(() => assertApprovalRole(actor(role)), { status: 403 });
 });

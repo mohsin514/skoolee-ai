@@ -2,14 +2,14 @@ import { dashboardPathForRole, type UserRole } from "@/lib/roles";
 
 export const START_CAMPUS_SETUP_EVENT = "skoolee:start-campus-setup";
 export type LaunchJourney = "institution" | "campus" | "teacher" | "student" | "family" | "finance" | "library" | "frontDesk" | "platform";
-export type LaunchTask = "institution" | "campus" | "profile" | "aiSetup" | "aiWorkspace" | "studio" | "academics" | "timetable" | "learning" | "children" | "fees" | "library" | "frontDesk" | "workspace";
+export type LaunchTask = "institution" | "campus" | "profile" | "aiSetup" | "roleSetup" | "aiWorkspace" | "studio" | "academics" | "timetable" | "learning" | "children" | "fees" | "library" | "frontDesk" | "workspace";
 export interface LaunchAction { task: LaunchTask; href: string }
 
 /** SkooleeAI's two flagships (addendum 2026-10-22). */
 export type Flagship = "ai-workflows" | "exam-studio";
 /** The welcome tasks that open a flagship, and which one (LaunchGuide marks them with the shared FlagshipChip). */
 export function flagshipOf(task: LaunchTask): Flagship | null {
-  return task === "aiSetup" || task === "aiWorkspace" ? "ai-workflows" : task === "studio" ? "exam-studio" : null;
+  return task === "aiSetup" || task === "roleSetup" || task === "aiWorkspace" ? "ai-workflows" : task === "studio" ? "exam-studio" : null;
 }
 /** The flagships a welcome plan leads to, in flagship order. The institution wizard ends in the AI setup
  *  questionnaire, so a new owner's plan leads to AI Workflows too. */
@@ -56,13 +56,10 @@ export function launchPlan(input: {
   if (["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL"].includes(role)) {
     const actions: LaunchAction[] = [];
     const needsCampus = role !== "SUPER_ADMIN" && !campusId;
-    // Flagship 1, AI Workflows (addendum 2026-10-22). At first sign-in the school's AI setup is not done yet, so the
-    // institution authority (the group admin; the standalone ADMIN) and the campus operators are offered the setup
-    // questionnaire first: AI drafts the launch plan and nothing applies until a reviewed, approved run applies it (a
-    // campus operator's `setup.apply_changes`, G42 — the group admin drafts, campuses apply). The principal has no
-    // setup tools (M51) and opens AI Workflows for its academic runs. (`can()` is always true for SUPER_ADMIN.)
-    const setupRole = role === "SUPER_ADMIN" || role === "ADMIN" || role === "CAMPUS_ADMIN";
+    // Campus operators answer the campus interview; group owners open governance workflows.
+    const setupRole = role === "ADMIN" || role === "CAMPUS_ADMIN";
     if (!needsCampus && setupRole && can("ai", true)) actions.push({ task: "aiSetup", href: AI_SETUP_HREF });
+    else if (!needsCampus && can("ai", true)) actions.push({ task: "roleSetup", href: AI_SETUP_HREF });
     else if (!needsCampus && can("ai")) actions.push({ task: "aiWorkspace", href: AI_WORKFLOWS_HREF });
     // Flagship 2, Exam Studio: the principal's (a campus operator holds it only while no principal is appointed, which
     // the welcome cannot see; its sidebar entry and Today card show it then).
@@ -79,7 +76,7 @@ export function launchPlan(input: {
   if (role === "TEACHER") {
     if (!input.onboardingComplete) return { journey: "teacher", needsCampus: !campusId, actions: [{ task: "profile", href: "/teacher-onboarding" }] };
     const actions: LaunchAction[] = [];
-    // The teacher's flagship is Exam Studio; AI Workflows (the School AI workspace) is not the teacher's (addendum).
+    if (campusId && can("ai", true)) actions.push({ task: "roleSetup", href: AI_SETUP_HREF });
     if (campusId && can("ai") && can("exams")) actions.push({ task: "studio", href: EXAM_STUDIO_HREF });
     if (campusId && can("timetable")) actions.push({ task: "timetable", href: "/teacher/timetable" });
     actions.push({ task: "workspace", href: home });
@@ -90,10 +87,9 @@ export function launchPlan(input: {
     LIBRARIAN: ["library", "library"], RECEPTIONIST: ["frontDesk", "frontDesk"], APP_OWNER: ["platform", "workspace"],
   };
   const [journey, task] = journeys[role] ?? ["platform", "workspace"];
-  // The desks run no AI workflow (no School AI tools, no flagship entry in their sidebar), so their welcome leads to
-  // their own desk only.
-  const actions: LaunchAction[] = [{ task, href: home }];
+  // Each desk and family gets its own scoped AI interview.
   const operationalStaff = ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(role);
+  const actions: LaunchAction[] = [...(role === "APP_OWNER" || can("ai", true) && (!operationalStaff || campusId) ? [{ task: "roleSetup" as const, href: AI_SETUP_HREF }] : []), { task, href: home }];
   return { journey, needsCampus: operationalStaff && !campusId, actions };
 }
 

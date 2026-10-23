@@ -8,6 +8,7 @@ export const academicClassIdentity = (name: string, section: string | null) => J
 /** A reviewed operation is typed data, never an instruction parsed from generated prose. */
 export const academicSetupProposalSchema = z.strictObject({
   operation: z.literal("academics.setup_year"),
+  existingCycleId: id.optional(),
   academicYear: z.number().int().min(2000).max(2100),
   label: z.string().trim().min(1).max(120),
   startDate: date.nullable(),
@@ -19,7 +20,7 @@ export const academicSetupProposalSchema = z.strictObject({
     teachingMode: z.enum(["SINGLE", "SUBJECT"]),
   })).min(1).max(50),
 }).superRefine((value, context) => {
-  if (Boolean(value.startDate) !== Boolean(value.endDate)) context.addIssue({ code: "custom", path: ["endDate"], message: "Supply both planned dates, or leave both unset." });
+  if (!value.existingCycleId && Boolean(value.startDate) !== Boolean(value.endDate)) context.addIssue({ code: "custom", path: ["endDate"], message: "Supply both planned dates, or leave both unset." });
   if (value.startDate && value.endDate && value.startDate > value.endDate) context.addIssue({ code: "custom", path: ["endDate"], message: "The end date must follow the start date." });
   for (const field of ["startDate", "endDate"] as const) {
     const year = Number(value[field]?.slice(0, 4));

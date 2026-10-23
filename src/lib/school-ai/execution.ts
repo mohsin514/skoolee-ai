@@ -135,7 +135,7 @@ function toolRefusal(role: string, operation: SchoolAiOperation) {
 }
 /** The single choke point for the execute route, previews, listings and queued runs (G42 [K-B2]). */
 async function authorize(user: AuthUser, operation: SchoolAiOperation = "curriculum.import_topics", snapshot?: WorkspacePermissionSnapshot, db?: TxClient) {
-  assertApprovalRole(user); // Mirrors the existing syllabus management boundary.
+  assertApprovalRole(user, operation); // Mirrors the existing syllabus management boundary.
   const permissions = snapshot ?? await loadWorkspacePermissionSnapshot(user);
   await assertSchoolAiAccess(user, "edit", permissions);
   const allowed = await allowedSchoolAiOperations(user, user.campusId);

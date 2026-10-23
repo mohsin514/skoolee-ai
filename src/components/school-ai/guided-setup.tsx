@@ -1,5 +1,11 @@
 "use client";
+import { AutomaticWorkspace } from "@/components/automation/automatic-workspace";
 
+import { SetupActionsPanel } from "./setup-actions-panel";
+import { SetupJourneyPanel } from "./setup-journey-panel";
+import { SetupRunPanel } from "./setup-run-panel";
+import { SetupAnswerAnalysis } from "./setup-answer-analysis";
+import { RosterImport } from "./roster-import";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, CheckCircle2, FileStack, Layers3, Save, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +20,7 @@ import type { Language } from "@/lib/locale/package";
 import type { UserRole } from "@/lib/roles";
 import type { AiWorkspaceRecord } from "@/lib/school-ai/types";
 import { MultimodalComposer } from "./multimodal-composer";
-import { WorkspaceRequestError, workspaceErrorText, workspaceRequest, type RecordAction } from "./workspace-client";
+import { workspaceErrorText, type RecordAction } from "./workspace-client";
 import { SetupHelp } from "./setup-help";
 import styles from "./school-ai.module.css";
 import { useWorkspaceDraft, useWorkspaceDraftNavigation } from "./draft-safety";
@@ -29,6 +35,12 @@ import guideStyles from "@/components/onboarding/launch-guide.module.css";
 interface Props {
   language: Language;
   role?: UserRole;
+  sources?: AiWorkspaceRecord[];
+  workspaceRecords?: AiWorkspaceRecord[];
+  workflows?: string[];
+  allowedOperations?: string[];
+  onOpenWorkflow?: (workflow: string) => void;
+  canImportRoster?: boolean;
   record?: AiWorkspaceRecord;
   defaults?: SetupAnswers;
   voiceAvailable: boolean;
@@ -37,7 +49,7 @@ interface Props {
   campusName?: string;
   onSave: (draft: SetupDraft, record?: AiWorkspaceRecord) => Promise<AiWorkspaceRecord>;
   onClose: () => void;
-  onUpload: (file: File, origin: "upload" | "camera") => Promise<void>;
+  onUpload: (file: File, origin: "upload" | "camera", kind?: "register" | "staff_list" | "syllabus" | "other") => Promise<void>;
   canApprove?: boolean;
   onAction: RecordAction;
   onGenerated: (records: AiWorkspaceRecord[]) => void;
@@ -46,7 +58,7 @@ interface Props {
 const paths: { key: SetupPath; hint: SchoolAICopyKey; Icon: typeof Building2 }[] = [{ key: "new", hint: "newHint", Icon: Building2 }, { key: "import", hint: "importHint", Icon: FileStack }, { key: "migrate", hint: "migrateHint", Icon: Layers3 }];
 const outcomes = ["exams", "timetable", "fees", "records", "complete"] as const;
 
-export function GuidedSetup({ language, role, record, defaults, voiceAvailable, assistantAvailable = false, campusId, campusName, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
+export function GuidedSetup({ language, role, sources = [], workspaceRecords = [], workflows = [], allowedOperations = [], onOpenWorkflow, canImportRoster = false, record, defaults, voiceAvailable, assistantAvailable = false, campusId, campusName, canApprove, onSave, onClose, onUpload, onAction, onGenerated, onOpenRecord }: Props) {
   const c = schoolAICopy(language);
   const guide = launchCopy(language);
   const generationCopy = setupGenerationCopy(language);
@@ -56,6 +68,7 @@ export function GuidedSetup({ language, role, record, defaults, voiceAvailable, 
   const [draft, setDraft] = useState(initial);
   const [baseline, setBaseline] = useState(initial);
   const [index, setIndex] = useState(() => Math.max(0, setupQuestions(initial).findIndex(question => question.key === initial.currentQuestion)));
+  const [startAutomatically, setStartAutomatically] = useState(false);
   const [reviewing, setReviewing] = useState(initial.step === "review");
   const [editingReview, setEditingReview] = useState(false);
   const [generation, setGeneration] = useState<SetupGenerationResult | null>(null);
@@ -121,19 +134,7 @@ export function GuidedSetup({ language, role, record, defaults, voiceAvailable, 
       // previous version when the save promise resolves.
       const saved = await persist({ ...next, step: "review" });
       if (!saved || !live.current) { if (live.current) setGenerationPhase("failed"); return; }
-      setNotice(""); setGenerationPhase("generating");
-      const controller = new AbortController();
-      generationRequest.current = controller;
-      const input = { recordId: saved.id, expectedVersion: saved.version, language };
-      let result: SetupGenerationResult | null;
-      try { result = await workspaceRequest<SetupGenerationResult>("/api/school-ai/setup/generate", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(input) }); }
-      catch (error) {
-        if (!(error instanceof WorkspaceRequestError) || error.code !== "SETUP_GENERATION_PROCESSING") throw error;
-        result = await restoreSetupGeneration(input, controller.signal, () => setGenerationPhase("generating"));
-      }
-      if (!live.current || controller.signal.aborted) return;
-      if (!result?.records?.length) throw new Error("empty-generation");
-      setGeneration(result); setGenerationPhase("complete"); generatedCallback.current(result.records);
+      setNotice(""); setGenerationPhase("complete"); setStartAutomatically(true);
     } catch (error) {
       if (!live.current) return;
       setGenerationPhase("failed");
@@ -160,7 +161,7 @@ export function GuidedSetup({ language, role, record, defaults, voiceAvailable, 
   };
   const upload = async (file: File, origin: "upload" | "camera") => {
     setPending(true); setError("");
-    try { await onUpload(file, origin); setNotice(c.sourceAdded); } catch { setError(c.failed); } finally { setPending(false); }
+    try { await onUpload(file, origin, question.key === "students" ? "register" : question.key === "staff" ? "staff_list" : question.key === "curriculum" ? "syllabus" : "other"); setNotice(c.sourceAdded); } catch { setError(c.failed); } finally { setPending(false); }
   };
   const approve = async () => {
     if (!savedRecord || JSON.stringify(draft) !== JSON.stringify(baseline)) { setError(c.reviewBeforeApproval); return; }
@@ -189,7 +190,13 @@ export function GuidedSetup({ language, role, record, defaults, voiceAvailable, 
       </aside>
       <div className={guideStyles.interviewMain}>
       {reviewing ? <div className={styles.question} key="review"><p className={styles.eyebrow}>{c.workspace}</p><h2 ref={heading} tabIndex={-1} className={styles.questionTitle}>{generationCopy.reviewTitle}</h2><p className={styles.description}>{generationCopy.reviewHint}</p>
-        <SetupGenerationPanel language={language} phase={generationPhase} result={generation} error={generationError || (generationPhase === "failed" ? error : "")} stale={Boolean(generation && (dirty || generation.currentSourceVersion !== savedRecord?.version))} disabled={busy || helpActive || mediaBusy} onGenerate={() => void prepare({ ...draft, step: "review" })} onOpen={next => { const open = () => onOpenRecord(next); if (helpDirty) guard(open); else open(); }} />
+        {generation && <details><summary>{c.savedPlans}</summary><SetupGenerationPanel language={language} phase={generationPhase} result={generation ? { ...generation, records: generation.records.map(record => workspaceRecords.find(current => current.id === record.id) ?? record) } : null} error={generationError || (generationPhase === "failed" ? error : "")} stale={Boolean(generation && (dirty || generation.currentSourceVersion !== savedRecord?.version))} disabled={busy || helpActive || mediaBusy} onGenerate={() => void prepare({ ...draft, step: "review" })} onOpen={next => { const open = () => onOpenRecord(next); if (helpDirty) guard(open); else open(); }} /></details>}
+        {savedRecord && <AutomaticWorkspace key={`automatic-${savedRecord.id}:${savedRecord.version}`} campusId={campusId} questionnaire={{ id: savedRecord.id, version: savedRecord.version }} autoStart={startAutomatically && generationPhase === "complete"} disabled={busy || dirty} />}
+        {savedRecord && assistantAvailable && <SetupActionsPanel key={`${savedRecord.id}:${savedRecord.version}`} record={savedRecord} records={workspaceRecords} language={language} disabled={busy || helpActive || mediaBusy || dirty} onGenerated={onGenerated} onOpen={record => guard(() => onOpenRecord(record))} />}
+        {savedRecord && onOpenWorkflow && <SetupJourneyPanel role={role ?? "ADMIN"} recordId={savedRecord.id} language={language} workflows={workflows} disabled={busy || helpActive || mediaBusy} onOpen={workflow => guard(() => onOpenWorkflow(workflow))} />}
+        {campusId && generation && <SetupRunPanel allowedOperations={allowedOperations} language={language} campusId={campusId} additionalRecords={workspaceRecords} disabled={busy || helpActive || mediaBusy} records={[...generation.records.map(record => workspaceRecords.find(current => current.id === record.id) ?? record), ...workspaceRecords.filter(record => record.kind === "WORKFLOW" && record.status !== "ARCHIVED" && typeof (record.data.proposal as { sourceReference?: string } | undefined)?.sourceReference === "string" && (record.data.proposal as { sourceReference: string }).sourceReference === `Questionnaire ${savedRecord?.id} v${savedRecord?.version}` && !generation.records.some(existing => existing.id === record.id))]} />}
+        {sources.length > 0 && <section className="sk-panel p-4"><h2 className="font-bold">{c.sources}</h2><p className="mt-2 text-sm text-ink-muted">{language === "ar" ? "راجع استخراج الملفات واعتمده قبل الاستيراد. رفع الملف وحده لا ينشئ سجلات." : language === "ur" ? "درآمد سے پہلے فائل سے اخذ شدہ معلومات کا جائزہ لیں اور منظور کریں۔ صرف اپ لوڈ کرنے سے ریکارڈ نہیں بنتے۔" : "Review and approve document extraction before importing. Uploading a file alone does not create records."}</p><div className="mt-3 flex flex-wrap gap-2">{sources.map(source => <Button key={source.id} variant="outline" disabled={busy} onClick={() => guard(() => onOpenRecord(source))}>{source.title} · {c[source.status]}</Button>)}</div></section>}
+        {canImportRoster && <RosterImport language={language} campusId={campusId} sources={sources} />}
         <details className={styles.reviewAnswers} open={!generation && !preparing}><summary>{generationCopy.reviewAnswers}</summary>
           <div className="sk-panel mb-5 p-5"><h2 className="text-base font-bold text-ink-strong">{c.readiness}</h2>{setupReadiness(draft.answers).map(group => {
             const missing = [...new Set([...group.missing, ...group.keys.filter(key => !draft.confirmedKeys.includes(key))])];
@@ -209,6 +216,7 @@ export function GuidedSetup({ language, role, record, defaults, voiceAvailable, 
       </div>}
       {error && (reviewing || question.type !== "date") && <Alert className="mt-4" tone="danger" compact live="assertive">{error}</Alert>}
       {notice && <Alert tone="success" compact live="polite" className="mt-4">{notice}</Alert>}
+      {assistantAvailable && <SetupAnswerAnalysis language={language} campusId={campusId} sources={sources} voiceAvailable={voiceAvailable} disabled={busy || mediaBusy} onUpload={upload} onActivityChange={setHelpActive} onApply={answers => { setDraft(previous => ({ ...previous, answers: { ...previous.answers, ...answers }, confirmedKeys: previous.confirmedKeys.filter(key => !(key in answers)) })); setError(""); setNotice(""); }} />}
       <SetupHelp language={language} topicKey={reviewing ? "review" : question.key} question={reviewing ? c.review : c[question.label]} campusId={campusId} assistantAvailable={assistantAvailable} voiceAvailable={voiceAvailable} disabled={busy || mediaBusy} onUpload={upload} onActivityChange={setHelpActive} onDraftChange={setHelpDirty} />
       </div>
     </div>
