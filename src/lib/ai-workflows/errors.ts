@@ -25,6 +25,8 @@ export const WORKFLOW_ERROR_CODES = {
   DEADLINE: 504,
   DOMAIN_REFUSED: 422,
   PRACTICE_MODE: 423,
+  /** A child-safety or wellbeing request: nothing was stored; the person is shown how to reach a trusted adult. */
+  CARE_REFERRAL: 422,
   INTERNAL: 500,
 } as const;
 export type WorkflowErrorCode = keyof typeof WORKFLOW_ERROR_CODES;

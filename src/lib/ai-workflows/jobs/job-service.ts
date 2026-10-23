@@ -16,6 +16,7 @@ import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
 import { capability } from "../registry";
 import { appendEvent } from "./events";
 import { aiWorkflowsV2Enabled } from "../flag";
+import { mentionsCare } from "../pii/care-detector";
 import { authorizeActor, capabilityContext, inTenant } from "./actor";
 import { withLease } from "./lease";
 
@@ -40,6 +41,8 @@ export function startJob(user: AuthUser, raw: unknown): Promise<AiWorkflowJob> {
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
     if (!aiWorkflowsV2Enabled(school?.slug)) throw new WorkflowError("NOT_CONNECTED");
     const input = startJobSchema.parse(raw);
+    // Checked before anything is written: the words are never stored, planned or logged as a gap.
+    if (mentionsCare(input.message)) throw new WorkflowError("CARE_REFERRAL");
     const campusId = user.role === "APP_OWNER" ? null : user.role === "STUDENT" || user.role === "PARENT" ? user.campusId : await resolveWorkspaceCampus(user, input.campusId);
     if (input.campusId && input.campusId !== campusId) throw new WorkflowError("SCOPE_DENIED");
     const requestHash = sha256({ message: input.message, campusId, role: user.role });

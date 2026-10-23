@@ -16,9 +16,20 @@ export const JOB_CREDIT_CAP = { FREEFORM: 5, FOLLOW_UP: 5, UNDO: 5, QUESTIONNAIR
 
 interface JobCredits { id: string; schoolId: string; campusId: string | null; origin: string; creditsCharged: number }
 
+/**
+ * Families and students share the school's credits with its staff (red team RT7c): each person has a
+ * rolling 24-hour cap, so one account cannot spend the school's balance.
+ */
+export const ROLE_DAILY_CREDIT_CAP: Partial<Record<AuthUser["role"], number>> = { PARENT: 10, STUDENT: 15 };
+
 export async function assertCanSpend(user: AuthUser, job: JobCredits) {
   const cap = JOB_CREDIT_CAP[job.origin as keyof typeof JOB_CREDIT_CAP] ?? 5;
   if (job.creditsCharged >= cap) throw new WorkflowError("BUDGET_EXHAUSTED", { cap });
+  const daily = ROLE_DAILY_CREDIT_CAP[user.role];
+  if (daily !== undefined) {
+    const spent = await prisma.aiWorkflowJob.aggregate({ where: { schoolId: user.schoolId, actorId: user.userId, createdAt: { gte: new Date(Date.now() - 86_400_000) } }, _sum: { creditsCharged: true } });
+    if ((spent._sum.creditsCharged ?? 0) >= daily) throw new WorkflowError("BUDGET_EXHAUSTED", { cap: daily, scope: "daily" });
+  }
   await ensureAICreditsAvailable(user.schoolId).catch(() => { throw new WorkflowError("CREDITS_EXHAUSTED"); });
 }
 

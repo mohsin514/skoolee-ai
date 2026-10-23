@@ -16,6 +16,8 @@ import { DEFAULT_BUDGET, advanceJob, getJob, savePlan } from "../jobs/job-servic
 import { toRunView, type RunView } from "../view";
 import { TEACHER_QUESTIONNAIRE } from "./roles/teacher";
 import { ADMIN_QUESTIONNAIRE, CAMPUS_ADMIN_QUESTIONNAIRE } from "./roles/operator";
+import { STUDENT_QUESTIONNAIRE } from "./roles/student";
+import { PARENT_QUESTIONNAIRE } from "./roles/parent";
 import type { CompiledStep, QuestionnaireDefinition, QuestionView, RemainingTask } from "./types";
 
 /**
@@ -23,7 +25,7 @@ import type { CompiledStep, QuestionnaireDefinition, QuestionView, RemainingTask
  * user's live role; a URL key that does not match it is NOT_FOUND (red team RT14), so a teacher can
  * never open, answer or build another role's sheet.
  */
-const DEFINITIONS: readonly QuestionnaireDefinition<any>[] = [TEACHER_QUESTIONNAIRE, ADMIN_QUESTIONNAIRE, CAMPUS_ADMIN_QUESTIONNAIRE];
+const DEFINITIONS: readonly QuestionnaireDefinition<any>[] = [TEACHER_QUESTIONNAIRE, ADMIN_QUESTIONNAIRE, CAMPUS_ADMIN_QUESTIONNAIRE, STUDENT_QUESTIONNAIRE, PARENT_QUESTIONNAIRE];
 
 export function definitionForRole(role: string): QuestionnaireDefinition<any> | null {
   return DEFINITIONS.find(definition => definition.roles.includes(role as never)) ?? null;
@@ -36,7 +38,8 @@ function definitionFor(user: AuthUser, key: string) {
 }
 
 async function setupContext(user: AuthUser, locale: Locale) {
-  const campusId = await resolveWorkspaceCampus(user, user.campusId);
+  // Families and students act on their own campus; they hold no workspace scope to resolve.
+  const campusId = user.role === "PARENT" || user.role === "STUDENT" ? user.campusId : await resolveWorkspaceCampus(user, user.campusId);
   return capabilityContext(user, campusId, locale);
 }
 

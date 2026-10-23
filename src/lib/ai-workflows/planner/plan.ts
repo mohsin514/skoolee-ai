@@ -133,7 +133,8 @@ async function notSupported(user: AuthUser, job: AiWorkflowJob, nearest: string 
   await prisma.$transaction(async tx => {
     await tx.aiCapabilityGap.upsert({
       where: { schoolId_actorRole_nearestKey_reason: { schoolId: job.schoolId, actorRole: user.role, nearestKey, reason } },
-      create: { schoolId: job.schoolId, actorRole: user.role, language: job.language, reason, nearestKey, maskedSummary: scanForPII(summary).length ? "" : summary },
+      // Families and students leave no words behind, even masked: only the count of unmet requests.
+      create: { schoolId: job.schoolId, actorRole: user.role, language: job.language, reason, nearestKey, maskedSummary: user.role === "PARENT" || user.role === "STUDENT" || scanForPII(summary).length ? "" : summary },
       update: { count: { increment: 1 }, lastSeenAt: new Date() },
     });
     await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { status: "COMPLETED", outcome: "NOT_SUPPORTED", completedAt: new Date(), errorParams: nearestKey ? { nearest: nearestKey } : undefined, version: { increment: 1 } } });
