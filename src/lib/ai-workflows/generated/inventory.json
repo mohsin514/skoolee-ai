@@ -11749,6 +11749,21 @@
   "source": "appendix-a"
  },
  {
+  "key": "platform.set_ai_workflows_live",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "PUT",
+  "route": "/api/owner/schools/[id]/ai-workflows-live",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "ACCESS_GRANT",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "platform.set_default_plan_pricing",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "PUT",

@@ -86,6 +86,8 @@ model School {
   aiCreditsUsed        Int       @default(0) @map("ai_credits_used")
   aiCreditsReserved    Int       @default(0) @map("ai_credits_reserved")
   aiCreditsLimit       Int       @default(100) @map("ai_credits_limit")
+  aiWorkflowsLiveAt    DateTime? @map("ai_workflows_live_at") // APP_OWNER switched AI Workflows live: AI may save real records before the release evaluation (practice.ts)
+  aiWorkflowsLiveById  String?   @map("ai_workflows_live_by_id") // the APP_OWNER who switched it on; the owner audit log holds every on/off
   stripeCustomerId     String?   @unique @map("stripe_customer_id")
   stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
   planPricing          Json?     @map("plan_pricing") // Owner-defined plan pricing overrides

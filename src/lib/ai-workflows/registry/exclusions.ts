@@ -17,6 +17,8 @@ const RULES: Rule[] = [
     match: key => ["exams.attempt.start", "exams.attempt.save_or_submit", "exams.clarification.acknowledge"].includes(key) },
   { category: "file-upload", reason: "File and camera uploads are owned by the multimodal intake (SKO-460).",
     match: key => key.startsWith("uploads.") || /presign|upload_document|upload_clip|put_private_file|confirm_upload|intake\.upload|paperFromUpload/.test(key) },
+  { category: "platform-console", reason: "Switching a school out of practice mode is a deliberate platform-owner decision; the AI must never lift its own practice gate.",
+    match: key => key === "platform.set_ai_workflows_live" },
   { category: "internal", reason: "Unauthenticated public forms are completed by families on the public page, not from a signed-in assistant.",
     match: key => key.startsWith("public.") },
 ];
