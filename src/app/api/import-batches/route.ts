@@ -1,58 +1,19 @@
-import { resolveRosterClass } from "@/lib/imports/roster-class";
 import { createHash } from "node:crypto";
-import { Prisma } from "@prisma/client";
 import { bankRowKeys } from "@/lib/fees/bank-reconciliation";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, assertStaffRole, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseMoney, localePackageSchema } from "@/lib/locale/package";
-import { bankImportSchema, studentSchema } from "@/lib/validators/schemas";
-import { importField, normalizeImportHeader, parseImportCsv } from "@/lib/imports/csv";
-import { isoDate, summarizeImportRows, type ImportRow } from "@/lib/imports/batch";
-import { importReviewToken } from "@/lib/imports/review-token";
+import { bankImportSchema } from "@/lib/validators/schemas";
+import { normalizeImportHeader, parseImportCsv } from "@/lib/imports/csv";
+import { isoDate, type ImportRow } from "@/lib/imports/batch";
 import { assertRosterPermission } from "@/lib/imports/roster-access";
+import { MAX_IMPORT_ROWS as MAX_ROWS, classifyStudentRoster, csvRosterSources, expireStagedBatches, importBatchView as respond, persistImportBatch } from "@/lib/imports/stage-batch-command";
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
-const MAX_ROWS = 1000;
-const STAGING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function object(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function asRows(value: Prisma.JsonValue): ImportRow[] {
-  const data = object(value);
-  return Array.isArray(data?.rows) ? data.rows as unknown as ImportRow[] : [];
-}
-
-function receiptCounts(value: Prisma.JsonValue | null) {
-  const record = object(value);
-  const summary = object(record?.summary) || {};
-  return {
-    total: Number(summary.total) || 0,
-    accepted: Number(summary.committed ?? summary.created ?? summary.accepted) || 0,
-    rejected: Number(summary.rejected) || 0,
-    skipped: Number(summary.skipped) || 0,
-    unresolved: Number(summary.unresolved) || 0,
-  };
-}
-
-function respond(batch: { id: string; campusId: string; kind: string; state: string; sourceName: string; expiresAt: Date; data: Prisma.JsonValue; receipt: Prisma.JsonValue | null; createdAt: Date }) {
-  const rows = asRows(batch.data);
-  const storedSummary = object(object(batch.data)?.summary);
-  return {
-    id: batch.id,
-    campusId: batch.campusId,
-    kind: batch.kind,
-    state: batch.state,
-    sourceName: batch.sourceName,
-    expiresAt: batch.expiresAt,
-    createdAt: batch.createdAt,
-    summary: batch.receipt ? receiptCounts(batch.receipt) : storedSummary || summarizeImportRows(rows),
-    rows: batch.state === "STAGED" ? rows : undefined,
-    receipt: batch.receipt,
-    reviewToken: importReviewToken(batch),
-  };
 }
 
 export async function GET(request: NextRequest) {
@@ -71,34 +32,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return errorResponse(error, "[import-batches] GET failed");
   }
-}
-
-async function expireStagedBatches(schoolId: string, campusId: string) {
-  await prisma.$executeRaw`UPDATE import_batches
-    SET state='EXPIRED',
-        receipt=jsonb_build_object('summary', COALESCE(data->'summary', '{}'::jsonb), 'expiredAt', now()),
-        data=jsonb_build_object('rows', '[]'::jsonb, 'metadata', '{}'::jsonb, 'summary', COALESCE(data->'summary', '{}'::jsonb))
-    WHERE school_id=${schoolId} AND campus_id=${campusId} AND state='STAGED' AND expires_at <= now()`;
-}
-
-function studentFromCsv(row: Record<string, string>, defaultClassId: string) {
-  return {
-    fullName: importField(row, ["fullName", "studentName", "name"]),
-    rollNo: importField(row, ["rollNo", "rollNumber", "registrationNo", "regNo"]),
-    classId: importField(row, ["classId"]) || defaultClassId,
-    gender: importField(row, ["gender"]).toUpperCase() || "OTHER",
-    dateOfBirth: importField(row, ["dateOfBirth", "dob"]) || null,
-    phone: importField(row, ["phone", "studentPhone"]) || null,
-    studentEmail: importField(row, ["studentEmail", "studentLoginEmail", "email"]) || null,
-    guardianName: importField(row, ["guardianName", "parentName"]) || null,
-    guardianPhone: importField(row, ["guardianPhone", "parentPhone"]),
-    guardianWhatsapp: importField(row, ["guardianWhatsapp", "whatsapp"]) || null,
-    guardianEmail: importField(row, ["guardianEmail", "parentEmail"]) || null,
-    guardianRelationship: importField(row, ["guardianRelationship", "relationship"]) || undefined,
-    address: importField(row, ["address"]) || null,
-    city: importField(row, ["city"]) || null,
-    medicalNotes: importField(row, ["medicalNotes", "medical"]) || null,
-  };
 }
 
 export async function POST(request: NextRequest) {
@@ -137,48 +70,7 @@ export async function POST(request: NextRequest) {
 
     if (kind === "STUDENT_ROSTER") {
       const defaultClassId = typeof body.defaultClassId === "string" ? body.defaultClassId : "";
-      if (!defaultClassId) throw new ApiError("Choose a class before validating the roster", 400);
-      const rosterClasses = await prisma.class.findMany({ where: { campusId, schoolId: user.schoolId, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true } });
-      const rawRows = records.slice(1).map((cells, index) => {
-        const source = headers.reduce<Record<string, string>>((result, header, column) => { result[header] = cells[column] || ""; return result; }, {});
-        const explicitClass = importField(source, ["className"]), section = importField(source, ["classSection"]);
-        const raw = studentFromCsv(source, defaultClassId);
-        if (explicitClass || section) raw.classId = resolveRosterClass(rosterClasses, explicitClass, section, defaultClassId);
-        return { rowNumber: index + 2, source, raw };
-      });
-      const proposals = rawRows.map(({ raw }) => studentSchema.safeParse(raw));
-      const classIds = [...new Set(proposals.flatMap((parsed) => parsed.success ? [parsed.data.classId] : []))];
-      const [classes, existing] = await Promise.all([
-        prisma.class.findMany({ where: { id: { in: classIds }, campusId, campus: { schoolId: user.schoolId }, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true, campusId: true } }),
-        prisma.student.findMany({ where: { campusId, campus: { schoolId: user.schoolId }, archivedAt: null }, select: { id: true, rollNo: true, classId: true, fullName: true } }),
-      ]);
-      const classesById = new Map(classes.map((item) => [item.id, item]));
-      const existingByRoll = new Map<string, typeof existing>();
-      for (const student of existing) existingByRoll.set(student.rollNo.trim().toLocaleLowerCase(), [...(existingByRoll.get(student.rollNo.trim().toLocaleLowerCase()) || []), student]);
-      const seenKeys = new Set<string>();
-      rows = rawRows.map(({ rowNumber, source }, index) => {
-        const parsed = proposals[index];
-        if (!parsed.success) {
-          return { rowNumber, source, proposal: null, state: "REJECTED", selected: false, matchKey: null, errors: parsed.error.issues.map((issue) => `${issue.path.join(".") || "row"}: ${issue.message}`) };
-        }
-        const proposal = parsed.data;
-        const errors: string[] = [];
-        if (proposal.dateOfBirth && !isoDate(proposal.dateOfBirth)) errors.push("dateOfBirth: Use a real date in YYYY-MM-DD format");
-        const targetClass = classesById.get(proposal.classId);
-        if (!targetClass) errors.push("classId: Class is outside the selected campus or does not exist");
-        const matchKey = `${proposal.classId}:${proposal.rollNo.trim().toLocaleLowerCase()}`;
-        const rollMatches = existingByRoll.get(proposal.rollNo.trim().toLocaleLowerCase()) || [];
-        if (rollMatches.some((student) => student.classId === proposal.classId)) {
-          return { rowNumber, source, proposal: proposal as unknown as Record<string, unknown>, state: "SKIPPED", selected: false, matchKey: `class:${proposal.classId}/roll:${proposal.rollNo}`, matchLabel: `Existing pupil: ${rollMatches.find((student) => student.classId === proposal.classId)?.fullName}`, errors: ["This stable class and roll-number key already exists. Review the existing record; it will not be overwritten."] };
-        }
-        if (rollMatches.length) errors.push("rollNo: This roll number exists in another class at the selected campus; resolve the identity before importing");
-        if (seenKeys.has(matchKey)) errors.push("rollNo: This file repeats the same class and roll number; choose a corrected file row");
-        seenKeys.add(matchKey);
-        if (errors.length) return { rowNumber, source, proposal: proposal as unknown as Record<string, unknown>, state: rollMatches.length ? "UNRESOLVED" : "REJECTED", selected: false, matchKey: `class:${proposal.classId}/roll:${proposal.rollNo}`, errors };
-        return { rowNumber, source, proposal: proposal as unknown as Record<string, unknown>, state: "ACCEPTED", selected: true, matchKey: `class:${proposal.classId}/roll:${proposal.rollNo}`, matchLabel: targetClass ? `${targetClass.name}${targetClass.section ? ` · ${targetClass.section}` : ""}` : null, errors: [] };
-      });
-      targetScope = `classes:${[...new Set(classIds)].sort().join(",")}`;
-      metadata = { mappedColumns: headers, defaultClassId };
+      ({ rows, targetScope, metadata } = await classifyStudentRoster(user, { campusId, defaultClassId, headers, sources: csvRosterSources(headers, records) }));
     } else {
       const currency = localePackageSchema.shape.currency.safeParse(body.currency);
       if (!currency.success) throw new ApiError("Select a valid statement currency", 400);
@@ -227,37 +119,8 @@ export async function POST(request: NextRequest) {
       metadata = { accountName: details.data.accountName.trim(), statementFrom: from, statementTo: to, currency: currency.data, mappedColumns: headers };
     }
 
-    const now = new Date();
-    const existingBatch = await prisma.importBatch.findUnique({ where: { schoolId_campusId_kind_fingerprint_targetScope: { schoolId: user.schoolId, campusId, kind, fingerprint, targetScope } } });
-    if (existingBatch && existingBatch.state !== "EXPIRED") return Response.json({ success: true, data: respond(existingBatch) });
-    if (existingBatch) {
-      // Reuse an expired idempotency key so an identical file can be staged again
-      // without discarding any committed receipt (expired rows were never committed).
-      const refreshed = await prisma.importBatch.updateMany({
-        where: { id: existingBatch.id, schoolId: user.schoolId, campusId, state: "EXPIRED" },
-        data: { state: "STAGED", sourceName, data: { rows, metadata, summary: summarizeImportRows(rows) } as Prisma.InputJsonValue, receipt: Prisma.JsonNull, createdById: user.userId, createdAt: now, expiresAt: new Date(now.getTime() + STAGING_TTL_MS), committedAt: null, reversedAt: null },
-      });
-      if (refreshed.count === 1) {
-        const batch = await prisma.importBatch.findFirst({ where: { id: existingBatch.id, schoolId: user.schoolId, campusId } });
-        if (batch) return Response.json({ success: true, data: respond(batch) });
-      }
-      const latest = await prisma.importBatch.findUnique({ where: { schoolId_campusId_kind_fingerprint_targetScope: { schoolId: user.schoolId, campusId, kind, fingerprint, targetScope } } });
-      if (latest) return Response.json({ success: true, data: respond(latest) });
-    }
-    try {
-      const batch = await prisma.importBatch.create({ data: {
-        schoolId: user.schoolId, campusId, kind, fingerprint, targetScope, sourceName,
-        state: "STAGED", data: { rows, metadata, summary: summarizeImportRows(rows) } as Prisma.InputJsonValue,
-        createdById: user.userId, expiresAt: new Date(now.getTime() + STAGING_TTL_MS),
-      } });
-      return Response.json({ success: true, data: respond(batch) }, { status: 201 });
-    } catch (error) {
-      if ((error as { code?: string })?.code === "P2002") {
-        const batch = await prisma.importBatch.findUnique({ where: { schoolId_campusId_kind_fingerprint_targetScope: { schoolId: user.schoolId, campusId, kind, fingerprint, targetScope } } });
-        if (batch) return Response.json({ success: true, data: respond(batch) });
-      }
-      throw error;
-    }
+    const { batch, created } = await persistImportBatch(user, { campusId, kind, fingerprint, targetScope, sourceName, rows, metadata });
+    return created ? Response.json({ success: true, data: respond(batch) }, { status: 201 }) : Response.json({ success: true, data: respond(batch) });
   } catch (error) {
     return errorResponse(error, "[import-batches] POST failed");
   }

@@ -21,8 +21,9 @@ const prefill = (overrides: Partial<TeacherPrefill> = {}): TeacherPrefill => ({
   ...overrides,
 });
 
-test("only the signed-in role's own definition exists (RT14): every role but TEACHER gets none", () => {
-  for (const role of USER_ROLES) assert.equal(definitionForRole(role)?.key ?? null, role === "TEACHER" ? "teacher" : null, role);
+test("only the signed-in role's own definition exists (RT14): each role maps to its own key or none", () => {
+  const expected: Record<string, string> = { TEACHER: "teacher", ADMIN: "admin", CAMPUS_ADMIN: "campus-admin" };
+  for (const role of USER_ROLES) assert.equal(definitionForRole(role)?.key ?? null, expected[role] ?? null, role);
 });
 
 test("compile is deterministic and turns each answer into exactly the steps it drives", () => {

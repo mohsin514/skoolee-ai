@@ -45,6 +45,9 @@ const COPY: Record<string, Record<Lang, string>> = {
   planTest: { en: "Plan a test", ar: "خطط لاختبار", ur: "ٹیسٹ طے کریں" },
   notYet: { en: "Not yet", ar: "ليس بعد", ur: "ابھی نہیں" },
   total: { en: "Total marks", ar: "الدرجة الكلية", ur: "کل نمبر" },
+  addRow: { en: "Add a person", ar: "إضافة شخص", ur: "شخص شامل کریں" },
+  edit: { en: "Change my answers", ar: "تغيير إجاباتي", ur: "میرے جوابات تبدیل کریں" },
+  remove: { en: "Remove", ar: "إزالة", ur: "ہٹائیں" },
   stale: { en: "This sheet changed in another tab. The latest answers are shown.", ar: "تغيّرت الصفحة في نافذة أخرى. تظهر أحدث الإجابات.", ur: "یہ شیٹ دوسرے ٹیب میں بدلی۔ تازہ جوابات دکھائے جا رہے ہیں۔" },
 };
 const c = (key: string, language: Lang, ...values: Array<string | number>) => t(COPY, key, language, ...values);
@@ -115,6 +118,44 @@ function Field({ view, value, onChange, label, language }: { view: QuestionView;
         })}</div>
       );
     }
+    case "row-steppers": {
+      const rows = (value ?? {}) as Record<string, number>;
+      return (
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2" role="group" aria-label={label}>{view.rows.map(row => (
+          <div key={row.id} className="flex items-center justify-between gap-3" data-row={row.id}>
+            <span className="text-sm font-medium">{row.label}</span>
+            <Stepper label={row.label} value={rows[row.id] ?? view.min} min={view.min} max={view.max} step={view.step} unit={view.unit} onChange={next => onChange({ ...rows, [row.id]: next })} />
+          </div>
+        ))}</div>
+      );
+    }
+    case "row-tags": {
+      const rows = (value ?? {}) as Record<string, string[]>;
+      return (
+        <div className="space-y-4">{view.rows.map(row => (
+          <div key={row.id} className="space-y-1.5" data-row={row.id}><span className="text-sm font-medium">{row.label}</span>
+            <TagList label={row.label} value={rows[row.id] ?? []} max={view.max} placeholder={view.placeholder} suggestions={row.suggestions} onChange={next => onChange({ ...rows, [row.id]: next })} />
+          </div>
+        ))}</div>
+      );
+    }
+    case "table": {
+      const rows = Array.isArray(value) ? (value as Array<Record<string, string>>) : [];
+      const set = (index: number, key: string, next: string) => onChange(rows.map((row, at) => (at === index ? { ...row, [key]: next } : row)));
+      return (
+        <div className="space-y-3" role="group" aria-label={label}>
+          {rows.map((row, index) => (
+            <div key={index} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))_auto]" data-table-row={index}>
+              {view.columns.map(column => column.type === "choice"
+                ? <Select key={column.key} aria-label={column.label} value={row[column.key] ?? ""} onChange={event => set(index, column.key, event.target.value)}><option value="">{column.label}</option>{column.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
+                : <Input key={column.key} aria-label={column.label} placeholder={column.label} type={column.type} dir={column.type === "text" ? "auto" : "ltr"} value={row[column.key] ?? ""} onChange={event => set(index, column.key, event.target.value)} />)}
+              <Button type="button" variant="ghost" size="sm" onClick={() => onChange(rows.filter((_, at) => at !== index))}>{c("remove", language)}</Button>
+            </div>
+          ))}
+          {rows.length < view.maxRows && <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, {}])}>{c("addRow", language)}</Button>}
+        </div>
+      );
+    }
     case "group": {
       const current = (value ?? {}) as Record<string, unknown>;
       return (
@@ -143,6 +184,8 @@ export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [initialRun, setInitialRun] = useState<RunView | null>(null);
   const [building, setBuilding] = useState(false);
+  // Back to the answers from a build: saving a change supersedes what still waits; what saved stays.
+  const [editing, setEditing] = useState(false);
   const { run, busy, error, send } = useWorkflowRun(initialRun);
   const pending = useRef<{ answers: Record<string, unknown>; confirmed: string[] } | null>(null);
   const timer = useRef<number | null>(null);
@@ -198,7 +241,7 @@ export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
     if (!sheet) return;
     if (timer.current) { window.clearTimeout(timer.current); await flush(); }
     setBuilding(true); setProblem(null);
-    try { const { run: next } = await call<{ run: RunView }>(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "build", version: version.current, language }) }); setInitialRun(next); }
+    try { const { run: next } = await call<{ run: RunView }>(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "build", version: version.current, language }) }); setInitialRun(next); setEditing(false); }
     catch (thrown) { setProblem(thrown instanceof WorkflowRequestError ? thrown.code : "INTERNAL"); }
     finally { setBuilding(false); }
   };
@@ -228,11 +271,12 @@ export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
     </aside>
   );
 
-  if (run) return (
+  if (run && !editing) return (
     <div className="mx-auto grid max-w-6xl gap-6 p-4 sm:p-6 lg:grid-cols-[1fr_20rem]" dir={dir} data-ai-setup-run>
       <div className="space-y-4">
         <h1 className="flex items-center gap-2 text-2xl font-bold">{run.status === "COMPLETED" && <CheckCircle2 className="size-6 text-success" aria-hidden />}{run.status === "COMPLETED" ? c("ready", language) : sheet.title}</h1>
         <RunSheet run={run} language={language} busy={busy} error={error} onCommand={(body, clickKey) => void send(body, clickKey)} />
+        <Button type="button" variant="outline" data-ai-edit-answers onClick={() => { setEditing(true); setPage(0); }}>{c("edit", language)}</Button>
         <section className="sk-panel space-y-2 p-4" data-ai-remains>
           <h2 className="font-semibold">{c("remains", language)}</h2>
           <ul className="space-y-2 text-sm">{sheet.remains.map(task => <li key={task.title} className="flex flex-wrap items-center justify-between gap-2"><span>{task.title} · <span className="text-ink-muted">{task.who}</span></span>{task.link && <Link className="underline" href={task.link}>{t({ o: { en: "Open", ar: "فتح", ur: "کھولیں" } }, "o", language)}</Link>}</li>)}</ul>

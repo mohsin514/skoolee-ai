@@ -1,8 +1,8 @@
-import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { createFeeGroup } from "@/lib/fees/fee-group-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,21 +36,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "fees", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    if (!name) throw new ApiError("name required", 400);
-
-    const existing = await prisma.feeGroup.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A fee group with this name already exists", 409);
-
-    const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
-    const group = await prisma.$transaction(async (tx) => {
-      const created = await tx.feeGroup.create({
-        data: { campusId, currency, name, description: body.description ?? null },
-      });
-      await writeAuditEvent(tx, user, { table: "fee_groups", recordId: created.id, action: "CREATE", campusId, after: { currency } });
-      return created;
-    });
+    const group = await createFeeGroup(user, body);
     return Response.json({ success: true, data: group }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/groups] POST failed");

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere,
+import { createFeeType } from "@/lib/fees/fee-type-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere,
   assertSharedModuleRead,
 } from "@/lib/api/scope";
 
@@ -30,22 +31,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "fees", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    const code = String(body.code ?? "").trim().toUpperCase().replace(/\s+/g, "_");
-
-    if (!name || !code) throw new ApiError("name and code are required", 400);
-
-    const existing = await prisma.feeType.findUnique({ where: { campusId_code: { campusId, code } } });
-    if (existing) throw new ApiError("A fee type with this code already exists", 409);
-
-    const type = await prisma.$transaction(async (tx) => {
-      const created = await tx.feeType.create({
-        data: { campusId, name, code, description: body.description ?? null },
-      });
-      await writeAuditEvent(tx, user, { table: "fee_types", recordId: created.id, action: "CREATE", campusId });
-      return created;
-    });
+    const type = await createFeeType(user, body);
     return Response.json({ success: true, data: type }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/types] POST failed");
