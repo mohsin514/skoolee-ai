@@ -22,6 +22,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # tsc --noEmit needs more than Node's default heap in this repository.
+      NODE_OPTIONS: --max-old-space-size=6144
       DATABASE_URL: postgresql://postgres@127.0.0.1:55417/sko217
       DIRECT_URL: postgresql://postgres@127.0.0.1:55417/sko217
       AUTH_SECRET: local-sko217-fixture
@@ -29,9 +31,6 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
     steps:
       - uses: actions/checkout@v4
-      # Set after checkout so the loader exists: tsc needs more than Node's default heap, and the loader resolves
-      # `server-only` (which Next.js supplies when it bundles) for the plain Node test runs below.
-      - run: echo "NODE_OPTIONS=--max-old-space-size=6144 --import=$GITHUB_WORKSPACE/tests/support/server-only.mjs" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -41,8 +40,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec prisma generate && pnpm exec prisma migrate deploy
-      - run: node --import tsx tests/enrollment/fixture.ts
-      - run: node --import tsx --test tests/enrollment/domain.test.ts
+      - run: node --import ./tests/support/server-only.mjs --import tsx tests/enrollment/fixture.ts
+      - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/enrollment/domain.test.ts
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
       - name: Start isolated synthetic app
@@ -54,8 +53,8 @@ jobs:
           done
           cat /tmp/sko217-app.log
           exit 1
-      - run: node --import tsx tests/enrollment/browser-check.ts
-      - run: node --import tsx tests/enrollment/source-check.ts
+      - run: node --import ./tests/support/server-only.mjs --import tsx tests/enrollment/browser-check.ts
+      - run: node --import ./tests/support/server-only.mjs --import tsx tests/enrollment/source-check.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
