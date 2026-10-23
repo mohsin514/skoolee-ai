@@ -21,8 +21,8 @@ jobs:
         image: redis:7
         ports: ["6379:6379"]
     env:
-      # tsc --noEmit needs more than Node's default heap in this repository.
-      NODE_OPTIONS: --max-old-space-size=6144
+      # tsc --noEmit needs about 12 GB in this repository (the hosted runner has 16 GB).
+      NODE_OPTIONS: --max-old-space-size=12288
       DATABASE_URL: postgresql://postgres@127.0.0.1:55409/postgres
       DIRECT_URL: postgresql://postgres@127.0.0.1:55409/postgres
       AUTH_SECRET: sko209-local-synthetic-validation-secret-please-change
