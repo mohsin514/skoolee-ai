@@ -83,7 +83,7 @@ export const briefScopeSchema = z.strictObject({
 export type BriefScope = z.infer<typeof briefScopeSchema>;
 
 /** Where a suggestion came from. A school default is a suggestion labelled as one (R3.7), never a fact. */
-export const SUGGESTION_ORIGINS = ["APPROVED_SOURCE", "SCHOOL_DEFAULT", "PROVIDER"] as const;
+export const SUGGESTION_ORIGINS = ["APPROVED_SOURCE", "SCHOOL_DEFAULT", "PROVIDER", "OFFICE_POLICY"] as const;
 export const suggestionOriginSchema = z.enum(SUGGESTION_ORIGINS);
 export type SuggestionOrigin = z.infer<typeof suggestionOriginSchema>;
 
@@ -100,6 +100,8 @@ export const confirmedFactSchema = z.strictObject({
   at: z.iso.datetime(),
   scope: briefScopeSchema,
   acceptedFrom: z.strictObject({ sourceId: id, sourceVersion: z.number().int().positive() }).optional(),
+  /** SKO-500: the fact was set by the exam office's paper request (slot); `actorId` is who requested it. */
+  fromSlotId: id.optional(),
 });
 export type ConfirmedFact = z.infer<typeof confirmedFactSchema>;
 

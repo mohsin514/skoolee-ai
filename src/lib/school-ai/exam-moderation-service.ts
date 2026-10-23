@@ -7,7 +7,7 @@ import type { TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { schoolAiTransaction } from "./transaction";
-import { scopedAssignment, staffExamAccess } from "./exam-service";
+import { resultDecisionAccess, scopedAssignment, staffExamAccess } from "./exam-service";
 import { examReviewSchema, responsesSchema, validateExamReview } from "./exam";
 import { applyResultRevision } from "./exam-results";
 
@@ -41,9 +41,15 @@ function parse<T extends z.ZodTypeAny>(schema: T, raw: unknown): z.infer<T> {
 }
 const total = (review: unknown) => { const t = (review as { total?: unknown } | null)?.total; return typeof t === "number" ? t : ((review as { marks?: { marks: number }[] } | null)?.marks ?? []).reduce((s, m) => s + m.marks, 0); };
 
+/** SKO-504: proposals and decisions on released results are open to managers and to the head of department. */
+async function decisionScope(user: AuthUser, assignmentId: string, tx: TxClient) {
+  const assignment = await tx.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
+  if (!assignment) throw new ApiError("Exam unavailable.", 404);
+  return { assignment, paper: await resultDecisionAccess(user, assignment, tx) };
+}
+
 async function proposeIn(tx: TxClient, user: AuthUser, assignmentId: string, input: z.infer<typeof ProposeInput>) {
-  const { assignment, paper } = await scopedAssignment(user, assignmentId, tx);
-  await staffExamAccess(user, assignment, "edit", tx);
+  const { assignment, paper } = await decisionScope(user, assignmentId, tx);
   if (!assignment.resultsReleasedAt) throw new ApiError("This result is not released yet; revise it directly.", 409);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: input.attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, status: "REVIEWED", reviewVersion: input.version } });
   if (!attempt) throw new ApiError("The result changed. Reload its current version before proposing a correction.", 409);
@@ -63,6 +69,11 @@ async function proposeIn(tx: TxClient, user: AuthUser, assignmentId: string, inp
   return created;
 }
 
+/** SKO-504: the same proposal from inside another transaction (an upheld appeal, a released-result revise). */
+export async function proposeCorrectionIn(tx: TxClient, user: AuthUser, assignmentId: string, raw: unknown) {
+  return proposeIn(tx, user, assignmentId, parse(ProposeInput, raw));
+}
+
 /** Propose a change to a released result. It does not change the published result. */
 export async function proposeResultCorrection(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = parse(ProposeInput, raw);
@@ -73,8 +84,7 @@ export async function proposeResultCorrection(user: AuthUser, assignmentId: stri
 export async function decideResultCorrection(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = parse(DecideInput, raw);
   const result = await schoolAiTransaction(user, async (tx) => {
-    const { assignment, paper } = await scopedAssignment(user, assignmentId, tx);
-    await staffExamAccess(user, assignment, "edit", tx);
+    const { assignment, paper } = await decisionScope(user, assignmentId, tx);
     const correction = await tx.schoolAiResultCorrection.findFirst({ where: { id: input.correctionId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
     if (!correction) throw new ApiError("Correction not found", 404);
     if (correction.version !== input.version || correction.status !== "PENDING") throw new ApiError("This correction changed since you opened it. Review the latest decision.", 409);

@@ -37,10 +37,49 @@ async function briefRecord(tx: TxClient, user: AuthUser, recordId: string) {
 }
 
 /** Approved curricula for the brief's class and subject, with only their confirmed taught sections. */
-async function coverageChoices(tx: TxClient, user: AuthUser, record: { campusId: string | null; subjectId: string | null; classId: string | null }): Promise<CoverageChoice[]> {
+/** SKO-500: the Teaching Line's coverage sections (ids, never shown raw; the UI names them). */
+export const LINE_COVERAGE_SECTION = "teaching-line";
+export const ALL_SECTIONS_COVERAGE_SECTION = "all-sections";
+
+/**
+ * SKO-500: what the Teaching Line says is taught, offered as coverage. For this class: every taught
+ * outcome, dated by the last one. For a requested grade paper: only what is taught in every section
+ * (the intersection), so no section sits a question it was not taught.
+ */
+async function lineCoverage(tx: TxClient, user: AuthUser, record: { id: string; campusId: string | null; subjectId: string; classId: string }): Promise<CoverageChoice | null> {
+  const subject = await tx.subject.findFirst({ where: { id: record.subjectId, schoolId: user.schoolId, classId: record.classId }, select: { id: true, name: true, classId: true, campusId: true, class: { select: { name: true } } } });
+  if (!subject) return null;
+  const { currentCurriculumFor, lineRowsFor } = await import("./teaching-progress-service");
+  const { taughtOutcomeIds, intersectionCoverage, lineOrder } = await import("./teaching-progress");
+  const current = await currentCurriculumFor(tx, user, subject);
+  if (!current) return null;
+  const curriculum = curriculumDataSchema.parse(current.record.data);
+  const titles = new Map(curriculum.outcomes.map(outcome => [outcome.id, outcome.title]));
+  const ordered = (ids: Iterable<string>) => { const set = new Set(ids); return lineOrder(curriculum).filter(outcome => set.has(outcome.id)).map(outcome => ({ id: outcome.id, title: titles.get(outcome.id) ?? outcome.id })); };
+  const own = await lineRowsFor(tx, user.schoolId, { curriculumId: current.record.id, subjectId: subject.id, classId: subject.classId });
+  const sections: CoverageChoice["sections"] = [];
+  const lastDate = (rows: ReadonlyArray<{ taughtOn: Date }>) => rows.reduce((latest, row) => (row.taughtOn.toISOString().slice(0, 10) > latest ? row.taughtOn.toISOString().slice(0, 10) : latest), "1970-01-01");
+  const mine = ordered(taughtOutcomeIds(curriculum, own.map(row => ({ outcomeId: row.outcomeId, taughtOn: row.taughtOn.toISOString().slice(0, 10) }))));
+  if (mine.length) sections.push({ section: LINE_COVERAGE_SECTION, taughtOn: lastDate(own), outcomes: mine });
+  const slot = await tx.examPaperSlot.findFirst({ where: { schoolId: user.schoolId, briefRecordId: record.id }, select: { schedules: { select: { exam: { select: { classId: true } } } } } });
+  if (slot) {
+    const classIds = [...new Set(slot.schedules.map(row => row.exam.classId))];
+    const siblings = await tx.subject.findMany({ where: { schoolId: user.schoolId, classId: { in: classIds }, name: { equals: subject.name, mode: "insensitive" } }, select: { id: true, classId: true } });
+    const perSection = await Promise.all(siblings.map(async sibling => {
+      const rows = await lineRowsFor(tx, user.schoolId, { curriculumId: current.record.id, subjectId: sibling.id, classId: sibling.classId });
+      return { classId: sibling.classId, rows, taught: taughtOutcomeIds(curriculum, rows.map(row => ({ outcomeId: row.outcomeId, taughtOn: row.taughtOn.toISOString().slice(0, 10) }))) };
+    }));
+    const common = ordered(intersectionCoverage(perSection).common);
+    if (common.length && perSection.length > 1) sections.push({ section: ALL_SECTIONS_COVERAGE_SECTION, taughtOn: lastDate(perSection.flatMap(section => section.rows)), outcomes: common });
+  }
+  return sections.length ? { curriculumId: current.record.id, curriculumVersion: current.record.version, title: current.record.title, sections } : null;
+}
+
+async function coverageChoices(tx: TxClient, user: AuthUser, record: { id?: string; campusId: string | null; subjectId: string | null; classId: string | null }): Promise<CoverageChoice[]> {
   if (!record.subjectId || !record.classId) return [];
+  const line = record.id ? await lineCoverage(tx, user, { id: record.id, campusId: record.campusId, subjectId: record.subjectId, classId: record.classId }) : null;
   const rows = await tx.schoolAiRecord.findMany({ where: { schoolId: user.schoolId, campusId: record.campusId, kind: "CURRICULUM", status: "APPROVED", subjectId: record.subjectId, classId: record.classId }, orderBy: { updatedAt: "desc" }, take: 10 });
-  return rows.map(row => {
+  const confirmed = rows.map(row => {
     const curriculum = curriculumDataSchema.parse(row.data);
     const titles = new Map(curriculum.outcomes.map(outcome => [outcome.id, outcome]));
     return {
@@ -51,6 +90,10 @@ async function coverageChoices(tx: TxClient, user: AuthUser, record: { campusId:
       })).filter(entry => entry.outcomes.length > 0),
     };
   });
+  if (!line) return confirmed;
+  const same = confirmed.find(choice => choice.curriculumId === line.curriculumId);
+  if (same) { same.sections = [...line.sections, ...same.sections]; return confirmed; }
+  return [line, ...confirmed];
 }
 
 /** §3A: untaught or unknown outcomes are a precise decision request, never a silent acceptance. */

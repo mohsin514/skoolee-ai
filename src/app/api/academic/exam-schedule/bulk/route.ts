@@ -455,10 +455,12 @@ export async function DELETE(req: NextRequest) {
         exam: { sessionId },
         subject: { name: { equals: subjectName, mode: "insensitive" } },
       },
-      select: { id: true, exam: { select: { status: true, isLocked: true } } },
+      select: { id: true, exam: { select: { status: true, isLocked: true } }, paperSlot: { select: { sealedAt: true, printedAt: true, cancelledAt: true } } },
     });
 
     if (schedules.some(item => item.exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(item.exam.status))) throw new ApiError("A selected class exam is no longer editable.", 409);
+    // SKO-500: a sealed or printed paper keeps its sitting; withdraw the paper request first.
+    if (schedules.some(item => item.paperSlot && !item.paperSlot.cancelledAt && (item.paperSlot.sealedAt || item.paperSlot.printedAt))) throw new ApiError("A selected paper is sealed for its sitting. Withdraw the paper request in the Papers step before removing it from the date sheet.", 409);
     if (schedules.length) {
       await prisma.examSchedule.deleteMany({ where: { id: { in: schedules.map((s) => s.id) } } });
     }

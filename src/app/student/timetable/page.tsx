@@ -8,6 +8,7 @@ import { Calendar, Clock } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
+import { MyNextPaper } from "@/components/exams/my-next-paper";
 import { StudentErrorState, TimetableSkeleton } from "@/components/student/student-components";
 
 interface ClassTimetableData {
@@ -77,6 +78,8 @@ export default function StudentTimetablePage() {
             description={ui("Your class timetable appears here once the administration publishes it.")}
           />
         )}
+        {/* SKO-505: paper and online sittings in one list, the next one with a countdown. */}
+        <MyNextPaper source="/api/student/exam-timeline" examHref={id => `/ai/exams/${encodeURIComponent(id)}`} />
         <ExamDateSheet classId={data?.classId} />
       </div>
     </StudentPage>

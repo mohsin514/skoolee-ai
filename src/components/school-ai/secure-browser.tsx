@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Download, Lock, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
@@ -65,6 +65,7 @@ export function SecureProfiles({ locale }: { locale: AssessmentLocale }) {
           <tbody>{profile.testedDevices.map((device, index) => <tr key={index}><td>{device.platform}</td><td dir="ltr" className="text-start">{device.clientVersion}</td><td>{device.testedOn}</td><td>{device.result}{device.assistiveTools.length ? ` · ${device.assistiveTools.join(", ")}` : ""}</td></tr>)}</tbody></table>
         {profile.approvalIssues.length > 0 && <ul className="list-disc ps-5 text-sm text-status-warning-text">{profile.approvalIssues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
         <div className="flex flex-wrap gap-2">
+          <a href={`/api/school-ai/secure-profiles/${encodeURIComponent(profile.id)}/seb`} className={buttonVariants({ variant: "outline" })} download data-profile-seb>{t.downloadSeb}</a>
           {profile.status === "DRAFT" && <Button disabled={profile.approvalIssues.length > 0} onClick={() => void run(() => call(`/api/school-ai/secure-profiles/${profile.id}`, "PATCH", { status: "APPROVED" }))}>{t.approve}</Button>}
           {profile.status === "APPROVED" && <Button variant="outline" onClick={() => setRetiring(profile)}>{t.retire}</Button>}
           <Button variant="ghost" onClick={() => setEditing(profile)}>{t.edit}</Button>

@@ -14,6 +14,7 @@ test("a missing key, too few options and a short section are blocking", () => {
   paper.questions[1] = { ...paper.questions[1], options: paper.questions[1].options.slice(0, 1) };
   paper.questions = paper.questions.filter(question => question.id !== "q3");
   const results = automatedRehearsal(paper);
-  assert.deepEqual(results.map(result => [result.check, result.severity]), [["KEY_MISSING", "BLOCKING"], ["OPTIONS_TOO_FEW", "BLOCKING"], ["SECTION_COUNT", "BLOCKING"]]);
+  // SKO-501: removing q3 also leaves the marks short of the blueprint, which rehearsal 2.0 now reports.
+  assert.deepEqual(results.map(result => [result.check, result.severity]), [["KEY_MISSING", "BLOCKING"], ["OPTIONS_TOO_FEW", "BLOCKING"], ["SECTION_COUNT", "BLOCKING"], ["MARKS_DO_NOT_ADD_UP", "BLOCKING"]]);
   assert.deepEqual(results[0].questionIds, ["q1"]);
 });

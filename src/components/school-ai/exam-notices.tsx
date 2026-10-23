@@ -10,7 +10,7 @@ import { examIncidentCopy, fill } from "./exam-incident-copy";
 // acknowledged one by one. Polled while the attempt is in progress; the paper itself never changes.
 type Notice = { id: string; version: number; revised: boolean; text: string; question: number | null; createdAt: string; acknowledged: boolean };
 
-export function ExamNotices({ id, locale, active, onPaused }: { id: string; locale: AssessmentLocale; active: boolean; onPaused?: (pausedAt: string | null) => void }) {
+export function ExamNotices({ id, locale, active, onPaused }: { id: string; locale: AssessmentLocale; active: boolean; onPaused?: (pausedAt: string | null, deadlineAt?: string | null) => void }) {
   const t = examIncidentCopy(locale);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -21,9 +21,9 @@ export function ExamNotices({ id, locale, active, onPaused }: { id: string; loca
   const load = useCallback(async () => {
     const response = await fetch(api, { cache: "no-store" }).catch(() => null);
     if (!response?.ok) return;
-    const payload = (await response.json()) as { notices: Notice[]; pausedAt?: string | null };
+    const payload = (await response.json()) as { notices: Notice[]; pausedAt?: string | null; deadlineAt?: string | null };
     setNotices(payload.notices ?? []);
-    pausedRef.current?.(payload.pausedAt ?? null);
+    pausedRef.current?.(payload.pausedAt ?? null, payload.deadlineAt ?? null);
   }, [api]);
   useEffect(() => {
     void load();

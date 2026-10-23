@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { EXAM_TERM_LABELS, normaliseExamTerm } from "@/lib/academic/exam-terms";
 const id = z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/);
 export const examPlanDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value => { const date = new Date(`${value}T00:00:00Z`); return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value; }, "Choose a real calendar date.");
 export const examSeatSupportSchema = z.strictObject({ studentId:id, frontRow:z.boolean(), edgeSeat:z.boolean(), extraSpacing:z.boolean(), separateRoomId:id.nullable(), confirmed:z.boolean(), approvalReference:z.string().trim().min(1).max(400) });
 export type ExamSeatSupport=z.infer<typeof examSeatSupportSchema>;
 export const examSessionPlanProposalSchema = z.strictObject({
   operation: z.literal("exams.create_session_plan"),
-  title: z.string().trim().min(1).max(160), term: z.string().trim().min(1).max(60),
+  // SKO-500: one term list; a planner's "TERM_1" or "term 1" is stored as "Term 1", the label reports match.
+  title: z.string().trim().min(1).max(160), term: z.string().trim().min(1).max(60).transform(value => normaliseExamTerm(value) ?? value).refine(value => (EXAM_TERM_LABELS as readonly string[]).includes(value), "Choose Term 1, Term 2, Term 3 or Annual."),
   academicYear: z.number().int().min(2000).max(2100), examType: z.enum(["MID_TERM", "FINAL"]),
   papers: z.array(z.strictObject({ id, classId: id, subjectId: id, date: examPlanDate, periodDefinitionId: id,
     rooms: z.array(z.strictObject({ roomId: id, invigilatorId: id })).min(1).max(6),
@@ -49,5 +51,5 @@ export interface ExamSessionPlanPreview {
 export interface ExamSessionPlanExecutionReceipt {
   id: string; operation: "exams.create_session_plan"; recordId: string; version: number; status: "COMPLETED";
   sessionId: string; examIds: string[]; scheduleIds: string[]; seatCount: number; invigilationCount: number;
-  sessionStatus: "PLANNING"; examStatus: "DRAFT"; completedAt: string;
+  sessionStatus: "PLANNING"; examStatus: "ACTIVE"; paperSlots?: number; completedAt: string;
 }

@@ -10,17 +10,26 @@ import { assertApprovalRole, assertSchoolAiAccess, assertWorkspacePermission, lo
 import { paperDataSchema } from "./assessment";
 import { examReviewSchema, responsesSchema, validateExamReview, validateResponses } from "./exam";
 import { schoolAiTransaction } from "./transaction";
+import { canManageExamType } from "@/lib/academic/exam-permissions";
 import { workspaceRequestHash } from "./repository";
-import { convertGradebookMark, countGradebookOutcomes, gradebookConversionSchema, gradebookPublicationInputSchema, gradebookPublicationSchema, type GradebookBlocker, type GradebookConversion, type GradebookOptions, type GradebookOutcome, type GradebookPreview } from "./exam-gradebook";
+import { convertGradebookMark, countGradebookOutcomes, gradebookDrift, gradebookConversionSchema, gradebookPublicationInputSchema, gradebookPublicationSchema, type GradebookBlocker, type GradebookConversion, type GradebookOptions, type GradebookOutcome, type GradebookPreview } from "./exam-gradebook";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 function fail(code: string, status = 409): never { throw new SchoolAiError("Review the current exam and gradebook information before sending marks.", status, code); }
-async function authorize(user: AuthUser, db: TxClient) {
-  assertApprovalRole(user);
+/**
+ * Managers send marks for any sitting. SKO-500 (§14.5): a teacher may send the marks of a sitting they
+ * created into a quiz or class test they manage (checked on the target in `assertTeacherTarget`).
+ */
+async function authorize(user: AuthUser, db: TxClient, assignmentId: string) {
+  const teacher = user.role === "TEACHER";
+  if (teacher) {
+    const own = await db.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, campusId: user.campusId ?? "", createdById: user.userId }, select: { id: true } });
+    if (!own) fail("PERMISSION_DENIED", 403);
+  } else assertApprovalRole(user);
   const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, isActive: true }, select: { role: true, campusId: true, accessVersion: true } });
   if (!actor || actor.role !== user.role || actor.campusId !== user.campusId || user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion) fail("PERMISSION_DENIED", 403);
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
-  await assertSchoolAiAccess(user, "edit", permissions);
+  await assertSchoolAiAccess(user, teacher ? "add" : "edit", permissions);
   await assertWorkspacePermission(user, "exams", "view", permissions);
   await assertWorkspacePermission(user, "exams", "edit", permissions);
   await assertSchoolOperational(user.schoolId, db);
@@ -54,14 +63,16 @@ async function readSource(user: AuthUser, id: string, db: TxClient) {
 
 export async function getExamGradebookOptions(user: AuthUser, assignmentId: string): Promise<GradebookOptions> {
   return schoolAiTransaction(user, async db => {
-    await authorize(user, db);
+    await authorize(user, db, assignmentId);
     const source = await readSource(user, assignmentId, db);
     const exams = source.cls.archivedAt || source.cls.status !== "ACTIVE" ? [] : await db.exam.findMany({
       where: { ...source.scope, classId: source.cls.id, academicYear: source.cls.academicYear, isLocked: false, status: { in: ["ACTIVE", "MARKS_ENTRY"] }, OR: [{ subjectId: null }, { subjectId: source.subject.id }] },
       select: { id: true, title: true, term: true, academicYear: true, status: true }, orderBy: [{ academicYear: "desc" }, { title: "asc" }, { id: "asc" }], take: 101,
     });
     if (exams.length > 100) fail("GRADEBOOK_SCOPE_LIMIT", 422);
-    return { assignmentVersion: source.assignment.version, assignmentTitle: source.assignment.title, windowClosed: source.windowClosed, endsAt: source.assignment.endsAt.toISOString(), subject: source.subject, counts: source.counts, outcomes: source.outcomes, exams, publication: source.publication };
+    const sentMarks = source.publication ? await db.mark.findMany({ where: { ...source.scope, id: { in: source.publication.rows.map(row => row.markId) } }, select: { id: true, marksObtained: true } }) : [];
+    const drift = source.publication ? gradebookDrift(source.publication, source.attempts, sentMarks, new Map(source.students.map(row => [row.id, row.fullName]))) : [];
+    return { assignmentVersion: source.assignment.version, assignmentTitle: source.assignment.title, windowClosed: source.windowClosed, endsAt: source.assignment.endsAt.toISOString(), subject: source.subject, counts: source.counts, outcomes: source.outcomes, exams, publication: source.publication, drift };
   });
 }
 
@@ -69,8 +80,9 @@ async function preview(user: AuthUser, assignmentId: string, examId: string, con
   const source = await readSource(user, assignmentId, db);
   if (source.publication) fail("GRADEBOOK_ALREADY_SENT");
   if (source.assignment.status !== "ACTIVE" || source.cls.archivedAt || source.cls.status !== "ACTIVE") fail("GRADEBOOK_SCOPE");
-  const target = await db.exam.findFirst({ where: { ...source.scope, id: examId, classId: source.cls.id, academicYear: source.cls.academicYear, OR: [{ subjectId: null }, { subjectId: source.subject.id }] }, select: { id: true, title: true, term: true, academicYear: true, status: true, isLocked: true, academicModelVersionId: true, subjectId: true, marksEntryAt: true } });
+  const target = await db.exam.findFirst({ where: { ...source.scope, id: examId, classId: source.cls.id, academicYear: source.cls.academicYear, OR: [{ subjectId: null }, { subjectId: source.subject.id }] }, select: { id: true, title: true, term: true, academicYear: true, status: true, isLocked: true, academicModelVersionId: true, subjectId: true, marksEntryAt: true, examType: true } });
   if (!target) fail("GRADEBOOK_SCOPE", 404);
+  if (user.role === "TEACHER" && !canManageExamType(user.role, target.examType)) fail("PERMISSION_DENIED", 403);
   if (target.isLocked || !["ACTIVE", "MARKS_ENTRY"].includes(target.status)) fail("GRADEBOOK_TARGET_LOCKED");
   const [thresholds, config, marks, reportCount] = await Promise.all([
     thresholdsForClass(source.cls.id, target.academicYear, db, target.academicModelVersionId),
@@ -106,14 +118,14 @@ async function preview(user: AuthUser, assignmentId: string, examId: string, con
 
 export async function previewExamGradebook(user: AuthUser, assignmentId: string, examId: string, conversion: GradebookConversion): Promise<GradebookPreview> {
   gradebookConversionSchema.parse(conversion);
-  return schoolAiTransaction(user, async db => { await authorize(user, db); return preview(user, assignmentId, examId, conversion, db); });
+  return schoolAiTransaction(user, async db => { await authorize(user, db, assignmentId); return preview(user, assignmentId, examId, conversion, db); });
 }
 
 export async function publishExamGradebook(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = gradebookPublicationInputSchema.parse(raw);
   try {
     return await schoolAiTransaction(user, async db => {
-      await authorize(user, db);
+      await authorize(user, db, assignmentId);
       // Lock the publication owner before checking a durable replay. No separate
       // transaction can send this assignment to another gradebook destination.
       const locked = await db.schoolAiExamAssignment.updateMany({ where: { id: assignmentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) }, data: { version: { increment: 0 } } });

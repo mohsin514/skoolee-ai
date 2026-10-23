@@ -7,6 +7,8 @@ import { ParentTimetableSkeleton } from "@/components/parent/parent-components";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
+import { MyNextPaper } from "@/components/exams/my-next-paper";
+import { FamilyExamBrief } from "@/components/exams/family-exam-brief";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { useParentData } from "../parent-data-context";
 import { useUiText } from "@/components/locale/LocaleProvider";
@@ -183,6 +185,9 @@ export default function ParentTimetablePage() {
         ) : (
           <EmptyState size="sm" icon={Clock} title={tr("No timetable published")} description={tr("The class timetable will appear here once published by the school.")} />
         )}
+        {/* SKO-505: what changed on the date sheet for this child, then their papers and online sittings in one list. */}
+        <FamilyExamBrief studentId={selectedStudentId} />
+        <MyNextPaper source={`/api/parent/exam-timeline${selectedStudentId ? `?studentId=${encodeURIComponent(selectedStudentId)}` : ""}`} />
         <ExamDateSheet />
         {/* M96: the school calendar moved here from Home. Meetings moved to Meet a teacher (M92). */}
         <AcademicCalendar readOnly role="PARENT" />

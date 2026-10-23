@@ -2,7 +2,7 @@
 
 Every public or investor-facing statement must appear here before use. A claim without evidence, date and (for customer facts) permission is **not usable**. Targets are written as targets. Status values: *implemented* (code and tests exist), *verified in pilot*, *target*, *do not use*.
 
-Last reviewed from the repository on 18 October 2026. Founder review is pending.
+Last reviewed from the repository on 23 October 2026 (Pilot Ledger claims PL-1 to PL-6 added). Founder review is pending.
 
 | Claim | Status | Evidence | Date | Permission | Notes |
 |---|---|---|---|---|---|
@@ -18,3 +18,9 @@ Last reviewed from the repository on 18 October 2026. Founder review is pending.
 | LEAP 2027 dates and venue | Check before use | The review cited the official site listing 12–15 April 2027 | 7 Oct 2026 | n/a | Recheck on the official site before booking or publishing. |
 | Funding amount sought | Target | Founder's fundraising aspiration | — | — | Always say "target", never imply a commitment. |
 | Case studies | Not available | None yet | — | Written school permission required | Add only with permission, dates and sample sizes. |
+| PL-1 Papers sealed on or before their due date (share, last 90 days) | Implemented | `src/lib/school-ai/pilot-ledger-service.ts`, Pilot Ledger tile PL-1 | Oct 2026 | School opt-in | Computed only for schools that joined the ledger; quote with its sample size. |
+| PL-2 Median days from paper request to seal | Implemented | Pilot Ledger tile PL-2 | Oct 2026 | School opt-in | Sample is the number of sealed papers in the window. |
+| PL-3 Released-result changes decided by a second reviewer | Implemented | Pilot Ledger tile PL-3; second-reviewer rule in `exam-moderation-service.ts` | Oct 2026 | School opt-in | A count, not a rate of errors. |
+| PL-4 Family notes sent in the guardian's language | Implemented | Pilot Ledger tile PL-4 | Oct 2026 | School opt-in | Sent notes only; not "read". |
+| PL-5 Date-sheet changes acknowledged by affected families | Implemented | Pilot Ledger tile PL-5 | Oct 2026 | School opt-in | Count of acknowledgements, not a completion rate. |
+| PL-6 Exam Twin estimate: average gap from what classes scored (points) | Implemented, estimate | Pilot Ledger tile PL-6; `src/lib/school-ai/exam-twin.ts` | Oct 2026 | School opt-in | Always say "estimate". Never "calibrated" or "predicts learners". |

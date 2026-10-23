@@ -10,6 +10,7 @@ import {
   CalendarX,
   Clock,
   Download,
+  FileText,
   Layers,
   Loader2,
   RefreshCw,
@@ -34,6 +35,7 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { studioSlotsCopy } from "@/lib/school-ai/exam-studio-copy-slots";
 
 /**
  * The master date sheet (§80).
@@ -140,9 +142,14 @@ export function MasterDatesheet({
       try {
         const sp = new URLSearchParams({ sessionId });
         if (campusId) sp.set("campusId", campusId);
-        const res = await fetch(`/api/academic/exam-schedule/bulk?${sp}`).then((r) => r.json());
+        const [res, slots] = await Promise.all([
+          fetch(`/api/academic/exam-schedule/bulk?${sp}`).then((r) => r.json()),
+          // SKO-500: each grade's paper request beside its subject (absent or unreadable: no chips).
+          fetch(`/api/academic/exam-sessions/${encodeURIComponent(sessionId)}/paper-slots`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
         if (!res.success) throw new Error(res.error || "");
         setData(res.data as GridData);
+        setPaperSlots(Array.isArray(slots?.data?.slots) ? slots.data.slots : []);
         setLoadFailed(false);
       } catch (e) {
         if (silent) toast.error(friendlyErrorMessage(e, ui("Could not refresh the date sheet")));
@@ -158,6 +165,10 @@ export function MasterDatesheet({
   useEffect(() => {
     load();
   }, [load]);
+
+  const [paperSlots, setPaperSlots] = useState<Array<{ id: string; subjectName: string; gradeName: string; status: string; overdue: boolean }>>([]);
+  const slotCopy = studioSlotsCopy(language);
+  const slotsFor = (name: string) => paperSlots.filter((slot) => slot.subjectName.trim().toLowerCase() === name.trim().toLowerCase());
 
   /** Roll the per-class grid up into one row per subject name. */
   const subjects = useMemo<SubjectState[]>(() => {
@@ -410,6 +421,13 @@ export function MasterDatesheet({
                           {ui("{0} seated", [subject.seatedPapers])}
                         </span>
                       ) : null}
+                      {slotsFor(subject.name).map((slot) => (
+                        <span key={slot.id} data-paper-slot-chip className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-px", slot.overdue ? "border-status-error-border text-status-error-text" : "border-border-subtle text-ink-muted")}>
+                          <FileText aria-hidden="true" className="h-3 w-3" />
+                          <bdi>{slot.gradeName}</bdi>
+                          <span>{(slotCopy as Record<string, string>)[`status${slot.status}`] ?? slot.status}</span>
+                        </span>
+                      ))}
                     </p>
                   </div>
 

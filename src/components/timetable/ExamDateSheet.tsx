@@ -356,7 +356,7 @@ export function ExamDateSheet({
                     {rows.map((row) => (
                       <div key={row.id} className="flex items-center gap-2 rounded-xl bg-card p-3">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-2xs font-bold text-primary" title={row.periodDefinition ? ui("Period {0}", [row.periodDefinition.periodNumber]) : undefined}>
-                          {row.periodDefinition ? ui("P{0}", [row.periodDefinition.periodNumber]) : "—"}
+                          {row.periodDefinition?.periodNumber ? ui("P{0}", [row.periodDefinition.periodNumber]) : "—"}
                         </span>
                         <div className="min-w-0">
                           <bdi className="block truncate text-xs font-bold text-ink-strong">{row.subject?.name || ui("Class-wide paper")}</bdi>

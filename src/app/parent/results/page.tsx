@@ -16,6 +16,8 @@ import { downloadPdfFile } from "@/lib/download";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { LearnerInsights, learnerSeriesFromParent } from "@/components/insights";
 import { PathwayPanel } from "@/components/pathways/pathway-panel";
+import { FamilyResultNotes } from "@/components/parent/family-result-notes";
+import { FamilyExamResults } from "@/components/exams/family-exam-results";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +72,8 @@ export default function ParentResultsPage() {
       description={ui("Report cards and subject marks for {0}; download any card.", [`\u2068${data.student.fullName}\u2069`])}
     >
       <div className="space-y-3">
+        <FamilyResultNotes studentId={selectedStudentId} />
+        <FamilyExamResults studentId={selectedStudentId} />
         {reportCards.length === 0 && marksByExam.length === 0 ? (
           <EmptyState size="sm" icon={FileText} title={ui("No results yet")} description={ui("Results will appear here after exams are published.")} />
         ) : (
