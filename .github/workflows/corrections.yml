@@ -18,8 +18,8 @@ jobs:
         ports: ['55413:5432']
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      # tsc --noEmit needs more than Node's default heap in this repository.
-      NODE_OPTIONS: --max-old-space-size=6144
+      # tsc --noEmit needs about 12 GB in this repository (the hosted runner has 16 GB).
+      NODE_OPTIONS: --max-old-space-size=12288
       DATABASE_URL: postgresql://postgres:synthetic-corrections-only@127.0.0.1:55413/sko213
       DIRECT_URL: postgresql://postgres:synthetic-corrections-only@127.0.0.1:55413/sko213
       AUTH_SECRET: synthetic-sko213-local-only
@@ -39,7 +39,7 @@ jobs:
       - name: Verify API and browser invariants
         # `pnpm test:corrections` runs plain Node; the shim resolves `server-only` there.
         env:
-          NODE_OPTIONS: --max-old-space-size=6144 --import=./tests/support/server-only.mjs
+          NODE_OPTIONS: --max-old-space-size=12288 --import=./tests/support/server-only.mjs
         run: |
           pnpm exec next start --hostname 127.0.0.1 --port 3213 > /tmp/corrections-app.log 2>&1 &
           for i in $(seq 1 40); do curl -s http://127.0.0.1:3213/login >/dev/null && break; sleep 1; done
