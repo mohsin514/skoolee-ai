@@ -544,6 +544,8 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  /// SKO-500: the exam coordinator (controller of examinations) seat; schedules and requests papers, never approves.
+  examCoordinatorUserId String? @map("exam_coordinator_user_id")
   guardianChannelPreferences GuardianChannelPreference[]
   schoolAiSubstituteDuties SchoolAiSubstituteDuty[]
   schoolAiExamResultRevisions SchoolAiExamResultRevision[]
@@ -1863,6 +1865,11 @@ model ExamSession {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  /// SKO-500: one submission deadline for every paper of the session (per-slot override on the slot).
+  paperDueOn   DateTime? @map("paper_due_on") @db.Date
+  /// SKO-500: the office's paper pattern (filled from Slice 2).
+  paperPolicy  Json?     @map("paper_policy")
+  paperSlots   ExamPaperSlot[]
   exams Exam[]
 
   @@index([campusId, academicYear])
@@ -1943,10 +1950,14 @@ model ExamSchedule {
   // §58 multi-room. `roomId` above stays as the primary room so every existing
   // reader (date sheet, report cards, the admin table) keeps working unchanged;
   // `rooms` is the authoritative set and always contains the primary as well.
+  /// SKO-500: the grade-level paper this date-sheet row sits (one slot covers every section of the grade).
+  paperSlotId String?        @map("paper_slot_id")
+  paperSlot   ExamPaperSlot? @relation(fields: [paperSlotId], references: [id], onDelete: SetNull)
   rooms ExamRoom[]
   seats ExamSeat[]
 
   @@unique([examId, subjectId])
+  @@index([paperSlotId])
   @@index([campusId, date])
   @@index([schoolId])
   @@map("exam_schedules")
@@ -6606,6 +6617,9 @@ model SchoolAiExamAssignment {
   resultsReleasedById  String?   @map("results_released_by_id")
   secureProfileId      String? @map("secure_profile_id")
   secureProfileVersion Int?    @map("secure_profile_version")
+  /// SKO-500: the date-sheet row and paper slot this sitting delivers (null for a classroom sitting).
+  examScheduleId String? @map("exam_schedule_id")
+  paperSlotId    String? @map("paper_slot_id")
   status       String @default("DRAFT")
   mode         String @default("STANDARD")
   version      Int @default(1)
@@ -6615,6 +6629,7 @@ model SchoolAiExamAssignment {
 
   @@unique([id, schoolId, campusId])
   @@index([schoolId, campusId, classId, startsAt])
+  @@index([schoolId, campusId, paperSlotId])
   @@index([schoolId, createdById, status])
   @@map("school_ai_exam_assignments")
 }
@@ -9519,3 +9534,74 @@ model LearningTransferMapping {
   @@map("learning_transfer_mappings")
 }
 
+// ─── SKO-500 (SKO-408 slice 1): the Exam Chain — taught boundary and paper slots ───
+/// The teacher's dated "taught up to here", kept beside the approved curriculum and never inside it.
+model TeachingProgress {
+  id                String   @id @default(uuid())
+  schoolId          String   @map("school_id")
+  campusId          String   @map("campus_id")
+  subjectId         String   @map("subject_id")
+  classId           String   @map("class_id")
+  curriculumId      String   @map("curriculum_id")
+  curriculumVersion Int      @map("curriculum_version")
+  outcomeId         String   @map("outcome_id")
+  taughtOn          DateTime @map("taught_on") @db.Date
+  recordedAt        DateTime @default(now()) @map("recorded_at")
+  timetableSlotId   String?  @map("timetable_slot_id")
+  teacherId         String   @map("teacher_id")
+  note              String?  @db.Text
+  evidenceSourceId  String?  @map("evidence_source_id")
+
+  @@unique([schoolId, campusId, subjectId, classId, curriculumId, outcomeId])
+  @@index([schoolId, campusId, subjectId, classId, taughtOn])
+  @@map("teaching_progress")
+}
+
+/// One paper for one subject of one grade in one term exam: the office's request and the chain's ledger row.
+/// Status is derived from the linked records (src/lib/school-ai/paper-slot-status.ts), never stored.
+model ExamPaperSlot {
+  id                String      @id @default(uuid())
+  schoolId          String      @map("school_id")
+  campusId          String      @map("campus_id")
+  examSessionId     String      @map("exam_session_id")
+  examSession       ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  subjectName       String      @map("subject_name")
+  gradeName         String      @map("grade_name")
+  schedules         ExamSchedule[]
+  requestedById     String      @map("requested_by_id")
+  requestedAt       DateTime    @default(now()) @map("requested_at")
+  dueOn             DateTime    @map("due_on") @db.Date
+  marksDueOn        DateTime?   @map("marks_due_on") @db.Date
+  totalMarks        Int         @map("total_marks")
+  durationMinutes   Int         @map("duration_minutes")
+  deliveryKind      String      @default("PAPER") @map("delivery_kind")
+  languages         Json        @default("[\"en\"]")
+  formCount         Int         @default(1) @map("form_count")
+  coverageRule      String      @default("TAUGHT") @map("coverage_rule")
+  explicitCoverage  Json?       @map("explicit_coverage")
+  authorUserId      String?     @map("author_user_id")
+  moderatorUserId   String?     @map("moderator_user_id")
+  markerOverrides   Json?       @map("marker_overrides")
+  briefRecordId     String?     @map("brief_record_id")
+  paperRecordId     String?     @map("paper_record_id")
+  paperVersion      Int?        @map("paper_version")
+  formReleaseId     String?     @map("form_release_id")
+  sealedAt          DateTime?   @map("sealed_at")
+  sealedSittingDate DateTime?   @map("sealed_sitting_date") @db.Date
+  copiesRequested   Int?        @map("copies_requested")
+  printedById       String?     @map("printed_by_id")
+  printedAt         DateTime?   @map("printed_at")
+  printedHash       String?     @map("printed_hash")
+  cancelledAt       DateTime?   @map("cancelled_at")
+  cancelReason      String?     @map("cancel_reason")
+  lastNudgeAt       DateTime?   @map("last_nudge_at")
+  nudgeCount        Int         @default(0) @map("nudge_count")
+  version           Int         @default(1)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  @@unique([examSessionId, subjectName, gradeName])
+  @@index([schoolId, campusId, authorUserId, dueOn])
+  @@index([schoolId, campusId, moderatorUserId])
+  @@map("exam_paper_slots")
+}

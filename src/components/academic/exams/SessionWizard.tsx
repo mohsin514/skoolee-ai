@@ -1,4 +1,5 @@
 "use client";
+import { EXAM_TERM_LABELS } from "@/lib/academic/exam-terms";
 
 import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -39,7 +40,7 @@ interface ClassRow {
   subjectCount?: number;
 }
 
-const TERMS = ["Term 1", "Term 2", "Term 3", "Annual"];
+const TERMS = EXAM_TERM_LABELS;
 
 const TYPES = [
   {

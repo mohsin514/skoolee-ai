@@ -11,6 +11,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { createExamSession, listSessions } from "@/lib/academic/exam-sessions";
+import { notify } from "@/lib/notifications/in-app";
+import { normaliseExamTerm } from "@/lib/academic/exam-terms";
 
 // GET    /api/academic/exam-sessions?campusId=&academicYear=
 // POST   /api/academic/exam-sessions { title, term, academicYear, examType, classIds[], startDate?, endDate?, notes? }
@@ -51,14 +53,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const campusId = await resolveCampusId(user, body.campusId);
-    return await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
+    const created = await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
 
     const result = await createExamSession({
       db: prisma,      schoolId: user.schoolId,
       campusId,
       userId: user.userId,
       title: String(body.title ?? ""),
-      term: String(body.term ?? "").trim() || "Term 1",
+      term: normaliseExamTerm(String(body.term ?? "")) ?? "Term 1",
       academicYear: Number(body.academicYear) || new Date().getFullYear(),
       examType: String(body.examType ?? ""),
       classIds: Array.isArray(body.classIds) ? body.classIds.map(String) : [],
@@ -67,8 +69,12 @@ export async function POST(req: NextRequest) {
       notes: body.notes ? String(body.notes) : null,
     });
 
-    return Response.json({ success: true, ...result }, { status: 201 });
+    return result;
     });
+    // SKO-500: after commit, the teachers of every class in the session hear it is scheduled.
+    const sessionId = (created as { session?: { id?: string; title?: string } }).session?.id;
+    if (sessionId) notify("EXAM_SESSION_SCHEDULED", { schoolId: user.schoolId, campusId, actorId: user.userId, sessionId, sessionTitle: String(body.title ?? ""), classIds: Array.isArray(body.classIds) ? body.classIds.map(String) : [] });
+    return Response.json({ success: true, ...created }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[exam-sessions] POST failed");
   }

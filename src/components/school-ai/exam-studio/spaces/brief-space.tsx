@@ -12,6 +12,11 @@ import type { BriefView } from "@/lib/school-ai/brief-service";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { Composed, Isolated, SpaceStateRegion, type SpaceState } from "../space-state";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SyllabusMap } from "../syllabus-map";
+import type { Language } from "@/lib/locale/package";
+import { studioSyllabusCopy } from "@/lib/school-ai/exam-studio-copy-syllabus";
+import { PapersOwed } from "../papers-owed";
+import { STUDIO_SCOPE_EVENT } from "../studio-scope";
 
 /** SKO-408 R3: the brief, one open decision at a time, with every value's classification shown. */
 const KEY_COPY: Record<BriefQuestionKey, { label: keyof StudioSpacesCopy; ask: keyof StudioSpacesCopy }> = {
@@ -44,6 +49,18 @@ export default function BriefSpace({ language, scope, records, capabilities, rel
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [editing, setEditing] = useState<BriefQuestionKey | null>(null);
   const recordId = selected || briefs[0]?.id || "";
+  // SKO-500: "#space=brief&slot=<id>" (a paper request) opens that request's brief, created once with the office's facts.
+  useEffect(() => {
+    const slot = /[#&]slot=([a-zA-Z0-9_-]+)/.exec(window.location.hash)?.[1];
+    if (!slot) return;
+    void call<{ briefId: string; subjectId: string | null }>(`/api/school-ai/paper-slots/${encodeURIComponent(slot)}/brief`, { method: "POST" }).then(result => {
+      // The Studio's scope follows the paper's class and subject, so the map and the brief agree.
+      if (result.ok) { setSelected(result.data.briefId); if (result.data.subjectId) window.dispatchEvent(new CustomEvent(STUDIO_SCOPE_EVENT, { detail: { subjectId: result.data.subjectId } })); reload(); }
+      else setNotice({ tone: "error", text: result.error || t.failed });
+      const url = new URL(window.location.href); url.hash = "space=brief"; window.history.replaceState(null, "", url);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const load = useCallback(async () => {
     if (!recordId) return;
     setState({ kind: "loading" });
@@ -88,6 +105,9 @@ export default function BriefSpace({ language, scope, records, capabilities, rel
 
   if (!scope.subjectId || !scope.classId) return <TaskFeedback kind="empty" title={t.briefTitle}><p>{t.briefNeedsSubject}</p></TaskFeedback>;
   return <div className="space-y-4" data-brief-space>
+    {/* SKO-500: the syllabus and how far it is taught come first; the brief is shaped from them. */}
+    <PapersOwed onOpenBrief={(briefId, _slotId, subjectId) => { setSelected(briefId); if (subjectId) window.dispatchEvent(new CustomEvent(STUDIO_SCOPE_EVENT, { detail: { subjectId } })); reload(); }} />
+    <SyllabusMap language={language} subjectId={scope.subjectId} classId={scope.classId} subjectLabel={[scope.className, scope.subjectName].filter(Boolean).join(" · ")} onChanged={reload} />
     <p className="text-sm text-ink-subtle">{t.briefIntro}</p>
     <div className="flex flex-wrap items-end gap-3">
       {briefs.length > 0 && <label className="grid min-w-64 flex-1 gap-1 text-sm font-semibold">{t.briefPick}
@@ -176,6 +196,7 @@ function DecisionCard({ decisionKey: key, brief, view, t, language, scopeNames, 
   const current = brief.decisions[key];
   const [value, setValue] = useState<unknown>(() => initialValue(key, current, brief));
   const sections = view.coverage.flatMap(choice => choice.sections.map(section => ({ ...section, curriculumId: choice.curriculumId, curriculum: choice.title })));
+  const syllabusCopy = studioSyllabusCopy(language as Language);
   const coverage = value as { section: string; outcomeIds: string[] };
   const chosenSection = key === "taughtCoverage" ? sections.find(section => section.section === coverage.section) : undefined;
   const numeric = key === "durationMinutes" || key === "totalMarks" || key === "formCount";
@@ -199,7 +220,7 @@ function DecisionCard({ decisionKey: key, brief, view, t, language, scopeNames, 
         return <label key={kind} className="flex items-center gap-2 text-sm"><Checkbox checked={intent.assistance.includes(kind)} onChange={event => { const assistance = event.target.checked ? [...intent.assistance, kind] : intent.assistance.filter(item => item !== kind); setValue({ expected: assistance.length > 0, assistance }); }} />{t[ASSIST_COPY[kind]]}</label>;
       })}</fieldset>}
       {key === "taughtCoverage" && (sections.length === 0 ? <p className="text-sm">{t.noCoverage}</p> : <div className="space-y-2">
-        <label className="grid max-w-md gap-1 text-sm font-semibold">{t.section}<Select value={coverage.section} onChange={event => setValue({ section: event.target.value, outcomeIds: sections.find(section => section.section === event.target.value)?.outcomes.map(outcome => outcome.id) ?? [] })}><option value="">—</option>{sections.map(section => <option key={`${section.curriculumId}:${section.section}`} value={section.section}>{section.curriculum} · {section.section}</option>)}</Select></label>
+        <label className="grid max-w-md gap-1 text-sm font-semibold">{t.section}<Select value={coverage.section} onChange={event => setValue({ section: event.target.value, outcomeIds: sections.find(section => section.section === event.target.value)?.outcomes.map(outcome => outcome.id) ?? [] })}><option value="">—</option>{sections.map(section => <option key={`${section.curriculumId}:${section.section}`} value={section.section}>{section.curriculum} · {section.section === "teaching-line" ? syllabusCopy.coverageLine : section.section === "all-sections" ? syllabusCopy.coverageAllSections : section.section}</option>)}</Select></label>
         {chosenSection && <fieldset className="grid gap-1"><legend className="text-sm font-semibold">{t.outcomes}</legend>{chosenSection.outcomes.map(outcome => <label key={outcome.id} className="flex items-start gap-2 text-sm"><Checkbox className="mt-1" checked={coverage.outcomeIds.includes(outcome.id)} onChange={event => setValue({ ...coverage, outcomeIds: event.target.checked ? [...coverage.outcomeIds, outcome.id] : coverage.outcomeIds.filter(id => id !== outcome.id) })} /><Isolated>{outcome.title}</Isolated></label>)}</fieldset>}
         {chosenSection && <Button size="sm" variant="outline" disabled={busy} onClick={() => void onAnswer({ op: "suggest-coverage", curriculumId: chosenSection.curriculumId, section: chosenSection.section })}>{t.suggestCoverage}</Button>}
       </div>)}

@@ -51,7 +51,7 @@ test("exact approved plan creates one draft session, stable seats and duties acr
   assert.equal(new Set(receipts.map(item => item.id)).size, 1);
   const receipt = receipts[0]; assert.equal(receipt.seatCount, 3); assert.equal(receipt.invigilationCount, 1);
   assert.equal(await db.examSession.count({ where: { campusId: f.campusId, status: "PLANNING" } }), 1);
-  assert.equal(await db.exam.count({ where: { campusId: f.campusId, status: "DRAFT", activatedAt: null } }), 1);
+  assert.equal(await db.exam.count({ where: { campusId: f.campusId, status: "ACTIVE", activatedAt: { not: null } } }), 1);
   assert.equal(await db.examSeat.count({ where: { campusId: f.campusId } }), 3);
   assert.equal(await db.examInvigilation.count({ where: { campusId: f.campusId, teacherId: f.teacherId } }), 1);
   assert.equal(await db.notification.count({ where: { schoolId, userId: f.teacherId } }), 0);

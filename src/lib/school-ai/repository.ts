@@ -1,3 +1,5 @@
+import { EXAM_CHAIN_APPROVAL_KINDS, examChainPolicy, mayApprove, type ApprovalAuthority } from "./exam-authority";
+import { headsAuthorDepartment } from "./department-heads";
 import { isDeepStrictEqual } from "node:util";
 import { validateKnowledgeReferences } from "./knowledge-service";
 import { Prisma, type SchoolAiRecord as StoredRecord } from "@prisma/client";
@@ -175,6 +177,14 @@ async function validateReferences(user: AuthUser, kind: WorkspaceKind, campusId:
   // it belongs to the brief service in SKO-408 task 5.2 — as a branch here — and not to the pure
   // schema, which bounds their shape only.
   if (kind === "PRACTICE") await validatePracticeReferences(user, campusId, data, db);
+  if (kind === "CURRICULUM") {
+    // SKO-500: a cited SOURCE revision must exist in this campus at (or before) its current version.
+    for (const cited of curriculumDataSchema.parse(data).sources) {
+      if (!cited.sourceRecordId) continue;
+      const source = await db.schoolAiRecord.findFirst({ where: { id: cited.sourceRecordId, schoolId: user.schoolId, campusId, kind: "SOURCE" }, select: { version: true } });
+      if (!source || (cited.sourceVersion ?? 1) > source.version) throw new SchoolAiError("A cited syllabus is not available in this campus.", 409, "CURRICULUM_SOURCE_MISSING");
+    }
+  }
   if (kind === "PAPER") {
     const paper = paperDataSchema.parse(data);
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);
@@ -209,7 +219,11 @@ async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient
     const paper = paperDataSchema.parse(data);
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);
     if (curriculum.kind !== "CURRICULUM" || curriculum.status !== "APPROVED" || curriculum.version !== paper.curriculumVersion || curriculum.campusId !== record.campusId) issues.push("The curriculum changed or is not approved. Review the paper against the current approved curriculum version.");
-    else issues.push(...validatePaperApproval(paper, curriculumDataSchema.parse(curriculum.data)));
+    else {
+      // SKO-500: outcomes taught on the Teaching Line count as taught.
+      const { overlayTeachingLine } = await import("./teaching-progress-service");
+      issues.push(...validatePaperApproval(paper, await overlayTeachingLine(db, user.schoolId, curriculum.id, curriculumDataSchema.parse(curriculum.data))));
+    }
   }
   return issues;
 }
@@ -335,6 +349,7 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
           const record = await tx.schoolAiRecord.create({ data: { schoolId: user.schoolId, campusId, kind: input.kind, title: input.title, data: json(data), ...subject, createdById: user.userId, updatedById: user.userId, idempotencyKey: input.idempotencyKey, requestHash } });
           if (options.onCreate) await options.onCreate(tx, publicRecord(record));
           await revision(tx, record, user, "CREATE");
+          await linkSlotIfNamed(user, record, tx, "create");
           return publicRecord(record);
         };
         return await (options.transactionClient ? save(options.transactionClient) : transaction(user, save));
@@ -356,18 +371,24 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
 }
 
 /** Reuses the same version/approval boundary inside a larger atomic domain transaction. */
-export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput, tx: TxClient, snapshot?: WorkspacePermissionSnapshot): Promise<AiWorkspaceRecord> {
+export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput, tx: TxClient, snapshot?: WorkspacePermissionSnapshot, options: { asDepartmentHead?: boolean } = {}): Promise<AiWorkspaceRecord> {
   const permissions = snapshot ?? await loadWorkspacePermissionSnapshot(user, tx);
   await assertSchoolAiAccess(user, "view", permissions);
   const input = updateWorkspaceSchema.parse(rawInput);
-  const current = await scopedRecord(user, id, "write", tx, permissions);
+  // SKO-500: a head of department approves a member's syllabus without owning or teaching it.
+  const current = options.asDepartmentHead ? await departmentHeadRecord(user, id, input, tx) : await scopedRecord(user, id, "write", tx, permissions);
   const status = nextWorkspaceStatus({ version: current.version, status: current.status as WorkspaceStatus }, input);
   const action = input.action;
+  let authority: ApprovalAuthority | null = null;
   if (action === "approve") {
-    assertApprovalRole(user, current.kind === "WORKFLOW" ? (dataOf(current).proposal as { operation?: string } | undefined)?.operation : undefined); // R2.3: may this actor approve at all?
-    assertApprovalSeparation(user, current, await resolveScopeDeliveryPolicy(user, current.campusId, tx)); // R2.4: may this actor approve *this* version?
+    const policy = await resolveScopeDeliveryPolicy(user, current.campusId, tx);
+    authority = await assertMayApprove(user, current, policy, tx);               // R2.3 (SKO-500: exam-chain kinds by `mayApprove`)
+    assertApprovalSeparation(user, current, policy);                             // R2.4: may this actor approve *this* version?
   }
-  await assertSchoolAiAccess(user, action === "archive" ? "delete" : action === "approve" || current.createdById !== user.userId ? "edit" : "add", permissions);
+  // SKO-500: a chain seat (classroom tier, head of department) approves with authoring access; the
+  // exams-module permission below still applies. Managers keep the edit requirement.
+  const chainSeat = authority === "CLASSROOM_TIER" || authority === "HEAD_OF_DEPARTMENT";
+  await assertSchoolAiAccess(user, action === "archive" ? "delete" : chainSeat ? "add" : action === "approve" || current.createdById !== user.userId ? "edit" : "add", permissions);
   const prepared = current.kind === "SOURCE" && input.data ? protectSourceMetadata(input.data, dataOf(current))
     // SKO-414: lesson-plan ownership, AI origin, groups and delivery cannot be forged through a generic save.
     : current.kind === "CURRICULUM" && input.data ? protectLessonPlansFor(user, input.data, dataOf(current))
@@ -375,7 +396,7 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   const parsed = parseWorkspaceData(current.kind as WorkspaceKind, prepared);
   const data = current.kind === "PAPER" && input.data ? preparePaperWrite(user, parsed, dataOf(current)) : parsed;
   await assertWorkspaceDomainPermission(user, current.kind as WorkspaceKind, data, "edit", permissions);
-  const subject = await assertWorkspaceSubject(user, current.campusId, data, tx);
+  const subject = options.asDepartmentHead ? { subjectId: current.subjectId, classId: current.classId } : await assertWorkspaceSubject(user, current.campusId, data, tx);
   await validateReferences(user, current.kind as WorkspaceKind, current.campusId, data, tx, permissions);
   if (action === "approve" || action === "review") {
     const issues = await approvalIssues(user, current, tx, permissions);
@@ -388,14 +409,81 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   if (updated.count !== 1) throw new SchoolAiError("This item changed during review. Reload and review the current version.", 409);
   const record = await tx.schoolAiRecord.findFirstOrThrow({ where: { id, schoolId: user.schoolId } });
   await revision(tx, record, user, action.toUpperCase() as WorkspaceRevision["action"]);
+  if (!options.asDepartmentHead) await linkSlotIfNamed(user, record, tx, action);
+  if (action === "approve" && current.kind === "CURRICULUM") await approveBundledSource(user, data, current.campusId, tx, permissions, options);
   return publicRecord(record);
 }
 
+/** SKO-500: a PAPER that names a paper slot keeps the slot pointing at it (same transaction). */
+async function linkSlotIfNamed(user: AuthUser, record: StoredRecord, tx: TxClient, action: string) {
+  if (record.kind !== "PAPER") return;
+  const slotId = (record.data as { slotId?: unknown } | null)?.slotId;
+  if (typeof slotId !== "string" || !slotId) return;
+  const { linkPaperToSlot } = await import("./paper-slot-service");
+  await linkPaperToSlot(user, { id: record.id, version: record.version, status: record.status, campusId: record.campusId }, slotId, tx, action);
+}
+
+/**
+ * SKO-500: one approval, not two. A curriculum drawn from an uploaded syllabus names that SOURCE
+ * revision in `approvalBundle`; approving the curriculum approves it in the same transaction, under the
+ * same authority. A source edited after the outline was taken is refused rather than approved unseen.
+ */
+async function approveBundledSource(user: AuthUser, data: Record<string, unknown>, campusId: string | null, tx: TxClient, permissions: WorkspacePermissionSnapshot, options: { asDepartmentHead?: boolean }) {
+  const bundle = curriculumDataSchema.parse(data).approvalBundle;
+  if (!bundle) return;
+  const source = await tx.schoolAiRecord.findFirst({ where: { id: bundle.sourceRecordId, schoolId: user.schoolId, campusId, kind: "SOURCE" }, select: { version: true, status: true } });
+  if (!source) throw new SchoolAiError("The syllabus this curriculum cites is no longer available.", 409, "BUNDLE_SOURCE_MISSING");
+  if (source.status === "APPROVED") return;
+  if (source.version !== bundle.sourceVersion) throw new SchoolAiError("The syllabus file changed after its outline was taken. Review the syllabus, then approve again.", 409, "BUNDLE_SOURCE_CHANGED");
+  await updateWorkspaceRecordInTransaction(user, bundle.sourceRecordId, { version: source.version, action: "approve" }, tx, permissions, options);
+}
+
+/** SKO-500 (§14.1): who may approve. Exam-chain kinds go through `mayApprove`; every other kind keeps the manager rule. */
+async function assertMayApprove(user: AuthUser, current: StoredRecord, policy: ResolvedDeliveryPolicy, tx: TxClient): Promise<ApprovalAuthority> {
+  if (!(EXAM_CHAIN_APPROVAL_KINDS as readonly string[]).includes(current.kind)) {
+    // A workflow carries its operation, which decides whether a non-manager (e.g. the accountant) may approve it.
+    assertApprovalRole(user, current.kind === "WORKFLOW" ? (dataOf(current).proposal as { operation?: string } | undefined)?.operation : undefined);
+    return "MANAGER";
+  }
+  const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user, tx) : [];
+  const data = dataOf(current);
+  const paper = current.kind === "PAPER" ? paperDataSchema.safeParse(data) : null;
+  const decision = mayApprove(
+    { userId: user.userId, role: user.role, teachesRecordScope: subjects.some(subject => subject.id === current.subjectId && subject.classId === current.classId), headsAuthorDepartment: await headsAuthorDepartment(tx, user.schoolId, user.userId, current.createdById) },
+    { kind: current.kind, createdById: current.createdById, ...(paper?.success ? { examType: paper.data.examType, totalMarks: paper.data.blueprint.totalMarks } : {}) },
+    examChainPolicy(policy.policy),
+  );
+  if (decision.allowed) return decision.as;
+  const messages: Record<typeof decision.reason, string> = {
+    NOT_AN_APPROVER: "Only your head of department or an academic lead can approve this saved version.",
+    TERM_PAPER_NEEDS_SEAL_AUTHORITY: "A term paper is approved by the principal or academic lead, after moderation.",
+    ABOVE_CLASSROOM_CEILING: "This paper is above the classroom marks limit, so your head of department approves it.",
+    TIER_DISABLED: "Your school asks a head of department to approve this. Send it for review.",
+    OUT_OF_SCOPE: "You can approve only for the classes and subjects you teach.",
+  };
+  throw new SchoolAiError(messages[decision.reason], 403, `APPROVAL_${decision.reason}`);
+}
+
+/** The record a head of department may approve: a member's syllabus or syllabus source, in the head's campus. */
+async function departmentHeadRecord(user: AuthUser, id: string, input: { action?: string }, tx: TxClient): Promise<StoredRecord> {
+  workspaceIdSchema.parse(id);
+  const record = await tx.schoolAiRecord.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
+  if (!record || input.action !== "approve" || !["SOURCE", "CURRICULUM"].includes(record.kind) || !(await headsAuthorDepartment(tx, user.schoolId, user.userId, record.createdById))) throw new SchoolAiError("Workspace item not found or no longer accessible.", 404);
+  return record;
+}
+
 export async function updateWorkspaceRecord(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput): Promise<AiWorkspaceRecord> {
-  return withContext(user, async () => {
+  const record = await withContext(user, async () => {
     try { return await transaction(user, tx => updateWorkspaceRecordInTransaction(user, id, rawInput, tx)); }
     catch (error) { return translateDatabaseError(error); }
   });
+  // SKO-500: after commit, a requested paper sent for review tells its moderator.
+  const slotId = record.kind === "PAPER" ? (record.data as { slotId?: unknown }).slotId : undefined;
+  if (typeof slotId === "string" && (rawInput as { action?: string }).action === "review") {
+    const { notifyPaperSubmitted } = await import("./paper-slot-service");
+    await notifyPaperSubmitted(user, { id: record.id, campusId: record.campusId }, slotId).catch(error => console.error("[paper-slot] submit notice failed", error));
+  }
+  return record;
 }
 
 export async function listWorkspaceRevisionPage(user: AuthUser, id: string, options: { version?: number; beforeVersion?: number; limit?: number } = {}): Promise<WorkspaceRevisionPage> {
@@ -440,7 +528,9 @@ export async function getWorkspaceHistoryAccess(user: AuthUser, id: string): Pro
     const allowed = async (check: () => Promise<void>) => { try { await check(); return true; } catch (error) { if (error instanceof Error && "status" in error && error.status === 403) return false; throw error; } };
     const domain = await allowed(() => assertWorkspaceDomainPermission(user, record.kind as WorkspaceKind, dataOf(record), "edit", permissions));
     const canRestore = domain && await allowed(() => assertSchoolAiAccess(user, record.createdById === user.userId ? "add" : "edit", permissions));
-    const canApprove = domain && isSchoolAiManager(user) && await allowed(() => assertSchoolAiAccess(user, "edit", permissions));
+    let authority: ApprovalAuthority | null = null;
+    const mayApproveIt = domain && record.status !== "APPROVED" && await allowed(async () => { authority = await assertMayApprove(user, record, await resolveScopeDeliveryPolicy(user, record.campusId), prisma); });
+    const canApprove = mayApproveIt && await allowed(() => assertSchoolAiAccess(user, authority === "CLASSROOM_TIER" || authority === "HEAD_OF_DEPARTMENT" ? "add" : "edit", permissions));
     return { canRestore, canApprove };
   });
 }

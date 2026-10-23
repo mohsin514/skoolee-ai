@@ -24,6 +24,8 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # tsc --noEmit needs about 12 GB in this repository (the hosted runner has 16 GB).
+      NODE_OPTIONS: --max-old-space-size=12288
       DATABASE_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
       DIRECT_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
       REDIS_URL: redis://127.0.0.1:56420
@@ -43,7 +45,7 @@ jobs:
       - run: node tests/outbox/prepare.mjs
       - run: pnpm prisma generate
       - run: pnpm exec tsc --noEmit --incremental false
-      - run: node --import tsx --test tests/outbox/operation-contract.test.ts tests/outbox/outbox.test.ts tests/outbox/receipts.database.test.ts
+      - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/outbox/operation-contract.test.ts tests/outbox/outbox.test.ts tests/outbox/receipts.database.test.ts
       - name: Check live operator and publication APIs
         run: |
           pnpm exec next dev --hostname 127.0.0.1 --port 3220 > /tmp/outbox-app.log 2>&1 &

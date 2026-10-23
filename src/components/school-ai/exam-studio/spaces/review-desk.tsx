@@ -11,6 +11,7 @@ import { ExamReleasePanel, type Readiness } from "../../exam-release-panel";
 import { examReleaseCopy } from "../../exam-release-copy";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { Composed, Isolated } from "../space-state";
+import { PaperDnaStrip } from "../paper-dna-strip";
 
 /**
  * SKO-408 Review desk: the item states and rehearsal of `ExamReleasePanel`, plus the evidence drawer
@@ -46,6 +47,7 @@ export default function ReviewDesk({ language, scope, records, capabilities, rel
         {fillStudioCopy(t.staleEntry, [notice.scope === "FORM" ? t.artifactRehearsal : r.artifacts[notice.artifact as keyof typeof r.artifacts] ?? notice.artifact, t[TRIGGER_COPY[notice.change] ?? "triggerPrompt"], notice.name ?? t.someone, date(notice.at)])}
       </li>)}</ul>
     </section>}
+    <PaperDnaStrip language={language} paperId={paper.id} version={paper.version} />
     <ExamReleasePanel key={`${paper.id}:${paper.version}`} recordId={paper.id} locale={language} canApprove={capabilities.canApprove} disabled={!capabilities.canCreate} onChanged={onChanged}
       onLoaded={onLoaded} inspectLabel={t.inspect} onInspect={questionId => { opener.current = document.activeElement as HTMLElement | null; setInspecting(questionId); }} />
     {item && view && <Modal title={fillStudioCopy(t.evidenceFor, [new Intl.NumberFormat(language).format(number(item.id))])} subtitle={r.states[item.state]} size="md" returnFocusRef={opener} onClose={() => setInspecting(null)}>

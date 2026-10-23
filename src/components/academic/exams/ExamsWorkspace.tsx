@@ -38,6 +38,8 @@ import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { SessionWizard } from "@/components/academic/exams/SessionWizard";
 import { MasterDatesheet } from "@/components/academic/exams/MasterDatesheet";
 import { DatesheetPublication } from "./DatesheetPublication";
+import { PapersStep } from "./PapersStep";
+import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { SeatingPlanner } from "@/components/academic/exams/SeatingPlanner";
 import { ExamDetailDialog } from "@/components/academic/exams/ExamDetailDialog";
 import { Meter, Panel, ProgressStat, StepEmpty } from "@/components/academic/exams/shared";
@@ -94,10 +96,12 @@ interface Session {
   publishedCount: number;
   firstDate: string | null;
   lastDate: string | null;
+  paperSlots?: number;
+  papersSealed?: number;
   classes: SessionClass[];
 }
 
-type StepKey = "plan" | "datesheet" | "seating" | "marks" | "results";
+type StepKey = "plan" | "datesheet" | "papers" | "seating" | "marks" | "results";
 
 const STEPS: {
   key: StepKey;
@@ -108,9 +112,11 @@ const STEPS: {
 }[] = [
   { key: "plan", index: 1, label: "Schedule", blurb: "Pick the classes that sit it", icon: Sparkles },
   { key: "datesheet", index: 2, label: "Date sheet", blurb: "Give every paper a day and a time", icon: CalendarDays },
-  { key: "seating", index: 3, label: "Seating", blurb: "Fill rooms at exam spacing", icon: ArmchairIcon },
-  { key: "marks", index: 4, label: "Marks", blurb: "Enter and check every subject", icon: PenLine },
-  { key: "results", index: 5, label: "Results", blurb: "Review, lock and publish", icon: BadgeCheck },
+  // SKO-500: papers are requested once the date sheet exists, and sealed before seating.
+  { key: "papers", index: 3, label: "Papers", blurb: "Request each paper and track it", icon: FileText },
+  { key: "seating", index: 4, label: "Seating", blurb: "Fill rooms at exam spacing", icon: ArmchairIcon },
+  { key: "marks", index: 5, label: "Marks", blurb: "Enter and check every subject", icon: PenLine },
+  { key: "results", index: 6, label: "Results", blurb: "Review, lock and publish", icon: BadgeCheck },
 ];
 
 function pct(value: number, total: number) {
@@ -149,7 +155,8 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
   const [loadFailed, setLoadFailed] = useState(false);
   const ui = useUiText();
 
-  const academicYear = new Date().getFullYear();
+  // SKO-500 (audit): the active academic cycle's year, not the calendar year, so the wizard lists this cycle's classes.
+  const academicYear = useAcademicYear();
 
   const load = useCallback(
     async (silent = false) => {
@@ -219,11 +226,12 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
   /** How far each step has got, so the rail can show it rather than assert it. */
   const progress = useMemo(() => {
     if (!active) {
-      return { plan: 0, datesheet: 0, seating: 0, marks: 0, results: 0 };
+      return { plan: 0, datesheet: 0, papers: 0, seating: 0, marks: 0, results: 0 };
     }
     return {
       plan: active.classCount > 0 ? 100 : 0,
       datesheet: pct(active.papersScheduled, active.papersExpected),
+      papers: pct(active.papersSealed ?? 0, active.paperSlots ?? 0),
       seating: pct(active.papersSeated, active.papersScheduled),
       marks: pct(active.marksEntered, active.marksExpected),
       results: pct(active.publishedCount, active.classCount),
@@ -383,7 +391,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
           {/* ── The rail ──────────────────────────────────────────────── */}
           <nav
             aria-label={ui("Exam steps")}
-            className="sk-panel grid gap-2 p-2.5 sm:grid-cols-3 xl:grid-cols-5"
+            className="sk-panel grid gap-2 p-2.5 sm:grid-cols-3 2xl:grid-cols-6"
           >
             {STEPS.map((s) => {
               const value = progress[s.key];
@@ -467,6 +475,10 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
                 campusId={campusId}
                 onChanged={() => load(true)}
               />
+            ) : null}
+
+            {step === "papers" ? (
+              <PapersStep sessionId={active.id} onChanged={() => load(true)} />
             ) : null}
 
             {step === "seating" ? (
@@ -838,6 +850,8 @@ function MarksStep({
 /* ────────────────────────────── Step 5 ─────────────────────────────── */
 
 const RESULT_ACTIONS: Record<string, { next: string; label: string; icon: React.ComponentType<{ className?: string }> } | undefined> = {
+  // SKO-500 (audit ExamsWorkspace.tsx:980): a draft class exam is opened for marks, never shown as published.
+  DRAFT: { next: "ACTIVE", label: "Open for marks", icon: PenLine },
   MARKS_ENTRY: { next: "LOCKED", label: "Lock marks", icon: Lock },
   ACTIVE: { next: "LOCKED", label: "Lock marks", icon: Lock },
   LOCKED: { next: "PRINCIPAL_REVIEWED", label: "Mark reviewed", icon: ClipboardCheck },
@@ -977,7 +991,7 @@ function ResultsStep({
                   {ui("Report cards")}
                 </Button>
 
-                {action && !lead ? (
+                {action && !lead && action.next !== "ACTIVE" ? (
                   <span className="text-2xs font-semibold text-ink-muted">{ui("With your principal")}</span>
                 ) : action ? (() => {
                   const lockBlocked = !complete && action.next === "LOCKED";
@@ -999,11 +1013,11 @@ function ResultsStep({
                       <span tabIndex={0} className="inline-flex">{btn}</span>
                     </Tooltip>
                   ) : btn;
-                })() : (
+                })() : published ? (
                   <Badge variant="success" dot>
                     {ui("Published")}
                   </Badge>
-                )}
+                ) : null}
               </li>
             );
           })}

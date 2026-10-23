@@ -303,11 +303,13 @@ export async function DELETE(req: NextRequest) {
     return await withExamSchedulingWrite(user, campusId, "delete", async (prisma) => {
     const existing = await prisma.examSchedule.findFirst({
       where: { id, campusId, campus: { schoolId: user.schoolId } },
-      include: { exam: { select: { status: true, isLocked: true } } },
+      include: { exam: { select: { status: true, isLocked: true } }, paperSlot: { select: { sealedAt: true, printedAt: true, cancelledAt: true } } },
     });
     if (!existing) return Response.json({ error: "Schedule not found" }, { status: 404 });
 
     if (existing.exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(existing.exam.status)) throw new ApiError("This exam is no longer editable.", 409);
+    // SKO-500: a sealed or printed paper keeps its sitting; withdraw the paper request first.
+    if (existing.paperSlot && !existing.paperSlot.cancelledAt && (existing.paperSlot.sealedAt || existing.paperSlot.printedAt)) throw new ApiError("This paper is sealed for this sitting. Withdraw the paper request in the Papers step before removing it from the date sheet.", 409);
     await prisma.examSchedule.delete({ where: { id } });
     return Response.json({ success: true });
     });

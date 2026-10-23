@@ -25,6 +25,9 @@ import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { FlagshipCard } from "@/components/ui/flagship";
+import { DepartmentQueue } from "@/components/school-ai/exam-studio/department-queue";
+import { PapersOwed } from "@/components/school-ai/exam-studio/papers-owed";
+import { TeachingLinePrompt } from "@/components/school-ai/exam-studio/teaching-line-prompt";
 
 /**
  * Today — the teacher's landing screen (SPEC §4.4: one primary action, ≤ 4 KPI tiles, one queue).
@@ -179,6 +182,10 @@ export default function TeacherToday() {
       }
     >
       <div className="space-y-3">
+        {/* SKO-500: a head of department's approvals and Teaching Line jumps (renders nothing for others). */}
+        <DepartmentQueue />
+        {/* SKO-500: papers the exam office asked this teacher to write (renders nothing when none are owed). */}
+        <PapersOwed />
         {/* ── What needs you, before anything else (the one queue) ── */}
         {(hasUnmarkedAttendance || hasMissingMarks) && (
           <section aria-label={ui("Needs you")} className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -226,6 +233,8 @@ export default function TeacherToday() {
           clashIds={todayClashIds}
           onOpenTimetable={() => router.push("/teacher/timetable")}
         />
+        {/* SKO-500: after a lesson, move the Teaching Line by one (renders nothing without a syllabus to move). */}
+        <TeachingLinePrompt slots={todaySlots} />
 
         {/* ── Four figures for the day ── */}
         <StatTiles

@@ -99,7 +99,7 @@ export async function applyExamSessionPlan(user: AuthUser, preview: ExamSessionP
   let seatCount = 0, invigilationCount = 0;
   for (const classId of [...new Set(preview.papers.map(paper => paper.classId))]) {
     const papers = preview.papers.filter(paper => paper.classId === classId);
-    const exam = await db.exam.create({ data: { ...scope, classId, academicModelVersionId: papers[0].academicModelVersionId, sessionId: session.id, title: preview.title, term: preview.term, academicYear: preview.academicYear, examType: preview.examType, totalMarks: papers.reduce((sum, paper) => sum + paper.totalMarks, 0), status: "DRAFT" } });
+    const exam = await db.exam.create({ data: { ...scope, classId, academicModelVersionId: papers[0].academicModelVersionId, sessionId: session.id, title: preview.title, term: preview.term, academicYear: preview.academicYear, examType: preview.examType, totalMarks: papers.reduce((sum, paper) => sum + paper.totalMarks, 0), status: "ACTIVE", activatedAt: new Date() } });
     examIds.push(exam.id);
     for (const paper of papers) {
       const schedule = await db.examSchedule.create({ data: { ...scope, examId: exam.id, subjectId: paper.subjectId, date: new Date(`${paper.date}T00:00:00Z`), periodDefinitionId: paper.periodDefinitionId, roomId: paper.rooms[0].roomId } });
@@ -112,5 +112,8 @@ export async function applyExamSessionPlan(user: AuthUser, preview: ExamSessionP
       }
     }
   }
-  return { sessionId: session.id, examIds, scheduleIds, seatCount, invigilationCount, sessionStatus: "PLANNING" as const, examStatus: "DRAFT" as const };
+  // SKO-500: the plan's papers are requested at once (one per grade and subject); authors hear from the Papers step.
+  const { createSlotsInTransaction } = await import("./paper-slot-service");
+  const slots = await createSlotsInTransaction(user, { id: session.id, campusId: preview.campusId, title: session.title, paperDueOn: null }, db);
+  return { sessionId: session.id, examIds, scheduleIds, seatCount, invigilationCount, paperSlots: slots.created.length, sessionStatus: "PLANNING" as const, examStatus: "ACTIVE" as const };
 }

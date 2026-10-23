@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, MessageCircle, Sparkles } from "lucide-react";
 import { useChat } from "@/components/chat/chat-provider";
@@ -13,6 +13,8 @@ import { StudioIntro } from "./studio-intro";
 import { StudioAssistantMark } from "./studio-assistant-mark";
 import { studioShellCopy } from "./studio-shell-copy";
 import styles from "./studio-shell.module.css";
+import { NextStepCard, nextStepWords, type NextStepView } from "./next-step-card";
+import { studioHomeCopy } from "@/lib/school-ai/exam-studio-copy-home";
 
 /** Staff-only entry. Candidate attempts and their authoritative timers never mount this component. */
 export function ExamStudioShell({ role, campusId, userId }: { role: string; campusId?: string | null; userId: string }) {
@@ -20,12 +22,21 @@ export function ExamStudioShell({ role, campusId, userId }: { role: string; camp
   const { viewer, unreadTotal } = useChat();
   const t = studioShellCopy(language);
   const heading = useRef<HTMLHeadingElement>(null);
+  // SKO-500: the one next step leads the page; the hero's main button follows it once it is known.
+  const [next, setNext] = useState<NextStepView | null>(null);
+  useEffect(() => {
+    let live = true;
+    void fetch("/api/school-ai/studio/next-step", { cache: "no-store" }).then(response => (response.ok ? response.json() : null)).then(payload => { if (live && payload?.step) setNext(payload); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const nextAction = next ? nextStepWords(studioHomeCopy(language), next.step, value => value).action : null;
   const onIntroComplete = useCallback(() => {
     // A skip gesture may already have focused a control; never steal that focus.
     if (document.activeElement === document.body) heading.current?.focus({ preventScroll: true });
   }, []);
   return <section className={styles.frame} dir={language === "en" ? "ltr" : "rtl"} data-exam-studio>
     <StudioIntro sessionScope={userId} onComplete={onIntroComplete} />
+    {next ? <NextStepCard language={language} view={next} /> : null}
     <header className={styles.hero}>
       <div className={styles.topline}>
         <Link href="/ai" className={styles.back}><ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t.back}</span></Link>
@@ -43,7 +54,9 @@ export function ExamStudioShell({ role, campusId, userId }: { role: string; camp
           {/* Addendum 2026-10-22: the flagship's one clear first step — author an exam (the Create & review tool);
               delivery and results stay one quiet step away. */}
           <div className={styles.heroActions}>
-            <Link href="/ai/studio?workflow=curriculum" className={cn(buttonVariants({ variant: "default", size: "lg" }), "w-full gap-2 sm:w-auto")} data-studio-create><Sparkles className="size-4" aria-hidden="true" />{t.createExam}<ArrowRight className="size-4 rtl:rotate-180" aria-hidden="true" /></Link>
+            {next?.href.startsWith("/ai/studio#")
+              ? <a href={next.href.slice("/ai/studio".length)} className={cn(buttonVariants({ variant: "default", size: "lg" }), "w-full gap-2 sm:w-auto")} data-studio-create><Sparkles className="size-4" aria-hidden="true" />{nextAction}<ArrowRight className="size-4 rtl:rotate-180" aria-hidden="true" /></a>
+              : <Link href={next?.href ?? "/ai/studio?workflow=curriculum"} className={cn(buttonVariants({ variant: "default", size: "lg" }), "w-full gap-2 sm:w-auto")} data-studio-create><Sparkles className="size-4" aria-hidden="true" />{nextAction ?? t.createExam}<ArrowRight className="size-4 rtl:rotate-180" aria-hidden="true" /></Link>}
             <Link href="/ai/exams" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full gap-2 sm:w-auto")}>{t.openExams}<ArrowUpRight className="size-4 rtl:-scale-x-100" aria-hidden="true" /></Link>
           </div>
           <p className={styles.heroHint}>{t.createExamHint}</p>

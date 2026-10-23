@@ -13,6 +13,7 @@ import { schoolAiTransaction } from "./transaction";
 import { assertSchoolAiTextProvider } from "./providers";
 import { parseModelJson } from "./intake";
 import { figureTextContext } from "./paper-figures";
+import { overlayTeachingLine } from "./teaching-progress-service";
 import { curriculumDataSchema, paperDataSchema, prepareGeneratedQuestions, validateBlueprint, validateCurriculumApproval, validatePaperApproval, type CurriculumData } from "./assessment";
 import { PAPER_GENERATION_FEATURE, PAPER_GENERATION_LEASE_MS, paperGenerationFingerprint, paperGenerationInputSchema, paperGenerationReplySchema, paperGenerationReplayState, unknownPaperGeneration, type PaperGenerationInput, type PaperGenerationReply, type PaperGenerationFailure } from "./paper-generation";
 
@@ -35,7 +36,8 @@ function receipt(row: SchoolAiRequest): PaperGenerationReceipt {
 async function currentSource(user: AuthUser, curriculumId: string, version: number, tx: TxClient) {
   const permissions = await assertConversationActor(user, tx, "add");
   const record = await getWorkspaceRecordInTransaction(user, curriculumId, tx, permissions);
-  const curriculum = curriculumDataSchema.parse(record.data);
+  // SKO-500: outcomes taught on the Teaching Line count as taught for generation and its checks.
+  const curriculum = await overlayTeachingLine(tx, user.schoolId, record.id, curriculumDataSchema.parse(record.data));
   await assertWorkspaceDomainPermission(user, "PAPER", curriculum, "add", permissions);
   if (record.kind !== "CURRICULUM" || record.status !== "APPROVED" || record.version !== version) throw new SchoolAiError("The approved curriculum changed. Refresh its current version before continuing.", 409, "AI_GENERATION_SOURCE_CHANGED");
   const issues = validateCurriculumApproval(curriculum);
