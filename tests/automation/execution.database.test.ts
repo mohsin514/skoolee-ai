@@ -10,8 +10,8 @@ import { startAutomaticJob, advanceAutomaticJob } from "../../src/lib/automation
 import { automaticCatalog } from "../../src/lib/automation/catalog";
 import { executeRoleAction } from "../../src/lib/automation/role-action-service";
 import type { generateAIDraft } from "../../src/lib/ai/openai";
-const url = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
-if (process.env.DATABASE_URL !== url || process.env.DIRECT_URL !== url) throw new Error("Isolated PG55438 only.");
+import { aiWorkflowsDestination } from "../ai-workflows/support/destination.mjs";
+aiWorkflowsDestination();
 const db = new PrismaClient(), schools: string[] = [];
 after(async () => { await db.school.deleteMany({ where: { id: { in: schools } } }); await db.$disconnect(); await prisma.$disconnect(); redis.disconnect(); });
 async function fixture(role: AuthUser["role"] = "CAMPUS_ADMIN") {

@@ -14,6 +14,8 @@
     "test:notifications": "node --import tsx --test tests/notifications/links.test.ts",
     "test:school-ai": "node scripts/run-school-ai-tests.mjs",
     "test:school-ai:db": "node scripts/run-school-ai-tests.mjs --database",
+    "test:ai-workflows": "node scripts/run-ai-workflows-tests.mjs",
+    "test:ai-workflows:db": "node scripts/run-ai-workflows-tests.mjs --database",
     "test:school-ai:e2e": "playwright test --config tests/school-ai/playwright.config.ts",
     "audit:ui": "node --import tsx scripts/ui-adoption-inventory.ts",
     "worker:outbox": "tsx src/workers/outbox-worker.ts",
