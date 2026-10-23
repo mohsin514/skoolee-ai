@@ -43,10 +43,12 @@ export function evaluate() {
   }
 
   const sources = (dir: string): string[] => readdirSync(dir).flatMap(name => { const path = join(dir, name); return statSync(path).isDirectory() ? sources(path) : path.endsWith(".ts") ? [path] : []; });
-  for (const file of sources("src/lib/ai-workflows/registry")) {
+  for (const file of [...sources("src/lib/ai-workflows/registry"), ...sources("src/lib/ai-workflows/adapters")]) {
     if (file.endsWith("never-safe.ts")) continue;
     const text = readFileSync(file, "utf8");
-    for (const rule of NEVER_SAFE_PATTERNS) if (rule.pattern.test(text) && !(rule.id === "next-request" && ALLOWED_SYNTHETIC_REQUEST_CALLEES.some(callee => text.includes(callee)))) errors.push(`${file}: ${rule.why} (${rule.id})`);
+    // runUnscoped is allowed only in the APP_OWNER platform adapter, which states its reason.
+    const allowed = (id: string) => (id === "next-request" && ALLOWED_SYNTHETIC_REQUEST_CALLEES.includes(file)) || (id === "unscoped" && file === "src/lib/ai-workflows/adapters/platform.ts");
+    for (const rule of NEVER_SAFE_PATTERNS) if (rule.pattern.test(text) && !allowed(rule.id)) errors.push(`${file}: ${rule.why} (${rule.id})`);
   }
   return { errors, current: { unmappedHandlers, unconnectedKeys } satisfies Baseline };
 }

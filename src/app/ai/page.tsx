@@ -1,4 +1,3 @@
-import { AutomaticWorkspace } from "@/components/automation/automatic-workspace";
 import { redirect } from "next/navigation";
 import { requirePageSession } from "@/lib/auth/require-page-session";
 import { assertSchoolAiAccess, assertWorkspacePermission, SchoolAiError } from "@/lib/school-ai/access";
@@ -14,8 +13,7 @@ import { practiceModeApplies } from "@/lib/ai-workflows/practice";
 export const metadata = { title: "AI Workflows" };
 
 /** The automatic workspace is scoped to the signed-in role and its current permissions. */
-export default async function SchoolAiPage({ searchParams }: { searchParams: Promise<{ setup?: string }> }) {
-  const query = await searchParams;
+export default async function SchoolAiPage() {
   const user = await requirePageSession();
   let allowed = true;
   const personalWorkspace = ["APP_OWNER", "STUDENT", "PARENT"].includes(user.role);
@@ -32,7 +30,7 @@ export default async function SchoolAiPage({ searchParams }: { searchParams: Pro
   const personalCampus = user.role === "APP_OWNER" ? null : user.campusId;
   return (
     <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.campuses[0]?.logoUrl || brand?.logoUrl || null} chatDock={user.schoolStatus !== "SUSPENDED"}>
-      {personalWorkspace ? <div className="mx-auto max-w-5xl p-6">{workflowsV2 && query.setup !== "1" ? <AskWorkspace campusId={personalCampus} practiceMode={workflowsV2.practiceMode} /> : <AutomaticWorkspace campusId={personalCampus} role={user.role} roleSetup={query.setup === "1"} autoStart={query.setup === "1"} />}</div> : <SchoolAIWorkspace role={user.role} campusId={user.campusId} workflowsV2={workflowsV2} />}
+      {personalWorkspace ? <div className="mx-auto max-w-5xl p-6"><AskWorkspace campusId={personalCampus} practiceMode={workflowsV2?.practiceMode ?? false} enabled={Boolean(workflowsV2)} /></div> : <SchoolAIWorkspace role={user.role} campusId={user.campusId} workflowsV2={workflowsV2} />}
     </RoleFrame>
   );
 }

@@ -6,3 +6,15 @@ export const personalPlanSchema = z.strictObject({ title: z.string().trim().min(
 export const studentsCreateSchema = z.strictObject({ students: z.array(z.strictObject({ fullName: z.string().trim().min(2).max(120), rollNo: z.string().trim().min(1).max(50), classId: z.string().min(1).max(128), gender: z.enum(["MALE", "FEMALE", "OTHER"]), guardianPhone: z.string().trim().min(6).max(30), guardianName: z.string().trim().max(120).optional(), guardianEmail: z.string().email().optional(), dateOfBirth: z.string().date().optional(), address: z.string().trim().min(1).max(300), city: z.string().trim().min(1).max(120), medicalNotes: z.string().trim().min(1).max(1000) })).min(1).max(100) });
 export const platformInspectSchema = z.strictObject({ search: z.string().trim().max(120).optional() });
 export const platformUpdateSchema = z.strictObject({ schoolId: z.string().min(1).max(128), name: z.string().trim().min(2).max(120).optional(), city: z.string().trim().min(2).max(120).optional(), website: z.string().url().max(300).optional() }).refine(value => Boolean(value.name || value.city || value.website), "Provide at least one profile field.");
+export const profileActionSchema = z.strictObject({ fullName: z.string().trim().min(2).max(120).optional(), preferredLanguage: z.enum(["en", "ar", "ur"]).optional(), city: z.string().trim().max(120).optional(), qualification: z.string().trim().max(200).optional(), specialization: z.string().trim().max(200).optional(), subjectSpecialties: z.array(z.string().trim().min(1).max(100)).max(30).optional(), experience: z.string().trim().max(100).optional() }).refine(value => Object.keys(value).length > 0, "Provide at least one profile field.");
+
+/** The adapters behind today's tool entries (moved from the retired automation engine). */
+export type ToolAction =
+ | { tool: "platform.inspect"; title: string; data: z.infer<typeof platformInspectSchema> }
+ | { tool: "platform.update_institution"; title: string; data: z.infer<typeof platformUpdateSchema> }
+ | { tool: "students.create"; title: string; data: z.infer<typeof studentsCreateSchema> }
+ | { tool: "campus.create"; title: string; data: z.infer<typeof campusCreateSchema> }
+ | { tool: "library.create_books"; title: string; data: z.infer<typeof libraryCreateSchema> }
+ | { tool: "front_desk.log_call"; title: string; data: z.infer<typeof phoneCallSchema> }
+ | { tool: "personal.save_plan"; title: string; data: z.infer<typeof personalPlanSchema> }
+ | { tool: "profile.update"; title: string; data: z.infer<typeof profileActionSchema> };

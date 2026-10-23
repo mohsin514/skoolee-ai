@@ -3,8 +3,8 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { SchoolAiError } from "@/lib/school-ai/access";
-import type { AutomaticAction } from "./schema";
-export async function executePlatformAction(user: AuthUser, key: string, action: AutomaticAction) {
+import type { ToolAction } from "./tool-schemas";
+export async function executePlatformAction(user: AuthUser, key: string, action: ToolAction) {
  if (user.role !== "APP_OWNER") throw new SchoolAiError("Platform administration is restricted to the application owner.", 403);
  return runUnscoped("authorized automatic platform administration", async () => {
   if (action.tool === "platform.inspect") {

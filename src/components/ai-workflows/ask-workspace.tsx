@@ -16,7 +16,7 @@ import { WorkflowRequestError, startWorkflow, useWorkflowRun } from "./use-workf
  * The AI Workflows home: one Ask bar, the live Run Sheet, and honest outcomes. Enter sends,
  * Shift+Enter is a new line, and nothing sends while an Urdu/Arabic IME is composing.
  */
-export function AskWorkspace({ campusId, practiceMode }: { campusId: string | null; practiceMode: boolean }) {
+export function AskWorkspace({ campusId, practiceMode, enabled = true }: { campusId: string | null; practiceMode: boolean; enabled?: boolean }) {
   const { language } = useLocale();
   const [message, setMessage] = useState("");
   const [starting, setStarting] = useState(false);
@@ -36,6 +36,12 @@ export function AskWorkspace({ campusId, practiceMode }: { campusId: string | nu
     finally { setStarting(false); }
   };
 
+  if (!enabled) return (
+    <section data-ai-workspace data-ai-disabled className="sk-panel space-y-2 p-5" dir={language === "en" ? "ltr" : "rtl"}>
+      <h2 className="text-xl font-bold">{t(UI, "askTitle", language)}</h2>
+      <p className="text-sm text-ink-muted">{t({ off: { en: "AI Workflows are not switched on for your school yet.", ar: "لم تُفعَّل مسارات الذكاء الاصطناعي لمدرستك بعد.", ur: "آپ کے اسکول کے لیے اے آئی ورک فلو ابھی فعال نہیں۔" } }, "off", language)}</p>
+    </section>
+  );
   return (
     <section data-ai-workspace className="sk-panel space-y-4 p-5" dir={language === "en" ? "ltr" : "rtl"}>
       <div className="flex flex-wrap items-center justify-between gap-2">

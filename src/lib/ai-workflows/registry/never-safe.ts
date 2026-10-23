@@ -19,4 +19,4 @@ export const NEVER_SAFE_PATTERNS: ReadonlyArray<{ id: string; pattern: RegExp; w
 ];
 
 /** Transitional callees that still need a synthesized request; each must move to a (user, input) core. */
-export const ALLOWED_SYNTHETIC_REQUEST_CALLEES: readonly string[] = ["src/lib/automation/students.ts"];
+export const ALLOWED_SYNTHETIC_REQUEST_CALLEES: readonly string[] = ["src/lib/ai-workflows/adapters/students.ts"];

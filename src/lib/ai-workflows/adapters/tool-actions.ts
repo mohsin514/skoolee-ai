@@ -8,11 +8,10 @@ import { assertPlanCapacity } from "@/lib/billing/entitlements";
 import { assertWorkspacePermission, SchoolAiError } from "@/lib/school-ai/access";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { logCall } from "@/lib/front-desk/phone-calls";
-import type { AutomaticAction } from "./schema";
-export async function executeRoleAction(user: AuthUser, campusId: string | null, key: string, action: AutomaticAction): Promise<Record<string, unknown> | null> {
+import type { ToolAction } from "./tool-schemas";
+export async function executeRoleAction(user: AuthUser, campusId: string | null, key: string, action: ToolAction): Promise<Record<string, unknown>> {
  if (action.tool === "platform.inspect" || action.tool === "platform.update_institution") return executePlatformAction(user, key, action);
  if (action.tool === "students.create") return createAutomaticStudents(user, campusId, key, action.data);
- if (action.tool === "school.inspect" || action.tool === "school.execute" || action.tool === "curriculum.create" || action.tool === "work.save") return null;
  if (action.tool === "front_desk.log_call") {
   if ((!isCampusOperator(user) && user.role !== "RECEPTIONIST") || !campusId || campusId !== user.campusId) throw new SchoolAiError("Call logging belongs to this campus's front desk.", 403);
   await assertWorkspacePermission(user, "front-desk", "add");

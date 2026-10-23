@@ -7,6 +7,7 @@ import { resolveWorkspaceCampus } from "@/lib/school-ai/access";
 import { WorkflowError, toWorkflowError } from "../errors";
 import { planJob, type Generate } from "../planner/plan";
 import { observeHandoffs } from "../executor/handoff";
+import { assertQuestionnaireCurrent } from "./questionnaire";
 import { sha256 } from "../executor/canonical";
 import { deriveJobStatus, deriveOutcome, nextStepAction, type StepStatus } from "../executor/scheduler";
 import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
@@ -105,6 +106,8 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
       const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId) });
       if (!job) throw new WorkflowError("NOT_FOUND");
       if (["PAUSED", "CANCELLED", "COMPLETED", "EXPIRED", "FAILED", "BLOCKED", "NEEDS_INPUT"].includes(job.status)) return job;
+      try { await assertQuestionnaireCurrent(user, job); }
+      catch { return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: "BLOCKED", errorCode: "STALE_VERSION", version: { increment: 1 } } }); }
       if (job.status === "PLANNING") {
         // Planning calls the model; a failure is recorded on the job, never thrown past the lease.
         try { await planJob(user, job, generate); }

@@ -1,4 +1,4 @@
-import { requireAutomaticUser } from "@/lib/automation/auth";
+import { requireAutomaticUser } from "@/lib/ai-workflows/auth";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { readBoundedJson } from "@/lib/school-ai/http";

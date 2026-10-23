@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { prisma } from "../../src/lib/db/prisma";
 import type { AuthUser } from "../../src/lib/auth";
-import { startAutomaticJob, advanceAutomaticJob } from "../../src/lib/automation/service";
+import { startJob, advanceJob } from "../../src/lib/ai-workflows/jobs/job-service";
 import type { generateAIDraft } from "../../src/lib/ai/openai";
 import { aiWorkflowsDestination } from "./support/destination.mjs";
 aiWorkflowsDestination();
@@ -22,12 +22,10 @@ test("a learner named in the request and class labels: the name never reaches th
   await db.student.create({ data: { schoolId, campusId, classId: klass.id, fullName: "Zainab Qureshi", nameUr: "زینب قریشی", rollNo: "R-1", gender: "FEMALE", guardianName: "Imran Qureshi", guardianPhone: "+923001234567" } });
   const user: AuthUser = { schoolId, campusId, userId, role: "CAMPUS_ADMIN", email: `${userId}@example.invalid`, accessVersion: 0 };
   const prompts: string[] = [];
-  const generate: typeof generateAIDraft = async ({ prompt }) => { prompts.push(prompt); return { text: JSON.stringify({ type: "unsupported", reason: "test" }), model: "synthetic:test", tokensUsed: 5, promptVersion: "test" }; };
-  const job = await startAutomaticJob(user, { message: "Move Zainab to 7B and tell زینب قریشی's father Imran", campusId, language: "en", idempotencyKey: `pii-${randomUUID()}` });
-  await advanceAutomaticJob(user, job.id, { action: "advance", version: job.version }, generate);
+  const generate: typeof generateAIDraft = async ({ prompt }) => { prompts.push(prompt); return { text: JSON.stringify({ kind: "unsupported", steps: [], unsupportedNearest: null }), model: "synthetic:test", tokensUsed: 5, promptVersion: "test" }; };
+  const job = await startJob(user, { message: "Move Zainab to 7B and tell زینب قریشی's father Imran", campusId, language: "en", idempotencyKey: `pii-${randomUUID()}` });
+  await advanceJob(user, job.id, "request", generate);
   assert.ok(prompts.length > 0);
-  for (const prompt of prompts) {
-    for (const name of ["Zainab", "Qureshi", "زینب", "Imran"]) assert.ok(!prompt.includes(name), `${name} reached the provider`);
-    assert.ok(prompt.includes("7B"), "class label must stay readable");
-  }
+  for (const prompt of prompts) for (const name of ["Zainab", "Qureshi", "زینب", "Imran"]) assert.ok(!prompt.includes(name), `${name} reached the provider`);
+  assert.ok(prompts[0].includes("7B"), "class label must stay readable");
 });

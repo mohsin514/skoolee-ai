@@ -5,27 +5,24 @@ import { getAssistantCatalog } from "@/lib/school-ai/assistant-catalog-service";
 import { assistantCatalogQuerySchema } from "@/lib/school-ai/assistant-catalog";
 import { createWorkspaceRecord } from "@/lib/school-ai/repository";
 import { workspaceIdSchema, workflowModuleSchema } from "@/lib/school-ai/schemas";
-import { executeRoleAction } from "@/lib/automation/role-action-service";
-import type { AutomaticAction } from "@/lib/automation/schema";
-import { profileActionSchema } from "@/lib/automation/schema";
-import { campusCreateSchema, libraryCreateSchema, personalPlanSchema, phoneCallSchema, platformInspectSchema, platformUpdateSchema, studentsCreateSchema } from "@/lib/automation/role-actions";
+import { executeRoleAction } from "../../adapters/tool-actions";
+import { campusCreateSchema, libraryCreateSchema, personalPlanSchema, phoneCallSchema, platformInspectSchema, platformUpdateSchema, profileActionSchema, studentsCreateSchema, type ToolAction } from "../../adapters/tool-schemas";
 import { z } from "zod";
 import { defineCapability } from "../define";
 import { ownCampus, permission, predicate, roles } from "../gates";
 import type { CapabilityContext, CapabilityEntry, EntryCopy, Receipt } from "../types";
 
 /**
- * Today's automation tools (src/lib/automation/catalog.ts) as registry entries. They call the same
- * adapters, so behaviour and receipts are unchanged; Slice 1h moves the adapter code here and
- * deletes the old catalog.
+ * The first tool entries (formerly the automation engine's catalog). Their adapters live in
+ * src/lib/ai-workflows/adapters and keep the original receipts and replay rules.
  */
 function c(en: [string, string, string], ar: [string, string, string], ur: [string, string, string]): EntryCopy {
   return { title: { en: en[0], ar: ar[0], ur: ur[0] }, whenToUse: { en: en[1], ar: ar[1], ur: ur[1] }, examples: { en: [en[2]], ar: [ar[2]], ur: [ur[2]] } };
 }
 
 /** Adapts a legacy role-action receipt to the registry receipt. */
-async function legacy(ctx: CapabilityContext, tool: AutomaticAction["tool"], title: string, data: unknown, idempotencyKey: string, link: string | null): Promise<Receipt> {
-  const detail = await executeRoleAction(ctx.user, ctx.campusId, idempotencyKey, { tool, title, data } as AutomaticAction) ?? {};
+async function legacy(ctx: CapabilityContext, tool: ToolAction["tool"], title: string, data: unknown, idempotencyKey: string, link: string | null): Promise<Receipt> {
+  const detail = await executeRoleAction(ctx.user, ctx.campusId, idempotencyKey, { tool, title, data } as ToolAction);
   const ids = Array.isArray(detail.ids) ? detail.ids.map(String) : detail.id ? [String(detail.id)] : [];
   return { kind: "write", capability: tool, entities: ids.map(id => ({ model: tool.split(".")[0], id })), counts: typeof detail.createdCount === "number" ? { created: detail.createdCount } : {}, link, replayed: false, detail };
 }
@@ -45,14 +42,14 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
     key: "profile.update", version: 1, cluster: "PERSONAL", inventoryKeys: ["profile.update"], risk: "UPDATE", roles: ALL, class: "A",
     classOverride: "Own profile only.", input: profileActionSchema, evidence: [], gates: [roles(ALL)], scope: { kind: "self" },
     copy: c(["Update my profile", "Change your own name, language, city or (teachers) teaching details.", "Set my language to Urdu"], ["تحديث ملفي", "تغيير اسمك أو لغتك أو مدينتك.", "اجعل لغتي العربية"], ["میری پروفائل اپ ڈیٹ کریں", "اپنا نام، زبان، شہر یا تدریسی تفصیل بدلیں۔", "میری زبان اردو کر دیں"]),
-    idempotency: { mode: "tx-receipt" }, source: { service: "src/lib/automation/role-action-service.ts:executeRoleAction", reuse: "automation-tool" },
+    idempotency: { mode: "tx-receipt" }, source: { service: "src/lib/ai-workflows/adapters/tool-actions.ts:executeRoleAction", reuse: "automation-tool" },
     execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "profile.update", "Update my profile", input, idempotencyKey, null),
   }),
   defineCapability({
     key: "personal.save_plan", version: 1, cluster: "PERSONAL", inventoryKeys: ["personal.save_plan"], risk: "CREATE", roles: ALL, class: "A",
     classOverride: "Private to its author.", input: personalPlanSchema, evidence: [], gates: [roles(ALL)], scope: { kind: "self" },
     copy: c(["Save a private plan", "Save a personal study plan, checklist or schedule only you can see.", "Make me a revision plan for the maths test on Friday"], ["حفظ خطة خاصة", "حفظ خطة شخصية لا يراها غيرك.", "اصنع لي خطة مراجعة لاختبار الرياضيات"], ["نجی منصوبہ محفوظ کریں", "ذاتی منصوبہ جو صرف آپ دیکھ سکیں۔", "جمعہ کے ریاضی کے ٹیسٹ کی دہرائی کا منصوبہ بنائیں"]),
-    idempotency: { mode: "tx-receipt" }, source: { service: "src/lib/automation/role-action-service.ts:executeRoleAction", reuse: "automation-tool" },
+    idempotency: { mode: "tx-receipt" }, source: { service: "src/lib/ai-workflows/adapters/tool-actions.ts:executeRoleAction", reuse: "automation-tool" },
     execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "personal.save_plan", input.title, input, idempotencyKey, null),
   }),
   defineCapability({
@@ -67,7 +64,7 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
     key: "campus.create", version: 1, cluster: "C8", inventoryKeys: ["campus.create"], risk: "CREATE", roles: ["SUPER_ADMIN"], class: "B",
     input: campusCreateSchema, evidence: ["/name", "/city"], gates: [roles(["SUPER_ADMIN"])], scope: { kind: "any-campus-of-school" },
     copy: c(["Add a campus", "Create a new campus in your group; a campus administrator is appointed separately.", "Add a campus called Gulberg in Lahore"], ["إضافة فرع", "إنشاء فرع جديد؛ يُعيَّن مديره بشكل منفصل.", "أضف فرع العليا في الرياض"], ["کیمپس شامل کریں", "گروپ میں نیا کیمپس؛ کیمپس منتظم الگ سے مقرر ہوتا ہے۔", "لاہور میں گلبرگ کیمپس شامل کریں"]),
-    idempotency: { mode: "tx-receipt" }, source: { serverAction: "src/app/actions/addCampus.ts", service: "src/lib/automation/role-action-service.ts:executeRoleAction", reuse: "automation-tool" },
+    idempotency: { mode: "tx-receipt" }, source: { serverAction: "src/app/actions/addCampus.ts", service: "src/lib/ai-workflows/adapters/tool-actions.ts:executeRoleAction", reuse: "automation-tool" },
     preview: async (_ctx, input) => ({ title: "Add a campus", lines: [{ label: input.name, value: input.city }], counts: { campuses: 1 }, basis: input }),
     execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "campus.create", `Add campus ${input.name}`, input, idempotencyKey, "/super?view=campuses"),
   }),
@@ -76,7 +73,7 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
     classOverride: "Append-only; duplicate ISBNs refused.", input: libraryCreateSchema, evidence: ["/books"],
     gates: [predicate("canManageLibrary|isCampusOperator", user => user.role === "LIBRARIAN" || isCampusOperator(user), ["LIBRARIAN", "ADMIN", "CAMPUS_ADMIN"]), ownCampus(), permission("library", "add")], scope: { kind: "own-campus" },
     copy: c(["Add books to the catalogue", "Add titles with their copy counts to the library catalogue.", "Add 'Atlas of the World' by Collins, 2 copies"], ["إضافة كتب للفهرس", "إضافة عناوين مع عدد النسخ.", "أضف أطلس العالم، نسختان"], ["کیٹلاگ میں کتابیں شامل کریں", "عنوانات نسخوں کی تعداد کے ساتھ شامل کریں۔", "اٹلس آف دی ورلڈ کی 2 کاپیاں شامل کریں"]),
-    idempotency: { mode: "tx-receipt" }, source: { route: "POST /api/library", service: "src/lib/automation/role-action-service.ts:executeRoleAction", reuse: "automation-tool" },
+    idempotency: { mode: "tx-receipt" }, source: { route: "POST /api/library", service: "src/lib/ai-workflows/adapters/tool-actions.ts:executeRoleAction", reuse: "automation-tool" },
     execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "library.create_books", "Add books", input, idempotencyKey, "/librarian?view=catalogue"),
   }),
   defineCapability({
@@ -91,14 +88,14 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
     key: "platform.inspect", version: 1, cluster: "C8", inventoryKeys: ["platform.inspect"], risk: "READ", roles: ["APP_OWNER"], class: "A",
     input: platformInspectSchema, evidence: [], gates: [roles(["APP_OWNER"])], scope: { kind: "platform", unscopedReason: "authorized automatic platform administration" },
     copy: c(["Look up institutions", "Search the institutions on the platform.", "Show schools named Al-Noor"], ["البحث عن المؤسسات", "البحث في مؤسسات المنصة.", "اعرض المدارس باسم النور"], ["ادارے تلاش کریں", "پلیٹ فارم کے ادارے تلاش کریں۔", "النور نام کے اسکول دکھائیں"]),
-    idempotency: { mode: "convergent" }, source: { service: "src/lib/automation/platform.ts:executePlatformAction", reuse: "automation-tool" },
+    idempotency: { mode: "convergent" }, source: { service: "src/lib/ai-workflows/adapters/platform.ts:executePlatformAction", reuse: "automation-tool" },
     execute: async (ctx, input, { idempotencyKey }) => ({ ...(await legacy(ctx, "platform.inspect", "Look up institutions", input, idempotencyKey, "/owner?view=schools")), kind: "read" }),
   }),
   defineCapability({
     key: "platform.update_institution", version: 1, cluster: "C8", inventoryKeys: ["platform.update_institution"], risk: "UPDATE", roles: ["APP_OWNER"], class: "B",
     input: platformUpdateSchema, evidence: ["/name", "/city", "/website"], gates: [roles(["APP_OWNER"])], scope: { kind: "platform", unscopedReason: "authorized automatic platform administration" },
     copy: c(["Update an institution's profile", "Change an institution's name, city or website.", "Change Al-Noor's city to Lahore"], ["تحديث ملف مؤسسة", "تغيير اسم المؤسسة أو مدينتها أو موقعها.", "غيّر مدينة النور إلى جدة"], ["ادارے کی پروفائل اپ ڈیٹ کریں", "ادارے کا نام، شہر یا ویب سائٹ بدلیں۔", "النور کا شہر لاہور کریں"]),
-    idempotency: { mode: "tx-receipt" }, source: { service: "src/lib/automation/platform.ts:executePlatformAction", reuse: "automation-tool" },
+    idempotency: { mode: "tx-receipt" }, source: { service: "src/lib/ai-workflows/adapters/platform.ts:executePlatformAction", reuse: "automation-tool" },
     preview: async (_ctx, input) => ({ title: "Update institution", lines: Object.entries(input).filter(([key]) => key !== "schoolId").map(([label, value]) => ({ label, value: String(value) })), counts: { institutions: 1 }, basis: input }),
     execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "platform.update_institution", "Update institution", input, idempotencyKey, "/owner?view=schools"),
   }),

@@ -8,7 +8,7 @@ import { assertRosterPermission } from "@/lib/imports/roster-access";
 import { importReviewToken } from "@/lib/imports/review-token";
 import { createStudentRecords } from "@/lib/students/create";
 import { SchoolAiError } from "@/lib/school-ai/access";
-import { studentsCreateSchema } from "./role-actions";
+import { studentsCreateSchema } from "./tool-schemas";
 /** Reuse the ordinary roster commit, including its atomic receipt and identity checks. */
 export async function createAutomaticStudents(user: AuthUser, campusId: string | null, key: string, raw: unknown) {
  if (!["ADMIN", "CAMPUS_ADMIN"].includes(user.role) || !campusId || user.campusId !== campusId) throw new SchoolAiError("Student creation belongs to the campus administrator.", 403);

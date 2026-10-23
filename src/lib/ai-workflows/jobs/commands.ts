@@ -10,6 +10,7 @@ import { authorizeActor, capabilityContext, inTenant } from "./actor";
 import { appendEvent } from "./events";
 import { advanceJob, cancelJob } from "./job-service";
 import { withLease } from "./lease";
+import { assertQuestionnaireCurrent } from "./questionnaire";
 import type { Generate } from "../planner/plan";
 
 /**
@@ -41,6 +42,7 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
       const previous = await prisma.aiWorkflowConfirmation.findFirst({ where: { schoolId: user.schoolId, confirmedById: user.userId, clientCommandId: `${command.clientCommandId}:0` } });
       if (previous) return advanceJob(user, jobId, "request", generate); // a repeated click replays, it never runs twice
       if (job.version !== command.jobVersion) throw new WorkflowError("STALE_VERSION");
+      await assertQuestionnaireCurrent(user, job);
       const ran = await withLease(jobId, user.schoolId, "confirm", async () => {
         const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
         const setHash = sha256(command.steps);

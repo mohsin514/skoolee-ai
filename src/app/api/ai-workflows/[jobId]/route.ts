@@ -1,4 +1,4 @@
-import { requireAutomaticUser } from "@/lib/automation/auth";
+import { requireAutomaticUser } from "@/lib/ai-workflows/auth";
 import { workflowErrorResponse, workflowJson } from "@/lib/ai-workflows/http";
 import { getJob } from "@/lib/ai-workflows/jobs/job-service";
 import { toRunView } from "@/lib/ai-workflows/view";
