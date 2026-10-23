@@ -108,7 +108,7 @@ function AcademicSetupEditor({ language, record, campuses, campusId: defaultCamp
   };
   const selectedCycle = cycles.find(cycle => String(cycle.academicYear) === form.academicYear && cycle.label === form.label && (cycle.startDate?.slice(0, 10) || "") === form.startDate && (cycle.endDate?.slice(0, 10) || "") === form.endDate);
   const save = async () => {
-    const proposal = academicSetupProposalSchema.safeParse({ operation: "academics.setup_year", academicYear: Number(form.academicYear), label: form.label, startDate: form.startDate || null, endDate: form.endDate || null, classes: form.classes.map(item => ({ ...item, section: item.section?.trim() || null })) });
+    const proposal = academicSetupProposalSchema.safeParse({ operation: "academics.setup_year", ...(selectedCycle ? { existingCycleId: selectedCycle.id } : {}), academicYear: Number(form.academicYear), label: form.label, startDate: form.startDate || null, endDate: form.endDate || null, classes: form.classes.map(item => ({ ...item, section: item.section?.trim() || null })) });
     if (!proposal.success || !form.campusId) {
       setError(c.academicCheckProposal);
       setErrors({ ...(!form.campusId ? { campusId: c.chooseCampus } : {}), ...Object.fromEntries(proposal.success ? [] : proposal.error.issues.map(issue => [issue.path.join("."), c.academicInvalidField])) });
@@ -146,7 +146,7 @@ function AcademicSetupEditor({ language, record, campuses, campusId: defaultCamp
       <FormField name="academic-start-date" label={c.plannedStartDate} error={errors.startDate}><Input type="date" value={form.startDate} disabled={disabled} onChange={event => update("startDate", event.target.value)} /></FormField>
       <FormField name="academic-end-date" label={c.plannedEndDate} error={errors.endDate}><Input type="date" value={form.endDate} disabled={disabled} onChange={event => update("endDate", event.target.value)} /></FormField>
     </div>
-    <p className="text-xs leading-relaxed text-ink-muted">{c.academicDateHint}</p>
+    <p className="text-xs leading-relaxed text-ink-muted">{selectedCycle ? c.existingCycleHint : c.academicDateHint}</p>
     <fieldset className="min-w-0 space-y-4"><legend className="mb-3 font-bold">{c.academicClasses}</legend>
       {form.classes.map((item, index) => <div key={item.id} className="sk-panel min-w-0 space-y-3 p-4">
         <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-bold">{interpolateAI(c.classNumber, { number: index + 1 })}</h3><Button variant="ghost" size="icon" disabled={disabled || form.classes.length === 1} aria-label={interpolateAI(c.removeClass, { number: index + 1 })} onClick={() => update("classes", form.classes.filter(row => row.id !== item.id))}><Trash2 aria-hidden="true" /></Button></div>

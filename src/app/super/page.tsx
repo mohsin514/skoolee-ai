@@ -432,6 +432,8 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
   // set up yet, the card's "Start the setup questionnaire" is THE primary action of the screen: the PageHeader carries
   // no second filled button to the same place, and "Review approvals (n)" waits as a secondary. Afterwards the card
   // offers the workflows and "Review approvals (n)" is the PageHeader primary again. Drafts apply only after approval.
+  const { language } = useLocale();
+  const groupCopy = language === "ar" ? { title: "إدارة جاهزية الفروع", body: "عيّن مسؤولي الفروع وراجع الجاهزية والسياسات المشتركة. يتولى كل مسؤول فرع إعداد الصفوف والطلاب والعمليات المحلية.", action: "مراجعة جاهزية الفروع" } : language === "ur" ? { title: "کیمپس کی تیاری کا انتظام", body: "کیمپس منتظم مقرر کریں اور تیاری اور مشترکہ پالیسیوں کا جائزہ لیں۔ ہر کیمپس کا منتظم اپنی کلاسیں، طلبہ اور مقامی امور ترتیب دیتا ہے۔", action: "کیمپس کی تیاری دیکھیں" } : { title: "Manage campus readiness", body: "Appoint campus administrators and review readiness and shared policies. Each campus administrator sets up their classes, students and local operations.", action: "Review campus readiness" };
   const aiWorkflows = access.has("ai") && access.has("schoolAi");
   const setupFirst = aiWorkflows && data.aiSetupPending === true;
   const review = counts && counts.approvals > 0
@@ -448,25 +450,7 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
         status={retiredNotice ? <Alert tone="info" compact live="off">{t(retiredNotice)}</Alert> : undefined}
       />
 
-      {aiWorkflows ? (
-        setupFirst ? (
-          <FlagshipCard
-            kind="ai-workflows"
-            title="Set up your school with AI"
-            description="Answer a short questionnaire and AI drafts the academic year, classes, calendar, timetable, fees and family messages for your campuses. Nothing applies until you review and approve it."
-            action={{ label: "Start the setup questionnaire", href: "/ai?workflow=schoolSetup" }}
-            tourAnchor="super.today.flagship-ai"
-          />
-        ) : (
-          <FlagshipCard
-            kind="ai-workflows"
-            title="Run an AI workflow"
-            description="Timetables, invoices, announcements and promotions: AI drafts the work and nothing applies until it is reviewed and approved."
-            action={{ label: "Open AI Workflows", href: "/ai" }}
-            tourAnchor="super.today.flagship-ai"
-          />
-        )
-      ) : null}
+      {aiWorkflows && <FlagshipCard kind="ai-workflows" title={groupCopy.title} description={groupCopy.body} action={{ label: groupCopy.action, href: "/setup/readiness" }} tourAnchor="super.today.flagship-ai" />}
 
       <section data-tour="super.overview.attention" aria-labelledby="attention-title" className="sk-panel p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

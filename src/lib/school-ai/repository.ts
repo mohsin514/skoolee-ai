@@ -364,7 +364,7 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   const status = nextWorkspaceStatus({ version: current.version, status: current.status as WorkspaceStatus }, input);
   const action = input.action;
   if (action === "approve") {
-    assertApprovalRole(user);                                                    // R2.3: may this actor approve at all?
+    assertApprovalRole(user, current.kind === "WORKFLOW" ? (dataOf(current).proposal as { operation?: string } | undefined)?.operation : undefined); // R2.3: may this actor approve at all?
     assertApprovalSeparation(user, current, await resolveScopeDeliveryPolicy(user, current.campusId, tx)); // R2.4: may this actor approve *this* version?
   }
   await assertSchoolAiAccess(user, action === "archive" ? "delete" : action === "approve" || current.createdById !== user.userId ? "edit" : "add", permissions);

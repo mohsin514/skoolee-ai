@@ -1,8 +1,9 @@
 import type { Language } from "@/lib/locale/package";
 
 const en = {
+  className: "Class name", classSection: "Section",
   title: "Bring your student roster", description: "Map the columns once, review each exception, then create the students you approve. Existing pupils are preserved.",
-  open: "Import a roster", close: "Close import", choose: "Choose CSV", fileHint: "UTF-8 CSV · up to 1,000 rows and 5 MB. No AI provider receives this file. Account invitations are managed separately for a new mapped roster.",
+  open: "Import a roster", close: "Close import", choose: "Choose CSV", fileHint: "UTF-8 CSV · up to 1,000 rows and 5 MB. No AI provider receives this file. Mapped login emails request account invitations when you confirm the import.",
   campus: "Choose a campus above to begin.", class: "Destination class", noClasses: "Create an active class before importing its students.", selectClass: "Choose a class", mapping: "Connect your columns", mappingHint: "Suggested matches use known English, Arabic and Urdu headings. Confirm them below; missing facts are never guessed.",
   ignored: "Not mapped", example: "Example", noExample: "Empty", validate: "Validate and preview", confirmMap: "I checked the column mapping and destination class.",
   fullName: "Student name", rollNo: "Roll number", guardianPhone: "Guardian phone", address: "Street address", city: "City", medicalNotes: "Medical notes", guardianName: "Guardian name", gender: "Gender", dateOfBirth: "Date of birth (YYYY-MM-DD)", phone: "Student phone", guardianRelationship: "Guardian relationship",
@@ -19,8 +20,9 @@ const en = {
 };
 type Copy = { [K in keyof typeof en]: string };
 const ar: Copy = {
+  className: "اسم الصف", classSection: "الشعبة",
   title: "استيراد قائمة الطلاب", description: "اربط الأعمدة مرة واحدة، وراجع كل استثناء، ثم أنشئ سجلات الطلاب التي توافق عليها. تبقى السجلات الحالية محفوظة.",
-  open: "استيراد قائمة", close: "إغلاق الاستيراد", choose: "اختيار CSV", fileHint: "ملف CSV بترميز UTF-8 · حتى ١٬٠٠٠ صف و٥ ميغابايت. لا يُرسل الملف إلى مزود ذكاء اصطناعي. تُدار دعوات الحسابات بشكل منفصل للقائمة الجديدة.",
+  open: "استيراد قائمة", close: "إغلاق الاستيراد", choose: "اختيار CSV", fileHint: "ملف CSV بترميز UTF-8 · حتى ١٬٠٠٠ صف و٥ ميغابايت. لا يُرسل الملف إلى مزود ذكاء اصطناعي. عند تأكيد الاستيراد، تُطلب دعوات الحسابات لعناوين البريد المرتبطة.",
   campus: "اختر فرعًا أعلاه للبدء.", class: "الصف المستهدف", noClasses: "أنشئ صفًا نشطًا قبل استيراد طلابه.", selectClass: "اختر صفًا", mapping: "اربط أعمدة الملف", mappingHint: "تعتمد الاقتراحات على عناوين إنجليزية وعربية وأردية معروفة. أكد الربط؛ لا نخمن المعلومات الناقصة.",
   ignored: "غير مربوط", example: "مثال", noExample: "فارغ", validate: "التحقق والمعاينة", confirmMap: "راجعت ربط الأعمدة والصف المستهدف.",
   fullName: "اسم الطالب", rollNo: "رقم الطالب", guardianPhone: "هاتف ولي الأمر", address: "عنوان الشارع", city: "المدينة", medicalNotes: "ملاحظات طبية", guardianName: "اسم ولي الأمر", gender: "الجنس", dateOfBirth: "تاريخ الميلاد (YYYY-MM-DD)", phone: "هاتف الطالب", guardianRelationship: "صلة القرابة",
@@ -36,8 +38,9 @@ const ar: Copy = {
   invitationStatus: "دعوات الحسابات", pendingInvitations: "معالجة الدعوات معلقة. تحقق من قائمة الدعوات قبل إعادة الإرسال.", guardianSent: "دعوات أولياء الأمور المرسلة", guardianFailures: "دعوات أولياء الأمور المتعذرة", studentSent: "دعوات الطلاب المرسلة", studentFailures: "دعوات الطلاب المتعذرة",
 };
 const ur: Copy = {
+  className: "جماعت کا نام", classSection: "سیکشن",
   title: "طلبہ کی فہرست لائیں", description: "کالم جوڑیں، ہر مسئلہ دیکھیں، پھر منظور شدہ طلبہ بنائیں۔ موجودہ طلبہ محفوظ رہیں گے۔",
-  open: "فہرست درآمد کریں", close: "درآمد بند کریں", choose: "CSV منتخب کریں", fileHint: "UTF-8 CSV · زیادہ سے زیادہ ۱٬۰۰۰ قطاریں اور ۵ MB۔ فائل کسی AI فراہم کنندہ کو نہیں بھیجی جاتی۔ نئی فہرست کے اکاؤنٹ دعوت نامے الگ سنبھالے جاتے ہیں۔",
+  open: "فہرست درآمد کریں", close: "درآمد بند کریں", choose: "CSV منتخب کریں", fileHint: "UTF-8 CSV · زیادہ سے زیادہ ۱٬۰۰۰ قطاریں اور ۵ MB۔ فائل کسی AI فراہم کنندہ کو نہیں بھیجی جاتی۔ درآمد کی تصدیق پر منسلک لاگ ان ای میل کے لیے اکاؤنٹ دعوت نامے طلب کیے جاتے ہیں۔",
   campus: "شروع کرنے کے لیے اوپر کیمپس منتخب کریں۔", class: "منتخب جماعت", noClasses: "طلبہ درآمد کرنے سے پہلے فعال جماعت بنائیں۔", selectClass: "جماعت منتخب کریں", mapping: "اپنے کالم جوڑیں", mappingHint: "تجاویز انگریزی، عربی اور اردو کے معلوم عنوانات سے ہیں۔ ان کی تصدیق کریں؛ نامعلوم معلومات کا اندازہ نہیں لگایا جاتا۔",
   ignored: "منتخب نہیں", example: "مثال", noExample: "خالی", validate: "جانچ اور پیش منظر", confirmMap: "میں نے کالموں کا تعلق اور جماعت جانچ لی ہے۔",
   fullName: "طالب علم کا نام", rollNo: "رول نمبر", guardianPhone: "سرپرست کا فون", address: "مکمل پتہ", city: "شہر", medicalNotes: "طبی معلومات", guardianName: "سرپرست کا نام", gender: "جنس", dateOfBirth: "تاریخ پیدائش (YYYY-MM-DD)", phone: "طالب علم کا فون", guardianRelationship: "سرپرست سے رشتہ",

@@ -1,5 +1,5 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
-import { localePatchSchema, resolvePackage, type Language } from "./package";
+import { parseStoredLocaleSettings, resolvePackage, type Language } from "./package";
 
 /** Load once for calendars that resolve hundreds of date-only cells. */
 export async function loadLocaleTimeline(schoolId: string, campusId: string | null = null, db: Pick<TxClient, "school" | "localePolicy" | "weekend"> = prisma) {
@@ -12,7 +12,7 @@ export async function loadLocaleTimeline(schoolId: string, campusId: string | nu
     const active = policies.filter((p) => p.effectiveAt <= at);
     const schoolPolicy = active.find((p) => p.campusId === null);
     const campusPolicy = campusId ? active.find((p) => p.campusId === campusId) : null;
-    return resolvePackage({ timezone: school.timezone, ...(campusId ? { weekend: legacyWeekends.map((w) => w.dayOfWeek % 7) } : {}), ...localePatchSchema.parse(schoolPolicy?.settings || {}) }, localePatchSchema.parse(campusPolicy?.settings || {}), personal);
+    return resolvePackage({ timezone: school.timezone, ...(campusId ? { weekend: legacyWeekends.map((w) => w.dayOfWeek % 7) } : {}), ...parseStoredLocaleSettings(schoolPolicy?.settings || {}) }, parseStoredLocaleSettings(campusPolicy?.settings || {}), personal);
   };
 }
 export async function getLocalePackage(schoolId: string, campusId: string | null = null, at = new Date(), personal?: Language | null, db: Pick<TxClient, "school" | "localePolicy" | "weekend"> = prisma) {

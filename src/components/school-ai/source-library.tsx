@@ -27,7 +27,8 @@ import { SourceStructureReview } from "./source-structure-review";
 import { sourceStructureApprovalIssues } from "@/lib/school-ai/intake";
 
 export const SOURCE_KINDS = ["syllabus", "paper", "answer_script", "register", "fee_sheet", "timetable", "staff_list", "policy", "other"] as const;
-export function SourceLibrary({ language, records, canCreate, canApprove, onSave, onAction, onUpload, scope, uploading, campusId, canImportRoster, canArchive, onRecord }: {
+export function SourceLibrary({ language, records, canCreate, canApprove, onSave, onAction, onUpload, scope, uploading, campusId, canImportRoster, canArchive, onRecord, initialRecordId }: {
+  initialRecordId?: string | null;
   language: Language; records: AiWorkspaceRecord[]; canCreate: boolean; canApprove: boolean;
   onSave: SaveRecord; onAction: RecordAction; onUpload: (file: File, origin: "upload" | "camera", documentKind: SourceData["documentKind"], signal?: AbortSignal) => Promise<void>;
   scope: { subjectId?: string; classId?: string }; uploading: boolean;
@@ -36,7 +37,7 @@ export function SourceLibrary({ language, records, canCreate, canApprove, onSave
   const c = schoolAICopy(language);
   const guard = useWorkspaceDraftNavigation();
   const [showArchived,setShowArchived] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialRecordId ?? null);
   const [creating, setCreating] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [kind, setKind] = useState<SourceData["documentKind"]>("syllabus");
@@ -46,7 +47,7 @@ export function SourceLibrary({ language, records, canCreate, canApprove, onSave
   const selectedRecord = sources.find(record => record.id === selected);
   const upload = (file: File | undefined, origin: "upload" | "camera") => { if (file) void onUpload(file, origin, kind).catch(() => {}); };
   return <div className="space-y-5">
-    {canImportRoster && <RosterImport key={campusId ?? "no-campus"} language={language} campusId={campusId} />}
+    {canImportRoster && <RosterImport key={campusId ?? "no-campus"} language={language} campusId={campusId} sources={records} />}
     <section className={`sk-panel ${styles.panel}`}><h2 className={styles.sectionTitle}>{c.uploadTitle}</h2><p className={styles.description}>{c.uploadHint}</p>
       <div className="flex flex-wrap items-end gap-3"><FormField name="source-kind" label={c.documentKind} className="min-w-48 flex-1"><Select value={kind} disabled={uploading} onChange={event => setKind(event.target.value as SourceData["documentKind"])}>{SOURCE_KINDS.map(key => <option key={key} value={key}>{c[key]}</option>)}</Select></FormField>
         <Button disabled={!canCreate} loading={uploading} onClick={() => uploadRef.current?.click()}>{uploading ? null : <Upload aria-hidden="true" />}{uploading ? c.uploadWorking : c.attach}</Button><Tooltip content={c.scanHint}><span tabIndex={!canCreate || uploading ? 0 : undefined} className="inline-flex"><Button variant="outline" disabled={!canCreate || uploading} onClick={() => cameraRef.current?.click()}><Camera aria-hidden="true" />{c.scan}</Button></span></Tooltip><Button variant="outline" disabled={!canCreate || uploading} onClick={() => guard(() => setScanning(true))}><Camera aria-hidden="true" />{scanCopy(language).open}</Button><Button variant="ghost" disabled={!canCreate || uploading} onClick={() => guard(() => { setCreating(true); setSelected(null); })}><Plus aria-hidden="true" />{c.manualSource}</Button>

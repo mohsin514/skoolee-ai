@@ -1,6 +1,7 @@
+import { AutomaticWorkspace } from "@/components/automation/automatic-workspace";
 import { redirect } from "next/navigation";
 import { requirePageSession } from "@/lib/auth/require-page-session";
-import { assertSchoolAiAccess, SchoolAiError } from "@/lib/school-ai/access";
+import { assertSchoolAiAccess, assertWorkspacePermission, SchoolAiError } from "@/lib/school-ai/access";
 import { AccessDenied } from "@/lib/auth/policy";
 import { dashboardPathForRole } from "@/lib/roles";
 import { SchoolAIWorkspace } from "@/components/school-ai/school-ai-workspace";
@@ -9,18 +10,13 @@ import { prisma } from "@/lib/db/prisma";
 
 export const metadata = { title: "AI Workflows" };
 
-/**
- * AI Workflows — the School AI workspace, one of SkooleeAI's two flagships (addendum 2026-10-22) — framed in the
- * caller's own console (SPEC §6.3, M107): the console's "AI Workflows" row lights up (`leafForPath` → `ai-workflows`).
- * The institution authority answers the setup questionnaire here (`?workflow=schoolSetup`) and AI drafts the
- * school's set-up; every draft is reviewed and approved before anything applies. The group admin is admitted too:
- * it is the authority that runs the questionnaire, while the server still gives it no campus write tools (G42).
- * Framed here and in /ai/studio only — never in ai/layout.tsx, which also wraps the candidate exam routes (K-I2).
- */
-export default async function SchoolAiPage() {
+/** The automatic workspace is scoped to the signed-in role and its current permissions. */
+export default async function SchoolAiPage({ searchParams }: { searchParams: Promise<{ setup?: string }> }) {
+  const query = await searchParams;
   const user = await requirePageSession();
   let allowed = true;
-  try { await assertSchoolAiAccess(user, "view"); }
+  const personalWorkspace = ["APP_OWNER", "STUDENT", "PARENT"].includes(user.role);
+  try { if (!personalWorkspace) await assertSchoolAiAccess(user, "view"); else if (user.role !== "APP_OWNER") await assertWorkspacePermission(user, "ai", "view"); }
   catch (error) {
     if (error instanceof AccessDenied || error instanceof SchoolAiError && error.status === 403) allowed = false;
     else throw error;
@@ -31,7 +27,7 @@ export default async function SchoolAiPage() {
   const brand = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { logoUrl: true, campuses: { where: { id: user.campusId ?? "" }, select: { logoUrl: true } } } }).catch(() => null);
   return (
     <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.campuses[0]?.logoUrl || brand?.logoUrl || null} chatDock={user.schoolStatus !== "SUSPENDED"}>
-      <SchoolAIWorkspace role={user.role} campusId={user.campusId} />
+      {personalWorkspace ? <div className="mx-auto max-w-5xl p-6"><AutomaticWorkspace campusId={user.role === "APP_OWNER" ? null : user.campusId} role={user.role} roleSetup={query.setup === "1"} autoStart={query.setup === "1"} /></div> : <SchoolAIWorkspace role={user.role} campusId={user.campusId} />}
     </RoleFrame>
   );
 }

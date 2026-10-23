@@ -19,6 +19,15 @@ export const localePackageSchema = z.object({
 export type LocalePackage = z.infer<typeof localePackageSchema>;
 export const POLICY_KEYS = Object.keys(localePackageSchema.shape) as (keyof LocalePackage)[];
 export const localePatchSchema = localePackageSchema.partial();
+// Registration stores country identity alongside locale preferences. It is metadata,
+// not a delegated locale setting; keep incoming locale edits strictly validated.
+const storedLocaleSettingsSchema = localePatchSchema.extend({
+  countryIso: z.string().regex(/^[A-Z]{2}$/).optional(),
+});
+export function parseStoredLocaleSettings(value: unknown): Partial<LocalePackage> {
+  const { countryIso: _countryIso, ...settings } = storedLocaleSettingsSchema.parse(value);
+  return settings;
+}
 export const defaultLocale: LocalePackage = { language: "en", timezone: "Asia/Karachi", calendar: "gregory", numberingSystem: "latn", country: "OTHER", currency: "USD", weekStartsOn: 1, weekend: [0] };
 export function localeTag(policy: LocalePackage) { return `${policy.language}-u-ca-${policy.calendar}-nu-${policy.numberingSystem}`; }
 export function resolvePackage(school: Partial<LocalePackage>, campus: Partial<LocalePackage> = {}, personal?: Language | null): LocalePackage {
