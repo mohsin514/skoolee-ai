@@ -24,6 +24,8 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # tsc --noEmit needs more than Node's default heap in this repository.
+      NODE_OPTIONS: --max-old-space-size=6144
       DATABASE_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
       DIRECT_URL: postgresql://postgres@127.0.0.1:55420/sko220_test
       REDIS_URL: redis://127.0.0.1:56420
@@ -32,9 +34,6 @@ jobs:
       OUTBOX_ALLOW_RESET: "synthetic-only"
     steps:
       - uses: actions/checkout@v4
-      # Set after checkout so the loader exists: tsc needs more than Node's default heap, and the loader resolves
-      # `server-only` (which Next.js supplies when it bundles) for the plain Node test runs below.
-      - run: echo "NODE_OPTIONS=--max-old-space-size=6144 --import=$GITHUB_WORKSPACE/tests/support/server-only.mjs" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -46,7 +45,7 @@ jobs:
       - run: node tests/outbox/prepare.mjs
       - run: pnpm prisma generate
       - run: pnpm exec tsc --noEmit --incremental false
-      - run: node --import tsx --test tests/outbox/operation-contract.test.ts tests/outbox/outbox.test.ts tests/outbox/receipts.database.test.ts
+      - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/outbox/operation-contract.test.ts tests/outbox/outbox.test.ts tests/outbox/receipts.database.test.ts
       - name: Check live operator and publication APIs
         run: |
           pnpm exec next dev --hostname 127.0.0.1 --port 3220 > /tmp/outbox-app.log 2>&1 &

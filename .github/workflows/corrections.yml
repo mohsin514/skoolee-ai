@@ -18,15 +18,14 @@ jobs:
         ports: ['55413:5432']
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # tsc --noEmit needs more than Node's default heap in this repository.
+      NODE_OPTIONS: --max-old-space-size=6144
       DATABASE_URL: postgresql://postgres:synthetic-corrections-only@127.0.0.1:55413/sko213
       DIRECT_URL: postgresql://postgres:synthetic-corrections-only@127.0.0.1:55413/sko213
       AUTH_SECRET: synthetic-sko213-local-only
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3213
     steps:
       - uses: actions/checkout@v4
-      # Set after checkout so the loader exists: tsc needs more than Node's default heap, and the loader resolves
-      # `server-only` (which Next.js supplies when it bundles) for the plain Node test runs below.
-      - run: echo "NODE_OPTIONS=--max-old-space-size=6144 --import=$GITHUB_WORKSPACE/tests/support/server-only.mjs" >> "$GITHUB_ENV"
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -38,6 +37,9 @@ jobs:
       - run: pnpm exec prisma migrate deploy
       - run: pnpm exec next build
       - name: Verify API and browser invariants
+        # `pnpm test:corrections` runs plain Node; the shim resolves `server-only` there.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144 --import=./tests/support/server-only.mjs
         run: |
           pnpm exec next start --hostname 127.0.0.1 --port 3213 > /tmp/corrections-app.log 2>&1 &
           for i in $(seq 1 40); do curl -s http://127.0.0.1:3213/login >/dev/null && break; sleep 1; done
