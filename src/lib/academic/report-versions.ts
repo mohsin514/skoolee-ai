@@ -1,4 +1,5 @@
 import { lockTimetableCampus } from "@/lib/timetable/locking";
+import { openExamExceptions } from "@/lib/academic/exam-office-service";
 import { correctionReleased } from "@/lib/corrections/visibility";
 import { createHash, randomUUID } from "node:crypto";
 import { prisma, type TxClient } from "@/lib/db/prisma";
@@ -420,6 +421,12 @@ export async function publishExam(
     if (!["PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status))
       throw new ReportConflict(
         "Principal review is required before publishing.",
+      );
+    // SKO-506: nothing reaches families while an exception, a result appeal or a result correction is open.
+    const open = await openExamExceptions(tx, exam.schoolId, examId);
+    if (open.total)
+      throw new ReportConflict(
+        `Resolve the open exam exceptions first: ${open.exceptions} exception(s), ${open.appeals} result appeal(s), ${open.corrections} result correction(s).`,
       );
     const cards = await tx.reportCard.findMany({ where: { examId } });
     if (!cards.length) throw new ReportConflict("Generate reports first.");

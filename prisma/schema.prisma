@@ -9748,3 +9748,29 @@ model ExamBriefReceipt {
   @@index([schoolId, versionId])
   @@map("exam_brief_receipts")
 }
+
+/// SKO-506: an exam exception for one learner and one exam (absence with its category, unfair means,
+/// exemption, re-sit request). While any is OPEN the exam's report cards cannot be published; the office
+/// resolves each with a recorded decision.
+model ExamException {
+  id           String    @id @default(uuid())
+  schoolId     String    @map("school_id")
+  campusId     String    @map("campus_id")
+  examId       String    @map("exam_id")
+  studentId    String    @map("student_id")
+  subjectId    String?   @map("subject_id")
+  kind         String    // ABSENT_MEDICAL | ABSENT_LEAVE | UNFAIR_MEANS | EXEMPT | RESIT
+  note         String    @db.Text
+  status       String    @default("OPEN") // OPEN | RESOLVED
+  decision     String?   // RESIT_NEW_FORM | RESIT_CAPPED | RESIT_FULL | RECORD_ABSENT | EXEMPT_FROM_TOTAL | NO_CHANGE
+  resolution   String?   @db.Text
+  createdById  String    @map("created_by_id")
+  resolvedById String?   @map("resolved_by_id")
+  resolvedAt   DateTime? @map("resolved_at")
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([schoolId, examId, status])
+  @@index([schoolId, studentId])
+  @@map("exam_exceptions")
+}
