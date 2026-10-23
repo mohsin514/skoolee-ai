@@ -29,7 +29,7 @@ async function studentFor(user: AuthUser, db: TxClient = prisma) {
   return student;
 }
 
-export async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma) {
+export async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown; examScheduleId?: string | null }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma) {
   const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, role: user.role, campusId: user.campusId, isActive: true }, select: { id: true, accessVersion: true } });
   if (!actor || (user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion)) throw new ApiError("Your exam access changed. Sign in again before continuing.", 403);
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
@@ -37,8 +37,15 @@ export async function staffExamAccess(user: AuthUser, assignment: { createdById:
   await assertWorkspacePermission(user, "exams", action, permissions);
   if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Exam access is restricted to authorized teaching staff.", 403);
   if (user.role !== "SUPER_ADMIN" && assignment.campusId !== user.campusId) throw new ApiError("Exam unavailable.", 404);
-  if (user.role === "TEACHER" && assignment.createdById !== user.userId) throw new ApiError("Exam unavailable.", 404);
   const paper = paperDataSchema.parse(assignment.paperSnapshot);
+  if (user.role === "TEACHER" && assignment.createdById !== user.userId) {
+    // SKO-502: the on-duty invigilator of a room of this sitting's date-sheet row supervises it (view, notices,
+    // pause, bounded extension); any teacher of the paper's subject and class may also mark it.
+    const invigilates = assignment.examScheduleId && action !== "edit" ? await db.examInvigilation.count({ where: { schoolId: user.schoolId, campusId: assignment.campusId, teacherId: user.userId, examRoom: { examScheduleId: assignment.examScheduleId } } }) : 0;
+    if (invigilates) return paper;
+    try { await assertWorkspaceSubject(user, assignment.campusId, paper, db); } catch { throw new ApiError("Exam unavailable.", 404); }
+    return paper;
+  }
   await assertWorkspaceSubject(user, assignment.campusId, paper, db);
   return paper;
 }

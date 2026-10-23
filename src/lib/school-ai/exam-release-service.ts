@@ -226,7 +226,20 @@ export async function sealRelease(tx: TxClient, user: AuthUser, record: { id: st
   if (!paper.questions.some(question => question.review)) {
     try { return { contentHash: contentHash(paper), rehearsalId: null }; } catch { throw new SchoolAiError("The candidate paper carries a protected field. Review the paper before assigning it.", 409, "RELEASE_PROTECTED_VALUE_IN_PROJECTION"); }
   }
-  const rehearsal = await tx.schoolAiRehearsal.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, paperVersion: record.version }, orderBy: { createdAt: "desc" } });
+  let rehearsal = await tx.schoolAiRehearsal.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, paperVersion: record.version }, orderBy: { createdAt: "desc" } });
+  // SKO-501/502: a rehearsal is carried across a version bump that changed no content (an approval, or the
+  // moderator's item approvals): the rehearsed revision must hash exactly like this version.
+  if (!rehearsal) {
+    const earlier = await tx.schoolAiRehearsal.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, paperVersion: { lt: record.version }, blocking: 0 }, orderBy: [{ paperVersion: "desc" }, { createdAt: "desc" }] });
+    if (earlier) {
+      const revision = await tx.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, version: earlier.paperVersion }, select: { data: true } });
+      const parsed = revision ? paperDataSchema.safeParse(revision.data) : null;
+      let same = false;
+      try { same = Boolean(parsed?.success && contentHash(parsed.data) === contentHash(paper)); } catch { same = false; }
+      // Carried: it stands for this exact version, whose content it rehearsed.
+      if (same) rehearsal = { ...earlier, paperVersion: record.version };
+    }
+  }
   const results = (rehearsal?.results ?? []) as RehearsalResult[];
   // The rehearsal row is the authority for this exact version; the paper's own staleness record can only invalidate it.
   // Any content change creates a new version, so a rehearsal of this exact version post-dates every invalidation in it.

@@ -37,11 +37,12 @@ export async function listClarifications(user: AuthUser, assignmentId: string) {
     const rows = await tx.schoolAiExamClarification.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { version: "asc" } });
     const number = (questionId: string | null) => questionId ? paper.questions.findIndex(question => question.id === questionId) + 1 || null : null;
     if (student) {
-      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId }, select: { id: true, pausedAt: true } });
-      if (!attempt) return { notices: [], pausedAt: null };
+      const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, studentId: student.id, userId: user.userId }, select: { id: true, pausedAt: true, deadlineAt: true } });
+      if (!attempt) return { notices: [], pausedAt: null, deadlineAt: null };
       const mine = latest(rows.filter(row => inAudience(row.audience, attempt.id)));
       const acks = new Set((await tx.schoolAiExamClarificationAck.findMany({ where: { schoolId: user.schoolId, attemptId: attempt.id, clarificationId: { in: mine.map(row => row.id) } }, select: { clarificationId: true } })).map(row => row.clarificationId));
-      return { pausedAt: attempt.pausedAt, notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
+      // SKO-502: the deadline travels with the notice poll, so an extension reaches an idle candidate's clock.
+      return { pausedAt: attempt.pausedAt, deadlineAt: attempt.deadlineAt, notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
     }
     await staffExamAccess(user, assignment, "view", tx);
     const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { id: true, status: true, studentId: true, pausedAt: true, deadlineAt: true } });
