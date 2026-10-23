@@ -42,6 +42,10 @@ export async function resetDemoTenant(db: PrismaClient, password: string): Promi
   const existing = await db.school.findUnique({ where: { id: DEMO_SCHOOL_ID }, select: { name: true } });
   if (existing && !existing.name.startsWith(DEMO_LABEL)) throw new Error(`School ${DEMO_SCHOOL_ID} is not labelled "${DEMO_LABEL}". Nothing was changed.`);
   if (existing) await db.school.delete({ where: { id: DEMO_SCHOOL_ID } });
+  // SKO-504..507 tables are keyed by school_id without a foreign key, so the school's delete does not reach them.
+  for (const table of ["familyResultNote", "examBriefReceipt", "examException", "pilotLedgerSnapshot", "pilotLedgerSetting"] as const) {
+    await (db[table] as unknown as { deleteMany: (args: { where: { schoolId: string } }) => Promise<unknown> }).deleteMany({ where: { schoolId: DEMO_SCHOOL_ID } });
+  }
 
   const schoolId = DEMO_SCHOOL_ID, campusId = randomUUID(), hash = await bcrypt.hash(password, 12);
   await db.school.create({ data: { id: schoolId, name: DEMO_NAME, slug: schoolId, regId: "DEMO-0001", contactEmail: "synthetic-demo-school@example.invalid", city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
@@ -153,7 +157,9 @@ async function main() {
   const db = new PrismaClient();
   try {
     const manifest = await resetDemoTenant(db, process.env.DEMO_PASSWORD ?? "");
-    console.log(JSON.stringify(manifest, null, 2));
+    // SKO-507: `--leap` adds the pre-seeded part of the five-minute arc (scripts/demo/seed-leap-arc.ts).
+    const leap = process.argv.includes("--leap") ? await (await import("./seed-leap-arc")).seedLeapArc(db) : null;
+    console.log(JSON.stringify(leap ? { ...manifest, leap } : manifest, null, 2));
   } finally {
     await db.$disconnect();
     const { prisma } = await import("../../src/lib/db/prisma");

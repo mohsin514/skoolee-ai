@@ -9774,3 +9774,24 @@ model ExamException {
   @@index([schoolId, studentId])
   @@map("exam_exceptions")
 }
+
+/// SKO-507 Pilot Ledger: a school opts in before any metric about it is computed or kept.
+model PilotLedgerSetting {
+  schoolId    String   @id @map("school_id")
+  optedIn     Boolean  @default(false) @map("opted_in")
+  changedById String   @map("changed_by_id")
+  changedAt   DateTime @default(now()) @map("changed_at")
+
+  @@map("pilot_ledger_settings")
+}
+
+/// SKO-507: one computed set of Pilot Ledger metrics (each with its claim id, sample and window).
+model PilotLedgerSnapshot {
+  id         String   @id @default(uuid())
+  schoolId   String   @map("school_id")
+  computedAt DateTime @default(now()) @map("computed_at")
+  metrics    Json
+
+  @@index([schoolId, computedAt])
+  @@map("pilot_ledger_snapshots")
+}

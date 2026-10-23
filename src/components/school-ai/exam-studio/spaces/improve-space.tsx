@@ -19,6 +19,7 @@ import { ExamModerationPanel } from "../../exam-moderation-panel";
 import { PracticeProgressPanel } from "../../practice-progress-panel";
 import type { MistakeMap } from "@/lib/school-ai/mistake-map";
 import { FamilyNotesPanel, MistakeMapPanel } from "../mistake-map-panel";
+import { TwinPanel } from "../twin-panel";
 
 /**
  * SKO-408 Results and improvement (R18). The evidence base is stated before any reading of it, an
@@ -81,6 +82,7 @@ export default function ImproveSpace({ language, scope, capabilities, records, r
           </tr>)}</tbody>
         </table></div>
       </section>
+      <TwinPanel examId={data.exam.id} language={language} />
       {data.exam.resultsReleasedAt && <MistakeMapPanel examId={data.exam.id} map={data.map} language={language} canCreate={capabilities.canCreate} onPractice={reload} />}
       {data.exam.resultsReleasedAt && (capabilities.canApprove || capabilities.canCreate) && <FamilyNotesPanel examId={data.exam.id} language={language} canCreate={capabilities.canApprove || capabilities.canCreate} />}
       <ExamRemedyPanel examId={data.exam.id} locale={language} canAuthorize={capabilities.canApprove} onApplied={() => void load()} />

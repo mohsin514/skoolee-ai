@@ -406,7 +406,7 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
               const done = value >= 100;
               const isNext = currentStep === s.key && !done;
               return (
-                <Button data-selected={on} variant="choice"
+                <Button data-selected={on} data-exam-step={s.key} variant="choice"
                   key={s.key}
                   type="button"
                   onClick={() => setStep(s.key)}
