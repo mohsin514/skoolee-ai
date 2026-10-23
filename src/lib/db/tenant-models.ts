@@ -106,6 +106,7 @@ export const TENANT_MODELS = new Set<string>([
   "examAttendance",
   "examBriefReceipt",
   "examDatesheetVersion",
+  "examException",
   "examInvigilation",
   "examPaperModeration",
   "examPaperScript",

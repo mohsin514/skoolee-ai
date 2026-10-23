@@ -39,6 +39,8 @@ import { SessionWizard } from "@/components/academic/exams/SessionWizard";
 import { MasterDatesheet } from "@/components/academic/exams/MasterDatesheet";
 import { DatesheetPublication } from "./DatesheetPublication";
 import { PapersStep } from "./PapersStep";
+import { ControlTower } from "./ControlTower";
+import { ExceptionsDesk } from "./ExceptionsDesk";
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { SeatingPlanner } from "@/components/academic/exams/SeatingPlanner";
 import { ExamDetailDialog } from "@/components/academic/exams/ExamDetailDialog";
@@ -145,6 +147,8 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
   const [legacy, setLegacy] = useState<ExamItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [step, setStep] = useState<StepKey>("datesheet");
+  // SKO-506: the control tower re-reads the ledger when the exceptions desk changes it.
+  const [towerTick, setTowerTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [wizard, setWizard] = useState(false);
@@ -388,6 +392,9 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
         />
       ) : (
         <>
+          {/* SKO-506: the control tower answers "are we ready for <day>?" above the steps. */}
+          <ControlTower sessionId={active.id} refreshKey={`${step}:${towerTick}`} />
+
           {/* ── The rail ──────────────────────────────────────────────── */}
           <nav
             aria-label={ui("Exam steps")}
@@ -496,6 +503,9 @@ export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest,
               />
             ) : null}
 
+            {step === "results" ? (
+              <ExceptionsDesk sessionId={active.id} onChanged={() => { setTowerTick((n) => n + 1); void load(true); }} />
+            ) : null}
             {step === "results" ? (
               <ResultsStep
                 session={active}
