@@ -9605,6 +9605,8 @@ model ExamPaperSlot {
   compromiseReason  String?     @map("compromise_reason") @db.Text
   /// SKO-501: corrigenda against the seal: [{ id, text, questionId?, at, byId, hashPrefix }], read out in every room.
   corrigenda        Json        @default("[]")
+  /// SKO-503: spare copies per print run, as a percentage of candidates (default 5).
+  spareCopiesPercent Int        @default(5) @map("spare_copies_percent")
   moderations       ExamPaperModeration[]
   version           Int         @default(1)
   createdAt         DateTime    @default(now()) @map("created_at")
@@ -9614,6 +9616,70 @@ model ExamPaperSlot {
   @@index([schoolId, campusId, authorUserId, dueOn])
   @@index([schoolId, campusId, moderatorUserId])
   @@map("exam_paper_slots")
+}
+
+/// SKO-503: a printed script for one candidate of a paper sitting (one per date-sheet row and pupil).
+/// The cover's QR carries a signed code naming this row; a script is scanned once; marks are entered
+/// per question after the teacher marks the paper by hand.
+model ExamPaperScript {
+  id           String    @id @default(uuid())
+  schoolId     String    @map("school_id")
+  campusId     String    @map("campus_id")
+  slotId       String    @map("slot_id")
+  scheduleId   String    @map("schedule_id")
+  studentId    String    @map("student_id")
+  candidateNo  Int       @map("candidate_no")
+  sealPrefix   String    @map("seal_prefix")
+  printedAt    DateTime  @default(now()) @map("printed_at")
+  scannedAt    DateTime? @map("scanned_at")
+  scannedById  String?   @map("scanned_by_id")
+  pageKeys     Json      @default("[]") @map("page_keys")
+  marks        Json?     // { questionId: number }
+  total        Float?
+  markedById   String?   @map("marked_by_id")
+  markedAt     DateTime? @map("marked_at")
+  version      Int       @default(1)
+
+  @@unique([scheduleId, studentId])
+  @@index([schoolId, campusId, slotId])
+  @@map("exam_paper_scripts")
+}
+
+/// SKO-503: the room sheet. ABSENT is authoritative: no mark can be entered until the office reopens it.
+model ExamAttendance {
+  id           String    @id @default(uuid())
+  schoolId     String    @map("school_id")
+  campusId     String    @map("campus_id")
+  scheduleId   String    @map("schedule_id")
+  studentId    String    @map("student_id")
+  status       String    // PRESENT | ABSENT
+  recordedById String    @map("recorded_by_id")
+  recordedAt   DateTime  @default(now()) @map("recorded_at")
+  reopenedAt   DateTime? @map("reopened_at")
+  reopenedById String?   @map("reopened_by_id")
+  reopenReason String?   @map("reopen_reason") @db.Text
+
+  @@unique([scheduleId, studentId])
+  @@index([schoolId, campusId, scheduleId])
+  @@map("exam_attendance")
+}
+
+/// SKO-503: one print of a sealed paper for a section or room: covers equal to candidates, copies with spares.
+model ExamPrintRun {
+  id          String   @id @default(uuid())
+  schoolId    String   @map("school_id")
+  campusId    String   @map("campus_id")
+  slotId      String   @map("slot_id")
+  scheduleId  String   @map("schedule_id")
+  groupLabel  String   @map("group_label")
+  candidates  Int
+  copies      Int
+  sealPrefix  String   @map("seal_prefix")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, slotId])
+  @@map("exam_print_runs")
 }
 
 /// SKO-501: a moderator's decision on a requested paper, bound to the exact content it was taken on.

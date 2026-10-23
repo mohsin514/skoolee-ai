@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, Check, Circle, FileText, PencilLine, Printer, ShieldAlert, Stamp, Undo2, XCircle } from "lucide-react";
+import { BellRing, Check, Circle, ClipboardList, FileText, PencilLine, Printer, ShieldAlert, Stamp, Undo2, XCircle } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSlotsCopy, type StudioSlotsCopy } from "@/lib/school-ai/exam-studio-copy-slots";
 import type { SlotView } from "@/lib/school-ai/paper-slot-service";
+import { PaperSittingPanel } from "./PaperSittingPanel";
 
 /**
  * SKO-500: the office's Papers step. One row per grade and subject: the sections that share it, the
@@ -47,6 +48,7 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
   const [sealing, setSealing] = useState<SlotView | null>(null);
   const [compromising, setCompromising] = useState<SlotView | null>(null);
   const [correcting, setCorrecting] = useState<SlotView | null>(null);
+  const [sitting, setSitting] = useState<SlotView | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/academic/exam-sessions/${encodeURIComponent(sessionId)}/paper-slots`, { cache: "no-store" }).catch(() => null);
@@ -132,6 +134,7 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
             {/* SKO-501: the Seal after a signature on the current content; print only the sealed version. */}
             {!cancelled && (slot.status === "MODERATED" || slot.status === "APPROVED") && slot.lastDecision?.decision === "SIGNED" ? <Button type="button" size="sm" disabled={Boolean(busy)} onClick={() => setSealing(slot)} data-seal-slot><Stamp aria-hidden="true" />{t.sealAction}</Button> : null}
             {slot.sealedAt && !slot.compromisedAt && (slot.status === "SEALED" || slot.status === "PRINTED") ? <a href={`/api/academic/paper-slots/${encodeURIComponent(slot.id)}/print`} target="_blank" rel="noopener" className={buttonVariants({ size: "sm", variant: "outline" })} data-print-slot><Printer aria-hidden="true" />{t.printSealed}</a> : null}
+            {slot.sealedAt && !slot.compromisedAt ? <Button type="button" size="sm" variant="outline" disabled={Boolean(busy)} onClick={() => setSitting(slot)} data-open-sittings><ClipboardList aria-hidden="true" />{t.sittingTitle}</Button> : null}
             {slot.sealedAt && !slot.compromisedAt ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setCorrecting(slot)} data-corrigendum><PencilLine aria-hidden="true" />{t.corrigendumAdd}</Button> : null}
             {slot.sealedAt && !slot.compromisedAt ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setCompromising(slot)}><ShieldAlert aria-hidden="true" />{t.reportCompromise}</Button> : null}
             {!cancelled && !slot.sealedAt ? <Button type="button" size="sm" variant="ghost" disabled={Boolean(busy)} onClick={() => setEditing(slot)}><PencilLine aria-hidden="true" />{t.edit}</Button> : null}
@@ -144,6 +147,7 @@ export function PapersStep({ sessionId, onChanged }: { sessionId: string; onChan
 
     {editing ? <EditSlot t={t} slot={editing} staff={data.staff} busy={busy === "edit"} onClose={() => setEditing(null)} onSave={async body => { if (await send("edit", `/api/academic/paper-slots/${editing.id}`, "PATCH", { version: editing.version, ...body }, () => t.saved)) setEditing(null); }} /> : null}
     {sealing ? <SealSheet t={t} slot={sealing} busy={busy === "seal"} onClose={() => setSealing(null)} onSeal={async (paperVersion, reason) => { if (await send("seal", `/api/academic/paper-slots/${sealing.id}/seal`, "POST", { paperVersion, ...(reason ? { reason } : {}) }, () => fillStudioCopy(t.sealedOn, [sealing.subjectName]))) setSealing(null); }} /> : null}
+    {sitting ? <Modal title={`${t.sittingTitle} · ${sitting.subjectName} · ${sitting.gradeName}`} size="lg" onClose={() => { setSitting(null); void load(); }}><PaperSittingPanel slotId={sitting.id} /></Modal> : null}
     {correcting ? <CorrigendumSlot t={t} busy={busy === "corrigendum"} onClose={() => setCorrecting(null)} onSave={async text => { if (await send("corrigendum", `/api/academic/paper-slots/${correcting.id}/corrigendum`, "POST", { text }, () => t.corrigendumSaved)) setCorrecting(null); }} /> : null}
     {compromising ? <CompromiseSlot t={t} busy={busy === "compromise"} onClose={() => setCompromising(null)} onSave={async reason => { if (await send("compromise", `/api/academic/paper-slots/${compromising.id}/compromise`, "POST", { reason }, () => t.compromised)) setCompromising(null); }} /> : null}
     {withdrawing ? <WithdrawSlot t={t} busy={busy === "withdraw"} onClose={() => setWithdrawing(null)} onSave={async reason => { if (await send("withdraw", `/api/academic/paper-slots/${withdrawing.id}`, "PATCH", { version: withdrawing.version, cancel: { reason } }, () => t.saved)) setWithdrawing(null); }} /> : null}
