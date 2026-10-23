@@ -15,6 +15,8 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { generateAIDraft, ensureAICreditsAvailable, consumeAICreditAndLog } from "@/lib/ai/openai";
 import { Pseudonymizer, scanForPII } from "@/lib/ai/pseudonymize";
+import { registerVocabulary } from "@/lib/ai-workflows/pii/vocabulary";
+import { loadPeopleVocabulary } from "@/lib/ai-workflows/pii/load-vocabulary";
 import { SchoolAiError, resolveWorkspaceCampus, loadWorkspacePermissionSnapshot, assertWorkspacePermission } from "@/lib/school-ai/access";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { createWorkspaceRecord, updateWorkspaceRecord, getWorkspaceRecordInTransaction } from "@/lib/school-ai/repository";
@@ -120,6 +122,8 @@ export function advanceAutomaticJob(user: AuthUser, id: string, raw: unknown, ge
      const catalog = await automaticCatalog(user, job.campusId);
      await ensureAICreditsAvailable(user.schoolId);
      const masker = new Pseudonymizer(); masker.token(user.email, "EMAIL"); if (user.fullName) masker.token(user.fullName, "PERSON");
+     // Names typed in the request or carried in receipt labels sit under no sensitive key.
+     registerVocabulary(masker, await loadPeopleVocabulary(user, job.campusId), [job.request, ...job.messages, JSON.stringify(job.steps), JSON.stringify(catalog.context)]);
      const baseContext = { role: user.role, purpose: catalog.purpose, request: job.request, answers: job.conversation?.length ? job.conversation : job.messages, completed: job.steps, previousError: job.error, liveContext: catalog.context, tools: Object.keys(catalog.tools), allowedOperations: catalog.operations, language: job.language };
      masker.maskObject(catalog.context); masker.maskObject(job.steps);
      const selectionPrompt = JSON.stringify({ ...baseContext, schema: aiOutputSchema(automaticSelectionSchema) });
