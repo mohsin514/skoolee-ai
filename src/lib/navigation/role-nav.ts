@@ -105,7 +105,7 @@ const messages = (mobile?: 1 | 2 | 3 | 4) => leaf("messages", "Messages", Messag
  *   TEACHER, and a campus operator only while it is the academic lead; `schoolAiExams` is the page gate for those
  *   roles (School AI view and `exams` view).
  */
-const aiWorkflows = (vis: Visibility = { module: "ai", all: ["schoolAi"] }) => leaf("ai-workflows", "AI Workflows", Sparkles, h("/ai"), { tier: "D", flagship: true, visible: vis, summary: "Answer a few questions and AI drafts your school's setup and routine work; nothing applies until you approve it." });
+const aiWorkflows = (vis: Visibility = { module: "ai", all: ["schoolAi"] }) => leaf("ai-workflows", "AI Workflows", Sparkles, h("/ai"), { tier: "D", flagship: true, visible: vis, summary: "Describe the result you need. AI executes the actions your role permits and asks for missing details." });
 const examStudio = (vis: Visibility = { all: ["schoolAiExams"] }) => leaf("exam-studio", "Exam Studio", Wand2, h("/ai/studio"), { tier: "D", flagship: true, visible: vis, summary: "Build assessments with AI, deliver them securely, mark them and plan learning recovery." });
 
 export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
@@ -263,6 +263,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
     id: "teacher", base: "/teacher", mode: "path", eyebrow: "Teaching", recordSearch: false,
     entries: [
       leaf("today", "Today", Sun, h("/teacher"), { tier: "D", mobile: 1 }),
+      aiWorkflows(),
       examStudio(),
       leaf("attendance", "Attendance", CalendarCheck, h("/teacher/attendance"), { tier: "D", mobile: 2, mobileLabel: "Register", visible: { module: "attendance" } }),
       group("assess", "Assessments", ClipboardList, "primary", [
@@ -285,7 +286,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("calendar", "Calendar & meetings", CalendarDays, h("/teacher/calendar"), { visible: { module: "timetable" } }),
         // The teacher's own classroom helpers (insights, lesson plans, remarks) — not the School AI workspace, which a
         // teacher does not run; Exam Studio is the teacher's flagship and owns /ai/studio.
-        leaf("ai", "AI assistant", Sparkles, h("/teacher/ai"), { activePaths: ["/ai"], visible: { module: "ai" } }),
+        leaf("ai", "AI assistant", Sparkles, h("/teacher/ai"), { visible: { module: "ai" } }),
         leaf("access-plans", "Access plans", Accessibility, h("/teacher/accommodations"), { visible: { all: ["accessPlans"] } }),
         leaf("activities", "Activities", Trophy, h("/activities"), { visible: { all: ["activityStaff"] } }),
         leaf("trips", "Today's trip", Bus, h("/transport"), { tier: "D", visible: { all: ["tripToday"] } }),
@@ -303,6 +304,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
     id: "accountant", base: "/accountant", mode: "view", defaultView: "dashboard", eyebrow: "Finance desk", recordSearch: false,
     entries: [
       leaf("today", "Today", LayoutDashboard, v("dashboard"), { tier: "D", mobile: 1, summary: "Collected today, outstanding, and what is waiting on you." }),
+      aiWorkflows(),
       leaf("collect", "Collect", Wallet, v("payments"), { tier: "D", mobile: 2, visible: { module: "fees" }, summary: "Record payments, print receipts, import bank statements and reconcile." }),
       leaf("invoices", "Invoices", FileText, v("invoices"), { tier: "D", mobile: 3, visible: { module: "fees" }, summary: "Generate invoices, set instalments and request adjustments." }),
       leaf("reports", "Reports & reminders", BarChart3, v("fee-reports"), { visible: { module: "reports" } }),
@@ -327,6 +329,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
     id: "receptionist", base: "/receptionist", mode: "view", defaultView: "dashboard", eyebrow: "Front desk", recordSearch: true,
     entries: [
       leaf("today", "Today", LayoutDashboard, v("dashboard"), { tier: "D", mobile: 1, summary: "Who is on site, callbacks due and pickups waiting." }),
+      aiWorkflows(),
       leaf("visitors", "Visitors", DoorOpen, v("visitors"), { tier: "D", mobile: 2, visible: { module: "front-desk" } }),
       leaf("pickup", "Pickup", UserCheck, v("pickup"), { tier: "D", mobile: 3, visible: { module: "front-desk" } }),
       leaf("admissions", "Admissions", UserPlus, v("admissions"), { tier: "D", visible: { module: "admissions" }, summary: "Log enquiries and move applications forward; your campus admin makes offers." }),
@@ -348,6 +351,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
     id: "librarian", base: "/librarian", mode: "view", defaultView: "dashboard", eyebrow: "Library", recordSearch: false,
     entries: [
       leaf("today", "Today", LayoutDashboard, v("dashboard"), { tier: "D", mobile: 1 }),
+      aiWorkflows(),
       leaf("lending", "Lending desk", ScanLine, v("lending"), { tier: "D", mobile: 2, visible: { module: "library" } }),
       leaf("catalogue", "Catalogue & members", BookCopy, v("catalogue"), { tier: "W", mobile: 3, visible: { module: "library" } }),
       messages(4),
@@ -362,6 +366,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
     id: "parent", base: "/parent", mode: "path", eyebrow: "Family", recordSearch: false,
     entries: [
       leaf("home", "Home", House, h("/parent"), { tier: "D", mobile: 1 }),
+      aiWorkflows(),
       leaf("fees", "Fees", CreditCard, h("/parent/fees"), { tier: "W", mobile: 2, visible: { module: "fees" } }),
       leaf("attendance", "Attendance", CalendarCheck, h("/parent/attendance"), { tier: "W", mobile: 3, visible: { module: "attendance" } }),
       leaf("results", "Results", FileText, h("/parent/results"), { tier: "T", mobile: 4, visible: { module: "reports" } }),
@@ -385,6 +390,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
     id: "student", base: "/student", mode: "path", eyebrow: "Learner", recordSearch: false,
     entries: [
       leaf("today", "Today", Sun, h("/student"), { tier: "D", mobile: 1 }),
+      aiWorkflows(),
       // Exam Studio's delivery side: a learner's secure online exams stay one tap from Today, never under More.
       leaf("online-exams", "My online exams", MonitorCheck, h("/ai/exams"), { tier: "D", visible: { all: ["schoolAiExams"] } }),
       leaf("work", "Work", ClipboardCheck, h("/student/assignments"), { tier: "D", mobile: 2, activePaths: ["/student/resources"], visible: { module: "timetable" } }),
@@ -409,6 +415,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
     id: "owner", base: "/owner", mode: "view", defaultView: "schools", eyebrow: "Platform operations", recordSearch: false,
     entries: [
       leaf("schools", "Schools", LayoutGrid, v("schools"), { tier: "D", mobile: 1 }),
+      aiWorkflows({ all: ["schoolAi"] }),
       leaf("users", "Tenant users", Users, v("users")),
       group("commercial", "Commercial", CreditCard, "primary", [
         leaf("subscription-requests", "Subscription requests", CreditCard, v("subscription-requests"), { tier: "D", mobile: 2, mobileLabel: "Requests", badge: "approvals" }),

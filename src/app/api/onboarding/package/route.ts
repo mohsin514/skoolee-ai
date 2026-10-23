@@ -69,7 +69,8 @@ async function queueForTeam(user: { schoolId: string; userId: string }, intent: 
 export async function GET() {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    await runWithTenantContext(setupTenantContext(user), () => assertSetupPurchaser(user));
+    return await runWithTenantContext(setupTenantContext(user), async () => {
+    await assertSetupPurchaser(user);
     const billing = await getBillingSnapshot(user.schoolId);
     const details = Object.fromEntries(
       Object.entries(billing.plans).map(([key, plan]) => [key, {
@@ -118,6 +119,7 @@ export async function GET() {
       bank: methods.includes("bank_transfer") ? paymentConfig.bank : null,
       language: ownerSettings?.preferredLanguage || "en",
     });
+    });
   } catch (error) {
     return errorResponse(error, "[onboarding-package] catalogue failed");
   }
@@ -127,7 +129,8 @@ export async function POST(req: NextRequest) {
   let activeIntentId: string | null = null;
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    await runWithTenantContext(setupTenantContext(user), () => assertSetupPurchaser(user));
+    return await runWithTenantContext(setupTenantContext(user), async () => {
+    await assertSetupPurchaser(user);
 
     const parsed = onboardingCheckoutSchema.safeParse(await req.json());
     if (!parsed.success) {
@@ -385,6 +388,7 @@ export async function POST(req: NextRequest) {
       currency: intent.currency,
       bank: paymentConfig.bank,
       returnStep: intent.returnStep,
+    });
     });
   } catch (error) {
     const response = errorResponse(error, "[onboarding-package] checkout failed");

@@ -17,6 +17,7 @@ export async function previewAcademicSetup(user: AuthUser, record: SchoolAiRecor
   if (data.missingInformation.length || !data.steps.length || data.steps.some(step => step.status === "blocked")) throw new SchoolAiError("Resolve the workflow's missing information and blockers before setup.", 422, "SETUP_INCOMPLETE");
   const cycles = await db.academicCycle.findMany({ where: { schoolId: user.schoolId, campusId: record.campusId }, orderBy: { academicYear: "asc" } });
   const target = cycles.find(cycle => cycle.academicYear === proposal.academicYear);
+  if (proposal.existingCycleId && target?.id !== proposal.existingCycleId) throw new SchoolAiError("The selected academic year is unavailable. Reload its current details.", 409, "CYCLE_DETAILS_CONFLICT");
   const activeOther = cycles.find(cycle => cycle.status === "ACTIVE" && cycle.id !== target?.id);
   if (activeOther) throw new SchoolAiError(`End or pause the active cycle ${activeOther.label} before preparing a different academic year.`, 409, "ACTIVE_CYCLE_CONFLICT");
   const unclosed = cycles.filter(cycle => cycle.academicYear < proposal.academicYear && cycle.status !== "ENDED");
