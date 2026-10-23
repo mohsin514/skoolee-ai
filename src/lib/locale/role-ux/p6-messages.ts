@@ -266,6 +266,9 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["No contact", "لا توجد وسيلة تواصل", "رابطہ موجود نہیں"],
   ["Report card published", "نُشرت بطاقة التقرير", "رپورٹ کارڈ شائع ہو گیا"],
   ["Report card ready for review", "بطاقة التقرير جاهزة للمراجعة", "رپورٹ کارڈ جائزے کے لیے تیار"],
+  // SKO-504: a teacher's one-sentence family note after results.
+  ["Note from a teacher", "ملاحظة من المعلم", "استاد کا نوٹ"],
+  ["Notes from teachers", "ملاحظات المعلمين", "اساتذہ کے نوٹس"],
   ["Exam date sheet", "جدول مواعيد الامتحانات", "امتحانی ڈیٹ شیٹ"],
   ["Marks entry deadline", "الموعد النهائي لإدخال الدرجات", "نمبر درج کرنے کی آخری تاریخ"],
   ["Fee overdue", "رسوم متأخرة", "فیس تاخیر میں"],

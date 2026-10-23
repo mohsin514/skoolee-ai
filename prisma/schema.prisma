@@ -1869,6 +1869,8 @@ model ExamSession {
   paperDueOn   DateTime? @map("paper_due_on") @db.Date
   /// SKO-500: the office's paper pattern (filled from Slice 2).
   paperPolicy  Json?     @map("paper_policy")
+  /// SKO-504: family result notes may go out on result release instead of waiting for the report card.
+  familyNotesOnRelease Boolean @default(false) @map("family_notes_on_release")
   paperSlots   ExamPaperSlot[]
   exams Exam[]
 
@@ -9702,4 +9704,31 @@ model ExamPaperModeration {
 
   @@index([schoolId, campusId, slotId, createdAt])
   @@map("exam_paper_moderations")
+}
+
+/// SKO-504: one sentence per learner per sitting for the family, in the guardian's language, drafted
+/// from that learner's own moderated marks (`deriveFeedback`), edited by the teacher and sent explicitly.
+/// Families read only SENT notes; sending waits for the report card unless the session opts in.
+model FamilyResultNote {
+  id            String    @id @default(uuid())
+  schoolId      String    @map("school_id")
+  campusId      String    @map("campus_id")
+  assignmentId  String    @map("assignment_id")
+  attemptId     String    @map("attempt_id")
+  studentId     String    @map("student_id")
+  resultVersion Int       @map("result_version")
+  language      String    @default("en")
+  sentence      String    @db.Text
+  status        String    @default("DRAFT") // DRAFT | SENT
+  createdById   String    @map("created_by_id")
+  sentById      String?   @map("sent_by_id")
+  sentAt        DateTime? @map("sent_at")
+  version       Int       @default(1)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([attemptId])
+  @@index([schoolId, campusId, assignmentId])
+  @@index([schoolId, studentId, status])
+  @@map("family_result_notes")
 }

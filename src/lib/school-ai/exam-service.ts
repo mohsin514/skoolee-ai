@@ -50,6 +50,30 @@ export async function staffExamAccess(user: AuthUser, assignment: { createdById:
   return paper;
 }
 
+/**
+ * SKO-504 (plan §5, re-check policy: "HOD/office decides"): who decides an appeal or a result correction.
+ * Staff with edit access to the sitting decide, as before. In addition, the head of the primary department
+ * of the sitting's author or of the paper's subject teacher decides with authoring access — never as the
+ * head of themselves (`headsAuthorDepartment` excludes self).
+ */
+export async function resultDecisionAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown; examScheduleId?: string | null }, db: TxClient = prisma) {
+  if (user.role !== "TEACHER") return staffExamAccess(user, assignment, "edit", db);
+  const paper = paperDataSchema.parse(assignment.paperSnapshot);
+  if (assignment.campusId !== user.campusId) throw new ApiError("Exam unavailable.", 404);
+  const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, role: user.role, campusId: user.campusId, isActive: true }, select: { accessVersion: true } });
+  if (!actor || (user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion)) throw new ApiError("Your exam access changed. Sign in again before continuing.", 403);
+  const subject = await db.subject.findFirst({ where: { id: paper.subjectId, schoolId: user.schoolId }, select: { teacherId: true } });
+  const { headsAuthorDepartment } = await import("./department-heads");
+  let heads = false;
+  for (const person of new Set([assignment.createdById, subject?.teacherId].filter((value): value is string => Boolean(value)))) if (await headsAuthorDepartment(db, user.schoolId, user.userId, person)) { heads = true; break; }
+  // Anyone else keeps the previous rule: authorized staff with edit access to this sitting.
+  if (!heads) return staffExamAccess(user, assignment, "edit", db);
+  const permissions = await loadWorkspacePermissionSnapshot(user, db);
+  await assertSchoolAiAccess(user, "add", permissions);
+  await assertWorkspacePermission(user, "exams", "add", permissions);
+  return paper;
+}
+
 export async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma) {
   const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   if (!assignment) throw new ApiError("Exam unavailable.", 404);
@@ -71,7 +95,8 @@ export async function listSchoolAiExams(user: AuthUser) {
   await assertSchoolAiAccess(user, "view"); await assertWorkspacePermission(user, "exams", "view");
   if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Exam access is restricted to teaching staff.", 403);
   const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user) : [];
-  return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}), ...(user.role === "TEACHER" ? { createdById: user.userId, paper: { subjectId: { in: subjects.map((subject) => subject.id) } } } : {}) }, select: { ...selection, _count: { select: { attempts: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
+  // SKO-504: a teacher lists every sitting of a subject they teach, as `staffExamAccess` lets them mark it.
+  return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}), ...(user.role === "TEACHER" ? { paper: { subjectId: { in: subjects.map((subject) => subject.id) } } } : {}) }, select: { ...selection, _count: { select: { attempts: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
 }
 
 export async function examRoster(user: AuthUser, paperId: string) {

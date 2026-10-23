@@ -6,15 +6,17 @@ import type { TxClient } from "@/lib/db/prisma";
 import type { PaperData } from "./assessment";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError } from "@/lib/api/scope";
+import { proposeCorrectionIn } from "./exam-moderation-service";
 import { schoolAiTransaction } from "./transaction";
-import { scopedAssignment, staffExamAccess } from "./exam-service";
+import { resultDecisionAccess, scopedAssignment, staffExamAccess } from "./exam-service";
 import { examReviewSchema, responsesSchema, validateExamReview, examKeyCorrectionSchema, correctedExamPaper, scoreObjectiveResponses } from "./exam";
 
 const id = z.string().trim().min(1).max(120);
 export const regradeAttemptSchema = z.object({ attemptId: id, version: z.number().int().min(1), reason: z.string().trim().min(1).max(4000), review: examReviewSchema }).strict();
 // SKO-424: a review request may name the disputed questions and the outcome the learner asks for.
 export const appealResultSchema = z.object({ version: z.number().int().positive(), reason: z.string().trim().min(1).max(4000), disputedQuestionIds: z.array(id).max(100).optional(), requestedOutcome: z.string().trim().min(1).max(2000).optional() }).strict();
-export const resolveAppealSchema = z.object({ appealId: id, version: z.number().int().positive(), status: z.enum(["UPHELD", "DISMISSED"]), resolution: z.string().trim().min(1).max(4000) }).strict();
+// SKO-504: upholding a request may carry the corrected marks, which become a correction for a second reviewer.
+export const resolveAppealSchema = z.object({ appealId: id, version: z.number().int().positive(), status: z.enum(["UPHELD", "DISMISSED"]), resolution: z.string().trim().min(1).max(4000), review: examReviewSchema.optional() }).strict();
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 /** Result snapshots omit the private key, rubric, source material and other students. */
@@ -56,6 +58,18 @@ export async function regradeExamAttempt(user: AuthUser, assignmentId: string, r
  });
 }
 
+/**
+ * SKO-504: the desk's "revise" after release no longer dead-ends — it becomes a correction proposal
+ * that another reviewer approves (`decideResultCorrection`). Before release it is a direct revision.
+ */
+export async function reviseExamResult(user: AuthUser, assignmentId: string, raw: unknown) {
+ const input = regradeAttemptSchema.parse(raw);
+ const { assignment } = await scopedAssignment(user, assignmentId);
+ if (!assignment.resultsReleasedAt) return regradeExamAttempt(user, assignmentId, input);
+ const correction = await schoolAiTransaction(user, tx => proposeCorrectionIn(tx, user, assignmentId, { attemptId: input.attemptId, version: input.version, reason: input.reason.length >= 8 ? input.reason : `Revised: ${input.reason}`, review: input.review, source: "REGRADE" }));
+ return { attemptId: input.attemptId, version: input.version, correctionId: correction.id, pendingCorrection: true as const };
+}
+
 /** Writes one result revision against an exact predecessor, with audit and appeal resolution. */
 export async function applyResultRevision(tx: TxClient, user: AuthUser, args: { assignmentId: string; campusId: string; paper: PaperData; attempt: { id: string; responses: unknown; review: unknown }; fromVersion: number; review: z.infer<typeof examReviewSchema>; reason: string; createdById?: string }) {
   const { assignmentId, campusId, paper, attempt, fromVersion, reason } = args;
@@ -94,11 +108,17 @@ export async function appealExamResult(user: AuthUser, assignmentId: string, raw
  });
 }
 
+/** SKO-504: the sitting, in the scope of someone who may decide its re-checks (a manager, or the head of department). */
+async function decidedAssignment(user: AuthUser, assignmentId: string, tx: TxClient) {
+ const assignment = await tx.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
+ if (!assignment) throw new ApiError("Exam unavailable.", 404);
+ return { assignment, paper: await resultDecisionAccess(user, assignment, tx) };
+}
+
 export async function resolveExamAppeal(user: AuthUser, assignmentId: string, raw: unknown) {
  const input = resolveAppealSchema.parse(raw);
  return schoolAiTransaction(user, async tx => {
-  const { assignment } = await scopedAssignment(user, assignmentId, tx);
-  await staffExamAccess(user, assignment, "edit", tx);
+  const { assignment } = await decidedAssignment(user, assignmentId, tx);
   const appeal = await tx.schoolAiExamAppeal.findFirst({ where: { id: input.appealId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, version: input.version, status: "OPEN" } });
   if (!appeal) throw new ApiError("This review request changed. Refresh it before deciding.", 409);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: appeal.attemptId, schoolId: user.schoolId, campusId: assignment.campusId, reviewVersion: appeal.resultVersion } });
@@ -106,7 +126,10 @@ export async function resolveExamAppeal(user: AuthUser, assignmentId: string, ra
   const updated = await tx.schoolAiExamAppeal.updateMany({ where: { id: appeal.id, schoolId: user.schoolId, version: input.version, status: "OPEN" }, data: { status: input.status, resolution: input.resolution, resolvedById: user.userId, resolvedAt: new Date(), version: { increment: 1 } } });
   if (updated.count !== 1) throw new ApiError("Another decision was saved first.", 409);
   await writeAuditEvent(tx, user, { table: "school_ai_exam_appeals", recordId: appeal.id, action: input.status === "DISMISSED" ? "REJECT" : "APPROVE", campusId: assignment.campusId, before: { status: appeal.status, version: input.version }, after: { status: input.status, version: input.version + 1, attemptId: appeal.attemptId, resultVersion: appeal.resultVersion } });
-  return { id: appeal.id, status: input.status, version: input.version + 1 };
+  // SKO-504: an upheld request reaches the result only through a correction another reviewer approves;
+  // approving it writes the revision and moves this request to RESOLVED.
+  const correction = input.status === "UPHELD" && input.review ? await proposeCorrectionIn(tx, user, assignmentId, { attemptId: appeal.attemptId, version: appeal.resultVersion, reason: `Appeal upheld: ${input.resolution}`, review: input.review, appealId: appeal.id, source: "APPEAL" }) : null;
+  return { id: appeal.id, status: input.status, version: input.version + 1, correctionId: correction?.id ?? null };
  });
 }
 

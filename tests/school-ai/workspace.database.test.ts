@@ -106,7 +106,8 @@ test("teacher ownership and subject assignments constrain create, list, get and 
   assert(!(await listWorkspaceRecords(otherTeacher)).records.some((item) => item.id === own.id));
   const updated = await updateWorkspaceRecord(teacher, own.id, { version: own.version, title: "Teacher revised draft" });
   assert.equal(updated.version, 2);
-  await assert.rejects(() => updateWorkspaceRecord(teacher, own.id, { version: updated.version, action: "approve" }), { status: 403 });
+  // SKO-500: under the default classroom tier a teacher approves their own syllabus source; another teacher still cannot reach it.
+  await assert.rejects(() => updateWorkspaceRecord(otherTeacher, own.id, { version: updated.version, action: "approve" }), { status: 404 });
   await assert.rejects(() => createWorkspaceRecord(teacher, { kind: "POLICY", title: "School rule", campusId, data: { mode: "draft_only", instructions: "Rule", scope: "school", requiresApproval: true }, idempotencyKey: randomUUID() }), { status: 403 });
 });
 

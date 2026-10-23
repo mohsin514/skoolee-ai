@@ -26,6 +26,7 @@ const kindLabel = (ui: Ui, item: Item) => ({
   PAY_FEE: item.state === "COMPLETED" ? ui("Fee paid") : ui("Pay a fee"),
   FEEDBACK_RETURNED: ui("Feedback returned"),
   REPORT_PUBLISHED: ui("Report card published"),
+  RESULT_NOTE: ui("Note from a teacher"),
   TRIP_CONSENT: item.state === "UPDATE" ? ui("Trip notice (another guardian answers)") : item.detail?.includes("changed") ? ui("Trip details changed — answer again") : ui("Trip permission"),
   MEETING_RESCHEDULE: ui("A meeting needs a new time"),
   MEETING_ACTION: item.state === "COMPLETED" ? ui("Meeting action done") : ui("Meeting action"),
@@ -124,7 +125,7 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
       {shown.length === 0 ? <div data-inbox-empty><EmptyState size="sm" icon={InboxIcon} title={view === "ACTION" ? ui("You are up to date") : ui("Nothing here.")} description={view === "ACTION" ? ui("New school requests will appear here.") : ui("Requests in this view will appear here when there are any.")} /></div> : <ul className="space-y-2">
         {shown.map(item => <li key={item.id} className={cn("rounded-2xl border p-3", item.state === "ACTION" && item.overdue ? "border-status-error-border bg-status-error-surface" : "border-border-subtle bg-card")} data-inbox-item={item.id} data-inbox-state={item.state} data-inbox-child-id={item.childId}>
           <p className="text-xs font-semibold text-ink-subtle [overflow-wrap:anywhere]"><bdi>{item.childName}</bdi> · <bdi>{item.schoolName}</bdi> · <bdi>{item.campusName}</bdi></p>
-          <p className="mt-1 text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{kindLabel(ui, item)}{item.kind === "PAY_FEE" && item.title ? <> · <bdi>{item.title}</bdi></> : item.kind === "FEEDBACK_RETURNED" || item.kind === "REPORT_PUBLISHED" || item.kind === "TRIP_CONSENT" || item.kind === "MEETING_ACTION" ? <> · <bdi>{item.title}</bdi></> : null}</p>
+          <p className="mt-1 text-sm font-semibold text-ink-strong [overflow-wrap:anywhere]">{kindLabel(ui, item)}{item.kind === "PAY_FEE" && item.title ? <> · <bdi>{item.title}</bdi></> : item.kind === "FEEDBACK_RETURNED" || item.kind === "REPORT_PUBLISHED" || item.kind === "RESULT_NOTE" || item.kind === "TRIP_CONSENT" || item.kind === "MEETING_ACTION" ? <> · <bdi>{item.title}</bdi></> : null}</p>
           <p className="text-xs text-ink-muted">
             {item.kind === "EXPLAIN_ABSENCE" || item.kind === "CLARIFY_ABSENCE" ? <><bdi>{item.detail && /^\d{4}-\d{2}-\d{2}$/.test(item.detail) ? date(item.detail) : item.detail}</bdi></> : item.kind === "PAY_FEE" && item.detail ? <bdi>{inboxAmount(money, item.detail) ?? item.detail}</bdi> : null}
             {item.kind === "LEAVE_REQUEST" || item.kind === "TRIP_CONSENT" ? <bdi>{item.detail}</bdi> : null}

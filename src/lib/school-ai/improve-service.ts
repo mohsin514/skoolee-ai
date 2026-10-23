@@ -4,12 +4,13 @@ import { curriculumDataSchema, type PaperData } from "./assessment";
 import { examReviewSchema, responsesSchema } from "./exam";
 import { scopedAssignment } from "./exam-service";
 import { analyseItems, deriveFeedback } from "./recovery";
+import { buildMistakeMap } from "./mistake-map";
 import { schoolAiTransaction } from "./transaction";
 
 // SKO-408 Results and improvement: staff read item analysis and per-learner feedback for one exam;
 // a learner reads only their own feedback, and only after the result release (R18.12).
 
-async function outcomeTitles(tx: TxClient, user: AuthUser, paper: PaperData) {
+export async function outcomeTitles(tx: TxClient, user: AuthUser, paper: PaperData) {
   const row = await tx.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, recordId: paper.curriculumId, version: paper.curriculumVersion }, select: { data: true } });
   const parsed = row ? curriculumDataSchema.safeParse(row.data) : null;
   return new Map(parsed?.success ? parsed.data.outcomes.map(outcome => [outcome.id, outcome.title]) : []);
@@ -31,12 +32,15 @@ export async function examImprovement(user: AuthUser, assignmentId: string) {
     const assigned = Array.isArray(assignment.studentIds) ? assignment.studentIds.length : 0;
     const names = new Map((await tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: reviewed.map(attempt => attempt.studentId) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
     const rows = reviewed.map(attempt => ({ attempt, review: reviewOf(attempt.review), responses: responsesSchema.parse(attempt.responses) }));
+    const items = analyseItems(paper, rows);
     return {
       role: "STAFF" as const,
       exam: { id: assignment.id, title: assignment.title, endsAt: assignment.endsAt, resultsReleasedAt: assignment.resultsReleasedAt, paperVersion: assignment.paperVersion },
       // The evidence base, stated before any reading of it: absence and unmarked work are not learning evidence.
       counts: { assigned, absent: Math.max(0, assigned - attempts.length), inProgress: attempts.filter(attempt => attempt.status === "IN_PROGRESS").length, unmarked: attempts.filter(attempt => attempt.status === "SUBMITTED").length, reviewed: reviewed.length },
-      items: analyseItems(paper, rows),
+      items,
+      // SKO-504: the Mistake Map reads the same moderated rows, with items under question left out.
+      map: buildMistakeMap(paper, rows.map(row => ({ attemptId: row.attempt.id, name: names.get(row.attempt.studentId) ?? null, review: row.review, responses: row.responses })), items, titles),
       learners: rows.map(row => ({ attemptId: row.attempt.id, name: names.get(row.attempt.studentId) ?? null, resultVersion: row.attempt.reviewVersion, feedback: deriveFeedback(paper, row.review, row.responses, titles) })),
     };
   });
