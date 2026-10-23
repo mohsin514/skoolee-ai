@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
+import { sha256 } from "./executor/canonical";
 import { z } from "zod";
 import { WorkflowError, toWorkflowError } from "./errors";
 
@@ -12,3 +15,9 @@ export function workflowErrorResponse(error: unknown) {
 }
 
 export const workflowJson = (body: unknown, init: ResponseInit = {}) => Response.json(body, { ...init, headers: { ...PRIVATE, ...init.headers } });
+
+/** Confirmations are bound to the signed-in session that made them (control P4); only a hash is stored. */
+export async function sessionTokenHash(): Promise<string | null> {
+  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  return token ? sha256(token) : null;
+}

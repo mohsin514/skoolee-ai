@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { resolveWorkspaceCampus } from "@/lib/school-ai/access";
 import { WorkflowError, toWorkflowError } from "../errors";
 import { planJob, type Generate } from "../planner/plan";
+import { observeHandoffs } from "../executor/handoff";
 import { sha256 } from "../executor/canonical";
 import { deriveJobStatus, deriveOutcome, nextStepAction, type StepStatus } from "../executor/scheduler";
 import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
@@ -85,8 +86,9 @@ export async function savePlan(user: AuthUser, jobId: string, steps: PlannedStep
   });
 }
 
+/** A hand-off the deciding screen has executed is a write (its receipt names who decided); an open one is not. */
 const kindOf = (step: AiWorkflowStep): "write" | "read" | "draft" | "handoff" | null =>
-  step.handoffId ? "handoff" : ((step.receipt as { kind?: string } | null)?.kind as "write" | "read" | "draft" | undefined) ?? null;
+  step.status === "HANDED_OFF_DONE" ? "write" : step.handoffId ? "handoff" : ((step.receipt as { kind?: string } | null)?.kind as "write" | "read" | "draft" | undefined) ?? null;
 
 /**
  * Advances class-A and class-C steps and surfaces class-B steps for confirmation. Class-B steps never
@@ -111,6 +113,7 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
         job.planVersion = planned.planVersion; job.status = planned.status;
       }
       const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
+      await observeHandoffs(job);
       for (let pass = 0; pass < STEP_CAP; pass++) {
         const steps = await prisma.aiWorkflowStep.findMany({ where: { jobId: job.id, schoolId: job.schoolId, planVersion: job.planVersion }, orderBy: { createdAt: "asc" } });
         const statuses = new Map(steps.map(step => [step.stepKey, step.status as StepStatus]));

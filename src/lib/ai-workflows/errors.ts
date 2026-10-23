@@ -1,3 +1,5 @@
+import type { HandoffPrepared } from "./registry/types";
+
 /**
  * The closed set of codes the AI Workflows engine reports (control P11). Clients localise by code;
  * no English-only server sentence reaches the user. `params` carry ids and counts, never free text.
@@ -33,6 +35,11 @@ export class WorkflowError extends Error {
     this.name = "WorkflowError";
     this.status = WORKFLOW_ERROR_CODES[code];
   }
+}
+
+/** A typed operation whose approval policy needs another person; carries the already saved proposal. */
+export class EscalationRequired extends Error {
+  constructor(readonly prepared: HandoffPrepared) { super("ESCALATED"); this.name = "EscalationRequired"; }
 }
 
 /** Maps any thrown value to a code. Domain messages are kept server-side (logged by kind only). */

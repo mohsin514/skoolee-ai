@@ -3,8 +3,8 @@ import type { AiWorkflowJob, AiWorkflowStep } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { capability } from "../registry";
 import { runGates } from "../registry/gates";
-import type { CapabilityContext, ExecEntry, HandoffEntry, Receipt } from "../registry/types";
-import { WorkflowError, toWorkflowError } from "../errors";
+import type { CapabilityContext, ExecEntry, HandoffEntry, HandoffPrepared, Receipt } from "../registry/types";
+import { EscalationRequired, WorkflowError, toWorkflowError } from "../errors";
 import { appendEvent } from "../jobs/events";
 import { sha256 } from "./canonical";
 
@@ -27,10 +27,21 @@ async function settle(step: AiWorkflowStep, job: AiWorkflowJob, data: Prisma.AiW
   });
 }
 
-export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, step: AiWorkflowStep, entry: ExecEntry, input: unknown): Promise<Receipt | null> {
+/**
+ * The domain idempotency key comes from the step's content, not its plan position: a re-plan after a
+ * follow-up answer that repeats an already committed step replays its receipt instead of writing again.
+ */
+export function effectKey(jobId: string, capabilityKey: string, capabilityVersion: number, input: unknown) {
+  return `wf-${jobId}-${sha256({ capability: capabilityKey, version: capabilityVersion, input }).slice(0, 40)}`;
+}
+
+export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, step: AiWorkflowStep, entry: ExecEntry, input: unknown, opts: { confirmed?: boolean } = {}): Promise<Receipt | null> {
+  // Class B runs only inside the user's confirming request (control P5); the worker and advance never pass this.
+  if (step.effectiveClass !== "A" && !opts.confirmed) throw new WorkflowError("CONFIRM_REQUIRED");
   const inputHash = sha256({ capability: entry.key, version: entry.version, input });
-  let intent = await prisma.aiWorkflowIntent.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: job.schoolId, actorId: job.actorId, idempotencyKey: step.idempotencyKey } } });
-  if (intent && (intent.inputHash !== inputHash || intent.stepId !== step.id)) throw new WorkflowError("KEY_CONFLICT");
+  const key = effectKey(job.id, entry.key, entry.version, input);
+  let intent = await prisma.aiWorkflowIntent.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: job.schoolId, actorId: job.actorId, idempotencyKey: key } } });
+  if (intent && intent.inputHash !== inputHash) throw new WorkflowError("KEY_CONFLICT");
   if (intent?.state === "COMMITTED" || intent?.state === "RECONCILED") {
     const receipt = { ...(intent.receipt as unknown as Receipt), replayed: true };
     await settle(step, job, { status: "SUCCEEDED", receipt: json(receipt), inputHash, finishedAt: new Date() }, "STEP_SUCCEEDED", { replayed: true });
@@ -43,7 +54,7 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
   }
   if (!intent) {
     try {
-      intent = await prisma.aiWorkflowIntent.create({ data: { schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, actorId: job.actorId, stepId: step.id, idempotencyKey: step.idempotencyKey, capabilityKey: entry.key, capabilityVersion: entry.version, inputHash } });
+      intent = await prisma.aiWorkflowIntent.create({ data: { schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, actorId: job.actorId, stepId: step.id, idempotencyKey: key, capabilityKey: entry.key, capabilityVersion: entry.version, inputHash } });
     } catch (error) {
       if (isUnique(error)) throw new WorkflowError("LEASED");
       throw error;
@@ -54,7 +65,7 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
   try {
     const gate = await runGates(ctx, entry.gates);
     if (!gate.ok) throw new WorkflowError(gate.code === "SEAT" ? "SEAT_HELD" : gate.code === "SCOPE" ? "SCOPE_DENIED" : "ROLE_NOT_ALLOWED");
-    const receipt = await entry.execute(ctx, input, { idempotencyKey: step.idempotencyKey });
+    const receipt = await entry.execute(ctx, input, { idempotencyKey: key });
     await prisma.$transaction(async tx => {
       await tx.aiWorkflowIntent.update({ where: { id: intent!.id }, data: { state: "COMMITTED", receipt: json(receipt), committedAt: new Date() } });
       const updated = await tx.aiWorkflowStep.updateMany({ where: { id: step.id, schoolId: step.schoolId, version: running.version }, data: { status: "SUCCEEDED", receipt: json(receipt), finishedAt: new Date(), version: { increment: 1 } } });
@@ -63,6 +74,13 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
     });
     return receipt;
   } catch (thrown) {
+    if (thrown instanceof EscalationRequired) {
+      // Policy needs a second person: nothing was applied, and the saved proposal goes to an eligible approver.
+      await prisma.aiWorkflowIntent.update({ where: { id: intent.id }, data: { state: "FAILED" } });
+      await prisma.aiWorkflowStep.updateMany({ where: { id: step.id, schoolId: step.schoolId, version: running.version }, data: { effectiveClass: "C", status: "PENDING", version: { increment: 1 } } });
+      await openHandoff(job, { ...running, version: running.version + 1 }, thrown.prepared, key, input);
+      return null;
+    }
     const error = toWorkflowError(thrown);
     // A domain refusal or a gate means nothing was written; a deadline or internal error might have been.
     const maybeWritten = error.code === "DEADLINE" || error.code === "INTERNAL";
@@ -79,16 +97,22 @@ export async function runHandoffStep(ctx: CapabilityContext, job: AiWorkflowJob,
     await settle(step, job, { status: "BLOCKED", errorCode: gate.code === "SEAT" ? "SEAT_HELD" : "ROLE_NOT_ALLOWED", finishedAt: new Date() }, "STEP_FAILED", { code: gate.code });
     return null;
   }
-  const existing = await prisma.aiWorkflowHandoff.findUnique({ where: { schoolId_idempotencyKey: { schoolId: job.schoolId, idempotencyKey: step.idempotencyKey } } });
-  const handoff = existing ?? await (async () => {
-    const prepared = await entry.handoff.prepare(ctx, input, { idempotencyKey: step.idempotencyKey });
-    return prisma.aiWorkflowHandoff.create({ data: {
-      schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, stepId: step.id, kind: prepared.kind, targetRoute: prepared.link, targetRoles: [...prepared.targetRoles],
-      originRole: job.actorRole, originUserId: job.actorId, recordId: typeof prepared.prefill.recordId === "string" ? prepared.prefill.recordId : null,
-      recordVersion: typeof prepared.prefill.version === "number" ? prepared.prefill.version : null, prefill: json(prepared.prefill), prefillHash: sha256(prepared.prefill),
-      idempotencyKey: step.idempotencyKey, expiresAt: new Date(Date.now() + 14 * 86_400_000),
-    } });
-  })();
+  const key = effectKey(job.id, entry.key, entry.version, input);
+  const existing = await prisma.aiWorkflowHandoff.findUnique({ where: { schoolId_idempotencyKey: { schoolId: job.schoolId, idempotencyKey: key } } });
+  if (existing) {
+    await settle(step, job, { status: "WAITING_HANDOFF", handoffId: existing.id, boundInput: json(input) }, "STEP_HANDED_OFF", { kind: existing.kind });
+    return existing;
+  }
+  return openHandoff(job, step, await entry.handoff.prepare(ctx, input, { idempotencyKey: key }), key, input);
+}
+
+async function openHandoff(job: AiWorkflowJob, step: AiWorkflowStep, prepared: HandoffPrepared, key: string, input: unknown) {
+  const handoff = await prisma.aiWorkflowHandoff.create({ data: {
+    schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, stepId: step.id, kind: prepared.kind, targetRoute: prepared.link, targetRoles: [...prepared.targetRoles],
+    originRole: job.actorRole, originUserId: job.actorId, recordId: typeof prepared.prefill.recordId === "string" ? prepared.prefill.recordId : null,
+    recordVersion: typeof prepared.prefill.version === "number" ? prepared.prefill.version : null, prefill: json(prepared.prefill), prefillHash: sha256(prepared.prefill),
+    idempotencyKey: key, expiresAt: new Date(Date.now() + 14 * 86_400_000),
+  } });
   await settle(step, job, { status: "WAITING_HANDOFF", handoffId: handoff.id, boundInput: json(input) }, "STEP_HANDED_OFF", { kind: handoff.kind });
   return handoff;
 }

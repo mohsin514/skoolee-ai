@@ -16,6 +16,7 @@ import { examSessionPlanProposalSchema } from "@/lib/school-ai/exam-session-plan
 import { feeInvoiceProposalSchema } from "@/lib/school-ai/fee-invoices";
 import { curriculumDataSchema } from "@/lib/school-ai/assessment";
 import { defineCapability } from "./define";
+import { EscalationRequired } from "../errors";
 import { ownCampus } from "./gates";
 import type { CapabilityEntry, CapabilityContext, ConfirmationClass, EntryCopy, Gate, PreviewModel, Receipt, Risk } from "./types";
 
@@ -55,9 +56,16 @@ async function saveProposal(ctx: CapabilityContext, operation: SchoolAiOperation
 
 async function runApproved(ctx: CapabilityContext, operation: SchoolAiOperation, title: string, proposal: Record<string, unknown>, idempotencyKey: string): Promise<Receipt> {
   let record = await saveProposal(ctx, operation, title, proposal, idempotencyKey);
-  // Slice 1f binds this approval to the user's hash-bound confirmation; the repository still runs
-  // approval role, separation of duties and approval issues on every approve.
-  if (record.status !== "APPROVED") record = await updateWorkspaceRecord(ctx.user, record.id, { version: record.version, action: "approve" });
+  // Reached only from the user's confirming request for this exact input and preview (control P5).
+  // The repository still runs approval role, separation of duties and approval issues on approve;
+  // when policy needs a second person, the saved proposal is handed to an eligible approver instead.
+  if (record.status !== "APPROVED") {
+    try { record = await updateWorkspaceRecord(ctx.user, record.id, { version: record.version, action: "approve" }); }
+    catch (error) {
+      if ((error as { code?: string }).code === "APPROVAL_SEPARATION_REQUIRED") throw new EscalationRequired({ kind: "RECORD_APPROVAL", targetRoles: ACADEMIC_OR_OPERATOR, link: `/ai?workflow=${WORKFLOW_TAB[operation]}`, prefill: { recordId: record.id, version: record.version }, detail: { recordId: record.id } });
+      throw error;
+    }
+  }
   const preview = await previewSchoolAiExecution(ctx.user, record.id, operation, record.version);
   const receipt = await executeSchoolAiTool(ctx.user, record.id, { operation, version: record.version, previewHash: preview.previewHash, idempotencyKey });
   const detail = JSON.parse(JSON.stringify(receipt)) as Record<string, unknown>;
@@ -75,6 +83,7 @@ interface TypedOp {
 }
 
 const OPERATORS: readonly UserRole[] = ["ADMIN", "CAMPUS_ADMIN"];
+const ACADEMIC_OR_OPERATOR: readonly UserRole[] = ["PRINCIPAL", "ADMIN", "CAMPUS_ADMIN", "SUPER_ADMIN"];
 const ACADEMIC_LEADS: readonly UserRole[] = ["PRINCIPAL", "ADMIN", "CAMPUS_ADMIN"];
 const FINANCE_DESK: readonly UserRole[] = ["ACCOUNTANT", "ADMIN", "CAMPUS_ADMIN"];
 
