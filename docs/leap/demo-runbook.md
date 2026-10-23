@@ -53,3 +53,37 @@ Suggested line: "Seeking pilot schools and an implementation partner."
 - [ ] Current event details rechecked on the official LEAP site.
 - [ ] Every claim in the materials appears in `claims-register.md` with evidence, date and permission, or is marked as a target.
 - [ ] Two timed rehearsals from reset, EN and AR, with matching fingerprints and end states, plus one rehearsed network failure.
+
+## 6. The five-minute arc (SKO-507, plan §10)
+
+Reset with the arc's pre-seeded data: `DEMO_PASSWORD=<12+ chars> DATABASE_URL=<demo database> npx tsx scripts/demo/reset-demo-tenant.ts --leap`. The manifest gains a `leap` block: 12 Grade 7 A learners, the Gases check paper and two released earlier sittings.
+
+**Pre-seeded by `--leap` (say so if asked):** six extra synthetic Grade 7 A learners with accounts; an approved "Gases check" paper whose second item is ambiguous (Nitrogen against Air); two earlier released sittings (six and three weeks before the demo) whose marked scripts are written as fixtures. These are the Exam Twin's evidence and Item Watch's example. Nothing else is seeded.
+
+Every beat carries one label. **LIVE**: the product does it on stage. **RECORDED**: play the labelled clip and say it is a recording. **PLANNED**: built later or needs a service the demo environment does not have; describe it, do not show it.
+
+| Time | Beat | Label | Rehearsed by |
+|---|---|---|---|
+| 0:00 | Office requests every paper in one click; the Papers ledger lists each one | LIVE | arc spec |
+| 0:20 | The teacher's Exam Studio shows the next step | LIVE | arc spec |
+| 0:40 | Syllabus Drop from a photographed syllabus | PLANNED here (needs the AI provider and a camera); RECORDED once a clip exists | — |
+| 1:20 | HOD countersigns the coverage | LIVE | slice 1 suite |
+| 1:35 | Blueprint fills from the provider; Paper DNA strip | PLANNED here (needs the AI provider); the paper is authored from the approved source in rehearsal | slice 1 suite (deterministic DNA) |
+| 2:15 | Solver flags "Nitrogen vs Air" | PLANNED (needs the AI provider) | — |
+| 2:15 | Exam Twin: expected share per item from this class's earlier released sittings, labelled as an estimate with its sample | LIVE | arc spec |
+| 2:45 | HOD signs the paper; the slot reads MODERATED | LIVE | arc spec |
+| 2:55 | One seal; the ledger reads SEALED | LIVE | arc spec |
+| 3:20 | Control room board | LIVE | arc spec |
+| 3:20 | Cable pull and reconnect on the candidate laptop | LIVE on stage (manual) | slice 4 suite (board states) |
+| 4:00 | Script Stream of a photographed marked pile | PLANNED here (needs the camera and reader); RECORDED once a clip exists | slice 3 suite (QR scan, hand-marked scores) |
+| 4:30 | Mistake Map → tick one outcome → ten-minute plan → one family note in the guardian's language; "Twin said / class scored" | LIVE | arc spec |
+| 4:30 | Item Watch names the seeded ambiguous item on last term's Gases check | LIVE | arc spec |
+| 4:50 | Pilot Ledger: the school joins; six tiles, each with its claim id, sample and window | LIVE | arc spec |
+
+The arc spec is `tests/school-ai/exam-studio-s8.browser.spec.ts`: it resets, seeds and runs the arc twice in English and twice in Arabic against a local server, records each beat's label as a test annotation, and stubs nothing. Steps that another slice's suite already drives (authoring the paper, marking the sitting's scripts) are marked FIXTURE in the spec.
+
+```bash
+DATABASE_URL=<loopback db> DIRECT_URL=<same> SCHOOL_AI_TEST_ORIGIN=http://localhost:<port> DEMO_PASSWORD=<…> npx playwright test -c tests/school-ai/playwright.sko507.config.ts
+```
+
+Words to avoid on stage (claims discipline): "calibrated", "first", "cheat-proof", "learning gains". The Twin and the ledger's PL-6 are estimates; say so.

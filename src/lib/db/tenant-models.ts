@@ -227,6 +227,8 @@ export const TENANT_MODELS = new Set<string>([
   "pickupCheck",
   "pickupEvent",
   "pickupRestriction",
+  "pilotLedgerSetting",
+  "pilotLedgerSnapshot",
   "planningBaseline",
   "planningHandoff",
   "planningScenario",
