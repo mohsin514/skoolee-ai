@@ -440,7 +440,11 @@ async function approveBundledSource(user: AuthUser, data: Record<string, unknown
 
 /** SKO-500 (§14.1): who may approve. Exam-chain kinds go through `mayApprove`; every other kind keeps the manager rule. */
 async function assertMayApprove(user: AuthUser, current: StoredRecord, policy: ResolvedDeliveryPolicy, tx: TxClient): Promise<ApprovalAuthority> {
-  if (!(EXAM_CHAIN_APPROVAL_KINDS as readonly string[]).includes(current.kind)) { assertApprovalRole(user); return "MANAGER"; }
+  if (!(EXAM_CHAIN_APPROVAL_KINDS as readonly string[]).includes(current.kind)) {
+    // A workflow carries its operation, which decides whether a non-manager (e.g. the accountant) may approve it.
+    assertApprovalRole(user, current.kind === "WORKFLOW" ? (dataOf(current).proposal as { operation?: string } | undefined)?.operation : undefined);
+    return "MANAGER";
+  }
   const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user, tx) : [];
   const data = dataOf(current);
   const paper = current.kind === "PAPER" ? paperDataSchema.safeParse(data) : null;

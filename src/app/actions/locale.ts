@@ -10,7 +10,7 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { wallTimeInstants } from "@/lib/locale/events";
 import { currencyForCountry } from "@/lib/locale/country";
-import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, POLICY_KEYS, resolvePackage, type Language } from "@/lib/locale/package";
+import { assertDelegatedChanges, canManageSchool, dateOnly, defaultLocale, LANGUAGES, localePatchSchema, parseStoredLocaleSettings, POLICY_KEYS, resolvePackage, type Language } from "@/lib/locale/package";
 import { kindFor, type InstitutionKind } from "@/lib/auth/institution";
 import { getInstitutionKind } from "@/lib/auth/institution-server";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
@@ -49,7 +49,7 @@ export async function getLocaleSettings() {
     const policies = await prisma.localePolicy.findMany({ where: { schoolId: user.schoolId, OR: [{ campusId: null }, ...visible.map((c) => ({ campusId: c.id }))] }, orderBy: { effectiveAt: "desc" }, take: 100 });
     return { personal: user.preferredLanguage, role: user.role, canManage, ownCampusId: user.campusId, grouped,
       school: await getLocalePackage(user.schoolId), campuses: await Promise.all(visible.map(async (c) => ({ ...c, policy: await getLocalePackage(user.schoolId, c.id) }))),
-      policies: policies.map((p) => ({ id: p.id, campusId: p.campusId, settings: localePatchSchema.parse(p.settings), effectiveAt: p.effectiveAt.toISOString(), status: p.status })) };
+      policies: policies.map((p) => ({ id: p.id, campusId: p.campusId, settings: parseStoredLocaleSettings(p.settings), effectiveAt: p.effectiveAt.toISOString(), status: p.status })) };
   });
 }
 /** The personal choice plus what "School default" currently resolves to (school/campus policy, `en` for APP_OWNER). */
@@ -91,7 +91,7 @@ export async function previewLocaleChange(input: unknown) {
     let settings = change.settings;
     if (campus && !canManage) {
       const existing = await prisma.localePolicy.findFirst({ where: { schoolId: user.schoolId, campusId: campus.id, status: "ACTIVE", effectiveAt: { lte: effectiveAt } }, orderBy: { effectiveAt: "desc" } });
-      const retained = Object.fromEntries(Object.entries(localePatchSchema.parse(existing?.settings || {})).filter(([key]) => !campus.localeDelegatedFields.includes(key)));
+      const retained = Object.fromEntries(Object.entries(parseStoredLocaleSettings(existing?.settings || {})).filter(([key]) => !campus.localeDelegatedFields.includes(key)));
       settings = { ...retained, ...settings };
     }
     const after = resolvePackage(change.campusId ? school : before, settings);
@@ -99,7 +99,7 @@ export async function previewLocaleChange(input: unknown) {
     const events = await Promise.all(scheduled.map(async (event) => {
       const date = event.date.toISOString().slice(0, 10); const time = event.periodDefinition!.startTime;
       const previous = await getLocalePackage(user.schoolId, event.campusId, event.date);
-      const proposed = change.campusId ? after : resolvePackage(after, localePatchSchema.parse((await prisma.localePolicy.findFirst({ where: { schoolId: user.schoolId, campusId: event.campusId, status: "ACTIVE", effectiveAt: { lte: event.date } }, orderBy: { effectiveAt: "desc" } }))?.settings || {}));
+      const proposed = change.campusId ? after : resolvePackage(after, parseStoredLocaleSettings((await prisma.localePolicy.findFirst({ where: { schoolId: user.schoolId, campusId: event.campusId, status: "ACTIVE", effectiveAt: { lte: event.date } }, orderBy: { effectiveAt: "desc" } }))?.settings || {}));
       return { id: event.id, title: event.exam.title, date, time, beforeZone: previous.timezone, afterZone: proposed.timezone, beforeUtc: wallTimeInstants(date, time, previous.timezone), afterUtc: wallTimeInstants(date, time, proposed.timezone) };
     }));
     const token = await new SignJWT({ change, revision: await revision(user.schoolId) }).setProtectedHeader({ alg: "HS256" }).setSubject(user.id).setAudience("locale-preview").setExpirationTime("20m").sign(JWT_SECRET);
