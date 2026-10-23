@@ -15,7 +15,7 @@ import { guardianTrips } from "@/lib/family/trips";
 
 export type InboxState = "ACTION" | "WAITING" | "COMPLETED" | "EXPIRED" | "UPDATE";
 export type InboxItem = {
-  id: string; kind: "EXPLAIN_ABSENCE" | "CLARIFY_ABSENCE" | "PAY_FEE" | "FEEDBACK_RETURNED" | "REPORT_PUBLISHED" | "TRIP_CONSENT" | "LEAVE_REQUEST" | "MEETING_ACTION" | "MEETING_RESCHEDULE";
+  id: string; kind: "EXPLAIN_ABSENCE" | "CLARIFY_ABSENCE" | "PAY_FEE" | "FEEDBACK_RETURNED" | "REPORT_PUBLISHED" | "RESULT_NOTE" | "TRIP_CONSENT" | "LEAVE_REQUEST" | "MEETING_ACTION" | "MEETING_RESCHEDULE";
   state: InboxState; childId: string; childName: string; schoolName: string; campusName: string;
   title: string; detail: string | null; dueAt: string | null; overdue: boolean; at: string; href: string;
   completedByOther: boolean; receipt: string | null; timezone: string;
@@ -85,10 +85,13 @@ async function itemsFor(guardianUserId: string, schoolId: string, child: Child, 
   }
 
   if (permissions.learningRecords) {
-    const [reports, feedback] = await Promise.all([
+    const [reports, feedback, notes] = await Promise.all([
       prisma.reportCard.findMany({ where: { schoolId, studentId: child.id, ...publishedReportsWhere, generatedAt: { gte: new Date(now.getTime() - 45 * DAY) } }, select: { id: true, generatedAt: true, exam: { select: { title: true } } }, orderBy: { generatedAt: "desc" }, take: 5 }),
       prisma.assignmentFeedback.findMany({ where: { schoolId, status: "RETURNED", returnedAt: { gte: new Date(now.getTime() - 30 * DAY) }, submissionVersion: { studentId: child.id } }, select: { id: true, returnedAt: true, submissionVersion: { select: { assignmentId: true, submission: { select: { assignment: { select: { title: true } } } } } } }, orderBy: { returnedAt: "desc" }, take: 5 }),
+      // SKO-504: a sent family note (one sentence, already in this guardian's language).
+      prisma.familyResultNote.findMany({ where: { schoolId, studentId: child.id, status: "SENT", sentAt: { gte: new Date(now.getTime() - 45 * DAY) } }, select: { id: true, sentence: true, sentAt: true }, orderBy: { sentAt: "desc" }, take: 5 }),
     ]);
+    for (const note of notes) items.push({ ...base, id: `result-note:${note.id}`, kind: "RESULT_NOTE", state: "UPDATE", title: note.sentence, detail: null, dueAt: null, overdue: false, at: note.sentAt!.toISOString(), href: `/parent/results${linkQuery}`, completedByOther: false, receipt: null });
     for (const report of reports) items.push({ ...base, id: `report:${report.id}`, kind: "REPORT_PUBLISHED", state: "UPDATE", title: report.exam.title, detail: null, dueAt: null, overdue: false, at: report.generatedAt.toISOString(), href: `/parent/results${linkQuery}`, completedByOther: false, receipt: null });
     for (const row of feedback) items.push({ ...base, id: `feedback:${row.id}`, kind: "FEEDBACK_RETURNED", state: "UPDATE", title: row.submissionVersion.submission.assignment.title, detail: null, dueAt: null, overdue: false, at: row.returnedAt!.toISOString(), href: `/parent/assignments${linkQuery}`, completedByOther: false, receipt: null });
   }

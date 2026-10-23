@@ -12,7 +12,7 @@ import { examReviewSchema, responsesSchema, validateExamReview, validateResponse
 import { schoolAiTransaction } from "./transaction";
 import { canManageExamType } from "@/lib/academic/exam-permissions";
 import { workspaceRequestHash } from "./repository";
-import { convertGradebookMark, countGradebookOutcomes, gradebookConversionSchema, gradebookPublicationInputSchema, gradebookPublicationSchema, type GradebookBlocker, type GradebookConversion, type GradebookOptions, type GradebookOutcome, type GradebookPreview } from "./exam-gradebook";
+import { convertGradebookMark, countGradebookOutcomes, gradebookDrift, gradebookConversionSchema, gradebookPublicationInputSchema, gradebookPublicationSchema, type GradebookBlocker, type GradebookConversion, type GradebookOptions, type GradebookOutcome, type GradebookPreview } from "./exam-gradebook";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 function fail(code: string, status = 409): never { throw new SchoolAiError("Review the current exam and gradebook information before sending marks.", status, code); }
@@ -70,7 +70,9 @@ export async function getExamGradebookOptions(user: AuthUser, assignmentId: stri
       select: { id: true, title: true, term: true, academicYear: true, status: true }, orderBy: [{ academicYear: "desc" }, { title: "asc" }, { id: "asc" }], take: 101,
     });
     if (exams.length > 100) fail("GRADEBOOK_SCOPE_LIMIT", 422);
-    return { assignmentVersion: source.assignment.version, assignmentTitle: source.assignment.title, windowClosed: source.windowClosed, endsAt: source.assignment.endsAt.toISOString(), subject: source.subject, counts: source.counts, outcomes: source.outcomes, exams, publication: source.publication };
+    const sentMarks = source.publication ? await db.mark.findMany({ where: { ...source.scope, id: { in: source.publication.rows.map(row => row.markId) } }, select: { id: true, marksObtained: true } }) : [];
+    const drift = source.publication ? gradebookDrift(source.publication, source.attempts, sentMarks, new Map(source.students.map(row => [row.id, row.fullName]))) : [];
+    return { assignmentVersion: source.assignment.version, assignmentTitle: source.assignment.title, windowClosed: source.windowClosed, endsAt: source.assignment.endsAt.toISOString(), subject: source.subject, counts: source.counts, outcomes: source.outcomes, exams, publication: source.publication, drift };
   });
 }
 

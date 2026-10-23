@@ -34,6 +34,23 @@ export interface GradebookOptions {
   subject: { id: string; name: string; totalMarks: number }; counts: GradebookCounts; outcomes: GradebookOutcome[];
   exams: Array<{ id: string; title: string; term: string; academicYear: number; status: string }>;
   publication: GradebookPublication | null;
+  /** SKO-504: sent marks that no longer match their result or were changed in the gradebook. */
+  drift: GradebookDrift[];
+}
+export interface GradebookDrift { studentId: string; fullName: string | null; kind: "RESULT_CORRECTED" | "MARK_EDITED" | "MARK_MISSING"; sent: number; current: number | null }
+
+/** SKO-504: compare each sent row with its result now and with the gradebook mark now. */
+export function gradebookDrift(publication: GradebookPublication, attempts: ReadonlyArray<{ id: string; review: unknown }>, marks: ReadonlyArray<{ id: string; marksObtained: number }>, names: ReadonlyMap<string, string>): GradebookDrift[] {
+  return publication.rows.flatMap((row): GradebookDrift[] => {
+    const fullName = names.get(row.studentId) ?? null;
+    const mark = marks.find(entry => entry.id === row.markId);
+    const total = (attempts.find(entry => entry.id === row.attemptId)?.review as { total?: unknown } | null)?.total;
+    const current = typeof total === "number" ? convertGradebookMark(total, publication.sourceMaximum, publication.targetMaximum, publication.conversion) : null;
+    if (current !== null && current !== row.targetMark) return [{ studentId: row.studentId, fullName, kind: "RESULT_CORRECTED", sent: row.targetMark, current }];
+    if (!mark) return [{ studentId: row.studentId, fullName, kind: "MARK_MISSING", sent: row.targetMark, current: null }];
+    if (mark.marksObtained !== row.targetMark) return [{ studentId: row.studentId, fullName, kind: "MARK_EDITED", sent: row.targetMark, current: mark.marksObtained }];
+    return [];
+  });
 }
 export type GradebookBlocker = "WINDOW_OPEN" | "PENDING_MODERATION" | "NO_REVIEWED_ATTEMPTS" | "STUDENT_SCOPE_CHANGED" | "MARKS_EXIST" | "REPORTS_EXIST" | "CONVERSION_REQUIRED" | "INVALID_REVIEW";
 export interface GradebookPreview {

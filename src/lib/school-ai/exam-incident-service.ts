@@ -180,6 +180,8 @@ export async function applyRemedy(user: AuthUser, assignmentId: string, remedyId
     if (student) throw new ApiError("Exam unavailable.", 404);
     await staffExamAccess(user, assignment, "edit", tx);
     await assertStudioAction(user, "AUTHORIZE_REMEDY", { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, undefined, tx);
+    // SKO-504: after release every per-candidate revision would fail, yet the remedy used to be marked APPLIED.
+    if (assignment.resultsReleasedAt) throw new ApiError("Results are released, so this remedy cannot change them directly. Propose a correction for each affected result instead; another reviewer approves it.", 409);
     const remedy = await tx.schoolAiExamRemedy.findFirst({ where: { id: remedyId, assignmentId, schoolId: user.schoolId } });
     if (!remedy) throw new ApiError("Remedy unavailable.", 404);
     if (remedy.status !== "PROPOSED") throw new ApiError("This remedy was already applied or withdrawn.", 409);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,8 +11,11 @@ import { useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
 import type { AssessmentLocale } from "@/lib/school-ai/assessment";
 import type { GradebookConversion, GradebookOptions, GradebookPreview, GradebookPublication } from "@/lib/school-ai/exam-gradebook";
 import { examGradebookCopy } from "./exam-gradebook-copy";
+import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
+import { studioResultsCopy } from "@/lib/school-ai/exam-studio-copy-results";
 
 export function ExamGradebook({ id, locale, refreshKey }: { id: string; locale: AssessmentLocale; refreshKey: string }) {
+  const d = studioResultsCopy(locale);
   const t = examGradebookCopy(locale), url = `/api/school-ai/exams/${encodeURIComponent(id)}/gradebook`;
   const [options, setOptions] = useState<GradebookOptions | null>(null), [preview, setPreview] = useState<GradebookPreview | null>(null), [publication, setPublication] = useState<GradebookPublication | null>(null);
   const [examId, setExamId] = useState(""), [conversion, setConversion] = useState<GradebookConversion>("EXACT"), [checked, setChecked] = useState(false);
@@ -63,7 +66,7 @@ export function ExamGradebook({ id, locale, refreshKey }: { id: string; locale: 
   return <section aria-label={t.title} aria-busy={busy || loading} dir={locale === "en" ? "ltr" : "rtl"} className="sk-panel space-y-4 p-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div className="max-w-2xl"><h2 className="text-lg font-bold">{t.title}</h2><p className="mt-2 text-sm text-ink-muted">{t.hint}</p></div><Button variant="ghost" disabled={busy || loading} onClick={() => void load()}><RefreshCw aria-hidden="true" />{t.refresh}</Button></div>
     {error && <p role="alert" className="rounded-xl bg-status-error-surface p-4 text-sm text-status-error-text">{error}</p>}
-    {loading ? <Skeleton className="h-32 w-full" /> : publication ? <div role="status" className="space-y-3 rounded-xl border border-border p-4"><h3 className="flex items-center gap-2 font-bold"><CheckCircle2 aria-hidden="true" />{t.receipt}</h3><p>{publication.examTitle} · {publication.academicYear} · {publication.subjectName}</p><p>{t.saved}: {number(publication.rows.length)} · {t.notStarted}: {number(publication.unenteredStudentIds.length)}</p><p className="text-sm text-ink-muted">{t.receiptHint}</p><p className="break-all text-xs">{t.receiptId}: {publication.id}</p></div> : options && <>
+    {loading ? <Skeleton className="h-32 w-full" /> : publication ? <div role="status" className="space-y-3 rounded-xl border border-border p-4"><h3 className="flex items-center gap-2 font-bold"><CheckCircle2 aria-hidden="true" />{t.receipt}</h3><p>{publication.examTitle} · {publication.academicYear} · {publication.subjectName}</p><p>{t.saved}: {number(publication.rows.length)} · {t.notStarted}: {number(publication.unenteredStudentIds.length)}</p><p className="text-sm text-ink-muted">{t.receiptHint}</p><p className="break-all text-xs">{t.receiptId}: {publication.id}</p><div className="space-y-2 border-t border-border pt-3" data-gradebook-drift={options?.drift?.length ?? 0}><h4 className="text-sm font-semibold">{d.driftTitle}</h4>{!options?.drift?.length ? <p className="text-sm text-ink-muted">{d.driftNone}</p> : <ul className="space-y-1 text-sm">{options.drift.map(row => <li key={row.studentId} className="flex items-start gap-2 rounded-xl bg-status-warning-surface p-2 text-status-warning-text" data-drift-kind={row.kind}><AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{fillStudioCopy(row.kind === "RESULT_CORRECTED" ? d.driftCorrected : row.kind === "MARK_EDITED" ? d.driftEdited : d.driftMissing, [`\u2068${row.fullName ?? t.unknown}\u2069`, number(row.sent), row.current === null ? "—" : number(row.current)])}</span></li>)}</ul>}</div></div> : options && <>
       <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">{(["assigned", "reviewed", "submitted", "inProgress", "notStarted", "unavailable"] as const).map(key => <div key={key} className="rounded-xl border border-border p-3"><dt className="text-ink-muted">{t[key]}</dt><dd className="mt-1 text-lg font-bold">{number(counts?.[key] ?? 0)}</dd></div>)}</dl>
       <details className="rounded-xl border border-border p-3"><summary className="cursor-pointer font-semibold">{t.outcomes}</summary><ul className="mt-3 space-y-2 text-sm">{outcomes.map(outcome => <li key={outcome.studentId} className="flex flex-wrap justify-between gap-2"><span>{outcome.fullName ?? t.unknown} {outcome.rollNo && `· ${outcome.rollNo}`}</span><span>{t[outcome.state]}</span></li>)}</ul></details>
       <p className="text-sm text-ink-muted">{t.notEntered}</p>{(preview ? preview.blockers.includes("WINDOW_OPEN") : !options.windowClosed) && <p role="status" className="rounded-xl bg-status-warning-surface p-3 text-sm text-status-warning-text">{t.window} {t.closes}: <bdi>{new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(options.endsAt))}</bdi></p>}

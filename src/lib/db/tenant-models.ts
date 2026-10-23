@@ -117,6 +117,7 @@ export const TENANT_MODELS = new Set<string>([
   "familyDigest",
   "familyDigestDelivery",
   "familyDigestEntry",
+  "familyResultNote",
   "feeCarryForward",
   "feeDiscount",
   "feeDiscountAssignment",

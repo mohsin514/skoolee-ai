@@ -23,10 +23,11 @@ import { displayExamResponse } from "@/lib/school-ai/exam";
 import { ExamGradebook } from "./exam-gradebook";
 import { ExamProctorConsole } from "./exam-proctor-console";
 import { ExamIntegrityDesk } from "./exam-integrity-desk";
+import { studioResultsCopy } from "@/lib/school-ai/exam-studio-copy-results";
 
 type Attempt = { id: string; reviewVersion: number; status: string; submittedAt: string | null; responses: ExamResponses; scoreProposal: ScoreProposal | null; review: (ExamReview & { total: number }) | null; student: { fullName: string; rollNo: string } | null };
 export function ExamReviewDesk({ id, locale }: { id: string; locale: AssessmentLocale }) {
-  const t = examCopy(locale), extension = assessmentExtensionCopy(locale);
+  const t = examCopy(locale), extension = assessmentExtensionCopy(locale), results = studioResultsCopy(locale);
   const [keyCorrections, setKeyCorrections] = useState<ExamReview["keyCorrections"]>();
   const [revising, setRevising] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
@@ -63,7 +64,7 @@ export function ExamReviewDesk({ id, locale }: { id: string; locale: AssessmentL
       const review: ExamReview = { note, ...(keyCorrections ? { keyCorrections } : {}), marks: paper.questions.filter((question) => selected.responses[question.id]?.trim()).map((question) => ({ questionId: question.id, marks: Number(marks[question.id]), feedback: feedback[question.id] ?? "", ...(evidence[question.id] ? { evidence: evidence[question.id] } : {}) })) };
       const response = await fetch(`/api/school-ai/exams/${encodeURIComponent(id)}/${revising ? "results" : "attempts"}`, { method: revising ? "POST" : "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(revising ? { action: "revise", data: { attemptId: selected.id, version: selected.reviewVersion, reason: revisionReason, review } } : { attemptId: selected.id, review }) }); const payload = await response.json();
       if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : t.failure);
-      await load(); setMessage(t.reviewedHint);
+      await load(); setMessage(payload.result?.pendingCorrection ? results.correctionPending : t.reviewedHint);
     } catch (cause) { setError(cause instanceof Error ? cause.message : t.failure); }
     finally { setBusy(false); }
   };
