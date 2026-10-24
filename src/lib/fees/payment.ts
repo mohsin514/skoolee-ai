@@ -27,6 +27,8 @@ export interface RecordPaymentInput {
   /** SKO-475: the caller's operation key and request fingerprint for manual collections. */
   idempotencyKey?: string | null;
   requestHash?: string | null;
+  /** RT6: the claimed AI Workflows hand-off this payment completes; unique per school, so it posts once. */
+  workflowHandoffId?: string | null;
 }
 
 export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
@@ -77,6 +79,7 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
       recordedBy: input.recordedBy ?? null,
       idempotencyKey: input.idempotencyKey ?? null,
       requestHash: input.requestHash ?? null,
+      ...(input.workflowHandoffId ? { workflowHandoffId: input.workflowHandoffId } : {}),
     },
   });
 
