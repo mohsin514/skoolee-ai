@@ -28,6 +28,7 @@ export const startJobSchema = z.strictObject({
 });
 const JOB_TTL_MS = 7 * 86_400_000;
 const STEP_CAP = 25;
+const QUESTIONNAIRE_STEP_CAP = 150;
 export const DEFAULT_BUDGET = { maxSteps: STEP_CAP, maxModelCalls: 12, maxQuestions: 8, maxReplans: 2 };
 
 const jobWhere = (user: AuthUser, id: string) => ({ id, schoolId: user.schoolId, actorId: user.userId });
@@ -72,9 +73,11 @@ export interface PlannedStep { stepKey: string; capabilityKey: string; dependsOn
 /** Persists a plan. The planner (Slice 1e) is the normal caller; class floors come from the registry, never the plan. */
 export async function savePlan(user: AuthUser, jobId: string, steps: PlannedStep[]) {
   return inTenant(user, async () => {
-    if (steps.length > STEP_CAP) throw new WorkflowError("BUDGET_EXHAUSTED", { cap: STEP_CAP });
     const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId) });
     if (!job) throw new WorkflowError("NOT_FOUND");
+    // A questionnaire Build is compiled, not model-planned, so it may carry a whole campus (red team: chunked, capped).
+    const cap = job.origin === "QUESTIONNAIRE" ? QUESTIONNAIRE_STEP_CAP : STEP_CAP;
+    if (steps.length > cap) throw new WorkflowError("BUDGET_EXHAUSTED", { cap });
     const planVersion = job.planVersion + 1;
     await prisma.$transaction(async tx => {
       for (const planned of steps) {
@@ -123,7 +126,7 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
       }
       const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
       await observeHandoffs(job);
-      for (let pass = 0; pass < STEP_CAP; pass++) {
+      for (let pass = 0; pass < QUESTIONNAIRE_STEP_CAP; pass++) {
         const steps = await prisma.aiWorkflowStep.findMany({ where: { jobId: job.id, schoolId: job.schoolId, planVersion: job.planVersion }, orderBy: { createdAt: "asc" } });
         const statuses = new Map(steps.map(step => [step.stepKey, step.status as StepStatus]));
         let progressed = false;

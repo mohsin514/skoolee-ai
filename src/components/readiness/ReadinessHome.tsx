@@ -142,7 +142,7 @@ export function ReadinessHome() {
           ) : null}
           {/* Flagship (addendum 2026-10-22): the AI setup questionnaire drafts what these checks ask for; a secondary link
               here because the spotlight below carries this screen's one primary action. */}
-          {lead?.aiSetup && !live ? <Link href="/ai?workflow=schoolSetup" data-flagship-link="ai-workflows" className={buttonVariants({ variant: "link", className: "h-auto gap-2 p-0" })}><FlagshipChip />{t.aiSetup}</Link> : null}
+          {lead?.aiSetup && !live ? <Link href="/ai?setup=1" data-flagship-link="ai-workflows" className={buttonVariants({ variant: "link", className: "h-auto gap-2 p-0" })}><FlagshipChip />{t.aiSetup}</Link> : null}
         </div>
         {lead ? (
           <div className="sk-launch-ring" style={{ ["--sk-ring-value" as string]: `${percent}%` }} role="img" aria-label={fill(l.progress, doneRequired, required.length)}>

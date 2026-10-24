@@ -49,4 +49,7 @@ test("the rollout flag defaults on outside production and is per school in produ
   assert.equal(aiWorkflowsV2Enabled("a", { NODE_ENV: "production", AI_WORKFLOWS_V2: "a,b" }), true);
   assert.equal(aiWorkflowsV2Enabled("c", { NODE_ENV: "production", AI_WORKFLOWS_V2: "a,b" }), false);
   assert.equal(aiWorkflowsV2Enabled("a", { NODE_ENV: "development", AI_WORKFLOWS_V2: "off" }), false);
+  // A dashboard "true" means everyone, never a school called "true".
+  for (const value of ["true", "TRUE", "1", "on", "all"]) assert.equal(aiWorkflowsV2Enabled("any-school", { NODE_ENV: "production", AI_WORKFLOWS_V2: value }), true, value);
+  for (const value of ["false", "0"]) assert.equal(aiWorkflowsV2Enabled("any-school", { NODE_ENV: "development", AI_WORKFLOWS_V2: value }), false, value);
 });

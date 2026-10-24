@@ -31,9 +31,9 @@ const NEXT_COPY = {
       key: "ai-workflows",
       name: ["AI Workflows", "مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز"],
       body: [
-        "Right after activation, answer a short questionnaire and AI drafts your launch plan; nothing applies until you approve it.",
-        "بعد التفعيل مباشرةً، أجب عن استبيان قصير ليُعدّ الذكاء الاصطناعي مسودة خطة الانطلاق؛ ولا يُطبَّق شيء قبل موافقتك.",
-        "فعال ہوتے ہی ایک مختصر سوالنامے کے جواب دیں اور اے آئی آغاز کے منصوبے کا مسودہ بناتا ہے؛ آپ کی منظوری سے پہلے کچھ لاگو نہیں ہوتا۔",
+        "Right after activation, answer a few typed questions and Skoolee sets up your campus: your own preferences save at once, and every change to school records waits for you to review and save it.",
+        "بعد التفعيل مباشرةً، أجب عن أسئلة قليلة ويُعدّ Skoolee حرمك المدرسي: تُحفظ تفضيلاتك فوراً، وكل تغيير في سجلات المدرسة ينتظر مراجعتك وحفظك.",
+        "فعال ہوتے ہی چند سوالات کے جواب دیں اور اسکولی آپ کا کیمپس تیار کرتا ہے: آپ کی ترجیحات فوراً محفوظ ہوتی ہیں، اور اسکول ریکارڈ کی ہر تبدیلی آپ کے جائزے اور محفوظ کرنے کا انتظار کرتی ہے۔",
       ],
     },
     {

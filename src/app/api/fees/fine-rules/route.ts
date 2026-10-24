@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { createFineRule } from "@/lib/fees/fine-rule-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,29 +27,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "fees", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    const type = String(body.type ?? "").toUpperCase();
-
-    if (!name) throw new ApiError("name required", 400);
-    if (!["PERCENT", "FLAT", "PER_DAY"].includes(type)) throw new ApiError("type must be PERCENT, FLAT or PER_DAY", 400);
-
-    const value = Number(body.value);
-    if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
-    if (type === "PERCENT" && value > 100) throw new ApiError("percent fine cannot exceed 100", 400);
-
-    const graceDays = Math.max(0, Math.round(Number(body.graceDays ?? 0)));
-
-    const existing = await prisma.feeFineRule.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A fine rule with this name already exists", 409);
-
-    const rule = await prisma.$transaction(async (tx) => {
-      const created = await tx.feeFineRule.create({
-        data: { campusId, name, type, value, graceDays, isActive: body.isActive !== false },
-      });
-      await writeAuditEvent(tx, user, { table: "fee_fine_rules", recordId: created.id, action: "CREATE", campusId, after: { type, value, graceDays, isActive: created.isActive } });
-      return created;
-    });
+    const rule = await createFineRule(user, body);
     return Response.json({ success: true, data: rule }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/fine-rules] POST failed");

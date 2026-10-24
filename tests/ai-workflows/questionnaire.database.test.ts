@@ -31,7 +31,7 @@ test("a key for another role is NOT_FOUND for every role but its own (RT14)", as
     const user = await person(schoolId, campusId, role);
     await assert.rejects(getSheet(user, "teacher", "en"), code("NOT_FOUND"), role);
     await assert.rejects(saveAnswers(user, "teacher", { version: 1, answers: {}, confirmedKeys: [] }), code("NOT_FOUND"), role);
-    assert.equal(await setupStatus(user), null);
+    assert.notEqual((await setupStatus(user))?.key, "teacher");
   }
 });
 

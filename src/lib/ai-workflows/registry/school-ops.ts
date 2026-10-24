@@ -18,6 +18,8 @@ import { curriculumDataSchema } from "@/lib/school-ai/assessment";
 import { defineCapability } from "./define";
 import { EscalationRequired } from "../errors";
 import { ownCampus } from "./gates";
+import { prisma } from "@/lib/db/prisma";
+import { InputRequired } from "../errors";
 import type { CapabilityEntry, CapabilityContext, ConfirmationClass, EntryCopy, Gate, PreviewModel, Receipt, Risk } from "./types";
 
 /**
@@ -72,9 +74,19 @@ async function runApproved(ctx: CapabilityContext, operation: SchoolAiOperation,
   return { kind: "write", capability: operation, entities: [{ model: "schoolAiRecord", id: record.id }], counts: {}, link: `/ai?workflow=${WORKFLOW_TAB[operation]}`, replayed: false, detail };
 }
 
+/** One readable line per proposed row, so the person sees what they save (not just a count). */
+function rowLine(row: Record<string, unknown>): { label: string; value: string } {
+  if (typeof row.subjectName === "string") return { label: String(row.className ?? row.classId ?? ""), value: `${row.subjectName} · ${row.totalMarks}` };
+  if (typeof row.roomNumber === "string") return { label: row.roomNumber, value: `${row.roomType} · ${Number(row.rows) * Number(row.benchesPerRow) * Number(row.seatsPerBench)}` };
+  if (typeof row.periodNumber === "number") return { label: `${row.timeType} ${row.periodNumber}`, value: `${row.startTime}–${row.endTime}` };
+  if (typeof row.email === "string") return { label: String(row.fullName ?? row.email), value: `${row.role ?? ""} · ${row.email}` };
+  if (typeof row.name === "string") return { label: [row.name, row.section].filter(Boolean).join(" "), value: String(row.teachingMode ?? "") };
+  return { label: "", value: JSON.stringify(row).slice(0, 80) };
+}
+
 async function previewOf(title: string, input: Record<string, unknown>): Promise<PreviewModel> {
-  const rows = Array.isArray(input.rows) ? input.rows.length : Array.isArray(input.classes) ? input.classes.length : Array.isArray(input.entries) ? input.entries.length : 1;
-  return { title, lines: [], counts: { items: rows }, basis: input };
+  const list = (Array.isArray(input.rows) ? input.rows : Array.isArray(input.classes) ? input.classes : Array.isArray(input.entries) ? input.entries : []) as Array<Record<string, unknown>>;
+  return { title, lines: list.slice(0, 30).map(rowLine), counts: { items: list.length || 1 }, basis: input };
 }
 
 interface TypedOp {
@@ -176,4 +188,34 @@ export const SCHOOL_OPERATION_ENTRIES: readonly CapabilityEntry[] = OPS.map(op =
     preview: (_ctx, input: Record<string, unknown>) => previewOf(op.copy.title.en, input),
     execute: (ctx, input: Record<string, unknown>, { idempotencyKey }) => runApproved(ctx, op.operation, op.copy.title.en, input, idempotencyKey),
   });
+});
+
+/**
+ * Subjects for classes named in the same plan (a first-login Build creates the classes a step earlier,
+ * so their ids do not exist when the plan is compiled). The resolver binds each class name and section
+ * on this campus when the step is shown for review; the reviewed SUBJECTS proposal then runs as usual.
+ */
+const subjectsByClassSchema = z.strictObject({
+  sourceReference: z.string().trim().min(3).max(1000),
+  rows: z.array(z.strictObject({ className: z.string().trim().min(1).max(80), section: z.string().trim().min(1).max(40).nullable(), subjectName: z.string().trim().min(2).max(120), totalMarks: z.number().int().min(1).max(1000), classId: z.string().min(1).max(128).optional() })).min(1).max(30),
+});
+type SubjectsByClass = z.infer<typeof subjectsByClassSchema>;
+const subjectsTitle = "Add subjects to classes";
+const classKey = (name: string, section: string | null) => `${name.normalize("NFKC").trim().toLowerCase()}|${(section ?? "").normalize("NFKC").trim().toLowerCase()}`;
+
+export const SUBJECTS_BY_CLASS_ENTRY: CapabilityEntry = defineCapability({
+  key: "setup.subjects_by_class", version: 1, cluster: "C9", inventoryKeys: ["academic.subject.create"], risk: "CREATE", roles: OPERATORS, class: "B",
+  copy: c([subjectsTitle, "Add subjects to classes by class name; each class must exist on this campus.", "Grade 6 A studies English, Maths and Science out of 100"], ["إضافة مواد للفصول", "إضافة المواد بأسماء الفصول.", "الصف السادس أ يدرس الإنجليزية والرياضيات والعلوم"], ["کلاسوں میں مضامین شامل کریں", "کلاس کے نام سے مضامین شامل کریں۔", "چھٹی اے انگریزی، ریاضی اور سائنس پڑھتی ہے"]),
+  input: subjectsByClassSchema, evidence: [], gates: [ownCampus(), typedOperationGate("setup.apply_changes")], scope: { kind: "own-campus" },
+  source: { service: "src/lib/school-ai/execution.ts:executeSchoolAiTool (setup.apply_changes SUBJECTS)", reuse: "typed-operation" },
+  idempotency: { mode: "native" },
+  async resolve(ctx, input: SubjectsByClass) {
+    const classes = await prisma.class.findMany({ where: { schoolId: ctx.user.schoolId, campusId: ctx.campusId ?? "", archivedAt: null }, select: { id: true, name: true, section: true } });
+    const byName = new Map(classes.map(row => [classKey(row.name, row.section), row.id]));
+    const missing = input.rows.flatMap((row, index) => (byName.has(classKey(row.className, row.section)) ? [] : [{ pointer: `/rows/${index}/className`, promptKey: "CLASS_NOT_FOUND", params: { name: [row.className, row.section].filter(Boolean).join(" ") } }]));
+    if (missing.length) throw new InputRequired(missing);
+    return { ...input, rows: input.rows.map(row => ({ ...row, classId: byName.get(classKey(row.className, row.section))! })) };
+  },
+  preview: (_ctx, input: SubjectsByClass) => previewOf(subjectsTitle, { rows: input.rows.map(row => ({ ...row, className: [row.className, row.section].filter(Boolean).join(" ") })) }),
+  execute: (ctx, input: SubjectsByClass, { idempotencyKey }) => runApproved(ctx, "setup.apply_changes", subjectsTitle, { operation: "setup.apply_changes", action: "SUBJECTS", sourceReference: input.sourceReference, rows: input.rows.map(row => ({ classId: row.classId!, subjectName: row.subjectName, totalMarks: row.totalMarks })) }, idempotencyKey),
 });

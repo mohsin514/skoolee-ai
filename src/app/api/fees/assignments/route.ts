@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { assignFeeGroup } from "@/lib/fees/group-assignment-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeGroupAssignment: which fee group serves which class for an academic year.
 
@@ -32,31 +33,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "fees", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    if (!body.feeGroupId || !body.classId) throw new ApiError("feeGroupId and classId required", 400);
-    const academicYear = Number(body.academicYear ?? new Date().getFullYear());
-    if (!Number.isInteger(academicYear) || academicYear < 2000) throw new ApiError("invalid academicYear", 400);
-
-    const [group, cls] = await Promise.all([
-      prisma.feeGroup.findFirst({ where: { id: body.feeGroupId, campusId } }),
-      prisma.class.findFirst({ where: { id: body.classId, campusId } }),
-    ]);
-    if (!group) throw new ApiError("Fee group not found", 404);
-    if (!cls) throw new ApiError("Class not found", 404);
-
-    const existing = await prisma.feeGroupAssignment.findUnique({
-      where: { feeGroupId_classId_academicYear: { feeGroupId: body.feeGroupId, classId: body.classId, academicYear } },
-    });
-    if (existing) throw new ApiError("This class already has this group for the year", 409);
-
-    const assignment = await prisma.$transaction(async (tx) => {
-      const created = await tx.feeGroupAssignment.create({
-        data: { campusId, feeGroupId: body.feeGroupId, classId: body.classId, academicYear },
-        include: { feeGroup: { select: { id: true, name: true } }, class: { select: { id: true, name: true, section: true } } },
-      });
-      await writeAuditEvent(tx, user, { table: "fee_group_assignments", recordId: created.id, action: "CREATE", campusId, after: { feeGroupId: created.feeGroupId, classId: created.classId, academicYear: created.academicYear } });
-      return created;
-    });
+    const assignment = await assignFeeGroup(user, body);
     return Response.json({ success: true, data: assignment }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/assignments] POST failed");
