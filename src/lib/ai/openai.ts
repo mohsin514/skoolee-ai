@@ -219,6 +219,7 @@ async function completeWithOpenAI({
   maxTokens,
   signal,
   json,
+  openaiModel,
 }: {
   messages: ChatMessage[];
   temperature: number;
@@ -227,12 +228,15 @@ async function completeWithOpenAI({
   signal?: AbortSignal;
   /** Ask for a single JSON object (callers still validate it). */
   json?: boolean;
+  /** A caller-chosen OpenAI model (e.g. the AI Workflows planner); defaults to OPENAI_MODEL. */
+  openaiModel?: string;
 }): Promise<ProviderResult> {
   if (!approvedOpenAIEndpoint()) throw new Error("AI gateway policy blocks this OpenAI destination");
+  const model = openaiModel || OPENAI_MODEL;
   const response = await getOpenAIClient().chat.completions.create({
-    model: OPENAI_MODEL,
+    model,
     messages,
-    ...openAICompletionSettings(OPENAI_MODEL, temperature, maxTokens),
+    ...openAICompletionSettings(model, temperature, maxTokens),
     ...(json ? { response_format: { type: "json_object" as const } } : {}),
   }, { timeout: AI_TIMEOUT_MS, ...(signal ? { signal } : {}) });
 
@@ -242,7 +246,7 @@ async function completeWithOpenAI({
   return {
     text,
     tokensUsed: response.usage?.total_tokens || estimateTokens(messages, text),
-    model: modelLabel("openai"),
+    model: openaiModel ? `openai:${model}` : modelLabel("openai"),
   };
 }
 
@@ -357,6 +361,7 @@ async function completeWithProvider(
     maxTokens: number;
     signal?: AbortSignal;
     json?: boolean;
+    openaiModel?: string;
   }
 ) {
   // Apply the same full-payload scanner to every destination, including a
@@ -382,6 +387,7 @@ async function completeChat({
   maxTokens,
   signal,
   json,
+  openaiModel,
 }: {
   messages: ChatMessage[];
   temperature: number;
@@ -389,12 +395,13 @@ async function completeChat({
   /** SKO-408 R5.12: a caller's cancellation aborts the provider request itself. */
   signal?: AbortSignal;
   json?: boolean;
+  openaiModel?: string;
 }): Promise<ProviderResult> {
   const failures: string[] = [];
 
   for (const provider of providerOrder()) {
     try {
-      return await completeWithProvider(provider, { messages, temperature, maxTokens, signal, json });
+      return await completeWithProvider(provider, { messages, temperature, maxTokens, signal, json, openaiModel });
     } catch (error) {
       if (error instanceof PIILeakError) throw error;
       // A cancelled request is not a provider outage: never retry it against a fallback.
@@ -598,6 +605,7 @@ export async function generateAIDraft({
   maxTokens = 700,
   signal,
   json,
+  openaiModel,
 }: {
   system: string;
   prompt: string;
@@ -607,6 +615,8 @@ export async function generateAIDraft({
   signal?: AbortSignal;
   /** OpenAI JSON mode: the reply is one JSON object. Other providers ignore it; callers still validate. */
   json?: boolean;
+  /** Use this OpenAI model instead of OPENAI_MODEL (other providers keep their own model). */
+  openaiModel?: string;
 }): Promise<AIDraftResult> {
   const result = await completeChat({
     messages: [
@@ -617,6 +627,7 @@ export async function generateAIDraft({
     maxTokens,
     signal,
     json,
+    openaiModel,
   });
 
   return {

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
-import { HelpCircle, Send } from "lucide-react";
+import { CornerDownRight, HelpCircle, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +23,7 @@ function useQuestionText() {
     const { code, count } = question.params ?? {};
     const fill = code !== undefined ? String(code) : typeof count === "number" ? format.count(count) : count !== undefined ? String(count) : humanisePointer(question.pointer, language);
     if (QUESTION_WORDS[question.promptKey]) return t(QUESTION_WORDS, question.promptKey, language, fill);
-    return t(UI, "missingField", language, [question.capabilityTitle, humanisePointer(question.pointer, language)].filter(Boolean).join(" "));
+    return t(UI, "missingField", language, humanisePointer(question.pointer, language));
   };
 }
 
@@ -31,15 +31,19 @@ function useQuestionText() {
  * The run's open questions as one "needs you" card (#64's question card). One tap on an option
  * sends it exactly as before; otherwise type an answer (Enter sends, Shift+Enter is a new line).
  */
-export function RunQuestions({ run, language, busy, pendingKey, onAnswer, level = 4 }: {
+export function RunQuestions({ run, language, busy, pendingKey, onAnswer, level = 4, inComposer = false }: {
   run: RunView; language: Lang; busy: boolean; pendingKey: string | null; level?: 3 | 4 | 5;
   onAnswer: (text: string, pendingKey: string) => void;
+  /** Ask's conversation: the typed answer goes in the Ask box itself, so only the questions and option chips render here. */
+  inComposer?: boolean;
 }) {
   const [answer, setAnswer] = useState("");
   const fieldId = useId();
   const field = useRef<HTMLTextAreaElement>(null);
   const questionText = useQuestionText();
   const many = run.questions.length > 1;
+  const titles = [...new Set(run.questions.map(question => question.capabilityTitle).filter(Boolean))];
+  const sharedTitle = inComposer && titles.length === 1 ? titles[0] : null;
   const answerKey = `answer:${run.version}`;
   const Heading = `h${level}` as "h3" | "h4" | "h5";
 
@@ -57,21 +61,23 @@ export function RunQuestions({ run, language, busy, pendingKey, onAnswer, level 
   };
 
   return (
-    <section data-ai-questions data-active className="sk-quiz-card sk-enter space-y-4 p-4 sm:p-6">
+    <section data-ai-questions data-active data-in-composer={inComposer || undefined}
+      className={inComposer ? "sk-enter space-y-3 rounded-2xl bg-brand-50/60 p-4 ring-1 ring-brand-100 sm:p-5" : "sk-quiz-card sk-enter space-y-4 p-4 sm:p-6"}>
       <div className="flex items-start gap-3">
         <span className="sk-quiz-num" aria-hidden="true"><HelpCircle className="size-5" /></span>
         <div className="min-w-0 flex-1 space-y-1">
+          {sharedTitle ? <p className="sk-eyebrow text-2xs text-brand-700">{sharedTitle}</p> : null}
           <Heading className="text-base font-semibold text-ink-strong">
             {many ? fillNode(t(UI, "questionsTitleMany", language), <Num value={run.questions.length} />) : t(UI, "questionsTitle", language)}
           </Heading>
         </div>
       </div>
-      <ul className="space-y-3">
+      <ul className={inComposer ? "space-y-2" : "space-y-3"}>
         {run.questions.map(question => (
-          <li key={question.id} data-ai-question={question.promptKey} className="space-y-2 rounded-xl bg-surface-subtle p-3 sm:p-4">
-            {question.capabilityTitle ? <p className="sk-eyebrow text-2xs text-ink-muted">{question.capabilityTitle}</p> : null}
+          <li key={question.id} data-ai-question={question.promptKey} className={inComposer ? "space-y-2 rounded-xl bg-card px-3 py-2.5 ring-1 ring-brand-100/70 sm:px-4" : "space-y-2 rounded-xl bg-surface-subtle p-3 sm:p-4"}>
+            {question.capabilityTitle && !sharedTitle ? <p className="sk-eyebrow text-2xs text-ink-muted">{question.capabilityTitle}</p> : null}
             <p dir="auto" className="text-sm text-ink-strong [overflow-wrap:anywhere] sm:text-base">{questionText(question, language)}</p>
-            {question.pointer ? <Badge size="sm" variant="neutral">{humanisePointer(question.pointer, language)}</Badge> : null}
+            {question.pointer && !inComposer ? <Badge size="sm" variant="neutral">{humanisePointer(question.pointer, language)}</Badge> : null}
             {question.options.length > 0 ? (
               <div className="flex flex-wrap gap-2 pt-1">
                 {question.options.map(option => {
@@ -88,7 +94,12 @@ export function RunQuestions({ run, language, busy, pendingKey, onAnswer, level 
           </li>
         ))}
       </ul>
-      <div className="space-y-2">
+      {inComposer ? (
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-brand-700">
+          <CornerDownRight aria-hidden="true" className="size-4 rtl:-scale-x-100" />
+          {run.questions.some(question => question.options.length > 0) ? runText("replyBelowOrTap", language) : runText("replyBelow", language)}
+        </p>
+      ) : <div className="space-y-2">
         <label htmlFor={fieldId} className="block text-xs font-semibold text-ink-muted">
           {run.questions.some(question => question.options.length > 0) ? runText("orTypeAnswer", language) : runText("yourAnswer", language)}
         </label>
@@ -109,7 +120,7 @@ export function RunQuestions({ run, language, busy, pendingKey, onAnswer, level 
             {t(UI, "answer", language)}
           </Button>
         </div>
-      </div>
+      </div>}
     </section>
   );
 }

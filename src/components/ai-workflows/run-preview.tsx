@@ -19,6 +19,22 @@ const FOLD_AFTER = 8;
 const FOLDED_ROWS = 6;
 
 /** The "what will change" rows. More than 8 fold to 6 with an honest "Show N more" toggle. */
+/** Server previews carry some enum codes as values ("SINGLE"); show the words people use. Unknown values pass through. */
+const VALUE_WORDS: Record<string, Record<Lang, string>> = {
+  SINGLE: { en: "One class teacher", ar: "معلم صف واحد", ur: "ایک کلاس ٹیچر" },
+  SUBJECT: { en: "Subject teachers", ar: "معلمو المواد", ur: "مضمون کے اساتذہ" },
+  PRESENT: { en: "Present", ar: "حاضر", ur: "حاضر" },
+  ABSENT: { en: "Absent", ar: "غائب", ur: "غیر حاضر" },
+  LATE: { en: "Late", ar: "متأخر", ur: "تاخیر سے" },
+  EXCUSED: { en: "Excused", ar: "بعذر", ur: "رخصت پر" },
+  MALE: { en: "Male", ar: "ذكر", ur: "مرد" },
+  FEMALE: { en: "Female", ar: "أنثى", ur: "خاتون" },
+  CREATE: { en: "Add", ar: "إضافة", ur: "شامل کریں" },
+  UPDATE: { en: "Change", ar: "تعديل", ur: "تبدیل کریں" },
+  DELETE: { en: "Remove", ar: "حذف", ur: "ہٹائیں" },
+};
+const valueWords = (value: string, language: Lang) => VALUE_WORDS[value.trim()]?.[language] ?? value;
+
 export function PreviewLines({ lines, changed, language }: { lines: Line[]; changed?: ReadonlySet<number>; language: Lang }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -31,7 +47,7 @@ export function PreviewLines({ lines, changed, language }: { lines: Line[]; chan
         {shown.map((line, index) => (
           <div key={index} className="contents">
             <dt className="text-xs font-semibold text-ink-muted [overflow-wrap:anywhere] sm:pt-0.5">{line.label}</dt>
-            <dd dir="auto" className={cn("rounded-md text-sm text-ink-strong [overflow-wrap:anywhere]", changed?.has(index) && "sk-ai-flash")}>{line.value}</dd>
+            <dd dir="auto" className={cn("rounded-md text-sm text-ink-strong [overflow-wrap:anywhere]", changed?.has(index) && "sk-ai-flash")}>{typeof line.value === "string" ? valueWords(line.value, language) : line.value}</dd>
           </div>
         ))}
       </dl>

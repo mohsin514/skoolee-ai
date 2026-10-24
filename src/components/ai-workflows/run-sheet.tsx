@@ -47,11 +47,13 @@ function useRunAnnouncement(run: RunView, language: Lang) {
  */
 export function RunSheet({
   run, language, busy, error, onCommand,
-  chrome = "full", headingLevel = 3, requestText, onRephrase, examples, celebrate = true, connection = "live", onCheckNow,
+  chrome = "full", headingLevel = 3, requestText, onRephrase, examples, celebrate = true, connection = "live", onCheckNow, questionsInComposer = false,
 }: {
   run: RunView; language: Lang; busy: boolean; error: string | null; onCommand: (body: Record<string, unknown>, clickKey?: string) => void;
   chrome?: "full" | "compact"; headingLevel?: 2 | 3 | 4; requestText?: string; onRephrase?: (text: string) => void; examples?: string[]; celebrate?: boolean;
   connection?: "live" | "retrying"; onCheckNow?: () => void;
+  /** Ask's conversation answers questions in its own box; elsewhere (setup) the question card keeps its field. */
+  questionsInComposer?: boolean;
 }) {
   const headingId = useId();
   const sheet = useRef<HTMLElement>(null);
@@ -81,7 +83,7 @@ export function RunSheet({
       {planningEmpty ? <RunPlanning language={language} /> : null}
       {run.steps.length > 0 ? <RunSteps run={run} language={language} busy={busy} pendingKey={pendingKey} onConfirm={confirm} onAmend={amend} /> : null}
       {run.status === "NEEDS_INPUT" && run.questions.length > 0 ? (
-        <RunQuestions run={run} language={language} busy={busy} pendingKey={pendingKey} level={level} onAnswer={answer} />
+        <RunQuestions run={run} language={language} busy={busy} pendingKey={pendingKey} level={level} onAnswer={answer} inComposer={questionsInComposer} />
       ) : null}
       <RunOutcome run={run} language={language} celebrate={celebrate} requestText={requestText} onRephrase={onRephrase} examples={examples} sheetRef={sheet} />
       {runError ? (
