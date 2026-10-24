@@ -112,9 +112,9 @@ const holidayRows = (deleting: boolean) => (setupVariant("HOLIDAYS") as z.ZodTyp
 
 const OPS: TypedOp[] = [
   { key: "academics.setup_year", operation: "academics.setup_year", class: "B", risk: "CREATE", roles: OPERATORS, schema: academicSetupProposalSchema,
-    copy: c(["Create classes for the academic year", "Create missing classes and sections in the year's draft or active cycle.", "Create classes 1 to 5 with sections A and B"],
-      ["إنشاء فصول العام الدراسي", "إنشاء الفصول والشعب الناقصة في دورة العام.", "أنشئ الصفوف من 1 إلى 5 بالشعبتين أ و ب"],
-      ["تعلیمی سال کی کلاسیں بنائیں", "سال کے سائیکل میں موجود نہ ہونے والی کلاسیں اور سیکشن بنائیں۔", "کلاس 1 سے 5 تک سیکشن اے اور بی کے ساتھ بنائیں"]) },
+    copy: c(["Create classes for the academic year", "Create new classes (grades) and their sections in the year's draft or active cycle, one class or many.", "Create classes 1 to 5 with sections A and B"],
+      ["إنشاء فصول العام الدراسي", "إنشاء فصول (صفوف) جديدة وشعبها في دورة العام، فصلاً واحداً أو عدة فصول.", "أنشئ الصفوف من 1 إلى 5 بالشعبتين أ و ب"],
+      ["تعلیمی سال کی کلاسیں بنائیں", "سال کے سائیکل میں نئی کلاسیں (گریڈ) اور ان کے سیکشن بنائیں، ایک کلاس یا کئی۔", "کلاس 1 سے 5 تک سیکشن اے اور بی کے ساتھ بنائیں"]) },
   { key: "setup.rooms", operation: "setup.apply_changes", class: "B", risk: "CREATE", roles: OPERATORS, schema: setupVariant("ROOMS"),
     copy: c(["Add classrooms", "Add rooms with their seating layout.", "Add rooms 101 to 104 with 6 rows of 5 benches"], ["إضافة قاعات", "إضافة قاعات بمخطط المقاعد.", "أضف القاعات 101 إلى 104"], ["کمرے شامل کریں", "کمرے نشستوں کی ترتیب کے ساتھ شامل کریں۔", "کمرے 101 سے 104 شامل کریں"]) },
   { key: "setup.periods", operation: "setup.apply_changes", class: "B", risk: "CREATE", roles: OPERATORS, schema: setupVariant("PERIODS"),

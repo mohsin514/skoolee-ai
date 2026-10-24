@@ -2,11 +2,11 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { redis } from "../../src/lib/queue/connection";
 import { prisma } from "../../src/lib/db/prisma";
-import { normalizeText, detectScript } from "../../src/lib/ai-workflows/planner/normalize";
+import { normalizeText, detectScript, searchTokens } from "../../src/lib/ai-workflows/planner/normalize";
 import { matchQuote, checkEvidence } from "../../src/lib/ai-workflows/planner/evidence";
 import { bindHandles } from "../../src/lib/ai-workflows/planner/context";
 import { rank } from "../../src/lib/ai-workflows/planner/retrieve";
-import { cardFor } from "../../src/lib/ai-workflows/planner/protocol";
+import { cardFor, PLANNER_SYSTEM } from "../../src/lib/ai-workflows/planner/protocol";
 import { REGISTRY, entriesForRole } from "../../src/lib/ai-workflows/registry";
 
 after(async () => { await prisma.$disconnect(); redis.disconnect(); });
@@ -44,6 +44,19 @@ test("retrieval ranks by meaning words in all three languages and only within th
   const arabic = rank("أضف إجازة", admin).slice(0, 8).map(item => item.entry.key);
   assert.ok(arabic.includes("setup.holidays") && arabic.includes("leave.create_type"), arabic.join(","));
   assert.ok(!entriesForRole("TEACHER").some(entry => entry.key.startsWith("fees.")));
+});
+
+test("retrieval matches singular and plural English, so \"create class\" finds the class-setup capability", () => {
+  assert.deepEqual(searchTokens("classes sections students fees holidays libraries batches"), ["class", "section", "student", "fee", "holiday", "library", "batch"]);
+  assert.deepEqual(searchTokens("status analysis 12s"), ["status", "analysis", "12s"]);
+  const admin = entriesForRole("CAMPUS_ADMIN");
+  assert.ok(rank("create class grade 12", admin).slice(0, 8).some(item => item.entry.key === "academics.setup_year"));
+});
+
+test("the planner is told missing inputs become questions, never a reason to refuse", () => {
+  assert.match(PLANNER_SYSTEM, /Missing inputs are never a reason for "unsupported"/);
+  assert.match(PLANNER_SYSTEM, /never use the handle of a different record/);
+  assert.match(PLANNER_SYSTEM, /only when no listed capability does what the user asked/);
 });
 
 test("every card the model can see renders in each language with a class note and no executable proposal in drafts", () => {

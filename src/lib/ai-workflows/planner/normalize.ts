@@ -24,7 +24,7 @@ export function tokens(text: string): string[] {
  */
 export function searchTokens(text: string): string[] {
   return tokens(text).map(token => {
-    if (!/[\u0600-\u06FF]/.test(token)) return token;
+    if (!/[\u0600-\u06FF]/.test(token)) return latinStem(token);
     let stem = token;
     if (stem.length >= 5 && stem.startsWith("وال")) stem = stem.slice(3);
     else if (stem.length >= 4 && stem.startsWith("ال")) stem = stem.slice(2);
@@ -32,6 +32,15 @@ export function searchTokens(text: string): string[] {
     else if (stem.length >= 5 && stem.endsWith("ا")) stem = stem.slice(0, -1);
     return stem;
   });
+}
+
+/** English plurals, so "class" finds "classes" and "student" finds "students"; symmetric like the Arabic stems. */
+function latinStem(token: string): string {
+  if (token.length < 4 || /\d/.test(token)) return token;
+  if (/(?:ss|ch|sh|x)es$/.test(token)) return token.slice(0, -2);
+  if (token.endsWith("ies") && token.length > 4) return `${token.slice(0, -3)}y`;
+  if (token.endsWith("s") && !/(?:ss|us|is)$/.test(token)) return token.slice(0, -1);
+  return token;
 }
 
 /** Letters Urdu uses and Arabic does not (incl. ہ ی ک) distinguish Urdu from Arabic script. */
