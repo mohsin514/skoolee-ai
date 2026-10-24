@@ -32,6 +32,33 @@ export async function observeHandoffs(job: AiWorkflowJob) {
       changed++;
     });
   }
+  return changed + await observeDomainRows(job);
+}
+
+/**
+ * Hand-offs finished on a domain screen that stamps its row with the hand-off id (a payment or a fee
+ * adjustment made from an AI-prepared Collect or Adjustments hand-off, Slice 5 RT6). The unique
+ * (school, workflow_handoff_id) index guarantees there is at most one such row.
+ */
+async function observeDomainRows(job: AiWorkflowJob) {
+  const open = await prisma.aiWorkflowHandoff.findMany({ where: { jobId: job.id, schoolId: job.schoolId, status: { in: ["OPEN", "CLAIMED"] }, kind: { in: ["DOMAIN_SCREEN", "DOMAIN_REQUEST"] } }, select: { id: true, stepId: true, status: true, targetRoute: true } });
+  let changed = 0;
+  for (const handoff of open) {
+    const [payment, adjustment] = await Promise.all([
+      prisma.payment.findFirst({ where: { schoolId: job.schoolId, workflowHandoffId: handoff.id }, select: { id: true, recordedBy: true } }),
+      prisma.financialAdjustment.findFirst({ where: { schoolId: job.schoolId, workflowHandoffId: handoff.id }, select: { id: true, requesterId: true } }),
+    ]);
+    const done = payment ? { model: "payment", id: payment.id, by: payment.recordedBy } : adjustment ? { model: "financialAdjustment", id: adjustment.id, by: adjustment.requesterId } : null;
+    if (!done) continue;
+    const receipt: Receipt = { kind: "handoff", capability: done.model, entities: [{ model: done.model, id: done.id }], counts: {}, link: handoff.targetRoute, replayed: false, detail: { decidedBy: done.by === job.actorId ? "requester" : "approver" } };
+    await prisma.$transaction(async tx => {
+      const updated = await tx.aiWorkflowHandoff.updateMany({ where: { id: handoff.id, status: handoff.status }, data: { status: "COMPLETED", completedModel: done.model, completedId: done.id, completedById: done.by, completedReceipt: receipt as unknown as Prisma.InputJsonValue } });
+      if (!updated.count) return;
+      await tx.aiWorkflowStep.updateMany({ where: { id: handoff.stepId, schoolId: job.schoolId, status: "WAITING_HANDOFF" }, data: { status: "HANDED_OFF_DONE", receipt: receipt as unknown as Prisma.InputJsonValue, finishedAt: new Date(), version: { increment: 1 } } });
+      await appendEvent(tx, job, "HANDOFF_COMPLETED", handoff.stepId, { completed: true });
+      changed++;
+    });
+  }
   return changed;
 }
 

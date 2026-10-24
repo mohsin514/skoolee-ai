@@ -1,7 +1,7 @@
 import { entriesForRole } from "../registry";
 import { runGates } from "../registry/gates";
 import type { CapabilityContext, CapabilityEntry, GateResult } from "../registry/types";
-import { tokens } from "./normalize";
+import { searchTokens as tokens } from "./normalize";
 
 /**
  * Code-first retrieval (architecture §5.1): role filter → BM25 over the entry's EN/AR/UR copy and
@@ -9,7 +9,8 @@ import { tokens } from "./normalize";
  * descriptions; entries a role holds but cannot use right now are listed separately with who can.
  */
 const K1 = 1.2, B = 0.75;
-export const MAX_CARDS = 8;
+// 12 since Slice 9: with ~190 capabilities, 8 left the right one just outside for several live-smoke cases.
+export const MAX_CARDS = 12;
 
 function documentOf(entry: CapabilityEntry): string[] {
   const { title, whenToUse, examples } = entry.copy;

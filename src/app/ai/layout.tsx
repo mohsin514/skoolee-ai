@@ -4,7 +4,6 @@ import { requirePageSession } from "@/lib/auth/require-page-session";
 import { getDisplayLocale } from "@/lib/locale/display";
 import { assertSchoolOperational, BillingAccessError } from "@/lib/billing/entitlements";
 import { redirect } from "next/navigation";
-import { dashboardPathForRole } from "@/lib/roles";
 
 export const metadata: Metadata = { title: "School AI" };
 export const dynamic = "force-dynamic";
@@ -15,9 +14,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function SchoolAiLayout({ children }: { children: React.ReactNode }) {
   const user = await requirePageSession();
-  // Families and the platform operator go home, not to /403 (G44). Students keep /ai/exams.
-  if (["APP_OWNER", "PARENT"].includes(user.role)) redirect(dashboardPathForRole(user.role));
-  try { await assertSchoolOperational(user.schoolId); }
+  // Every role reaches AI Workflows: families and students since Slice 4, the platform owner since Slice 8.
+  // The platform owner has no school subscription to check.
+  try { if (user.role !== "APP_OWNER") await assertSchoolOperational(user.schoolId); }
   catch (error) {
     if (error instanceof BillingAccessError && error.status === 402) redirect("/subscription-suspended");
     throw error;

@@ -64,6 +64,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { downloadCSV } from "@/lib/csv";
 import { CommandCentreSkeleton, PageSkeleton, PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 import { FlagshipCard } from "@/components/ui/flagship";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { ActionQueue } from "@/components/principal/action-queue";
 import { AcademicOverview } from "@/components/insights/AcademicOverview";
 import { ReportCardPipeline, type ReportSelectionState } from "@/components/academic/ReportCardPipeline";
@@ -458,6 +459,8 @@ function PrincipalWorkspace({
       const showExamCard = canOpen("exam-studio");
       const flagships = showAiCard || showExamCard ? (
         <div className={cn("grid gap-4", showAiCard && showExamCard && "lg:grid-cols-2")}>
+          {/* AI Workflows first-login sheet (Slice 7); hidden once ready or set aside. */}
+          {showAiCard ? <div className={cn(showExamCard && "lg:col-span-2")}><SetupPrompt /></div> : null}
           {showAiCard ? (
             <FlagshipCard
               kind="ai-workflows"

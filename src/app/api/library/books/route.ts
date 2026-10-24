@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { createBook, updateBook } from "@/lib/library/catalogue-command";
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,27 +50,7 @@ export async function POST(req: NextRequest) {
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const { title, author, isbn, subject, categoryId } = body;
-    const copiesTotal = Number(body.copiesTotal);
-
-    if (!title) throw new ApiError("title is required", 400);
-    if (!Number.isFinite(copiesTotal) || copiesTotal < 0) {
-      throw new ApiError("copiesTotal must be a non-negative number", 400);
-    }
-
-    const data = await prisma.book.create({
-      data: {
-        campusId,
-        title,
-        author: author || null,
-        isbn: isbn || null,
-        subject: subject || null,
-        categoryId: categoryId || null,
-        copiesTotal,
-        copiesAvailable: copiesTotal,
-      },
-    });
+    const data = await createBook(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {
@@ -83,38 +64,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await req.json();
-    const { id, title, author, isbn, subject, categoryId } = body;
-    if (!id) throw new ApiError("id is required", 400);
-
-    const existing = await prisma.book.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!existing) throw new ApiError("Book not found", 404);
-
-    let copiesAvailable = existing.copiesAvailable;
-    let copiesTotal = existing.copiesTotal;
-    if (body.copiesTotal !== undefined) {
-      const newTotal = Number(body.copiesTotal);
-      if (!Number.isFinite(newTotal) || newTotal < 0) {
-        throw new ApiError("copiesTotal must be a non-negative number", 400);
-      }
-      const diff = newTotal - existing.copiesTotal;
-      copiesAvailable = Math.max(0, existing.copiesAvailable + diff);
-      copiesTotal = newTotal;
-    }
-
-    const data = await prisma.book.update({
-      where: { id },
-      data: {
-        ...(title !== undefined ? { title } : {}),
-        ...(author !== undefined ? { author: author || null } : {}),
-        ...(isbn !== undefined ? { isbn: isbn || null } : {}),
-        ...(subject !== undefined ? { subject: subject || null } : {}),
-        ...(categoryId !== undefined ? { categoryId: categoryId || null } : {}),
-        copiesTotal,
-        copiesAvailable,
-      },
-    });
+    const data = await updateBook(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {

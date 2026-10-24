@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
+import { createPaymentMethod } from "@/lib/accounts/payment-method-command";
 import {
   ApiError,
   assertModuleRead,
@@ -43,23 +44,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    if (!name) throw new ApiError("name is required", 400);
-
-    const existing = await prisma.paymentMethodRef.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A payment method with this name already exists", 409);
-
-    const method = await prisma.$transaction(async (tx) => {
-      const created = await tx.paymentMethodRef.create({
-        data: { campusId, name, isActive: body.isActive !== false },
-      });
-      await writeAuditEvent(tx, user, {
-        table: "payment_method_refs", recordId: created.id, action: "CREATE", campusId: created.campusId,
-        after: { isActive: created.isActive },
-      });
-      return created;
-    });
+    const method = await createPaymentMethod(user, body);
 
     return Response.json({ success: true, data: method }, { status: 201 });
   } catch (error) {
