@@ -33,7 +33,8 @@ export function matchQuote(quote: string, segments: readonly Segment[]): Evidenc
 
 /** Scalar text the value contributes; ids (already bound) and booleans carry no words to check. */
 function wordsOf(value: unknown): string[] {
-  if (typeof value === "string") return /^[0-9a-f-]{20,}$/i.test(value) ? [] : tokens(value);
+  // Ids and enum codes (ABSENT, CLASS_TEST) are the schema's words, not the user's.
+  if (typeof value === "string") return /^[0-9a-f-]{20,}$/i.test(value) || /^[A-Z][A-Z0-9_]+$/.test(value) ? [] : tokens(value);
   if (typeof value === "number") return [String(value)];
   if (Array.isArray(value)) return value.flatMap(wordsOf);
   if (value && typeof value === "object") return Object.entries(value).filter(([key]) => !/(^id$|Id$|Ids$)/.test(key)).flatMap(([, child]) => wordsOf(child));
@@ -48,13 +49,26 @@ export function readPointer(value: unknown, pointer: string): unknown {
  * Checks every required pointer. Returns matches for the ones supported and the pointers that need a
  * question. A value whose words are not in the user's text is not supported, even with a quote.
  */
+/** "/entries/*\/said" names every item of an array: each one needs its own quote (control P3). */
+export function expandPointers(input: unknown, pointers: readonly string[]): string[] {
+  return pointers.flatMap(pointer => {
+    const at = pointer.indexOf("/*");
+    if (at < 0) return [pointer];
+    const list = readPointer(input, pointer.slice(0, at));
+    if (!Array.isArray(list) || !list.length) return [pointer.slice(0, at)];
+    return expandPointers(input, list.map((_, index) => `${pointer.slice(0, at)}/${index}${pointer.slice(at + 2)}`));
+  });
+}
+
 export function checkEvidence(input: unknown, required: readonly string[], claims: readonly EvidenceClaim[], segments: readonly Segment[]) {
   const matches: EvidenceMatch[] = [], missing: string[] = [];
   const userWords = new Set(segments.flatMap(segment => tokens(segment.normalized)));
-  for (const pointer of required) {
+  for (const pointer of expandPointers(input, required)) {
     const value = readPointer(input, pointer);
     if (value === undefined || value === null || (Array.isArray(value) && !value.length)) { missing.push(pointer); continue; }
-    const claim = claims.find(item => item.pointer === pointer || item.pointer.startsWith(`${pointer}/`));
+    // A claim on the field, below it, or on its own array item ("/entries/0" for "/entries/0/said"); never on the whole list.
+    const item = /\/\d+$/.test(pointer.slice(0, pointer.lastIndexOf("/"))) ? pointer.slice(0, pointer.lastIndexOf("/")) : null;
+    const claim = claims.find(claimed => claimed.pointer === pointer || claimed.pointer.startsWith(`${pointer}/`) || claimed.pointer === item);
     const match = claim ? matchQuote(claim.quote, segments) : null;
     const words = wordsOf(value);
     const agrees = words.length === 0 || words.filter(word => userWords.has(word)).length / words.length >= 0.6;

@@ -25,6 +25,7 @@ import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { FlagshipCard } from "@/components/ui/flagship";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { DepartmentQueue } from "@/components/school-ai/exam-studio/department-queue";
 import { ModerationQueue } from "@/components/school-ai/exam-studio/moderation-queue";
 import { PapersOwed } from "@/components/school-ai/exam-studio/papers-owed";
@@ -212,6 +213,9 @@ export default function TeacherToday() {
             )}
           </section>
         )}
+
+        {/* ── Flagship: AI Workflows first-login setup (per-user, so invited teachers see it too) ── */}
+        <SetupPrompt />
 
         {/* ── Flagship: Exam Studio (AI-built assessments, secure delivery, marking and recovery) ── */}
         {canExamStudio ? (

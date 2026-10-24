@@ -32,6 +32,12 @@ async function settle(step: AiWorkflowStep, job: AiWorkflowJob, data: Prisma.AiW
  * The domain idempotency key comes from the step's content, not its plan position: a re-plan after a
  * follow-up answer that repeats an already committed step replays its receipt instead of writing again.
  */
+/**
+ * Effects are keyed per job, except a role questionnaire's: rebuilding after an edit must replay what
+ * an earlier version already created (a meeting window, a test) instead of creating it again.
+ */
+export const effectScope = (job: Pick<AiWorkflowJob, "id" | "origin" | "setupResponseId">) => job.origin === "QUESTIONNAIRE" && job.setupResponseId ? `setup-${job.setupResponseId}` : job.id;
+
 export function effectKey(jobId: string, capabilityKey: string, capabilityVersion: number, input: unknown) {
   return `wf-${jobId}-${sha256({ capability: capabilityKey, version: capabilityVersion, input }).slice(0, 40)}`;
 }
@@ -44,7 +50,7 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
     return null;
   }
   const inputHash = sha256({ capability: entry.key, version: entry.version, input });
-  const key = effectKey(job.id, entry.key, entry.version, input);
+  const key = effectKey(effectScope(job), entry.key, entry.version, input);
   let intent = await prisma.aiWorkflowIntent.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: job.schoolId, actorId: job.actorId, idempotencyKey: key } } });
   if (intent && intent.inputHash !== inputHash) throw new WorkflowError("KEY_CONFLICT");
   if (intent?.state === "COMMITTED" || intent?.state === "RECONCILED") {
@@ -106,7 +112,7 @@ export async function runHandoffStep(ctx: CapabilityContext, job: AiWorkflowJob,
     await settle(step, job, { status: "BLOCKED", errorCode: gate.code === "SEAT" ? "SEAT_HELD" : "ROLE_NOT_ALLOWED", finishedAt: new Date() }, "STEP_FAILED", { code: gate.code });
     return null;
   }
-  const key = effectKey(job.id, entry.key, entry.version, input);
+  const key = effectKey(effectScope(job), entry.key, entry.version, input);
   const existing = await prisma.aiWorkflowHandoff.findUnique({ where: { schoolId_idempotencyKey: { schoolId: job.schoolId, idempotencyKey: key } } });
   if (existing) {
     await settle(step, job, { status: "WAITING_HANDOFF", handoffId: existing.id, boundInput: json(input) }, "STEP_HANDED_OFF", { kind: existing.kind });

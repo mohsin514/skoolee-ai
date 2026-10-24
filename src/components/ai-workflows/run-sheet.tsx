@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { RunView, StepView } from "@/lib/ai-workflows/view";
-import { ERROR_WORDS, STATE_WORDS, UI, t } from "./run-copy";
+import { ERROR_WORDS, QUESTION_WORDS, STATE_WORDS, UI, t } from "./run-copy";
 
 type Lang = "en" | "ar" | "ur";
 const DONE_STATES = new Set(["saved", "looked_up", "draft", "approved_elsewhere"]);
@@ -20,7 +20,7 @@ function assertReceipt(step: StepView) {
   if (DONE_STATES.has(step.state) && !step.receipt && process.env.NODE_ENV !== "production") throw new Error(`Step ${step.key} shows ${step.state} without a receipt`);
 }
 
-function StepRow({ step, language, busy, onConfirm }: { step: StepView; language: Lang; busy: boolean; onConfirm: (step: StepView) => void }) {
+function StepRow({ step, language, busy, onConfirm, onAction }: { step: StepView; language: Lang; busy: boolean; onConfirm: (step: StepView) => void; onAction: (step: StepView, actionId: string, expect: number) => void }) {
   assertReceipt(step);
   const count = step.preview ? Object.values(step.preview.counts).reduce((sum, value) => sum + value, 0) : 0;
   return (
@@ -32,8 +32,10 @@ function StepRow({ step, language, busy, onConfirm }: { step: StepView; language
       {step.state === "awaiting_confirm" && step.preview && (
         <div className="space-y-2">
           {step.preview.lines.length > 0 && <ul className="space-y-1 text-sm">{step.preview.lines.slice(0, 10).map((line, index) => <li key={index}><span className="text-ink-muted">{line.label}</span> {line.value}</li>)}</ul>}
+          {/* Only a person's own tap changes what is saved (control P3): e.g. "Mark the other 31 present". */}
+          {step.preview.actions?.map(action => <Button key={action.id} data-ai-amend={action.id} variant="outline" disabled={busy} onClick={() => onAction(step, action.id, action.expect)}>{action.label}</Button>)}
           <div className="flex flex-wrap items-center gap-2">
-            <Button data-ai-confirm data-ai-preview={step.preview.code} disabled={busy} onClick={() => onConfirm(step)}>{`${t(UI, "saveStep", language)} · ${step.title}${count ? ` · ${count}` : ""}`}</Button>
+            <Button data-ai-confirm data-ai-preview={step.preview.code} disabled={busy} onClick={() => onConfirm(step)}>{step.preview.confirmLabel ?? `${t(UI, "saveStep", language)} · ${step.title}${count ? ` · ${count}` : ""}`}</Button>
             <Badge variant="outline"><code dir="ltr">{`${t(UI, "previewCode", language)} ${step.preview.code}`}</code></Badge>
           </div>
         </div>
@@ -55,18 +57,26 @@ function StepRow({ step, language, busy, onConfirm }: { step: StepView; language
 export function RunSheet({ run, language, busy, error, onCommand }: { run: RunView; language: Lang; busy: boolean; error: string | null; onCommand: (body: Record<string, unknown>, clickKey?: string) => void }) {
   const [answer, setAnswer] = useState("");
   const done = run.steps.filter(step => DONE_STATES.has(step.state)).length;
+  const amend = (step: StepView, actionId: string, expect: number) => onCommand({ type: "amend", stepId: step.id, previewVersion: step.preview!.version, actionId, expect });
   const confirm = (step: StepView) => onCommand({ type: "confirm", steps: [{ stepId: step.id, previewVersion: step.preview!.version, previewHash: step.preview!.hash, inputHash: step.preview!.inputHash }] }, `confirm:${step.id}:${step.preview!.version}`);
   return (
     <section data-ai-run-sheet data-ai-status={run.status} className="space-y-4" dir={language === "en" ? "ltr" : "rtl"} aria-live="polite">
       {run.steps.length > 0 && <p className="text-sm text-ink-muted">{t(UI, "counts", language, done, run.steps.length)}</p>}
-      <ol className="space-y-3">{run.steps.map(step => <StepRow key={step.id} step={step} language={language} busy={busy} onConfirm={confirm} />)}</ol>
+      <ol className="space-y-3">{run.steps.map(step => <StepRow key={step.id} step={step} language={language} busy={busy} onConfirm={confirm} onAction={amend} />)}</ol>
       {run.outcome && <Alert tone={run.outcome === "EXECUTED" ? "success" : run.outcome === "NOT_SUPPORTED" || run.outcome === "NOTHING_DONE" ? "warning" : "info"} data-ai-outcome={run.outcome}>{t(UI, `outcome_${run.outcome}`, language)}</Alert>}
       {run.errorCode && !run.outcome && ERROR_WORDS[run.errorCode as keyof typeof ERROR_WORDS] && <Alert tone="danger">{ERROR_WORDS[run.errorCode as keyof typeof ERROR_WORDS]![language]}</Alert>}
       {error && ERROR_WORDS[error as keyof typeof ERROR_WORDS] && <Alert tone="danger" data-ai-error={error}>{ERROR_WORDS[error as keyof typeof ERROR_WORDS]![language]}</Alert>}
       {run.status === "NEEDS_INPUT" && run.questions.length > 0 && (
         <div className="space-y-2" data-ai-questions>
           <h3 className="font-semibold">{t(UI, "questionsTitle", language)}</h3>
-          <ul className="list-disc space-y-1 ps-5 text-sm">{run.questions.map(question => <li key={question.id}>{question.text ?? t(UI, "missingField", language, `${question.capabilityTitle ?? ""} ${question.pointer ?? ""}`.trim())}</li>)}</ul>
+          <ul className="list-disc space-y-2 ps-5 text-sm">{run.questions.map(question => (
+            <li key={question.id} data-ai-question={question.promptKey}>
+              {question.text ?? (QUESTION_WORDS[question.promptKey] ? t(QUESTION_WORDS, question.promptKey, language, question.pointer ?? "") : t(UI, "missingField", language, `${question.capabilityTitle ?? ""} ${question.pointer ?? ""}`.trim()))}
+              {question.options.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-2">{question.options.map(option => <Button key={option.value} size="sm" variant="outline" data-ai-option={option.value} disabled={busy} onClick={() => onCommand({ type: "answer", text: option.label }, `answer:${run.version}`)}>{option.label}</Button>)}</div>
+              )}
+            </li>
+          ))}</ul>
           <Textarea data-ai-answer value={answer} onChange={event => setAnswer(event.target.value)} maxLength={4000} dir="auto" />
           <Button data-ai-answer-submit disabled={busy || !answer.trim()} onClick={() => { onCommand({ type: "answer", text: answer }, `answer:${run.version}`); setAnswer(""); }}>{t(UI, "answer", language)}</Button>
         </div>

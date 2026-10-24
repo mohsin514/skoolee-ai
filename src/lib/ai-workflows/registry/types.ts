@@ -50,6 +50,13 @@ export interface PreviewModel {
   /** Rows the user will see as "what will change", already localised. */
   lines: Array<{ label: string; value: string }>;
   counts: Record<string, number>;
+  /** The save button's words when they say more than the title ("Save register · 31 present, 2 absent"). */
+  confirmLabel?: string;
+  /**
+   * Changes only a person may make to the bound input (control P3), e.g. "Mark the other 31 present".
+   * `expect` is the count the person saw; the server re-checks it before applying the patch.
+   */
+  actions?: Array<{ id: string; label: string; patch: Record<string, unknown>; expect: number }>;
   /** Inputs to the preview hash beyond the bound input (e.g. updatedAt of affected rows). */
   basis: unknown;
 }
@@ -91,6 +98,14 @@ interface BaseEntry<I> {
   scope: ScopeRule;
   limits?: { maxItems?: number; autoRunMax?: number };
   source: EntrySource;
+  /**
+   * Binds names the model wrote (pupils, assignments, leave types) to records in this actor's scope and
+   * re-checks that scope. Throws InputRequired for anything ambiguous; returns the input that will be
+   * previewed, confirmed and executed.
+   */
+  resolve?(ctx: CapabilityContext, input: I): Promise<I>;
+  /** Top-level input keys only a person may set (through a preview action); the planner drops them. */
+  humanFields?: readonly string[];
 }
 
 export type IdempotencyMode =

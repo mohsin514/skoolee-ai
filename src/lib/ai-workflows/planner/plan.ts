@@ -83,7 +83,9 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
     // A capability that was not retrieved for this actor, or a dependency on a later step, is never accepted.
     if (!entry || seen.has(step.key) || step.dependsOn.some(key => !seen.has(key))) return notSupported(user, job, step.capability, userText.map(item => item.text).join(" "));
     seen.add(step.key);
-    const bound = bindHandles(step.input, planner.ids);
+    // Fields only a person may set (e.g. "mark the rest present") are never taken from the model.
+    const modelInput = entry.humanFields?.length ? Object.fromEntries(Object.entries(step.input).filter(([key]) => !entry.humanFields!.includes(key))) : step.input;
+    const bound = bindHandles(modelInput, planner.ids);
     const evidence = checkEvidence(bound.value, entry.evidence, step.evidence, segments);
     const parsed = entry.input.safeParse(bound.value);
     const schemaMissing = parsed.success ? [] : parsed.error.issues.map(issue => `/${issue.path.join("/")}`);

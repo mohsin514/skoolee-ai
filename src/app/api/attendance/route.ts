@@ -9,38 +9,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { triggerRepeatedAbsenceAlert } from "@/lib/notifications/automation";
-import { notify } from "@/lib/notifications/in-app";
-import { writeObservedAttendance } from "@/lib/school-ai/school-operations-register-write";
+import { dateOnly, getClassForAttendance, saveAttendanceRegister } from "@/lib/attendance/save-register-command";
 import { schoolToday } from "@/lib/datetime";
-
-function dateOnly(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new ApiError("Invalid date", 400);
-  return date;
-}
-
-async function getClassForAttendance(classId: string, user: Awaited<ReturnType<typeof requireAuthUser>>) {
-  const cls = await prisma.class.findFirst({
-    where: {
-      id: classId,
-      campus: { schoolId: user.schoolId },
-      ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }),
-      ...(user.role === "TEACHER"
-        ? {
-            OR: [
-              { classTeacherId: user.userId },
-              { subjects: { some: { teacherId: user.userId } } },
-            ],
-          }
-        : {}),
-    },
-    select: { id: true, campusId: true, name: true, section: true },
-  });
-
-  if (!cls) throw new ApiError("Class not found or not assigned to you", 404);
-  return cls;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -129,41 +99,7 @@ export async function POST(req: NextRequest) {
     const parsed = attendanceSchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 
-    const cls = await getClassForAttendance(parsed.data.classId, user);
-    const date = dateOnly(parsed.data.date);
-    const records = await writeObservedAttendance(user, { campusId: cls.campusId, classId: cls.id, date: parsed.data.date, entries: parsed.data.entries });
-
-    const summary = {
-      total: records.length,
-      present: records.filter((entry) => entry.status === "PRESENT").length,
-      absent: records.filter((entry) => entry.status === "ABSENT").length,
-      leave: records.filter((entry) => entry.status === "LEAVE").length,
-    };
-
-    const absenceAlerts = [];
-    for (const record of records.filter((entry) => entry.status === "ABSENT")) {
-      try {
-        absenceAlerts.push(
-          ...(await triggerRepeatedAbsenceAlert({
-            studentId: record.studentId,
-            date,
-            createdById: user.userId,
-          }))
-        );
-      } catch (error) {
-        console.error("[attendance] absence alert failed", error);
-      }
-    }
-
-    notify("ATTENDANCE_SUBMITTED", {
-      schoolId: user.schoolId,
-      campusId: cls.campusId,
-      actorId: user.userId,
-      actorName: user.fullName,
-      className: [cls.name, cls.section].filter(Boolean).join(" "),
-      date: parsed.data.date,
-      count: records.length,
-    });
+    const { records, summary, absenceAlerts } = await saveAttendanceRegister(user, parsed.data);
 
     return Response.json({ success: true, records, summary, absenceAlerts: absenceAlerts.length });
   } catch (error) {

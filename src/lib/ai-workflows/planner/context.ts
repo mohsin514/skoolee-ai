@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import type { CapabilityContext } from "../registry/types";
+import { assignedClassWhere, assignedSubjectWhere } from "../resolve/scope";
 
 /**
  * The model never sees or writes a record id. It sees the actor's own records under short handles
@@ -27,8 +28,9 @@ export async function buildPlannerContext(ctx: CapabilityContext): Promise<Plann
   if (!ctx.campusId || ctx.user.role === "STUDENT" || ctx.user.role === "PARENT") return { visible, ids };
   const scope = { schoolId: ctx.user.schoolId, campusId: ctx.campusId };
   const [classes, subjects, rooms, periods, cycles, teachers, holidays] = await Promise.all([
-    prisma.class.findMany({ where: { ...scope, archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true, section: true, academicYear: true }, orderBy: [{ name: "asc" }, { section: "asc" }], take: LIMIT }),
-    prisma.subject.findMany({ where: { class: { ...scope, archivedAt: null } }, select: { id: true, name: true, class: { select: { name: true, section: true } } }, take: LIMIT }),
+    // A teacher's handles cover only their own classes and subjects, so a foreign class cannot even be named.
+    prisma.class.findMany({ where: { ...scope, archivedAt: null, status: "ACTIVE", ...assignedClassWhere(ctx.user) }, select: { id: true, name: true, section: true, academicYear: true }, orderBy: [{ name: "asc" }, { section: "asc" }], take: LIMIT }),
+    prisma.subject.findMany({ where: { class: { ...scope, archivedAt: null }, ...assignedSubjectWhere(ctx.user) }, select: { id: true, name: true, class: { select: { name: true, section: true } } }, take: LIMIT }),
     prisma.classRoom.findMany({ where: scope, select: { id: true, roomNumber: true, roomType: true }, take: LIMIT }),
     prisma.periodDefinition.findMany({ where: scope, select: { id: true, periodNumber: true, timeType: true, startTime: true, endTime: true }, orderBy: { periodNumber: "asc" }, take: 100 }),
     prisma.academicCycle.findMany({ where: scope, select: { id: true, academicYear: true, label: true, status: true }, take: 20 }),
