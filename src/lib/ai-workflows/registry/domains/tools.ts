@@ -6,7 +6,7 @@ import { assistantCatalogQuerySchema } from "@/lib/school-ai/assistant-catalog";
 import { createWorkspaceRecord } from "@/lib/school-ai/repository";
 import { workspaceIdSchema, workflowModuleSchema } from "@/lib/school-ai/schemas";
 import { executeRoleAction } from "../../adapters/tool-actions";
-import { campusCreateSchema, personalPlanSchema, phoneCallSchema, platformInspectSchema, platformUpdateSchema, profileActionSchema, studentsCreateSchema, type ToolAction } from "../../adapters/tool-schemas";
+import { personalPlanSchema, phoneCallSchema, platformInspectSchema, platformUpdateSchema, profileActionSchema, studentsCreateSchema, type ToolAction } from "../../adapters/tool-schemas";
 import { z } from "zod";
 import { defineCapability } from "../define";
 import { ownCampus, permission, predicate, roles } from "../gates";
@@ -63,15 +63,7 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
     preview: async (_ctx, input) => ({ title: "Add students", lines: input.students.map(row => ({ label: row.rollNo, value: row.fullName })), counts: { students: input.students.length }, basis: input }),
     execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "students.create", "Add students", input, idempotencyKey, "/admin?view=students"),
   }),
-  defineCapability({
-    key: "campus.create", version: 1, cluster: "C8", inventoryKeys: ["campus.create"], risk: "CREATE", roles: ["SUPER_ADMIN"], class: "B",
-    input: campusCreateSchema, evidence: ["/name", "/city"], gates: [roles(["SUPER_ADMIN"])], scope: { kind: "any-campus-of-school" },
-    copy: c(["Add a campus", "Create a new campus in your group; a campus administrator is appointed separately.", "Add a campus called Gulberg in Lahore"], ["إضافة فرع", "إنشاء فرع جديد؛ يُعيَّن مديره بشكل منفصل.", "أضف فرع العليا في الرياض"], ["کیمپس شامل کریں", "گروپ میں نیا کیمپس؛ کیمپس منتظم الگ سے مقرر ہوتا ہے۔", "لاہور میں گلبرگ کیمپس شامل کریں"]),
-    idempotency: { mode: "tx-receipt" }, source: { serverAction: "src/app/actions/addCampus.ts", service: "src/lib/ai-workflows/adapters/tool-actions.ts:executeRoleAction", reuse: "automation-tool" },
-    preview: async (_ctx, input) => ({ title: "Add a campus", lines: [{ label: input.name, value: input.city }], counts: { campuses: 1 }, basis: input }),
-    execute: (ctx, input, { idempotencyKey }) => legacy(ctx, "campus.create", `Add campus ${input.name}`, input, idempotencyKey, "/super?view=campuses"),
-  }),
-  // library.book_create moved to domains/desk/library.ts (Slice 6: ISBN merge, categories).
+  // campus.create moved to domains/group/group.ts (Slice 8: rebuilt on addCampus, plan capacity, calendar seeding).
   defineCapability({
     key: "front_desk.call_log", version: 1, cluster: "C7", inventoryKeys: ["front_desk.call_log", "front_desk.log_call"], risk: "CREATE", roles: ["RECEPTIONIST", "ADMIN", "CAMPUS_ADMIN"], class: "A",
     classOverride: "Append-only record; nothing is sent.", input: phoneCallSchema, evidence: ["/name", "/phone", "/purpose"],

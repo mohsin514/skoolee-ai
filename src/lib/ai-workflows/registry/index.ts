@@ -15,10 +15,12 @@ import { FINANCE_MONEY_ENTRIES } from "./domains/finance/money";
 import { FRONT_DESK_ENTRIES } from "./domains/desk/front-desk";
 import { LIBRARY_ENTRIES } from "./domains/desk/library";
 import { ACADEMIC_LEAD_ENTRIES } from "./domains/academic/lead";
+import { PLATFORM_ENTRIES } from "./domains/group/platform";
+import { GROUP_ENTRIES } from "./domains/group/group";
 import type { CapabilityEntry } from "./types";
 
 /** Every registry entry. Domain files add their arrays here as slices connect them. */
-const ENTRIES: readonly CapabilityEntry[] = [...TOOL_ENTRIES, ...SCHOOL_OPERATION_ENTRIES, SUBJECTS_BY_CLASS_ENTRY, ...TEACHER_TEACHING_ENTRIES, ...TEACHER_STAFF_ENTRIES, ...TEACHER_ATTENDANCE_ENTRIES, ...TEACHER_ASSESSMENT_ENTRIES, ...ADMIN_FEE_ENTRIES, ...ADMIN_ROSTER_ENTRIES, ...ADMIN_PEOPLE_ENTRIES, ...STUDENT_ENTRIES, ...PARENT_ENTRIES, ...FINANCE_BOOKS_ENTRIES, ...FINANCE_MONEY_ENTRIES, ...FRONT_DESK_ENTRIES, ...LIBRARY_ENTRIES, ...ACADEMIC_LEAD_ENTRIES];
+const ENTRIES: readonly CapabilityEntry[] = [...TOOL_ENTRIES, ...SCHOOL_OPERATION_ENTRIES, SUBJECTS_BY_CLASS_ENTRY, ...TEACHER_TEACHING_ENTRIES, ...TEACHER_STAFF_ENTRIES, ...TEACHER_ATTENDANCE_ENTRIES, ...TEACHER_ASSESSMENT_ENTRIES, ...ADMIN_FEE_ENTRIES, ...ADMIN_ROSTER_ENTRIES, ...ADMIN_PEOPLE_ENTRIES, ...STUDENT_ENTRIES, ...PARENT_ENTRIES, ...FINANCE_BOOKS_ENTRIES, ...FINANCE_MONEY_ENTRIES, ...FRONT_DESK_ENTRIES, ...LIBRARY_ENTRIES, ...ACADEMIC_LEAD_ENTRIES, ...PLATFORM_ENTRIES, ...GROUP_ENTRIES];
 
 const BY_KEY = new Map<string, CapabilityEntry>();
 for (const entry of ENTRIES) {

@@ -47,6 +47,14 @@ const COPY: Record<string, Record<Lang, string>> = {
   total: { en: "Total marks", ar: "الدرجة الكلية", ur: "کل نمبر" },
   addRow: { en: "Add a person", ar: "إضافة شخص", ur: "شخص شامل کریں" },
   edit: { en: "Change my answers", ar: "تغيير إجاباتي", ur: "میرے جوابات تبدیل کریں" },
+  board: { en: "Campus launch board", ar: "لوحة إطلاق الفروع", ur: "کیمپس لانچ بورڈ" },
+  tileCampus: { en: "Campus ✓", ar: "الفرع ✓", ur: "کیمپس ✓" },
+  tileLeaderNONE: { en: "No administrator yet", ar: "لا مدير بعد", ur: "ابھی کوئی منتظم نہیں" },
+  tileLeaderINVITED: { en: "Invitation pending", ar: "الدعوة معلقة", ur: "دعوت زیر التوا" },
+  tileLeaderJOINED: { en: "Administrator joined", ar: "انضم المدير", ur: "منتظم شامل ہو گئے" },
+  tileSetupNEW: { en: "Setup not started", ar: "لم يبدأ الإعداد", ur: "سیٹ اپ شروع نہیں" },
+  tileSetupBUSY: { en: "Setting up", ar: "قيد الإعداد", ur: "سیٹ اپ جاری" },
+  tileSetupREADY: { en: "Set up", ar: "جاهز", ur: "تیار" },
   remove: { en: "Remove", ar: "إزالة", ur: "ہٹائیں" },
   stale: { en: "This sheet changed in another tab. The latest answers are shown.", ar: "تغيّرت الصفحة في نافذة أخرى. تظهر أحدث الإجابات.", ur: "یہ شیٹ دوسرے ٹیب میں بدلی۔ تازہ جوابات دکھائے جا رہے ہیں۔" },
 };
@@ -250,8 +258,25 @@ export function RoleSetup({ questionnaireKey, homeHref }: { questionnaireKey: st
   const dir = language === "en" ? "ltr" : "rtl";
   if (!sheet) return problem ? <Alert tone="danger" data-ai-error={problem}>{ERROR_WORDS[problem as keyof typeof ERROR_WORDS]?.[language] ?? problem}</Alert> : <div className="space-y-3 p-6"><Skeleton className="h-10 w-2/3" /><Skeleton className="h-48 w-full" /></div>;
 
+  const board = sheet.board?.length ? (
+    <section className="sk-panel space-y-2 p-4" data-ai-launch-board>
+      <h2 className="text-sm font-semibold">{c("board", language)}</h2>
+      <ul className="space-y-2">{sheet.board.map(tile => (
+        <li key={tile.campusId} data-ai-tile={tile.campusId} className="space-y-1 rounded-lg border border-border p-2 text-sm">
+          <p className="font-medium" dir="auto">{tile.campus}</p>
+          <div className="flex flex-wrap gap-1">
+            <Badge variant="success">{c("tileCampus", language)}</Badge>
+            <Badge variant={tile.leader === "JOINED" ? "success" : tile.leader === "INVITED" ? "warning" : "neutral"}>{c(`tileLeader${tile.leader}`, language)}</Badge>
+            {tile.setup && <Badge variant={tile.setup === "READY" ? "success" : "info"}>{c(`tileSetup${tile.setup === "READY" ? "READY" : tile.setup === "NEW" ? "NEW" : "BUSY"}`, language)}</Badge>}
+          </div>
+        </li>
+      ))}</ul>
+    </section>
+  ) : null;
+
   const ghosts = (
     <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start" data-ai-ghosts aria-live="polite">
+      {board}
       <section className="sk-panel space-y-2 p-4">
         <h2 className="text-sm font-semibold text-ink-muted">{c("known", language)}</h2>
         <dl className="space-y-2 text-sm">{sheet.known.map(fact => <div key={fact.label}><dt className="text-ink-muted">{fact.label}</dt><dd className="font-medium" dir="auto">{fact.value}</dd></div>)}</dl>

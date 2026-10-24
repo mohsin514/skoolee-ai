@@ -3,7 +3,6 @@
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isGroupConsole, isInstitutionAuthority } from "@/lib/auth/institution";
 
-import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
@@ -14,7 +13,6 @@ import { enterTenantContext } from "@/lib/db/tenant-context";
 import { defaultBoardFor } from "@/config/boards";
 import { schoolCountry } from "@/lib/school/country";
 import {
-  assertEmail,
   assertPhone,
   assertWebsite,
   optionalText,
@@ -23,6 +21,7 @@ import {
   requiredText,
   safeTimezone,
 } from "@/lib/school/details";
+import { AUDIT_FIELDS, diffOf, patchText, recordRevision, updateCampusDetailsCommand, type CampusDetailsInput } from "@/lib/school/campus-commands";
 
 // ─────────────────────────────────────────────────────────────────
 // Who may edit what
@@ -92,23 +91,6 @@ function assertCanEditSchool(session: Session) {
   if (isInstitutionAuthority(session)) return;
   throw new Error("Only the institution administrator can change school details.");
 }
-
-/** Campus edits: the group owner for any campus, an admin for their own. */
-async function assertCanEditCampus(session: Session, campusId: string) {
-  // Scoped read, so a campus id from another school simply is not found.
-  const campus = await prisma.campus.findFirst({
-    where: { id: campusId, schoolId: session.schoolId },
-    select: { id: true },
-  });
-  if (!campus) throw new Error("Campus not found.");
-
-  if (session.role === "SUPER_ADMIN") return;
-  if ((session.role === "CAMPUS_ADMIN" || session.role === "ADMIN") && session.campusId === campusId) return;
-
-  throw new Error("You can only edit the campus you administer.");
-}
-
-function recordRevision(record: unknown) { return createHash("sha256").update(JSON.stringify(record)).digest("hex"); }
 
 export interface InstitutionSettings {
   canEditSchool: boolean;
@@ -216,21 +198,6 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
   };
 }
 
-/**
- * Prisma skips any `data` key whose value is `undefined`, which gives these
- * actions proper patch semantics:
- *
- *   field absent from the payload → left exactly as it is
- *   field present but empty       → cleared
- *
- * Without this an omitted key resolved to `null` and silently wiped a column,
- * so a caller sending only the two fields it meant to change would blank the
- * campus's board, address and phone as a side effect.
- */
-function patchText(value: string | null | undefined) {
-  return value === undefined ? undefined : optionalText(value);
-}
-
 export interface SchoolDetailsInput {
   expectedRevision?: string;
   name?: string;
@@ -244,17 +211,7 @@ export interface SchoolDetailsInput {
   timezone?: string;
 }
 
-// SKO-402: updates are partial. A field that is omitted (undefined) keeps its stored value; an empty string
-// clears it only where clearing is allowed (name and city never clear). Create and edit share one set of
-// validators. Each save writes one audit entry holding only the fields that changed, before and after.
-type Diff = Record<string, { from: unknown; to: unknown }>;
-function diffOf(before: Record<string, unknown>, data: Record<string, unknown>): Diff {
-  const out: Diff = {};
-  for (const [key, value] of Object.entries(data)) if (value !== undefined && JSON.stringify(before[key] ?? null) !== JSON.stringify(value ?? null)) out[key] = { from: before[key] ?? null, to: value ?? null };
-  return out;
-}
-const AUDIT_FIELDS = (diff: Diff, side: "from" | "to") => Object.fromEntries(Object.entries(diff).map(([key, change]) => [key, key === "logoUrl" ? (change[side] ? "(logo)" : null) : change[side]]));
-
+// SKO-402: updates are partial (patchText, diffOf and AUDIT_FIELDS are shared with the campus command).
 export async function updateSchoolDetails(input: SchoolDetailsInput) {
   const session = await requireSession();
   assertCanEditSchool(session);
@@ -292,56 +249,11 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
   return { success: true, changed: result.changed, school: { id: result.school.id, name: result.school.name, timezone: result.school.timezone } };
 }
 
-export interface CampusDetailsInput {
-  expectedRevision?: string;
-  campusId: string;
-  name?: string;
-  city?: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  principalName?: string;
-  board?: string;
-  logoUrl?: string;
-}
-
 export async function updateCampusDetails(input: CampusDetailsInput) {
   const session = await requireSession();
-  const campusId = requiredText(input.campusId, "Campus");
-  await assertCanEditCampus(session, campusId);
-
-  const name = input.name === undefined ? undefined : requiredText(input.name, "Campus name");
-  const city = input.city === undefined ? undefined : requiredText(input.city, "City");
-  const email = input.email === undefined ? undefined : assertEmail(optionalText(input.email), "campus email address");
-  const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
-  const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
-
-  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
-  // A board is never left blank: clearing it falls back to the first board for the school's country.
-  const board = input.board === undefined ? undefined : optionalText(input.board) || defaultBoardFor(await schoolCountry(session.schoolId));
-  const result = await prisma.$transaction(async (tx) => {
-    const current = await tx.campus.findUnique({ where: { id: campusId } });
-    if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");
-    if (name && name.toLocaleLowerCase() !== current.name.toLocaleLowerCase()) {
-      const clash = await tx.campus.findFirst({ where: { schoolId: session.schoolId, archivedAt: null, id: { not: campusId }, name: { equals: name, mode: "insensitive" } }, select: { id: true } });
-      if (clash) throw new Error("Another active campus already uses this name.");
-    }
-    const data = {
-      name, city, phone, email, website,
-      address: patchText(input.address),
-      principalName: patchText(input.principalName),
-      board,
-      logoUrl: newLogoUrl,
-    };
-    const diff = diffOf(current as unknown as Record<string, unknown>, data);
-    if (!Object.keys(diff).length) return { campus: current, changed: [] as string[] };
-    const campus = await tx.campus.update({ where: { id: campusId }, data });
-    await tx.auditLog.create({ data: { schoolId: session.schoolId, campusId, tableName: "campus", recordId: campusId, userId: session.userId, oldValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "from") } as Prisma.InputJsonValue, newValue: { kind: "DETAILS", fields: AUDIT_FIELDS(diff, "to") } as Prisma.InputJsonValue } });
-    return { campus, changed: Object.keys(diff) };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-
-  return { success: true, changed: result.changed, campus: { id: result.campus.id, name: result.campus.name } };
+  // Validation, the revision check, the name clash and the audit entry live in the shared command (also used by
+  // AI Workflows' campus.update_details).
+  return updateCampusDetailsCommand(session, input);
 }
 
 export interface InstitutionHistoryEntry { id: string; at: string; actor: string | null; kind: "DETAILS" | "ARCHIVED" | "RESTORED"; fields: Record<string, { from: unknown; to: unknown }>; reason: string | null }
