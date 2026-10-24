@@ -59,6 +59,21 @@ test("the planner is told missing inputs become questions, never a reason to ref
   assert.match(PLANNER_SYSTEM, /only when no listed capability does what the user asked/);
 });
 
+test("absent required-but-nullable fields become null (not a question); nothing else is filled", async () => {
+  const { fillNullables } = await import("../../src/lib/ai-workflows/planner/plan");
+  const schema = { type: "object", required: ["label", "startDate", "classes"], properties: {
+    label: { type: "string" }, startDate: { anyOf: [{ type: "string" }, { type: "null" }] }, note: { anyOf: [{ type: "string" }, { type: "null" }] },
+    classes: { type: "array", items: { type: "object", required: ["name", "section"], properties: { name: { type: "string" }, section: { anyOf: [{ type: "string" }, { type: "null" }] } } } },
+  } };
+  assert.deepEqual(fillNullables(schema, { classes: [{ name: "Grade 12" }, { name: "Grade 11", section: "B" }] }), { startDate: null, classes: [{ name: "Grade 12", section: null }, { name: "Grade 11", section: "B" }] });
+});
+
+test("the planner is told confirmation and empty context are never reasons to refuse", () => {
+  assert.match(PLANNER_SYSTEM, /Needing confirmation is never a reason/);
+  assert.match(PLANNER_SYSTEM, /an empty `context` is never a reason to refuse/);
+  assert.match(PLANNER_SYSTEM, /Fill technical fields yourself/);
+});
+
 test("every card the model can see renders in each language with a class note and no executable proposal in drafts", () => {
   for (const entry of REGISTRY.values()) for (const language of ["en", "ar", "ur"] as const) {
     const card = cardFor(entry, language);

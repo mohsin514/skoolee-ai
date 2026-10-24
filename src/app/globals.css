@@ -3093,6 +3093,8 @@ html:has(.sk-step-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom
   .sk-ai-fine-only { display: none; }
   @media (hover: hover) and (pointer: fine) {
     .sk-ai-fine-only { display: inline-flex; }
+    /* Its counterpart: shown where keyboard hints are not (touch), hidden for fine pointers. */
+    .sk-ai-coarse-only { display: none; }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -18,10 +18,17 @@ import { savePlan, type PlannedStep } from "../jobs/job-service";
 import { retrieve } from "./retrieve";
 import { buildPlannerContext, bindHandles } from "./context";
 import { checkEvidence } from "./evidence";
-import { PLANNER_SYSTEM, REPAIR_SYSTEM, cardFor, planProposalSchema, type PlanProposal } from "./protocol";
+import { PLANNER_SYSTEM, REPAIR_SYSTEM, SECOND_LOOK, cardFor, planProposalSchema, type PlanProposal } from "./protocol";
+import { aiOutputSchema } from "@/lib/ai/output-schema";
 
 export type Generate = typeof generateAIDraft;
 const PLAN_TIMEOUT_MS = 15_000;
+/**
+ * The planner's OpenAI model. gpt-4o-mini refused plainly connected requests (e.g. "log a call" with
+ * front_desk.call_log offered first); on the 27-request all-role check gpt-4o planned all of them and
+ * still refused off-topic ones. Set AI_WORKFLOWS_PLANNER_MODEL to override; the rest of the app keeps OPENAI_MODEL.
+ */
+export const PLANNER_MODEL = process.env.AI_WORKFLOWS_PLANNER_MODEL || "gpt-4o";
 
 /**
  * One planning pass for a job (architecture §5): mask the user's words, retrieve a few gated
@@ -56,7 +63,7 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
   const call = async (system: string, body: string) => {
     await acquireProviderSlot();
     await appendEventTx(job, "MODEL_ATTEMPT_STARTED");
-    const result = await generate({ system, prompt: body, temperature: 0, maxTokens: 4000, json: true, signal: AbortSignal.timeout(PLAN_TIMEOUT_MS) }).catch(error => {
+    const result = await generate({ system, prompt: body, temperature: 0, maxTokens: 4000, json: true, openaiModel: PLANNER_MODEL, signal: AbortSignal.timeout(PLAN_TIMEOUT_MS) }).catch(error => {
       throw new WorkflowError(error instanceof Error && error.name === "AbortError" ? "DEADLINE" : "PROVIDER_UNAVAILABLE");
     });
     return result;
@@ -71,6 +78,12 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
     proposal = parse(repair.text);
   }
   if (!proposal) throw new WorkflowError("INVALID_INPUT");
+  if (proposal.kind === "unsupported" && retrieval.cards.length) {
+    // One second look before telling the user "not yet": logged, but it does not take a second credit.
+    const recheck = await call(PLANNER_SYSTEM, `${prompt}\n${SECOND_LOOK}`);
+    await recordAttempt(user, job, { model: recheck.model, tokensUsed: 0, action: "PLAN_RECHECK", stepKey: null });
+    proposal = parse(recheck.text) ?? proposal;
+  }
   proposal = masker.unmaskObject(proposal);
 
   const allowed = new Map(retrieval.cards.map(entry => [entry.key, entry]));
@@ -87,13 +100,38 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
     seen.add(step.key);
     // Fields only a person may set (e.g. "mark the rest present") are never taken from the model.
     const modelInput = entry.humanFields?.length ? Object.fromEntries(Object.entries(step.input).filter(([key]) => !entry.humanFields!.includes(key))) : step.input;
-    const bound = bindHandles(modelInput, planner.ids);
+    const bound = bindHandles(fillNullables(aiOutputSchema(entry.input) as JsonSchema, modelInput), planner.ids);
     const evidence = checkEvidence(bound.value, entry.evidence, step.evidence, segments);
     const parsed = entry.input.safeParse(bound.value);
     const schemaMissing = parsed.success ? [] : parsed.error.issues.map(issue => `/${issue.path.join("/")}`);
     steps.push({ stepKey: step.key, capabilityKey: entry.key, dependsOn: step.dependsOn, input: bound.value, missingFields: [...new Set([...bound.missing, ...evidence.missing, ...schemaMissing])] });
   }
   return persistPlan(user, job, steps);
+}
+
+type JsonSchema = { type?: string | string[]; properties?: Record<string, JsonSchema>; required?: string[]; items?: JsonSchema; anyOf?: JsonSchema[] };
+const allowsNull = (schema: JsonSchema | undefined) => Boolean(schema && (schema.type === "null" || (Array.isArray(schema.type) && schema.type.includes("null")) || schema.anyOf?.some(option => option.type === "null")));
+const objectBranch = (schema: JsonSchema | undefined) => schema?.properties ? schema : schema?.anyOf?.find(option => option.properties);
+const arrayBranch = (schema: JsonSchema | undefined) => schema?.items ? schema : schema?.anyOf?.find(option => option.items);
+
+/**
+ * A field that is required but may be null means "not given" when null. The model often leaves such
+ * fields out, which made them questions ("What should the start date be?") although none is needed.
+ * Fill each absent required-nullable field with null; nothing else is added, and no fact is invented.
+ */
+export function fillNullables(schema: JsonSchema, value: unknown): unknown {
+  const asObject = objectBranch(schema);
+  if (asObject && value && typeof value === "object" && !Array.isArray(value)) {
+    const next: Record<string, unknown> = { ...(value as Record<string, unknown>) };
+    for (const [key, child] of Object.entries(asObject.properties ?? {})) {
+      if (next[key] === undefined) { if (asObject.required?.includes(key) && allowsNull(child)) next[key] = null; }
+      else next[key] = fillNullables(child, next[key]);
+    }
+    return next;
+  }
+  const asArray = arrayBranch(schema);
+  if (asArray?.items && Array.isArray(value)) return value.map(item => fillNullables(asArray.items!, item));
+  return value;
 }
 
 function parse(text: string): PlanProposal | null {
