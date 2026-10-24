@@ -1,16 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   Circle,
-  Loader2,
   Lock,
   ShieldCheck,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
 
@@ -37,15 +42,28 @@ interface ClosureData {
 }
 
 const OWNER_STYLE: Record<ClosureStep["owner"], string> = {
-  Teachers: "bg-amber-50 text-amber-700 border-amber-200",
-  Office: "bg-[#f3eeff] text-[#8127cf] border-[#8127cf]/20",
-  Principal: "bg-teal-50 text-teal-700 border-teal-200",
+  Teachers: "bg-status-warning-surface text-status-warning-text border-status-warning-border",
+  Office: "bg-brand-100 text-primary border-primary/20",
+  Principal: "bg-status-info-surface text-status-info-text border-status-info-border",
 };
+/** EN UI keys for the step owner chip (translated through useUiText; AR/UR in p6-messages). */
+const OWNER_LABEL: Record<ClosureStep["owner"], string> = { Teachers: "Teachers", Office: "Office", Principal: "Principal" };
+
+export type YearCloseCommand = { id: "close" | "force" | "refresh" | "focus"; nonce: number };
+export type YearClosureState = { hasOpenYear: boolean; ready: boolean; canForce: boolean; label: string | null; loading: boolean };
 
 /**
- * Shows an admin exactly why a year can or cannot be closed. Every unfinished
- * item names who has to clear it and links to the screen that clears it, so the
- * gate never feels arbitrary.
+ * Shows exactly why a year can or cannot be closed. Every unfinished item names who has to clear it and
+ * links to the screen that clears it, so the gate never feels arbitrary — but only to a screen the viewer can
+ * open (`canOpen`; by default Exams & results needs the academic-lead seat, §4.5.11).
+ *
+ * Closing a ready year is confirmed (R3). Closing with work outstanding is the academic lead's override
+ * (`canForceClose`, G35 — the server decides with `canLeadAcademics`): a danger confirmation whose typed reason
+ * (`ConfirmAction requireReason`, §4.5.5) is recorded in the audit trail beside the items it overrode.
+ *
+ * Host-owned header (§4.4b "Academic year": **Close year** primary, Checklist secondary, Force-close in the
+ * overflow): `hideActions` drops the in-panel close buttons; the host drives them with `command` (a new nonce runs
+ * once) and reads `onState`.
  */
 export function YearClosureChecklist({
   campusId,
@@ -53,38 +71,83 @@ export function YearClosureChecklist({
   canForceClose = false,
   onNavigate,
   onClosed,
+  canOpen,
+  hideActions = false,
+  command,
+  onState,
 }: {
   campusId?: string;
   year?: number;
-  /** True for principals — they may close a year with work outstanding. */
+  /** The academic lead (principal, or a campus admin while the campus has no principal). */
   canForceClose?: boolean;
   onNavigate?: (view: string) => void;
   onClosed?: () => void;
+  /** Whether a step's screen is open to the viewer; a step whose screen is closed shows no link. */
+  canOpen?: (view: string) => boolean;
+  hideActions?: boolean;
+  command?: YearCloseCommand;
+  onState?: (state: YearClosureState) => void;
 }) {
+  const ui = useUiText();
+  const navigationAccess = useNavigationAccess();
+  const academicLead = navigationAccess.has("academicLead");
+  const opens = (view: string) => Boolean(onNavigate) && (canOpen ? canOpen(view) : view !== "exam-cycles" || academicLead);
   const [data, setData] = useState<ClosureData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [confirmForce, setConfirmForce] = useState(false);
+  const [confirm, setConfirm] = useState<"close" | "force" | null>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const params = new URLSearchParams();
       if (campusId) params.set("campusId", campusId);
       if (year) params.set("year", String(year));
-      const res = await fetch(`/api/academic-cycle/closure?${params.toString()}`);
+      const res = await fetch(`/api/academic-cycle/closure?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
-      if (json.success) setData(json.data);
+      if (!res.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "");
+      setData(json.data);
+    } catch {
+      // Load failure is an inline error with retry (R4), never a silent blank.
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
   }, [campusId, year]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  const closeYear = async (force: boolean) => {
+  // The host's PageHeader reads the state and drives the actions (each nonce runs once).
+  const ready = Boolean(data?.canClose && data.openCycle);
+  const stateKey = `${Boolean(data?.openCycle)}:${ready}:${canForceClose}:${data?.openCycle?.label ?? ""}:${loading}`;
+  useEffect(() => {
+    onState?.({ hasOpenYear: Boolean(data?.openCycle), ready, canForce: canForceClose && Boolean(data?.openCycle) && !ready, label: data?.openCycle?.label ?? null, loading });
+    // stateKey captures every input; the callback identity may change on each host render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateKey]);
+  const handled = useRef<number | null>(command?.nonce ?? null); // seeded: a remount never replays the last command
+  useEffect(() => {
+    if (!command || handled.current === command.nonce) return;
+    handled.current = command.nonce;
+    if (command.id === "refresh") { void load(); return; }
+    if (command.id === "focus") {
+      root.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      root.current?.focus({ preventScroll: true });
+      return;
+    }
+    if (closing || !data?.openCycle) return;
+    if (command.id === "close" && data.canClose) setConfirm("close");
+    if (command.id === "force" && !data.canClose && canForceClose) setConfirm("force");
+    // Only a new nonce runs a command.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command?.nonce]);
+
+  const closeYear = async (force: boolean, reason?: string) => {
     if (!data?.openCycle) return;
     setClosing(true);
     try {
@@ -95,62 +158,61 @@ export function YearClosureChecklist({
           action: "end",
           cycleId: data.openCycle.id,
           campusId,
-          ...(force ? { force: true } : {}),
+          ...(force ? { force: true, reason: (reason ?? "").trim() } : {}),
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Could not close the year");
-      toast.success(`${data.openCycle.label} is now closed`);
-      setConfirmForce(false);
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : ui("Could not close the year"));
+      toast.success(ui("{0} is now closed", [data.openCycle.label]));
+      setConfirm(null);
       emitCycleChanged();
       await load();
       onClosed?.();
-    } catch (e: any) {
-      toast.error(e?.message || "Could not close the year");
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not close the year")));
     } finally {
       setClosing(false);
     }
   };
 
   if (loading && !data) {
-    return <div className="skeleton-shimmer h-64 w-full rounded-[28px] bg-[#e8e0ec]/50" />;
+    return <SkeletonList rows={4} label={ui("Loading the year-end checklist")} />;
+  }
+  if (loadFailed && !data) {
+    return <ErrorState title={ui("The year-end checklist could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />;
   }
   if (!data || !data.openCycle) return null;
 
+  const label = data.openCycle.label;
   const remaining = data.steps.filter((s) => !s.done).length;
   // A year with no exams fails every step for the same reason. Saying it four
   // times is noise, so collapse to one honest explanation.
   const isEmptyYear = data.totals.exams === 0;
 
   return (
-    <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white p-5 shadow-sm sm:p-6">
+    <div ref={root} tabIndex={-1} className="sk-panel scroll-mt-4 p-5 outline-none sm:p-6" data-year-closure>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <span
+            aria-hidden="true"
             className={cn(
-              "flex h-11 w-11 items-center justify-center rounded-2xl",
-              data.canClose ? "bg-emerald-100 text-emerald-600" : "bg-amber-50 text-amber-600",
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
+              data.canClose ? "bg-status-success-surface text-status-success-text" : "bg-status-warning-surface text-status-warning-text",
             )}
           >
             {data.canClose ? <ShieldCheck className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
           </span>
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
-              Closing {data.openCycle.label}
-            </p>
-            <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">
-              {data.canClose
-                ? "Ready to close this year"
-                : isEmptyYear
-                  ? "This year has not started yet"
-                  : "Finish these before closing"}
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-primary">{ui("Closing {0}", [label])}</p>
+            <h3 className="text-lg font-bold tracking-tight text-ink-strong">
+              {ui(data.canClose ? "Ready to close this year" : isEmptyYear ? "This year has not started yet" : "Finish these before closing")}
             </h3>
-            <p className="mt-0.5 text-xs font-semibold text-ink-muted">
+            <p className="mt-0.5 text-xs font-medium leading-relaxed text-ink-muted">
               {data.canClose
-                ? "Everything is marked, approved and released. Closing lets you start the next year."
+                ? ui("Everything is marked, approved and released. Closing lets you start the next year.")
                 : isEmptyYear
-                  ? "There are no exams in this year yet, so there are no results to finalise."
-                  : `${remaining} of ${data.steps.length} things still need to happen. A new year cannot start until this one is closed.`}
+                  ? ui("There are no exams in this year yet, so there are no results to finalise.")
+                  : ui("{0} of {1} things still need to happen. A new year cannot start until this one is closed.", [remaining, data.steps.length])}
             </p>
           </div>
         </div>
@@ -158,129 +220,109 @@ export function YearClosureChecklist({
 
       {/* Checklist */}
       {isEmptyYear ? (
-        <div className="rounded-2xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-4 py-5 text-center">
-          <p className="text-sm font-bold text-[#1f1a23]">Nothing to close here</p>
-          <p className="mx-auto mt-1 max-w-md text-xs font-semibold text-ink-muted">
-            Once exams are created and results released for {data.openCycle.label}, this checklist
-            will show what is left before the year can be closed.
+        <div className="rounded-2xl border border-border-subtle bg-surface-subtle px-4 py-5 text-center">
+          <p className="text-sm font-bold text-ink-strong">{ui("Nothing to close here")}</p>
+          <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-relaxed text-ink-muted">
+            {ui("Once exams are created and results released for {0}, this checklist will show what is left before the year can be closed.", [label])}
           </p>
-          <button
-            onClick={() => onNavigate?.("exam-cycles")}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[#8127cf]/25 bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] transition-all hover:bg-white/60"
-          >
-            Go to Exams &amp; Results
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+          {onNavigate && opens("exam-cycles") ? (
+            <Button variant="outline" onClick={() => onNavigate("exam-cycles")} className="mt-3">
+              {ui("Open Exams & results")}
+              <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />
+            </Button>
+          ) : null}
         </div>
       ) : (
-      <div className="space-y-2">
-        {data.steps.map((s) => (
-          <div
-            key={s.id}
-            className={cn(
-              "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3",
-              s.done ? "border-emerald-200 bg-emerald-50/50" : "border-[#cfc2d6]/25 bg-white",
-            )}
-          >
-            <div className="flex min-w-0 items-start gap-3">
-              {s.done ? (
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
-              ) : (
-                <Circle className="mt-0.5 h-5 w-5 shrink-0 text-[#cfc2d6]" />
+        <ul className="space-y-2">
+          {data.steps.map((s) => (
+            <li
+              key={s.id}
+              className={cn(
+                "flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3",
+                s.done ? "border-status-success-border bg-status-success-surface/50" : "border-border-subtle bg-card",
               )}
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-black text-[#1f1a23]">{s.label}</p>
-                  <span
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
-                      OWNER_STYLE[s.owner],
-                    )}
-                  >
-                    {s.owner}
-                  </span>
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                {s.done ? (
+                  <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-status-success-text" />
+                ) : (
+                  <Circle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-edge" />
+                )}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-bold text-ink-strong">{ui(s.label)}</p>
+                    <span className={cn("rounded-full border px-2 py-0.5 text-xs font-semibold", OWNER_STYLE[s.owner])}>
+                      {ui(OWNER_LABEL[s.owner])}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs font-medium text-ink-muted">{ui(s.detail)}</p>
                 </div>
-                <p className="mt-0.5 text-[11px] font-semibold text-ink-muted">{s.detail}</p>
               </div>
-            </div>
-            {!s.done ? (
-              <button
-                onClick={() => onNavigate?.(s.view)}
-                className="flex shrink-0 items-center gap-1.5 rounded-xl border border-[#8127cf]/25 bg-white px-3 py-1.5 text-[11px] font-bold text-[#8127cf] transition-all hover:bg-[#faf7fc]"
-              >
-                Fix this
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
-        ))}
-      </div>
+              {!s.done && onNavigate && opens(s.view) ? (
+                <Button variant="outline" size="sm" onClick={() => onNavigate(s.view)} className="shrink-0">
+                  {ui("Fix this")}
+                  <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       )}
 
-      {/* Close action */}
-      <div className="mt-5 border-t border-[#cfc2d6]/12 pt-4">
-        {data.canClose ? (
-          <button
-            onClick={() => closeYear(false)}
-            disabled={closing}
-            className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/25 transition-all hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {closing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            Close {data.openCycle.label} & Start Next Year
-          </button>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <p className="text-xs font-semibold text-amber-800">
-                {data.openCycle.label} cannot be closed yet, so the next academic year cannot be
-                started.{" "}
-                {isEmptyYear
-                  ? "Run this year's exams first, or ask the principal to close it if it was created by mistake."
-                  : "Clear the items above first."}
-              </p>
-            </div>
-
-            {/* Principals get a deliberate override, never a silent one. */}
-            {canForceClose ? (
-              confirmForce ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-                  <p className="text-xs font-bold text-rose-800">
-                    Close {data.openCycle.label} anyway?
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-rose-700">
-                    Marks will be locked and report cards frozen as they are. Anything unfinished
-                    stays unfinished. This cannot be undone.
-                  </p>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => closeYear(true)}
-                      disabled={closing}
-                      className="flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-rose-700 disabled:opacity-60"
-                    >
-                      {closing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                      Yes, close it anyway
-                    </button>
-                    <button
-                      onClick={() => setConfirmForce(false)}
-                      className="rounded-xl border border-[#cfc2d6]/30 bg-white px-4 py-2 text-xs font-bold text-ink"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmForce(true)}
-                  className="text-[11px] font-bold text-rose-600 underline underline-offset-2 hover:text-rose-700"
-                >
-                  Principal override — close anyway
-                </button>
-              )
-            ) : null}
+      {/* Close action (the host's PageHeader owns it when `hideActions`) */}
+      {data.canClose ? (
+        hideActions ? null : (
+          <div className="mt-5 border-t border-border-subtle pt-4">
+            <Button variant="default" onClick={() => setConfirm("close")} loading={closing}>
+              {closing ? null : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+              {ui("Close {0} and start the next year", [label])}
+            </Button>
           </div>
-        )}
-      </div>
+        )
+      ) : (
+        <div className="mt-5 space-y-3 border-t border-border-subtle pt-4">
+          <Alert tone="warning" live="off" compact>
+            {ui("{0} cannot be closed yet, so the next academic year cannot be started.", [label])}{" "}
+            {isEmptyYear
+              ? canForceClose
+                ? ui("Run this year's exams first. If it was created by mistake, use Close anyway.")
+                : ui("Run this year's exams first, or ask the academic lead to close it if it was created by mistake.")
+              : ui("Clear the items above first.")}
+          </Alert>
+          {/* The academic lead gets a deliberate override, never a silent one (never painted as primary). */}
+          {canForceClose && !hideActions ? (
+            <Button variant="outline" onClick={() => setConfirm("force")} className="text-destructive">
+              {ui("Close anyway…")}
+            </Button>
+          ) : null}
+        </div>
+      )}
+
+      <ConfirmAction
+        open={confirm === "close"}
+        title={ui("Close {0}?", [label])}
+        description={ui("Marks are locked and report cards are frozen as they are, and the next year can start. Teachers and the office are notified. This cannot be undone.")}
+        confirmLabel={ui("Close year")}
+        cancelLabel={ui("Keep editing")}
+        tone="warning"
+        busy={closing}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => void closeYear(false)}
+      />
+      <ConfirmAction
+        open={confirm === "force"}
+        title={ui("Close {0} anyway?", [label])}
+        description={ui("Marks will be locked and report cards frozen as they are. Anything unfinished stays unfinished. This cannot be undone.")}
+        confirmLabel={ui("Close anyway")}
+        cancelLabel={ui("Keep editing")}
+        tone="danger"
+        busy={closing}
+        // §4.5.5 / R3: the shared typed-reason pattern — Confirm stays disabled (with the rule shown inline) until
+        // the reason is long enough; the reason is kept in the activity log.
+        requireReason={{ label: ui("Why are you closing the year with work outstanding?"), minLength: 10, placeholder: ui("At least 10 characters. Your reason is kept in the activity log.") }}
+        onCancel={() => setConfirm(null)}
+        onConfirm={(reason) => void closeYear(true, reason)}
+      />
     </div>
   );
 }

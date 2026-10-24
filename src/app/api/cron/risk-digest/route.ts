@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       }
 
       const campuses = await prisma.campus.findMany({
-        where: { schoolId: school.id },
+        where: { schoolId: school.id, archivedAt: null },
         select: { id: true, name: true },
       });
 

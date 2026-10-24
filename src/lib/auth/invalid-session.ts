@@ -1,3 +1,5 @@
+
+import { clearDeviceDrafts } from "@/lib/drafts/store";
 /**
  * Recovery from a session the server has stopped accepting.
  *
@@ -38,6 +40,7 @@ export async function signOutInvalidSession(): Promise<void> {
   // row. If it fails the redirect still happens, and signing in overwrites the
   // cookie anyway, so a failure here must not strand the user.
   try {
+    clearDeviceDrafts();
     await fetch("/api/auth/logout", { method: "POST" });
   } catch {
     /* ignore — the redirect below is what actually matters */

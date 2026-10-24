@@ -1,7 +1,11 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { dashboardPathForRole, roleLabel } from "@/lib/roles";
+import { dashboardPathForRole, roleLabelFor, type UserRole } from "@/lib/roles";
+import type { InstitutionKind } from "@/lib/auth/institution";
+import { getDisplayLocale } from "@/lib/locale/display";
+import type { Language } from "@/lib/locale/package";
+import { deleteFile } from "@/lib/storage/s3";
 
 function cleanOptionalText(value: unknown) {
   if (value === null) return null;
@@ -15,10 +19,15 @@ function cleanProfileImage(value: unknown) {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (/^profile-images\/\S+$/i.test(trimmed)) return trimmed;
   if (trimmed.length > 1_500_000) throw new ApiError("Profile image is too large", 413);
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
   if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
   throw new ApiError("Use an image upload, data image, or a valid image URL", 400);
+}
+
+function isS3Key(value: string | null): value is string {
+  return !!value && value.startsWith("profile-images/");
 }
 
 /**
@@ -61,14 +70,17 @@ type ProfileUser = {
   city: string | null;
 };
 
-function toProfile(user: ProfileUser) {
+function toProfile(user: ProfileUser, institutionKind?: InstitutionKind, language: Language = "en") {
   return {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
     phone: user.phone || "",
     role: user.role,
-    roleLabel: roleLabel(user.role),
+    // Mode-aware (§1.5): "School admin" in a standalone school, "Campus admin" in a group, in the viewer's display
+    // language; roleLabelKey is the EN key for a client that re-translates after a language switch.
+    roleLabel: roleLabelFor({ role: user.role as UserRole, institutionKind }, language),
+    roleLabelKey: roleLabelFor({ role: user.role as UserRole, institutionKind }),
     dashboardPath: dashboardPathForRole(user.role),
     profileImageUrl: user.profileImageUrl || "",
     qualification: user.qualification || "",
@@ -85,14 +97,15 @@ function toProfile(user: ProfileUser) {
 
 export async function GET() {
   try {
-    const session = await requireAuthUser();
+    // A shell read: the suspended minimal shell still shows who is signed in (G43, K-I14).
+    const session = await requireAuthUser({ allowSuspended: true });
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: PROFILE_SELECT,
     });
 
     if (!user) throw new ApiError("Profile not found", 404);
-    return Response.json({ success: true, profile: toProfile(user) });
+    return Response.json({ success: true, profile: toProfile(user, session.institutionKind, (await getDisplayLocale(session)).language) });
   } catch (error) {
     return errorResponse(error, "[profile] GET failed");
   }
@@ -104,7 +117,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const currentUser = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { fullName: true },
+      select: { fullName: true, profileImageUrl: true },
     });
     const data: {
       fullName?: string;
@@ -124,6 +137,13 @@ export async function PATCH(req: NextRequest) {
 
     if (body.profileImageUrl !== undefined) {
       data.profileImageUrl = cleanProfileImage(body.profileImageUrl);
+    }
+
+    if (data.profileImageUrl !== undefined) {
+      const prevImage = currentUser?.profileImageUrl ?? null;
+      if (isS3Key(prevImage) && prevImage !== data.profileImageUrl) {
+        void deleteFile(prevImage).catch(() => { });
+      }
     }
 
     const user = await prisma.user.update({
@@ -147,7 +167,7 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    return Response.json({ success: true, profile: toProfile(user) });
+    return Response.json({ success: true, profile: toProfile(user, session.institutionKind, (await getDisplayLocale(session)).language) });
   } catch (error) {
     return errorResponse(error, "[profile] PATCH failed");
   }

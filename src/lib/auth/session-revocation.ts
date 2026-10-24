@@ -26,23 +26,9 @@ export interface SessionActivityRow {
 
 export type SessionLookup = (tokenHash: string) => Promise<SessionActivityRow[]>;
 
-/**
- * Revoked means "we have a record of this session, and it is closed".
- *
- * The absence of a row is NOT revocation, and that asymmetry is the most
- * important thing in this file. Three separate flows — the forced password
- * change and both onboarding completions — mint a cookie without recording a
- * session row, `recordLoginSession` is fire-and-forget so any hiccup at login
- * silently skips it, and there were already 150 rows in the dev database from
- * before any of this was enforced. Treating "no row" as revoked would sign all
- * of those people out at once, which is a far worse failure than the one being
- * fixed.
- *
- * Multiple rows can share a tokenHash (the column is indexed, not unique), so
- * the rule is "revoked once nothing is left open" rather than a single-row read.
- */
+/** Every browser session must have a live, unexpired server record. */
 export function decideRevocation(rows: SessionActivityRow[]): boolean {
-  if (rows.length === 0) return false;
+  if (rows.length === 0) return true;
   return rows.every((row) => !row.isActive);
 }
 
@@ -61,7 +47,7 @@ export function decideRevocation(rows: SessionActivityRow[]): boolean {
 const lookupSessionRows: SessionLookup = (tokenHash) =>
   runUnscoped("reading login_sessions to check whether a token was revoked", () =>
     prisma.loginSession.findMany({
-      where: { tokenHash },
+      where: { tokenHash, expiresAt: { gt: new Date() } },
       select: { isActive: true },
       take: 10,
     })
@@ -79,16 +65,8 @@ export async function checkRevocation(
   try {
     return decideRevocation(await lookup(tokenHash));
   } catch (error) {
-    // Fails open, on purpose. This check runs on the path of essentially every
-    // authenticated request, so a database blip that answered "revoked" would
-    // sign out every user of the platform simultaneously. Logged loudly,
-    // because silently degrading an authorisation check is how it stays broken.
-    console.warn(
-      "[session-revocation] could not check whether the session was revoked; " +
-        "allowing the request to proceed",
-      error
-    );
-    return false;
+    console.warn("[session-revocation] session verification unavailable", error);
+    return true;
   }
 }
 

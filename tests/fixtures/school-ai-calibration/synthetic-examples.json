@@ -1,0 +1,357 @@
+{
+  "version": 1,
+  "title": "Synthetic format examples only — educational calibration remains unverified",
+  "cases": [
+    {
+      "id": "en-text-synthetic",
+      "language": "en",
+      "category": "TEXT",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "Addition combines quantities.",
+      "humanReview": null,
+      "expected": {
+        "text": "Addition combines quantities."
+      }
+    },
+    {
+      "id": "en-handwriting-synthetic",
+      "language": "en",
+      "category": "HANDWRITING",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "Addition combines quantities.",
+      "humanReview": null,
+      "expected": {
+        "text": "Addition combines quantities."
+      }
+    },
+    {
+      "id": "en-table-synthetic",
+      "language": "en",
+      "category": "TABLE",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "Student | Mark\nLearner A | 4",
+      "humanReview": null,
+      "expected": {
+        "text": "Student | Mark\nLearner A | 4",
+        "fields": {
+          "table.row1.cell0": "Learner A",
+          "table.row1.cell1": "4"
+        }
+      }
+    },
+    {
+      "id": "en-math-synthetic",
+      "language": "en",
+      "category": "MATH",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "2 + 2 = 4",
+      "humanReview": null,
+      "expected": {
+        "text": "2 + 2 = 4",
+        "fields": {
+          "math.latex": "2+2=4",
+          "math.value": "4"
+        }
+      }
+    },
+    {
+      "id": "en-figure-synthetic",
+      "language": "en",
+      "category": "FIGURE",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "Triangle labelled A, B and C. Dimensions are unknown.",
+      "humanReview": null,
+      "expected": {
+        "text": "Triangle labelled A, B and C. Dimensions are unknown.",
+        "fields": {
+          "figure.label0": "A",
+          "figure.label1": "B",
+          "figure.label2": "C"
+        },
+        "requiredUncertainties": [
+          "DIMENSIONS_UNKNOWN"
+        ]
+      }
+    },
+    {
+      "id": "en-assessment-synthetic",
+      "language": "en",
+      "category": "ASSESSMENT",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "2 + 2 = 4",
+      "humanReview": null,
+      "expected": {
+        "answers": [
+          {
+            "questionId": "addition",
+            "acceptedAnswers": [
+              "4"
+            ],
+            "numericValue": 4,
+            "numericTolerance": 0,
+            "marks": 2,
+            "markTolerance": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "ar-text-synthetic",
+      "language": "ar",
+      "category": "TEXT",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "الجمع يضم الكميات.",
+      "humanReview": null,
+      "expected": {
+        "text": "الجمع يضم الكميات."
+      }
+    },
+    {
+      "id": "ar-handwriting-synthetic",
+      "language": "ar",
+      "category": "HANDWRITING",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "الجمع يضم الكميات.",
+      "humanReview": null,
+      "expected": {
+        "text": "الجمع يضم الكميات."
+      }
+    },
+    {
+      "id": "ar-table-synthetic",
+      "language": "ar",
+      "category": "TABLE",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "الطالب | الدرجة\nطالب أ | ٤",
+      "humanReview": null,
+      "expected": {
+        "text": "الطالب | الدرجة\nطالب أ | ٤",
+        "fields": {
+          "table.row1.cell0": "طالب أ",
+          "table.row1.cell1": "٤"
+        }
+      }
+    },
+    {
+      "id": "ar-math-synthetic",
+      "language": "ar",
+      "category": "MATH",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "٢ + ٢ = ٤",
+      "humanReview": null,
+      "expected": {
+        "text": "٢ + ٢ = ٤",
+        "fields": {
+          "math.latex": "2+2=4",
+          "math.value": "٤"
+        }
+      }
+    },
+    {
+      "id": "ar-figure-synthetic",
+      "language": "ar",
+      "category": "FIGURE",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "مثلث بعلامات A وB وC. الأبعاد غير معروفة.",
+      "humanReview": null,
+      "expected": {
+        "text": "مثلث بعلامات A وB وC. الأبعاد غير معروفة.",
+        "fields": {
+          "figure.label0": "A",
+          "figure.label1": "B",
+          "figure.label2": "C"
+        },
+        "requiredUncertainties": [
+          "DIMENSIONS_UNKNOWN"
+        ]
+      }
+    },
+    {
+      "id": "ar-assessment-synthetic",
+      "language": "ar",
+      "category": "ASSESSMENT",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "٢ + ٢ = ٤",
+      "humanReview": null,
+      "expected": {
+        "answers": [
+          {
+            "questionId": "addition",
+            "acceptedAnswers": [
+              "٤"
+            ],
+            "numericValue": 4,
+            "numericTolerance": 0,
+            "marks": 2,
+            "markTolerance": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "ur-text-synthetic",
+      "language": "ur",
+      "category": "TEXT",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "جمع مقداروں کو یکجا کرتا ہے۔",
+      "humanReview": null,
+      "expected": {
+        "text": "جمع مقداروں کو یکجا کرتا ہے۔"
+      }
+    },
+    {
+      "id": "ur-handwriting-synthetic",
+      "language": "ur",
+      "category": "HANDWRITING",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "جمع مقداروں کو یکجا کرتا ہے۔",
+      "humanReview": null,
+      "expected": {
+        "text": "جمع مقداروں کو یکجا کرتا ہے۔"
+      }
+    },
+    {
+      "id": "ur-table-synthetic",
+      "language": "ur",
+      "category": "TABLE",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "طالب علم | نمبر\nطالب الف | ۴",
+      "humanReview": null,
+      "expected": {
+        "text": "طالب علم | نمبر\nطالب الف | ۴",
+        "fields": {
+          "table.row1.cell0": "طالب الف",
+          "table.row1.cell1": "۴"
+        }
+      }
+    },
+    {
+      "id": "ur-math-synthetic",
+      "language": "ur",
+      "category": "MATH",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "۲ + ۲ = ۴",
+      "humanReview": null,
+      "expected": {
+        "text": "۲ + ۲ = ۴",
+        "fields": {
+          "math.latex": "2+2=4",
+          "math.value": "۴"
+        }
+      }
+    },
+    {
+      "id": "ur-figure-synthetic",
+      "language": "ur",
+      "category": "FIGURE",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "مثلث پر A، B اور C کے لیبل ہیں۔ ابعاد نامعلوم ہیں۔",
+      "humanReview": null,
+      "expected": {
+        "text": "مثلث پر A، B اور C کے لیبل ہیں۔ ابعاد نامعلوم ہیں۔",
+        "fields": {
+          "figure.label0": "A",
+          "figure.label1": "B",
+          "figure.label2": "C"
+        },
+        "requiredUncertainties": [
+          "DIMENSIONS_UNKNOWN"
+        ]
+      }
+    },
+    {
+      "id": "ur-assessment-synthetic",
+      "language": "ur",
+      "category": "ASSESSMENT",
+      "provenance": "SYNTHETIC",
+      "representative": false,
+      "processingApproved": false,
+      "sourceReference": "Synthetic format example authored for software checks; no original school document or human calibration is claimed.",
+      "sourceSha256": null,
+      "input": "۲ + ۲ = ۴",
+      "humanReview": null,
+      "expected": {
+        "answers": [
+          {
+            "questionId": "addition",
+            "acceptedAnswers": [
+              "۴"
+            ],
+            "numericValue": 4,
+            "numericTolerance": 0,
+            "marks": 2,
+            "markTolerance": 0
+          }
+        ]
+      }
+    }
+  ]
+}

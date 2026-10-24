@@ -14,6 +14,7 @@
  * ladder skips a rung gets its own answer, not ours.
  */
 
+import { fillNodes } from "@/lib/auth/fill-nodes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
@@ -21,13 +22,15 @@ import {
   CalendarDays,
   History,
   Link2,
-  Loader2,
   Network,
   Plus,
   Trash2,
   UserCog,
 } from "lucide-react";
-import { toast } from "sonner";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -35,6 +38,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { BrandButton } from "@/components/role-dashboard";
 import { AvatarImage, initialsOf } from "@/components/ui/avatar-image";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   CHANGE_KIND_LABELS,
   DEPARTMENT_KIND_LABELS,
@@ -44,6 +49,10 @@ import {
   TRACK_TONES,
 } from "@/lib/staff/hierarchy-presets";
 import type { OrgNode } from "@/lib/staff/hierarchy";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+
 
 export interface DesignationOption {
   id: string;
@@ -104,6 +113,7 @@ export function PositionDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const ui = useUiText();
   const [tab, setTab] = useState<"position" | "history">("position");
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<Appointment[]>([]);
@@ -112,6 +122,7 @@ export function PositionDialog({
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [extraDeptId, setExtraDeptId] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyFailed, setHistoryFailed] = useState(false);
 
   const [form, setForm] = useState({
     designationId: node.designation?.id ?? "",
@@ -127,12 +138,17 @@ export function PositionDialog({
   });
 
   const [newLine, setNewLine] = useState({ managerId: "", kind: "FUNCTIONAL", label: "" });
+  // §4.5.3: removing a department membership or a reporting line is confirmed first (both are audited and
+  // can be added back, so the tone is "warning", not "danger").
+  const [pendingRemoval, setPendingRemoval] = useState<{ kind: "member" | "line"; id: string; name: string } | null>(null);
+  const [removalBusy, setRemovalBusy] = useState(false);
 
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true);
+    setHistoryFailed(false);
     try {
       const res = await fetch(`/api/staff/appointments?userId=${node.id}`);
       const data = await res.json();
@@ -142,7 +158,9 @@ export function PositionDialog({
       setLines(data.secondaryLines ?? []);
       setMemberships(data.memberships ?? []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load the service record");
+      // R4: shown inline in the service record with a retry, never as a toast.
+      console.error(error);
+      setHistoryFailed(true);
     } finally {
       setLoadingHistory(false);
     }
@@ -197,7 +215,7 @@ export function PositionDialog({
     if (!nextRank) return;
     setForm((prev) => ({ ...prev, designationId: nextRank.id }));
     setTab("position");
-    toast.success(`Set to ${nextRank.name}. Check the reporting line, then save.`);
+    toast.success(ui("Set to {0}. Check the reporting line, then save.", [nextRank.name]));
   };
 
   const save = async () => {
@@ -221,14 +239,14 @@ export function PositionDialog({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save the change");
+      if (!res.ok) throw new Error(data.error || "");
 
       const label = data.changeKind ? CHANGE_KIND_LABELS[data.changeKind as keyof typeof CHANGE_KIND_LABELS] : null;
-      toast.success(label ? `${node.fullName}: ${label.toLowerCase()}` : "Position saved");
+      toast.success(label ? ui("{0}: {1}", [node.fullName, ui(label)]) : ui("Position saved"));
       await loadHistory();
       onSaved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save the change");
+      toast.error(friendlyErrorMessage(error, ui("Could not save the change. Please try again.")));
     } finally {
       setSaving(false);
     }
@@ -242,12 +260,12 @@ export function PositionDialog({
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "That did not work");
+      if (!res.ok) throw new Error(data.error || "");
       toast.success(message);
       await loadHistory();
       onSaved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "That did not work");
+      toast.error(friendlyErrorMessage(error, ui("Could not save the change. Please try again.")));
     }
   };
 
@@ -256,7 +274,7 @@ export function PositionDialog({
     const unit = departments.find((d) => d.id === extraDeptId);
     await departmentAction(
       { action: "set-member", departmentId: extraDeptId, userId: node.id, role: "MEMBER" },
-      `Added to ${unit?.name ?? "the department"}`
+      unit?.name ? ui("Added to {0}", [unit.name]) : ui("Added to the department")
     );
     setExtraDeptId("");
   };
@@ -275,13 +293,13 @@ export function PositionDialog({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not add the reporting line");
+      if (!res.ok) throw new Error(data.error || "");
       setNewLine({ managerId: "", kind: "FUNCTIONAL", label: "" });
       await loadHistory();
       onSaved();
-      toast.success("Secondary reporting line added");
+      toast.success(ui("Secondary reporting line added"));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add the reporting line");
+      toast.error(friendlyErrorMessage(error, ui("Could not add the reporting line. Please try again.")));
     }
   };
 
@@ -289,10 +307,11 @@ export function PositionDialog({
     try {
       const res = await fetch(`/api/staff/reporting-lines?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "Could not remove the line");
+      toast.success(ui("Reporting line removed"));
       await loadHistory();
       onSaved();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove the line");
+      toast.error(friendlyErrorMessage(error, ui("Could not remove the reporting line. Please try again.")));
     }
   };
 
@@ -301,30 +320,30 @@ export function PositionDialog({
   return (
     <Modal
       title={node.fullName}
-      eyebrow="Position & reporting"
-      subtitle={node.designation?.name || node.designationLabel || "No rank set yet"}
+      eyebrow={ui("Position & reporting")}
+      subtitle={node.designation?.name || node.designationLabel || ui("No rank set yet")}
       icon={UserCog}
       size="lg"
       tone="violet"
       dirty={dirty}
       onClose={onClose}
       avatar={
-        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink-muted">
+        <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-muted text-sm font-bold text-ink-muted">
           {node.avatarUrl ? <AvatarImage src={node.avatarUrl} name={node.fullName} /> : initialsOf(node.fullName)}
         </span>
       }
       chips={
         <div className="flex flex-wrap items-center gap-1.5">
           {tone ? (
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black uppercase", tone.chip)}>{tone.label}</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-2xs font-semibold", tone.chip)}>{ui(tone.label)}</span>
           ) : null}
           {node.headOf.map((h) => (
-            <span key={h.id} className="rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[10px] font-black text-[#8127cf]">
-              {h.isActing ? "Acting head" : "Head"} · {h.name}
-            </span>
+            <Badge key={h.id} variant="default" size="sm">
+              {h.isActing ? ui("Acting head") : ui("Head")} · {h.name}
+            </Badge>
           ))}
           {node.dueForReview ? (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">Due for review</span>
+            <Badge variant="warning" size="sm" dot>{ui("Due for review")}</Badge>
           ) : null}
         </div>
       }
@@ -332,15 +351,15 @@ export function PositionDialog({
         tab === "position" ? (
           <ModalActions
             busy={saving}
-            busyLabel="Saving…"
-            actionLabel="Save change"
+            busyLabel={ui("Saving…")}
+            actionLabel={ui("Save change")}
             onCancel={onClose}
             onAction={save}
-            blockedReason={dirty ? null : "Nothing has changed yet."}
+            blockedReason={dirty ? null : ui("Nothing has changed yet.")}
             secondary={
               nextRank ? (
                 <BrandButton variant="soft" icon={<ArrowUpRight className="h-4 w-4" />} onClick={promote}>
-                  Promote to {nextRank.shortName || nextRank.name}
+                  {ui("Promote to {0}", [nextRank.shortName || nextRank.name])}
                 </BrandButton>
               ) : undefined
             }
@@ -348,39 +367,36 @@ export function PositionDialog({
         ) : undefined
       }
     >
-      <div className="mb-4 flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+      <div className="mb-4 flex gap-1 rounded-2xl bg-muted p-1">
         {([
           { key: "position" as const, label: "Position", icon: Network },
           { key: "history" as const, label: "Service record", icon: History },
         ]).map((t) => (
-          <button
+          <Button aria-pressed={tab === t.key} variant="choice" size="sm"
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-black transition-all",
-              tab === t.key ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-ink"
-            )}
+            className="flex flex-1 items-center justify-center gap-2"
           >
             <t.icon className="h-3.5 w-3.5" />
-            {t.label}
-          </button>
+            {ui(t.label)}
+          </Button>
         ))}
       </div>
 
       {tab === "position" ? (
         <div className="space-y-5">
           <section className="space-y-3">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Rank & unit</h4>
+            <h4 className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Rank & unit")}</h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Rank" hint={currentRank?.minYearsInRank ? `Usually held ${currentRank.minYearsInRank} year(s) before promotion` : undefined}>
+              <Field label={ui("Rank")} hint={currentRank?.minYearsInRank ? ui("Usually held {0} year(s) before promotion", [currentRank.minYearsInRank]) : undefined}>
                 <Select value={form.designationId} onChange={(e) => update("designationId", e.target.value)}>
-                  <option value="">No rank set</option>
+                  <option value="">{ui("No rank set")}</option>
                   {Object.entries(TRACK_TONES).map(([track, t]) => {
                     const inTrack = designations.filter((d) => d.track === track);
                     if (inTrack.length === 0) return null;
                     return (
-                      <optgroup key={track} label={t.label}>
+                      <optgroup key={track} label={ui(t.label)}>
                         {inTrack.map((d) => (
                           <option key={d.id} value={d.id}>
                             {d.name}
@@ -392,22 +408,22 @@ export function PositionDialog({
                 </Select>
               </Field>
 
-              <Field label="Home department" hint="Where the chart files them. Add any others below.">
+              <Field label={ui("Home department")} hint={ui("Where the chart files them. Add any others below.")}>
                 <Select value={form.primaryDepartmentId} onChange={(e) => update("primaryDepartmentId", e.target.value)}>
-                  <option value="">No department</option>
+                  <option value="">{ui("No department")}</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.parentId ? "— " : ""}
-                      {d.name} ({DEPARTMENT_KIND_LABELS[d.kind as keyof typeof DEPARTMENT_KIND_LABELS]})
+                      {d.name} ({ui(DEPARTMENT_KIND_LABELS[d.kind as keyof typeof DEPARTMENT_KIND_LABELS])})
                     </option>
                   ))}
                 </Select>
               </Field>
 
               <div className="sm:col-span-2">
-                <Field label="Reports to" hint="The solid line on the chart. Leave empty for the head of the institution.">
+                <Field label={ui("Reports to")} hint={ui("The solid line on the chart. Leave empty for the head of the institution.")}>
                   <Select value={form.reportsToId} onChange={(e) => update("reportsToId", e.target.value)}>
-                    <option value="">Nobody — top of the chart</option>
+                    <option value="">{ui("Nobody — top of the chart")}</option>
                     {managerOptions.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.fullName}
@@ -420,75 +436,71 @@ export function PositionDialog({
             </div>
           </section>
 
-          <section className="space-y-3 rounded-2xl bg-[#f3f4f9]/60 p-4">
+          <section className="space-y-3 rounded-2xl bg-muted/60 p-4">
             <div className="flex items-center gap-2">
-              <Building2 className="h-3.5 w-3.5 text-indigo-600" />
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Departments they belong to</h4>
+              <Building2 className="h-3.5 w-3.5 text-status-info-text" />
+              <h4 className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Departments they belong to")}</h4>
             </div>
-            <p className="text-[11px] font-semibold text-ink-muted">
-              A school runs many departments and people cross them — a teacher covering Physics and Maths, a
-              professor sitting on admissions. Add as many as apply; the one marked <strong className="font-black">home</strong> is
-              the one the chart files them under.
+            <p className="text-xs font-normal text-ink-muted">
+              {fillNodes(ui("A school runs many departments and people cross them — a teacher covering Physics and Maths, a professor sitting on admissions. Add as many as apply; the one marked {0} is the one the chart files them under."), <strong className="font-bold">{ui("home")}</strong>)}
             </p>
 
             {memberships.length > 0 ? (
               <ul className="space-y-1.5">
                 {memberships.map((m) => (
-                  <li key={m.id} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2">
+                  <li key={m.id} className="flex items-center gap-2 rounded-xl bg-card px-3 py-2">
                     <span className="min-w-0 flex-1 truncate text-xs font-bold text-ink">
                       {m.department.name}
                       <span className="font-semibold text-ink-muted">
                         {" "}
-                        · {DEPARTMENT_KIND_LABELS[m.department.kind as keyof typeof DEPARTMENT_KIND_LABELS]}
+                        · {ui(DEPARTMENT_KIND_LABELS[m.department.kind as keyof typeof DEPARTMENT_KIND_LABELS])}
                       </span>
                     </span>
                     {m.role === "HEAD" ? (
-                      <span className="shrink-0 rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[9px] font-black text-[#8127cf]">
-                        {m.isActing ? "ACTING HEAD" : "HEAD"}
-                      </span>
+                      <Badge variant="default" size="sm" className="shrink-0">
+                        {m.isActing ? ui("Acting head") : ui("Head")}
+                      </Badge>
                     ) : m.role !== "MEMBER" ? (
-                      <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[9px] font-black text-indigo-600">
-                        {DEPARTMENT_ROLE_LABELS[m.role].toUpperCase()}
-                      </span>
+                      <Badge variant="info" size="sm" className="shrink-0">
+                        {ui(DEPARTMENT_ROLE_LABELS[m.role])}
+                      </Badge>
                     ) : null}
                     {m.isPrimary ? (
-                      <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-600">HOME</span>
+                      <Badge variant="success" size="sm" className="shrink-0">{ui("Home unit")}</Badge>
                     ) : (
-                      <button
+                      <Button variant="secondary" size="sm"
                         type="button"
                         onClick={() =>
                           departmentAction(
                             { action: "set-member", departmentId: m.department.id, userId: node.id, role: m.role, isPrimary: true },
-                            `${m.department.name} is now their home department`
+                            ui("{0} is now their home department", [m.department.name])
                           )
                         }
-                        className="shrink-0 rounded-lg px-2 py-0.5 text-[9px] font-black uppercase text-ink-subtle hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                        className="shrink-0"
                       >
-                        Make home
-                      </button>
+                        {ui("Make home")}
+                      </Button>
                     )}
-                    <button
+                    <Button variant="ghost" size="icon"
                       type="button"
-                      onClick={() =>
-                        departmentAction({ action: "remove-member", memberId: m.id }, `Removed from ${m.department.name}`)
-                      }
-                      className="shrink-0 rounded-lg p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600"
-                      aria-label={`Remove from ${m.department.name}`}
+                      onClick={() => setPendingRemoval({ kind: "member", id: m.id, name: m.department.name })}
+                      className="shrink-0 text-status-error-text actionable-hover:bg-status-error-surface actionable-hover:text-status-error-text"
+                      aria-label={ui("Remove from {0}", [m.department.name])}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="rounded-xl bg-white px-3 py-2.5 text-[11px] font-semibold text-ink-muted">
-                Not in any department yet.
+              <p className="rounded-xl bg-card px-3 py-2.5 text-xs font-normal text-ink-muted">
+                {ui("Not in any department yet.")}
               </p>
             )}
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-              <Select value={extraDeptId} onChange={(e) => setExtraDeptId(e.target.value)} className="h-10 text-xs">
-                <option value="">Also belongs to…</option>
+              <Select value={extraDeptId} onChange={(e) => setExtraDeptId(e.target.value)} >
+                <option value="">{ui("Also belongs to…")}</option>
                 {departments
                   .filter((d) => !memberships.some((m) => m.department.id === d.id))
                   .map((d) => (
@@ -500,92 +512,92 @@ export function PositionDialog({
               </Select>
               <BrandButton
                 variant="soft"
-                icon={<Plus className="h-3.5 w-3.5" />}
+                size="sm"
+                icon={<Plus aria-hidden="true" />}
                 onClick={addDepartment}
                 disabled={!extraDeptId}
-                className="min-h-10 px-4 text-xs"
               >
-                Add
+                {ui("Add")}
               </BrandButton>
             </div>
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Employment</h4>
+            <h4 className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Employment")}</h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Field label="Type">
+              <Field label={ui("Type")}>
                 <Select value={form.employmentType} onChange={(e) => update("employmentType", e.target.value)}>
                   {Object.entries(EMPLOYMENT_TYPE_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
+                    <option key={key} value={key}>{ui(label)}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Status">
+              <Field label={ui("Status")}>
                 <Select value={form.employmentStatus} onChange={(e) => update("employmentStatus", e.target.value)}>
                   {Object.entries(EMPLOYMENT_STATUS_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
+                    <option key={key} value={key}>{ui(label)}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Staff code" hint="Your own employee number">
-                <Input value={form.employeeCode} onChange={(e) => update("employeeCode", e.target.value)} placeholder="e.g. EMP-0142" />
+              <Field label={ui("Staff code")} hint={ui("Your own employee number")}>
+                <Input value={form.employeeCode} onChange={(e) => update("employeeCode", e.target.value)} placeholder={ui("e.g. EMP-0142")} />
               </Field>
             </div>
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Record this change</h4>
+            <h4 className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Record this change")}</h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Effective from" hint="Backdate it to the date on the order.">
+              <Field label={ui("Effective from")} hint={ui("Backdate it to the date on the order.")}>
                 <Input type="date" value={form.effectiveFrom} onChange={(e) => update("effectiveFrom", e.target.value)} />
               </Field>
-              <Field label="Order / notification no." hint="Optional">
-                <Input value={form.orderRef} onChange={(e) => update("orderRef", e.target.value)} placeholder="e.g. ADM/2026/114" />
+              <Field label={ui("Order / notification no.")} hint={ui("Optional")}>
+                <Input value={form.orderRef} onChange={(e) => update("orderRef", e.target.value)} placeholder={ui("e.g. ADM/2026/114")} />
               </Field>
               <div className="sm:col-span-2">
-                <Field label="Notes" hint="Why the change was made. Kept on the service record.">
-                  <Textarea rows={2} value={form.notes} onChange={(e) => update("notes", e.target.value)} placeholder="Optional" />
+                <Field label={ui("Notes")} hint={ui("Why the change was made. Kept on the service record.")}>
+                  <Textarea rows={2} value={form.notes} onChange={(e) => update("notes", e.target.value)} placeholder={ui("Optional")} />
                 </Field>
               </div>
               <label className="flex cursor-pointer items-center gap-2 sm:col-span-2">
-                <input type="checkbox" checked={form.isActing} onChange={(e) => update("isActing", e.target.checked)} className="h-4 w-4 accent-[#8127cf]" />
+                <SystemCheckbox  checked={form.isActing} onChange={(e) => update("isActing", e.target.checked)} className="h-4 w-4 accent-primary" />
                 <span className="text-xs font-bold text-ink">
-                  Acting / officiating charge
-                  <span className="ml-1 font-semibold text-ink-muted">— holding the post without the rank</span>
+                  {ui("Acting / officiating charge")}
+                  <span className="ms-1 font-medium text-ink-muted">{ui("— holding the post without the rank")}</span>
                 </span>
               </label>
             </div>
           </section>
 
-          <section className="space-y-3 rounded-2xl bg-[#f3f4f9]/60 p-4">
+          <section className="space-y-3 rounded-2xl bg-muted/60 p-4">
             <div className="flex items-center gap-2">
-              <Link2 className="h-3.5 w-3.5 text-cyan-600" />
-              <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Secondary reporting lines</h4>
+              <Link2 className="h-3.5 w-3.5 text-status-info-text" />
+              <h4 className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Secondary reporting lines")}</h4>
             </div>
-            <p className="text-[11px] font-semibold text-ink-muted">
-              For work that cuts across the chart — exam duty, a committee, a project. Drawn dashed, and they never change who this person answers to day to day.
+            <p className="text-xs font-normal text-ink-muted">
+              {ui("For work that cuts across the chart — exam duty, a committee, a project. Drawn dashed, and they never change who this person answers to day to day.")}
             </p>
 
             {lines.length > 0 ? (
               <ul className="space-y-1.5">
                 {lines.map((line) => (
-                  <li key={line.id} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2">
+                  <li key={line.id} className="flex items-center gap-2 rounded-xl bg-card px-3 py-2">
                     <span className="min-w-0 flex-1 truncate text-xs font-bold text-ink">
                       {line.manager.fullName}
                       {line.label ? <span className="font-semibold text-ink-muted"> · {line.label}</span> : null}
                     </span>
-                    <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[9px] font-black uppercase text-cyan-700">{line.kind}</span>
-                    <button type="button" onClick={() => removeLine(line.id)} className="rounded-lg p-1 text-ink-muted hover:bg-rose-50 hover:text-rose-600" aria-label="Remove line">
+                    <Badge variant="info" size="sm">{ui(REPORTING_LINE_KIND_LABELS[line.kind] ?? line.kind)}</Badge>
+                    <Button variant="ghost" className="text-status-error-text actionable-hover:bg-status-error-surface actionable-hover:text-status-error-text" size="icon" type="button" onClick={() => setPendingRemoval({ kind: "line", id: line.id, name: line.manager.fullName })} aria-label={ui("Remove line")}>
                       <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
             ) : null}
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-              <Select value={newLine.managerId} onChange={(e) => setNewLine((p) => ({ ...p, managerId: e.target.value }))} className="h-10 text-xs">
-                <option value="">Also reports to…</option>
+              <Select value={newLine.managerId} onChange={(e) => setNewLine((p) => ({ ...p, managerId: e.target.value }))} >
+                <option value="">{ui("Also reports to…")}</option>
                 {managerOptions.map((m) => (
                   <option key={m.id} value={m.id}>{m.fullName}</option>
                 ))}
@@ -593,11 +605,11 @@ export function PositionDialog({
               <Input
                 value={newLine.label}
                 onChange={(e) => setNewLine((p) => ({ ...p, label: e.target.value }))}
-                placeholder="What for? e.g. Exam duty"
-                className="h-10 text-xs"
+                placeholder={ui("What for? e.g. Exam duty")}
+
               />
-              <BrandButton variant="soft" icon={<Plus className="h-3.5 w-3.5" />} onClick={addLine} disabled={!newLine.managerId} className="min-h-10 px-4 text-xs">
-                Add
+              <BrandButton variant="soft" size="sm" icon={<Plus aria-hidden="true" />} onClick={addLine} disabled={!newLine.managerId}>
+                {ui("Add")}
               </BrandButton>
             </div>
           </section>
@@ -605,54 +617,94 @@ export function PositionDialog({
       ) : (
         <ServiceRecord
           loading={loadingHistory}
+          failed={historyFailed}
+          onRetry={() => void loadHistory()}
           history={history}
           chain={chain}
           joiningDate={node.joiningDate}
           rankSince={node.rankSince}
         />
       )}
+      <ConfirmAction
+        open={pendingRemoval !== null}
+        tone="warning"
+        title={pendingRemoval?.kind === "member" ? ui("Remove from {0}?", [pendingRemoval.name]) : ui("Remove the reporting line to {0}?", [pendingRemoval?.name ?? ""])}
+        description={pendingRemoval?.kind === "member"
+          ? ui("{0} leaves this unit. Their history is kept and you can add them back at any time.", [node.fullName])
+          : ui("{0} stops reporting to this person on this line. The change is recorded in their history.", [node.fullName])}
+        confirmLabel={pendingRemoval?.kind === "member" ? ui("Remove from unit") : ui("Remove line")}
+        cancelLabel={ui("Keep")}
+        busy={removalBusy}
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={async () => {
+          if (!pendingRemoval) return;
+          setRemovalBusy(true);
+          if (pendingRemoval.kind === "member") await departmentAction({ action: "remove-member", memberId: pendingRemoval.id }, ui("Removed from {0}", [pendingRemoval.name]));
+          else await removeLine(pendingRemoval.id);
+          setRemovalBusy(false);
+          setPendingRemoval(null);
+        }}
+      />
     </Modal>
   );
 }
 
+/** Secondary reporting line kinds (EN UI keys), never shown as raw enum values. */
+const REPORTING_LINE_KIND_LABELS: Record<string, string> = {
+  DOTTED: "Dotted line",
+  FUNCTIONAL: "Functional",
+  PROJECT: "Project",
+};
+
 function ServiceRecord({
   loading,
+  failed = false,
+  onRetry,
   history,
   chain,
   joiningDate,
   rankSince,
 }: {
   loading: boolean;
+  failed?: boolean;
+  onRetry?: () => void;
   history: Appointment[];
   chain: Array<{ id: string; fullName: string; designation: string | null }>;
   joiningDate: string | null;
   rankSince: string | null;
 }) {
+  const ui = useUiText();
+  const { date } = useLocaleFormat();
   if (loading) {
+    return <SkeletonList rows={3} label={ui("Loading the service record…")} />;
+  }
+  if (failed) {
     return (
-      <div className="flex items-center justify-center gap-2 py-12 text-xs font-bold text-ink-muted">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading the service record…
-      </div>
+      <ErrorState
+        variant="panel"
+        title={ui("Couldn't load the service record")}
+        description={ui("The appointment history didn't come back. Check your connection and try again.")}
+        onRetry={onRetry}
+      />
     );
   }
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Stat icon={CalendarDays} label="Joined" value={joiningDate ? new Date(joiningDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "Not recorded"} />
-        <Stat icon={ArrowUpRight} label="In current rank since" value={rankSince ? new Date(rankSince).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "Not recorded"} />
+        <Stat icon={CalendarDays} label={ui("Joined")} value={joiningDate ? date(joiningDate) : ui("Not recorded")} />
+        <Stat icon={ArrowUpRight} label={ui("In current rank since")} value={rankSince ? date(rankSince) : ui("Not recorded")} />
       </div>
 
       {chain.length > 0 ? (
         <section className="space-y-2">
-          <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Chain of command</h4>
+          <h4 className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Chain of command")}</h4>
           <ol className="flex flex-wrap items-center gap-1.5">
             {chain.map((person, index) => (
               <li key={person.id} className="flex items-center gap-1.5">
-                {index > 0 ? <span className="text-ink-muted">→</span> : null}
-                <span className="rounded-xl bg-[#f3f4f9] px-2.5 py-1.5 text-[11px] font-bold text-ink">
-                  {person.fullName}
+                {index > 0 ? <span aria-hidden="true" className="inline-block text-ink-muted rtl:rotate-180">→</span> : null}
+                <span className="rounded-xl bg-muted px-2.5 py-1.5 text-2xs font-bold text-ink">
+                  <bdi>{person.fullName}</bdi>
                   {person.designation ? <span className="font-semibold text-ink-muted"> · {person.designation}</span> : null}
                 </span>
               </li>
@@ -662,39 +714,37 @@ function ServiceRecord({
       ) : null}
 
       <section className="space-y-2">
-        <h4 className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">Every position held</h4>
+        <h4 className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Every position held")}</h4>
         {history.length === 0 ? (
-          <p className="rounded-2xl bg-[#f3f4f9]/60 px-4 py-6 text-center text-xs font-semibold text-ink-muted">
-            Nothing recorded yet. The first change you save here starts the record.
-          </p>
+          <EmptyState size="sm" icon={History} title={ui("Nothing recorded yet")} description={ui("The first change you save here starts the record.")} />
         ) : (
-          <ol className="relative space-y-3 border-l border-[#cfc2d6]/50 pl-5">
+          <ol className="relative space-y-3 border-s border-edge/50 ps-5">
             {history.map((entry) => (
               <li key={entry.id} className="relative">
-                <span className={cn("absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white", entry.effectiveTo ? "bg-[#cfc2d6]" : "bg-[#8127cf]")} />
-                <div className="rounded-2xl border border-[#cfc2d6]/30 bg-white p-3">
+                <span className={cn("absolute -start-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white", entry.effectiveTo ? "bg-edge" : "bg-primary")} />
+                <div className="rounded-2xl border border-edge/30 bg-card p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-black text-ink">{CHANGE_KIND_LABELS[entry.changeKind] ?? entry.changeKind}</span>
-                    {entry.isActing ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-700">ACTING</span> : null}
-                    {!entry.effectiveTo ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black text-emerald-600">CURRENT</span> : null}
-                    <span className="ml-auto text-[10px] font-bold text-ink-muted">
-                      {new Date(entry.effectiveFrom).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                      {entry.effectiveTo ? ` → ${new Date(entry.effectiveTo).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                    <span className="text-xs font-bold text-ink">{ui(CHANGE_KIND_LABELS[entry.changeKind as keyof typeof CHANGE_KIND_LABELS] ?? entry.changeKind)}</span>
+                    {entry.isActing ? <Badge variant="warning" size="sm">{ui("Acting")}</Badge> : null}
+                    {!entry.effectiveTo ? <Badge variant="success" size="sm" dot>{ui("Current")}</Badge> : null}
+                    <span className="ms-auto text-2xs font-semibold tabular-nums text-ink-muted">
+                      {date(entry.effectiveFrom)}
+                      {entry.effectiveTo ? <> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {date(entry.effectiveTo)}</> : null}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] font-bold text-ink">
-                    {entry.designationName || "No rank"}
+                  <p className="mt-1 text-2xs font-bold text-ink">
+                    {entry.designationName || ui("No rank")}
                     {entry.departmentName ? <span className="font-semibold text-ink-muted"> · {entry.departmentName}</span> : null}
                   </p>
                   {entry.reportsToName ? (
-                    <p className="text-[11px] font-semibold text-ink-muted">Reporting to {entry.reportsToName}</p>
+                    <p className="text-xs font-normal text-ink-muted">{ui("Reporting to {0}", [entry.reportsToName])}</p>
                   ) : null}
                   {entry.orderRef ? (
-                    <p className="mt-1 text-[10px] font-bold text-ink-muted">Order {entry.orderRef}</p>
+                    <p className="mt-1 text-2xs font-bold text-ink-muted">{ui("Order {0}", [entry.orderRef])}</p>
                   ) : null}
-                  {entry.notes ? <p className="mt-1 text-[11px] font-semibold text-ink-muted">{entry.notes}</p> : null}
+                  {entry.notes ? <p className="mt-1 text-xs font-normal text-ink-muted">{entry.notes}</p> : null}
                   {entry.approvedBy ? (
-                    <p className="mt-1 text-[10px] font-semibold text-ink-muted">Recorded by {entry.approvedBy.fullName}</p>
+                    <p className="mt-1 text-xs font-normal text-ink-muted">{ui("Recorded by {0}", [entry.approvedBy.fullName])}</p>
                   ) : null}
                 </div>
               </li>
@@ -709,19 +759,19 @@ function ServiceRecord({
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-[11px] font-black text-ink">{label}</label>
+      <label className="block text-2xs font-bold text-ink">{label}</label>
       {children}
-      {hint ? <p className="text-[10px] font-semibold text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="text-xs font-normal text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
 
 function Stat({ icon: Icon, label, value }: { icon: typeof CalendarDays; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-[#f3f4f9]/60 px-4 py-3">
-      <Icon className="h-4 w-4 shrink-0 text-[#8127cf]" />
+    <div className="flex items-center gap-3 rounded-2xl bg-muted/60 px-4 py-3">
+      <Icon className="h-4 w-4 shrink-0 text-primary" />
       <div className="min-w-0">
-        <p className="text-[10px] font-black uppercase tracking-wide text-ink-subtle">{label}</p>
+        <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wide text-ink-subtle">{label}</p>
         <p className="truncate text-xs font-bold text-ink">{value}</p>
       </div>
     </div>

@@ -40,6 +40,12 @@ export function assertPhone(value: string | null, field: string) {
   return value;
 }
 
+/** A web address with a real host, e.g. "school.example" or "https://school.example/admissions". */
+export function assertWebsite(value: string | null, field: string) {
+  if (value && !/^(https?:\/\/)?([\p{L}\p{N}-]+\.)+[\p{L}]{2,}(:\d{2,5})?(\/\S*)?$/u.test(value)) throw new Error(`Enter a valid ${field}, for example school.example.`);
+  return value;
+}
+
 /**
  * A real IANA zone, or null when the value is unusable.
  *
@@ -80,6 +86,7 @@ export function parseLogo(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (/^logos\/(school|campus)\/\S+$/i.test(trimmed)) return trimmed;
   if (trimmed.length > MAX_LOGO_CHARS) throw new Error("That logo image is too large — use one under 1.5 MB.");
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
   if (/^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;

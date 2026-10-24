@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       campus: { schoolId: user.schoolId },
       ...(campusId ? { campusId } : {}),
       ...(status ? { status: status as any } : {}),
-      ...(classId ? { student: { classId } } : {}),
+      ...(classId ? { enrollment: { classId } } : {}),
       ...(search
         ? {
             OR: [
@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
       prisma.invoice.findMany({
         where,
         include: {
+          enrollment: true,
           student: {
             select: {
               id: true,
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({
       success: true,
-      data: invoices,
+      data: invoices.map(invoice => invoice.enrollment ? { ...invoice, student: { ...invoice.student, rollNo: invoice.enrollment.rollNo, class: { name: invoice.enrollment.className, section: null } } } : invoice),
       total,
       page,
       pageSize,

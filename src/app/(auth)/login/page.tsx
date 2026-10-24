@@ -1,40 +1,197 @@
 "use client";
-
-import { useState, useEffect, useRef, useCallback } from "react";
+import { FieldAction, InputGroup } from "@/components/ui/input-group";
+import { useState, useEffect, useEffectEvent, useRef, useCallback, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch, type Control } from "react-hook-form";
+import { safeReturnPath } from "@/lib/auth/return-path";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { loginSchema, type LoginFormData } from "@/lib/validators/schemas";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resolveMediaUrl } from "@/lib/storage/s3";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FieldError } from "@/components/ui/form-field";
+import { InfoTip } from "@/components/ui/tooltip";
 import {
-  Loader2, Eye, EyeOff, ArrowRight, Mail, Lock, ShieldCheck,
-  AlertCircle, CheckCircle2, Building2, Sparkles,
-  ChevronLeft, Timer, Check,
+  Loader2, Eye, EyeOff, ArrowRight, Mail, Lock,
+  AlertCircle, CheckCircle2, ChevronLeft,
 } from "lucide-react";
 import Link from "next/link";
 import { dashboardPathForRole, roleLabel } from "@/lib/roles";
-import SkooleeLogo from "@/components/SkooleeLogo";
-import AvatarOrbit from "@/components/auth/AvatarOrbit";
-import LiveActivityTicker from "@/components/auth/LiveActivityTicker";
+import { useAuthLanguage } from "@/components/locale/AuthLocaleProvider";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { AuthTopBar } from "@/components/auth/AuthTopBar";
+import { AuthCover } from "@/components/auth/AuthCover";
+import { AuthColophon, authClaimItem } from "@/components/auth/AuthColophon";
+import { AuthMascot } from "@/components/auth/AuthMascot";
+import { EmailTypoHint } from "@/components/auth/EmailTypoHint";
+import { CountdownRing } from "@/components/auth/CountdownRing";
+import { useVerificationResend } from "@/components/auth/use-verification-resend";
+import { authCopy } from "@/lib/auth/auth-copy";
+import { stashAuthEmail, takeAuthEmail } from "@/lib/auth/auth-handoff";
+import { fillText } from "@/lib/auth/fill-nodes";
+import type { Language } from "@/lib/locale/package";
+import { cn } from "@/lib/utils";
 
 /**
- * One proof point on the brand panel, pairing the claim with something concrete
- * so the panel says a thing instead of decorating.
- *
- * This was a three-item carousel on a 6s timer with dot tabs. Rotating it meant
- * remounting the card (`key={slide}`) to re-fire `sk-rise`, so the panel
- * flickered every six seconds next to a form people are trying to type into,
- * and two thirds of the copy was never read. One card, stated once.
+ * Every login-only string, co-located like protect-account and accept-invite.
+ * Claims, policy links, the language label and the resend wording are shared
+ * with the other auth screens and come from `authCopy`. Switching language
+ * only swaps text nodes, so typed credentials, "remember me" and the school
+ * picker survive the change.
  */
-const PROOF = {
-  icon: Building2,
-  stat: "Multi",
-  unit: "campus by design",
-  quote: "One login for the whole group. Each campus stays sealed from the others.",
-  caption: "Built for school groups, not single classrooms",
+const en = {
+  srHeading: "Sign in to Skoolee AI",
+  eyebrow: "AI-assisted school management",
+  /** The cover headline: a light phrase, then the weight-800 phrase with the ink swash. */
+  title: { light: "Run the whole institution from", strong: "one place." },
+  footnote: "Built for school groups, not single classrooms",
+  chooseSchool: "Choose your school",
+  chooseSchoolBody: "This email is registered at more than one institution.",
+  welcome: "Welcome back",
+  welcomeBody: "Sign in to your campus dashboard.",
+  email: "Work Email",
+  password: "Password",
+  forgot: "Forgot password?",
+  showPassword: "Show password",
+  hidePassword: "Hide password",
+  capsLock: "Caps Lock is on",
+  remember: "Keep me signed in for 30 days",
+  rememberTip: "Without this, you are signed out after 7 days. Leave it off on a shared or school computer.",
+  welcomeDone: "Welcome back!",
+  tryAgainIn: "Try again in {0}s",
+  signingIn: "Signing in…",
+  signIn: "Sign in",
+  differentAccount: "Use a different account",
+  noAccount: "Don't have an account?",
+  createAccount: "Create New Account",
+  welcomeToast: "Welcome back, {0}!",
+  verified: "Account verified. Please log in.",
+  invited: "Invitation accepted. Log in with your new password.",
+  sessionEnded: "Your session has ended. Please sign in again.",
+  unableToVerify: "Unable to verify this link. Please open the latest verification email and try again.",
+  tooMany: "Too many attempts. Please wait a moment.",
+  loginFailed: "Login failed",
+  schoolFailed: "Could not sign in to that school.",
+  resendNeedEmail: "Enter your email above, then send a new link.",
+  /** Known English messages (zod, verification redirect, /api/auth/login) → localized text. Unknown text passes through. */
+  messages: {} as Record<string, string>,
 };
+type LoginCopy = typeof en;
+
+const copy: Record<Language, LoginCopy> = {
+  en,
+  ar: {
+    srHeading: "تسجيل الدخول إلى Skoolee AI",
+    eyebrow: "إدارة مدرسية بمساعدة الذكاء الاصطناعي",
+    title: { light: "أدِر المؤسسة بأكملها من", strong: "مكان واحد." },
+    footnote: "مصمَّم لمجموعات المدارس، لا للفصول المنفردة",
+    chooseSchool: "اختر مدرستك",
+    chooseSchoolBody: "هذا البريد الإلكتروني مسجّل في أكثر من مؤسسة.",
+    welcome: "مرحباً بعودتك",
+    welcomeBody: "سجّل الدخول إلى لوحة تحكم فرعك.",
+    email: "البريد الإلكتروني للعمل",
+    password: "كلمة المرور",
+    forgot: "نسيت كلمة المرور؟",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
+    capsLock: "مفتاح الأحرف الكبيرة مفعّل",
+    remember: "ابقَ مسجّلاً لمدة 30 يوماً",
+    rememberTip: "من دون هذا الخيار يُسجَّل خروجك بعد 7 أيام. اتركه غير مفعّل على جهاز مشترك أو جهاز المدرسة.",
+    welcomeDone: "مرحباً بعودتك!",
+    tryAgainIn: "حاول مجدداً بعد {0} ث",
+    signingIn: "جارٍ تسجيل الدخول…",
+    signIn: "تسجيل الدخول",
+    differentAccount: "استخدم حساباً آخر",
+    noAccount: "ليس لديك حساب؟",
+    createAccount: "إنشاء حساب جديد",
+    welcomeToast: "مرحباً بعودتك، {0}!",
+    verified: "تم التحقق من الحساب. سجّل الدخول.",
+    invited: "قُبلت الدعوة. سجّل الدخول بكلمة المرور الجديدة.",
+    sessionEnded: "انتهت جلستك. سجّل الدخول مجدداً.",
+    unableToVerify: "تعذر التحقق من هذا الرابط. افتح أحدث رسالة تحقق وحاول مجدداً.",
+    tooMany: "محاولات كثيرة جداً. انتظر قليلاً.",
+    loginFailed: "تعذر تسجيل الدخول",
+    schoolFailed: "تعذر تسجيل الدخول إلى تلك المدرسة.",
+    resendNeedEmail: "أدخل بريدك الإلكتروني أعلاه، ثم أرسل رابطاً جديداً.",
+    messages: {
+      "Valid email required": "أدخل بريداً إلكترونياً صالحاً",
+      "Password required": "كلمة المرور مطلوبة",
+      "Invalid email or password": "البريد الإلكتروني أو كلمة المرور غير صحيحة",
+      "Too many login attempts. Please try again in a minute.": "محاولات تسجيل دخول كثيرة جداً. حاول مجدداً بعد دقيقة.",
+      "Account not verified. Please check your email inbox to activate it.": "لم يتم التحقق من الحساب. تحقق من بريدك الإلكتروني لتفعيله.",
+      "Login failed": "تعذر تسجيل الدخول",
+      "Invalid verification link": "رابط التحقق غير صالح",
+      "This verification link is invalid or has expired": "رابط التحقق هذا غير صالح أو انتهت صلاحيته",
+      "User not found": "المستخدم غير موجود",
+      "Verification failed": "فشل التحقق",
+    },
+  },
+  ur: {
+    srHeading: "Skoolee AI میں سائن اِن کریں",
+    eyebrow: "اے آئی کی مدد سے اسکول کا انتظام",
+    title: { light: "پورا ادارہ چلائیں", strong: "ایک ہی جگہ سے۔" },
+    footnote: "اسکول گروپس کے لیے بنایا گیا، صرف ایک کلاس روم کے لیے نہیں",
+    chooseSchool: "اپنا اسکول منتخب کریں",
+    chooseSchoolBody: "یہ ای میل ایک سے زیادہ اداروں میں رجسٹرڈ ہے۔",
+    welcome: "خوش آمدید",
+    welcomeBody: "اپنے کیمپس ڈیش بورڈ میں سائن اِن کریں۔",
+    email: "دفتری ای میل",
+    password: "پاس ورڈ",
+    forgot: "پاس ورڈ بھول گئے؟",
+    showPassword: "پاس ورڈ دکھائیں",
+    hidePassword: "پاس ورڈ چھپائیں",
+    capsLock: "کیپس لاک آن ہے",
+    remember: "مجھے 30 دن تک سائن اِن رکھیں",
+    rememberTip: "اس کے بغیر آپ 7 دن بعد سائن آؤٹ ہو جاتے ہیں۔ مشترکہ یا اسکول کے کمپیوٹر پر اسے بند رکھیں۔",
+    welcomeDone: "خوش آمدید!",
+    tryAgainIn: "{0} سیکنڈ بعد دوبارہ کوشش کریں",
+    signingIn: "سائن اِن ہو رہا ہے…",
+    signIn: "سائن اِن",
+    differentAccount: "کوئی اور اکاؤنٹ استعمال کریں",
+    noAccount: "اکاؤنٹ نہیں ہے؟",
+    createAccount: "نیا اکاؤنٹ بنائیں",
+    welcomeToast: "خوش آمدید، {0}!",
+    verified: "اکاؤنٹ کی تصدیق ہو گئی۔ براہ کرم سائن اِن کریں۔",
+    invited: "دعوت قبول ہو گئی۔ اپنے نئے پاس ورڈ سے سائن اِن کریں۔",
+    sessionEnded: "آپ کا سیشن ختم ہو گیا۔ دوبارہ سائن اِن کریں۔",
+    unableToVerify: "اس لنک کی تصدیق نہیں ہو سکی۔ تازہ ترین تصدیقی ای میل کھولیں اور دوبارہ کوشش کریں۔",
+    tooMany: "بہت زیادہ کوششیں۔ تھوڑی دیر انتظار کریں۔",
+    loginFailed: "سائن اِن نہیں ہو سکا",
+    schoolFailed: "اس اسکول میں سائن اِن نہیں ہو سکا۔",
+    resendNeedEmail: "اوپر اپنا ای میل درج کریں، پھر نیا لنک بھیجیں۔",
+    messages: {
+      "Valid email required": "درست ای میل درج کریں",
+      "Password required": "پاس ورڈ درکار ہے",
+      "Invalid email or password": "ای میل یا پاس ورڈ غلط ہے",
+      "Too many login attempts. Please try again in a minute.": "سائن اِن کی بہت زیادہ کوششیں۔ ایک منٹ بعد دوبارہ کوشش کریں۔",
+      "Account not verified. Please check your email inbox to activate it.": "اکاؤنٹ کی تصدیق نہیں ہوئی۔ فعال کرنے کے لیے اپنا ای میل اِن باکس دیکھیں۔",
+      "Login failed": "سائن اِن نہیں ہو سکا",
+      "Invalid verification link": "تصدیقی لنک درست نہیں",
+      "This verification link is invalid or has expired": "یہ تصدیقی لنک درست نہیں یا اس کی مدت ختم ہو گئی ہے",
+      "User not found": "صارف نہیں ملا",
+      "Verification failed": "تصدیق ناکام ہو گئی",
+    },
+  },
+};
+
+/** Page-owned errors that may be stored as `formError` (always in English, like the server's). */
+const OWN_ERROR_KEYS = ["resendNeedEmail", "unableToVerify", "tooMany", "loginFailed", "schoolFailed"] as const satisfies readonly (keyof LoginCopy)[];
+
+/** The English source key of the one error that counts towards the Forgot-password nudge. */
+const INVALID_CREDENTIALS = "Invalid email or password";
+/**
+ * The nudge glance waits until the mascot's concerned look at the alert has
+ * finished (about 680ms), so it reads the error first and then looks straight
+ * at the way out instead of both glances landing in one frame.
+ */
+const NUDGE_GLANCE_DELAY_MS = 700;
+
+const delay = (ms: number) => ({ "--sk-delay": `${ms}ms` }) as CSSProperties;
 
 /**
  * One address can hold accounts at several schools (a parent with children at
@@ -59,13 +216,57 @@ type LoginUser = {
   onboardingComplete?: boolean;
 };
 
+// Only recognize messages produced by the verification endpoint. Arbitrary
+// query text must not become trusted account guidance on the sign-in screen.
+const verificationErrors = new Set([
+  "Invalid verification link",
+  "This verification link is invalid or has expired",
+  "User not found",
+  "Verification failed",
+]);
+
+// SKO-457: these errors mean the account may still be waiting for verification, so the
+// sign-in card offers a new link instead of leaving the owner at a dead end.
+const resendableErrors = new Set([
+  "Account not verified. Please check your email inbox to activate it.",
+  "This verification link is invalid or has expired",
+  "Invalid verification link",
+]);
+
+/**
+ * "Did you mean …@gmail.com?" under the email field. It watches the value on
+ * its own, so a keystroke re-renders this hint rather than the whole page.
+ * Pure (no request) and never part of the field's description.
+ */
+function EmailTypoRescue({ control, language, onApply }: { control: Control<LoginFormData>; language: Language; onApply: (fixed: string) => void }) {
+  const value = useWatch({ control, name: "email" });
+  return <EmailTypoHint language={language} value={value ?? ""} onApply={onApply} />;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { language, setLanguage, signInLanguage, clearExplicit } = useAuthLanguage();
+  const t = copy[language];
+  const ac = authCopy[language];
+  // The one-shot query notice reads the current catalog without re-running (and re-toasting) on a language switch.
+  const showNotice = useEffectEvent((notice: "verified" | "invited" | "expired") => {
+    if (notice === "verified") toast.success(t.verified, { duration: 8000 });
+    else if (notice === "invited") toast.success(t.invited, { duration: 8000 });
+    else toast.info(t.sessionEnded, { duration: 8000 });
+  });
+  // Errors are stored as their English source. The page's own fallbacks translate
+  // through the catalog (they used to render in English on ar/ur); server text through `messages`.
+  const localize = (message: string) => {
+    const own = OWN_ERROR_KEYS.find((key) => en[key] === message);
+    return own ? t[own] : t.messages[message] ?? message;
+  };
   const [showPass, setShowPass] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormErrorState] = useState<string | null>(null);
+  // Bumped on every new error, so the mascot reacts to a repeat of the same message too.
+  const [errorSeq, setErrorSeq] = useState(0);
   const [capsOn, setCapsOn] = useState(false);
   const [remember, setRemember] = useState(false);
   const [choices, setChoices] = useState<SchoolChoice[] | null>(null);
@@ -73,23 +274,54 @@ export default function LoginPage() {
   // Seconds left on a 429. The button stays disabled and says so, rather than
   // letting people hammer a request that cannot succeed yet.
   const [cooldown, setCooldown] = useState(0);
-  const brandRef = useRef<HTMLElement>(null);
+  const [cooldownTotal, setCooldownTotal] = useState(0);
+  // Consecutive "Invalid email or password" answers. At two, the Forgot link
+  // draws its underline twice and the mascot glances at it; the error text is untouched.
+  const [invalidStreak, setInvalidStreak] = useState(0);
+  const nudge = invalidStreak >= 2;
+  // Set NUDGE_GLANCE_DELAY_MS after the nudge starts; cleared whenever the streak resets.
+  const [nudgeLook, setNudgeLook] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const resendStatusRef = useRef<HTMLDivElement>(null);
+  // True only between a successful resend click and the notice that replaces the error.
+  const focusResendStatus = useRef(false);
+  const schoolHeadingRef = useRef<HTMLHeadingElement>(null);
+  const resend = useVerificationResend();
+  const showResendStatus = resend.state === "sent" && !formError;
 
-  // Subtle parallax: blobs and the avatar orbit drift opposite the cursor
-  // for a sense of depth. Written straight to the DOM (no re-render) and
-  // skipped entirely on touch devices / reduced-motion.
-  const handleBrandMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    const el = brandRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    el.style.setProperty("--mx", String((e.clientX - rect.left) / rect.width - 0.5));
-    el.style.setProperty("--my", String((e.clientY - rect.top) / rect.height - 0.5));
+  const setFormError = useCallback((message: string | null) => {
+    setFormErrorState(message);
+    if (message) setErrorSeq((n) => n + 1);
   }, []);
-  const resetBrandParallax = useCallback(() => {
-    const el = brandRef.current;
-    el?.style.setProperty("--mx", "0");
-    el?.style.setProperty("--my", "0");
-  }, []);
+
+  /** Every answer from /api/auth/login moves the nudge streak: invalid credentials add one, anything else resets it. */
+  const countOutcome = (message: string | null) => {
+    const invalid = message === INVALID_CREDENTIALS;
+    setInvalidStreak((n) => invalid ? n + 1 : 0);
+    if (!invalid) setNudgeLook(null);
+  };
+
+  useEffect(() => {
+    if (formError) errorRef.current?.focus();
+  }, [formError]);
+
+  useEffect(() => {
+    if (!nudge) return;
+    const id = window.setTimeout(() => setNudgeLook("#login-forgot-link"), NUDGE_GLANCE_DELAY_MS);
+    return () => window.clearTimeout(id);
+  }, [nudge]);
+
+  // The focused error (and the resend button inside it) unmounts once a new link
+  // is on its way: hand focus to the notice that takes its place, never to <body>.
+  useEffect(() => {
+    if (!showResendStatus || !focusResendStatus.current) return;
+    focusResendStatus.current = false;
+    resendStatusRef.current?.focus();
+  }, [showResendStatus]);
+
+  useEffect(() => {
+    if (choices) schoolHeadingRef.current?.focus();
+  }, [choices]);
 
   useEffect(() => {
     const verified = searchParams.get("verified") === "true";
@@ -97,15 +329,30 @@ export default function LoginPage() {
     // Set by signOutInvalidSession() when the server stopped accepting the
     // session. Without a word here the redirect looks like a random logout.
     const expired = searchParams.get("reason") === "session-expired";
-    if (verified) {
-      toast.success("Account verified. Please log in.", { duration: 8000 });
-    } else if (invited) {
-      toast.success("Invitation accepted. Log in with your new password.", { duration: 8000 });
-    } else if (expired) {
-      toast.info("Your session has ended. Please sign in again.", { duration: 8000 });
-    }
-    if (verified || invited || expired) window.history.replaceState(null, "", "/login");
-  }, [searchParams]);
+    const verificationError = searchParams.get("error");
+    if (!verified && !invited && !expired && verificationError === null) return;
+    // On a direct load the root toaster subscribes after this page's effect.
+    // Wait until sibling effects have mounted, and cancel a superseded notice.
+    const noticeTimer = window.setTimeout(() => {
+      if (verified) {
+        showNotice("verified");
+      } else if (invited) {
+        showNotice("invited");
+      } else if (expired) {
+        showNotice("expired");
+      } else {
+        // Stored as the English source; rendered through `localize` so a later language switch re-translates it.
+        setFormError(verificationErrors.has(verificationError ?? "")
+          ? verificationError
+          : en.unableToVerify);
+      }
+      const remaining = new URLSearchParams(searchParams.toString());
+      for (const key of ["verified", "invite", "reason", "error"]) remaining.delete(key);
+      const query = remaining.toString();
+      window.history.replaceState(null, "", query ? `/login?${query}` : "/login");
+    }, 0);
+    return () => window.clearTimeout(noticeTimer);
+  }, [searchParams, setFormError]);
 
   // Tick the rate-limit cooldown down to zero.
   useEffect(() => {
@@ -115,25 +362,57 @@ export default function LoginPage() {
   }, [cooldown]);
 
   const {
-    register, handleSubmit, getValues, formState: { errors },
+    register, handleSubmit, getValues, setValue, setFocus, control, formState: { errors },
   } = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) });
+
+  // Email handoff from forgot password or register (this tab only, read once):
+  // prefill the address and go straight to the password. Runs after hydration.
+  useEffect(() => {
+    const handedOver = takeAuthEmail();
+    if (!handedOver) return;
+    setValue("email", handedOver);
+    setFocus("password");
+  }, [setValue, setFocus]);
+
+  const resendVerification = async () => {
+    if (resend.state === "sending") return;
+    const email = String(getValues("email") ?? "").trim();
+    if (!email) { setFormError(en.resendNeedEmail); return; }
+    // The same request as before, through the shared enumeration-safe hook.
+    const result = await resend.send(email);
+    if (!result.ok) { setFormError(result.error || en.unableToVerify); return; }
+    focusResendStatus.current = true;
+    setFormError(null);
+  };
 
   const trackCaps = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     setCapsOn(e.getModifierState?.("CapsLock") ?? false);
   }, []);
 
-  // Spread this rather than register() inline: react-hook-form supplies its
-  // own onBlur, and we need to run ours alongside it instead of replacing it.
+  // Register in visual order so invalid submit focuses email before password.
+  // The password field also composes React Hook Form's onBlur with Caps Lock.
+  const emailField = register("email");
   const passwordField = register("password");
+
+  const applyEmailFix = (fixed: string) => {
+    setValue("email", fixed, { shouldDirty: true, shouldValidate: !!errors.email });
+    setFocus("email");
+  };
 
   // Where a signed-in user actually belongs. Shared by the plain sign-in and
   // by the school picker so the two can never drift apart.
   const landAfterLogin = useCallback(async (user: LoginUser) => {
-    toast.success(`Welcome back, ${user.fullName}!`);
+    if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) {
+      // Carry the requested page through the second factor; it is validated again on landing.
+      const requested = searchParams.get("redirect");
+      router.push(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
+      return;
+    }
+    toast.success(fillText(t.welcomeToast, user.fullName));
     setSuccess(true);
 
-    // Let the button's checkmark morph play before navigating away —
-    // a beat of confirmation feels more deliberate than an instant jump.
+    // Let the button's checkmark morph (and the mascot's happy cap hop) play
+    // before navigating away — a beat of confirmation feels more deliberate.
     await new Promise((resolve) => setTimeout(resolve, 550));
 
     if (user.mustChangePassword) {
@@ -141,9 +420,10 @@ export default function LoginPage() {
     } else if (user.role === "TEACHER" && !user.onboardingComplete) {
       router.push("/teacher-onboarding");
     } else {
-      router.push(dashboardPathForRole(user.role));
+      // A deep link that sent the user here is honoured only inside their own role's area.
+      router.push(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
     }
-  }, [router]);
+  }, [router, t, searchParams]);
 
   /**
    * One request shape for both passes. The second pass adds `schoolId`, which
@@ -156,15 +436,17 @@ export default function LoginPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, rememberMe: remember, ...(schoolId ? { schoolId } : {}) }),
+      // Every pass, including the school-picker re-POST, carries the sign-in language (design §B.1.2).
+      body: JSON.stringify({ ...data, rememberMe: remember, ...(schoolId ? { schoolId } : {}), ...signInLanguage() }),
     });
     const json = await res.json();
 
     if (res.status === 429) {
       // Honour the server's own Retry-After rather than guessing.
       const retry = Number(res.headers.get("Retry-After")) || 60;
+      setCooldownTotal(retry);
       setCooldown(retry);
-      throw new Error(json.error || "Too many attempts. Please wait a moment.");
+      throw new Error(json.error || en.tooMany);
     }
     if (!res.ok) {
       // Zod field errors come back as an object; flatten to the first message.
@@ -172,11 +454,13 @@ export default function LoginPage() {
       const message = typeof raw === "string"
         ? raw
         : Object.values(raw ?? {}).flat()[0] as string | undefined;
-      throw new Error(message || "Login failed");
+      throw new Error(message || en.loginFailed);
     }
     if (json.needsSchoolSelection) return { choices: json.schools as SchoolChoice[] };
+    // The MFA-ticket response is not a session: keep the explicit flag for /protect-account (AC9b).
+    if (json.success === true && !json.mfaRequired) clearExplicit();
     return { user: json.user as LoginUser };
-  }, [remember]);
+  }, [remember, signInLanguage, clearExplicit]);
 
   const onSubmit = async (data: LoginFormData) => {
     if (cooldown > 0) return;
@@ -184,6 +468,7 @@ export default function LoginPage() {
     setFormError(null);
     try {
       const result = await attemptLogin(data);
+      countOutcome(null);
       if ("choices" in result) {
         setChoices(result.choices);
         setIsLoading(false);
@@ -191,9 +476,10 @@ export default function LoginPage() {
       }
       await landAfterLogin(result.user);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Login failed";
+      const message = e instanceof Error ? e.message : en.loginFailed;
+      countOutcome(message);
       setFormError(message);
-      toast.error(message);
+      toast.error(localize(message));
       setIsLoading(false);
     }
   };
@@ -205,422 +491,290 @@ export default function LoginPage() {
     setFormError(null);
     try {
       const result = await attemptLogin(getValues(), choice.schoolId);
-      if ("choices" in result) throw new Error("Could not sign in to that school.");
+      if ("choices" in result) throw new Error(en.schoolFailed);
+      countOutcome(null);
       await landAfterLogin(result.user);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Login failed";
+      const message = e instanceof Error ? e.message : en.loginFailed;
+      countOutcome(message);
       setFormError(message);
-      toast.error(message);
+      toast.error(localize(message));
       setChoosing(null);
     }
   };
 
-  const ProofIcon = PROOF.icon;
-
   return (
-    <main className="w-full min-h-screen grid grid-cols-1 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)] bg-[#fff7fe] font-sans">
-      <style>{`
-        @keyframes skDrift {
-          0%,100% { transform: translate3d(0,0,0) scale(1); }
-          33%     { transform: translate3d(4%,-6%,0) scale(1.12); }
-          66%     { transform: translate3d(-5%,4%,0) scale(0.95); }
-        }
-        @keyframes skRise {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes skShake {
-          0%,100% { transform: translateX(0); }
-          25%     { transform: translateX(-5px); }
-          75%     { transform: translateX(5px); }
-        }
-        @keyframes skShimmer {
-          from { transform: translateX(-130%) skewX(-12deg); }
-          to   { transform: translateX(130%) skewX(-12deg); }
-        }
-        @keyframes skCheckPop {
-          0%   { transform: scale(0.4); opacity: 0; }
-          60%  { transform: scale(1.15); opacity: 1; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        .sk-blob { animation: skDrift 22s ease-in-out infinite; will-change: transform; }
-        .sk-blob-2 { animation-duration: 28s; animation-delay: -8s; }
-        .sk-blob-3 { animation-duration: 34s; animation-delay: -16s; }
-        .sk-parallax { transition: transform .35s ease-out; will-change: transform; }
-        .sk-rise { animation: skRise .6s cubic-bezier(.2,.7,.3,1) both; }
-        .sk-shake { animation: skShake .34s ease-in-out; }
-        .sk-shimmer { animation: skShimmer 2.6s ease-in-out infinite; }
-        .sk-check-pop { animation: skCheckPop .4s cubic-bezier(.2,.7,.3,1) both; }
-        @media (prefers-reduced-motion: reduce) {
-          .sk-blob, .sk-rise, .sk-shake, .sk-shimmer, .sk-check-pop { animation: none !important; }
-          .sk-parallax { transition: none !important; }
-        }
-      `}</style>
+    <AuthShell
+      language={language}
+      srHeading={t.srHeading}
+      cover={(
+        <AuthCover
+          eyebrow={t.eyebrow}
+          heading={{ light: t.title.light, strong: t.title.strong, as: "h1" }}
+          index={{
+            label: ac.trustLabel,
+            items: [
+              authClaimItem(language, "campuses"),
+              authClaimItem(language, "encrypted", { body: false }),
+              authClaimItem(language, "human"),
+              authClaimItem(language, "languages"),
+            ],
+          }}
+          footnote={t.footnote}
+        />
+      )}
+      topBar={<AuthTopBar languageId="login-language" label={ac.language} value={language} onChange={setLanguage} />}
+      footer={<AuthColophon language={language} claims={["encrypted", "human", "languages"]} />}
+    >
+      {/* The one live face: watches the fields, closes its eyes on the password. */}
+      <AuthMascot
+        className="sk-enter mt-6"
+        signals={{
+          error: formError ? `${errorSeq}:${formError}` : null,
+          success,
+          waiting: cooldown > 0,
+          glance: nudge ? nudgeLook : null,
+        }}
+      />
 
-      {/* ─── BRAND PANEL ─────────────────────────────── */}
-      <section
-        ref={brandRef}
-        onMouseLeave={resetBrandParallax}
-        onMouseMove={handleBrandMouseMove}
-        className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#8127cf] via-[#6f1fb8] to-[#4f1487] p-12 xl:p-14"
-      >
-        {/* Animated mesh — kept strictly inside the brand purple family
-            so the panel reads as Skoolee rather than generic dark SaaS.
-            Each blob sits in its own parallax wrapper (cursor offset) while
-            an inner element carries the independent drift animation. */}
-        <div aria-hidden className="absolute inset-0 overflow-hidden">
-          <div
-            className="sk-parallax absolute -top-1/4 -left-1/5 h-[72%] w-[72%]"
-            style={{ transform: "translate3d(calc(var(--mx, 0) * 26px), calc(var(--my, 0) * 26px), 0)" }}
-          >
-            <div className="sk-blob h-full w-full rounded-full bg-[#9c48ea] opacity-70 blur-[90px]" />
-          </div>
-          <div
-            className="sk-parallax absolute top-1/4 -right-1/4 h-[68%] w-[68%]"
-            style={{ transform: "translate3d(calc(var(--mx, 0) * -34px), calc(var(--my, 0) * -34px), 0)" }}
-          >
-            <div className="sk-blob sk-blob-2 h-full w-full rounded-full bg-[#b073f0] opacity-45 blur-[100px]" />
-          </div>
-          <div
-            className="sk-parallax absolute -bottom-1/3 left-1/5 h-[62%] w-[62%]"
-            style={{ transform: "translate3d(calc(var(--mx, 0) * 16px), calc(var(--my, 0) * 16px), 0)" }}
-          >
-            <div className="sk-blob sk-blob-3 h-full w-full rounded-full bg-[#fbf0fe] opacity-[0.14] blur-[110px]" />
-          </div>
-          <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px)",
-              backgroundSize: "56px 56px",
-            }}
+      <div className="sk-enter mt-7 text-center" style={delay(70)}>
+        <h2 ref={schoolHeadingRef} tabIndex={-1} className="text-2xl font-bold tracking-tight text-ink-strong text-balance sm:text-3xl">
+          {choices ? t.chooseSchool : t.welcome}
+        </h2>
+        <p className="mt-2 text-md leading-relaxed text-ink-muted">
+          {choices ? t.chooseSchoolBody : t.welcomeBody}
+        </p>
+      </div>
+
+      <div className="sk-enter sk-panel sk-gradient-border mt-7 p-6 shadow-xl sm:p-9" style={delay(140)}>
+        {formError && (
+          <Alert
+            id="login-error"
+            ref={errorRef}
+            tabIndex={-1}
+            tone="danger"
+            title={localize(formError)}
+            className="sk-shake mb-5"
+            actions={(resendableErrors.has(formError) || formError === en.resendNeedEmail) ? (
+              <Button variant="outline" size="sm" type="button" onClick={resendVerification} loading={resend.state === "sending"}>{resend.state === "sending" ? ac.resend.sending : ac.resend.send}</Button>
+            ) : undefined}
           />
-          {/* Softens the hard edge where the panel meets the form side. */}
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#fff7fe]/12 to-transparent" />
-        </div>
+        )}
 
-        {/* Orbiting user avatars — "every role, always connected". Anchored
-            off the bottom-right corner so it reads as ambient motion behind
-            the copy rather than competing with it. */}
-        <div
-          className="sk-parallax absolute -bottom-16 -right-16 z-0"
-          style={{ transform: "translate3d(calc(var(--mx, 0) * -12px), calc(var(--my, 0) * -12px), 0)" }}
-        >
-          <AvatarOrbit size={340} duration={50} className="opacity-90" />
-        </div>
+        {showResendStatus && (
+          <Alert id="login-resend-status" ref={resendStatusRef} tabIndex={-1} tone="success" title={ac.resend.sent} className="mb-5" />
+        )}
 
-        <div className="relative z-10 flex items-center gap-2.5">
-          <span className="h-8 w-1 rounded-full bg-white/70" />
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">
-            Skoolee AI
-          </p>
-        </div>
-
-        <div className="relative z-10 max-w-xl">
-          <div className="sk-rise inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-[#e9d5ff]" />
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-[#e9d5ff]">
-              AI-assisted school management
-            </span>
-          </div>
-
-          <h1
-            className="sk-rise mt-7 text-[2.9rem] xl:text-[3.4rem] font-black leading-[1.04] tracking-[-0.035em] text-white text-balance"
-            style={{ animationDelay: "80ms" }}
-          >
-            Run the whole
-            <br />
-            institution from
-            <span className="bg-gradient-to-r from-[#e9d5ff] to-[#f0abfc] bg-clip-text text-transparent"> one place.</span>
-          </h1>
-
-          {/* Sits on a mid-purple ground, so the card needs a darker scrim
-              and near-opaque text to stay legible. */}
-          <div
-            className="sk-rise mt-9 rounded-3xl border border-white/25 bg-[#3d0f6b]/40 p-6 shadow-xl backdrop-blur-xl"
-            style={{ animationDelay: "160ms" }}
-          >
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/25 bg-white/20">
-                <ProofIcon className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-baseline gap-2.5">
-                  <span className="text-2xl font-black tracking-tight text-white">{PROOF.stat}</span>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-[#f0dcff]">{PROOF.unit}</span>
-                </div>
-                <p className="mt-2 text-[15px] font-semibold leading-relaxed text-white">
-                  {PROOF.quote}
-                </p>
-                <p className="mt-2.5 text-xs font-bold text-[#e4c9f7]">{PROOF.caption}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="sk-rise mt-6" style={{ animationDelay: "240ms" }}>
-            <LiveActivityTicker />
-          </div>
-        </div>
-
-        <div className="relative z-10 flex items-center gap-6 text-[11px] font-bold text-white/75">
-          <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Encrypted at rest &amp; in transit</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Human-reviewed AI</span>
-        </div>
-      </section>
-
-      {/* ─── FORM PANEL ──────────────────────────────── */}
-      <section className="relative flex flex-col items-center justify-center p-6 sm:p-10 lg:p-14">
-        <div className="w-full max-w-[30rem]">
-          {/* Brand mark sits above the form on every breakpoint. */}
-          <div className="sk-rise mb-9 flex flex-col items-center">
-            <SkooleeLogo size="2.35rem" weight="heavy" />
-            <div className="mt-3.5 h-1 w-12 rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea]" />
-          </div>
-
-          <div className="sk-rise mb-7 text-center" style={{ animationDelay: "70ms" }}>
-            <h2 className="text-[1.9rem] font-black leading-tight tracking-[-0.035em] text-[#1f1a23]">
-              {choices ? "Choose your school" : "Welcome back"}
-            </h2>
-            <p className="mt-2 text-[14.5px] font-semibold text-ink-muted">
-              {choices
-                ? "This email is registered at more than one institution."
-                : "Sign in to your campus dashboard."}
-            </p>
-          </div>
-
-          <div
-            className="sk-rise rounded-[30px] border border-[#cfc2d6]/30 bg-white p-8 shadow-[0_28px_70px_-28px_rgba(129,39,207,0.28)] sm:p-9"
-            style={{ animationDelay: "140ms" }}
-          >
-            {formError && (
-              <div
-                role="alert"
-                className="sk-shake mb-5 flex items-start gap-2.5 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3"
-              >
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                <p className="text-[13px] font-bold leading-snug text-rose-600">{formError}</p>
-              </div>
-            )}
-
-            {choices ? (
-              <div className="space-y-2.5">
-                {choices.map((c, i) => {
-                  const busy = choosing === c.schoolId;
-                  return (
-                    <button
-                      key={c.schoolId}
-                      type="button"
-                      onClick={() => pickSchool(c)}
-                      disabled={!!choosing}
-                      className="sk-rise group flex w-full cursor-pointer items-center gap-4 rounded-2xl border-2 border-[#cfc2d6]/25 bg-[#fbf0fe]/50 p-4 text-left transition-all hover:border-[#8127cf]/45 hover:bg-white hover:shadow-lg hover:shadow-[#8127cf]/10 disabled:cursor-wait disabled:opacity-60"
-                      style={{ animationDelay: `${i * 70}ms` }}
-                    >
-                      {c.logoUrl ? (
-                        <img
-                          src={c.logoUrl}
-                          alt=""
-                          className="h-11 w-11 shrink-0 rounded-2xl object-cover shadow-sm"
-                        />
-                      ) : (
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[15px] font-black text-white shadow-sm shadow-[#8127cf]/25">
-                          {c.schoolName.trim().charAt(0).toUpperCase() || "S"}
-                        </span>
-                      )}
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px] font-black text-[#1f1a23]">
-                          {c.schoolName}
-                        </span>
-                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                          <span className="rounded-full bg-[#8127cf]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-                            {roleLabel(c.role)}
-                          </span>
-                          {(c.campusName || c.schoolCity) && (
-                            <span className="truncate text-[11px] font-bold text-ink-subtle">
-                              {c.campusName || c.schoolCity}
-                            </span>
-                          )}
-                        </span>
+        {choices ? (
+          <div className="space-y-2.5">
+            {choices.map((c, i) => {
+              const busy = choosing === c.schoolId;
+              const logoSrc = resolveMediaUrl(c.logoUrl);
+              return (
+                // The arrival lives on a wrapper: an `sk-enter` fill would pin the
+                // button's transform and swallow its hover lift.
+                <div key={c.schoolId} className="sk-enter" style={delay(i * 60)}>
+                  <Button variant="choice"
+                    type="button"
+                    onClick={() => pickSchool(c)}
+                    disabled={!!choosing}
+                    aria-busy={busy}
+                    data-mascot-look=""
+                    className="sk-hover-lift sk-press group flex w-full items-center justify-start gap-4 p-4 text-start"
+                  >
+                    {logoSrc ? (
+                      <img
+                        src={logoSrc}
+                        alt=""
+                        className="sk-icon-tile h-11 w-11 shrink-0 rounded-2xl object-cover shadow-sm"
+                      />
+                    ) : (
+                      <span aria-hidden="true" className="sk-icon-tile flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-md font-bold text-white shadow-sm shadow-primary/25">
+                        {c.schoolName.trim().charAt(0).toUpperCase() || "S"}
                       </span>
-                      {busy ? (
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#8127cf]" />
-                      ) : (
-                        <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-all group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
-                      )}
-                    </button>
-                  );
-                })}
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-ink-strong">
+                        {c.schoolName}
+                      </span>
+                      <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                        <Badge variant="secondary" size="sm">
+                          {roleLabel(c.role, language)}
+                        </Badge>
+                        {(c.campusName || c.schoolCity) && (
+                          <span className="min-w-0 truncate text-xs text-ink-subtle">
+                            {c.campusName || c.schoolCity}
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    {busy ? (
+                      <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 motion-safe:animate-spin text-primary" />
+                    ) : (
+                      <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle transition-all rtl:-scale-x-100 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 group-hover:text-primary" />
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
 
-                <button
-                  type="button"
-                  onClick={() => { setChoices(null); setFormError(null); }}
-                  disabled={!!choosing}
-                  className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-[#cfc2d6]/30 py-3 text-[12px] font-black text-ink-muted transition-colors hover:border-[#8127cf]/25 hover:text-[#8127cf] disabled:opacity-50"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Use a different account
-                </button>
-              </div>
-            ) : (
-              <>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setChoices(null); setFormError(null); }}
+              disabled={!!choosing}
+              className="mt-2 w-full"
+            >
+              <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5 rtl:-scale-x-100" /> {t.differentAccount}
+            </Button>
+          </div>
+        ) : (
+          <>
+            <form onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="ml-1 text-[10px] font-black uppercase tracking-wider text-ink">
-                  Work Email
+                <Label htmlFor="email" className="ms-1 text-ink-strong">
+                  {t.email}
                 </Label>
-                <div className="group relative flex items-center">
-                  <Mail className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                <InputGroup surfaceClassName="bg-[#eff6ff]">
+                  <Mail aria-hidden="true" data-field-affix="start" className="h-4 w-4" />
                   <Input
                     id="email"
                     type="email"
                     autoComplete="email"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    enterKeyHint="next"
                     autoFocus
                     aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? "login-email-error" : undefined}
                     placeholder="principal@institution.edu.pk"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-4 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-                      errors.email ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
-                    }`}
-                    {...register("email")}
+                    {...emailField}
                   />
-                </div>
-                {errors.email && <p className="px-1 text-xs font-bold text-rose-500">{errors.email.message}</p>}
+                </InputGroup>
+                {errors.email && <FieldError id="login-email-error">{localize(errors.email.message ?? "")}</FieldError>}
+                <EmailTypoRescue control={control} language={language} onApply={applyEmailFix} />
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between px-1">
-                  <Label htmlFor="password" className="text-[10px] font-black uppercase tracking-wider text-ink">
-                    Password
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1">
+                  <Label htmlFor="password" className="text-ink-strong">
+                    {t.password}
                   </Label>
+                  {/* The ::after widens the tap target to 32px without moving the row or the
+                      underline; it stops exactly where the password field starts. */}
                   <Link
+                    id="login-forgot-link"
                     href="/forgot-password"
-                    className="text-[10px] font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]"
+                    className="sk-link relative text-xs after:absolute after:-inset-x-1 after:-inset-y-2"
+                    data-attention={nudge || undefined}
+                    // Hand the typed address to the recovery form (this tab only, never a URL).
+                    onClick={() => stashAuthEmail(getValues("email") ?? "")}
                   >
-                    Forgot password?
+                    {t.forgot}
                   </Link>
                 </div>
-                <div className="group relative flex items-center">
-                  <Lock className="pointer-events-none absolute left-3.5 h-4 w-4 text-ink-subtle transition-all duration-200 group-focus-within:scale-110 group-focus-within:text-[#8127cf]" />
+                <InputGroup surfaceClassName="bg-[#fdf2f8]">
+                  <Lock aria-hidden="true" data-field-affix="start" className="h-4 w-4" />
                   <Input
                     id="password"
                     type={showPass ? "text" : "password"}
                     autoComplete="current-password"
+                    enterKeyHint="go"
                     aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? "login-password-error" : capsOn ? "login-caps-lock" : undefined}
                     placeholder="••••••••"
-                    className={`h-12 w-full rounded-2xl border-0 pl-10 pr-12 font-bold text-[#1f1a23] shadow-none transition-all placeholder:text-ink-subtle focus:bg-white focus:ring-2 ${
-                      errors.password ? "bg-rose-50 focus:ring-rose-200" : "bg-[#fbf0fe] focus:ring-[#8127cf]/25"
-                    }`}
                     {...passwordField}
                     onKeyUp={trackCaps}
                     onKeyDown={trackCaps}
                     onBlur={(e) => { setCapsOn(false); passwordField.onBlur(e); }}
                   />
-                  <button
+                  <FieldAction data-field-affix="end"
                     type="button"
                     onClick={() => setShowPass((v) => !v)}
-                    aria-label={showPass ? "Hide password" : "Show password"}
-                    className="absolute right-4 cursor-pointer text-ink-subtle transition-colors hover:text-[#8127cf]"
+                    aria-label={showPass ? t.hidePassword : t.showPassword}
+                    aria-pressed={showPass}
+                    aria-controls="password"
+                    className="cursor-pointer"
                   >
-                    {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {errors.password && <p className="px-1 text-xs font-bold text-rose-500">{errors.password.message}</p>}
+                    {showPass ? <EyeOff aria-hidden="true" className="h-4 w-4" /> : <Eye aria-hidden="true" className="h-4 w-4" />}
+                  </FieldAction>
+                </InputGroup>
+                {errors.password && <FieldError id="login-password-error">{localize(errors.password.message ?? "")}</FieldError>}
                 {capsOn && !errors.password && (
-                  <p className="flex items-center gap-1.5 px-1 text-xs font-bold text-amber-600">
-                    <AlertCircle className="h-3.5 w-3.5" /> Caps Lock is on
+                  <p id="login-caps-lock" role="status" className="flex items-center gap-1.5 px-1 text-xs font-medium text-status-warning-text">
+                    <AlertCircle aria-hidden="true" className="h-3.5 w-3.5" /> {t.capsLock}
                   </p>
                 )}
               </div>
 
               {/* A 30-day session instead of 7 — an explicit choice, never the
                   default, since school accounts are often on shared machines. */}
-              <label className="group flex cursor-pointer items-center gap-2.5 px-1 pt-0.5 select-none">
-                <span className="relative flex h-[18px] w-[18px] shrink-0 items-center justify-center">
-                  <input
-                    type="checkbox"
+              <div className="flex items-center gap-1 px-1 pt-0.5">
+                <label className="group flex min-h-10 cursor-pointer items-center gap-2.5 select-none">
+                  <Checkbox
                     checked={remember}
                     onChange={(e) => setRemember(e.target.checked)}
-                    className="peer sr-only"
                   />
-                  <span
-                    aria-hidden
-                    className={`flex h-[18px] w-[18px] items-center justify-center rounded-[7px] border-2 transition-all duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-[#8127cf]/30 peer-focus-visible:ring-offset-2 ${
-                      remember
-                        ? "border-[#8127cf] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-sm shadow-[#8127cf]/30"
-                        : "border-[#cfc2d6]/70 bg-white group-hover:border-[#8127cf]/50"
-                    }`}
-                  >
-                    <Check
-                      className={`h-3 w-3 text-white transition-all duration-200 ${
-                        remember ? "scale-100 opacity-100" : "scale-50 opacity-0"
-                      }`}
-                      strokeWidth={3.5}
-                    />
+                  <span className="text-sm font-medium text-ink-muted transition-colors group-hover:text-ink-strong">
+                    {t.remember}
                   </span>
-                </span>
-                <span className="text-[12px] font-bold text-ink-muted transition-colors group-hover:text-[#1f1a23]">
-                  Keep me signed in for 30 days
-                </span>
-              </label>
+                </label>
+                <InfoTip content={t.rememberTip} />
+              </div>
 
-              <button
+              <Button
                 type="submit"
-                disabled={isLoading || success || cooldown > 0}
-                className={`group relative mt-1 flex h-12 w-full cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-2xl font-black text-white shadow-lg transition-all hover:shadow-xl active:scale-[0.985] disabled:cursor-wait disabled:active:scale-100 ${
-                  success
-                    ? "bg-gradient-to-r from-emerald-500 to-emerald-400 shadow-emerald-500/30"
-                    : cooldown > 0
-                    ? "bg-gradient-to-r from-[#a08bb0] to-[#8f7aa0] shadow-none"
-                    : "bg-gradient-to-r from-[#8127cf] to-[#9c48ea] shadow-[#8127cf]/25 hover:shadow-[#8127cf]/35 disabled:opacity-60"
-                }`}
+                loading={isLoading && !success}
+                disabled={success || cooldown > 0}
+                // Signed in: the locked button reads as a genuine success, not a greyed-out failure.
+                className={cn(
+                  "sk-sweep-trigger group relative mt-1 min-h-12 w-full overflow-hidden",
+                  success && "disabled:cursor-default disabled:border-status-success-border disabled:bg-status-success-surface disabled:text-status-success-text",
+                )}
               >
+                {/* One sweep per hover or keyboard focus; never a loop beside the form. */}
                 {!isLoading && !success && cooldown === 0 && (
-                  <span className="sk-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+                  <span aria-hidden="true" className="sk-sweep bg-gradient-to-r from-transparent via-white/25 to-transparent" />
                 )}
                 <span className="relative z-10 flex items-center gap-2">
                   {success ? (
                     <>
-                      <CheckCircle2 className="sk-check-pop h-4 w-4" />
-                      <span>Welcome back!</span>
+                      <CheckCircle2 aria-hidden="true" className="sk-check-pop h-4 w-4" />
+                      <span>{t.welcomeDone}</span>
                     </>
                   ) : cooldown > 0 ? (
                     <>
-                      <Timer className="h-4 w-4" />
-                      <span>Try again in {cooldown}s</span>
+                      <span data-mascot-anchor="cooldown" className="inline-flex">
+                        <CountdownRing total={cooldownTotal} remaining={cooldown} />
+                      </span>
+                      <span data-numeric>{fillText(t.tryAgainIn, cooldown)}</span>
                     </>
                   ) : isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Signing in…</span>
-                    </>
+                    <span>{t.signingIn}</span>
                   ) : (
                     <>
-                      <span>Sign in</span>
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      <span>{t.signIn}</span>
+                      <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform rtl:-scale-x-100 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5" />
                     </>
                   )}
                 </span>
-              </button>
+              </Button>
             </form>
 
-            <div className="mt-6 border-t border-[#cfc2d6]/20 pt-5">
-              <p className="text-center text-[12.5px] font-semibold leading-relaxed text-ink-muted">
-                Don&apos;t have an account?{" "}
-                <Link href="/register" className="font-black text-[#8127cf] transition-colors hover:text-[#9c48ea]">
-                  Create New Account
+            <div className="mt-6 border-t border-border-subtle pt-5">
+              <p className="text-center text-sm leading-relaxed text-ink-muted">
+                {t.noAccount}{" "}
+                {/* inline-block: on a phone the action moves to its own line whole instead of
+                    splitting. The ::after gives it a 44px tap target without changing the line. */}
+                <Link href="/register" className="sk-link relative inline-block after:absolute after:-inset-x-1 after:-inset-y-3">
+                  {t.createAccount}
                 </Link>
               </p>
             </div>
-              </>
-            )}
-          </div>
-
-          <div className="mt-6 flex items-center justify-center gap-5 text-[11px] font-bold text-ink-subtle">
-            <Link href="/privacy" className="transition-colors hover:text-[#8127cf]">Privacy</Link>
-            <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/security" className="transition-colors hover:text-[#8127cf]">Security</Link>
-            <span className="h-3 w-px bg-[#cfc2d6]/50" />
-            <Link href="/ai-governance" className="transition-colors hover:text-[#8127cf]">AI Governance</Link>
-          </div>
-        </div>
-      </section>
-    </main>
+          </>
+        )}
+      </div>
+    </AuthShell>
   );
 }

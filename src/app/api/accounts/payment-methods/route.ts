@@ -1,9 +1,12 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { createPaymentMethod } from "@/lib/accounts/payment-method-command";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -37,19 +40,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    if (!name) throw new ApiError("name is required", 400);
-
-    const existing = await prisma.paymentMethodRef.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A payment method with this name already exists", 409);
-
-    const method = await prisma.paymentMethodRef.create({
-      data: { campusId, name, isActive: body.isActive !== false },
-    });
+    const method = await createPaymentMethod(user, body);
 
     return Response.json({ success: true, data: method }, { status: 201 });
   } catch (error) {
@@ -60,7 +55,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "edit");
 
     const body = await req.json();
     if (!body.id) throw new ApiError("id is required", 400);
@@ -77,12 +73,19 @@ export async function PATCH(req: NextRequest) {
       if (dup) throw new ApiError("A payment method with this name already exists", 409);
     }
 
-    const updated = await prisma.paymentMethodRef.update({
-      where: { id: method.id },
-      data: {
-        name: body.name ? String(body.name).trim() : undefined,
-        isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.paymentMethodRef.update({
+        where: { id: method.id },
+        data: {
+          name: body.name ? String(body.name).trim() : undefined,
+          isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "payment_method_refs", recordId: next.id, action: "UPDATE", campusId: next.campusId,
+        before: { isActive: method.isActive }, after: { isActive: next.isActive },
+      });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });
@@ -94,7 +97,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "delete");
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
@@ -104,7 +108,16 @@ export async function DELETE(req: NextRequest) {
     });
     if (!method) throw new ApiError("Payment method not found", 404);
 
-    await prisma.paymentMethodRef.delete({ where: { id: method.id } });
+    await prisma.$transaction(async (tx) => {
+      // SKO-389: payroll history keeps the method it was paid by.
+      const used = await tx.payrollLine.count({ where: { paymentMethodId: method.id } });
+      if (used) throw new ApiError(`This payment method is recorded on ${used} payroll line(s), so it cannot be deleted. Rename it or stop using it instead.`, 409);
+      await tx.paymentMethodRef.delete({ where: { id: method.id } });
+      await writeAuditEvent(tx, user, {
+        table: "payment_method_refs", recordId: method.id, action: "DELETE", campusId: method.campusId,
+        before: { isActive: method.isActive },
+      });
+    });
     return Response.json({ success: true, message: "Payment method deleted" });
   } catch (error) {
     return errorResponse(error, "accounts/payment-methods DELETE failed");

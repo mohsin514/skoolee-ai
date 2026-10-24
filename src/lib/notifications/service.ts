@@ -1,7 +1,16 @@
+import { appUrl } from "@/lib/app-url";
+import { familyVersion, getPublishedVersion, versionTransaction } from "@/lib/academic/report-versions";
+import { appendEvent } from "@/lib/queue/outbox";
+import { getLocalePackage } from "@/lib/locale/store";
+import { formatDateOnly, formatMoney, localeTag, localePackageSchema, type Language } from "@/lib/locale/package";
+import { notificationHtml } from "@/lib/locale/notification-catalog";
+import { authorizedGuardianCommunicationTargets, assertCommunicationTarget, assertPublishedCommunicationReport } from "@/lib/auth/communication-policy";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { canUseFeature } from "@/config/plans";
+import { normalizePlan } from "@/config/plans";
+import { getSchoolPlanContract } from "@/config/commercial-contract";
 import { isSchoolOperational } from "@/lib/billing/entitlements";
+import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 import { sendEmailMessage } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/client";
 import {
@@ -61,11 +70,6 @@ function jsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as Prisma.InputJsonValue;
 }
 
-function appUrl() {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
 
 function absoluteUrl(url: string | null | undefined) {
   if (!url) return undefined;
@@ -123,7 +127,9 @@ export async function getApprovedNotificationTemplate({
   channel,
   schoolId,
   campusId,
+  language = "en",
 }: {
+  language?: Language;
   key: NotificationTemplateKey;
   channel: NotificationChannel;
   schoolId: string;
@@ -144,6 +150,7 @@ export async function getApprovedNotificationTemplate({
     where: {
       key,
       channel,
+      language,
       isActive: true,
       status: "APPROVED",
       OR: scopes,
@@ -155,7 +162,7 @@ export async function getApprovedNotificationTemplate({
 
   if (template) return normalizeTemplate(template);
 
-  const fallback = defaultTemplateFor(key, channel);
+  const fallback = defaultTemplateFor(key, channel, language);
   if (!fallback) throw new Error(`Template ${key} is not configured for ${channel}`);
   return fallback;
 }
@@ -167,10 +174,8 @@ export function renderNotificationTemplate(template: NotificationTemplateDefinit
   };
 }
 
-function recipientForStudent(student: StudentContext, channel: NotificationChannel) {
-  if (channel === "EMAIL") return student.guardianEmail || student.parent?.email || null;
-  if (channel === "WHATSAPP") return student.guardianWhatsapp || student.parent?.phone || student.guardianPhone || null;
-  return student.guardianPhone || student.guardianWhatsapp || student.parent?.phone || null;
+async function authorizedGuardianRecipients(studentId: string, schoolId: string, channel: NotificationChannel, permission: "communication" | "learningRecords" | "attendance" | "finances" = "communication") {
+  return authorizedGuardianCommunicationTargets({ studentId, schoolId }, channel, permission);
 }
 
 export function studentBaseContext(student: StudentContext): TemplateContext {
@@ -218,30 +223,72 @@ async function findExistingByIdempotency(idempotencyKey?: string) {
 }
 
 export async function sendTemplatedCommunication(input: SendTemplateInput) {
+  const permission = input.key === "REPORT_CARD_PUBLISHED" ? "learningRecords" : input.relatedType === "INVOICE" ? "finances" : "communication";
+  await assertCommunicationTarget(input.target, input.channel, permission);
+  if (input.key === "REPORT_CARD_PUBLISHED") {
+    await assertPublishedCommunicationReport(input.relatedId || "", input.target.studentId);
+    const version = await getPublishedVersion(input.relatedId || "");
+    const report = familyVersion(version);
+    if (!input.createdById) throw new Error("Report delivery requires an authorized actor");
+    // Callers cannot replace approved facts, document identity, approval or logical delivery identity.
+    input = { ...input, approvedData: true, attachmentUrl: null,
+      idempotencyKey: `report-version:${version.id}:${input.channel}:${input.target.parentUserId || "unlinked"}`,
+      context: { ...input.context, examTitle: report.examTitle, grade: report.grade || "-", percentage: report.percentage.toFixed(1), viewInstruction: "Please log in to the portal to view the report card." },
+      metadata: { reportVersionId: version.id, documentIdentity: version.documentIdentity },
+    };
+  }
   const existing = await findExistingByIdempotency(input.idempotencyKey);
   if (existing?.status === "SENT") return existing;
 
+  const parent = input.target.parentUserId ? await prisma.user.findFirst({ where: { id: input.target.parentUserId, schoolId: input.target.schoolId }, select: { preferredLanguage: true } }) : null;
+  let locale = await getLocalePackage(input.target.schoolId, input.target.campusId || null);
+  const context = { ...input.context };
+  if (input.relatedType === "INVOICE" && input.relatedId) {
+    const invoice = await prisma.invoice.findFirst({ where: { id: input.relatedId, schoolId: input.target.schoolId } });
+    if (invoice) {
+      const snapshot = localePackageSchema.safeParse(invoice.localeSnapshot);
+      if (snapshot.success) locale = snapshot.data;
+      if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar" || parent?.preferredLanguage === "ur") locale = { ...locale, language: parent.preferredLanguage };
+      context.balanceDue = formatMoney({ minor: typeof context.balanceDueMinor === "number" && Number.isSafeInteger(context.balanceDueMinor) ? context.balanceDueMinor : invoice.balanceDue, currency: invoice.currency }, locale);
+      context.dueDate = formatDateOnly(invoice.dueDate.toISOString().slice(0, 10), locale);
+      context.term = new Intl.DateTimeFormat(localeTag(locale), { year: "numeric", month: "long", timeZone: "UTC" }).format(invoice.invoiceDate);
+    }
+  }
+  if (parent?.preferredLanguage === "en" || parent?.preferredLanguage === "ar" || parent?.preferredLanguage === "ur") locale = { ...locale, language: parent.preferredLanguage };
+  if (input.key === "REPORT_CARD_PUBLISHED") {
+    const instructions = {
+      en: ["The PDF report card is attached.", "Please log in to the portal to view the report card."],
+      ar: ["بطاقة التقرير بصيغة PDF مرفقة.", "يرجى تسجيل الدخول إلى البوابة لعرض بطاقة التقرير."],
+      ur: ["پی ڈی ایف رپورٹ کارڈ منسلک ہے۔", "رپورٹ کارڈ دیکھنے کے لیے پورٹل میں لاگ ان کریں۔"],
+    };
+    context.viewInstruction = instructions[locale.language][input.attachmentUrl ? 0 : 1];
+  }
+  for (const key of ["date", "dueDate", "meetingDate", "deadlineDate"]) {
+    const value = context[key];
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) context[key] = formatDateOnly(value, locale);
+  }
   const template = await getApprovedNotificationTemplate({
+    language: locale.language,
     key: input.key,
     channel: input.channel,
     schoolId: input.target.schoolId,
     campusId: input.target.campusId,
   });
-  const rendered = renderNotificationTemplate(template, input.context);
+  const rendered = renderNotificationTemplate(template, context);
   const recipient = input.target.recipient || "UNAVAILABLE";
   const school =
     input.channel === "WHATSAPP"
       ? await prisma.school.findUnique({
           where: { id: input.target.schoolId },
-          select: { plan: true, status: true },
+          select: { plan: true, status: true, commercialContract: true },
         })
       : null;
   const subscriptionBlockedReason =
     school && !isSchoolOperational(school.status)
-      ? "Subscription suspended. Open billing to update your plan or payment method."
+      ? SUBSCRIPTION_PAUSED_MESSAGE
       : null;
   const planBlockedReason =
-    school && !canUseFeature(school.plan, "whatsappEnabled")
+    school && !getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).whatsappEnabled
       ? "WhatsApp messaging is not included in the current plan"
       : null;
   const dataBlockedReason =
@@ -271,9 +318,29 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     failedReason: blockedReason || noRecipientReason,
     approvedData: input.approvedData,
     idempotencyKey: input.idempotencyKey,
-    metadata: input.metadata ? jsonValue(input.metadata) : undefined,
+    metadata: jsonValue({ ...input.metadata, localeSnapshot: locale }),
     sentAt: null,
   };
+
+  if (input.key === "REPORT_CARD_PUBLISHED") {
+    return versionTransaction(async tx => {
+      const prior = await tx.parentCommunication.findUnique({ where: { idempotencyKey: input.idempotencyKey! } });
+      if (prior) return prior;
+      const communication = await tx.parentCommunication.create({ data: communicationData });
+      if (!blockedReason && !noRecipientReason) await appendEvent(tx, {
+        schoolId: input.target.schoolId, actorId: input.createdById!, referenceId: communication.id,
+        kind: "REPORT_DELIVERY", version: 1, identity: `report-delivery:${input.idempotencyKey}`,
+      });
+      return communication;
+    }).catch(async error => {
+      // Concurrent requests converge on the one unique logical delivery.
+      if ((error as { code?: string }).code === "P2002" || (error as { status?: number }).status === 409) {
+        const prior = await prisma.parentCommunication.findUnique({ where: { idempotencyKey: input.idempotencyKey! } });
+        if (prior) return prior;
+      }
+      throw error;
+    });
+  }
 
   const communication = existing
     ? await prisma.parentCommunication.update({
@@ -296,6 +363,9 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
     });
   }
 
+  // Consent may have changed while templates and locale were resolved.
+  await assertCommunicationTarget(input.target, input.channel, permission);
+  if (process.env.DISABLE_OUTBOUND_MESSAGES === "true") return prisma.parentCommunication.update({ where: { id: communication.id }, data: { status: "BLOCKED", failedReason: "Outbound messages are disabled" } });
   const result =
     input.channel === "WHATSAPP"
       ? await sendWhatsAppMessage({
@@ -307,6 +377,8 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
           to: recipient,
           subject: rendered.subject,
           text: rendered.body,
+          html: notificationHtml(rendered.body, locale.language),
+          language: locale.language,
         });
 
   return prisma.parentCommunication.update({
@@ -350,79 +422,41 @@ export async function sendStudentTemplatedCommunication({
 
   const results = [];
   for (const channel of channels) {
-    const recipient = recipientForStudent(student, channel);
-    results.push(
-      await sendTemplatedCommunication({
-        key,
-        channel,
-        context: { ...baseContext, ...context },
-        target: {
-          schoolId: student.campus.schoolId,
-          campusId: student.campusId,
-          studentId: student.id,
-          parentUserId: student.parentUserId,
-          recipientName: valueFor(baseContext, "parentName"),
-          recipient,
-        },
-        createdById,
-        attachmentUrl,
-        relatedType,
-        relatedId,
-        approvedData,
-        idempotencyKey: idempotencyBase ? `${idempotencyBase}:${channel}` : undefined,
-        metadata,
-      })
-    );
+    const recipients = await authorizedGuardianRecipients(student.id, student.campus.schoolId, channel, key === "REPORT_CARD_PUBLISHED" ? "learningRecords" : relatedType === "INVOICE" ? "finances" : "communication");
+    for (const guardian of recipients) results.push(await sendTemplatedCommunication({
+      key,
+      channel,
+      context: { ...baseContext, ...context, parentName: guardian.fullName, recipientName: guardian.fullName },
+      target: {
+        schoolId: student.campus.schoolId,
+        campusId: student.campusId,
+        studentId: student.id,
+        parentUserId: guardian.guardianUserId,
+        recipientName: guardian.fullName,
+        recipient: guardian.recipient,
+      },
+      createdById,
+      attachmentUrl,
+      relatedType,
+      relatedId,
+      approvedData,
+      idempotencyKey: idempotencyBase ? `${idempotencyBase}:${channel}:${guardian.guardianUserId}` : undefined,
+      metadata,
+    }));
   }
 
   return results;
 }
 
-export async function sendReportCardPublishedNotifications({
-  reportCardId,
-  channels = ["WHATSAPP", "EMAIL"],
-  createdById,
-  approvedData,
-}: {
-  reportCardId: string;
-  channels?: NotificationChannel[];
-  createdById?: string | null;
-  approvedData?: boolean;
+export async function sendReportCardPublishedNotifications({ reportCardId, channels = ["WHATSAPP", "EMAIL"], createdById }: {
+  reportCardId: string; channels?: NotificationChannel[]; createdById?: string | null;
 }) {
-  const reportCard = await prisma.reportCard.findUnique({
-    where: { id: reportCardId },
-    include: {
-      exam: { select: { title: true, status: true, publishedAt: true } },
-      student: { select: { id: true } },
-    },
-  });
-
-  if (!reportCard) throw new Error("Report card not found");
-
-  const dataApproved =
-    approvedData ??
-    (reportCard.remarksApproved &&
-      (reportCard.status === "PUBLISHED" || reportCard.status === "SENT") &&
-      reportCard.exam.status === "PUBLISHED" &&
-      Boolean(reportCard.exam.publishedAt));
-
-  return sendStudentTemplatedCommunication({
-    studentId: reportCard.student.id,
-    key: "REPORT_CARD_PUBLISHED",
-    channels,
-    context: {
-      examTitle: reportCard.exam.title,
-      grade: reportCard.grade || "-",
-      percentage: reportCard.percentage.toFixed(1),
-      viewInstruction: reportCard.pdfUrl ? "The PDF report card is attached." : "Please log in to the portal to view the report card.",
-    },
-    createdById,
-    attachmentUrl: absoluteUrl(reportCard.pdfUrl),
-    relatedType: "REPORT_CARD",
-    relatedId: reportCard.id,
-    approvedData: dataApproved,
-    idempotencyBase: `report-card-published:${reportCard.id}`,
-    metadata: { examStatus: reportCard.exam.status, reportCardStatus: reportCard.status },
+  const version = await getPublishedVersion(reportCardId);
+  const report = familyVersion(version);
+  return sendStudentTemplatedCommunication({ studentId: report.studentId, key: "REPORT_CARD_PUBLISHED", channels,
+    context: { examTitle: report.examTitle, grade: report.grade || "-", percentage: report.percentage.toFixed(1), viewInstruction: "Please log in to the portal to view the report card." },
+    createdById, relatedType: "REPORT_CARD", relatedId: reportCardId, approvedData: true,
+    idempotencyBase: `report-version:${version.id}`, metadata: { reportVersionId: version.id, documentIdentity: version.documentIdentity },
   });
 }
 

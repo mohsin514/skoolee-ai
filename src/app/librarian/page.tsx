@@ -1,131 +1,143 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  BookOpen,
-  CalendarClock,
-  LayoutGrid,
-  MessageCircle,
-  Package,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { BookCopy, Plus, RotateCcw, ScanLine } from "lucide-react";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
-import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
-import {
-  ConsolePage,
-  ConsoleQuickLink,
-  ConsoleSkeleton,
-  type ConsoleNavItem,
-} from "@/components/operations/console-page";
-import { LibraryPanel, InventoryPanel } from "@/components/operations";
+import { useConsoleView } from "@/components/nav/useConsoleView";
+import { ConsoleError, ConsolePage, ConsoleSkeleton } from "@/components/operations/console-page";
+import { LendingDesk } from "@/components/library/lending-desk";
+import { CATALOGUE_CREATE, CATALOGUE_TABS, LibraryPanel } from "@/components/operations";
+import { ViewTabs } from "@/components/ui/view-tabs";
+import { MyLeavePanel } from "@/components/leave/my-leave";
 import { LibraryOverview } from "@/components/insights";
-import { LeaveManagementPanel } from "@/components/shared-admin/index";
+import type { PanelCommand } from "@/components/fees/fee-types";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
-type LibrarianView = "dashboard" | "library" | "inventory" | "leave";
+/**
+ * Library (LIBRARIAN) — role-ux §3 `librarian`: Today · Lending desk · Catalogue & members · Messages, with My
+ * leave in the account menu. Inventory belongs to the campus admin (M83; the old `?view=inventory` lands on Today
+ * with a notice) and the broken Issues tab is gone (M84): the lending desk issues, renews and returns.
+ */
 
-/** One list drives the section strip, the sidebar and the page header. */
-const NAV: ConsoleNavItem<LibrarianView>[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutGrid, tone: "brand", eyebrow: "Library Console", summary: "Books, members and stock at a glance." },
-  { id: "library", label: "Library", icon: BookOpen, tone: "classes", eyebrow: "Library", summary: "Catalogue, members, and issue or return books." },
-  { id: "inventory", label: "Inventory", icon: Package, tone: "staff", eyebrow: "Library", summary: "Items, stores and suppliers." },
-  { id: "leave", label: "Leave", icon: CalendarClock, tone: "leave", eyebrow: "Staff", summary: "Apply for leave and track your requests." },
-];
+type OpsData = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
+
+const DESCRIPTIONS: Record<string, string> = {
+  dashboard: "Books on loan, overdue items and charges waiting.",
+  lending: "Issue, renew and return by scanning a reader card and then each copy.",
+  catalogue: "Add titles and members and keep categories tidy; barcoded copies are registered at the lending desk.",
+};
+
+function campusLine(data: OpsData) {
+  return `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}`;
+}
 
 export default function LibrarianPage() {
-  const router = useRouter();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<LibrarianView>("dashboard");
+  const tr = useUiText();
+  const { view, tab, setView, setTab, retiredNotice } = useConsoleView("librarian");
+  const [data, setData] = useState<OpsData | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const load = useCallback(async () => {
+    setFailed(false);
     try {
-      const d = await getOperationsStaffDashboardData();
-      if (d.userRole !== "LIBRARIAN") {
-        router.replace("/login");
-        return;
-      }
-      setData(d);
+      setData(await getOperationsStaffDashboardData());
     } catch {
-      toast.error("Failed to load dashboard");
-      router.replace("/login");
-    } finally {
-      setLoading(false);
+      setFailed(true);
     }
-  }, [router]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const navItems: SidebarEntry[] = [
-    ...NAV.map((item) => ({
-      label: item.label,
-      icon: item.icon,
-      active: activeView === item.id,
-      onClick: () => setActiveView(item.id),
-    })),
-    { label: "Messages", icon: MessageCircle, href: "/messages" },
-  ];
-
-  const current = NAV.find((item) => item.id === activeView) ?? NAV[0];
+  }, []);
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <RoleShell
-      tagline="Library Console"
-      eyebrow="Library Console"
-      navItems={navItems}
-      userName={data?.userName || "Librarian"}
-      userRole="Librarian"
+      console="librarian"
+      activeView={view}
+      onSelectView={setView}
+      userName={data?.userName || tr("Librarian")}
       avatarSeed={data?.userEmail}
       logoUrl={data?.logoUrl}
       dashboardHref="/librarian"
     >
-      {loading || !data ? (
-        <ConsoleSkeleton label="Loading the library console" cards={3} />
+      {failed && !data ? (
+        <ConsoleError title="The library could not be loaded" onRetry={() => void load()} />
+      ) : !data ? (
+        <ConsoleSkeleton label="Loading the library" cards={4} />
       ) : (
-        <ConsolePage
-          items={NAV}
-          activeId={activeView}
-          onSelect={setActiveView}
-          navLabel="Library sections"
-          icon={current.icon}
-          tone={current.tone}
-          eyebrow={current.eyebrow ?? "Library Console"}
-          title={activeView === "dashboard" ? data.userName : current.label}
-          summary={
-            activeView === "dashboard"
-              ? `${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""} · ${data.schoolName}`
-              : current.summary
-          }
-        >
-          {activeView === "dashboard" ? (
-            <div className="space-y-5">
-              {data.summary?.kind === "LIBRARIAN" ? (
-                <LibraryOverview
-                  summary={data.summary}
-                  campusLabel={`${data.campusName}${data.campusCity ? ` · ${data.campusCity}` : ""}`}
-                  onNavigate={(view) => setActiveView(view as LibrarianView)}
-                />
-              ) : null}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {NAV.filter((item) => item.id !== "dashboard").map((item) => (
-                  <ConsoleQuickLink
-                    key={item.id}
-                    icon={item.icon}
-                    label={item.label}
-                    description={item.summary ?? ""}
-                    tone={item.tone}
-                    onClick={() => setActiveView(item.id)}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {activeView === "library" ? <LibraryPanel /> : null}
-          {activeView === "inventory" ? <InventoryPanel /> : null}
-          {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
-        </ConsolePage>
+        <LibraryWorkspace data={data} view={view} tab={tab} setView={setView} setTab={setTab} retiredNotice={retiredNotice} />
       )}
     </RoleShell>
   );
+}
+
+function LibraryWorkspace({ data, view, tab, setView, setTab, retiredNotice }: {
+  data: OpsData;
+  view: string;
+  tab: string | null;
+  setView: (view: string, tab?: string | null) => void;
+  setTab: (tab: string | null) => void;
+  retiredNotice: string | null;
+}) {
+  const [command, setCommand] = useState<PanelCommand | null>(null);
+  const run = (id: string, target?: string) => {
+    if (target && target !== view) setView(target);
+    setCommand({ id, nonce: Date.now() });
+  };
+  useEffect(() => { setCommand(null); }, [view]);
+
+  switch (view) {
+    case "lending":
+      return (
+        <ConsolePage
+          consoleId="librarian"
+          view="lending"
+          description={DESCRIPTIONS.lending}
+          captureDesk
+          primaryAction={{ id: "scan", label: "Scan", icon: ScanLine, onClick: () => run("scan") }}
+          secondaryActions={[{ id: "renew", label: "Renew", icon: RotateCcw, onClick: () => run("renew") }]}
+        >
+          <LendingDesk hideHeader command={command} />
+        </ConsolePage>
+      );
+    case "catalogue": {
+      // Titles · Members · Categories are the PageHeader's tabs (§3.1, §4.3). The open section's create action is the
+      // one primary ("Add book" on Titles, §4.4; "Add member" / "Add category" on the others), so every section keeps
+      // its way to add a record while the panel draws no second button.
+      const section = CATALOGUE_TABS.some((item) => item.id === tab) ? (tab as keyof typeof CATALOGUE_CREATE) : "books";
+      const create = CATALOGUE_CREATE[section];
+      return (
+        <ConsolePage
+          consoleId="librarian"
+          view="catalogue"
+          description={DESCRIPTIONS.catalogue}
+          primaryAction={{ id: create.id, label: create.label, icon: Plus, onClick: () => run(create.id) }}
+          tabs={<ViewTabs ariaLabel="Catalogue sections" value={section} onChange={(id) => { setCommand(null); setTab(id); }} items={CATALOGUE_TABS} />}
+        >
+          <LibraryPanel hideIssues hideHeader command={command} tab={section} onTabChange={(next) => setTab(next)} sectionNav="none" />
+        </ConsolePage>
+      );
+    }
+    case "my-leave":
+      return (
+        <ConsolePage consoleId="librarian" view="my-leave">
+          <MyLeavePanel />
+        </ConsolePage>
+      );
+    default:
+      return (
+        <ConsolePage
+          consoleId="librarian"
+          view="dashboard"
+          description={DESCRIPTIONS.dashboard}
+          notice={retiredNotice}
+          icon={BookCopy}
+          primaryAction={{ id: "open-lending", label: "Open lending desk", icon: ScanLine, onClick: () => run("scan", "lending") }}
+        >
+          <SetupPrompt />
+          {data.summary?.kind === "LIBRARIAN" ? (
+            <LibraryOverview summary={data.summary} campusLabel={campusLine(data)} onNavigate={(next) => setView(next)} />
+          ) : null}
+        </ConsolePage>
+      );
+  }
 }

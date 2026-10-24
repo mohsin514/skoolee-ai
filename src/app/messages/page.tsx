@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
 import { getAuthUser } from "@/lib/auth";
-import { dashboardPathForRole } from "@/lib/roles";
 import { ChatProvider } from "@/components/chat";
 import { MessagesWorkspace } from "./messages-workspace";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The full-page messenger, shared by all ten roles.
+ * The full-page messenger, shared by every school role and framed in the caller's own console.
  *
  * One route rather than a copy inside each dashboard: the conversation model
  * is identical for a principal and a pupil, and only the directory behind it
- * differs — which the policy already decides server-side.
+ * differs — which the policy already decides server-side. The frame turns the
+ * floating dock off, so this provider is the page's one chat stream.
  */
 export default async function MessagesPage() {
   const user = await getAuthUser();
@@ -23,7 +23,7 @@ export default async function MessagesPage() {
 
   return (
     <ChatProvider>
-      <MessagesWorkspace dashboardHref={dashboardPathForRole(user.role)} />
+      <MessagesWorkspace />
     </ChatProvider>
   );
 }

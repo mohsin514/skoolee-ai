@@ -1,88 +1,122 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
+import { getFinancialLocale } from "@/app/actions/locale";
+import { InputGroup } from "@/components/ui/input-group";
+
+
 import { useCallback, useEffect, useState } from "react";
 import {
+  Archive,
   BookOpen,
   Edit3,
-  History,
-  Layers,
+  MoreHorizontal,
   Loader2,
   Percent,
   Plus,
-  Trash2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
+import { Menu } from "@/components/ui/menu";
+import { IconButton } from "@/components/ui/icon-button";
+import { ErrorState } from "@/components/ui/error-state";
+import { SectionPicker, UiSentence } from "@/components/operations/console-page";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
-import type { ClassOption, FeeStructure } from "./fee-types";
-import { API, classLabel, formatPKR } from "./fee-utils";
+import type { ClassOption, FeeStructure, PanelCommand } from "./fee-types";
+import { API, classLabel, formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, usePanelCommand } from "./fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
-type StructureSubTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "fines" | "legacy";
+export type StructureSubTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "fines" | "legacy";
 
-const SUB_TABS: { key: StructureSubTab; label: string; icon: typeof Layers }[] = [
-  { key: "types", label: "Types", icon: Layers },
-  { key: "groups", label: "Groups", icon: BookOpen },
-  { key: "master", label: "Master", icon: BookOpen },
-  { key: "assign", label: "Assign", icon: BookOpen },
-  { key: "discounts", label: "Discounts", icon: Percent },
-  { key: "carry", label: "Carry Forward", icon: History },
-  { key: "fines", label: "Fine Rules", icon: Percent },
-  { key: "legacy", label: "Legacy", icon: History },
+/** Fee setup sections, in the order a school sets them up (also the accountant's PageHeader tabs). */
+export const FEE_SETUP_TABS: { id: StructureSubTab; label: string }[] = [
+  { id: "types", label: "Fee types" },
+  { id: "groups", label: "Fee groups" },
+  { id: "master", label: "Amounts" },
+  { id: "assign", label: "Class groups" },
+  { id: "discounts", label: "Discounts" },
+  { id: "carry", label: "Carry forward" },
+  { id: "fines", label: "Fine rules" },
+  { id: "legacy", label: "Class structures" },
 ];
 
-export function FeeStructuresTab({ campusId }: { campusId?: string }) {
-  const [subTab, setSubTab] = useState<StructureSubTab>("types");
+/**
+ * The section a `?tab=` value opens. `layers` (the registry alias for the retired Fee layers view, M75) opens the
+ * first layer and `structures` the per-class structures; the console rewrites the URL to the section it opened.
+ */
+export function feeSetupSection(tab: string | null | undefined): StructureSubTab {
+  const requested = tab === "layers" ? "types" : tab === "structures" ? "legacy" : tab;
+  return FEE_SETUP_TABS.some((item) => item.id === requested) ? (requested as StructureSubTab) : "types";
+}
+
+/** The PageHeader primary for each Fee setup section (role-ux §4.4b; EN UI keys). */
+export const FEE_SETUP_CREATE: Record<StructureSubTab, string> = {
+  types: "New fee type",
+  groups: "New fee group",
+  master: "Add an amount",
+  assign: "Assign a fee group",
+  discounts: "New discount",
+  carry: "New carry-forward",
+  fines: "New fine rule",
+  legacy: "New fee structure",
+};
+
+/**
+ * Fee setup — the one place fee types, groups, amounts, discounts, carry-forward, fine rules and per-class
+ * structures are kept (role-ux M75: the separate "Fee Layers" view duplicated these panels and is retired;
+ * `?tab=layers` opens the first layer). `tab`/`onTabChange` let a console persist the section as `?tab=`.
+ * `command` "create" runs the open section's create action from the console's PageHeader, and `hideCreate`
+ * removes the sections' own create buttons so the screen keeps one primary (labels: `FEE_SETUP_CREATE`).
+ */
+export function FeeStructuresTab({ campusId, tab, onTabChange, command, hideCreate = false, sectionNav = "picker" }: { campusId?: string; tab?: string | null; onTabChange?: (tab: StructureSubTab) => void; command?: PanelCommand | null; hideCreate?: boolean; sectionNav?: "picker" | "none" }) {
+  const [localTab, setLocalTab] = useState<StructureSubTab>("types");
+  const subTab: StructureSubTab = onTabChange || tab ? feeSetupSection(tab) : localTab;
+  // The header command goes to the open section only; changing section drops it so no section replays it.
+  const [forwarded, setForwarded] = useState<{ section: StructureSubTab; command: PanelCommand } | null>(null);
+  const select = (next: StructureSubTab) => { setLocalTab(next); onTabChange?.(next); setForwarded(null); };
+  usePanelCommand(command, { create: () => { const copy = forwardCommand(command); setForwarded(copy ? { section: subTab, command: copy } : null); } });
+  const panel = { campusId, command: forwarded?.section === subTab ? forwarded.command : null, hideCreate };
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
-        {SUB_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const active = subTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setSubTab(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                active
-                  ? "bg-white text-[#8127cf] shadow-sm"
-                  : "text-ink-muted hover:text-[#8127cf]"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* One tab row per screen (§3.1): the console renders these sections as its PageHeader tabs ("none"); under
+          another tab row they are a section picker. */}
+      {sectionNav === "picker" ? <SectionPicker label="Fee setup section" items={FEE_SETUP_TABS} value={subTab} onChange={select} /> : null}
 
-      {subTab === "types" && <TypesPanel campusId={campusId} />}
-      {subTab === "groups" && <GroupsPanel campusId={campusId} />}
-      {subTab === "master" && <MasterPanel campusId={campusId} />}
-      {subTab === "assign" && <AssignPanel campusId={campusId} />}
-      {subTab === "discounts" && <DiscountsPanel campusId={campusId} />}
-      {subTab === "carry" && <CarryPanel campusId={campusId} />}
-      {subTab === "fines" && <FineRulesPanel campusId={campusId} />}
-      {subTab === "legacy" && <LegacyStructuresTab campusId={campusId} />}
+      {subTab === "types" && <TypesPanel {...panel} />}
+      {subTab === "groups" && <GroupsPanel {...panel} />}
+      {subTab === "master" && <MasterPanel {...panel} />}
+      {subTab === "assign" && <AssignPanel {...panel} />}
+      {subTab === "discounts" && <DiscountsPanel {...panel} />}
+      {subTab === "carry" && <CarryPanel {...panel} />}
+      {subTab === "fines" && <FineRulesPanel {...panel} />}
+      {subTab === "legacy" && <LegacyStructuresTab {...panel} />}
     </div>
   );
 }
 
-function LegacyStructuresTab({ campusId }: { campusId?: string }) {
+function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campusId?: string; command?: PanelCommand | null; hideCreate?: boolean }) {
+  const { money: formatPKR, date } = useLocaleFormat();
+  const tr = useUiText();
   const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeStructure | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [sRes, cRes] = await Promise.all([
         fetch(`${API}/structure${qp}`),
@@ -91,9 +125,10 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       const sJson = await sRes.json();
       const cJson = await cRes.json();
       if (sJson.success) setStructures(sJson.data);
+      else setLoadFailed(true);
       if (cJson.success) setClasses(cJson.data);
     } catch {
-      toast.error("Failed to load fee structures");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -108,13 +143,13 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/structure/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Structure deactivated");
+        toast.success(tr(json.message || "Structure deactivated"));
         loadData();
       } else {
-        toast.error(json.error || "Failed to deactivate");
+        toast.error(tr(json.error || "Failed to deactivate"));
       }
     } catch {
-      toast.error("Failed to deactivate structure");
+      toast.error(tr("Failed to deactivate structure"));
     }
   };
 
@@ -127,27 +162,28 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
   const assignedClassIds = new Set(activeStructures.map((s) => s.classId));
   const unassignedClasses = classes.filter((c) => !assignedClassIds.has(c.id));
+  usePanelCommand(command, { create: () => { setEditing(null); setShowModal(true); } }, !loading);
 
   if (loading) {
     return (
       <div className="space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+          <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
             <div className="flex items-start justify-between mb-3">
               <div className="space-y-2">
-                <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-3 w-40 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-4 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-3 w-40 rounded-full bg-border-subtle/40 skeleton-shimmer" />
               </div>
               <div className="flex gap-1.5">
-                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-8 w-8 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
+                <div className="h-8 w-8 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               {Array.from({ length: 3 }).map((_, j) => (
-                <div key={j} className="rounded-xl bg-[#f3f4f9]/50 p-2">
-                  <div className="h-2 w-12 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer mb-1" />
-                  <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div key={j} className="rounded-xl bg-muted/50 p-2">
+                  <div className="h-2 w-12 rounded-full bg-border-subtle/40 skeleton-shimmer mb-1" />
+                  <div className="h-4 w-16 rounded-full bg-border-subtle/50 skeleton-shimmer" />
                 </div>
               ))}
             </div>
@@ -157,40 +193,34 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
     );
   }
 
+  if (loadFailed) {
+    return <ErrorState title={tr("Fee structures could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void loadData()} />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Fee Structures</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-            {activeStructures.length} active · {unassignedClasses.length} classes without fees
-          </p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee structures"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+            <UiSentence text="{0} active · {1} classes without fees" values={[activeStructures.length, unassignedClasses.length]} /></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}>
-          New Structure
-        </BrandButton>
+        {hideCreate ? null : <Button onClick={() => { setEditing(null); setShowModal(true); }}><Plus className="size-4" aria-hidden="true" /><UiText>{"New fee structure"}</UiText></Button>}
       </div>
 
       {unassignedClasses.length > 0 && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
-          <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 mb-1">
-            Classes Without Fee Structure
-          </p>
-          <p className="text-xs font-bold text-amber-800">
+        <Alert tone="warning" live="off" compact title={tr("Classes without fee structure")}>
             {unassignedClasses.map((c) => classLabel(c.name, c.section)).join(", ")}
-          </p>
-        </div>
+          </Alert>
       )}
 
       {activeStructures.length === 0 ? (
         <EmptyState
           icon={BookOpen}
-          title="No fee structures yet"
-          description="Create your first fee structure to start managing fees."
+          title={tr("No fee structures yet")}
+          description={tr("Create your first fee structure to start managing fees.")}
           action={
-            <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setShowModal(true); }}>
-              Create Fee Structure
-            </BrandButton>
+            <Button onClick={() => { setEditing(null); setShowModal(true); }}><Plus className="size-4" aria-hidden="true" /><UiText>{"New fee structure"}</UiText></Button>
           }
         />
       ) : (
@@ -208,23 +238,19 @@ function LegacyStructuresTab({ campusId }: { campusId?: string }) {
 
       {inactiveStructures.length > 0 && (
         <div>
-          <h4 className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-3">
-            Inactive Structures
-          </h4>
+          <h4 className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-3"><UiText>{"Inactive structures"}</UiText></h4>
           <div className="space-y-2 opacity-60">
             {inactiveStructures.map((fs) => (
-              <div key={fs.id} className="flex items-center justify-between rounded-2xl bg-[#f3f4f9]/50 px-4 py-3 border border-[#cfc2d6]/10">
+              <div key={fs.id} className="flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-3 border border-edge/10">
                 <div>
-                  <p className="text-sm font-black text-[#1f1a23]">
+                  <p className="text-sm font-bold text-ink-strong">
                     {classLabel(fs.class.name, fs.class.section)}
                   </p>
-                  <p className="text-[9px] font-bold text-ink-subtle">
-                    {formatPKR(fs.monthlyFee)}/mo · Ended {new Date(fs.activeTo!).toLocaleDateString()}
+                  <p className="text-2xs font-medium text-ink-subtle tabular-nums">
+                    {formatPKR(fs.monthlyFee, fs.currency)}<UiText>{"/mo · Ended"}</UiText>{" "}{date(fs.activeTo!)}
                   </p>
                 </div>
-                <span className="text-[9px] font-black uppercase text-gray-400 px-2 py-1 rounded-lg bg-gray-100">
-                  Inactive
-                </span>
+                <Badge variant="neutral" size="sm" dot><UiText>{"Inactive"}</UiText></Badge>
               </div>
             ))}
           </div>
@@ -253,6 +279,8 @@ function StructureCard({
   onEdit: () => void;
   onDeactivate: () => void;
 }) {
+  const { money: formatPKR, date } = useLocaleFormat();
+  const tr = useUiText();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const oneTimeFees = fs.oneTimeFeesJson ?? {};
   const discountRules = fs.discountRulesJson ?? {};
@@ -260,64 +288,59 @@ function StructureCard({
   const hasExtras = Object.keys(oneTimeFees).length > 0 || Object.keys(discountRules).length > 0;
 
   return (
-    <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]">
+    <div className="sk-panel p-5 transition-all hover:-translate-y-0.5">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <p className="text-sm font-black text-[#1f1a23]">
+          <p className="text-sm font-bold text-ink-strong">
             {classLabel(fs.class.name, fs.class.section)}
           </p>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle mt-0.5">
-            Since {new Date(fs.activeFrom).toLocaleDateString()} · {fs.installmentType ?? "standard"}
+          <p className="text-2xs font-semibold tracking-wide text-ink-subtle mt-0.5"><UiText>{"Since"}</UiText>{" "}{date(fs.activeFrom)} · {fs.installmentType ?? tr("Standard")}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmOpen(true)}
-            className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {/* Row overflow (role-ux §4.4b Fee setup: Archive in the overflow, behind ConfirmAction). */}
+          <Menu
+            label="More actions"
+            items={[
+              { id: "edit", label: "Edit", icon: Edit3, onSelect: onEdit },
+              { id: "deactivate", label: "Deactivate", icon: Archive, tone: "danger", onSelect: () => setConfirmOpen(true) },
+            ]}
+            trigger={<IconButton variant="ghost" label={tr("More actions")}><MoreHorizontal aria-hidden="true" /></IconButton>}
+          />
           <ConfirmAction
             open={confirmOpen}
-            title="Deactivate Structure"
-            description={`This will deactivate the fee structure for ${classLabel(fs.class.name, fs.class.section)}. Existing invoices won't be affected.`}
+            title={tr("Deactivate this fee structure?")}
+            description={tr("This will deactivate the fee structure for {0}. Existing invoices won't be affected.", [classLabel(fs.class.name, fs.class.section)])}
             onConfirm={() => { setConfirmOpen(false); onDeactivate(); }}
             onCancel={() => setConfirmOpen(false)}
             tone="danger"
-            confirmLabel="Deactivate"
+            confirmLabel={tr("Deactivate")}
+            cancelLabel={tr("Keep editing")}
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-        <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Monthly</p>
-          <p className="text-sm font-black text-[#8127cf]">{formatPKR(fs.monthlyFee)}</p>
+        <div className="rounded-xl bg-brand-50/50 px-3 py-2">
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Monthly"}</UiText></p>
+          <p className="text-sm font-bold text-primary">{formatPKR(fs.monthlyFee, fs.currency)}</p>
         </div>
         {oneTimeTotal > 0 && (
-          <div className="rounded-xl bg-blue-50/50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-ink-subtle">One-Time</p>
-            <p className="text-sm font-black text-blue-600">{formatPKR(oneTimeTotal)}</p>
+          <div className="rounded-xl bg-status-info-surface px-3 py-2">
+            <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"One-Time"}</UiText></p>
+            <p className="text-sm font-bold text-status-info-text">{formatPKR(oneTimeTotal, fs.currency)}</p>
           </div>
         )}
-        <div className="rounded-xl bg-amber-50/50 px-3 py-2">
-          <p className="text-[9px] font-black uppercase text-ink-subtle">Late Fee</p>
-          <p className="text-sm font-black text-amber-600">
-            {fs.lateFeePercentage}%{fs.compoundLateFee ? " cpd" : ""}
+        <div className="rounded-xl bg-status-warning-surface px-3 py-2">
+          <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Late fee"}</UiText></p>
+          <p className="text-sm font-bold text-status-warning-text">
+            {fs.lateFeePercentage}%{fs.compoundLateFee ? tr(" cpd") : ""}
           </p>
         </div>
         {(fs.taxPercentage ?? 0) > 0 && (
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <p className="text-[9px] font-black uppercase text-ink-subtle">Tax</p>
-            <p className="text-sm font-black text-gray-600">{fs.taxPercentage}%</p>
+          <div className="rounded-xl bg-surface-subtle px-3 py-2">
+            <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Tax"}</UiText></p>
+            <p className="text-sm font-bold text-ink-muted">{fs.taxPercentage}%</p>
           </div>
         )}
       </div>
@@ -325,14 +348,14 @@ function StructureCard({
       {hasExtras && (
         <div className="space-y-1.5">
           {Object.entries(oneTimeFees).map(([name, amount]) => (
-            <div key={name} className="flex items-center justify-between text-[10px] font-bold text-ink-muted px-1">
+            <div key={name} className="flex items-center justify-between text-2xs font-bold text-ink-muted px-1">
               <span>{name}</span>
-              <span>{formatPKR(amount)}</span>
+              <span>{formatPKR(amount, fs.currency)}</span>
             </div>
           ))}
           {Object.entries(discountRules).map(([name, pct]) => (
-            <div key={name} className="flex items-center justify-between text-[10px] font-bold text-emerald-600/70 px-1">
-              <span>{name} discount</span>
+            <div key={name} className="flex items-center justify-between text-2xs font-bold text-status-success-text px-1">
+              <span><UiSentence text="{0} discount" values={[name]} /></span>
               <span>-{pct}%</span>
             </div>
           ))}
@@ -355,8 +378,14 @@ function StructureModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const tr = useUiText();
+  // The school's currency from the locale package, refined to the chosen campus's; a failed refinement keeps the
+  // school's currency (no toast for a background read, R4).
+  const schoolCurrency = useLocale().currency;
+  const [currency, setCurrency] = useState<string>(editing?.currency || schoolCurrency);
+  useEffect(() => { if (!editing) void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => undefined); }, [campusId, editing]);
   const [classId, setClassId] = useState(editing?.classId ?? "");
-  const [monthlyFee, setMonthlyFee] = useState(editing ? String(editing.monthlyFee / 100) : "");
+  const [monthlyFee, setMonthlyFee] = useState(editing ? String(paisaToRupees(editing.monthlyFee, editing.currency)) : "");
   const [installmentType, setInstallmentType] = useState(editing?.installmentType ?? "11-month");
   const [lateFeePct, setLateFeePct] = useState(String(editing?.lateFeePercentage ?? 2.0));
   const [compoundLateFee, setCompoundLateFee] = useState(editing?.compoundLateFee ?? true);
@@ -365,7 +394,7 @@ function StructureModal({
     editing?.oneTimeFeesJson
       ? Object.entries(editing.oneTimeFeesJson).map(([name, amount]) => ({
           name,
-          amount: String(amount / 100),
+          amount: String(paisaToRupees(amount, editing.currency)),
         }))
       : []
   );
@@ -380,15 +409,15 @@ function StructureModal({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!classId || !monthlyFee) {
-      toast.error("Class and monthly fee required");
+    if (!classId || !monthlyFee || !currency) {
+      toast.error(tr("Class and monthly fee required"));
       return;
     }
     setSaving(true);
 
     const otfObj: Record<string, number> = {};
     for (const row of oneTimeFees) {
-      if (row.name.trim() && row.amount) otfObj[row.name.trim()] = Math.round(parseFloat(row.amount) * 100);
+      if (row.name.trim() && row.amount) otfObj[row.name.trim()] = rupeesToPaisa(row.amount, currency);
     }
     const drObj: Record<string, number> = {};
     for (const row of discountRules) {
@@ -396,9 +425,10 @@ function StructureModal({
     }
 
     const payload = {
+      currency,
       campusId: campusId || "",
       classId,
-      monthlyFee: Math.round(parseFloat(monthlyFee) * 100),
+      monthlyFee: rupeesToPaisa(monthlyFee, currency),
       installmentType,
       lateFeePercentage: parseFloat(lateFeePct),
       compoundLateFee,
@@ -407,7 +437,7 @@ function StructureModal({
       discountRulesJson: Object.keys(drObj).length > 0 ? JSON.stringify(drObj) : undefined,
       activeFrom: editing
         ? new Date(editing.activeFrom).toISOString().split("T")[0]
-        : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0],
+        : new Date().toISOString().split("T")[0],
     };
 
     try {
@@ -420,168 +450,158 @@ function StructureModal({
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fee structure saved");
+        toast.success(tr(json.message || "Fee structure saved"));
         onSaved();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save fee structure");
+      toast.error(tr("Failed to save fee structure"));
     } finally {
       setSaving(false);
     }
   };
 
-  const inputClass = "w-full h-11 rounded-2xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-4 text-sm font-bold outline-none focus:border-[#8127cf]/30 transition-colors";
-  const labelClass = "text-[9px] font-black uppercase tracking-wider text-ink-subtle block mb-1";
+  const inputClass = "w-full";
+  const labelClass = "text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1";
 
   return (
     <Modal
-      title={editing ? "Edit Fee Structure" : "New Fee Structure"}
-      eyebrow="Fees"
-      subtitle="Sets what a class is billed each cycle, plus any standing discounts."
+      title={editing ? tr("Edit fee structure") : tr("New fee structure")}
+      eyebrow={tr("Fees")}
+      subtitle={tr("Sets what a class is billed each cycle, plus any standing discounts.")}
       icon={editing ? Edit3 : Plus}
       size="sm"
       onClose={onClose}
       footer={
-        <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {saving ? "Saving..." : editing ? "Update Structure" : "Create Structure"}
+        <BrandButton className="w-full h-12" onClick={handleSave} disabled={saving} aria-busy={saving || undefined}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : editing ? <Edit3 className="w-4 h-4" aria-hidden="true" /> : <Plus className="w-4 h-4" aria-hidden="true" />}
+          {saving ? tr("Saving...") : editing ? tr("Update structure") : tr("Create structure")}
         </BrandButton>
       }
     >
         <div className="space-y-4">
-          <div>
-            <label className={labelClass}>Class</label>
-            <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inputClass}>
-              <option value="">Select class...</option>
+          <label>
+            <span className={labelClass}><UiText>{"Class"}</UiText></span>
+            <SystemSelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputClass}>
+              <option value=""><UiText>{"Select class..."}</UiText></option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}
-            </select>
-          </div>
+            </SystemSelect>
+          </label>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Monthly Fee (PKR)</label>
-              <input type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder="e.g. 5000" className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Installment Plan</label>
-              <select value={installmentType} onChange={(e) => setInstallmentType(e.target.value)} className={inputClass}>
-                <option value="11-month">11 Months (Jul-May)</option>
-                <option value="6-month">6 Months</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="one-time">One Time</option>
-              </select>
-            </div>
+            <label>
+              <span className={labelClass}>{tr("Monthly fee")} (<bdi>{currency}</bdi>)</span>
+              <SystemInput type="number" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value)} placeholder={tr("e.g. 5000")} className={inputClass} />
+            </label>
+            <label>
+              <span className={labelClass}><UiText>{"Installment plan"}</UiText></span>
+              <SystemSelect value={installmentType} onChange={(e) => setInstallmentType(e.target.value)} className={inputClass}>
+                <option value="11-month"><UiText>{"11 Months (Jul-May)"}</UiText></option>
+                <option value="6-month"><UiText>{"6 Months"}</UiText></option>
+                <option value="quarterly"><UiText>{"Quarterly"}</UiText></option>
+                <option value="one-time"><UiText>{"One time"}</UiText></option>
+              </SystemSelect>
+            </label>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
+            <label>
+              <span className={labelClass}><UiText>{"Late fee %"}</UiText></span>
+              <SystemInput type="number" step="0.1" value={lateFeePct} onChange={(e) => setLateFeePct(e.target.value)} className={inputClass} />
+            </label>
             <div>
-              <label className={labelClass}>Late Fee %</label>
-              <input type="number" step="0.1" value={lateFeePct} onChange={(e) => setLateFeePct(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Compound</label>
-              <button
+              <label className={labelClass}><UiText>{"Compound"}</UiText></label>
+              <Button aria-pressed={compoundLateFee} variant="choice"
                 type="button"
                 onClick={() => setCompoundLateFee(!compoundLateFee)}
-                className={`w-full h-11 rounded-2xl border px-4 text-sm font-bold transition-colors cursor-pointer ${compoundLateFee ? "border-[#8127cf]/30 bg-[#fbf0fe] text-[#8127cf]" : "border-[#cfc2d6]/20 bg-[#f3f4f9] text-ink-muted"}`}
+                className={`w-full h-11 px-4 ${""} `}
               >
-                {compoundLateFee ? "Yes" : "No"}
-              </button>
+                {compoundLateFee ? tr("Yes") : tr("No")}
+              </Button>
             </div>
-            <div>
-              <label className={labelClass}>Tax %</label>
-              <input type="number" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} className={inputClass} />
-            </div>
+            <label>
+              <span className={labelClass}><UiText>{"Tax %"}</UiText></span>
+              <SystemInput type="number" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} className={inputClass} />
+            </label>
           </div>
 
-          <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
+          <div className="rounded-2xl border border-edge/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                One-Time Fees
-              </p>
-              <button
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"One-Time Fees"}</UiText></p>
+              <Button variant="link"
                 type="button"
                 onClick={() => setOneTimeFees([...oneTimeFees, { name: "", amount: "" }])}
-                className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              >
-                + Add Fee
-              </button>
+                className="hover:underline"
+              ><UiText>{"+ Add Fee"}</UiText></Button>
             </div>
             <div className="space-y-2">
               {oneTimeFees.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <input
+                  <SystemInput
                     type="text"
-                    placeholder="Fee name"
+                    placeholder={tr("Fee name")}
                     value={row.name}
                     onChange={(e) => {
                       const copy = [...oneTimeFees];
                       copy[i] = { ...copy[i], name: e.target.value };
                       setOneTimeFees(copy);
                     }}
-                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                    className="flex-1"
                   />
-                  <input
+                  <SystemInput
                     type="number"
-                    placeholder="Amount"
+                    placeholder={tr("Amount")}
                     value={row.amount}
                     onChange={(e) => {
                       const copy = [...oneTimeFees];
                       copy[i] = { ...copy[i], amount: e.target.value };
                       setOneTimeFees(copy);
                     }}
-                    className="w-28 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                    className="w-28"
                   />
-                  <button
+                  <Button aria-label={tr("Remove one-time fee")} variant="secondary" size="icon"
                     type="button"
                     onClick={() => setOneTimeFees(oneTimeFees.filter((_, j) => j !== i))}
-                    className="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors cursor-pointer shrink-0"
+                    className="flex items-center justify-center shrink-0"
                   >
                     <X className="w-3 h-3" />
-                  </button>
+                  </Button>
                 </div>
               ))}
               {oneTimeFees.length === 0 && (
-                <p className="text-[10px] font-semibold text-ink-subtle italic">
-                  e.g. Admission Fee, Lab Fee, Books
-                </p>
+                <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"e.g. Admission Fee, Lab Fee, Books"}</UiText></p>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#cfc2d6]/10 p-4">
+          <div className="rounded-2xl border border-edge/10 p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                Discount Rules
-              </p>
-              <button
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Discount rules"}</UiText></p>
+              <Button variant="link"
                 type="button"
                 onClick={() => setDiscountRules([...discountRules, { name: "", pct: "" }])}
-                className="text-[9px] font-black uppercase text-[#8127cf] hover:underline cursor-pointer"
-              >
-                + Add Discount
-              </button>
+                className="hover:underline"
+              ><UiText>{"+ Add Discount"}</UiText></Button>
             </div>
             <div className="space-y-2">
               {discountRules.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <input
+                  <SystemInput
                     type="text"
-                    placeholder="Discount name"
+                    placeholder={tr("Discount name")}
                     value={row.name}
                     onChange={(e) => {
                       const copy = [...discountRules];
                       copy[i] = { ...copy[i], name: e.target.value };
                       setDiscountRules(copy);
                     }}
-                    className="flex-1 h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                    className="flex-1"
                   />
-                  <div className="relative w-24">
-                    <input
+                  <InputGroup surfaceClassName="bg-muted" className="relative w-24">
+                    <SystemInput
                       type="number"
                       step="0.5"
                       placeholder="%"
@@ -591,23 +611,21 @@ function StructureModal({
                         copy[i] = { ...copy[i], pct: e.target.value };
                         setDiscountRules(copy);
                       }}
-                      className="w-full h-9 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] px-3 pr-7 text-xs font-bold outline-none focus:border-[#8127cf]/30"
+                      className="w-full pe-7"
                     />
-                    <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-subtle" />
-                  </div>
-                  <button
+                    <Percent data-field-affix="end" className="absolute end-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-subtle" />
+                  </InputGroup>
+                  <Button aria-label={tr("Remove discount rule")} variant="secondary" size="icon"
                     type="button"
                     onClick={() => setDiscountRules(discountRules.filter((_, j) => j !== i))}
-                    className="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 transition-colors cursor-pointer shrink-0"
+                    className="flex items-center justify-center shrink-0"
                   >
                     <X className="w-3 h-3" />
-                  </button>
+                  </Button>
                 </div>
               ))}
               {discountRules.length === 0 && (
-                <p className="text-[10px] font-semibold text-ink-subtle italic">
-                  e.g. Sibling 10%, Staff Child 25%
-                </p>
+                <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"e.g. Sibling 10%, Staff Child 25%"}</UiText></p>
               )}
             </div>
           </div>

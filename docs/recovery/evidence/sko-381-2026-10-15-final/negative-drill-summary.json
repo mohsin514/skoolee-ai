@@ -1,0 +1,50 @@
+[
+  {
+    "fault": "missing-file",
+    "expectedError": "file-reconciliation:synthetic/attachment.txt",
+    "actualError": "file-reconciliation:synthetic/attachment.txt",
+    "exitCode": 1,
+    "passed": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  },
+  {
+    "fault": "corrupt-file",
+    "expectedError": "file-reconciliation:synthetic/attachment.txt",
+    "actualError": "file-reconciliation:synthetic/attachment.txt",
+    "exitCode": 1,
+    "passed": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  },
+  {
+    "fault": "corrupt-record",
+    "expectedError": "all-record-counts-and-content-hashes",
+    "actualError": "all-record-counts-and-content-hashes",
+    "exitCode": 1,
+    "passed": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  },
+  {
+    "fault": "corrupt-backup",
+    "expectedError": "backup-artifact-checksum",
+    "actualError": "backup-artifact-checksum",
+    "exitCode": 1,
+    "passed": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  },
+  {
+    "fault": "schema-drift",
+    "expectedError": "schema-security-catalog-restored",
+    "actualError": "schema-security-catalog-restored",
+    "exitCode": 1,
+    "passed": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  },
+  {
+    "fault": "migration",
+    "expectedError": "Injected failed migration: release promotion blocked",
+    "actualError": "Injected failed migration: release promotion blocked",
+    "exitCode": 1,
+    "passed": true,
+    "inputsSha256": "534b6d451ac0621b81347b0ce5182badabb3062358aedc8eb83d86f1a8ba393c"
+  }
+]

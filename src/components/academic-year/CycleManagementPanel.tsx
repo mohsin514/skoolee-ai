@@ -1,15 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock, Loader2,
+  Activity, ArrowRight, CheckCircle2, Clock,
   Pause, Play, Plus, XCircle,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { emitCycleChanged } from "@/lib/cycleEvents";
-import { YearClosureChecklist } from "@/components/academic/YearClosureChecklist";
+import { YearClosureChecklist, type YearCloseCommand, type YearClosureState } from "@/components/academic/YearClosureChecklist";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { FormField } from "@/components/ui/form-field";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
+
 
 interface Cycle {
   id: string;
@@ -21,23 +29,56 @@ interface Cycle {
   createdAt: string;
 }
 
-const statusConfig: Record<string, { color: string; bg: string; icon: typeof Activity; label: string }> = {
-  DRAFT: { color: "text-blue-700", bg: "bg-blue-50 border-blue-200/40", icon: Clock, label: "Draft" },
-  ACTIVE: { color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200/40", icon: CheckCircle2, label: "Active" },
-  PAUSED: { color: "text-amber-700", bg: "bg-amber-50 border-amber-200/40", icon: Pause, label: "Paused" },
-  ENDED: { color: "text-gray-600", bg: "bg-gray-50 border-gray-200/40", icon: XCircle, label: "Ended" },
+const statusConfig: Record<string, { color: string; bg: string; icon: typeof Activity; label: string; badge: "info" | "success" | "warning" | "neutral" }> = {
+  DRAFT: { color: "text-status-info-text", bg: "bg-status-info-surface", icon: Clock, label: "Draft", badge: "info" },
+  ACTIVE: { color: "text-status-success-text", bg: "bg-status-success-surface", icon: CheckCircle2, label: "Active", badge: "success" },
+  PAUSED: { color: "text-status-warning-text", bg: "bg-status-warning-surface", icon: Pause, label: "Paused", badge: "warning" },
+  ENDED: { color: "text-ink-muted", bg: "bg-surface-subtle", icon: XCircle, label: "Ended", badge: "neutral" },
 };
 
+/**
+ * Academic years (cycles) for a campus and the year-end checklist.
+ *
+ * `canManageCycles` (default true): creating, activating, pausing and resuming a cycle are year logistics —
+ * campus operations (§2.2 #24, PR reads). The principal passes false and keeps the close-year checklist,
+ * where `canForceClose` adds the academic lead's override (§2.3 #70). Omitted, it follows the caller's
+ * `academicLead` capability (the principal, or the campus admin while no principal is appointed), so the
+ * campus console offers the override exactly when the server would accept it.
+ *
+ * Host-owned header (§4.4b "Academic year": **Close year** (ConfirmAction) primary, Checklist secondary,
+ * Force-close in the overflow): `hideCloseActions` drops the checklist's own close buttons; the host drives them
+ * with `closeCommand` (or `closeRequest`, a number that asks to close a ready year) and reads `onClosureState`
+ * (or `onCloseReady`). `canOpen` limits the checklist's "Fix this" links to screens the viewer can open.
+ */
 export function CycleManagementPanel({
   campusId,
-  canForceClose = false,
+  canForceClose: canForceCloseProp,
+  canManageCycles = true,
   onNavigate,
+  canOpen,
+  hideCloseActions = false,
+  closeCommand,
+  closeRequest,
+  onClosureState,
+  onCloseReady,
 }: {
   campusId?: string;
-  /** Principals may close a year that still has outstanding work. */
+  /** The academic lead may close a year that still has outstanding work (server: canLeadAcademics). */
   canForceClose?: boolean;
+  /** Create / activate / pause / resume cycles. False for the principal (read-only year logistics). */
+  canManageCycles?: boolean;
   onNavigate?: (view: string) => void;
+  canOpen?: (view: string) => boolean;
+  hideCloseActions?: boolean;
+  closeCommand?: YearCloseCommand;
+  closeRequest?: number;
+  onClosureState?: (state: YearClosureState) => void;
+  onCloseReady?: (ready: boolean) => void;
 } = {}) {
+  const ui = useUiText();
+  const { date: formatDay } = useLocaleFormat();
+  const navigationAccess = useNavigationAccess();
+  const canForceClose = canForceCloseProp ?? navigationAccess.has("academicLead");
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
@@ -66,8 +107,8 @@ export function CycleManagementPanel({
         body: JSON.stringify({ action, cycleId }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Action failed");
-      toast.success(json.message);
+      if (!res.ok) throw new Error(json.error || ui("Could not update the academic year. Try again."));
+      toast.success(ui(action === "pause" ? "Academic year paused" : action === "activate" ? "Academic year activated" : action === "resume" ? "Academic year resumed" : "Academic year updated"));
       // Update the affected cycle in place (no waiting on a second fetch) and
       // notify the header/badge to refresh the active-cycle indicator.
       if (json.data) {
@@ -85,7 +126,7 @@ export function CycleManagementPanel({
   };
 
   const handleCreate = async () => {
-    if (!newLabel.trim()) return toast.error("Label is required");
+    if (!newLabel.trim()) return toast.error(ui("Enter a name for the academic year"));
     setCreating(true);
     try {
       const res = await fetch("/api/academic-cycle", {
@@ -94,8 +135,8 @@ export function CycleManagementPanel({
         body: JSON.stringify({ action: "create", label: newLabel.trim(), academicYear: newYear }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to create cycle");
-      toast.success(json.message);
+      if (!res.ok) throw new Error(json.error || ui("Could not create the academic year. Try again."));
+      toast.success(ui("Academic year created"));
       setShowCreate(false);
       setNewLabel("");
       // Show the new cycle immediately instead of waiting on a refetch.
@@ -112,30 +153,43 @@ export function CycleManagementPanel({
   };
 
   const activeCycle = cycles.find((c) => c.status === "ACTIVE");
+  // `closeRequest` (a plain number) is the short form of `closeCommand={{ id: "close", nonce }}`.
+  const command = useMemo<YearCloseCommand | undefined>(
+    () => closeCommand ?? (closeRequest ? { id: "close", nonce: closeRequest } : undefined),
+    [closeCommand, closeRequest],
+  );
+  const reportClosure = useCallback((state: YearClosureState) => {
+    onClosureState?.(state);
+    onCloseReady?.(state.ready);
+  }, [onClosureState, onCloseReady]);
+  // No open year: the header has nothing to close.
+  useEffect(() => {
+    if (!loading && !activeCycle) reportClosure({ hasOpenYear: false, ready: false, canForce: false, label: null, loading: false });
+  }, [loading, activeCycle, reportClosure]);
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white p-6 animate-skeleton-in">
+        <div className="sk-panel p-6 animate-skeleton-in">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div className="h-14 w-14 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
             <div className="flex-1 space-y-2">
-              <div className="h-3 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-5 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-3 w-52 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-3 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-5 w-40 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-3 w-52 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             </div>
           </div>
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex items-center justify-between rounded-[20px] border border-[#cfc2d6]/15 bg-white p-4 animate-skeleton-in" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
+          <div key={i} className="sk-panel flex items-center justify-between p-4 animate-skeleton-in" style={{ animationDelay: `${(i + 1) * 80}ms` }}>
             <div className="flex items-center gap-4">
-              <div className="h-10 w-10 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+              <div className="h-10 w-10 rounded-xl bg-border-subtle/50 skeleton-shimmer" />
               <div className="space-y-2">
-                <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-3 w-44 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-4 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                <div className="h-3 w-44 rounded-full bg-border-subtle/40 skeleton-shimmer" />
               </div>
             </div>
-            <div className="h-7 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div className="h-7 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
           </div>
         ))}
       </div>
@@ -146,31 +200,34 @@ export function CycleManagementPanel({
     <div className="space-y-6">
       {/* Active cycle highlight */}
       {activeCycle && (
-        <div className="sk-rise rounded-[28px] border border-emerald-200/30 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 shadow-sm">
+        <div className="sk-panel sk-gradient-border sk-rise p-6 shadow-md" style={{ animationDelay: "80ms" }}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-status-success-surface text-status-success-text shadow-sm">
                 <Activity className="h-7 w-7" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600/70">Current Active Cycle</p>
-                <h3 className="text-xl font-black text-[#1d1b20] tracking-tight">{activeCycle.label}</h3>
-                <p className="text-xs font-semibold text-ink-muted mt-0.5">
-                  Academic Year {activeCycle.academicYear}
-                  {activeCycle.startDate && ` · Started ${new Date(activeCycle.startDate).toLocaleDateString()}`}
+                <p className="sk-eyebrow text-status-success-text">{ui("Current academic year")}</p>
+                <h3 className="text-xl font-bold text-ink-strong tracking-tight"><bdi>{activeCycle.label}</bdi></h3>
+                <p className="text-xs font-normal text-ink-muted mt-0.5">
+                  {ui("Academic year {0}", [activeCycle.academicYear])}
+                  {activeCycle.startDate ? <> · {ui("Started {0}", [formatDay(activeCycle.startDate)])}</> : null}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => doAction("pause", activeCycle.id)}
-                disabled={acting !== null}
-                className="flex items-center gap-2 rounded-2xl border border-amber-200/40 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-700 transition-all hover:bg-amber-100 active:scale-95 cursor-pointer disabled:opacity-50"
-              >
-                {acting === `pause-${activeCycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
-                Pause
-              </button>
-            </div>
+            {canManageCycles ? (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm"
+                  loading={acting === `pause-${activeCycle.id}`}
+                  onClick={() => doAction("pause", activeCycle.id)}
+                  disabled={acting !== null}
+                  className="flex justify-start items-center gap-2"
+                >
+                  {acting === `pause-${activeCycle.id}` ? null : <Pause className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {ui("Pause")}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -186,68 +243,59 @@ export function CycleManagementPanel({
           year={activeCycle.academicYear}
           canForceClose={canForceClose}
           onNavigate={onNavigate}
+          canOpen={canOpen}
+          hideActions={hideCloseActions}
+          command={command}
+          onState={reportClosure}
           onClosed={fetchCycles}
         />
       )}
 
       {!activeCycle && (
-        <div className="sk-rise rounded-[28px] border border-rose-200/30 bg-gradient-to-br from-rose-50 to-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-500 shadow-sm">
-              <AlertTriangle className="h-7 w-7" />
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-rose-500/70">No Active Cycle</p>
-              <h3 className="text-lg font-black text-[#1d1b20] tracking-tight">Teachers cannot operate without an active cycle</h3>
-              <p className="text-xs font-semibold text-ink-muted mt-0.5">
-                Create and activate a cycle to allow attendance, marks entry, and reports.
-              </p>
-            </div>
-          </div>
-        </div>
+        <Alert tone="danger" title={ui("No active academic year — teachers cannot work without one")} live="off" className="sk-rise">
+          {ui(canManageCycles ? "Create and activate an academic year to allow attendance, marks entry and reports." : "Your campus admin creates and activates the academic year.")}
+        </Alert>
       )}
 
       {/* Create new cycle */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-[#1d1b20]">All Cycles</h3>
-        <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-          New Cycle
-        </BrandButton>
+        <h3 className="text-sm font-bold text-ink-strong">{ui("All academic years")}</h3>
+        {canManageCycles ? (
+          <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
+            {ui("New academic year")}
+          </BrandButton>
+        ) : null}
       </div>
 
-      {showCreate && (
-        <div className="sk-rise rounded-[24px] border border-[#cfc2d6]/20 bg-white p-5 shadow-sm space-y-4" style={{ animationDelay: "240ms" }}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Cycle Label</label>
-              <input
+      {showCreate && canManageCycles && (
+        <div className="sk-rise sk-panel p-5 space-y-4" style={{ animationDelay: "240ms" }}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField name="cycle-label" label={ui("Name")}>
+              <SystemInput
                 type="text"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
-                placeholder="e.g. Session 2026-27"
-                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+                placeholder={ui("e.g. Session 2026-27")}
+                className="w-full px-4"
               />
-            </div>
-            <div>
-              <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">Academic Year</label>
-              <input
+            </FormField>
+            <FormField name="cycle-year" label={ui("Academic year")}>
+              <SystemInput
                 type="number"
                 value={newYear}
                 onChange={(e) => setNewYear(Number(e.target.value))}
-                className="h-11 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all focus:border-[#8127cf]/35 focus:bg-white"
+                className="w-full px-4"
               />
-            </div>
+            </FormField>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button variant="secondary" size="sm"
               onClick={() => setShowCreate(false)}
-              className="rounded-2xl bg-[#f3f4f9] px-5 py-2.5 text-xs font-bold text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
             >
-              Cancel
-            </button>
-            <BrandButton onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {creating ? "Creating..." : "Create Cycle"}
+              {ui("Cancel")}
+            </Button>
+            <BrandButton onClick={handleCreate} disabled={creating} loading={creating}>
+              {ui("Create academic year")}
             </BrandButton>
           </div>
         </div>
@@ -257,8 +305,8 @@ export function CycleManagementPanel({
       {cycles.length === 0 ? (
         <EmptyState
           icon={Activity}
-          title="No cycles yet"
-          description="Create your first academic cycle to get started."
+          title={ui("No academic years yet")}
+          description={ui(canManageCycles ? "Create your first academic year to get started." : "Your campus admin sets up the academic year.")}
         />
       ) : (
         <div className="space-y-3">
@@ -271,51 +319,52 @@ export function CycleManagementPanel({
               <div
                 key={cycle.id}
                 className={cn(
-                  "sk-rise flex items-center justify-between rounded-[20px] border bg-white p-4 shadow-sm transition-all duration-200",
-                  isActive ? "border-emerald-200/40 ring-1 ring-emerald-100" : "border-[#cfc2d6]/15 hover:border-[#8127cf]/15 hover:shadow-md"
+                  "sk-panel sk-rise sk-hover-lift flex flex-wrap items-center justify-between gap-3 p-4",
+                  isActive && "border-status-success-border ring-1 ring-status-success-border"
                 )}
                 style={{ animationDelay: `${i * 60}ms` }}
               >
-                <div className="flex items-center gap-4">
-                  <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", config.bg)}>
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", config.bg)}>
                     <Icon className={cn("h-5 w-5", config.color)} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-[#1d1b20]">{cycle.label}</p>
-                    <p className="text-[10px] font-semibold text-ink-muted">
-                      Year {cycle.academicYear}
-                      {cycle.startDate && ` · Started ${new Date(cycle.startDate).toLocaleDateString()}`}
-                      {cycle.endDate && ` · Ended ${new Date(cycle.endDate).toLocaleDateString()}`}
+                    <p className="text-sm font-bold text-ink-strong"><bdi>{cycle.label}</bdi></p>
+                    <p className="text-xs font-semibold text-ink-muted">
+                      {ui("Academic year {0}", [cycle.academicYear])}
+                      {cycle.startDate ? <> · {ui("Started {0}", [formatDay(cycle.startDate)])}</> : null}
+                      {cycle.endDate ? <> · {ui("Ended {0}", [formatDay(cycle.endDate)])}</> : null}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wide", config.bg, config.color)}>
-                    <Icon className="h-3 w-3" />
-                    {config.label}
-                  </span>
+                  <Badge size="sm" dot variant={config.badge}>
+                    {ui(config.label)}
+                  </Badge>
 
-                  {cycle.status === "DRAFT" && (
-                    <button
+                  {canManageCycles && cycle.status === "DRAFT" && (
+                    <Button variant="default" size="sm"
+                      loading={acting === `activate-${cycle.id}`}
                       onClick={() => doAction("activate", cycle.id)}
                       disabled={acting !== null}
-                      className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-4 py-2 text-xs font-bold text-white shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="flex justify-start items-center gap-1.5"
                     >
-                      {acting === `activate-${cycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                      Activate
-                    </button>
+                      {acting === `activate-${cycle.id}` ? null : <Play className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {ui("Activate")}
+                    </Button>
                   )}
 
-                  {cycle.status === "PAUSED" && (
-                    <button
+                  {canManageCycles && cycle.status === "PAUSED" && (
+                    <Button variant="default" size="sm"
+                      loading={acting === `resume-${cycle.id}`}
                       onClick={() => doAction("resume", cycle.id)}
                       disabled={acting !== null}
-                      className="flex items-center gap-1.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                      className="flex justify-start items-center gap-1.5"
                     >
-                      {acting === `resume-${cycle.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
-                      Resume
-                    </button>
+                      {acting === `resume-${cycle.id}` ? null : <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" aria-hidden="true" />}
+                      {ui("Resume")}
+                    </Button>
                   )}
                 </div>
               </div>

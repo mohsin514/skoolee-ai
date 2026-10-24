@@ -1,6 +1,8 @@
+import { campusScope } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 // Staff payroll / bank records (Module 8).
 // GET  /api/staff/profile?userId= — full profile + documents + timeline (admin only).
@@ -13,13 +15,13 @@ const CONTRACT_TYPES = new Set(["PERMANENT", "CONTRACT", "PART_TIME"]);
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
         await assertPermission(user, "staff", "view");
     const userId = req.nextUrl.searchParams.get("userId");
     if (!userId) throw new ApiError("userId required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, schoolId: user.schoolId },
+      where: { id: userId, ...campusScope(user) },
       select: {
         id: true,
         fullName: true,
@@ -41,17 +43,12 @@ export async function GET(req: NextRequest) {
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
 
-    const documents = await Promise.all(
-      staff.staffDocuments.map(async (doc) => {
-        const { getDownloadUrl } = await import("@/lib/storage/s3");
-        return {
-          ...doc,
-          downloadUrl: await getDownloadUrl(doc.fileKey).catch(() => null),
-        };
-      })
-    );
+    const documents = staff.staffDocuments.map(({ fileKey: _fileKey, ...doc }) => ({
+      ...doc,
+      downloadUrl: `/api/staff/documents?userId=${encodeURIComponent(userId)}&documentId=${encodeURIComponent(doc.id)}`,
+    }));
 
-    return Response.json({ success: true, data: { ...staff, staffDocuments: documents } });
+    return Response.json({ success: true, data: { ...staff, staffDocuments: documents } }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return errorResponse(error, "[staff/profile] GET failed");
   }
@@ -60,14 +57,14 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
     const body = await req.json();
     const userId = String(body.userId ?? "");
     if (!userId) throw new ApiError("userId is required", 400);
 
     const staff = await prisma.user.findFirst({
-      where: { id: userId, schoolId: user.schoolId },
+      where: { id: userId, ...campusScope(user) },
       select: { id: true, fullName: true, staffProfile: true },
     });
     if (!staff) throw new ApiError("Staff member not found", 404);
@@ -137,17 +134,29 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    const profile = await prisma.staffProfile.upsert({
-      where: { userId },
-      create: { userId, ...data },
-      update: data,
-    });
-
-    if (events.length > 0) {
-      await prisma.staffTimelineEvent.createMany({
-        data: events.map((e) => ({ ...e, userId, actorId: user.userId })),
+    const profile = await prisma.$transaction(async (tx) => {
+      const saved = await tx.staffProfile.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
       });
-    }
+
+      if (events.length > 0) {
+        await tx.staffTimelineEvent.createMany({
+          data: events.map((e) => ({ ...e, userId, actorId: user.userId })),
+        });
+      }
+      // Field names, contract type and salary only; bank details and labels stay out.
+      await writeAuditEvent(tx, user, {
+        table: "staff_profiles", recordId: saved.id, action: existing ? "UPDATE" : "CREATE",
+        ...(existing ? { before: { contractType: current.contractType, basicSalary: current.basicSalary } } : {}),
+        after: {
+          userId, fieldsChanged: Object.keys(data).sort().join(","), contractType: saved.contractType ?? null, basicSalary: saved.basicSalary,
+          bankDetailsChanged: ["bankAccountName", "bankAccountNumber", "bankName"].some((field) => inBody(field) && changed(current[field as keyof typeof current], data[field])),
+        },
+      });
+      return saved;
+    });
 
     return Response.json({ success: true, data: profile, events: events.length });
   } catch (error) {

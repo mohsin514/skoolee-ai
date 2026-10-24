@@ -1,4 +1,11 @@
-import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
+import { prisma, type TxClient } from "@/lib/db/prisma";
+import { getTenantContext, resolveTenantFromRequest, runWithTenantContext, TenantContextError } from "@/lib/db/tenant-context";
+import { retryDatabaseTransaction } from "@/lib/school-ai/transaction";
+import { lockTimetableCampus } from "@/lib/timetable/locking";
+import { getLocalePackage, loadLocaleTimeline } from "@/lib/locale/store";
+import { localePackageSchema } from "@/lib/locale/package";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 import {
   buildSubjectDistribution,
   calculateWeightedGrade,
@@ -44,8 +51,14 @@ export type { GradeThresholds };
 export async function thresholdsForClass(
   classId: string,
   academicYear: number,
+  client: TxClient = prisma,
+  academicModelVersionId?: string | null,
 ): Promise<GradeThresholds> {
-  const config = await prisma.gradeWeightConfig.findUnique({
+  if (academicModelVersionId) {
+    const cls = await client.class.findUnique({ where: { id: classId }, select: { campusId: true } });
+    if (cls) return (await getOrCreateGradeWeightConfig(cls.campusId, classId, academicYear, client, academicModelVersionId)).thresholds;
+  }
+  const config = await client.gradeWeightConfig.findUnique({
     where: { classId_academicYear: { classId, academicYear } },
     select: { gradeAplus: true, gradeA: true, gradeB: true, gradeC: true, gradeD: true },
   });
@@ -74,8 +87,20 @@ export function gradeForMark(obtained: number, total: number, thresholds?: Grade
   return gradeForPercentage(total > 0 ? (obtained / total) * 100 : 0, thresholds);
 }
 
+export const LOCKED_EXAM_STATUSES = ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"] as const;
+
+/** One definition of "marks are locked" for every query: the lock flag or any post-lock workflow status. */
+export const LOCKED_EXAM_WHERE = {
+  OR: [{ isLocked: true }, { status: { in: [...LOCKED_EXAM_STATUSES] } }],
+} satisfies Prisma.ExamWhereInput;
+
 export function isLockedStatus(status: string | null | undefined) {
-  return status === "LOCKED" || status === "PRINCIPAL_REVIEWED" || status === "PUBLISHED";
+  return (LOCKED_EXAM_STATUSES as readonly string[]).includes(status ?? "");
+}
+
+/** In-memory twin of LOCKED_EXAM_WHERE for an already-loaded exam row. */
+export function isExamLocked(exam: { isLocked: boolean; status: string | null }) {
+  return exam.isLocked || isLockedStatus(exam.status);
 }
 
 function round1(value: number) {
@@ -86,8 +111,28 @@ function attendancePercent(present: number, total: number) {
   return total > 0 ? Math.round((present / total) * 100) : null;
 }
 
-export async function generateReportCardsForLockedExam(examId: string) {
-  const exam = await prisma.exam.findUnique({
+export async function generateReportCardsForLockedExam(examId: string, client?: TxClient) {
+  if (client) return generateReportCardsInTransaction(examId, client);
+  const context = getTenantContext() ?? await resolveTenantFromRequest();
+  const schoolId = context?.schoolId;
+  if (!schoolId) throw new TenantContextError("An authenticated tenant context is required to generate report cards.");
+
+  // Standalone API/worker generation must serialize with rejection before
+  // reading locked state, or a delayed job could recreate withdrawn reports.
+  return retryDatabaseTransaction(() => runWithTenantContext(
+    { ...context, schoolId, unscoped: false, rlsSession: true },
+    () => prisma.$transaction(async tx => {
+      await tx.$executeRaw`SELECT set_config('app.current_school_id', ${schoolId}, true)`;
+      const exam = await tx.exam.findFirst({ where: { id: examId, schoolId }, select: { campusId: true } });
+      if (!exam) throw new Error("Exam not found");
+      await lockTimetableCampus(tx, schoolId, exam.campusId, true);
+      return generateReportCardsInTransaction(examId, tx);
+    }, { isolationLevel: "Serializable", timeout: 30000 }),
+  ));
+}
+
+async function generateReportCardsInTransaction(examId: string, db: TxClient) {
+  const exam = await db.exam.findUnique({
     where: { id: examId },
     include: {
       class: {
@@ -100,30 +145,30 @@ export async function generateReportCardsForLockedExam(examId: string) {
   });
 
   if (!exam) throw new Error("Exam not found");
-  if (!exam.isLocked && !isLockedStatus(exam.status)) {
+  if (!isExamLocked(exam)) {
     throw new Error("Report cards can only be generated from locked exams");
   }
 
   const students = exam.class.students;
-  const subjects = exam.class.subjects;
+  const subjects = exam.subjectId ? exam.class.subjects.filter(subject => subject.id === exam.subjectId) : exam.class.subjects;
   const studentIds = students.map((student) => student.id);
 
   // The class's own grading ladder — not the built-in one (§82).
-  const thresholds = await thresholdsForClass(exam.classId, exam.academicYear);
+  const thresholds = await thresholdsForClass(exam.classId, exam.academicYear, db, exam.academicModelVersionId);
 
   const [marks, attendance, existingReports] = await Promise.all([
-    prisma.mark.findMany({
+    db.mark.findMany({
       where: { examId, campusId: exam.campusId },
       include: { subject: { select: { id: true, name: true, totalMarks: true } } },
     }),
-    prisma.attendance.groupBy({
+    db.attendance.groupBy({
       by: ["studentId", "status"],
       where: { campusId: exam.campusId, studentId: { in: studentIds } },
       _count: { _all: true },
     }),
-    prisma.reportCard.findMany({
+    db.reportCard.findMany({
       where: { examId },
-      select: { studentId: true, status: true, isSent: true, deliveryStatus: true },
+      select: { studentId: true, status: true, isSent: true, deliveryStatus: true, localeSnapshot: true, generatedAt: true },
     }),
   ]);
 
@@ -133,11 +178,14 @@ export async function generateReportCardsForLockedExam(examId: string) {
     marksByStudent.get(mark.studentId)!.set(mark.subjectId, mark);
   }
 
+  // SKO-405: days attended and days counted follow the school's published rule.
+  const rule = await attendanceRuleFor(exam.schoolId, db);
   const attendanceByStudent = new Map<string, { present: number; total: number }>();
   for (const row of attendance) {
+    if (rule.excluded.includes(row.status)) continue;
     const current = attendanceByStudent.get(row.studentId) || { present: 0, total: 0 };
     current.total += row._count._all;
-    if (row.status === "PRESENT") current.present += row._count._all;
+    if (rule.attended.includes(row.status)) current.present += row._count._all;
     attendanceByStudent.set(row.studentId, current);
   }
 
@@ -182,20 +230,23 @@ export async function generateReportCardsForLockedExam(examId: string) {
 
   const resultByStudent = new Map(results.map((result) => [result.student.id, result]));
   const now = new Date();
+  const localeAt = await loadLocaleTimeline(exam.schoolId, exam.campusId, db);
+  const localeSnapshot = localeAt(now);
 
-  const reportCards = await prisma.$transaction(
-    students.map((student) => {
+  const reportWrites = students.map((student) => {
       const result = resultByStudent.get(student.id)!;
       const existing = existingByStudent.get(student.id);
+      const previousLocale = localePackageSchema.safeParse(existing?.localeSnapshot);
       const status = existing?.isSent
         ? "SENT"
         : existing?.status === "PUBLISHED"
           ? "PUBLISHED"
           : "GENERATED";
 
-      return prisma.reportCard.upsert({
+      return db.reportCard.upsert({
         where: { studentId_examId: { studentId: student.id, examId } },
         update: {
+          localeSnapshot: previousLocale.success ? previousLocale.data : localeAt(existing?.generatedAt || now),
           totalMarks: result.totalMarks,
           obtainedMarks: result.obtainedMarks,
           percentage: result.percentage,
@@ -207,6 +258,8 @@ export async function generateReportCardsForLockedExam(examId: string) {
           generatedAt: now,
         },
         create: {
+          localeSnapshot,
+          reportLanguage: localeSnapshot.language,
           campusId: exam.campusId,
           studentId: student.id,
           examId,
@@ -220,8 +273,8 @@ export async function generateReportCardsForLockedExam(examId: string) {
           status: "GENERATED",
         },
       });
-    })
-  );
+    });
+  const reportCards = await Promise.all(reportWrites);
 
   return { exam, reportCards, generated: reportCards.length };
 }
@@ -298,7 +351,7 @@ export async function getExamAnalytics(examId: string) {
           where: {
             campusId,
             ...(academicYear ? { academicYear } : {}),
-            OR: [{ isLocked: true }, { status: { in: ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"] } }],
+            ...LOCKED_EXAM_WHERE,
           },
         }),
         publishedExams: await prisma.exam.count({
@@ -325,14 +378,15 @@ export async function getExamAnalytics(examId: string) {
   };
 }
 
-export async function getReportCardPdfPayload(reportCardId: string) {
-  const reportCard = await prisma.reportCard.findUnique({
+export async function getLiveReportCardPayload(reportCardId: string, db: TxClient = prisma) {
+  const reportCard = await db.reportCard.findUnique({
     where: { id: reportCardId },
     include: {
+      enrollment: true,
       campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
       exam: {
         select: {
-          id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true,
+          id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true, academicModelVersionId: true,
           classId: true,
           class: { select: { id: true, name: true, section: true, academicYear: true } },
         },
@@ -355,7 +409,13 @@ export async function getReportCardPdfPayload(reportCardId: string) {
     reportCard.student.class = reportCard.exam.class;
   }
 
-  const marks = await prisma.mark.findMany({
+  if (reportCard.enrollment) {
+    reportCard.student.rollNo = reportCard.enrollment.rollNo;
+    reportCard.student.class = { id: reportCard.enrollment.classId, name: reportCard.enrollment.className, section: null, academicYear: reportCard.enrollment.academicYear };
+    reportCard.campus.name = reportCard.enrollment.campusName;
+  }
+
+  const marks = await db.mark.findMany({
     where: { examId: reportCard.examId, studentId: reportCard.studentId },
     include: { subject: { select: { name: true, totalMarks: true } } },
     orderBy: { subject: { name: "asc" } },
@@ -368,8 +428,8 @@ export async function getReportCardPdfPayload(reportCardId: string) {
   const classId = reportCard.exam.classId;
   if (classId) {
     try {
-      weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear);
-      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear);
+      weightConfig = await getOrCreateGradeWeightConfig(reportCard.campusId, classId, reportCard.exam.academicYear, db, reportCard.exam.academicModelVersionId);
+      const grade = await calculateWeightedGrade(reportCard.studentId, reportCard.campusId, classId, reportCard.exam.academicYear, db, reportCard.exam.academicModelVersionId);
       overall = {
         overallPercentage: grade.overallPercentage,
         overallGrade: grade.overallGrade,
@@ -383,25 +443,40 @@ export async function getReportCardPdfPayload(reportCardId: string) {
         academicYear: reportCard.exam.academicYear,
         weightConfig,
         ...(isAggregateFinal ? { excludeExamId: reportCard.examId } : {}),
-      });
-    } catch {}
+      }, db);
+    } catch (error) { throw error; }
   }
 
+  const storedLocale = localePackageSchema.safeParse(reportCard.localeSnapshot);
+  const locale = storedLocale.success ? storedLocale.data : await getLocalePackage(reportCard.schoolId, reportCard.campusId, reportCard.generatedAt, undefined, db);
   return {
+    locale: { ...locale, language: reportCard.reportLanguage as "en" | "ar" | "ur" },
     reportCard,
     weightConfig,
     subjectDistribution,
     overall,
     marks: marks.map((mark) => ({
+      subjectId: mark.subjectId,
       subject: mark.subject.name,
       obtained: mark.marksObtained,
       total: mark.subject.totalMarks,
       isAbsent: mark.isAbsent,
+      isExempt: mark.isExempt,
       // An absent paper has no grade. Falling back to grading the stored 0
       // would print "F" against a paper the pupil never sat.
       grade: mark.isAbsent
         ? "ABS"
-        : mark.grade || gradeForMark(mark.marksObtained, mark.subject.totalMarks),
+        : mark.isExempt
+          ? "EX"
+          : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
     })),
   };
+}
+
+/** Every artifact is rendered from an approved immutable snapshot. */
+export async function getReportCardPdfPayload(reportCardId: string, versionId?: string) {
+  const { getArtifactVersion } = await import("./report-versions");
+  const version = await getArtifactVersion(reportCardId, versionId);
+  return { ...(version.snapshot as unknown as Awaited<ReturnType<typeof getLiveReportCardPayload>>),
+    versionInfo: { number: version.number, documentIdentity: version.documentIdentity, correctionReason: version.correctionReason, predecessorId: version.predecessorId } };
 }

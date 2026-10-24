@@ -8,15 +8,15 @@ import { useEffect, useRef, useState } from "react";
  * instead of each re-deriving its own card styling.
  */
 
-export const BRAND = "#8127cf";
+export const BRAND = "var(--color-primary)";
 
 export type Tone = "purple" | "green" | "rose" | "amber";
 
 export const TONES: Record<Tone, { ring: string; text: string; soft: string; solid: string }> = {
-  purple: { ring: "#8127cf", text: "text-[#8127cf]", soft: "bg-[#fbf0fe]", solid: "bg-[#8127cf]" },
-  green: { ring: "#059669", text: "text-emerald-600", soft: "bg-emerald-50", solid: "bg-emerald-600" },
-  rose: { ring: "#e11d48", text: "text-rose-600", soft: "bg-rose-50", solid: "bg-rose-600" },
-  amber: { ring: "#d97706", text: "text-amber-600", soft: "bg-amber-50", solid: "bg-amber-600" },
+  purple: { ring: "var(--color-primary)", text: "text-primary", soft: "bg-brand-50", solid: "bg-primary" },
+  green: { ring: "var(--color-success)", text: "text-status-success-text", soft: "bg-status-success-surface", solid: "bg-success" },
+  rose: { ring: "var(--color-destructive)", text: "text-status-error-text", soft: "bg-status-error-surface", solid: "bg-destructive" },
+  amber: { ring: "var(--color-warning)", text: "text-status-warning-text", soft: "bg-status-warning-surface", solid: "bg-warning" },
 };
 
 /** Respects prefers-reduced-motion: those users get the final value at once. */
@@ -117,7 +117,7 @@ export function ProgressRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#efe9f3"
+          stroke="var(--color-edge)"
           strokeWidth={stroke}
         />
         <circle
@@ -138,7 +138,7 @@ export function ProgressRing({
           <CountUp value={Math.round(value)} suffix="%" />
         </span>
         {label && (
-          <span className="mt-0.5 text-[7px] font-bold uppercase tracking-wider text-ink-subtle">{label}</span>
+          <span className="mt-0.5 text-3xs font-semibold text-ink-subtle">{label}</span>
         )}
       </div>
     </div>
@@ -169,29 +169,29 @@ export function StatCard({
   const t = TONES[tone];
   return (
     <div
-      className="sk-rise group relative overflow-hidden rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]"
+      className="sk-rise sk-panel relative overflow-hidden px-[12px] py-[10px] sm:px-3.5 sm:py-2.5"
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {/* A tinted edge carries the tone without a coloured card. */}
       <span
         aria-hidden
-        className={`absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity group-hover:opacity-60 ${t.solid}`}
+        className={`absolute inset-y-0 start-0 w-[3px] opacity-40 ${t.solid}`}
       />
-      <div className="relative flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] transition-colors group-hover:text-[#8127cf] sm:text-[22px]">
+      <div className="relative flex min-w-0 items-center justify-between gap-[10px]">
+        <div className="min-w-0 flex-1">
+          <p dir="auto" className="[overflow-wrap:anywhere] text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-[22px]">
             {value}
           </p>
-          <p className="mt-1.5 truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+          <p dir="auto" className="mt-1.5 [overflow-wrap:anywhere] text-xs font-semibold leading-tight text-ink-muted">
             {label}
           </p>
-          {sub && <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-ink-subtle">{sub}</p>}
+          {sub && <p dir="auto" className="mt-0.5 [overflow-wrap:anywhere] text-xs font-medium leading-tight text-ink-muted">{sub}</p>}
         </div>
         {typeof ring === "number" ? (
           <ProgressRing value={ring} tone={tone} size={46} stroke={5} />
         ) : (
           <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${t.soft} ${t.text}`}
+            className={`flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}
           >
             <Icon className="h-4 w-4" />
           </div>
@@ -217,15 +217,15 @@ export function PanelHeading({
 }) {
   const t = TONES[tone];
   return (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${t.soft} ${t.text}`}>
+    <div className="mb-[12px] flex flex-wrap items-center justify-between gap-[10px]">
+      <div className="flex min-w-[min(100%,12rem)] flex-1 items-center gap-[10px]">
+        <div className={`flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-xl ${t.soft}  ${t.text}`}>
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-black tracking-tight text-[#1d1b20]">{title}</h3>
+          <h3 className="text-sm font-bold tracking-tight text-ink-strong [overflow-wrap:anywhere]">{title}</h3>
           {sub && (
-            <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">{sub}</p>
+            <p className="truncate text-2xs font-semibold text-ink-subtle">{sub}</p>
           )}
         </div>
       </div>
@@ -246,7 +246,7 @@ export function Panel({
 }) {
   return (
     <div
-      className={`sk-rise rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${className}`}
+      className={`sk-rise sk-panel min-w-0 p-[12px] sm:p-4 ${className}`}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {children}
@@ -254,33 +254,3 @@ export function Panel({
   );
 }
 
-/**
- * The console's one empty state.
- *
- * Coursework, Reports, Fees, Timetable and Attendance each hand-rolled this —
- * five copies that had drifted to three different paddings, two radii and
- * headings ranging from `text-sm` to `text-xl`. The guardian portal already
- * had a single `ParentEmptyState`; this is its counterpart.
- */
-export function StudentEmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-}: {
-  icon: any;
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-[22px] border border-dashed border-[#cfc2d6]/25 bg-[#fbf0fe]/15 px-6 py-12 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[18px] bg-[#fbf0fe]">
-        <Icon className="h-6 w-6 text-[#8127cf]/40" />
-      </div>
-      <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">{title}</h3>
-      <p className="mt-1 max-w-sm text-xs font-semibold leading-relaxed text-ink-muted">{description}</p>
-      {action ? <div className="mt-4">{action}</div> : null}
-    </div>
-  );
-}

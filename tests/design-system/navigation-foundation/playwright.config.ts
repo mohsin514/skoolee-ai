@@ -1,0 +1,2 @@
+import { defineConfig } from '@playwright/test';
+export default defineConfig({ testDir: '.', testMatch: 'navigation.spec.ts', workers: 1, fullyParallel: false, use: { viewport: { width: 1440, height: 1000 }, contextOptions: { reducedMotion: 'reduce' }, screenshot: 'only-on-failure', trace: 'retain-on-failure' }, reporter: 'list', outputDir: '../../../test-results/design-system/navigation-foundation' });

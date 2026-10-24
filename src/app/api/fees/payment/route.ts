@@ -1,19 +1,30 @@
+import { recordPayment } from "@/lib/fees/payment";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { paymentSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { requestSchool } from "@/lib/capacity/identity";
+import { measured } from "@/lib/capacity/admission";
 
+// SKO-451: payment confirmation is critical work: measured, never shed by background quotas.
 export async function POST(req: NextRequest) {
+  const schoolId = await requestSchool();
+  if (!schoolId) return confirmPayment(req);
+  return measured("CRITICAL", "payment-confirmation", schoolId, () => confirmPayment(req));
+}
+async function confirmPayment(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     const parsed = paymentSchema.safeParse(body);
@@ -31,55 +42,12 @@ export async function POST(req: NextRequest) {
 
     const campusId = await resolveCampusId(user, invoice.student.campusId);
 
-    const payment = await prisma.$transaction(async (tx) => {
-      const shortId = campusId.split("-").pop()?.slice(0, 4).toUpperCase() ?? "XX";
-      const year = new Date().getFullYear();
-      const maxReceipt = await tx.payment.findFirst({
-        where: { campusId },
-        orderBy: { createdAt: "desc" },
-        select: { receiptNo: true },
-      });
-      let seq = 1;
-      if (maxReceipt?.receiptNo) {
-        const parts = maxReceipt.receiptNo.split("-");
-        const last = parseInt(parts[parts.length - 1] ?? "0", 10);
-        if (!isNaN(last)) seq = last + 1;
-      }
-      const receiptNo = `RCP-${year}-${shortId}-${String(seq).padStart(5, "0")}`;
-
-      const pmt = await tx.payment.create({
-        data: {
-          campusId,
-          invoiceId: invoice.id,
-          studentId: invoice.studentId,
-          amount: parsed.data.amount,
-          paymentDate: new Date(parsed.data.paymentDate),
-          paymentMethod: parsed.data.paymentMethod,
-          referenceNumber: parsed.data.referenceNumber ?? null,
-          receiptNo,
-          recordedBy: user.userId,
-        },
-      });
-
-      const totalPaid = (await tx.payment.aggregate({
-        where: { invoiceId: invoice.id },
-        _sum: { amount: true },
-      }))._sum.amount ?? 0;
-
-      const newBalance = invoice.totalAmount - totalPaid;
-      const newStatus = newBalance <= 0 ? "PAID" : totalPaid > 0 ? "PARTIAL" : "PENDING";
-
-      await tx.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          totalAmountPaid: totalPaid,
-          balanceDue: Math.max(0, newBalance),
-          status: newStatus,
-        },
-      });
-
-      return pmt;
-    }, { timeout: 20000 });
+    const { payment } = await prisma.$transaction(tx => recordPayment(tx, {
+      campusId, invoiceId: invoice.id, studentId: invoice.studentId,
+      amount: parsed.data.amount, paymentDate: new Date(parsed.data.paymentDate),
+      paymentMethod: parsed.data.paymentMethod, referenceNumber: parsed.data.referenceNumber,
+      recordedBy: user.userId,
+    }), { isolationLevel: "Serializable", timeout: 20000 });
 
     await prisma.auditLog.create({
       data: {
@@ -97,6 +65,8 @@ export async function POST(req: NextRequest) {
       actorName: user.fullName,
       studentName: invoice.student.fullName,
       amount: payment.amount,
+      // The invoice's own currency (an invoice may be billed in another currency than the campus default).
+      currency: invoice.currency,
     });
 
     return Response.json(

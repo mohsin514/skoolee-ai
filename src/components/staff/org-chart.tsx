@@ -1,4 +1,8 @@
 "use client";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { Alert } from "@/components/ui/alert";
+import { InputGroup , FieldAction } from "@/components/ui/input-group";
+
 
 /**
  * The staff hierarchy graph.
@@ -42,6 +46,12 @@ import {
   layoutTree,
   type Placed,
 } from "@/lib/staff/org-layout";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+
 
 /** Every id from `startIds` up to the root, so a search hit can be revealed. */
 function ancestorsOf(nodes: Map<string, OrgNode>, startIds: string[]) {
@@ -67,6 +77,7 @@ export interface OrgChartProps {
 }
 
 export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect }: OrgChartProps) {
+  const ui = useUiText();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [departmentId, setDepartmentId] = useState<string>("");
@@ -227,89 +238,89 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
     <div className="space-y-3">
       {/* ── Controls ─────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-          <input
+        <InputGroup surfaceClassName="bg-card" className="relative min-w-[200px] flex-1">
+          <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+          <SystemInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && matches.size > 0) centreOn([...matches][0]);
               if (e.key === "Escape") setQuery("");
             }}
-            placeholder="Find a name, rank, department or staff code…"
-            className="w-full rounded-xl border border-[#cfc2d6]/40 bg-white py-2.5 pl-9 pr-8 text-xs font-bold text-ink outline-none placeholder:font-semibold placeholder:text-ink-muted focus:border-[#8127cf]"
+            placeholder={ui("Find a name, rank, department or staff code…")}
+            className="w-full py-2.5 ps-9 pe-8"
           />
           {query ? (
-            <button
+            <FieldAction   data-field-affix="end"
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink"
-              aria-label="Clear search"
+              className="absolute end-2 top-1/2 -translate-y-1/2"
+              aria-label={ui("Clear search")}
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </FieldAction>
           ) : null}
-        </div>
+        </InputGroup>
 
-        <select
+        <SystemSelect
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
-          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
+          className="px-3 py-2.5"
         >
-          <option value="">All departments</option>
+          <option value="">{ui("All departments")}</option>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.parentId ? "— " : ""}
               {d.name}
             </option>
           ))}
-        </select>
+        </SystemSelect>
 
-        <select
+        <SystemSelect
           value={track}
           onChange={(e) => setTrack(e.target.value)}
-          className="rounded-xl border border-[#cfc2d6]/40 bg-white px-3 py-2.5 text-xs font-bold text-ink outline-none focus:border-[#8127cf]"
+          className="px-3 py-2.5"
         >
-          <option value="">All tracks</option>
+          <option value="">{ui("All tracks")}</option>
           {Object.entries(TRACK_TONES).map(([key, tone]) => (
             <option key={key} value={key}>
-              {tone.label}
+              {ui(tone.label)}
             </option>
           ))}
-        </select>
+        </SystemSelect>
 
-        <div className="flex items-center gap-1 rounded-xl border border-[#cfc2d6]/40 bg-white p-1">
-          <button type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom out">
+        <div className="flex items-center gap-1 rounded-xl border border-edge/40 bg-card p-1">
+          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.max(0.25, s - 0.1))}  aria-label={ui("Zoom out")}>
             <Minus className="h-3.5 w-3.5" />
-          </button>
-          <span className="w-10 text-center text-[10px] font-black tabular-nums text-ink-muted">{Math.round(scale * 100)}%</span>
-          <button type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Zoom in">
+          </Button>
+          <span className="w-10 text-center text-2xs font-bold tabular-nums text-ink-muted">{Math.round(scale * 100)}%</span>
+          <Button variant="secondary" size="icon" type="button" onClick={() => setScale((s) => Math.min(1.6, s + 0.1))}  aria-label={ui("Zoom in")}>
             <Plus className="h-3.5 w-3.5" />
-          </button>
-          <button type="button" onClick={fit} className="rounded-lg p-1.5 text-ink-muted hover:bg-[#f3f4f9] hover:text-ink" aria-label="Fit to screen">
+          </Button>
+          <Button variant="secondary" size="icon" type="button" onClick={fit}  aria-label={ui("Fit to screen")}>
             <Maximize2 className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-black uppercase tracking-wide text-ink-subtle">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wide text-ink-subtle">
         {Object.entries(TRACK_TONES).map(([key, tone]) => (
           <span key={key} className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} />
-            {tone.label}
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.hex }} aria-hidden="true" />
+            {ui(tone.label)}
           </span>
         ))}
         <label className="flex cursor-pointer items-center gap-1.5 normal-case">
-          <input type="checkbox" checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-[#8127cf]" />
-          <span className="font-black uppercase tracking-wide">Show secondary lines</span>
+          <SystemCheckbox  checked={showDotted} onChange={(e) => setShowDotted(e.target.checked)} className="accent-primary" />
+          <span className="font-semibold ltr:uppercase ltr:tracking-wide">{ui("Show secondary lines")}</span>
         </label>
-        {query ? <span className="normal-case text-[#8127cf]">{matches.size} match{matches.size === 1 ? "" : "es"}</span> : null}
+        {query ? <span className="normal-case text-primary">{ui(matches.size === 1 ? "{0} match" : "{0} matches", [matches.size])}</span> : null}
       </div>
 
       {unplaced > 0 ? (
-        <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
-          {unplaced} staff {unplaced === 1 ? "member has" : "members have"} no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.
-        </p>
+        <Alert tone="warning" compact live="off">
+          {ui(unplaced === 1 ? "{0} staff member has no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to." : "{0} staff members have no reporting line yet, so they sit at the top of the chart. Open a card and set who they report to.", [unplaced])}
+        </Alert>
       ) : null}
 
       {/* ── Canvas ───────────────────────────────────────── */}
@@ -319,7 +330,7 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        className="relative h-[620px] cursor-grab touch-none overflow-hidden rounded-2xl border border-[#cfc2d6]/40 bg-[#fafaff] active:cursor-grabbing"
+        className="relative h-[min(460px,70svh)] sm:h-[620px] cursor-grab touch-none overflow-hidden rounded-2xl border border-edge/40 bg-surface-subtle active:cursor-grabbing"
         style={{
           backgroundImage: "radial-gradient(#cfc2d6 1px, transparent 1px)",
           backgroundSize: "22px 22px",
@@ -327,9 +338,9 @@ export function OrgChart({ nodes, dottedEdges, departments, selectedId, onSelect
       >
         {nodes.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <Users className="h-8 w-8 text-ink-muted" />
-            <p className="text-sm font-black text-ink">No staff on this campus yet</p>
-            <p className="max-w-xs text-xs font-semibold text-ink-muted">Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.</p>
+            <Users className="h-8 w-8 text-ink-muted" aria-hidden="true" />
+            <p className="text-base font-semibold text-ink-strong">{ui("No staff on this campus yet")}</p>
+            <p className="max-w-xs text-sm leading-relaxed text-ink-muted">{ui("Invite teachers and staff, then set their rank and who they report to — the chart builds itself from that.")}</p>
           </div>
         ) : (
           <div
@@ -409,6 +420,7 @@ function OrgCard({
   onToggle: () => void;
   onSelect: () => void;
 }) {
+  const ui = useUiText();
   const { node } = entry;
   const tone = node.designation ? TRACK_TONES[node.designation.track as keyof typeof TRACK_TONES] : null;
   // Two different jobs, so two different colours. The rail down the left of the
@@ -426,24 +438,24 @@ function OrgCard({
       className="absolute"
       style={{ left: entry.x + CANVAS_PAD, top: entry.y + CANVAS_PAD, width: NODE_W, height: NODE_H }}
     >
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={onSelect}
         className={cn(
-          "group flex h-full w-full items-center gap-2.5 rounded-2xl border bg-white px-3 text-left shadow-sm transition-all hover:shadow-md",
-          selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/50",
+          "group flex justify-start h-full w-full items-center gap-2.5 text-start",
+          selected ? "border-primary ring-2 ring-primary/20" : "border-edge/50",
           dimmed && "opacity-30"
         )}
-        style={{ borderLeftWidth: 4, borderLeftColor: rail }}
+        style={{ borderInlineStartWidth: 4, borderInlineStartColor: rail }}
       >
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#f3f4f9] text-[11px] font-black text-ink-muted">
+        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-2xs font-bold text-ink-muted">
           {node.avatarUrl ? (
             <AvatarImage src={node.avatarUrl} name={node.fullName} />
           ) : (
             initialsOf(node.fullName)
           )}
           {node.isInstitutionHead ? (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#8127cf] text-white">
+            <span className="absolute -end-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-white">
               <Crown className="h-2.5 w-2.5" />
             </span>
           ) : null}
@@ -451,50 +463,48 @@ function OrgCard({
 
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1">
-            <span className="truncate text-[13px] font-black leading-tight text-ink">{node.fullName}</span>
+            <span className="truncate text-sm font-bold leading-tight text-ink">{node.fullName}</span>
             {node.dueForReview ? (
-              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 text-[9px] font-black text-amber-700" title="Has served the usual time in this rank">
-                DUE
-              </span>
+              <Badge variant="warning" size="sm" className="shrink-0">{ui("Due")}<span className="sr-only"> · {ui("Has served the usual time in this rank")}</span></Badge>
             ) : null}
           </span>
           <span
             className={cn(
-              "mt-0.5 block truncate text-[10px] font-black uppercase tracking-wide",
+              "mt-0.5 block truncate text-2xs font-semibold ltr:uppercase ltr:tracking-wide",
               !tone && "text-ink-subtle"
             )}
             style={tone ? { color: tone.hex } : undefined}
           >
-            {rank || "No rank set"}
+            {rank || ui("No rank set")}
           </span>
-          <span className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold text-ink-muted">
+          <span className="mt-0.5 flex items-center gap-1 truncate text-2xs font-semibold text-ink-muted">
             {headship ? (
-              <span className="truncate text-[#8127cf]">
-                {headship.isActing ? "Acting head" : "Head"} · {headship.name}
+              <span className="truncate text-primary">
+                {headship.isActing ? ui("Acting head") : ui("Head")} · {headship.name}
               </span>
             ) : (
-              <span className="truncate">{node.department?.name || "No department"}</span>
+              <span className="truncate">{node.department?.name || ui("No department")}</span>
             )}
           </span>
         </span>
 
         {isLeaving ? (
-          <span className="absolute right-2 top-2 rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-rose-600">
-            {node.employmentStatus === "NOTICE_PERIOD" ? "Notice" : "Left"}
-          </span>
+          <Badge variant="danger" size="sm" className="absolute end-2 top-2">
+            {node.employmentStatus === "NOTICE_PERIOD" ? ui("Notice") : ui("Left")}
+          </Badge>
         ) : null}
-      </button>
+      </Button>
 
       {entry.childIds.length > 0 ? (
-        <button
+        <Button variant="outline" size="icon"
           type="button"
           onClick={onToggle}
-          className="absolute -bottom-3 left-1/2 z-10 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full border border-[#cfc2d6]/60 bg-white px-2 text-[10px] font-black text-ink-muted shadow-sm transition-colors hover:border-[#8127cf] hover:text-[#8127cf]"
-          aria-label={collapsed ? `Show ${entry.hiddenCount} below ${node.fullName}` : `Hide the team below ${node.fullName}`}
+          className="absolute -bottom-3 left-1/2 z-10 flex justify-start -translate-x-1/2 items-center gap-1"
+          aria-label={collapsed ? ui("Show {0} below {1}", [entry.hiddenCount, node.fullName]) : ui("Hide the team below {0}", [node.fullName])}
         >
           {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           {collapsed ? entry.hiddenCount : entry.childIds.length}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

@@ -1,0 +1,12 @@
+{
+  "issue": "SKO-207",
+  "policyVersion": "2026-10-08.1",
+  "validatedAt": "2026-10-08T04:56:42Z",
+  "base": "9c5193dc4ebc1df417dc1f011e893e24e8a5c14d",
+  "environment": "Local production Next.js build; disposable loopback PostgreSQL; synthetic fixtures only",
+  "matrix": { "tests": 26, "passed": 26, "failed": 0, "roles": 11, "schools": 2, "campuses": 3 },
+  "viewports": [{ "width": 1440, "height": 960 }, { "width": 768, "height": 1024 }, { "width": 390, "height": 844 }],
+  "checks": { "productionBuild": "passed", "typescript": "passed", "focusedPolicyEslint": "passed", "gitDiffCheck": "passed", "staticControlAndEncodedLegacyReportPaths": "passed" },
+  "cleanup": "Only fixture-owned schools/accounts and two synthetic public files are removed by the suite",
+  "limits": ["No live Redis/provider dispatch", "No production data or external storage revocation test", "Role/layout smoke coverage is not complete visual or accessibility QA", "Existing student mobile gutter and parent tablet header compression documented"]
+}

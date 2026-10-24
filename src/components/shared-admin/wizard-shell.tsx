@@ -1,8 +1,11 @@
 "use client";
 
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { Button as SystemButton } from "@/components/ui/button";
 import React, { useEffect, useId } from "react";
-import { ArrowLeft, ArrowRight, Check, Loader2, X, type LucideIcon } from "lucide-react";
-import { Label } from "@/components/ui/label";
+import { ArrowLeft, ArrowRight, Check, X, type LucideIcon } from "lucide-react";
+import { FormField } from "@/components/ui/form-field";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
 import { ModalSurface, useModalSurface } from "@/components/ui/modal";
 
@@ -22,6 +25,7 @@ export interface WizardStep {
  * One shell means a change to the flow lands in all three at once.
  */
 interface WizardShellProps {
+  dirty?: boolean;
   eyebrow: string;
   icon: LucideIcon;
   steps: WizardStep[];
@@ -48,7 +52,7 @@ export function WizardShell(props: WizardShellProps) {
    * that had been copy-pasted from ModalFrame and then diverged.
    */
   return (
-    <ModalSurface onClose={props.onClose} size="md">
+    <ModalSurface onClose={props.onClose} size="md" dirty={props.dirty} dismissible={!props.submitting}>
       <WizardChrome {...props} />
     </ModalSurface>
   );
@@ -70,6 +74,7 @@ function WizardChrome({
   submittingLabel = "Working…",
   children,
 }: WizardShellProps) {
+  const ui = useUiText();
   const { requestClose, dragHandleProps, titleId } = useModalSurface();
   const current = steps[step];
   const isLast = step === steps.length - 1;
@@ -77,40 +82,42 @@ function WizardChrome({
 
   // Long steps left the user scrolled halfway down when they moved on.
   useEffect(() => {
-    document.getElementById(`${titleId}-body`)?.scrollTo({ top: 0, behavior: "smooth" });
+    document.getElementById(`${titleId}-body`)?.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, [step, titleId]);
 
   return (
       <>
-        {/* ── Pinned header ── */}
+        <div id={`${titleId}-body`} className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+        {/* Header scrolls with the fields so 200% text cannot consume the entry viewport. */}
         <div
           {...dragHandleProps}
-          className="relative shrink-0 touch-none overflow-hidden border-b border-[#cfc2d6]/20 bg-gradient-to-br from-[#faf7fc] via-white to-[#f3eeff] px-6 pb-4 pt-5 sm:touch-auto sm:px-7"
+          className="relative shrink-0 touch-none overflow-hidden border-b border-edge/20 bg-gradient-to-br from-surface-subtle via-card to-brand-100 px-4 pb-4 pt-5 sm:touch-auto sm:px-7"
         >
-          <div className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-gradient-to-bl from-[#8127cf]/12 to-transparent blur-3xl" />
+          <div className="pointer-events-none absolute -top-16 -end-10 h-40 w-40 rounded-full bg-gradient-to-bl from-primary/12 to-transparent blur-3xl" />
           <div className="relative flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3.5">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
+              <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
                 <Icon className="h-6 w-6" />
               </span>
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
-                  {eyebrow} · Step {step + 1} of {steps.length}
+                <p className="sk-eyebrow text-primary">
+                  {ui("{0} · Step {1} of {2}", [ui(eyebrow), step + 1, steps.length])}
                 </p>
-                <h3 id={titleId} className="truncate text-2xl font-black tracking-tight text-[#1f1a23]">
-                  {current.label}
+                <h3 id={titleId} className="break-words text-xl sm:text-2xl font-bold tracking-tight text-ink-strong">
+                  {ui(current.label)}
                 </h3>
-                <p className="mt-0.5 text-xs font-semibold leading-snug text-ink-muted">{current.blurb}</p>
+                {current.blurb ? <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">{ui(current.blurb)}</p> : null}
               </div>
             </div>
-            <button
-              type="button"
+            <IconButton
+              label={ui("Close")}
+              variant="ghost"
               onClick={requestClose}
-              aria-label="Close"
-              className="group/x flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+              disabled={submitting}
+              className="group/x"
             >
-              <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
-            </button>
+              <X aria-hidden="true" className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
+            </IconButton>
           </div>
 
           {/* Step rail. Completed steps carry a tick and stay clickable so you
@@ -121,74 +128,76 @@ function WizardChrome({
               const done = i < step;
               const active = i === step;
               return (
-                <button
+                <SystemButton variant="ghost"
                   key={s.label}
                   type="button"
-                  disabled={!done && !active}
+                  disabled={submitting || (!done && !active)}
                   aria-current={active ? "step" : undefined}
                   onClick={() => { if (done) onStepChange(i); }}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black transition-all duration-200",
-                    active && "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/25",
-                    done && "cursor-pointer bg-[#8127cf]/10 text-[#8127cf] hover:bg-[#8127cf]/20 active:scale-95",
-                    !done && !active && "cursor-not-allowed bg-white/70 text-ink-subtle",
+                    "flex items-center gap-1.5 px-3 py-1.5 justify-start",
+                    active && "bg-primary text-primary-foreground",
+                    done && "bg-surface-selected text-primary",
+                    !done && !active && "text-ink-subtle",
                   )}
                 >
                   {done ? <Check className="h-3 w-3" strokeWidth={3.5} /> : <StepIcon className="h-3 w-3" />}
-                  <span className="hidden sm:inline">{s.label}</span>
+                  <span className="hidden sm:inline">{ui(s.label)}</span>
                   <span className="sm:hidden">{i + 1}</span>
-                </button>
+                </SystemButton>
               );
             })}
           </div>
 
-          <div className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/80">
+          <div className="relative mt-3 h-1.5 w-full overflow-hidden rounded-full bg-card/80">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] via-[#9c48ea] to-[#b876f0] transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-primary via-brand-400 to-brand-300 transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
 
         {/* ── Scrolling body ── */}
-        <div id={`${titleId}-body`} className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#fdfcfe] px-6 py-6 sm:px-7">
+        <fieldset disabled={submitting} className="m-0 min-w-0 border-0 bg-surface-subtle px-4 py-6 sm:px-7">
           {children}
-        </div>
+        </fieldset>
 
+        </div>
         {/* ── Pinned footer ── */}
-        <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-white px-6 py-4 sm:px-7">
-          <div className="flex items-center justify-between gap-3">
-            <button
+        <div className="shrink-0 border-t border-edge/15 bg-card px-6 py-4 sm:px-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <SystemButton variant="outline"
               type="button"
               onClick={step === 0 ? requestClose : onBack}
               disabled={submitting}
-              className="flex h-12 cursor-pointer items-center gap-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-12 items-center gap-1.5 px-5 justify-start"
             >
-              {step === 0 ? "Cancel" : (<><ArrowLeft className="h-4 w-4" />Back</>)}
-            </button>
+              {step === 0 ? ui("Cancel") : (<><ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{ui("Back")}</>)}
+            </SystemButton>
 
             {isLast ? (
-              <button
+              <SystemButton variant="default"
                 type="button"
                 onClick={onSubmit}
-                disabled={submitting}
-                className="flex h-12 cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 text-sm font-bold text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/30 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                loading={submitting}
+                className="flex h-12 items-center gap-2 px-6 justify-start"
               >
                 {submitting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />{submittingLabel}</>
+                  submittingLabel
                 ) : (
-                  <>{submitIcon ?? <Check className="h-4 w-4" />}{submitLabel}</>
+                  <>{submitIcon ?? <Check className="h-4 w-4" aria-hidden="true" />}{submitLabel}</>
                 )}
-              </button>
+              </SystemButton>
             ) : (
-              <button
+              <SystemButton variant="default"
                 type="button"
                 onClick={onNext}
-                className="flex h-12 cursor-pointer items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 text-sm font-bold text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/30 active:scale-[0.98]"
+                disabled={submitting}
+                className="flex h-12 items-center gap-2 px-6 justify-start"
               >
-                Next
-                <ArrowRight className="h-4 w-4" />
-              </button>
+                {ui("Next")}
+                <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+              </SystemButton>
             )}
           </div>
         </div>
@@ -215,20 +224,20 @@ export function FormSection({
   children: React.ReactNode;
 }) {
   const tones = {
-    violet: "bg-[#f3eeff] text-[#8127cf]",
-    emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
-    sky: "bg-sky-50 text-sky-600",
+    violet: "bg-brand-100 text-primary",
+    emerald: "bg-status-success-surface text-status-success-text",
+    amber: "bg-status-warning-surface text-status-warning-text",
+    sky: "bg-status-info-surface text-status-info-text",
   } as const;
   return (
-    <section className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_2px_10px_-4px_rgba(31,26,35,0.08)] transition-shadow duration-300 hover:shadow-[0_6px_20px_-8px_rgba(129,39,207,0.20)]">
+    <section className="sk-panel p-3 sm:p-5 transition-shadow duration-300 hover:shadow-md">
       <div className="mb-4 flex items-start gap-3">
-        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl", tones[tone])}>
+        <span className={cn("hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex", tones[tone])}>
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
-          {hint ? <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-muted">{hint}</p> : null}
+          <h3 className="break-words text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
+          {hint ? <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">{hint}</p> : null}
         </div>
       </div>
       {children}
@@ -250,38 +259,11 @@ export function Field({
   hint?: string;
   children: React.ReactNode;
 }) {
-  const errorId = useId();
-
-  // The message used to sit next to the control without being attached to it:
-  // no aria-invalid, nothing pointing at the text, and no colour on the field
-  // itself. A screen reader tabbing into the input announced a normal, valid
-  // field. Cloning the child wires all of that up for every wizard at once.
-  const control =
-    error && React.isValidElement(children)
-      ? React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
-          "aria-invalid": true,
-          "aria-describedby": errorId,
-          className: cn(
-            (children.props as { className?: string }).className,
-            "!border-rose-400 focus:!border-rose-500"
-          ),
-        })
-      : children;
-
+  const scope = useId();
   return (
-    <div className="space-y-1.5">
-      <Label className="block pl-1 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-        {label}
-        {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
-      </Label>
-      {control}
-      {error ? (
-        <p id={errorId} role="alert" className="pl-1 text-xs font-semibold text-rose-500">
-          {error}
-        </p>
-      ) : null}
-      {hint && !error ? <p className="pl-1 text-xs font-medium text-ink-muted">{hint}</p> : null}
-    </div>
+    <FormField name={`wizard-${scope}`} label={label} required={required} error={error} hint={hint}>
+      {children}
+    </FormField>
   );
 }
 
@@ -293,20 +275,21 @@ export function ReviewHero({
   meta,
 }: {
   icon: LucideIcon;
+  dirty?: boolean;
   eyebrow: string;
   title: string;
   meta: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-[#8127cf]/20 bg-gradient-to-br from-white via-white to-[#f3eeff] p-5 shadow-[0_4px_16px_-4px_rgba(129,39,207,0.18)]">
+    <div className="rounded-[24px] border border-primary/20 bg-gradient-to-br from-card via-card to-brand-100 p-5 shadow-sm">
       <div className="flex items-start gap-4">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#6a1fb0] text-white shadow-lg shadow-[#8127cf]/25">
+        <span className="hidden h-12 w-12 shrink-0 items-center sm:flex justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-700 text-white shadow-lg shadow-primary/25">
           <Icon className="h-6 w-6" />
         </span>
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">{eyebrow}</p>
-          <h3 className="truncate text-lg font-black tracking-tight text-[#1f1a23]">{title}</h3>
-          <p className="mt-0.5 truncate text-xs font-semibold text-ink-muted">{meta}</p>
+          <p className="sk-eyebrow text-primary">{eyebrow}</p>
+          <h3 className="truncate text-lg font-bold tracking-tight text-ink-strong">{title}</h3>
+          <p className="mt-0.5 truncate text-xs text-ink-muted">{meta}</p>
         </div>
       </div>
     </div>
@@ -325,24 +308,25 @@ export function ReviewSection({
   onEdit: () => void;
   children: React.ReactNode;
 }) {
+  const ui = useUiText();
   return (
-    <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_2px_10px_-4px_rgba(31,26,35,0.08)]">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="sk-panel p-3 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8127cf]">
+          <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex bg-brand-100 text-primary">
             <Icon className="h-5 w-5" />
           </span>
-          <h3 className="text-sm font-black tracking-tight text-[#1f1a23]">{title}</h3>
+          <h3 className="break-words text-sm font-bold tracking-tight text-ink-strong">{title}</h3>
         </div>
-        <button
+        <SystemButton variant="outline" size="sm"
           type="button"
           onClick={onEdit}
-          className="cursor-pointer rounded-xl bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white active:scale-95"
+          className="px-3 py-1.5"
         >
-          Edit
-        </button>
+          {ui("Edit")}
+        </SystemButton>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-[#f3f4f9] pt-3">{children}</div>
+      <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2 gap-y-2 border-t border-muted pt-3">{children}</div>
     </div>
   );
 }
@@ -359,13 +343,14 @@ export function ReviewRow({
   required?: boolean;
   dir?: "rtl" | "ltr";
 }) {
+  const ui = useUiText();
   if (!value && !required) return null;
   const missing = required && !value;
   return (
     <div>
-      <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{label}</p>
-      <p className={cn("truncate text-sm font-bold", missing ? "text-rose-500" : "text-[#1f1a23]")} dir={dir}>
-        {value || (required ? "Required — not set" : "—")}
+      <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{label}</p>
+      <p className={cn("truncate text-sm font-bold", missing ? "text-status-error-text" : "text-ink-strong")} dir={dir}>
+        {value || (required ? ui("Required — not set") : "—")}
       </p>
     </div>
   );

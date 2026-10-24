@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { PLANS } from "@/config/plans";
+import { getSchoolPlanContract } from "@/config/commercial-contract";
 import type { PlanType } from "@/types";
 import type { UserRole } from "@/lib/roles";
 
@@ -98,11 +99,11 @@ export async function assertSeatAvailable(schoolId: string, role: UserRole) {
 
   const school = await prisma.school.findUnique({
     where: { id: schoolId },
-    select: { plan: true },
+    select: { plan: true, commercialContract: true },
   });
   if (!school) throw new ApiError("School not found", 404);
 
-  const limit = PLANS[normalizePlan(school.plan)].maxTeachers;
+  const limit = getSchoolPlanContract(normalizePlan(school.plan), school.commercialContract).maxTeachers;
   if (limit < 0) return; // unlimited
 
   const [active, pending] = await Promise.all([

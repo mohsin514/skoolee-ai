@@ -8,6 +8,10 @@ import { useChat } from "./chat-provider";
 import { ConversationList } from "./conversation-list";
 import { MessageThread } from "./message-thread";
 import { NewConversationDialog } from "./new-conversation-dialog";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { useUiText } from "@/components/locale/LocaleProvider";
+
 
 interface ChatWorkspaceProps {
   /**
@@ -21,6 +25,7 @@ interface ChatWorkspaceProps {
 export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProps) {
   const { activeId, closeConversation, error, clearError } = useChat();
   const [isNewOpen, setIsNewOpen] = useState(false);
+  const ui = useUiText();
 
   const stacked = layout === "stacked";
 
@@ -34,18 +39,18 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 420, damping: 30 }}
             role="alert"
-            className="absolute inset-x-3 top-3 z-40 flex items-start gap-2.5 rounded-2xl border border-rose-200/80 bg-rose-50/95 px-3.5 py-3 shadow-[0_16px_40px_-14px_rgba(190,18,60,0.4)] backdrop-blur-xl"
+            className="absolute inset-x-3 top-3 z-40 flex items-start gap-2.5 rounded-2xl border border-status-error-border bg-status-error-surface px-3.5 py-3 shadow-lg backdrop-blur-xl"
           >
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden />
-            <p className="flex-1 text-[11px] font-bold leading-relaxed text-rose-700">{error}</p>
-            <button
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-status-error-text" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm font-medium leading-relaxed text-status-error-text">{ui(error)}</p>
+            <IconButton variant="destructive" size="sm" label={ui("Dismiss")}
               type="button"
               onClick={clearError}
-              aria-label="Dismiss"
-              className="cursor-pointer rounded-lg p-0.5 text-rose-500 transition-colors hover:bg-rose-100"
+              
+
             >
               <X className="h-3.5 w-3.5" />
-            </button>
+            </IconButton>
           </motion.div>
         )}
       </AnimatePresence>
@@ -55,12 +60,12 @@ export function ChatWorkspace({ layout = "split", className }: ChatWorkspaceProp
           width for the same reason. */}
       <aside
         className={cn(
-          "min-h-0 w-full shrink-0 border-r border-[#cfc2d6]/25 bg-white/70 backdrop-blur-xl",
+          "min-h-0 w-full shrink-0 border-e border-border bg-card",
           stacked
             ? activeId
               ? "hidden"
               : "block"
-            : cn("md:w-[340px]", activeId ? "hidden md:block" : "block")
+            : cn("md:w-[320px] lg:w-[360px]", activeId ? "hidden md:block" : "block")
         )}
       >
         <ConversationList onNewChat={() => setIsNewOpen(true)} />

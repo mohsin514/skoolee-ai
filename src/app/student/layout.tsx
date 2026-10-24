@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { requirePageSession } from "@/lib/auth/require-page-session";
+import { dashboardPathForRole } from "@/lib/roles";
+import { LocaleProvider } from "@/components/locale/LocaleProvider";
+import { getDisplayLocale } from "@/lib/locale/display";
 import { StudentShell } from "./student-shell";
 import { StudentDataProvider } from "./student-data-context";
 
@@ -12,11 +16,17 @@ export const metadata: Metadata = {
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
   // The shell and every page inside it are client components that fetch their
   // own data, so this is the only server-side check that a session still exists.
-  await requirePageSession();
+  const user = await requirePageSession();
+  // Defence in depth behind the proxy's role guard (G44): the learner portal is for learners only. A guardian
+  // lands in the family portal, anyone else on their own home (outside any try/catch — redirect() throws).
+  if (user.role !== "STUDENT") redirect(user.role === "PARENT" ? "/parent" : dashboardPathForRole(user.role));
 
+  // Server-seeded so the shell's first paint has the right language; the shell's own provider becomes a passthrough.
   return (
-    <StudentDataProvider>
-      <StudentShell>{children}</StudentShell>
-    </StudentDataProvider>
+    <LocaleProvider initialLocale={await getDisplayLocale(user)}>
+      <StudentDataProvider key={JSON.stringify([user.userId, user.schoolId, user.campusId, user.role, user.accessVersion ?? 0])}>
+        <StudentShell>{children}</StudentShell>
+      </StudentDataProvider>
+    </LocaleProvider>
   );
 }

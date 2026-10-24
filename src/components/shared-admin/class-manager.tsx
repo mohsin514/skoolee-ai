@@ -1,5 +1,10 @@
 "use client";
 
+import { IconButton } from "@/components/ui/icon-button";
+import { InfoTip } from "@/components/ui/tooltip";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button as SystemButton } from "@/components/ui/button";
 import React, {
   useCallback,
   useEffect,
@@ -10,12 +15,12 @@ import React, {
 import { ModalSurface, useDialogBehaviour } from "@/components/ui/modal";
 import { parseSections } from "@/lib/class-sections";
 import {
+  Archive,
   AlertCircle,
   BookOpen,
   Check,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   GraduationCap,
   Grid3X3,
   Layers,
@@ -32,7 +37,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 
 import {
   TeacherPicker,
@@ -49,6 +54,12 @@ import {
   EmptyInline,
 } from "@/components/shared-admin";
 import { cn } from "@/lib/utils";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+
+/** Console rows carry the class as `class.id`; API rows as `classId`. */
+const studentClassId = (student: any): string | undefined => student.classId ?? student.class?.id;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -88,6 +99,8 @@ interface ClassManagerProps {
     classId: string,
     subjectId: string,
     teacherId: string,
+    /** SKO-462: ISO date the change takes effect; omitted means today. */
+    effectiveFrom?: string,
   ) => void;
   onAddStudent: () => void;
   onViewStudent: (student: any) => void;
@@ -133,9 +146,9 @@ function sectionSetupStatus(section: any): "ready" | "partial" | "empty" {
 }
 
 const STATUS_DOT: Record<string, string> = {
-  ready: "bg-emerald-400",
-  partial: "bg-amber-400",
-  empty: "bg-gray-300",
+  ready: "bg-success",
+  partial: "bg-warning",
+  empty: "bg-muted",
 };
 
 /**
@@ -157,7 +170,7 @@ function sectionStudentCount(
   section: any,
   allStudents: any[],
 ): number {
-  return allStudents.filter((s: any) => s.classId === section.id).length;
+  return allStudents.filter((s: any) => studentClassId(s) === section.id).length;
 }
 
 /** Collect unique subjects across all sections by name. */
@@ -197,22 +210,103 @@ function useFlashCell() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Section transfer (SKO-462)                                         */
+/* ------------------------------------------------------------------ */
+
+type TransferPreview = { students: number; ready: number; blocked: Array<{ studentId: string; name: string; reason: string }>; to: { label: string }; preserved: { attendance: number; reports: number; invoices: number } };
+
+/** The safe way out of an occupied section: preview, then move every pupil and archive, all or nothing. */
+function SectionTransfer({ section, siblings, ui, onDone }: { section: any; siblings: any[]; ui: ReturnType<typeof useUiText>; onDone: () => void }) {
+  const [target, setTarget] = useState(siblings[0]?.id ?? "");
+  const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [preview, setPreview] = useState<TransferPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const call = async (action: "preview" | "apply") => {
+    setBusy(true); setError("");
+    try {
+      const res = await fetch("/api/classes/transfer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fromClassId: section.id, toClassId: target, effectiveDate, action, archiveAfter: action === "apply" }) });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Transfer failed");
+      if (action === "preview") { setPreview(json.preview); return; }
+      toast.success(json.moved === 1 ? ui("Moved 1 student to {0}; the section is archived.", [json.preview.to.label]) : ui("Moved {0} students to {1}; the section is archived.", [json.moved, json.preview.to.label]));
+      onDone();
+    } catch (failure) {
+      setError(friendlyErrorMessage(failure, ui("The students could not be moved. Nothing changed; try again.")));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-3xl border border-edge/40 bg-surface-subtle p-5" data-testid="section-transfer">
+      <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">{ui("Move students to another section")}</p>
+      {siblings.length === 0 ? (
+        <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">{ui("Add another section first, then move the students there.")}</p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <label className="block space-y-1 text-sm font-semibold text-ink">
+            <span>{ui("Move to section")}</span>
+            <SystemSelect aria-label={ui("Move to section")} value={target} onChange={(event) => { setTarget(event.target.value); setPreview(null); }}>
+              {siblings.map((sibling) => <option key={sibling.id} value={sibling.id}>{classLabel(sibling)}</option>)}
+            </SystemSelect>
+          </label>
+          <label className="block space-y-1 text-sm font-semibold text-ink">
+            <span>{ui("Effective from")}</span>
+            <SystemInput type="date" aria-label={ui("Effective from")} value={effectiveDate} max={new Date().toISOString().slice(0, 10)} onChange={(event) => { setEffectiveDate(event.target.value); setPreview(null); }} />
+          </label>
+          {error ? <Alert tone="danger" compact>{error}</Alert> : null}
+          {preview ? (
+            <Alert tone="info" compact live="polite">
+              <div className="space-y-2">
+              <p>{ui("{0} student(s) move to {1}. {2} attendance, {3} report and {4} invoice record(s) stay with their original enrollment.", [preview.ready, preview.to.label, preview.preserved.attendance, preview.preserved.reports, preview.preserved.invoices])}</p>
+              {preview.blocked.length ? (
+                <div className="text-status-error-text">
+                  <p>{ui("{0} student(s) cannot move on this date:", [preview.blocked.length])}</p>
+                  <ul className="list-disc ps-4">{preview.blocked.map((row) => <li key={row.studentId}>{row.name}: {row.reason}</li>)}</ul>
+                </div>
+              ) : null}
+              </div>
+            </Alert>
+          ) : null}
+          {preview && !preview.blocked.length ? (
+            <SystemButton type="button" variant="dark" loading={busy} disabled={busy || !target} onClick={() => call("apply")} className="h-11 w-full">
+              {ui("Move {0} student(s) and archive", [preview.ready])}
+            </SystemButton>
+          ) : (
+            <SystemButton type="button" variant="secondary" loading={busy} disabled={busy || !target || !effectiveDate} onClick={() => call("preview")} className="h-11 w-full">
+              {ui("Preview move")}
+            </SystemButton>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Settings Drawer                                                    */
 /* ------------------------------------------------------------------ */
 
 function SettingsDrawer({
   section,
+  siblings,
+  enrolled,
   classUpdateBusy,
   onUpdateClass,
   onDeleteClass,
+  onRefresh,
   onClose,
 }: {
   section: any;
+  siblings: any[];
+  enrolled: number;
   classUpdateBusy: boolean;
   onUpdateClass: ClassManagerProps["onUpdateClass"];
   onDeleteClass: ClassManagerProps["onDeleteClass"];
+  onRefresh?: () => void;
   onClose: () => void;
 }) {
+  const ui = useUiText();
   const [editName, setEditName] = useState(section.name || "");
   const [editSection, setEditSection] = useState(section.section || "");
   const [editYear, setEditYear] = useState(
@@ -231,106 +325,107 @@ function SettingsDrawer({
       section: editSection,
       academicYear: Number(editYear) || new Date().getFullYear(),
     });
-    toast.success("Class details updated");
+    toast.success(ui("Class details updated"));
     onClose();
   };
 
   /* A side drawer rather than a centred dialog, so it keeps its own layout —
      but it had no focus trap, no scroll lock and a hand-picked `z-[150]`. */
   const drawerRef = useRef<HTMLDivElement>(null);
-  const { z } = useDialogBehaviour(drawerRef, { onClose });
+  const requestClose = () => { if (!classUpdateBusy) onClose(); };
+  const { z } = useDialogBehaviour(drawerRef, { onClose: requestClose });
 
   return (
     <div
       className="fixed inset-0 flex justify-end"
       style={{ zIndex: z }}
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
     >
-      <div className="absolute inset-0 bg-[#1f1a23]/30 backdrop-blur-sm animate-backdrop-enter" onMouseDown={onClose} />
+      <div className="absolute inset-0 bg-ink-strong/30 backdrop-blur-sm animate-backdrop-enter" onMouseDown={requestClose} />
       <div
         ref={drawerRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${classLabel(section)} settings`}
+        aria-label={ui("{0} settings", [classLabel(section)])}
         tabIndex={-1}
-        className="relative z-10 flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-modal-enter focus:outline-none"
+        className="relative z-10 flex h-full w-full max-w-md flex-col bg-card shadow-2xl animate-modal-enter"
       >
         {/* Drawer header */}
-        <div className="flex items-center justify-between border-b border-[#cfc2d6]/15 px-6 py-5">
+        <div className="flex items-center justify-between border-b border-edge/15 px-6 py-5">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-              Settings
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
+              {ui("Settings")}
             </p>
-            <h3 className="mt-1 text-lg font-black text-[#1f1a23]">
+            <h3 className="mt-1 text-lg font-bold text-ink-strong">
               {classLabel(section)}
             </h3>
           </div>
-          <button
+          <SystemButton variant="ghost"
             type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+            onClick={requestClose}
+            disabled={classUpdateBusy}
+            aria-label={ui("Close class settings")}
+            className="flex items-center justify-center"
           >
             <X className="h-5 w-5" />
-          </button>
+          </SystemButton>
         </div>
 
         {/* Drawer body */}
         <div className="flex-1 space-y-5 overflow-y-auto p-6 custom-scrollbar">
           <div className="space-y-4">
-            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Edit Class Details
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+              {ui("Edit Class Details")}
             </p>
             <FormInput
-              label="Class Name"
+              label={ui("Class Name")}
               value={editName}
-              placeholder="e.g. Class 10"
+              placeholder={ui("e.g. Class 10")}
               onChange={setEditName}
             />
             <FormInput
-              label="Section"
+              label={ui("Section")}
               value={editSection}
-              placeholder="e.g. A"
+              placeholder={ui("e.g. A")}
               onChange={setEditSection}
             />
             <FormInput
-              label="Academic Year"
+              label={ui("Academic Year")}
               type="number"
               value={editYear}
               placeholder="2026"
               onChange={setEditYear}
             />
-            <button
+            <SystemButton variant="dark"
               type="button"
               onClick={save}
               disabled={classUpdateBusy}
-              className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-[#1f1a23] text-sm font-black text-white shadow-xl transition-all hover:bg-black active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              loading={classUpdateBusy}
+              className="flex h-12 w-full items-center justify-center gap-2"
             >
-              {classUpdateBusy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Save Changes"
-              )}
-            </button>
+              {ui("Save Changes")}
+            </SystemButton>
           </div>
 
-          {/* Danger zone */}
-          <div className="rounded-3xl border border-rose-200/50 bg-rose-50/30 p-5">
-            <p className="text-[9px] font-black uppercase tracking-wider text-rose-500/70">
-              Danger Zone
+          {enrolled > 0 ? (
+            <SectionTransfer section={section} siblings={siblings} ui={ui} onDone={() => { onRefresh?.(); onClose(); }} />
+          ) : null}
+
+          <div className="rounded-3xl border border-status-warning-border bg-status-warning-surface/50 p-5">
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-status-warning-text">
+              {ui("Class archive")}
             </p>
-            <p className="mt-2 text-[11px] font-bold leading-relaxed text-ink-muted">
-              Permanently delete this section and all its data including
-              subjects, student enrollments, and exam records. This cannot
-              be undone.
+            <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
+              {ui("Archive this class to remove it from current class lists. Its students, academic records, fees, and history are preserved.")}
             </p>
-            <button
+            <SystemButton variant="secondary"
               type="button"
               onClick={() => onDeleteClass(section)}
-              className="mt-4 flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-rose-500 text-sm font-black text-white shadow-lg shadow-rose-500/20 transition-all hover:bg-rose-600 active:scale-[0.98]"
+              className="mt-4 flex h-11 w-full items-center justify-center gap-2"
             >
-              <Trash2 className="h-4 w-4" />
-              Delete Section
-            </button>
+              <Archive className="h-4 w-4" />
+              {ui("Archive Class")}
+            </SystemButton>
           </div>
         </div>
       </div>
@@ -376,6 +471,7 @@ function AddSectionPanel({
     return (richest?.subjects?.length || 0) > 0 ? richest.id : "";
   });
   const [teacherId, setTeacherId] = useState("");
+  const ui = useUiText();
 
   /**
    * The panel opens at the foot of the section list, which on a rail with a
@@ -413,9 +509,9 @@ function AddSectionPanel({
   const cloneCount = cloneSource?.subjects?.length || 0;
 
   const blocked = names.length === 0
-    ? "Type a section name, or a run like A-D."
+    ? ui("Type a section name, or a run like A-D.")
     : clashing.length > 0
-      ? `Section ${clashing.join(", ")} already exists.`
+      ? ui("Section {0} already exists.", [clashing.join(", ")])
       : null;
 
   const submit = async () => {
@@ -434,31 +530,31 @@ function AddSectionPanel({
   return (
     <div
       ref={panelRef}
-      className="mt-3 rounded-2xl border border-[#8127cf]/20 bg-white p-3.5 shadow-sm"
+      className="sk-panel mt-3 p-3.5"
     >
       <div className="flex items-center justify-between">
-        <span className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-          New section
+        <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
+          {ui("New section")}
         </span>
-        <button
+        <SystemButton variant="ghost"
           type="button"
           onClick={onDone}
           disabled={busy}
-          aria-label="Cancel"
-          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-rose-50 hover:text-rose-500 disabled:opacity-40"
+          aria-label={ui("Cancel")}
+          className="flex items-center justify-center"
         >
           <X className="h-3 w-3" />
-        </button>
+        </SystemButton>
       </div>
 
-      <input
+      <SystemInput
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
         autoFocus
         disabled={busy}
-        placeholder="B  ·  or  B-D"
-        className="mt-2 h-10 w-full rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-3 text-xs font-black text-[#1f1a23] outline-none transition-all placeholder:font-bold placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white"
+        placeholder={ui("B  ·  or  B-D")}
+        className="mt-2 w-full px-3 transition-all"
       />
 
       {names.length > 0 ? (
@@ -466,17 +562,14 @@ function AddSectionPanel({
           {names.map((n) => {
             const isTaken = taken.has(n.toLowerCase());
             return (
-              <span
+              <Badge
                 key={n}
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[9px] font-black",
-                  isTaken
-                    ? "bg-rose-50 text-rose-600 line-through"
-                    : "bg-[#f3eeff] text-[#8127cf]",
-                )}
+                size="sm"
+                variant={isTaken ? "danger" : "secondary"}
+                className={cn(isTaken && "line-through")}
               >
                 {cls.name} {n}
-              </span>
+              </Badge>
             );
           })}
         </div>
@@ -485,62 +578,64 @@ function AddSectionPanel({
       {/* Copy subjects from — the reason most sections get added at all. */}
       {sections.some((sec) => (sec.subjects?.length || 0) > 0) ? (
         <label className="mt-3 block">
-          <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
-            Copy subjects from
+          <span className="mb-1 block text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+            {ui("Copy subjects from")}
           </span>
-          <select
+          <SystemSelect
             value={cloneFromId}
             onChange={(e) => setCloneFromId(e.target.value)}
             disabled={busy}
-            className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+            className="w-full cursor-pointer px-2.5"
           >
-            <option value="">Start empty</option>
+            <option value="">{ui("Start empty")}</option>
             {sections
               .filter((sec) => (sec.subjects?.length || 0) > 0)
               .map((sec) => (
                 <option key={sec.id} value={sec.id}>
-                  {sec.section ? `Section ${sec.section}` : "Main"} ({sec.subjects.length})
+                  {sec.section ? ui("Section {0}", [sec.section]) : ui("Main")} ({sec.subjects.length})
                 </option>
               ))}
-          </select>
+          </SystemSelect>
         </label>
       ) : null}
 
       <label className="mt-2 block">
-        <span className="mb-1 block text-[8px] font-black uppercase tracking-wider text-ink-subtle">
-          Class teacher
+        <span className="mb-1 block text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+          {ui("Class teacher")}
         </span>
-        <select
+        <SystemSelect
           value={teacherId}
           onChange={(e) => setTeacherId(e.target.value)}
           disabled={busy}
-          className="h-9 w-full cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-[#faf7fc] px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+          className="w-full cursor-pointer px-2.5"
         >
-          <option value="">Assign later</option>
+          <option value="">{ui("Assign later")}</option>
           {teachers.map((t: any) => (
             <option key={t.id} value={t.id}>{t.fullName}</option>
           ))}
-        </select>
+        </SystemSelect>
       </label>
 
       {blocked && input.trim() ? (
-        <p className="mt-2 text-[9px] font-bold leading-relaxed text-rose-600">{blocked}</p>
+        <Alert tone="warning" compact live="off" className="mt-2">{blocked}</Alert>
       ) : names.length > 0 ? (
-        <p className="mt-2 text-[9px] font-bold leading-relaxed text-ink-muted">
-          Creates {names.length} section{names.length === 1 ? "" : "s"}
-          {cloneCount > 0 ? ` with ${cloneCount} subject${cloneCount === 1 ? "" : "s"} each` : ""}.
+        <p className="mt-2 text-sm font-normal leading-relaxed text-ink-muted">
+          {cloneCount > 0
+            ? ui(names.length === 1 ? (cloneCount === 1 ? "Creates {0} section with {1} subject each." : "Creates {0} section with {1} subjects each.") : (cloneCount === 1 ? "Creates {0} sections with {1} subject each." : "Creates {0} sections with {1} subjects each."), [names.length, cloneCount])
+            : ui(names.length === 1 ? "Creates {0} section." : "Creates {0} sections.", [names.length])}
         </p>
       ) : null}
 
-      <button
+      <SystemButton variant="default"
         type="button"
         onClick={submit}
         disabled={Boolean(blocked) || busy}
-        className="mt-2.5 flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-[11px] font-black text-white transition-all hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+        loading={busy}
+        className="mt-2.5 flex w-full items-center justify-center gap-1.5"
       >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-        {busy ? "Creating\u2026" : "Add section"}
-      </button>
+        {busy ? null : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+        {busy ? ui("Creating\u2026") : ui("Add section")}
+      </SystemButton>
     </div>
   );
 }
@@ -566,15 +661,16 @@ function MatrixView({
   flashKey: string | null;
   flash: (key: string) => void;
 }) {
+  const ui = useUiText();
   const subjects = useMemo(() => uniqueSubjects(sections), [sections]);
   const [openPickerKey, setOpenPickerKey] = useState<string | null>(null);
 
   if (sections.length === 0) {
-    return <EmptyInline text="No sections to display." />;
+    return <EmptyInline text={ui("No sections to display.")} />;
   }
   if (subjects.length === 0) {
     return (
-      <EmptyInline text="No subjects have been added yet. Select a section and add subjects." />
+      <EmptyInline text={ui("No subjects have been added yet. Select a section and add subjects.")} />
     );
   }
 
@@ -582,23 +678,23 @@ function MatrixView({
     sec.teachingMode === "SUBJECT" ? "SUBJECT" : "SINGLE";
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-[#cfc2d6]/15 custom-scrollbar">
+    <div className="overflow-x-auto rounded-3xl border border-edge/15 custom-scrollbar">
       <table className="w-full min-w-[600px] border-collapse">
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 rounded-tl-3xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-5 py-4 text-left text-[9px] font-black uppercase tracking-wider text-white/90">
-              Subject
+            <th className="sticky start-0 z-10 rounded-ss-3xl bg-gradient-to-br from-primary to-brand-400 px-5 py-4 text-start text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-white/90">
+              {ui("Subject")}
             </th>
             {sections.map((sec) => (
               <th
                 key={sec.id}
-                className="bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-4 py-4 text-center text-[9px] font-black uppercase tracking-wider text-white/90 last:rounded-tr-3xl"
+                className="bg-gradient-to-br from-primary to-brand-400 px-4 py-4 text-center text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-white/90 last:rounded-se-3xl"
               >
                 <span className="block">
-                  {sec.section ? `Section ${sec.section}` : "Main"}
+                  {sec.section ? ui("Section {0}", [sec.section]) : ui("Main")}
                 </span>
-                <span className="mt-1 block text-[8px] font-bold text-white/55">
-                  {sectionStudentCount(sec, allStudents)} students
+                <span className="mt-1 block text-2xs font-medium text-white/70">
+                  {ui("{0} students", [sectionStudentCount(sec, allStudents)])}
                 </span>
               </th>
             ))}
@@ -609,14 +705,14 @@ function MatrixView({
             <tr
               key={subjectName}
               className={
-                rowIdx % 2 === 0 ? "bg-white" : "bg-[#fbf0fe]/25"
+                rowIdx % 2 === 0 ? "bg-card" : "bg-brand-50/25"
               }
             >
               {/* Subject name cell */}
-              <td className="sticky left-0 z-10 border-t border-[#cfc2d6]/10 bg-inherit px-5 py-3.5">
+              <td className="sticky start-0 z-10 border-t border-edge/10 bg-inherit px-5 py-3.5">
                 <div className="flex items-center gap-2">
-                  <BookOpen className="h-3.5 w-3.5 shrink-0 text-[#8127cf]/60" />
-                  <span className="text-xs font-black text-[#1f1a23]">
+                  <BookOpen className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+                  <span className="text-xs font-bold text-ink-strong">
                     {subjectName}
                   </span>
                   {(() => {
@@ -625,9 +721,9 @@ function MatrixView({
                       subjectName,
                     );
                     return sample?.totalMarks ? (
-                      <span className="rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[7px] font-black text-[#8127cf]">
-                        {sample.totalMarks} marks
-                      </span>
+                      <Badge size="sm" variant="secondary" className="tabular-nums">
+                        {ui("{0} marks", [sample.totalMarks])}
+                      </Badge>
                     ) : null;
                   })()}
                 </div>
@@ -650,89 +746,89 @@ function MatrixView({
                   <td
                     key={sec.id}
                     className={cn(
-                      "border-t border-[#cfc2d6]/10 px-3 py-2.5 text-center transition-all duration-300",
-                      isFlashing && "bg-emerald-50",
-                      !isFlashing && assigned && "bg-[#f0fdfa]/40",
-                      !isFlashing && !assigned && !isSingle && "bg-[#fff1f2]/30",
+                      "border-t border-edge/10 px-3 py-2.5 text-center transition-all duration-300",
+                      isFlashing && "bg-status-success-surface",
+                      !isFlashing && assigned && "bg-status-success-surface/40",
+                      !isFlashing && !assigned && !isSingle && "bg-status-error-surface/30",
                     )}
                   >
                     {!subject ? (
-                      <span className="text-[9px] font-bold text-ink-subtle">
+                      <span className="text-2xs font-bold text-ink-subtle">
                         --
                       </span>
                     ) : isBusy ? (
                       <div className="flex flex-col items-center gap-1.5 py-1">
-                        <Loader2 className="h-5 w-5 animate-spin text-[#8127cf]" />
-                        <span className="text-[8px] font-bold text-[#8127cf]/60">Saving...</span>
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        <span className="text-2xs font-semibold text-primary/60">{ui("Saving...")}</span>
                       </div>
                     ) : isSingle ? (
                       <div className="flex flex-col items-center gap-1">
                         {teacher?.id ? (
                           <>
-                            <div className="h-7 w-7 overflow-hidden rounded-lg border border-[#cfc2d6]/20 bg-white">
+                            <div className="h-7 w-7 overflow-hidden rounded-lg border border-edge/20 bg-card">
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
                                 name={teacher.fullName}
-                                alt="Teacher"
-                                initialsClassName="text-[9px]"
+                                alt={ui("Teacher")}
+                                initialsClassName="text-2xs"
                               />
                             </div>
-                            <span className="max-w-[100px] truncate text-[9px] font-bold text-ink-muted">
-                              {teacher.fullName || "Teacher"}
+                            <span className="min-w-0 max-w-full truncate text-2xs font-bold text-ink-muted">
+                              {teacher.fullName || ui("Teacher")}
                             </span>
                           </>
                         ) : (
-                          <span className="text-[9px] font-bold italic text-ink-subtle">
-                            No class teacher
+                          <span className="text-2xs font-bold italic text-ink-subtle">
+                            {ui("No class teacher")}
                           </span>
                         )}
-                        <span className="text-[7px] font-bold text-ink-subtle">
-                          Follows class teacher
+                        <span className="text-2xs font-medium text-ink-subtle">
+                          {ui("Follows class teacher")}
                         </span>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-1.5">
                         {assigned ? (
                           <>
-                            <div className="h-8 w-8 overflow-hidden rounded-xl border-2 border-emerald-200 bg-white shadow-sm">
+                            <div className="h-8 w-8 overflow-hidden rounded-xl border-2 border-status-success-border bg-card shadow-sm">
                               <AvatarImage
                                 src={teacherAvatar(teacher)}
                                 name={teacher.fullName}
-                                alt="Teacher"
-                                initialsClassName="text-[9px]"
+                                alt={ui("Teacher")}
+                                initialsClassName="text-2xs"
                               />
                             </div>
-                            <span className="max-w-[110px] truncate text-[9px] font-bold text-[#1f1a23]">
-                              {teacher.fullName || "Teacher"}
+                            <span className="min-w-0 max-w-full truncate text-2xs font-bold text-ink-strong">
+                              {teacher.fullName || ui("Teacher")}
                             </span>
                           </>
                         ) : (
                           <div className="flex flex-col items-center gap-1">
                             <span className="relative flex h-2.5 w-2.5">
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
-                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
                             </span>
-                            <span className="text-[9px] font-bold text-rose-400">
-                              Unassigned
+                            <span className="text-2xs font-bold text-status-error-text">
+                              {ui("Unassigned")}
                             </span>
                           </div>
                         )}
-                        <button
+                        <SystemButton variant="ghost"
                           type="button"
                           onClick={() =>
                             setOpenPickerKey(isPickerOpen ? null : cellKey)
                           }
                           className={cn(
-                            "rounded-lg px-2.5 py-1 text-[7px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                            "px-2.5 py-1",
                             isPickerOpen
-                              ? "bg-[#8127cf] text-white shadow-md shadow-[#8127cf]/20"
-                              : "bg-[#8127cf]/8 text-[#8127cf] hover:bg-[#8127cf]/15",
+                              ? "bg-primary text-white shadow-md shadow-primary/20"
+                              : "bg-primary/8 text-primary hover:bg-primary/15",
                           )}
                         >
-                          {assigned ? "Change" : "Assign"}
-                        </button>
+                          {assigned ? ui("Change") : ui("Assign")}
+                        </SystemButton>
                         {isPickerOpen ? (
-                          <div className="mt-1 w-full max-w-[200px] rounded-xl border border-[#cfc2d6]/15 bg-white p-2 shadow-lg">
+                          <div className="mt-1 w-full max-w-[200px] rounded-xl border border-edge/15 bg-card p-2 shadow-lg">
                             <TeacherPicker
                               label=""
                               teachers={teachers}
@@ -822,6 +918,7 @@ function SectionDetailView({
   onUpdateSubject: ClassManagerProps["onUpdateSubject"];
   refreshAvailability: () => void;
 }) {
+  const ui = useUiText();
   const teachingMode: "SINGLE" | "SUBJECT" =
     section.teachingMode === "SUBJECT" ? "SUBJECT" : "SINGLE";
   const subjectCount = section.subjects?.length || 0;
@@ -869,7 +966,7 @@ function SectionDetailView({
     if (created) {
       setSubjectName("");
       setSubjectMarks("100");
-      toast.success("Subject added");
+      toast.success(ui("Subject added"));
     }
   };
 
@@ -911,37 +1008,37 @@ function SectionDetailView({
         {/* Left: Subjects & Teachers */}
         <div className="min-w-0 space-y-5">
           {/* Teaching mode toggle */}
-          <div className="rounded-3xl border border-[#cfc2d6]/10 bg-gradient-to-br from-[#faf7fc] to-[#f8f5fb] p-4">
-            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Teaching Mode
+          <div className="rounded-3xl border border-edge/10 bg-gradient-to-br from-surface-subtle to-brand-50 p-4">
+            <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+              {ui("Teaching Mode")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               {(
                 [
                   {
                     mode: "SINGLE" as const,
-                    title: "One Teacher",
-                    desc: "Class teacher takes all subjects",
+                    title: ui("One Teacher"),
+                    desc: ui("Class teacher takes all subjects"),
                     icon: UserCheck,
-                    activeClasses: "border-[#0d9488] bg-gradient-to-br from-white to-[#f0fdfa] shadow-[0_6px_20px_-4px_rgba(13,148,136,0.25)]",
-                    activeTitleColor: "text-[#0f766e]",
-                    activeIconBg: "bg-[#0d9488]",
+                    activeClasses: "border-status-info-text bg-gradient-to-br from-card to-status-success-surface shadow-md",
+                    activeTitleColor: "text-status-info-text",
+                    activeIconBg: "bg-status-info-text",
                   },
                   {
                     mode: "SUBJECT" as const,
-                    title: "Per Subject",
-                    desc: "Each subject has its own teacher",
+                    title: ui("Per Subject"),
+                    desc: ui("Each subject has its own teacher"),
                     icon: Users,
-                    activeClasses: "border-[#d97706] bg-gradient-to-br from-white to-[#fffbeb] shadow-[0_6px_20px_-4px_rgba(217,119,6,0.25)]",
-                    activeTitleColor: "text-[#b45309]",
-                    activeIconBg: "bg-[#d97706]",
+                    activeClasses: "border-status-warning-text bg-gradient-to-br from-card to-status-warning-surface shadow-md",
+                    activeTitleColor: "text-status-warning-text",
+                    activeIconBg: "bg-warning",
                   },
                 ] as const
               ).map((option) => {
                 const active = teachingMode === option.mode;
                 const Icon = option.icon;
                 return (
-                  <button
+                  <SystemButton variant="ghost"
                     key={option.mode}
                     type="button"
                     disabled={teachingModeBusy}
@@ -950,10 +1047,10 @@ function SectionDetailView({
                         onChangeTeachingMode(section.id, option.mode);
                     }}
                     className={cn(
-                      "rounded-2xl border-2 p-3.5 text-left transition-all duration-300 cursor-pointer disabled:cursor-wait disabled:opacity-60",
+                      "p-3.5 text-start",
                       active
                         ? option.activeClasses
-                        : "border-transparent bg-white/70 hover:border-[#cfc2d6]/30 hover:bg-white hover:shadow-sm",
+                        : "border-transparent bg-card/70 hover:border-edge/30 hover:bg-card hover:shadow-sm",
                     )}
                   >
                     <div className="flex items-center justify-between gap-1">
@@ -963,17 +1060,17 @@ function SectionDetailView({
                             "flex h-7 w-7 items-center justify-center rounded-xl transition-all",
                             active
                               ? `${option.activeIconBg} text-white shadow-sm`
-                              : "bg-[#f3f4f9] text-ink-subtle",
+                              : "bg-muted text-ink-subtle",
                           )}
                         >
                           <Icon className="h-3.5 w-3.5" />
                         </div>
                         <p
                           className={cn(
-                            "text-xs font-black transition-colors",
+                            "text-xs font-bold transition-colors",
                             active
                               ? option.activeTitleColor
-                              : "text-[#1f1a23]",
+                              : "text-ink-strong",
                           )}
                         >
                           {option.title}
@@ -983,10 +1080,10 @@ function SectionDetailView({
                         <CheckCircle2 className={cn("h-4 w-4 shrink-0", option.activeTitleColor)} />
                       ) : null}
                     </div>
-                    <p className="mt-1.5 pl-9 text-[9px] font-bold leading-relaxed text-ink-subtle">
+                    <p className="mt-1.5 ps-9 text-2xs font-medium leading-relaxed text-ink-subtle">
                       {option.desc}
                     </p>
-                  </button>
+                  </SystemButton>
                 );
               })}
             </div>
@@ -995,14 +1092,14 @@ function SectionDetailView({
           {/* Subject cards */}
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                <BookOpen className="h-3.5 w-3.5 text-[#8127cf]" />
-                Subjects ({subjectCount})
+              <p className="flex items-center gap-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                <BookOpen className="h-3.5 w-3.5 text-primary" />
+                {ui("Subjects ({0})", [subjectCount])}
               </p>
               {teachingMode === "SINGLE" && subjectCount > 0 ? (
-                <span className="rounded-full bg-[#ccfbf1] px-2.5 py-1 text-[8px] font-black uppercase tracking-wider text-[#0f766e]">
-                  All follow class teacher
-                </span>
+                <Badge size="sm" variant="success">
+                  {ui("All follow class teacher")}
+                </Badge>
               ) : null}
             </div>
 
@@ -1013,19 +1110,19 @@ function SectionDetailView({
               return (
                 <div
                   key={subject.id}
-                  className="group/card rounded-2xl border border-[#cfc2d6]/10 border-l-[3px] border-l-[#8127cf]/40 bg-white p-4 transition-all duration-200 hover:border-l-[#8127cf] hover:shadow-md"
+                  className="sk-panel group/card p-4 transition-all duration-200 hover:border-s-primary hover:shadow-md"
                 >
                   {isEditing ? (
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <FormInput
-                          label="Subject Name"
+                          label={ui("Subject Name")}
                           value={editSubjectName}
-                          placeholder="Subject name"
+                          placeholder={ui("Subject name")}
                           onChange={setEditSubjectName}
                         />
                         <FormInput
-                          label="Total Marks"
+                          label={ui("Total Marks")}
                           type="number"
                           value={editSubjectMarks}
                           placeholder="100"
@@ -1033,7 +1130,7 @@ function SectionDetailView({
                         />
                       </div>
                       <div className="flex gap-2">
-                        <button
+                        <SystemButton variant="dark"
                           type="button"
                           onClick={() =>
                             saveEditingSubject(subject.id)
@@ -1041,21 +1138,18 @@ function SectionDetailView({
                           disabled={
                             subjectUpdateBusyId === subject.id
                           }
-                          className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#1f1a23] text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-black active:scale-[0.98] disabled:opacity-50"
+                          loading={subjectUpdateBusyId === subject.id}
+                          className="flex flex-1 items-center justify-center gap-2"
                         >
-                          {subjectUpdateBusyId === subject.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            "Save"
-                          )}
-                        </button>
-                        <button
+                          {ui("Save")}
+                        </SystemButton>
+                        <SystemButton variant="ghost"
                           type="button"
                           onClick={() => setEditingSubjectId(null)}
-                          className="h-10 cursor-pointer rounded-xl bg-[#f3f4f9] px-4 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                          className="px-4"
                         >
-                          Cancel
-                        </button>
+                          {ui("Cancel")}
+                        </SystemButton>
                       </div>
                     </div>
                   ) : (
@@ -1063,19 +1157,19 @@ function SectionDetailView({
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-black text-[#1f1a23]">
+                            <p className="truncate text-sm font-bold text-ink-strong">
                               {subject.name}
                             </p>
                             {subject.totalMarks ? (
-                              <span className="shrink-0 rounded-full bg-[#fbf0fe] px-2 py-0.5 text-[7px] font-black text-[#8127cf]">
-                                {subject.totalMarks} marks
-                              </span>
+                              <Badge size="sm" variant="secondary" className="shrink-0 tabular-nums">
+                                {ui("{0} marks", [subject.totalMarks])}
+                              </Badge>
                             ) : null}
                           </div>
-                          <p className="mt-1 text-[9px] font-bold text-ink-subtle">
+                          <p className="mt-1 text-xs font-medium text-ink-subtle">
                             {teachingMode === "SINGLE" ? (
-                              <span className="text-[#0f766e]">
-                                Follows class teacher
+                              <span className="text-status-info-text">
+                                {ui("Follows class teacher")}
                               </span>
                             ) : subject.teacher?.fullName ? (
                               <span className="flex items-center gap-1.5">
@@ -1086,52 +1180,46 @@ function SectionDetailView({
                                     )}
                                     name={subject.teacher?.fullName}
                                     alt=""
-                                    initialsClassName="text-[9px]"
+                                    initialsClassName="text-2xs"
                                   />
                                 </span>
                                 {subject.teacher.fullName}
                               </span>
                             ) : (
-                              <span className="text-rose-400">
-                                Teacher unassigned
+                              <span className="text-status-error-text">
+                                {ui("Teacher unassigned")}
                               </span>
                             )}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/card:opacity-100">
                           {/* Syllabus chip */}
-                          <button
+                          <SystemButton variant="ghost"
                             type="button"
                             onClick={() =>
                               setExpandedSyllabusId(
                                 isSyllabusOpen ? null : subject.id,
                               )
                             }
-                            className="flex h-7 cursor-pointer items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 text-[8px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f0e0f8]"
+                            className="flex items-center gap-1 px-2 justify-start"
                           >
                             <BookOpen className="h-3 w-3" />
-                            Syllabus
-                          </button>
-                          <button
-                            type="button"
+                            {ui("Syllabus")}
+                          </SystemButton>
+                          <IconButton variant="ghost" label={ui("Edit subject")}
                             onClick={() =>
                               startEditingSubject(subject)
                             }
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                            title="Edit subject"
                           >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                          <button
-                            type="button"
+                            <Pencil className="h-3 w-3" aria-hidden="true" />
+                          </IconButton>
+                          <IconButton variant="ghost" label={ui("Delete subject")}
                             onClick={() =>
                               onDeleteSubject(subject)
                             }
-                            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-all hover:bg-rose-50 hover:text-rose-500"
-                            title="Delete subject"
                           >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                            <Trash2 className="h-3 w-3" aria-hidden="true" />
+                          </IconButton>
                         </div>
                       </div>
 
@@ -1141,8 +1229,8 @@ function SectionDetailView({
                           <TeacherPicker
                             label={
                               subjectBusyId === subject.id
-                                ? "Saving..."
-                                : "Subject Teacher"
+                                ? ui("Saving...")
+                                : ui("Subject Teacher")
                             }
                             teachers={teachers}
                             availability={availability}
@@ -1172,7 +1260,7 @@ function SectionDetailView({
                             }
                           />
                           {subjectBusyId === subject.id ? (
-                            <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-[#8127cf]" />
+                            <Loader2 className="absolute end-4 top-[42px] h-4 w-4 animate-spin text-primary" />
                           ) : null}
                         </div>
                       ) : null}
@@ -1188,27 +1276,27 @@ function SectionDetailView({
             })}
 
             {subjectCount === 0 ? (
-              <EmptyInline text="No subjects are attached to this section yet." />
+              <EmptyInline text={ui("No subjects are attached to this section yet.")} />
             ) : null}
           </div>
 
           {/* Add subject form */}
-          <div className="rounded-3xl border-2 border-dashed border-[#cfc2d6]/25 bg-gradient-to-br from-white to-[#faf7fc]/50 p-5">
-            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-[#8127cf]/60">
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#8127cf]/10">
-                <Plus className="h-3 w-3 text-[#8127cf]" />
+          <div className="rounded-3xl border-2 border-dashed border-edge/25 bg-gradient-to-br from-card to-surface-subtle/50 p-5">
+            <div className="flex items-center gap-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary/60">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10">
+                <Plus className="h-3 w-3 text-primary" />
               </span>
-              Add Subject
+              {ui("Add Subject")}
             </div>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <FormInput
-                label="Subject Name"
+                label={ui("Subject Name")}
                 value={subjectName}
-                placeholder="e.g. Mathematics"
+                placeholder={ui("e.g. Mathematics")}
                 onChange={setSubjectName}
               />
               <FormInput
-                label="Total Marks"
+                label={ui("Total Marks")}
                 type="number"
                 value={subjectMarks}
                 placeholder="100"
@@ -1218,7 +1306,7 @@ function SectionDetailView({
             {teachingMode === "SUBJECT" ? (
               <div className="mt-3">
                 <TeacherPicker
-                  label="Subject Teacher (optional)"
+                  label={ui("Subject Teacher (optional)")}
                   teachers={teachers}
                   availability={availability}
                   assignmentMode="subject"
@@ -1230,17 +1318,17 @@ function SectionDetailView({
               </div>
             ) : null}
             {allSections.length > 1 ? (
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => setApplyToAllSections((v) => !v)}
-                className="mt-3 flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-[#fbf0fe]/60 p-3 text-left transition-all hover:bg-[#fbf0fe]"
+                className="mt-3 flex w-full items-center gap-3 p-3 text-start justify-start"
               >
                 <span
                   className={cn(
                     "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all",
                     applyToAllSections
-                      ? "border-[#8127cf] bg-[#8127cf]"
-                      : "border-[#cfc2d6]/50 bg-white",
+                      ? "border-primary bg-primary"
+                      : "border-edge/50 bg-card",
                   )}
                 >
                   {applyToAllSections ? (
@@ -1251,32 +1339,26 @@ function SectionDetailView({
                   ) : null}
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[11px] font-black text-[#1f1a23]">
-                    Add to all {allSections.length} sections
+                  <span className="block text-2xs font-bold text-ink-strong">
+                    {ui("Add to all {0} sections", [allSections.length])}
                   </span>
-                  <span className="block text-[9px] font-bold text-ink-muted">
-                    Sections that already have this subject are
-                    skipped.
+                  <span className="block text-2xs font-bold text-ink-muted">
+                    {ui("Sections that already have this subject are skipped.")}
                   </span>
                 </span>
-              </button>
+              </SystemButton>
             ) : null}
             <div className="mt-3 flex justify-end">
-              <button
+              <SystemButton variant="dark"
                 type="button"
                 onClick={createSubject}
                 disabled={creatingSubject || !subjectName.trim()}
-                className="flex h-11 cursor-pointer items-center gap-2 rounded-2xl bg-[#1f1a23] px-5 text-[10px] font-black uppercase tracking-wider text-white shadow-xl transition-all hover:bg-black active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                loading={creatingSubject}
+                className="flex h-11 items-center gap-2 px-5 justify-start"
               >
-                {creatingSubject ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Subject
-                  </>
-                )}
-              </button>
+                {creatingSubject ? null : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
+                {ui("Add Subject")}
+              </SystemButton>
             </div>
           </div>
         </div>
@@ -1284,38 +1366,38 @@ function SectionDetailView({
         {/* Right: Section info sidebar */}
         <div className="space-y-4">
           {/* Class teacher card */}
-          <div className="rounded-3xl border border-[#8127cf]/10 bg-gradient-to-br from-[#fbf0fe] via-[#f8f2fd] to-[#f3eeff] p-4 shadow-sm">
+          <div className="rounded-3xl border border-primary/10 bg-gradient-to-br from-brand-50 via-brand-50 to-brand-100 p-4 shadow-sm">
             <div className="flex items-center gap-2">
-              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-[#8127cf]/15">
-                <GraduationCap className="h-3 w-3 text-[#8127cf]" />
+              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/15">
+                <GraduationCap className="h-3 w-3 text-primary" />
               </div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]/60">
+              <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary/60">
                 {teachingMode === "SINGLE"
-                  ? "Class Teacher"
-                  : "Homeroom Teacher"}
+                  ? ui("Class Teacher")
+                  : ui("Homeroom Teacher")}
               </p>
             </div>
             <div className="mt-3 flex items-center gap-3">
-              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-white shadow-md shadow-[#8127cf]/8">
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border-2 border-white bg-card shadow-md shadow-primary/8">
                 {section.classTeacher?.id ? (
                   <AvatarImage
                     src={teacherAvatar(section.classTeacher)}
                     name={section.classTeacher?.fullName}
-                    alt="Teacher"
+                    alt={ui("Teacher")}
                     initialsClassName="text-base"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-[#f3f4f9]">
+                  <div className="flex h-full w-full items-center justify-center bg-muted">
                     <User className="h-6 w-6 text-ink-subtle" />
                   </div>
                 )}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-base font-black text-[#1f1a23]">
-                  {section.classTeacher?.fullName || "Unassigned"}
+                <p className="truncate text-base font-bold text-ink-strong">
+                  {section.classTeacher?.fullName || ui("Unassigned")}
                 </p>
-                <p className="truncate text-[9px] font-bold text-ink-subtle">
-                  {section.classTeacher?.email || "No teacher assigned"}
+                <p className="truncate text-xs font-normal text-ink-subtle">
+                  {section.classTeacher?.email || ui("No teacher assigned")}
                 </p>
               </div>
             </div>
@@ -1323,10 +1405,10 @@ function SectionDetailView({
               <TeacherPicker
                 label={
                   teacherBusy
-                    ? "Saving..."
+                    ? ui("Saving...")
                     : teachingMode === "SINGLE"
-                      ? "Change Class Teacher"
-                      : "Change Homeroom Teacher"
+                      ? ui("Change Class Teacher")
+                      : ui("Change Homeroom Teacher")
                 }
                 teachers={teachers}
                 availability={availability}
@@ -1347,90 +1429,90 @@ function SectionDetailView({
                 showUnassignedHint={!section.classTeacher?.id}
               />
               {teacherBusy ? (
-                <Loader2 className="absolute right-4 top-[42px] h-4 w-4 animate-spin text-[#8127cf]" />
+                <Loader2 className="absolute end-4 top-[42px] h-4 w-4 animate-spin text-primary" />
               ) : null}
             </div>
           </div>
 
           {/* Student count with mini avatars */}
-          <div className="rounded-3xl border border-[#f43f5e]/10 bg-gradient-to-br from-white to-[#fff8f8] p-4 shadow-sm">
+          <div className="rounded-3xl border border-status-error-text/10 bg-gradient-to-br from-card to-status-error-surface p-4 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-[#f43f5e]/10">
-                  <Users className="h-3 w-3 text-[#be123c]" />
+                <div className="flex h-5 w-5 items-center justify-center rounded-md bg-destructive/10">
+                  <Users className="h-3 w-3 text-status-error-text" />
                 </div>
-                <p className="text-[9px] font-black uppercase tracking-wider text-[#be123c]">
-                  Students
+                <p className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-status-error-text">
+                  {ui("Students")}
                 </p>
               </div>
-              <span className="rounded-full bg-[#fff1f2] px-2.5 py-0.5 text-[10px] font-black text-[#be123c]">
+              <Badge size="sm" variant="danger" className="tabular-nums">
                 {students.length}
-              </span>
+              </Badge>
             </div>
             {students.length > 0 ? (
               <div className="mt-3 flex items-center gap-1">
                 {students.slice(0, 5).map((s: any) => (
                   <div
                     key={s.id}
-                    className="h-8 w-8 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm"
+                    className="h-8 w-8 shrink-0 overflow-hidden rounded-full border-2 border-white bg-card shadow-sm"
                   >
-                    <AvatarImage src={s.profileImageUrl} name={s.fullName} alt="" initialsClassName="text-[10px]" />
+                    <AvatarImage src={s.profileImageUrl} name={s.fullName} alt="" initialsClassName="text-2xs" />
                   </div>
                 ))}
                 {students.length > 5 ? (
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-[#fbf0fe] text-[8px] font-black text-[#8127cf] shadow-sm">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-brand-50 text-3xs font-bold text-primary shadow-sm">
                     +{students.length - 5}
                   </span>
                 ) : null}
               </div>
             ) : null}
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={() =>
                 students.length > 0
                   ? setShowAllStudents(!showAllStudents)
                   : onAddStudent()
               }
-              className="mt-3 flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe] text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f0e0f8]"
+              className="mt-3 flex w-full items-center justify-center gap-1.5"
             >
               {students.length > 0 ? (
                 <>
                   <Users className="h-3 w-3" />
                   {showAllStudents
-                    ? "Collapse"
-                    : "View All Students"}
+                    ? ui("Collapse")
+                    : ui("View All Students")}
                 </>
               ) : (
                 <>
                   <Plus className="h-3 w-3" />
-                  Add First Student
+                  {ui("Add First Student")}
                 </>
               )}
-            </button>
+            </SystemButton>
           </div>
 
           {/* Setup progress */}
           <div className={cn(
             "rounded-3xl border p-4 shadow-sm transition-all duration-500",
             completedSteps === totalSteps
-              ? "border-emerald-200/50 bg-gradient-to-br from-white to-[#ecfdf5]"
-              : "border-[#cfc2d6]/10 bg-white",
+              ? "border-status-success-border/50 bg-gradient-to-br from-card to-status-success-surface"
+              : "border-edge/10 bg-card",
           )}>
             <div className="flex items-center gap-2">
               <div className={cn(
                 "flex h-5 w-5 items-center justify-center rounded-md",
-                completedSteps === totalSteps ? "bg-emerald-100" : "bg-[#f3f4f9]",
+                completedSteps === totalSteps ? "bg-status-success-surface" : "bg-muted",
               )}>
                 <CheckCircle2 className={cn(
                   "h-3 w-3",
-                  completedSteps === totalSteps ? "text-emerald-600" : "text-ink-subtle",
+                  completedSteps === totalSteps ? "text-status-success-text" : "text-ink-subtle",
                 )} />
               </div>
               <p className={cn(
-                "text-[9px] font-black uppercase tracking-wider",
-                completedSteps === totalSteps ? "text-emerald-600/60" : "text-ink-subtle",
+                "text-2xs font-semibold ltr:uppercase ltr:tracking-wider",
+                completedSteps === totalSteps ? "text-status-success-text/60" : "text-ink-subtle",
               )}>
-                {completedSteps === totalSteps ? "Setup Complete" : "Setup Progress"}
+                {completedSteps === totalSteps ? ui("Setup Complete") : ui("Setup Progress")}
               </p>
             </div>
             <div className="mt-3 flex items-center gap-3">
@@ -1444,7 +1526,8 @@ function SectionDetailView({
                     cy="18"
                     r="14"
                     fill="none"
-                    stroke="#f3f4f9"
+                    stroke="currentColor"
+                    className="text-border-subtle"
                     strokeWidth="3.5"
                   />
                   <circle
@@ -1452,18 +1535,17 @@ function SectionDetailView({
                     cy="18"
                     r="14"
                     fill="none"
-                    stroke={
-                      completedSteps === totalSteps
-                        ? "#10b981"
-                        : "#8127cf"
-                    }
+                    stroke="currentColor"
                     strokeWidth="3.5"
                     strokeDasharray={`${(completedSteps / totalSteps) * 88} 88`}
                     strokeLinecap="round"
-                    className="transition-all duration-700"
+                    className={cn(
+                      "transition-all duration-700",
+                      completedSteps === totalSteps ? "text-status-success-text" : "text-primary",
+                    )}
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-[#1f1a23]">
+                <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-ink-strong">
                   {completedSteps}/{totalSteps}
                 </span>
               </div>
@@ -1471,15 +1553,15 @@ function SectionDetailView({
                 {[
                   {
                     done: hasTeacher,
-                    label: "Class teacher assigned",
+                    label: ui("Class teacher assigned"),
                   },
                   {
                     done: subjectCount > 0,
-                    label: "Subjects added",
+                    label: ui("Subjects added"),
                   },
                   {
                     done: allSubjectsAssigned,
-                    label: "Teachers assigned to subjects",
+                    label: ui("Teachers assigned to subjects"),
                   },
                 ].map((step) => (
                   <div
@@ -1490,8 +1572,8 @@ function SectionDetailView({
                       className={cn(
                         "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full",
                         step.done
-                          ? "bg-emerald-100 text-emerald-600"
-                          : "bg-[#f3f4f9] text-ink-subtle",
+                          ? "bg-status-success-surface text-status-success-text"
+                          : "bg-muted text-ink-subtle",
                       )}
                     >
                       <Check
@@ -1501,9 +1583,9 @@ function SectionDetailView({
                     </div>
                     <span
                       className={cn(
-                        "text-[9px] font-bold",
+                        "text-2xs font-bold",
                         step.done
-                          ? "text-[#1f1a23]"
+                          ? "text-ink-strong"
                           : "text-ink-subtle",
                       )}
                     >
@@ -1521,58 +1603,58 @@ function SectionDetailView({
       {showAllStudents ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              <GraduationCap className="h-3.5 w-3.5 text-[#8127cf]" />
-              All Students ({students.length})
+            <p className="flex items-center gap-2 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+              <GraduationCap className="h-3.5 w-3.5 text-primary" />
+              {ui("All Students ({0})", [students.length])}
             </p>
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={onAddStudent}
-              className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f0e0f8]"
+              className="flex items-center gap-1.5 px-3 justify-start"
             >
               <Plus className="h-3 w-3" />
-              Add Student
-            </button>
+              {ui("Add Student")}
+            </SystemButton>
           </div>
           <div className="flex flex-wrap gap-2">
             {visibleStudents.map((student: any) => (
-              <button
+              <SystemButton variant="outline"
                 key={student.id}
                 type="button"
                 onClick={() => onViewStudent(student)}
-                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-[#cfc2d6]/10 bg-white px-4 py-3 text-left transition-all hover:shadow-md sm:w-auto sm:min-w-[200px]"
+                className="flex w-full items-center gap-3 px-4 py-3 text-start sm:w-auto sm:min-w-[200px] justify-start"
               >
-                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-white shadow-sm">
-                  <AvatarImage src={student.profileImageUrl} name={student.fullName} alt="" initialsClassName="text-[10px]" />
+                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border-2 border-white bg-card shadow-sm">
+                  <AvatarImage src={student.profileImageUrl} name={student.fullName} alt="" initialsClassName="text-2xs" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-black text-[#1f1a23]">
+                  <p className="truncate text-xs font-bold text-ink-strong">
                     {student.fullName}
                   </p>
-                  <p className="text-[9px] font-bold text-ink-subtle">
-                    Roll {student.rollNo || "N/A"}
+                  <p className="text-xs font-normal text-ink-subtle tabular-nums">
+                    {ui("Roll {0}", [student.rollNo || "N/A"])}
                   </p>
                 </div>
-              </button>
+              </SystemButton>
             ))}
             {/* Add student card */}
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={onAddStudent}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 px-4 py-3 text-[10px] font-black text-ink-subtle transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]/30 hover:text-[#8127cf] sm:w-auto sm:min-w-[200px]"
+              className="flex w-full items-center justify-center gap-2 px-4 py-3 sm:w-auto sm:min-w-[200px]"
             >
               <Plus className="h-4 w-4" />
-              Add Student
-            </button>
+              {ui("Add Student")}
+            </SystemButton>
           </div>
           {students.length > 8 && !showAllStudents ? (
-            <button
+            <SystemButton variant="ghost"
               type="button"
               onClick={() => setShowAllStudents(true)}
-              className="text-[10px] font-black text-[#8127cf] underline decoration-[#8127cf]/30 underline-offset-2 transition-all hover:decoration-[#8127cf] cursor-pointer"
+              className="underline decoration-primary/30 underline-offset-2 hover:decoration-primary"
             >
-              Show all {students.length} students
-            </button>
+              {ui("Show all {0} students", [students.length])}
+            </SystemButton>
           ) : null}
         </div>
       ) : null}
@@ -1616,6 +1698,12 @@ export function ClassManager({
     string | "all"
   >(cls.id);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // SKO-462: teacher changes are effective-dated; earlier dates keep who taught before.
+  const today = new Date().toISOString().slice(0, 10);
+  const [assignmentDate, setAssignmentDate] = useState(today);
+  const ui = useUiText();
+  const changeSubjectTeacher: ClassManagerProps["onChangeSubjectTeacher"] = (classId, subjectId, teacherId) =>
+    onChangeSubjectTeacher(classId, subjectId, teacherId, assignmentDate === today ? undefined : assignmentDate);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
   const [addingSection, setAddingSection] = useState(false);
 
@@ -1649,7 +1737,7 @@ export function ClassManager({
     () =>
       selectedSection
         ? allStudents.filter(
-            (s: any) => s.classId === selectedSection.id,
+            (s: any) => studentClassId(s) === selectedSection.id,
           )
         : [],
     [selectedSection, allStudents],
@@ -1665,7 +1753,7 @@ export function ClassManager({
   }, [sortedSections]);
 
   const totalStudents = allStudents.length;
-  const className = cls.name || "Class";
+  const className = cls.name || ui("Class");
   const academicYear = cls.academicYear || new Date().getFullYear();
 
   // Teaching mode of the initially-selected class (for header badge)
@@ -1684,31 +1772,29 @@ export function ClassManager({
         {/* ============================================================ */}
         {/*  HEADER                                                       */}
         {/* ============================================================ */}
-        <div className="shrink-0 rounded-t-[34px] border-b border-[#cfc2d6]/12 bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] px-5 py-4 sm:px-8 sm:py-5">
+        <div className="shrink-0 rounded-t-[34px] border-b border-edge/12 bg-gradient-to-r from-surface-subtle via-card to-brand-100 px-5 py-4 sm:px-8 sm:py-5">
           <div>
             {/* Top row: title + close */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3.5">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/20">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 shadow-lg shadow-primary/20">
                   <School className="h-5 w-5 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="truncate text-xl font-black tracking-tight sm:text-2xl">
-                    <span className="bg-gradient-to-r from-[#8127cf] via-[#9c48ea] to-[#6a1fad] bg-clip-text text-transparent">
+                  {/* A dialog over a console view: the view keeps the page's one h1 (§4.3), so this is an h2. */}
+                  <h2 className="truncate text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">
+                    <bdi className="bg-gradient-to-r from-primary via-brand-400 to-brand-700 bg-clip-text text-transparent">
                       {className}
-                    </span>
-                  </h1>
+                    </bdi>
+                  </h2>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#f3eeff] px-2.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
+                    <Badge size="sm" variant="secondary" className="tabular-nums">
                       {academicYear}
-                    </span>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-wider",
-                        primaryTeachingMode === "SINGLE"
-                          ? "bg-[#ccfbf1] text-[#0f766e]"
-                          : "bg-[#fef3c7] text-[#b45309]",
-                      )}
+                    </Badge>
+                    <Badge
+                      size="sm"
+                      variant={primaryTeachingMode === "SINGLE" ? "success" : "warning"}
+                      className="gap-1"
                     >
                       {primaryTeachingMode === "SINGLE" ? (
                         <UserCheck className="h-2.5 w-2.5" />
@@ -1716,32 +1802,29 @@ export function ClassManager({
                         <Users className="h-2.5 w-2.5" />
                       )}
                       {primaryTeachingMode === "SINGLE"
-                        ? "Single Teacher"
-                        : "Per Subject"}
-                    </span>
+                        ? ui("Single Teacher")
+                        : ui("Per Subject")}
+                    </Badge>
                   </div>
                 </div>
               </div>
 
               <div className="flex shrink-0 items-center gap-1.5">
                 {onRefresh ? (
-                  <button
-                    type="button"
+                  <IconButton variant="ghost" label={ui("Refresh data")}
                     onClick={onRefresh}
-                    className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
-                    title="Refresh data"
                   >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  </button>
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  </IconButton>
                 ) : null}
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={onClose}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-95"
+                  className="flex items-center justify-center"
                 >
                   <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
-                </button>
+                  <span className="sr-only">{ui("Close")}</span>
+                </SystemButton>
               </div>
             </div>
 
@@ -1756,70 +1839,72 @@ export function ClassManager({
                   className={cn(
                     "flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-sm",
                     readySections === sortedSections.length
-                      ? "border-emerald-200 bg-emerald-50"
-                      : "border-amber-200 bg-amber-50",
+                      ? "border-status-success-border bg-status-success-surface"
+                      : "border-status-warning-border bg-status-warning-surface",
                   )}
-                  title={
-                    readySections === sortedSections.length
-                      ? "Every section has a class teacher and at least one subject"
-                      : "A section is ready once it has a class teacher and at least one subject"
-                  }
                 >
                   {readySections === sortedSections.length ? (
-                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                    <CheckCircle2 className="h-3 w-3 text-status-success-text" />
                   ) : (
-                    <AlertCircle className="h-3 w-3 text-amber-600" />
+                    <AlertCircle className="h-3 w-3 text-status-warning-text" />
                   )}
                   <span
                     className={cn(
-                      "text-[10px] font-black",
-                      readySections === sortedSections.length ? "text-emerald-700" : "text-amber-700",
+                      "text-2xs font-bold",
+                      readySections === sortedSections.length ? "text-status-success-text" : "text-status-warning-text",
                     )}
                   >
                     {readySections === sortedSections.length
-                      ? "All sections ready"
-                      : `${readySections}/${sortedSections.length} ready`}
+                      ? ui("All sections ready")
+                      : ui("{0}/{1} ready", [readySections, sortedSections.length])}
                   </span>
                   <span
-                    className="h-1.5 w-12 overflow-hidden rounded-full bg-white/70"
+                    className="h-1.5 w-12 overflow-hidden rounded-full bg-card/70"
                     aria-hidden
                   >
                     <span
                       className={cn(
                         "block h-full rounded-full transition-all duration-500",
-                        readySections === sortedSections.length ? "bg-emerald-500" : "bg-amber-500",
+                        readySections === sortedSections.length ? "bg-success" : "bg-warning",
                       )}
                       style={{ width: `${(readySections / sortedSections.length) * 100}%` }}
                     />
                   </span>
+                  <InfoTip
+                    content={
+                      readySections === sortedSections.length
+                        ? ui("Every section has a class teacher and at least one subject")
+                        : ui("A section is ready once it has a class teacher and at least one subject")
+                    }
+                  />
                 </div>
               ) : null}
 
-              <div className="flex items-center gap-1.5 rounded-xl border border-[#8127cf]/10 bg-white px-3 py-1.5 shadow-sm">
-                <Layers className="h-3 w-3 text-[#8127cf]" />
-                <span className="text-[10px] font-black text-[#8127cf]">
+              <div className="flex items-center gap-1.5 rounded-xl border border-primary/10 bg-card px-3 py-1.5 shadow-sm">
+                <Layers className="h-3 w-3 text-primary" />
+                <span className="text-2xs font-bold text-primary">
                   {sortedSections.length}
                 </span>
-                <span className="text-[10px] font-bold text-ink-subtle">
-                  section{sortedSections.length !== 1 ? "s" : ""}
+                <span className="text-2xs font-bold text-ink-subtle">
+                  {ui(sortedSections.length !== 1 ? "sections" : "section")}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 rounded-xl border border-[#0d9488]/10 bg-white px-3 py-1.5 shadow-sm">
-                <BookOpen className="h-3 w-3 text-[#0f766e]" />
-                <span className="text-[10px] font-black text-[#0f766e]">
+              <div className="flex items-center gap-1.5 rounded-xl border border-status-info-text/10 bg-card px-3 py-1.5 shadow-sm">
+                <BookOpen className="h-3 w-3 text-status-info-text" />
+                <span className="text-2xs font-bold text-status-info-text">
                   {totalSubjects}
                 </span>
-                <span className="text-[10px] font-bold text-ink-subtle">
-                  subject{totalSubjects !== 1 ? "s" : ""}
+                <span className="text-2xs font-bold text-ink-subtle">
+                  {ui(totalSubjects !== 1 ? "subjects" : "subject")}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 rounded-xl border border-[#f43f5e]/10 bg-white px-3 py-1.5 shadow-sm">
-                <GraduationCap className="h-3 w-3 text-[#be123c]" />
-                <span className="text-[10px] font-black text-[#be123c]">
+              <div className="flex items-center gap-1.5 rounded-xl border border-status-error-text/10 bg-card px-3 py-1.5 shadow-sm">
+                <GraduationCap className="h-3 w-3 text-status-error-text" />
+                <span className="text-2xs font-bold text-status-error-text">
                   {totalStudents}
                 </span>
-                <span className="text-[10px] font-bold text-ink-subtle">
-                  student{totalStudents !== 1 ? "s" : ""}
+                <span className="text-2xs font-bold text-ink-subtle">
+                  {ui(totalStudents !== 1 ? "students" : "student")}
                 </span>
               </div>
             </div>
@@ -1831,62 +1916,62 @@ export function ClassManager({
         {/* ============================================================ */}
         <div className="flex min-h-0 flex-1">
           {/* Mobile rail toggle */}
-          <button
+          <SystemButton variant="default"
             type="button"
             onClick={() => setMobileRailOpen(!mobileRailOpen)}
-            className="absolute bottom-6 left-6 z-[130] flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/30 transition-all hover:scale-105 active:scale-95 lg:hidden"
+            className="absolute bottom-6 start-6 z-[130] flex h-12 w-12 items-center justify-center lg:hidden"
           >
             <Layers className="h-5 w-5" />
-          </button>
+          </SystemButton>
 
           {/* Left Rail */}
           <div
             className={cn(
-              "shrink-0 border-r border-[#cfc2d6]/12 bg-gradient-to-b from-[#faf7fc] to-[#f5f0fa] transition-all duration-300",
+              "shrink-0 border-e border-edge/12 bg-gradient-to-b from-surface-subtle to-brand-50 transition-all duration-300",
               // Desktop: always visible
               "hidden lg:flex lg:w-[220px] lg:flex-col",
               // Mobile: overlay
               mobileRailOpen &&
-                "absolute inset-y-0 left-0 z-[135] flex w-[260px] flex-col shadow-2xl",
+                "absolute inset-y-0 start-0 z-[135] flex w-[260px] flex-col shadow-2xl",
             )}
           >
             {/* Mobile close */}
             {mobileRailOpen ? (
-              <div className="flex items-center justify-between border-b border-[#cfc2d6]/10 px-4 py-3 lg:hidden">
-                <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-                  Sections
+              <div className="flex items-center justify-between border-b border-edge/10 px-4 py-3 lg:hidden">
+                <span className="text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+                  {ui("Sections")}
                 </span>
-                <button
+                <SystemButton variant="ghost"
                   type="button"
                   onClick={() => setMobileRailOpen(false)}
-                  className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-ink-subtle hover:bg-rose-50 hover:text-rose-500"
+                  className="flex items-center justify-center"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </SystemButton>
               </div>
             ) : null}
 
             <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
               {/* All Sections button */}
-              <button
+              <SystemButton variant="ghost"
                 type="button"
                 onClick={() => {
                   setSelectedSectionId("all");
                   setMobileRailOpen(false);
                 }}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-2.5 rounded-2xl px-3.5 py-3 text-left transition-all duration-200",
+                  "flex w-full items-center gap-2.5 px-3.5 py-3 text-start justify-start",
                   selectedSectionId === "all"
-                    ? "bg-white shadow-md shadow-[#8127cf]/8"
-                    : "hover:bg-white/70",
+                    ? "bg-card shadow-md shadow-primary/8"
+                    : "hover:bg-card/70",
                 )}
               >
                 <div
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all",
                     selectedSectionId === "all"
-                      ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-md shadow-[#8127cf]/25"
-                      : "bg-[#fbf0fe] text-[#8127cf]",
+                      ? "bg-gradient-to-br from-primary to-brand-400 text-white shadow-md shadow-primary/25"
+                      : "bg-brand-50 text-primary",
                   )}
                 >
                   <Grid3X3 className="h-4 w-4" />
@@ -1894,22 +1979,22 @@ export function ClassManager({
                 <div className="min-w-0">
                   <p
                     className={cn(
-                      "text-xs font-black",
+                      "text-xs font-bold",
                       selectedSectionId === "all"
-                        ? "text-[#8127cf]"
-                        : "text-[#1f1a23]",
+                        ? "text-primary"
+                        : "text-ink-strong",
                     )}
                   >
-                    All Sections
+                    {ui("All Sections")}
                   </p>
-                  <p className="text-[8px] font-bold text-ink-subtle">
-                    Matrix view
+                  <p className="text-2xs font-medium text-ink-subtle">
+                    {ui("Matrix view")}
                   </p>
                 </div>
-              </button>
+              </SystemButton>
 
               {/* Divider */}
-              <div className="my-3 h-px bg-[#cfc2d6]/15" />
+              <div className="my-3 h-px bg-edge/15" />
 
               {/* Section pills */}
               <div className="space-y-1.5">
@@ -1925,7 +2010,7 @@ export function ClassManager({
                   const gaps = sectionGaps(sec);
 
                   return (
-                    <button
+                    <SystemButton variant="ghost"
                       key={sec.id}
                       type="button"
                       onClick={() => {
@@ -1933,10 +2018,10 @@ export function ClassManager({
                         setMobileRailOpen(false);
                       }}
                       className={cn(
-                        "flex w-full cursor-pointer items-start gap-2.5 rounded-2xl px-3.5 py-3 text-left transition-all duration-200",
+                        "flex w-full items-start gap-2.5 px-3.5 py-3 text-start justify-start",
                         active
-                          ? "border-l-[3px] border-l-[#8127cf] bg-white pl-3 shadow-md shadow-[#8127cf]/8"
-                          : "border-l-[3px] border-l-transparent hover:bg-white/70",
+                          ? "border-s-[3px] border-s-primary bg-card ps-3 shadow-md shadow-primary/8"
+                          : "border-s-[3px] border-s-transparent hover:bg-card/70",
                       )}
                     >
                       {/* Status dot */}
@@ -1951,39 +2036,37 @@ export function ClassManager({
                       <div className="min-w-0 flex-1">
                         <p
                           className={cn(
-                            "text-xs font-black",
+                            "text-xs font-bold",
                             active
-                              ? "text-[#8127cf]"
-                              : "text-[#1f1a23]",
+                              ? "text-primary"
+                              : "text-ink-strong",
                           )}
                         >
                           {sec.section
-                            ? `Section ${sec.section}`
-                            : "Main Section"}
+                            ? ui("Section {0}", [sec.section])
+                            : ui("Main Section")}
                         </p>
-                        <p className="mt-0.5 truncate text-[8px] font-bold text-ink-subtle">
-                          {sec.classTeacher?.fullName || "No teacher yet"}
+                        <p className="mt-0.5 truncate text-2xs font-medium text-ink-subtle">
+                          {sec.classTeacher?.fullName || ui("No teacher yet")}
                         </p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="text-[8px] font-bold text-ink-subtle">
-                            {studentCount} student
-                            {studentCount !== 1 ? "s" : ""}
+                          <span className="text-2xs font-medium text-ink-subtle tabular-nums">
+                            {ui(studentCount !== 1 ? "{0} students" : "{0} student", [studentCount])}
                           </span>
-                          <span className="text-[8px] font-bold text-ink-subtle">
-                            {sectionSubjectCount} subject
-                            {sectionSubjectCount !== 1 ? "s" : ""}
+                          <span className="text-2xs font-medium text-ink-subtle tabular-nums">
+                            {ui(sectionSubjectCount !== 1 ? "{0} subjects" : "{0} subject", [sectionSubjectCount])}
                           </span>
                           {/* Says what the dot means. A section can look fine
                               in the list and still have nobody teaching it. */}
                           {gaps.length > 0 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[8px] font-black text-amber-700">
-                              <AlertCircle className="h-2 w-2" />
-                              Needs {gaps.join(" & ")}
-                            </span>
+                            <Badge size="sm" variant="warning" className="gap-1">
+                              <AlertCircle className="h-2.5 w-2.5" aria-hidden="true" />
+                              {ui(gaps.length === 2 ? "Needs teacher & subjects" : gaps[0] === "teacher" ? "Needs teacher" : "Needs subjects")}
+                            </Badge>
                           ) : null}
                         </div>
                       </div>
-                    </button>
+                    </SystemButton>
                   );
                 })}
               </div>
@@ -2004,21 +2087,21 @@ export function ClassManager({
                     onDone={() => setAddingSection(false)}
                   />
                 ) : (
-                  <button
+                  <SystemButton variant="outline"
                     type="button"
                     onClick={() => setAddingSection(true)}
-                    className="mt-3 flex w-full cursor-pointer items-center gap-2.5 rounded-2xl border border-dashed border-[#8127cf]/25 px-3.5 py-3 text-left transition-all hover:border-[#8127cf]/50 hover:bg-white/70 active:scale-[0.99]"
+                    className="mt-3 flex w-full items-center gap-2.5 px-3.5 py-3 text-start justify-start"
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                       <Plus className="h-4 w-4" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-xs font-black text-[#8127cf]">Add section</span>
-                      <span className="block text-[8px] font-bold text-ink-subtle">
-                        Copies subjects across
+                      <span className="block text-xs font-bold text-primary">{ui("Add section")}</span>
+                      <span className="block text-2xs font-medium text-ink-subtle">
+                        {ui("Copies subjects across")}
                       </span>
                     </span>
-                  </button>
+                  </SystemButton>
                 )
               ) : null}
             </div>
@@ -2033,21 +2116,24 @@ export function ClassManager({
           ) : null}
 
           {/* Main Area */}
-          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-[#faf7fc] to-white p-4 sm:p-6 lg:p-8 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-surface-subtle to-card p-4 sm:p-6 lg:p-8 custom-scrollbar">
             <div className="mx-auto max-w-5xl">
+              <label className="mb-4 flex flex-wrap items-center justify-end gap-2 text-2xs font-bold text-ink-muted">
+                <span>{ui("Teacher changes take effect from")}</span>
+                <SystemInput type="date" aria-label={ui("Teacher changes take effect from")} value={assignmentDate} onChange={(event) => setAssignmentDate(event.target.value || today)} className="w-auto" data-testid="assignment-effective-date" />
+              </label>
               {selectedSectionId === "all" ? (
                 <>
                   <div className="mb-6 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-md shadow-[#8127cf]/20">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-brand-400 text-white shadow-md shadow-primary/20">
                       <Grid3X3 className="h-5 w-5" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-[#1f1a23]">
-                        Subject-Teacher Matrix
+                      <h2 className="text-lg font-bold text-ink-strong">
+                        {ui("Subject-Teacher Matrix")}
                       </h2>
-                      <p className="text-[10px] font-bold text-ink-muted">
-                        Overview of all subjects and teacher
-                        assignments across sections
+                      <p className="text-sm font-normal text-ink-muted">
+                        {ui("Overview of all subjects and teacher assignments across sections")}
                       </p>
                     </div>
                   </div>
@@ -2057,7 +2143,7 @@ export function ClassManager({
                     teachers={teachers}
                     availability={availability}
                     subjectBusyId={subjectBusyId}
-                    onChangeSubjectTeacher={onChangeSubjectTeacher}
+                    onChangeSubjectTeacher={changeSubjectTeacher}
                     refreshAvailability={refreshAvailability}
                     flashKey={flashKey}
                     flash={flash}
@@ -2072,40 +2158,34 @@ export function ClassManager({
                           "flex h-10 w-10 items-center justify-center rounded-2xl shadow-md",
                           sectionSetupStatus(selectedSection) ===
                             "ready"
-                            ? "bg-gradient-to-br from-[#10b981] to-[#34d399] text-white shadow-emerald-500/20"
+                            ? "bg-gradient-to-br from-success to-success text-white "
                             : sectionSetupStatus(
                                   selectedSection,
                                 ) === "partial"
-                              ? "bg-gradient-to-br from-[#f59e0b] to-[#fbbf24] text-white shadow-amber-500/20"
-                              : "bg-gradient-to-br from-[#cfc2d6] to-[#e2d8ea] text-white shadow-[#cfc2d6]/20",
+                              ? "bg-gradient-to-br from-warning to-warning text-white "
+                              : "bg-gradient-to-br from-edge to-brand-200 text-white shadow-edge/20",
                         )}
                       >
                         <LayoutGrid className="h-5 w-5" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-black text-[#1f1a23]">
+                        <h2 className="text-lg font-bold text-ink-strong">
                           {selectedSection.section
-                            ? `Section ${selectedSection.section}`
-                            : "Main Section"}
+                            ? ui("Section {0}", [selectedSection.section])
+                            : ui("Main Section")}
                         </h2>
-                        <p className="text-[10px] font-bold text-ink-muted">
+                        <p className="text-sm font-normal text-ink-muted">
                           {selectedSection.classTeacher?.fullName ||
-                            "No class teacher assigned"}{" "}
-                          / {selectedStudents.length} student
-                          {selectedStudents.length !== 1
-                            ? "s"
-                            : ""}
+                            ui("No class teacher assigned")}{" "}
+                          / {ui(selectedStudents.length !== 1 ? "{0} students" : "{0} student", [selectedStudents.length])}
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
+                    <IconButton variant="ghost" label={ui("Section settings")}
                       onClick={() => setSettingsOpen(true)}
-                      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-95"
-                      title="Section settings"
                     >
-                      <Settings className="h-5 w-5" />
-                    </button>
+                      <Settings className="h-5 w-5" aria-hidden="true" />
+                    </IconButton>
                   </div>
                   <SectionDetailView
                     section={selectedSection}
@@ -2121,7 +2201,7 @@ export function ClassManager({
                     onChangeTeacher={onChangeTeacher}
                     onChangeTeachingMode={onChangeTeachingMode}
                     onCreateSubject={onCreateSubject}
-                    onChangeSubjectTeacher={onChangeSubjectTeacher}
+                    onChangeSubjectTeacher={changeSubjectTeacher}
                     onAddStudent={onAddStudent}
                     onViewStudent={onViewStudent}
                     onDeleteSubject={onDeleteSubject}
@@ -2130,7 +2210,7 @@ export function ClassManager({
                   />
                 </>
               ) : (
-                <EmptyInline text="Select a section from the sidebar to view its details." />
+                <EmptyInline text={ui("Select a section from the sidebar to view its details.")} />
               )}
             </div>
           </div>
@@ -2139,21 +2219,20 @@ export function ClassManager({
         {/* ============================================================ */}
         {/*  FOOTER                                                       */}
         {/* ============================================================ */}
-        <div className="shrink-0 rounded-b-[34px] border-t border-[#cfc2d6]/10 bg-gradient-to-r from-[#faf7fc] via-white to-[#f3eeff] px-5 py-2.5 sm:px-8">
+        <div className="shrink-0 rounded-b-[34px] border-t border-edge/10 bg-gradient-to-r from-surface-subtle via-card to-brand-100 px-5 py-2.5 sm:px-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[9px] font-bold text-ink-subtle">
-              <span className="rounded-md bg-[#8127cf]/8 px-2 py-0.5 text-[8px] font-black text-[#8127cf]/50">
+            <div className="flex items-center gap-2 text-2xs font-bold text-ink-subtle">
+              <span className="rounded-md bg-primary/8 px-2 py-0.5 text-3xs font-bold text-primary/50">
                 {className}
               </span>
               <span>/</span>
               <span>{academicYear}</span>
               <span>/</span>
               <span>
-                {sortedSections.length} section
-                {sortedSections.length !== 1 ? "s" : ""}
+                {ui(sortedSections.length !== 1 ? "{0} sections" : "{0} section", [sortedSections.length])}
               </span>
             </div>
-            <button
+            <SystemButton variant="outline"
               type="button"
               onClick={() => {
                 if (selectedSection) {
@@ -2163,11 +2242,11 @@ export function ClassManager({
                   setSettingsOpen(true);
                 }
               }}
-              className="flex h-8 cursor-pointer items-center gap-2 rounded-xl border border-[#cfc2d6]/15 bg-white px-3.5 text-[9px] font-black uppercase tracking-wider text-ink-muted shadow-sm transition-all duration-200 hover:border-[#8127cf]/20 hover:text-[#8127cf]"
+              className="flex items-center gap-2 px-3.5 justify-start"
             >
               <Settings className="h-3 w-3" />
-              Settings
-            </button>
+              {ui("Settings")}
+            </SystemButton>
           </div>
         </div>
       </ModalSurface>
@@ -2176,9 +2255,12 @@ export function ClassManager({
       {settingsOpen && selectedSection ? (
         <SettingsDrawer
           section={selectedSection}
+          siblings={sortedSections.filter((s: any) => s.id !== selectedSection.id && !s.archivedAt && (s.academicYear ?? selectedSection.academicYear) === selectedSection.academicYear)}
+          enrolled={selectedStudents.filter((s: any) => (s.status ?? "active") === "active" && !s.archivedAt).length}
           classUpdateBusy={classUpdateBusy}
           onUpdateClass={onUpdateClass}
           onDeleteClass={onDeleteClass}
+          onRefresh={onRefresh}
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}

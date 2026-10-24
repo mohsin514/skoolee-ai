@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   assertModuleRead,
@@ -52,18 +53,22 @@ export async function POST(req: NextRequest) {
 
     const student = await prisma.student.findFirst({
       where: { id: studentId, campus: { schoolId: user.schoolId } },
-      select: { id: true },
+      select: { id: true, campusId: true },
     });
     if (!student) throw new ApiError("Student not found", 404);
 
-    const event = await prisma.studentTimelineEvent.create({
-      data: {
-        studentId: student.id,
-        kind: String(kind ?? "NOTE").toUpperCase(),
-        title: String(title).trim(),
-        detail: detail ? String(detail).trim() : null,
-        actorId: user.userId,
-      },
+    const event = await prisma.$transaction(async (tx) => {
+      const created = await tx.studentTimelineEvent.create({
+        data: {
+          studentId: student.id,
+          kind: String(kind ?? "NOTE").toUpperCase(),
+          title: String(title).trim(),
+          detail: detail ? String(detail).trim() : null,
+          actorId: user.userId,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "student_timeline_events", recordId: created.id, action: "CREATE", campusId: student.campusId, after: { studentId: student.id, kind: created.kind } });
+      return created;
     });
 
     return Response.json({ success: true, data: event }, { status: 201 });

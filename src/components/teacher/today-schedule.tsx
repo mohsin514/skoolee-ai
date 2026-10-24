@@ -2,9 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, ArrowUpRight, CheckCircle2, Clock, MapPin, Timer,
+  AlertTriangle, ArrowUpRight, CalendarX2, CheckCircle2, Clock, MapPin, Timer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { localeTag } from "@/lib/locale/package";
+
 
 export interface TimetableSlot {
   id: string;
@@ -30,24 +36,35 @@ function clamp(v: number, min: number, max: number) {
 }
 
 /**
- * The teacher's "Today's Schedule" strip — a live, interactive timeline.
+ * The teacher's lessons today — a live timeline on the Today screen.
  *
- * Instead of a static row of chips this shows a ticking clock, a day-progress
- * bar, a countdown to the next class and per-period status cards
- * (Live / Up next / Done / Clash), so a glance at the dashboard tells the
- * teacher exactly where they are in the day.
+ * A ticking clock, a day-progress bar, a countdown to the next class and per-period cards
+ * (Live / Up next / Done / Clash), so a glance tells the teacher where they are in the day. The
+ * root carries the `teacher.today.schedule` tour anchor; an empty day still renders a short line,
+ * so the tour (and the teacher) are never pointed at nothing.
  */
-export function TodaySchedule({
-  slots,
-  loading = false,
-  clashIds,
-  onOpenTimetable,
-}: {
+type TodayScheduleProps = {
   slots: TimetableSlot[];
   loading?: boolean;
+  availability?: "published" | "unpublished" | "failed";
   clashIds?: Set<string>;
   onOpenTimetable?: () => void;
-}) {
+};
+
+export function TodaySchedule(props: TodayScheduleProps) {
+  // One anchor for every state (loading, empty, lessons), so the tour always finds it.
+  return <div data-tour="teacher.today.schedule"><TodayScheduleBody {...props} /></div>;
+}
+
+function TodayScheduleBody({
+  slots,
+  loading = false,
+  availability = "published",
+  clashIds,
+  onOpenTimetable,
+}: TodayScheduleProps) {
+  const ui = useUiText();
+  const locale = useLocale();
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -85,214 +102,224 @@ export function TodaySchedule({
   const dayProgress =
     lastEnd > firstStart ? clamp(((minuteNow - firstStart) / (lastEnd - firstStart)) * 100, 0, 100) : 0;
 
-  const clock = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  // Viewer-clock value in the reader's numbering system.
+  const clock = now.toLocaleTimeString(localeTag(locale), { hour: "2-digit", minute: "2-digit", hour12: false });
   const minutesToNext = nextEntry ? Math.max(nextEntry.start - minuteNow, 0) : 0;
+  const progressText = `${Math.round(dayProgress)}%`;
+
+  // One "open the timetable" control for both states: the empty day's next action and the lessons header link.
+  const timetableLink = onOpenTimetable ? (
+    <Button variant="outline" size="sm" type="button" onClick={onOpenTimetable} className="gap-1.5">
+      {entries.length ? ui("Full timetable") : ui("Open timetable")}
+      <ArrowUpRight className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />
+    </Button>
+  ) : null;
 
   /* ── Loading skeleton ── */
   if (loading) {
     return (
-      <div className="rounded-[32px] overflow-hidden border border-[#cfc2d6]/20 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] p-6 animate-skeleton-in">
-        <div className="flex items-center justify-between mb-5">
+      <div className="sk-panel overflow-hidden p-4 sm:p-6 animate-skeleton-in" aria-busy="true" role="status" aria-label={ui("Loading today's lessons")}>
+        <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="skeleton-shimmer h-9 w-9 rounded-2xl bg-[#e8e0ec]/60" />
-            <div className="skeleton-shimmer h-4 w-40 rounded-full bg-[#e8e0ec]/50" />
+            <div className="skeleton-shimmer size-9 rounded-2xl bg-border-subtle/60" />
+            <div className="skeleton-shimmer h-4 w-40 rounded-full bg-border-subtle/50" />
           </div>
-          <div className="skeleton-shimmer h-6 w-24 rounded-full bg-[#e8e0ec]/40" />
+          <div className="skeleton-shimmer h-6 w-24 rounded-full bg-border-subtle/40" />
         </div>
         <div className="flex gap-3 overflow-hidden">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="skeleton-shimmer h-[120px] w-[200px] shrink-0 rounded-3xl bg-[#e8e0ec]/45" />
+            <div key={i} className="skeleton-shimmer h-[120px] w-[200px] max-w-[80vw] shrink-0 rounded-3xl bg-border-subtle/45" />
           ))}
         </div>
       </div>
     );
   }
 
-  if (entries.length === 0) return null;
+  if (entries.length === 0) {
+    return (
+      <div className="sk-panel flex flex-wrap items-center justify-between gap-3 p-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-50 text-primary">
+            <CalendarX2 className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-ink-strong">{ui("Your lessons today")}</h2>
+            <p className="text-sm text-ink-muted">{ui(availability === "failed" ? "Couldn't load your timetable" : availability === "unpublished" ? "No published timetable yet" : "No lessons on your timetable today.")}</p>
+          </div>
+        </div>
+        {timetableLink}
+      </div>
+    );
+  }
 
   return (
-    <div className="sk-rise relative overflow-hidden rounded-[32px] border border-[#cfc2d6]/20 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.22)]">
-      {/* ambient background */}
-      <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[#8127cf]/[0.07] blur-3xl sk-blob" />
-      <div className="pointer-events-none absolute -bottom-28 -left-20 h-64 w-64 rounded-full bg-[#b10e6b]/[0.05] blur-3xl sk-blob sk-blob-2" />
-
-      <div className="relative p-6">
+    <section aria-labelledby="teacher-today-lessons" className="sk-panel sk-rise relative overflow-hidden">
+      <div className="relative p-4 sm:p-6">
         {/* ── Header row ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white shadow-[0_8px_20px_-4px_rgba(129,39,207,0.45)]">
+            <div className="relative flex size-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-brand">
               {liveEntry ? (
-                <span className="absolute -right-1 -top-1 flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white" />
+                <span className="absolute -end-1 -top-1 flex size-3">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-success-text opacity-60 motion-reduce:hidden" />
+                  <span className="relative inline-flex size-3 rounded-full bg-status-success-text ring-2 ring-card" />
                 </span>
               ) : nextEntry ? (
-                <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-amber-400 ring-2 ring-white" />
+                <span className="absolute -end-1 -top-1 size-3 rounded-full bg-status-warning-text ring-2 ring-card" />
               ) : null}
-              <Clock className="h-5 w-5" />
+              <Clock aria-hidden="true" className="size-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black uppercase tracking-wider text-[#1d1b20] flex items-center gap-2">
-                Today&apos;s Schedule
-                <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-[#fbf0fe] border border-[#8127cf]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#8127cf]">
-                  <Timer className="h-3 w-3" />
-                  {clock}
+              <h2 id="teacher-today-lessons" className="flex items-center gap-2 text-base font-bold tracking-tight text-ink-strong">
+                {ui("Your lessons today")}
+                <span className="hidden items-center gap-1.5 rounded-full border border-primary/10 bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-primary sm:inline-flex">
+                  <Timer aria-hidden="true" className="size-3" />
+                  <bdi dir="ltr" className="tabular-nums">{clock}</bdi>
                 </span>
-              </h3>
-              <p className="mt-0.5 text-[10px] font-semibold text-ink-subtle">
-                {doneCount} of {entries.length} periods done
-                {nextEntry && !liveEntry ? ` · next in ${minutesToNext}m` : liveEntry ? " · class in session" : " · all wrapped up"}
+              </h2>
+              <p className="mt-0.5 text-xs font-medium tabular-nums text-ink-subtle">
+                {ui("{0} of {1} periods done", [doneCount, entries.length])}
+                {" · "}
+                {nextEntry && !liveEntry
+                  ? ui("next in {0} min", [minutesToNext])
+                  : liveEntry
+                    ? ui("class in session")
+                    : ui("all wrapped up")}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden md:block w-28">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">Day progress</span>
-                <span className="text-[9px] font-black text-[#8127cf]">{Math.round(dayProgress)}%</span>
+            <div className="hidden w-28 md:block">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-2xs font-semibold text-ink-subtle">{ui("Day progress")}</span>
+                <bdi className="text-2xs font-bold tabular-nums text-primary">{progressText}</bdi>
               </div>
-              <div className="h-1.5 rounded-full bg-[#f3f4f9] overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-[width] duration-1000 ease-linear"
-                  style={{ width: `${dayProgress}%` }}
-                />
-              </div>
+              <Progress value={dayProgress} max={100} label={ui("Day progress")} size="sm" valueText={progressText} />
             </div>
-            <button
-              type="button"
-              onClick={onOpenTimetable}
-              className="group flex items-center gap-1.5 rounded-2xl bg-[#fbf0fe] px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-lg hover:shadow-[#8127cf]/25 active:scale-[0.96] cursor-pointer"
-            >
-              Full timetable
-              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </button>
+            {timetableLink}
           </div>
         </div>
 
         {/* ── Day progress (mobile) ── */}
-        <div className="md:hidden mb-5">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">Day progress</span>
-            <span className="text-[9px] font-black text-[#8127cf]">{Math.round(dayProgress)}%</span>
+        <div className="mb-5 md:hidden">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-2xs font-semibold text-ink-subtle">{ui("Day progress")}</span>
+            <bdi className="text-2xs font-bold tabular-nums text-primary">{progressText}</bdi>
           </div>
-          <div className="h-1.5 rounded-full bg-[#f3f4f9] overflow-hidden">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-[width] duration-1000 ease-linear"
-              style={{ width: `${dayProgress}%` }}
-            />
-          </div>
+          <Progress value={dayProgress} max={100} label={ui("Day progress")} size="sm" valueText={progressText} />
         </div>
 
         {/* ── Period cards ── */}
-        <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-2 -mx-2 px-2 snap-x snap-mandatory">
+        <ol className="custom-scrollbar -mx-2 flex snap-x snap-mandatory gap-4 overflow-x-auto px-2 pb-2">
           {entries.map(({ slot, start, end, active, past, clashing }) => {
             const elapsed =
               active && end > start ? clamp(((minuteNow - start) / (end - start)) * 100, 0, 100) : 0;
+            const subject = slot.subject?.name || ui("Free period");
+            const className = `${slot.className}${slot.classSection ? ` - ${slot.classSection}` : ""}`;
 
             return (
-              <button
-                key={slot.id}
-                type="button"
-                onClick={onOpenTimetable}
-                title="Open the full timetable"
-                className={cn(
-                  "sk-sweep-trigger group relative isolate shrink-0 snap-start overflow-hidden rounded-3xl border p-4 text-left transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25 cursor-pointer min-w-[196px] w-[212px]",
-                  active
-                    ? "border-transparent bg-gradient-to-br from-[#8127cf] via-[#9c48ea] to-[#b10e6b] shadow-[0_18px_44px_-12px_rgba(129,39,207,0.55)]"
-                    : clashing
-                    ? "border-rose-200 bg-rose-50/70"
-                    : past
-                    ? "border-[#cfc2d6]/15 bg-white/55"
-                    : "border-[#cfc2d6]/20 bg-white hover:border-[#8127cf]/30"
-                )}
-              >
-                <span className="sk-sweep bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+              <li key={slot.id} className="shrink-0 snap-start">
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={onOpenTimetable}
+                  aria-label={ui("Period {0}: {1}, {2}, {3} to {4}", [slot.periodNumber, subject, className, slot.startTime, slot.endTime])}
+                  className={cn(
+                    "group relative isolate block w-[212px] min-w-[196px] overflow-hidden rounded-3xl border p-4 text-start motion-safe:hover:-translate-y-1",
+                    active
+                      ? "border-transparent bg-primary text-primary-foreground shadow-glow"
+                      : clashing
+                      ? "border-status-error-border bg-status-error-surface"
+                      : past
+                      ? "border-border-subtle bg-surface-subtle"
+                      : "border-border-subtle bg-card hover:border-primary/30"
+                  )}
+                >
+                  <div className="relative z-10 flex items-start justify-between gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex h-7 min-w-[34px] items-center justify-center rounded-xl px-2 text-2xs font-bold",
+                        active
+                          ? "bg-primary-foreground/20 text-primary-foreground"
+                          : clashing
+                          ? "bg-status-error-surface text-status-error-text"
+                          : past
+                          ? "bg-muted text-ink-subtle"
+                          : "bg-brand-50 text-primary"
+                      )}
+                    >
+                      <bdi>{ui("P{0}", [slot.periodNumber])}</bdi>
+                    </span>
 
-                <div className="relative z-10 flex items-start justify-between gap-2">
-                  <span
+                    {active ? (
+                      <span className="flex items-center gap-1.5 rounded-full bg-primary-foreground/20 px-2.5 py-1 text-2xs font-semibold text-primary-foreground">
+                        <span className="relative flex size-1.5">
+                          <span className="absolute size-full animate-ping rounded-full bg-primary-foreground opacity-80 motion-reduce:hidden" />
+                          <span className="relative size-1.5 rounded-full bg-primary-foreground" />
+                        </span>
+                        {ui("Live")}
+                      </span>
+                    ) : clashing ? (
+                      <Badge variant="danger" size="sm">
+                        <AlertTriangle className="size-2.5" aria-hidden="true" />
+                        {ui("Clash")}
+                      </Badge>
+                    ) : past ? (
+                      <Badge variant="success" size="sm">
+                        <CheckCircle2 className="size-2.5" aria-hidden="true" />
+                        {ui("Done")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="warning" size="sm" dot>
+                        {ui("Up next")}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <p
                     className={cn(
-                      "inline-flex h-7 min-w-[34px] items-center justify-center rounded-xl px-2 text-[10px] font-black tracking-wider",
-                      active
-                        ? "bg-white/20 text-white"
-                        : clashing
-                        ? "bg-rose-100 text-rose-700"
-                        : past
-                        ? "bg-[#f3f4f9] text-ink-subtle"
-                        : "bg-[#fbf0fe] text-[#8127cf]"
+                      "relative z-10 mt-3 text-2xs font-bold tabular-nums",
+                      active ? "text-primary-foreground/80" : clashing ? "text-status-error-text" : past ? "text-ink-subtle" : "text-primary"
                     )}
                   >
-                    P{slot.periodNumber}
-                  </span>
-
-                  {active ? (
-                    <span className="flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white">
-                      <span className="relative flex h-1.5 w-1.5">
-                        <span className="absolute h-full w-full animate-ping rounded-full bg-white opacity-80" />
-                        <span className="relative h-1.5 w-1.5 rounded-full bg-white" />
-                      </span>
-                      Live
-                    </span>
-                  ) : clashing ? (
-                    <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-rose-700">
-                      <AlertTriangle className="h-2.5 w-2.5" />
-                      Clash
-                    </span>
-                  ) : past ? (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
-                      <CheckCircle2 className="h-2.5 w-2.5" />
-                      Done
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-600">
-                      Up next
-                    </span>
-                  )}
-                </div>
-
-                <p
-                  className={cn(
-                    "relative z-10 mt-3 text-[10px] font-black tabular-nums tracking-wide",
-                    active ? "text-white/75" : clashing ? "text-rose-600" : past ? "text-ink-subtle" : "text-[#8127cf]"
-                  )}
-                >
-                  {slot.startTime} — {slot.endTime}
-                </p>
-
-                <p
-                  className={cn(
-                    "relative z-10 mt-1 truncate text-[15px] font-bold tracking-tight transition-colors",
-                    active ? "text-white" : past ? "text-ink-subtle" : "text-[#1d1b20] group-hover:text-[#8127cf]"
-                  )}
-                >
-                  {slot.subject?.name || "Free period"}
-                </p>
-
-                <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 truncate text-[10px] font-semibold", active ? "text-white/60" : "text-ink-subtle")}>
-                  {slot.className}
-                  {slot.classSection ? ` - ${slot.classSection}` : ""}
-                </p>
-                {slot.roomNumber ? (
-                  <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 text-[9px] font-semibold", active ? "text-white/45" : "text-ink-subtle")}>
-                    <MapPin className="h-2.5 w-2.5" />
-                    {slot.roomNumber}
+                    <bdi dir="ltr">{slot.startTime} — {slot.endTime}</bdi>
                   </p>
-                ) : null}
 
-                {/* live elapsed progress inside the active card */}
-                {active ? (
-                  <div className="relative z-10 mt-3 h-1 rounded-full bg-white/20 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-white transition-[width] duration-1000 ease-linear"
-                      style={{ width: `${elapsed}%` }}
-                    />
-                  </div>
-                ) : null}
-              </button>
+                  <p
+                    className={cn(
+                      "relative z-10 mt-1 truncate text-md font-bold tracking-tight transition-colors",
+                      active ? "text-primary-foreground" : past ? "text-ink-subtle" : "text-ink-strong group-hover:text-primary"
+                    )}
+                  >
+                    <bdi>{subject}</bdi>
+                  </p>
+
+                  <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 truncate text-2xs font-semibold", active ? "text-primary-foreground/70" : "text-ink-subtle")}>
+                    <bdi>{className}</bdi>
+                  </p>
+                  {slot.roomNumber ? (
+                    <p className={cn("relative z-10 mt-0.5 flex items-center gap-1 text-2xs font-semibold", active ? "text-primary-foreground/60" : "text-ink-subtle")}>
+                      <MapPin aria-hidden="true" className="size-2.5" />
+                      <bdi>{slot.roomNumber}</bdi>
+                    </p>
+                  ) : null}
+
+                  {/* live elapsed progress inside the active card */}
+                  {active ? (
+                    <div className="relative z-10 mt-3 h-1 overflow-hidden rounded-full bg-primary-foreground/20">
+                      <div
+                        className="h-full rounded-full bg-primary-foreground transition-[width] duration-1000 ease-linear"
+                        style={{ width: `${elapsed}%` }}
+                      />
+                    </div>
+                  ) : null}
+                </Button>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
-    </div>
+    </section>
   );
 }

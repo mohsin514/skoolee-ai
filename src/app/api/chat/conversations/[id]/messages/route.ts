@@ -11,6 +11,7 @@ const sendSchema = z.object({
   body: z.string().max(MAX_MESSAGE_LENGTH).default(""),
   replyToId: z.string().min(1).optional(),
   clientKey: z.string().min(1).max(100).optional(),
+  urgent: z.boolean().optional(),
   attachments: z
     .array(
       z.object({
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const page = await listMessages(user, id, {
       cursor: searchParams.get("cursor") ?? undefined,
       limit: Number(searchParams.get("limit")) || undefined,
+      after: searchParams.get("after") ?? undefined,
     });
 
     return Response.json({ success: true, ...page });

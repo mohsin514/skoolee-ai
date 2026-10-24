@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { createDiscount } from "@/lib/fees/discount-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeDiscount: named discount, PERCENT (value 0-100) or FLAT (paisa).
 // Optional categoryId auto-applies to all students in that StudentCategory.
@@ -29,33 +31,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    const code = String(body.code ?? "").trim().toUpperCase().replace(/\s+/g, "_");
-    const type = String(body.type ?? "").toUpperCase();
-
-    if (!name || !code) throw new ApiError("name and code required", 400);
-    if (type !== "PERCENT" && type !== "FLAT") throw new ApiError("type must be PERCENT or FLAT", 400);
-
-    const value = Number(body.value);
-    if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
-    if (type === "PERCENT" && value > 100) throw new ApiError("percent discount cannot exceed 100", 400);
-
-    if (body.categoryId) {
-      const category = await prisma.studentCategory.findFirst({ where: { id: body.categoryId, campusId } });
-      if (!category) throw new ApiError("Category not found", 404);
-    }
-
-    const existing = await prisma.feeDiscount.findUnique({ where: { campusId_code: { campusId, code } } });
-    if (existing) throw new ApiError("A discount with this code already exists", 409);
-
-    const discount = await prisma.feeDiscount.create({
-      data: { campusId, name, code, type, value, categoryId: body.categoryId ?? null },
-      include: { category: { select: { id: true, name: true } } },
-    });
+    const discount = await createDiscount(user, body);
     return Response.json({ success: true, data: discount }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/discounts] POST failed");
@@ -65,7 +45,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "edit");
 
     const body = await req.json();
     if (!body.id) throw new ApiError("id required", 400);
@@ -85,15 +66,19 @@ export async function PATCH(req: NextRequest) {
       if (!category) throw new ApiError("Category not found", 404);
     }
 
-    const discount = await prisma.feeDiscount.update({
-      where: { id: body.id },
-      data: {
-        name: body.name !== undefined ? String(body.name).trim() : undefined,
-        type,
-        value,
-        categoryId: body.categoryId !== undefined ? body.categoryId || null : undefined,
-      },
-      include: { category: { select: { id: true, name: true } } },
+    const discount = await prisma.$transaction(async (tx) => {
+      const next = await tx.feeDiscount.update({
+        where: { id: body.id },
+        data: {
+          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          type,
+          value,
+          categoryId: body.categoryId !== undefined ? body.categoryId || null : undefined,
+        },
+        include: { category: { select: { id: true, name: true } } },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: next.id, action: "UPDATE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, categoryId: existing.categoryId }, after: { type: next.type, value: next.value, categoryId: next.categoryId } });
+      return next;
     });
     return Response.json({ success: true, data: discount });
   } catch (error) {
@@ -104,7 +89,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "delete");
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) throw new ApiError("id required", 400);
@@ -112,7 +98,13 @@ export async function DELETE(req: NextRequest) {
     const existing = await prisma.feeDiscount.findFirst({ where: { id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Discount not found", 404);
 
-    await prisma.feeDiscount.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      // SKO-389: a discount still assigned to pupils is not removed from them silently.
+      const assigned = await tx.feeDiscountAssignment.count({ where: { discountId: id } });
+      if (assigned) throw new ApiError(`This discount is assigned to ${assigned} pupil(s). Remove those assignments first; invoices already issued keep their discount.`, 409);
+      await tx.feeDiscount.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: id, action: "DELETE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, currency: existing.currency, categoryId: existing.categoryId } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/discounts] DELETE failed");

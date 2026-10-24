@@ -1,6 +1,9 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
+import { validateStoredExamSchedules } from "./exam-bookings";
 import { ApiError } from "@/lib/api/scope";
 import { roomCapacity, roomLocation, seatGrid } from "@/lib/academic/room-capacity";
+
+async function transaction<T>(db: TxClient | undefined, work: (tx: TxClient) => Promise<T>) { return db ? work(db) : prisma.$transaction(tx => work(tx as TxClient)); }
 
 /**
  * Multi-room exam allocation (§58, corrected in §79).
@@ -93,6 +96,7 @@ const ROOM_SELECT = {
  * blocking exam scheduling on someone's half-built draft would be wrong.
  */
 export async function findTimetableRoomClashes(opts: {
+  db?: TxClient;
   campusId: string;
   roomIds: string[];
   /** The exam date, as YYYY-MM-DD. */
@@ -100,6 +104,7 @@ export async function findTimetableRoomClashes(opts: {
   startTime: string | null;
   endTime: string | null;
 }): Promise<string[]> {
+  const db = opts.db ?? prisma;
   const { campusId, roomIds, date, startTime, endTime } = opts;
   if (!roomIds.length || !startTime || !endTime) return [];
 
@@ -107,7 +112,7 @@ export async function findTimetableRoomClashes(opts: {
   const jsDay = new Date(y, m - 1, d).getDay();
   const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
-  const slots = await prisma.timetableSlot.findMany({
+  const slots = await db.timetableSlot.findMany({
     where: {
       roomId: { in: roomIds },
       dayOfWeek,
@@ -135,16 +140,18 @@ export async function findTimetableRoomClashes(opts: {
 
 /** Rooms already taken by another paper in the same date + period. */
 async function findRoomClashes(opts: {
+  db?: TxClient;
   campusId: string;
   roomIds: string[];
   date: Date;
   periodDefinitionId: string | null;
   excludeScheduleId: string;
 }) {
+  const db = opts.db ?? prisma;
   const { campusId, roomIds, date, periodDefinitionId, excludeScheduleId } = opts;
   if (!periodDefinitionId) return [];
 
-  const clashing = await prisma.examRoom.findMany({
+  const clashing = await db.examRoom.findMany({
     where: {
       campusId,
       roomId: { in: roomIds },
@@ -167,14 +174,16 @@ async function findRoomClashes(opts: {
 
 /** Which rooms are free for a given date + period, with their exam capacity. */
 export async function findAvailableRooms(opts: {
+  db?: TxClient;
   campusId: string;
   date: string;
   periodDefinitionId: string | null;
   excludeScheduleId?: string;
 }) {
+  const db = opts.db ?? prisma;
   const { campusId, date, periodDefinitionId, excludeScheduleId } = opts;
 
-  const rooms = await prisma.classRoom.findMany({
+  const rooms = await db.classRoom.findMany({
     where: { campusId },
     select: ROOM_SELECT,
     orderBy: [{ roomNumber: "asc" }],
@@ -182,7 +191,7 @@ export async function findAvailableRooms(opts: {
 
   const taken = new Set<string>();
   if (periodDefinitionId) {
-    const booked = await prisma.examRoom.findMany({
+    const booked = await db.examRoom.findMany({
       where: {
         campusId,
         examScheduleId: excludeScheduleId ? { not: excludeScheduleId } : undefined,
@@ -194,7 +203,7 @@ export async function findAvailableRooms(opts: {
   }
 
   const period = periodDefinitionId
-    ? await prisma.periodDefinition.findFirst({
+    ? await db.periodDefinition.findFirst({
         where: { id: periodDefinitionId, campusId },
         select: { startTime: true, endTime: true },
       })
@@ -204,7 +213,7 @@ export async function findAvailableRooms(opts: {
   if (period) {
     const [y, m, d] = date.split("-").map(Number);
     const jsDay = new Date(y, m - 1, d).getDay();
-    const slots = await prisma.timetableSlot.findMany({
+    const slots = await db.timetableSlot.findMany({
       where: {
         roomId: { in: rooms.map((r) => r.id) },
         dayOfWeek: jsDay === 0 ? 7 : jsDay,
@@ -247,6 +256,7 @@ export async function findAvailableRooms(opts: {
  * no recorded size, are never offered.
  */
 export async function suggestRooms(opts: {
+  db?: TxClient;
   campusId: string;
   date: string;
   periodDefinitionId: string | null;
@@ -286,10 +296,12 @@ export async function suggestRooms(opts: {
  * student ends up either in two rooms or in none.
  */
 export async function allocateExamRooms(opts: {
+  db?: TxClient;
   campusId: string;
   scheduleId: string;
   roomIds: string[];
 }): Promise<SeatingPlan> {
+  const db = opts.db ?? prisma;
   const { campusId, scheduleId } = opts;
   const roomIds = [...new Set(opts.roomIds)];
 
@@ -300,7 +312,7 @@ export async function allocateExamRooms(opts: {
     throw new ApiError("At least one room is required", 400);
   }
 
-  const schedule = await prisma.examSchedule.findFirst({
+  const schedule = await db.examSchedule.findFirst({
     where: { id: scheduleId, campusId },
     select: {
       id: true,
@@ -308,12 +320,13 @@ export async function allocateExamRooms(opts: {
       periodDefinitionId: true,
       periodDefinition: { select: { startTime: true, endTime: true } },
       subject: { select: { name: true } },
-      exam: { select: { classId: true, title: true } },
+      exam: { select: { classId: true, title: true, status: true, isLocked: true, class: { select: { status: true, archivedAt: true } } } },
     },
   });
   if (!schedule) throw new ApiError("Schedule not found", 404);
+  if (schedule.exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(schedule.exam.status) || schedule.exam.class.archivedAt || schedule.exam.class.status !== "ACTIVE") throw new ApiError("This exam is no longer editable.", 409);
 
-  const rooms = await prisma.classRoom.findMany({
+  const rooms = await db.classRoom.findMany({
     where: { id: { in: roomIds }, campusId },
     select: ROOM_SELECT,
   });
@@ -329,8 +342,8 @@ export async function allocateExamRooms(opts: {
     );
   }
 
-  const students = await prisma.student.findMany({
-    where: { classId: schedule.exam.classId, campusId, status: "active" },
+  const students = await db.student.findMany({
+    where: { classId: schedule.exam.classId, campusId, status: "active", archivedAt: null },
     select: { id: true, fullName: true, rollNo: true },
     orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
   });
@@ -350,7 +363,7 @@ export async function allocateExamRooms(opts: {
     );
   }
 
-  const clashes = await findRoomClashes({
+  const clashes = await findRoomClashes({ db: opts.db,
     campusId,
     roomIds,
     date: schedule.date,
@@ -359,18 +372,11 @@ export async function allocateExamRooms(opts: {
   });
   if (clashes.length) throw new ApiError(clashes[0], 409);
 
-  const lessonClashes = await findTimetableRoomClashes({
-    campusId,
-    roomIds,
-    date: schedule.date.toISOString().slice(0, 10),
-    startTime: schedule.periodDefinition?.startTime ?? null,
-    endTime: schedule.periodDefinition?.endTime ?? null,
-  });
-  if (lessonClashes.length) throw new ApiError(lessonClashes[0], 409);
-
-  await prisma.$transaction(async (tx) => {
+  await transaction(opts.db, async (tx) => {
     // Seats first — they point at the rooms.
     await tx.examSeat.deleteMany({ where: { examScheduleId: scheduleId } });
+    const previousRooms = await tx.examRoom.findMany({ where: { examScheduleId: scheduleId }, include: { invigilation: true } });
+    if (previousRooms.some(room => room.invigilation && !roomIds.includes(room.roomId))) throw new ApiError("Remove or reassign the invigilator duty before removing its room.", 409);
     await tx.examRoom.deleteMany({ where: { examScheduleId: scheduleId } });
 
     let cursor = 0;
@@ -380,6 +386,8 @@ export async function allocateExamRooms(opts: {
         select: { id: true },
       });
 
+      const previousDuty = previousRooms.find(item => item.roomId === room.id)?.invigilation;
+      if (previousDuty) await tx.examInvigilation.create({ data: { schoolId: previousDuty.schoolId, campusId, examRoomId: examRoom.id, teacherId: previousDuty.teacherId, createdById: previousDuty.createdById } });
       const grid = seatGrid(room);
       const take = students.slice(cursor, cursor + capacities[index].exam);
       if (take.length) {
@@ -406,13 +414,16 @@ export async function allocateExamRooms(opts: {
       where: { id: scheduleId },
       data: { roomId: ordered[0].id },
     });
+    const campus = await tx.campus.findUniqueOrThrow({ where: { id: campusId }, select: { schoolId: true } });
+    await validateStoredExamSchedules(tx, { schoolId: campus.schoolId, campusId }, [scheduleId]);
   });
 
-  return getSeatingPlan(campusId, scheduleId);
+  return getSeatingPlan(campusId, scheduleId, opts.db);
 }
 
-export async function getSeatingPlan(campusId: string, scheduleId: string): Promise<SeatingPlan> {
-  const rooms = await prisma.examRoom.findMany({
+export async function getSeatingPlan(campusId: string, scheduleId: string, client?: TxClient): Promise<SeatingPlan> {
+  const db = client ?? prisma;
+  const rooms = await db.examRoom.findMany({
     where: { examScheduleId: scheduleId, campusId },
     orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
     select: {
@@ -463,12 +474,18 @@ export async function getSeatingPlan(campusId: string, scheduleId: string): Prom
     };
   });
 
+  // SKO-413: compare with the live roster, so a pupil who joined after
+  // seating is reported instead of silently missing from the plan.
+  const schedule = await db.examSchedule.findFirst({ where: { id: scheduleId, campusId }, select: { exam: { select: { classId: true } } } });
+  const seatedIds = new Set(rooms.flatMap(r => r.seats.map(seat => seat.student.id)));
+  const roster = schedule ? await db.student.findMany({ where: { classId: schedule.exam.classId, status: "active", archivedAt: null }, select: { id: true } }) : [];
+
   return {
     scheduleId,
     totalStudents: mapped.reduce((n, r) => n + r.seated, 0),
     totalCapacity: mapped.reduce((n, r) => n + r.capacity, 0),
     totalTeachingCapacity: mapped.reduce((n, r) => n + r.teachingCapacity, 0),
-    unseated: 0,
+    unseated: roster.filter(pupil => !seatedIds.has(pupil.id)).length,
     rooms: mapped,
   };
 }
@@ -481,32 +498,39 @@ export async function getSeatingPlan(campusId: string, scheduleId: string): Prom
  * paper?") whether the paper was scheduled the simple way or split.
  */
 export async function syncPrimaryExamRoom(opts: {
+  db?: TxClient;
   campusId: string;
   scheduleId: string;
   roomId: string | null;
 }) {
+  const db = opts.db ?? prisma;
   const { campusId, scheduleId, roomId } = opts;
 
-  const existing = await prisma.examRoom.findMany({
+  const existing = await db.examRoom.findMany({
     where: { examScheduleId: scheduleId },
-    select: { id: true, roomId: true, isPrimary: true },
+    select: { id: true, roomId: true, isPrimary: true, invigilation: { select: { id: true } } },
   });
 
   // A genuine multi-room plan is left alone — the date sheet's single roomId
   // is a mirror of its primary room, not an instruction to collapse the plan.
-  if (existing.length > 1) return;
+  if (existing.length > 1) {
+    const primary = existing.find(room => room.isPrimary);
+    if (primary?.roomId !== roomId) throw new ApiError("Edit this paper's full room allocation to change its primary room.", 409);
+    return;
+  }
+  if (existing.some(room => room.invigilation && room.roomId !== roomId)) throw new ApiError("Remove or reassign the invigilator duty before removing its room.", 409);
 
   if (!roomId) {
     if (existing.length) {
-      await prisma.examSeat.deleteMany({ where: { examScheduleId: scheduleId } });
-      await prisma.examRoom.deleteMany({ where: { examScheduleId: scheduleId } });
+      await db.examSeat.deleteMany({ where: { examScheduleId: scheduleId } });
+      await db.examRoom.deleteMany({ where: { examScheduleId: scheduleId } });
     }
     return;
   }
 
   if (existing.length === 1 && existing[0].roomId === roomId) return;
 
-  await prisma.$transaction(async (tx) => {
+  await transaction(opts.db, async (tx) => {
     await tx.examSeat.deleteMany({ where: { examScheduleId: scheduleId } });
     await tx.examRoom.deleteMany({ where: { examScheduleId: scheduleId } });
     await tx.examRoom.create({

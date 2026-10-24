@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { friendlyErrorMessage } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Calendar, Clock } from "lucide-react";
 import { StudentPage } from "@/components/student/student-page";
 import { TimetableReadOnly } from "@/components/timetable/TimetablePanel";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
+import { MyNextPaper } from "@/components/exams/my-next-paper";
 import { StudentErrorState, TimetableSkeleton } from "@/components/student/student-components";
-import { StudentEmptyState } from "@/components/student/student-ui";
 
 interface ClassTimetableData {
   classId: string;
@@ -26,6 +28,7 @@ interface ClassTimetableData {
 }
 
 export default function StudentTimetablePage() {
+  const ui = useUiText();
   const [data, setData] = useState<ClassTimetableData | null>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,12 +44,12 @@ export default function StudentTimetablePage() {
       ]);
       const json = await ttRes.json();
       if (json.success) setData(json.data);
-      else setError(json.error || "Failed to load timetable");
+      else setError(friendlyErrorMessage(json.error, "We couldn't load your timetable. Please try again."));
       const calJson = await calRes.json();
       if (calJson.success) setWeekendDays(calJson.data.weekends || []);
-    } catch {
-      setError("Failed to load timetable");
-      toast.error("Failed to load timetable");
+    } catch (err) {
+      // The full-page error below already says this and offers a retry, so no toast on top of it.
+      setError(friendlyErrorMessage(err, "We couldn't load your timetable. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
@@ -59,28 +62,24 @@ export default function StudentTimetablePage() {
 
   return (
     <StudentPage
-      tone="timetable"
       icon={Clock}
-      eyebrow={<>{data ? `${data.slots.length} class slots scheduled` : "Weekly schedule"}</>}
-      title="Weekly Timetable"
-      summary={
-        <>
-          {data
-            ? `${data.className}${data.classSection ? ` - ${data.classSection}` : ""}`
-            : "Your class timetable"}
-        </>
-      }
+      title="Timetable"
+      description="Your week, lesson by lesson, and your exam date sheet."
+      status={data ? <bdi className="text-sm font-semibold text-ink-muted">{data.className}{data.classSection ? ` · ${data.classSection}` : ""}</bdi> : undefined}
     >
       <div className="space-y-3">
         {data ? (
           <TimetableReadOnly slots={data.slots} weekendDays={weekendDays} />
         ) : (
-          <StudentEmptyState
+          <EmptyState
             icon={Calendar}
-            title="No timetable published"
-            description="Your class timetable appears here once the administration publishes it."
+            className="sk-panel"
+            title={ui("No timetable published")}
+            description={ui("Your class timetable appears here once the administration publishes it.")}
           />
         )}
+        {/* SKO-505: paper and online sittings in one list, the next one with a countdown. */}
+        <MyNextPaper source="/api/student/exam-timeline" examHref={id => `/ai/exams/${encodeURIComponent(id)}`} />
         <ExamDateSheet classId={data?.classId} />
       </div>
     </StudentPage>

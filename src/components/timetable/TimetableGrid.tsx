@@ -2,6 +2,7 @@
 
 import { BookOpen, DoorOpen, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import type {
   GridDay,
   GridPeriod,
@@ -28,8 +29,8 @@ const DENSITY = {
     cell: "min-h-[42px]",
     dayMin: 104,
     timeCol: 76,
-    subject: "text-[10px]",
-    meta: "text-[8px]",
+    subject: "text-2xs",
+    meta: "text-3xs",
     pad: "p-1.5",
     gap: "gap-0.5",
     showMeta: false,
@@ -39,8 +40,8 @@ const DENSITY = {
     cell: "min-h-[64px]",
     dayMin: 132,
     timeCol: 88,
-    subject: "text-[11px]",
-    meta: "text-[9px]",
+    subject: "text-2xs",
+    meta: "text-2xs",
     pad: "p-2",
     gap: "gap-1",
     showMeta: true,
@@ -51,7 +52,7 @@ const DENSITY = {
     dayMin: 168,
     timeCol: 96,
     subject: "text-[13px]",
-    meta: "text-[10px]",
+    meta: "text-2xs",
     pad: "p-2.5",
     gap: "gap-1.5",
     showMeta: true,
@@ -60,10 +61,10 @@ const DENSITY = {
 } as const;
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string; short: string }> = {
-  BREAK: { bg: "bg-[#f3f4f9]", text: "text-ink-muted", label: "Break", short: "Break" },
-  PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/70", label: "Prayer / Namaz", short: "Prayer" },
-  ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/70", label: "Assembly", short: "Assembly" },
-  ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/70", label: "Activity", short: "Activity" },
+  BREAK: { bg: "bg-muted", text: "text-ink-muted", label: "Break", short: "Break" },
+  PRAYER: { bg: "bg-status-warning-surface", text: "text-status-warning-text", label: "Prayer / Namaz", short: "Prayer" },
+  ASSEMBLY: { bg: "bg-status-info-surface", text: "text-status-info-text", label: "Assembly", short: "Assembly" },
+  ACTIVITY: { bg: "bg-status-success-surface", text: "text-status-success-text", label: "Activity", short: "Activity" },
 };
 
 function resolveName<T extends { id: string; name?: string; fullName?: string; roomNumber?: string }>(
@@ -120,6 +121,7 @@ export function TimetableGrid({
   onCellClick: (slot: StudioSlot) => void;
   onDropSubject?: (slot: StudioSlot, subjectId: string) => void;
 }) {
+  const ui = useUiText();
   const d = DENSITY[density];
   const getSlot = (day: number, period: number): StudioSlot | undefined =>
     slots.find((s) => s.dayOfWeek === day && s.periodNumber === period);
@@ -134,11 +136,11 @@ export function TimetableGrid({
       {/* Header row — sticky so the day you are looking at stays named while
           you scroll a long list of periods. */}
       <div
-        className="sticky top-0 z-10 grid border-b border-[#cfc2d6]/20 bg-white/95 backdrop-blur"
+        className="sticky top-0 z-10 grid border-b border-edge/20 bg-card/95 backdrop-blur"
         style={{ gridTemplateColumns: gridCols }}
       >
         <div className="flex items-center justify-center p-3">
-          <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">Period</span>
+          <span className="text-xs font-semibold text-ink-subtle">{ui("Period")}</span>
         </div>
         {visibleDays.map((day) => {
           const isOff = weekendDays.includes(day.num);
@@ -146,17 +148,16 @@ export function TimetableGrid({
             <div
               key={day.num}
               className={cn(
-                "flex flex-col items-center justify-center border-l border-[#f3f4f9] py-2.5",
-                isOff && "bg-[#f3f4f9]/70 opacity-60",
+                "flex flex-col items-center justify-center border-s border-muted py-2.5",
+                isOff && "bg-muted/70 opacity-60",
               )}
             >
-              <span className="text-[11px] font-black uppercase tracking-wider text-[#1f1a23]">
-                {day.short}
+              <span className="text-xs font-semibold text-ink-strong">
+                {ui(day.full)}
               </span>
-              <span className="mt-0.5 text-[9px] font-semibold text-ink-subtle">{day.full}</span>
               {isOff ? (
-                <span className="mt-1 rounded bg-rose-50 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-rose-500">
-                  Off
+                <span className="mt-1 rounded bg-status-error-surface px-1.5 py-px text-2xs font-semibold text-status-error-text">
+                  {ui("Off")}
                 </span>
               ) : null}
             </div>
@@ -173,34 +174,34 @@ export function TimetableGrid({
           <div
             key={period.num}
             className={cn(
-              "grid border-b border-[#f3f4f9] transition-colors last:border-b-0",
-              isSpecial ? specialStyle?.bg || "bg-[#f3f4f9]" : "hover:bg-[#fbf0fe]/20",
+              "grid border-b border-muted transition-colors last:border-b-0",
+              isSpecial ? specialStyle?.bg || "bg-muted" : "hover:bg-brand-50/20",
             )}
             style={{ gridTemplateColumns: gridCols }}
           >
             {/* Time column: the period, the window it covers, and how long it
                 runs — the three things anyone reads a timetable row for. */}
-            <div className="flex flex-col items-center justify-center border-r border-[#f3f4f9] px-1.5 py-2">
-              <span className="text-[11px] font-black text-[#8127cf]">P{period.num}</span>
-              <span className="mt-0.5 text-[9px] font-bold leading-tight text-ink-muted">
+            <div className="flex flex-col items-center justify-center border-e border-muted px-1.5 py-2">
+              <span className="text-2xs font-bold text-primary" title={ui("Period {0}", [period.num])}>{ui("P{0}", [period.num])}</span>
+              <bdi dir="ltr" className="mt-0.5 text-2xs font-bold leading-tight text-ink-muted">
                 {period.start}
-              </span>
-              <span className="text-[9px] font-semibold leading-tight text-ink-subtle">
+              </bdi>
+              <bdi dir="ltr" className="text-2xs font-semibold leading-tight text-ink-subtle">
                 {period.end}
-              </span>
+              </bdi>
               {duration && density !== "compact" ? (
-                <span className="mt-1 rounded-full bg-[#f3f4f9] px-1.5 text-[8px] font-black uppercase tracking-wider text-ink-subtle">
+                <bdi dir="ltr" className="mt-1 rounded-full bg-muted px-1.5 text-3xs font-semibold text-ink-subtle">
                   {duration}
-                </span>
+                </bdi>
               ) : null}
             </div>
 
             {visibleDays.map((day) => {
               const isOff = weekendDays.includes(day.num);
-              const offCls = isOff ? "opacity-40 bg-[#f3f4f9]/70" : "";
+              const offCls = isOff ? "opacity-40 bg-muted/70" : "";
               const slot = getSlot(day.num, period.num);
               if (!slot) {
-                return <div key={day.num} className={cn("border-l border-[#f3f4f9] p-1", offCls)} />;
+                return <div key={day.num} className={cn("border-s border-muted p-1", offCls)} />;
               }
 
               const change = pendingChanges.get(slot.id);
@@ -212,14 +213,18 @@ export function TimetableGrid({
                   <div
                     key={day.num}
                     className={cn(
-                      "flex cursor-pointer items-center justify-center border-l border-[#f3f4f9] p-1",
+                      "flex cursor-pointer items-center justify-center border-s border-muted p-1",
                       offCls,
                     )}
                     onClick={() => onCellClick(slot)}
-                    title={style?.label || effectiveType}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onCellClick(slot); } }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={ui("{0} · {1}, period {2}", [ui(style?.label || effectiveType), ui(day.full), period.num])}
+                    title={ui(style?.label || effectiveType)}
                   >
-                    <span className={cn("text-[9px] font-bold", style?.text || "text-ink-subtle")}>
-                      {density === "compact" ? style?.short : style?.label || effectiveType}
+                    <span className={cn("text-2xs font-bold", style?.text || "text-ink-subtle")}>
+                      {ui(density === "compact" ? style?.short ?? effectiveType : style?.label || effectiveType)}
                     </span>
                   </div>
                 );
@@ -250,10 +255,10 @@ export function TimetableGrid({
               // rather than lossy.
               const fullTitle = [
                 subjectName,
-                teacherName ? `Teacher: ${teacherName}` : null,
-                roomName ? `Room: ${roomName}` : null,
-                `${day.full} · P${period.num} ${period.start}–${period.end}`,
-                hasChange ? "Unsaved change" : null,
+                teacherName ? ui("Teacher: {0}", [teacherName]) : null,
+                roomName ? ui("Room: {0}", [roomName]) : null,
+                ui("{0} · Period {1} {2}–{3}", [ui(day.full), period.num, period.start, period.end]),
+                hasChange ? ui("Unsaved change") : null,
               ]
                 .filter(Boolean)
                 .join("\n");
@@ -261,7 +266,7 @@ export function TimetableGrid({
               return (
                 <div
                   key={day.num}
-                  className={cn("group cursor-pointer border-l border-[#f3f4f9] p-1 transition-all", offCls)}
+                  className={cn("group cursor-pointer border-s border-muted p-1 transition-all", offCls)}
                   onClick={() => onCellClick(slot)}
                   onDragOver={(e) => {
                     if (onDropSubject) e.preventDefault();
@@ -281,9 +286,9 @@ export function TimetableGrid({
                         d.cell,
                         d.pad,
                         d.gap,
-                        color?.bg || "bg-gray-50",
-                        color?.border || "border-gray-200",
-                        hasChange && "ring-2 ring-amber-300",
+                        color?.bg || "bg-surface-subtle",
+                        color?.border || "border-border",
+                        hasChange && "ring-2 ring-status-warning-border",
                       )}
                     >
                       {/* A colour rail reads faster than a tinted background
@@ -291,15 +296,15 @@ export function TimetableGrid({
                       <span
                         aria-hidden
                         className={cn(
-                          "absolute inset-y-0 left-0 w-[3px]",
-                          color?.dot?.replace("bg-", "bg-") || "bg-gray-300",
+                          "absolute inset-y-0 start-0 w-[3px]",
+                          color?.dot || "bg-ink-faint",
                         )}
                       />
                       <p
                         className={cn(
-                          "truncate pl-1.5 font-black leading-tight",
+                          "truncate ps-1.5 font-bold leading-tight",
                           d.subject,
-                          color?.text || "text-gray-600",
+                          color?.text || "text-ink-muted",
                         )}
                       >
                         {subjectName}
@@ -307,7 +312,7 @@ export function TimetableGrid({
                       {d.showMeta && (teacherName || roomName) ? (
                         <div
                           className={cn(
-                            "flex min-w-0 pl-1.5",
+                            "flex min-w-0 ps-1.5",
                             d.stackMeta ? "flex-col gap-0.5" : "items-center gap-2",
                           )}
                         >
@@ -340,20 +345,20 @@ export function TimetableGrid({
                       {/* An unplaced teacher is the thing that breaks a
                           timetable, so say so instead of leaving a blank. */}
                       {d.showMeta && !teacherName ? (
-                        <span className={cn("pl-1.5 font-bold text-amber-600", d.meta)}>
-                          No teacher
+                        <span className={cn("ps-1.5 font-semibold text-status-warning-text", d.meta)}>
+                          {ui("No teacher")}
                         </span>
                       ) : null}
                     </div>
                   ) : (
                     <div
-                      title={`Free · ${day.full} P${period.num} ${period.start}–${period.end}`}
+                      aria-label={ui("Free · {0}, period {1}, {2}–{3}", [ui(day.full), period.num, period.start, period.end])}
                       className={cn(
-                        "flex h-full items-center justify-center rounded-xl border border-dashed border-[#cfc2d6]/20 transition-all group-hover:border-[#8127cf]/30 group-hover:bg-[#fbf0fe]/30",
+                        "flex h-full items-center justify-center rounded-xl border border-dashed border-edge/20 transition-all group-hover:border-primary/30 group-hover:bg-brand-50/30",
                         d.cell,
                       )}
                     >
-                      <BookOpen className="h-3.5 w-3.5 text-ink-subtle transition-colors group-hover:text-[#8127cf]/40" />
+                      <BookOpen className="h-3.5 w-3.5 text-ink-subtle transition-colors group-hover:text-primary/40" />
                     </div>
                   )}
                 </div>

@@ -1,66 +1,66 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
-import { toast } from "sonner"
-import { userMessage } from "@/lib/errors"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { getSuperAdminDashboardData } from "@/app/actions/dashboard"
+import { usePrivateDashboardData } from "@/lib/auth/use-private-dashboard-data"
+
+/**
+ * The group console's dashboard data, loaded once per signed-in scope (the layout keys this provider on the
+ * session) and shared by every `?view=`. A failed load is reported inline by the view that needs the data
+ * (ErrorState with retry, R4) — never as a toast and never by signing the user out. Views that do not need it
+ * (Billing & plan, which must work while the school is suspended, F3) render without waiting for it.
+ *
+ * Suspension (F3, §3.2, §2.1 note 2) is decided from the school's state, not from "the loader failed":
+ * - the layout reads it on the server for the page load (`initialSuspended`), so a suspended school never opens
+ *   the chat stream, even while the first load is in flight, and the loader is not called at all;
+ * - a school suspended mid-session is recognised when a reload fails: production builds strip server-action
+ *   error messages, so the console asks the proxy, which answers 402 for any school API that is not on the
+ *   suspended allow-list (a HEAD request is the cheapest question).
+ */
+type SuperAdminData = Awaited<ReturnType<typeof getSuperAdminDashboardData>>
 
 type SuperAdminDataContextType = {
-  data: any
+  data: SuperAdminData | null
   loading: boolean
   error: string | null
-  refetch: () => void
+  /** The school's subscription is paused: only Billing & plan works; no chat stream opens. */
+  suspended: boolean
+  refetch: () => Promise<void>
 }
 
 const SuperAdminDataContext = createContext<SuperAdminDataContextType>({
   data: null,
   loading: true,
   error: null,
-  refetch: () => {},
+  suspended: false,
+  refetch: async () => {},
 })
 
-const CACHE_KEY = "super-dashboard"
-const CACHE_TTL = 60_000
-const cache = new Map<string, { data: any; ts: number }>()
+/** True when the proxy answers a school API with 402 (the suspended school's refusal). */
+export async function probeSuspended(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/super/support-grants", { method: "HEAD", cache: "no-store" })
+    return response.status === 402
+  } catch {
+    return false
+  }
+}
 
-export function SuperAdminDataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<any>(() => {
-    const cached = cache.get(CACHE_KEY)
-    return cached && Date.now() - cached.ts < CACHE_TTL ? cached.data : null
+export function SuperAdminDataProvider({ children, initialSuspended = false }: { children: ReactNode; initialSuspended?: boolean }) {
+  const [suspended, setSuspended] = useState(initialSuspended)
+  const { data, loading, error, refetch } = usePrivateDashboardData<SuperAdminData>(getSuperAdminDashboardData, {
+    // A school the layout already knows is paused has nothing to load: every view but Billing & plan shows the
+    // paused notice. Renewing reloads the page (provider return) or calls refetch.
+    enabled: !initialSuspended,
+    onSettled: async (ok, isCurrent) => {
+      if (ok) { setSuspended(false); return }
+      const paused = await probeSuspended()
+      if (isCurrent()) setSuspended(paused)
+    },
   })
-  const [loading, setLoading] = useState(data === null)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadData = useCallback(async () => {
-    if (data === null) setLoading(true)
-    setError(null)
-    try {
-      const fresh = await getSuperAdminDashboardData()
-      cache.set(CACHE_KEY, { data: fresh, ts: Date.now() })
-      setData(fresh)
-    } catch (err: any) {
-      // Server-action failures surface raw engine text (query, build paths,
-      // database host), so they never go straight to the user.
-      const message = userMessage(err, "Could not load your dashboard.")
-      setError(message)
-      toast.error(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [data])
-
-  useEffect(() => {
-    const cached = cache.get(CACHE_KEY)
-    if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      setData(cached.data)
-      setLoading(false)
-      return
-    }
-    loadData()
-  }, [loadData])
 
   return (
-    <SuperAdminDataContext.Provider value={{ data, loading, error, refetch: loadData }}>
+    <SuperAdminDataContext.Provider value={{ data, loading, error, suspended, refetch }}>
       {children}
     </SuperAdminDataContext.Provider>
   )

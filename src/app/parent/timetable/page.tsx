@@ -1,12 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { Clock } from "lucide-react";
+import { Clock, Lock } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
-import { ParentEmptyState, ParentTimetableSkeleton } from "@/components/parent/parent-components";
+import { ParentTimetableSkeleton } from "@/components/parent/parent-components";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { ExamDateSheet } from "@/components/timetable/ExamDateSheet";
+import { MyNextPaper } from "@/components/exams/my-next-paper";
+import { FamilyExamBrief } from "@/components/exams/family-exam-brief";
+import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { useParentData } from "../parent-data-context";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -15,40 +20,51 @@ const DAYS = [
   { num: 4, short: "Thu" }, { num: 5, short: "Fri" }, { num: 6, short: "Sat" },
 ];
 
+/** Subject colours from the design tokens (R10), so the grid reads the same in every theme. */
 const COLORS = [
-  { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300" },
-  { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300" },
-  { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300" },
-  { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300" },
-  { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300" },
-  { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300" },
-  { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300" },
-  { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300" },
+  { bg: "bg-status-brand-surface", text: "text-status-brand-text", border: "border-status-brand-border" },
+  { bg: "bg-status-info-surface", text: "text-status-info-text", border: "border-status-info-border" },
+  { bg: "bg-status-success-surface", text: "text-status-success-text", border: "border-status-success-border" },
+  { bg: "bg-status-warning-surface", text: "text-status-warning-text", border: "border-status-warning-border" },
+  { bg: "bg-status-error-surface", text: "text-status-error-text", border: "border-status-error-border" },
+  { bg: "bg-brand-100", text: "text-primary", border: "border-brand-200" },
+  { bg: "bg-surface-subtle", text: "text-ink-strong", border: "border-border-subtle" },
 ];
 
 export default function ParentTimetablePage() {
-  const { token, selectedStudentId } = useParentData();
+  const tr = useUiText();
+  const { selectedStudentId, data } = useParentData();
   const [timetableData, setTimetableData] = useState<any>(null);
   const [weekendDays, setWeekendDays] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load used to fall through to "No timetable published", which
+  // told a guardian the school had not published one when it simply had not
+  // arrived. "denied" is the portal permission, which a retry cannot change.
+  const [loadError, setLoadError] = useState<"failed" | "denied" | null>(null);
 
   const loadTimetable = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
-      if (token) params.set("token", token);
       // Follow the child switcher, or a sibling's timetable would keep
       // showing the default child's schedule.
       if (selectedStudentId) params.set("studentId", selectedStudentId);
-      const res = await fetch(`/api/parent/timetable?${params}`);
+      const query = params.toString();
+      const res = await fetch(`/api/parent/timetable${query ? `?${query}` : ""}`);
       const json = await res.json();
       if (json.success) {
         setTimetableData(json.data);
         setWeekendDays(json.data?.weekends || []);
+      } else {
+        setLoadError(res.status === 403 ? "denied" : "failed");
       }
-    } catch { toast.error("Failed to load timetable"); }
+    } catch {
+      // Reported once, inline, by the ErrorState below (R4) — not also as a toast.
+      setLoadError("failed");
+    }
     setLoading(false);
-  }, [token, selectedStudentId]);
+  }, [selectedStudentId]);
 
   // Only render the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = DAYS.filter((d) => !weekendDays.includes(d.num));
@@ -91,67 +107,71 @@ export default function ParentTimetablePage() {
 
   return (
     <ParentPage
-      tone="timetable"
       icon={Clock}
-      eyebrow={<>{timetableData ? `${periods.length} periods · ${visibleDays.map((d) => d.short).join("-")}` : "Weekly class schedule"}</>}
-      title="Timetable"
-      summary="Your child’s weekly class schedule."
+      title="Timetable & exams"
+      description={data?.student?.fullName ? tr("{0}'s weekly class schedule, exam dates and the school calendar.", [`\u2068${data.student.fullName}\u2069`]) : tr("Your child’s weekly class schedule.")}
     >
       <div className="space-y-3">
         {loading ? (
           <ParentTimetableSkeleton weekendDays={weekendDays} />
+        ) : loadError === "denied" ? (
+          <EmptyState size="sm" icon={Lock} title={tr("Timetable not shared")} description={tr("The school has not shared the timetable with this account. Contact the school office if you need it.")} />
+        ) : loadError ? (
+          <div className="sk-panel">
+            <ErrorState onRetry={loadTimetable} />
+          </div>
         ) : hasTable ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-1.5">
               {subjectNames.map((name) => {
                 const c = colorMap.get(name);
                 return (
-                  <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg} px-2 py-1`}>
-                    <span className={`text-[8px] font-black ${c?.text}`}>{name}</span>
+                  <span key={name} className={`inline-flex max-w-full items-center rounded-full border ${c?.border} ${c?.bg} px-2.5 py-1`}>
+                    <bdi className={`text-2xs font-semibold ${c?.text} [overflow-wrap:anywhere]`}>{name}</bdi>
                   </span>
                 );
               })}
             </div>
-            <div className="sk-rise overflow-x-auto rounded-[24px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "80ms" }}>
               <div className="min-w-[700px]">
-                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
+                <div className="grid border-b border-muted" style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-2">
-                    <Clock className="w-3 h-3 text-ink-subtle" />
+                    <Clock aria-hidden="true" className="h-3.5 w-3.5 text-ink-subtle" />
                   </div>
                   {visibleDays.map((d) => (
-                    <div key={d.num} className="flex items-center justify-center py-2 border-l border-[#f3f4f9]">
-                      <span className="text-[8px] font-black uppercase text-ink-subtle">{d.short}</span>
+                    <div key={d.num} className="flex items-center justify-center border-s border-muted py-2.5">
+                      <span className="sk-eyebrow">{tr(d.short)}</span>
                     </div>
                   ))}
                 </div>
                 {periods.map((p: any) => {
                   const isSpecial = p.type !== "CLASS";
                   return (
-                    <div key={p.num} className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? "bg-[#f3f4f9]/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
-                      <div className="flex flex-col items-center justify-center p-1 border-r border-[#f3f4f9]">
-                        <span className="text-[8px] font-black text-[#8127cf]">P{p.num}</span>
-                        <span className="text-[6px] font-bold text-ink-subtle">{p.start}</span>
+                    <div key={p.num} className={`grid border-b border-muted last:border-b-0 ${isSpecial ? "bg-muted/50" : ""}`} style={{ gridTemplateColumns: `60px repeat(${visibleDays.length}, 1fr)` }}>
+                      <div className="flex flex-col items-center justify-center border-e border-muted p-1">
+                        <span className="text-2xs font-bold tabular-nums text-primary">{tr("P{0}", [p.num])}</span>
+                        <span className="text-2xs font-medium tabular-nums text-ink-subtle" dir="ltr">{p.start}</span>
                       </div>
                       {visibleDays.map((d) => {
                         const slot = getSlot(d.num, p.num);
                         if (!slot || slot.slotType !== "CLASS") {
-                          const label = slot?.slotType === "BREAK" ? "Break" : slot?.slotType === "PRAYER" ? "Prayer" : slot?.slotType === "ASSEMBLY" ? "Assembly" : slot?.slotType || "";
+                          const label = slot?.slotType === "BREAK" ? tr("Break") : slot?.slotType === "PRAYER" ? tr("Prayer") : slot?.slotType === "ASSEMBLY" ? tr("Assembly") : slot?.slotType || "";
                           return (
-                            <div key={d.num} className="border-l border-[#f3f4f9] flex items-center justify-center p-0.5">
-                              <span className="text-[7px] font-bold text-ink-subtle">{label}</span>
+                            <div key={d.num} className="flex items-center justify-center border-s border-muted p-0.5">
+                              <span className="text-2xs font-semibold text-ink-subtle">{label}</span>
                             </div>
                           );
                         }
                         const c = slot.subject ? colorMap.get(slot.subject.name) : null;
                         return (
-                          <div key={d.num} className="border-l border-[#f3f4f9] p-0.5">
+                          <div key={d.num} className="border-s border-muted p-0.5">
                             {slot.subject ? (
-                              <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1`}>
-                                <p className={`text-[8px] font-black ${c?.text} leading-tight`}>{slot.subject.name}</p>
-                                {slot.teacher && <p className="text-[6px] font-semibold text-ink-subtle mt-0.5">{slot.teacher.fullName}</p>}
+                              <div className={`h-full rounded-lg ${c?.bg} ${c?.border} border p-1.5`}>
+                                <p className={`text-2xs font-semibold leading-tight ${c?.text} [overflow-wrap:anywhere]`}>{slot.subject.name}</p>
+                                {slot.teacher && <p className="mt-0.5 text-2xs font-medium leading-tight text-ink-subtle [overflow-wrap:anywhere]">{slot.teacher.fullName}</p>}
                               </div>
                             ) : (
-                              <div className="h-full flex items-center justify-center"><span className="text-[7px] text-ink-subtle">—</span></div>
+                              <div className="flex h-full items-center justify-center"><span aria-hidden="true" className="text-2xs text-ink-faint">—</span></div>
                             )}
                           </div>
                         );
@@ -163,9 +183,14 @@ export default function ParentTimetablePage() {
             </div>
           </div>
         ) : (
-          <ParentEmptyState icon={Clock} title="No timetable published" description="The class timetable will appear here once published by the school." />
+          <EmptyState size="sm" icon={Clock} title={tr("No timetable published")} description={tr("The class timetable will appear here once published by the school.")} />
         )}
-        <ExamDateSheet token={token || undefined} />
+        {/* SKO-505: what changed on the date sheet for this child, then their papers and online sittings in one list. */}
+        <FamilyExamBrief studentId={selectedStudentId} />
+        <MyNextPaper source={`/api/parent/exam-timeline${selectedStudentId ? `?studentId=${encodeURIComponent(selectedStudentId)}` : ""}`} />
+        <ExamDateSheet />
+        {/* M96: the school calendar moved here from Home. Meetings moved to Meet a teacher (M92). */}
+        <AcademicCalendar readOnly role="PARENT" />
       </div>
     </ParentPage>
   );

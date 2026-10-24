@@ -1,183 +1,179 @@
 "use client";
 
+import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
+import { Tooltip } from "@/components/ui/tooltip";
+
+import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
+import { openSettings } from "@/components/settings/settings-sections";
+import { clearDeviceDrafts } from "@/lib/drafts/store";
+
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AvatarImage } from "@/components/ui/avatar-image";
-import { Modal } from "@/components/ui/modal";
 import { useEffect, useRef, useState } from "react";
-import {
-  AlertTriangle,
-  Award,
-  Bell,
-  BookOpen,
-  Calendar,
-  CalendarCheck,
-  CheckCircle,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  FileText,
-  GraduationCap,
-  KeyRound,
-  LayoutDashboard,
-  LayoutGrid,
-  Loader2,
-  LogOut,
-  Mail,
-  MessageCircle,
-  Receipt,
-  Settings,
-  UserCheck,
-  UserRound,
-  X,
-  XCircle,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, ChevronDown, Languages, LayoutDashboard, LogOut, Settings, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import { EditableProfileCard, type EditableProfile } from "@/components/profile/editable-profile-card";
+import type { EditableProfile } from "@/components/profile/editable-profile-card";
 import { CycleBadge } from "@/components/academic-year/CycleBadge";
-import { useNotifications, type AppNotification } from "@/hooks/use-notifications";
+import { ScopeBadge, useShellSession } from "./ScopeBadge";
+import { HelpMenu } from "./HelpMenu";
+import { useNotifications } from "@/hooks/use-notifications";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 import { playNotificationBell } from "@/lib/sounds/bell";
+import { Button } from "@/components/ui/button";
+import { Menu, type MenuItem } from "@/components/ui/menu";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { clearOnSignOut, pendingOnDevice } from "@/lib/offline/store";
+import { clearNavigationAccessCache } from "@/components/nav/NavigationAccess";
+import { dashboardPathForRole, type UserRole } from "@/lib/roles";
 
-const NOTIF_ICON_MAP: Record<string, LucideIcon> = {
-  Award, Bell, BookOpen, Calendar, CalendarCheck, FileText,
-  GraduationCap, LayoutGrid, Mail, MessageCircle, Receipt, UserCheck,
-};
 
-function resolveNotifIcon(name: string | null): LucideIcon {
-  return (name && NOTIF_ICON_MAP[name]) || Bell;
+/** Roles that see the academic-cycle chip (staff who work inside a cycle; not the group admin or the platform). */
+const NO_CYCLE: ReadonlySet<string> = new Set(["SUPER_ADMIN", "APP_OWNER", "PARENT", "STUDENT"]);
+
+function relativeTime(dateStr: string, language: string, timeZone: string): string {
+  const date = new Date(dateStr);
+  if (!Number.isFinite(date.getTime())) return "";
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const formatter = new Intl.RelativeTimeFormat(language, { numeric: "auto" });
+  if (seconds < 60) return formatter.format(0, "second");
+  if (seconds < 3600) return formatter.format(-Math.floor(seconds / 60), "minute");
+  if (seconds < 86400) return formatter.format(-Math.floor(seconds / 3600), "hour");
+  if (seconds < 604800) return formatter.format(-Math.floor(seconds / 86400), "day");
+  return date.toLocaleDateString(language, { timeZone, month: "short", day: "numeric" });
 }
 
-function relativeTime(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffSec = Math.max(0, Math.floor((now - then) / 1000));
-  if (diffSec < 60) return "Just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
+/** A registry `accountMenu` leaf (e.g. My leave), already translated by RoleShell. */
+export interface AccountMenuLink { id: string; label: string; icon: LucideIcon; href?: string; onSelect?: () => void }
 
 interface RoleHeaderProps {
+  /** Translated console name (registry eyebrow). */
   eyebrow?: string;
-  searchPlaceholder?: string;
+  /** The console landing view: the greeting and date show only here. */
+  landing?: boolean;
   userName?: string;
+  /** @deprecated fallback only; the session's mode-aware role label wins. */
   userRole?: string;
   avatarSeed?: string;
   dashboardHref?: string;
   compact?: boolean;
-  actions?: ReactNode;
+  /** Scope switchers only (parent child switcher, SA "Back to all campuses"). Never page actions. */
+  context?: ReactNode;
+  accountLinks?: AccountMenuLink[];
+  role?: UserRole;
+  framed?: boolean;
+}
+
+function isModalOpen() {
+  return Boolean(document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]'));
 }
 
 export function RoleHeader({
   eyebrow,
-  searchPlaceholder,
+  landing = true,
   userName = "Skoolee User",
-  userRole = "Dashboard",
-  avatarSeed,
-  dashboardHref = "/dashboard",
+  userRole,
+  dashboardHref,
   compact = false,
-  actions,
+  context,
+  accountLinks = [],
+  role,
+  framed = false,
 }: RoleHeaderProps) {
-  const router = useRouter();
+  const t = useUiText();
+  const { language, timezone } = useLocale();
+  const session = useShellSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [touring, setTouring] = useState(false);
+  const [signOutCount, setSignOutCount] = useState<number | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [headerProfile, setHeaderProfile] = useState<EditableProfile | null>(null);
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [arrival, setArrival] = useState("");
   const notifRef = useRef<HTMLDivElement | null>(null);
   const prevUnreadRef = useRef(0);
-  const { notifications: liveNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const toastedNotifIds = useRef<Set<string>>(new Set());
-  const displayName = (headerProfile?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
-  const displayRole = headerProfile?.roleLabel || userRole;
+  const { notifications: liveNotifications, unreadCount, refresh: refreshNotifications } = useNotifications();
+  const seenNotifIds = useRef<Set<string> | null>(null);
+  const displayName = (headerProfile?.fullName || session?.fullName || userName || "").split("@")[0].replace(/[._-]/g, " ").replace(/\s+/g, " ").trim() || "User";
+  // The EN key re-translates after a language switch; the session label is already in the display language.
+  const displayRole = session?.roleLabelKey || session?.roleLabel || headerProfile?.roleLabel || userRole || "";
   const displayAvatar = headerProfile?.profileImageUrl;
+  const viewerRole = role ?? session?.role;
+  const home = dashboardHref ?? (viewerRole ? dashboardPathForRole(viewerRole) : session?.dashboardPath ?? "/login");
+  const scopeLine = session?.schoolName ? (session.campusName && session.role !== "SUPER_ADMIN" && !session.institution?.standaloneOwner ? `${session.schoolName} · ${session.campusName}` : session.schoolName) : null;
+  const showCycle = Boolean(viewerRole) && !NO_CYCLE.has(viewerRole as string);
 
   const greeting = (() => {
-    const h = new Date().getHours();
+    const h = Number(new Intl.DateTimeFormat("en", { timeZone: timezone, hour: "numeric", hourCycle: "h23" }).format(new Date()));
     if (h < 12) return "Good morning";
     if (h < 17) return "Good afternoon";
     return "Good evening";
   })();
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const today = new Date().toLocaleDateString(language, { timeZone: timezone, weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
+  // The spotlight tour pauses the arrival cue and the bell shake (SPEC §9.3).
   useEffect(() => {
-    const newest = liveNotifications[0];
-    if (!newest || newest.isRead) return;
-    if (toastedNotifIds.current.has(newest.id)) return;
+    const onTour = (event: Event) => setTouring(Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active));
+    window.addEventListener("skoolee:tour-state", onTour);
+    return () => window.removeEventListener("skoolee:tour-state", onTour);
+  }, []);
 
-    const iconName = newest.icon;
-    const Icon = resolveNotifIcon(iconName);
-
-    playNotificationBell();
-    toast(iconName ? <Icon className="h-4 w-4 text-[#8127cf]" /> : undefined, {
-      description: (
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-[#1d1b20]">{newest.title}</p>
-          {newest.message && (
-            <p className="mt-0.5 text-xs font-medium text-ink line-clamp-2">{newest.message}</p>
-          )}
-        </div>
-      ),
-      duration: 5000,
-    });
-
-    toastedNotifIds.current.add(newest.id);
-    if (toastedNotifIds.current.size > 100) {
-      const ids = [...toastedNotifIds.current];
-      ids.slice(0, ids.length - 100).forEach((id) => toastedNotifIds.current.delete(id));
+  // An ACTION item that arrives while the shell is open rings and shakes the bell and is announced to screen readers —
+  // never for what was already unread on load, never during a tour or over an open dialog. It is not a toast: toasts
+  // report the result of something the viewer just did (addendum 2026-10-22 §4). The bell keeps the full list.
+  useEffect(() => {
+    if (seenNotifIds.current === null) {
+      if (liveNotifications.length === 0) return;
+      seenNotifIds.current = new Set(liveNotifications.map((item) => item.id));
+      return;
     }
-  }, [liveNotifications, markAsRead]);
+    const seen = seenNotifIds.current;
+    const fresh = liveNotifications.filter((item) => !seen.has(item.id));
+    fresh.forEach((item) => seen.add(item.id));
+    if (seen.size > 200) seenNotifIds.current = new Set([...seen].slice(-100));
+    const newest = fresh.find((item) => !item.isRead && (item as { category?: string }).category === "ACTION");
+    if (!newest || touring || isModalOpen()) return;
+    playNotificationBell();
+    setArrival(t("New notification: {0}", [newest.title]));
+    // Reads the translator at the moment an item arrives; a language switch should not re-announce it.
+  }, [liveNotifications, touring]);
 
+  // Header identity (name, photo). A failed read keeps the session name: no toast for a load (R4).
   useEffect(() => {
     let cancelled = false;
-
     fetch("/api/profile")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!cancelled && data?.profile) setHeaderProfile(data.profile);
       })
-      .catch(() => { toast.error("Failed to load profile"); });
-
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
-    if (unreadCount > prevUnreadRef.current) {
+    if (unreadCount > prevUnreadRef.current && !touring) {
       setBellShake(true);
       const timer = setTimeout(() => setBellShake(false), 340);
       prevUnreadRef.current = unreadCount;
       return () => clearTimeout(timer);
     }
     prevUnreadRef.current = unreadCount;
-  }, [unreadCount]);
+  }, [unreadCount, touring]);
 
   useEffect(() => {
-    if (!menuOpen && !notifOpen) return;
+    if (!notifOpen) return;
 
     const closeOnOutsideClick = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (menuRef.current?.contains(target)) return;
       if (notifRef.current?.contains(target)) return;
-      setMenuOpen(false);
       setNotifOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-        setNotifOpen(false);
-      }
+      if (event.key === "Escape") setNotifOpen(false);
     };
 
     document.addEventListener("pointerdown", closeOnOutsideClick);
@@ -187,459 +183,152 @@ export function RoleHeader({
       document.removeEventListener("pointerdown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [menuOpen, notifOpen]);
+  }, [notifOpen]);
 
-  const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+  const signOut = async () => {
+    setSigningOut(true);
+    clearOnSignOut();
+    clearDeviceDrafts();
+    // The shell's per-tab access cache never outlives the session it was confirmed for.
+    clearNavigationAccessCache();
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     window.location.href = "/login";
   };
 
-  const handleNotificationClick = (notification: AppNotification) => {
-    // Mark as read
-    if (!notification.isRead) {
-      markAsRead([notification.id]);
-    }
-    
-    // Close the dropdown
-    setNotifOpen(false);
-    
-    // Navigate to the link if available
-    if (notification.link) {
-      router.push(notification.link);
-    }
+  const handleLogout = () => {
+    // SKO-448: this device's shared-device policy removes offline registers and unsynced marks on sign-out.
+    const unsynced = pendingOnDevice();
+    if (unsynced) { setSignOutCount(unsynced); return; }
+    void signOut();
   };
 
   return (
     <>
-      <header className={cn("flex items-center justify-between gap-3 shrink-0 bg-white/40 backdrop-blur-xl border border-[#cfc2d6]/25 rounded-[22px] px-4 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.05),0_8px_28px_-10px_rgba(129,39,207,0.18)] z-40", compact ? "mb-3" : "mb-4")}>
-        <div className="flex items-center gap-4">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] flex items-center justify-center shadow-md shadow-[#8127cf]/15 shrink-0">
-            <LayoutDashboard className="h-[18px] w-[18px] text-white" />
-          </div>
+      <header data-workspace-header className={cn("sk-panel relative z-40 flex shrink-0 flex-nowrap items-center justify-between gap-[8px] px-[12px] py-[8px] sm:flex-wrap sm:px-4 sm:py-2.5", compact ? "mb-3" : "mb-4")}>
+        <div data-tour="shell.header.identity" className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none sm:gap-3">
+          <Tooltip content={t("Home")} describe={false}>
+            <Link href={home} aria-label={t("Home")} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-brand-400 shadow-md shadow-primary/15 sm:h-9 sm:w-9">
+              <LayoutDashboard aria-hidden="true" className="h-[18px] w-[18px] text-primary-foreground" />
+            </Link>
+          </Tooltip>
           {/* Both lines come from the *viewer's* clock and timezone, which the
               server cannot know, so its guess and the browser's routinely
-              disagree ("Good evening" vs "Good morning", and the date itself
-              either side of midnight). That mismatch was throwing a hydration
-              error on every dashboard load. The client value is the correct
-              one; suppress the diff rather than degrade to a server guess. */}
-          <div className="hidden sm:block">
-            <p suppressHydrationWarning className="text-xs font-bold tracking-tight text-[#1d1b20] leading-tight">{greeting}, {displayName}</p>
-            <p suppressHydrationWarning className="text-[9px] font-semibold text-ink-muted leading-tight mt-px">{today}</p>
+              disagree. The client value is the correct one; suppress the diff
+              rather than degrade to a server guess. */}
+          <div className="min-w-0">
+            {eyebrow && <p className="truncate text-xs font-bold leading-tight text-ink-strong">{eyebrow}</p>}
+            {scopeLine ? <p className="mt-1 truncate text-2xs text-ink-muted sm:hidden" title={scopeLine}><bdi>{scopeLine}</bdi></p> : null}
+            {landing && <p suppressHydrationWarning className={cn("hidden text-xs font-semibold leading-tight tracking-tight text-ink-muted sm:block", eyebrow && "mt-1")}>{t(greeting)}, <bdi>{displayName}</bdi></p>}
+            {landing && <p suppressHydrationWarning className="mt-px hidden text-2xs font-semibold leading-tight text-ink-muted sm:block">{today}</p>}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-2.5">
-          <CycleBadge />
-        {actions}
-        <div ref={notifRef} className="relative">
-          <button
-            type="button"
-            onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
-            className={cn(
-              "relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12",
-              notifOpen && "bg-white text-[#8127cf] shadow-md border-[#8127cf]/20",
-              bellShake && "sk-shake"
-            )}
-            title="View notifications"
-          >
-            <Bell className="w-[18px] h-[18px]" />
-            {unreadCount > 0 && (
-              <span className="sk-glow absolute -right-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#8127cf] px-1.5 text-[12px] font-black text-white ring-2 ring-white shadow-md shadow-[#8127cf]/30">{unreadCount > 99 ? "99+" : unreadCount}</span>
-            )}
-          </button>
-
-          {notifOpen && (
-            <div className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-80 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-[#cfc2d6]/10">
-                <h3 className="text-sm font-bold text-[#1d1b20] tracking-tight">Notifications</h3>
-                {unreadCount > 0 && (
-                  <span className="text-[10px] font-semibold text-[#8127cf] bg-[#fbf0fe] px-2.5 py-1 rounded-full">{unreadCount} new</span>
-                )}
-              </div>
-              <div className="max-h-[360px] overflow-y-auto p-1.5 space-y-0.5">
-                {liveNotifications.length === 0 ? (
-                  <div className="py-10 text-center">
-                    <Bell className="mx-auto h-8 w-8 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle">No notifications yet</p>
-                    <p className="text-xs font-medium text-ink-subtle mt-1">You&#39;re all caught up</p>
-                  </div>
-                ) : (
-                  liveNotifications.map((n) => {
-                    const Icon = resolveNotifIcon(n.icon);
-                    return (
-                      <button
-                        key={n.id}
-                        type="button"
-                        onClick={() => handleNotificationClick(n)}
-                        className={cn(
-                          "w-full flex items-start gap-3 rounded-2xl px-4 py-3 transition-all cursor-pointer hover:bg-[#fbf0fe]/60 text-left",
-                          !n.isRead && "bg-[#fbf0fe]/30"
-                        )}
-                      >
-                        <div className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                          !n.isRead ? "bg-[#8127cf]/10 text-[#8127cf]" : "bg-[#4d4354]/8 text-ink-muted"
-                        )}>
-                          <Icon className="w-[18px] h-[18px]" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className={cn("text-sm truncate", !n.isRead ? "font-bold text-[#1d1b20]" : "font-semibold text-ink")}>{n.title}</p>
-                            {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#8127cf]" />}
-                          </div>
-                          <p className="text-xs font-medium text-ink-muted mt-0.5 leading-snug line-clamp-2">{n.message}</p>
-                          <p className="text-[10px] font-semibold text-ink-subtle mt-1">{relativeTime(n.createdAt)}</p>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-              {unreadCount > 0 && (
-                <div className="border-t border-[#cfc2d6]/10 px-5 py-3">
-                  <button
-                    type="button"
-                    onClick={markAllAsRead}
-                    className="w-full cursor-pointer rounded-2xl bg-[#fbf0fe]/60 py-2.5 text-xs font-bold text-[#8127cf] transition-all hover:bg-[#fbf0fe] active:scale-[0.98]"
-                  >
-                    Mark all as read
-                  </button>
-                </div>
+        <div className="ms-auto flex w-auto shrink-0 items-center justify-end gap-[6px] sm:min-w-0 sm:max-w-full sm:shrink sm:flex-wrap sm:gap-2.5">
+          <div className="me-auto hidden min-w-0 max-w-full flex-wrap items-center gap-[6px] sm:flex [&_svg]:shrink-0">
+            <ScopeBadge />
+            {showCycle ? <div data-tour="shell.header.cycle" className="hidden sm:block [&>div]:max-w-full [&>div]:px-[8px] [&>div]:py-[6px]"><CycleBadge /></div> : null}
+            {context ? <div data-tour="shell.header.context" className="flex min-w-0 max-w-full items-center gap-2">{context}</div> : null}
+          </div>
+          {viewerRole ? <HelpMenu role={viewerRole} framed={framed} /> : null}
+          <div ref={notifRef} className="sm:relative">
+            <Tooltip content={t("View notifications")} describe={false}>
+            <Button variant="outline" size="icon"
+              type="button"
+              data-tour="shell.header.notifications"
+              onClick={() => setNotifOpen((o) => !o)}
+              className={cn(
+                "relative flex h-[44px] w-[44px] min-w-[44px] items-center justify-center [&>svg]:size-[18px] sm:h-11 sm:w-11 sm:min-w-11",
+                notifOpen && "border-primary",
+                bellShake && "sk-shake"
               )}
-            </div>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setSettingsOpen(true)}
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-white/80 text-ink-subtle shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white hover:text-[#8127cf] hover:shadow-md active:scale-[0.92] border border-[#cfc2d6]/12"
-          title="Account settings"
-        >
-          <Settings className="w-[18px] h-[18px]" />
-        </button>
-        <div className="hidden h-6 w-[1px] bg-gradient-to-b from-transparent via-[#cfc2d6]/30 to-transparent sm:block" />
-
-        <div ref={menuRef} className="relative">
-          <button
-            type="button"
-            onClick={() => { setMenuOpen((open) => !open); setNotifOpen(false); }}
-            title="Account menu"
-            className={cn(
-              "flex cursor-pointer items-center gap-2.5 rounded-2xl border border-[#cfc2d6]/15 bg-white/85 p-1 pr-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:bg-white hover:shadow-lg active:scale-[0.98]",
-              menuOpen && "border-[#8127cf]/30 bg-white shadow-lg"
-            )}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
-            <div className={cn("h-8 w-8 bg-gradient-to-br from-[#fbf0fe] to-white rounded-xl border-2 border-white shadow-sm flex items-center justify-center overflow-hidden", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-              <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
-            </div>
-            <div className="hidden sm:block text-left">
-              <p className="max-w-28 truncate text-xs font-semibold text-[#1d1b20] leading-none">{displayName}</p>
-            </div>
-            <ChevronDown className={cn("h-3.5 w-3.5 text-ink-subtle transition-transform duration-300", menuOpen && "rotate-180 text-[#8127cf]")} />
-          </button>
-
-          {menuOpen && (
-            <div
-              role="menu"
-              className="animate-dropdown-enter absolute right-0 z-[999] mt-3 w-72 overflow-hidden rounded-[28px] border border-[#cfc2d6]/15 bg-white shadow-[0_28px_80px_rgba(31,26,35,0.18)]"
+              aria-label={unreadCount > 0 ? t("Notifications, {0} unread", [unreadCount]) : t("View notifications")}
+              aria-expanded={notifOpen}
             >
-              <div className="border-b border-[#cfc2d6]/10 bg-gradient-to-br from-[#fbf0fe]/80 to-white p-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn("flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md", menuOpen ? "ring-2 ring-[#8127cf]/25" : "ring-1 ring-[#8127cf]/10")}>
-                    <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-[11px]" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-[#1d1b20]">{displayName}</p>
-                    <p className="truncate text-[11px] font-semibold text-ink-muted">{displayRole}</p>
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-0.5 text-[9px] font-semibold text-[#8127cf] border border-[#8127cf]/10">
-                      <UserRound className="h-3 w-3" />
-                      Active account
-                    </div>
-                  </div>
+              <Bell className="h-[18px] w-[18px]" />
+              {unreadCount > 0 && (
+                <span aria-hidden="true" className="sk-glow absolute -end-2 -top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground ring-2 ring-card shadow-md shadow-primary/30"><bdi>{unreadCount > 99 ? "99+" : unreadCount}</bdi></span>
+              )}
+            </Button>
+            </Tooltip>
+
+            {/* Polite announcement of a newly arrived action item (the bell's visual cue is the shake and the count). */}
+            <p role="status" aria-live="polite" className="sr-only">{arrival}</p>
+            {notifOpen && (
+              <div className="animate-dropdown-enter sk-panel absolute end-0 top-full z-[999] mt-2 max-h-[70dvh] w-[min(20rem,calc(100vw-24px))] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-edge/10 px-5 py-4">
+                  <h3 className="text-sm font-bold tracking-tight text-ink-strong"><UiText>{"Notifications"}</UiText></h3>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold text-primary"><bdi>{unreadCount}</bdi>{" "}<UiText>{"new"}</UiText></span>
+                  )}
+                </div>
+                <NotificationCenter formatTime={(iso) => relativeTime(iso, language, timezone)} onClose={() => setNotifOpen(false)} onChanged={refreshNotifications} />
+              </div>
+            )}
+          </div>
+          <div aria-hidden="true" className="hidden h-7 w-px shrink-0 bg-border sm:block" />
+
+          {/* The shared Menu: role="menu", roving focus, Escape returns focus to the avatar, Tab and outside clicks close it. */}
+          <Menu
+            label="Account menu"
+            align="end"
+            onOpenChange={(open) => { setMenuOpen(open); if (open) setNotifOpen(false); }}
+            header={(
+              <div className="mb-1.5 flex items-center gap-3 rounded-xl bg-surface-subtle p-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-card shadow-md ring-1 ring-primary/10">
+                  <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-ink-strong"><bdi>{displayName}</bdi></p>
+                  {displayRole ? <p className="truncate text-2xs font-semibold text-primary">{t(displayRole)}</p> : null}
+                  {scopeLine ? <p className="mt-0.5 truncate text-2xs font-medium text-ink-muted"><bdi>{scopeLine}</bdi></p> : null}
                 </div>
               </div>
-
-              <div className="p-1.5">
-                <MenuLink href={dashboardHref} icon={LayoutDashboard} label="Main dashboard" onClick={() => setMenuOpen(false)} />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setSettingsOpen(true);
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                  role="menuitem"
-                >
-                  <Settings className="h-4 w-4" />
-                  Account settings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setPasswordModalOpen(true);
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                  role="menuitem"
-                >
-                  <KeyRound className="h-4 w-4" />
-                  Change password
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="mt-0.5 flex w-full cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
-                  role="menuitem"
-                >
-                  <LogOut className="h-4 w-4" />
-                  Sign out
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+            items={[
+              { id: "account-settings", label: "Account settings", icon: Settings, onSelect: () => openSettings("profile") },
+              { id: "language", label: "Language", icon: Languages, onSelect: () => openSettings("language") },
+              // The same Settings section `/account/security` redirects to, opened without leaving the page.
+              { id: "security", label: "Security & sign-in", icon: ShieldCheck, onSelect: () => openSettings("security") },
+              ...accountLinks.map((link): MenuItem => ({ id: link.id, label: link.label, icon: link.icon, href: link.href, onSelect: link.href ? undefined : link.onSelect })),
+              "separator",
+              { id: "sign-out", label: "Sign out", icon: LogOut, onSelect: handleLogout },
+            ]}
+            trigger={(
+              <Button variant="ghost"
+                type="button"
+                data-tour="shell.header.account"
+                aria-label={t("Account menu")}
+                className={cn(
+                  "flex min-h-[44px] min-w-[44px] items-center justify-start gap-0 px-[6px] py-[6px] sm:min-h-11 sm:gap-2.5 sm:px-4",
+                  menuOpen && "bg-surface-hover"
+                )}
+              >
+                <div className={cn("flex h-[28px] w-[28px] items-center justify-center overflow-hidden rounded-xl border-2 border-card bg-brand-50 shadow-sm sm:h-8 sm:w-8", menuOpen ? "ring-2 ring-primary/25" : "ring-1 ring-primary/10")}>
+                  <AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-2xs" />
+                </div>
+                <div className="hidden text-start sm:block">
+                  <p className="max-w-28 truncate text-xs font-semibold leading-none text-ink-strong"><bdi>{displayName}</bdi></p>
+                </div>
+                <ChevronDown aria-hidden="true" className={cn("hidden h-3.5 w-3.5 text-ink-subtle transition-transform duration-300 sm:block", menuOpen && "rotate-180 text-primary")} />
+              </Button>
+            )}
+          />
         </div>
-      </div>
       </header>
 
-      {settingsOpen && (
-        <Modal
-          title="Account Settings"
-          eyebrow="Your account"
-          subtitle="Manage your profile details"
-          avatar={<AvatarImage src={displayAvatar} name={displayName} initialsClassName="text-lg" />}
-          size="md"
-          onClose={() => setSettingsOpen(false)}
-        >
-          <EditableProfileCard
-            initialProfile={{
-              fullName: displayName,
-              roleLabel: displayRole,
-              profileImageUrl: headerProfile?.profileImageUrl || "",
-            }}
-            onSaved={setHeaderProfile}
-          />
-        </Modal>
-      )}
+      <ConfirmAction
+        open={signOutCount !== null}
+        tone="warning"
+        title={t("Sign out with unsynced changes?")}
+        description={t("{0} changes on this device are not synced yet. Signing out removes them from this device and cannot be undone.", [signOutCount ?? 0])}
+        confirmLabel={t("Sign out")}
+        cancelLabel={t("Keep editing")}
+        busy={signingOut}
+        onCancel={() => setSignOutCount(null)}
+        onConfirm={() => { void signOut(); }}
+      />
 
-      {passwordModalOpen && (
-        <ChangePasswordModal
-          onClose={() => setPasswordModalOpen(false)}
-        />
-      )}
+      <SettingsModalHost onProfileSaved={setHeaderProfile} />
     </>
-  );
-}
-
-function ChangePasswordModal({ onClose }: { onClose: () => void }) {
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const strength = passwordStrength(newPassword);
-
-  const reqs = [
-    { label: "Min 8 characters", met: newPassword.length >= 8 },
-    { label: "One uppercase", met: /[A-Z]/.test(newPassword) },
-    { label: "One lowercase", met: /[a-z]/.test(newPassword) },
-    { label: "One number", met: /[0-9]/.test(newPassword) },
-    { label: "Special character", met: /[^A-Za-z0-9]/.test(newPassword) },
-    { label: "Passwords match", met: newPassword === confirmPassword && newPassword !== "" },
-  ];
-
-  const handleSubmit = async () => {
-    setError("");
-    if (!currentPassword) return setError("Current password is required");
-    if (!newPassword) return setError("New password is required");
-    if (newPassword.length < 8) return setError("Password must be at least 8 characters");
-    if (newPassword !== confirmPassword) return setError("Passwords do not match");
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to change password");
-      toast.success("Password changed successfully");
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal
-      title="Change Password"
-      eyebrow="Security"
-      subtitle="Update your account password"
-      icon={KeyRound}
-      tone="amber"
-      size="xs"
-      onClose={onClose}
-      dirty={Boolean(currentPassword || newPassword) && !loading}
-      dirtyMessage="Your new password has not been saved yet. Leave without changing it?"
-      footer={
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 h-12 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !currentPassword || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-12 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] text-white text-sm font-black flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#8127cf]/20 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-            {loading ? "Updating..." : "Update Password"}
-          </button>
-        </div>
-      }
-    >
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Current Password
-            </label>
-            <input
-              type={showPasswords ? "text" : "password"}
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Enter current password"
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              New Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPasswords ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-                className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPasswords(!showPasswords)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
-              >
-                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            {newPassword && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex gap-1 flex-1">
-                  {[1, 2, 3, 4].map((level) => (
-                    <div
-                      key={level}
-                      className={`h-1.5 flex-1 rounded-full transition-all ${
-                        level <= strength.level
-                          ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
-                          : "bg-[#f3f4f9]"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className={`text-[9px] font-black uppercase tracking-wider ${
-                  strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
-                }`}>
-                  {strength.label}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1.5 block pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              Confirm New Password
-            </label>
-            <input
-              type={showPasswords ? "text" : "password"}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter new password"
-              className="h-12 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
-            />
-            {confirmPassword && newPassword !== confirmPassword && (
-              <p className="mt-1.5 text-[10px] font-bold text-rose-500 flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Passwords do not match
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            {reqs.slice(0, 3).map((r, i) => (
-              <div key={i} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
-              </div>
-            ))}
-            {reqs.slice(3).map((r, i) => (
-              <div key={i + 3} className={`flex items-center gap-1.5 text-[9px] font-bold ${r.met ? 'text-emerald-600' : 'text-ink-subtle'}`}>
-                {r.met ? <CheckCircle className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5 opacity-30" />} {r.label}
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <div className="rounded-2xl bg-rose-50 border border-rose-200/40 p-3">
-              <p className="text-[10px] font-bold text-rose-700">{error}</p>
-            </div>
-          )}
-        </div>
-
-    </Modal>
-  );
-}
-
-function passwordStrength(password: string): { level: number; label: string } {
-  if (!password) return { level: 0, label: "" };
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
-  if (/\d/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
-
-  if (score <= 1) return { level: 1, label: "Weak" };
-  if (score <= 2) return { level: 2, label: "Fair" };
-  if (score <= 3) return { level: 3, label: "Good" };
-  return { level: 4, label: "Strong" };
-}
-
-function MenuLink({
-  href,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  href: string;
-  icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 text-xs font-semibold text-ink transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-      role="menuitem"
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-    </Link>
   );
 }

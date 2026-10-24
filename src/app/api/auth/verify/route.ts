@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
-import { verifyVerificationToken } from "@/lib/auth/verification";
+import { pendingVerificationWhere, verifyVerificationToken } from "@/lib/auth/verification";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -18,32 +18,37 @@ export async function GET(req: NextRequest) {
   const userId = await verifyVerificationToken(token);
 
   if (!userId) {
+    // The sign-in screen offers a new link for this message (SKO-457).
     loginUrl.searchParams.set("error", "This verification link is invalid or has expired");
     return NextResponse.redirect(loginUrl);
   }
 
   try {
     // Pre-authentication: there is no session yet, and the token itself is
-    // the authority for which account may be touched.
+    // the authority for which account may be touched. Only an account still
+    // waiting for verification is activated, once: a deactivated account is
+    // never reactivated by an old link, and a second click changes nothing.
     const activated = await runUnscoped(
       "email verification: activate the account named by a signed token",
       () =>
         prisma.user.updateMany({
-          where: { id: userId, isActive: false },
-          data: { isActive: true },
+          where: { id: userId, ...pendingVerificationWhere },
+          data: { isActive: true, emailVerifiedAt: new Date() },
         })
     );
 
-    // A second click on the same link is not an error worth showing.
     if (activated.count === 0) {
       const existing = await runUnscoped("email verification: confirm account exists", () =>
-        prisma.user.findUnique({ where: { id: userId }, select: { isActive: true } })
+        prisma.user.findUnique({ where: { id: userId }, select: { emailVerifiedAt: true } })
       );
-
-      if (!existing) {
-        loginUrl.searchParams.set("error", "User not found");
+      // Unknown and never-verifiable accounts read the same as an invalid link.
+      if (!existing?.emailVerifiedAt) {
+        loginUrl.searchParams.set("error", "This verification link is invalid or has expired");
         return NextResponse.redirect(loginUrl);
       }
+      // Already verified: sign in as usual; sign-in itself decides whether the account is usable.
+      loginUrl.searchParams.set("verified", "true");
+      return NextResponse.redirect(loginUrl);
     }
 
     loginUrl.pathname = "/verify-success";

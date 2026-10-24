@@ -3,13 +3,22 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle, ArrowRight, Calendar, CheckCircle2, ChevronDown, ChevronRight,
-  GraduationCap, History, Loader2, Lock, RefreshCw, Users, X,
+  GraduationCap, History, Lock, RefreshCw, Users, X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { AvatarImage } from "@/components/ui/avatar-image";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { resultGradeLabel } from "@/lib/locale/result-grade";
+
 
 interface ClassSummary {
   id: string;
@@ -82,6 +91,9 @@ function generateRollNoPreview(targetName: string, targetSection: string | null,
 }
 
 export function AcademicYearPanel({ campusId }: { campusId?: string }) {
+  const ui = useUiText();
+  // SKO-496: a result grade is not the school level ("Grade" in the interface catalog).
+  const gradeLabel = resultGradeLabel(useLocale().language);
   const [yearGroups, setYearGroups] = useState<YearGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
@@ -101,6 +113,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
   const [gradeError, setGradeError] = useState("");
   const [studentDecisions, setStudentDecisions] = useState<Map<string, StudentDecision>>(new Map());
   const [promoting, setPromoting] = useState(false);
+  const [confirmCloseYear, setConfirmCloseYear] = useState<number | null>(null);
   const [promotionResults, setPromotionResults] = useState<{ promoted: number; retained: number } | null>(null);
 
   const qs = campusId ? `?campusId=${campusId}` : "";
@@ -111,7 +124,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/academic-year${qs}`);
       const json = await res.json();
       if (json.success) setYearGroups(json.data || []);
-    } catch { toast.error("Failed to load academic year data"); }
+    } catch { toast.error(ui("Academic year data could not be loaded")); }
     finally { setLoading(false); }
   }, [qs]);
 
@@ -139,7 +152,6 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
   }, [showPromoteModal, historyYear, historyClassId, closePromotionWizard]);
 
   const handleCloseYear = useCallback(async (year: number) => {
-    if (!confirm(`Close academic year ${year}? This will:\n• Save final grades to student history\n• Mark all classes as COMPLETED\n• Generate admission numbers for students without one\n\nYou can still view past year data after closing.`)) return;
     setClosing(true);
     try {
       const res = await fetch("/api/academic-year", {
@@ -156,15 +168,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
     finally { setClosing(false); }
   }, [campusId, load]);
 
-  const openPromotionWizard = (sourceClassId?: string) => {
-    setShowPromoteModal(true);
-    setPromoteStep("source");
-    setPromoteSourceId(sourceClassId || "");
-    setPromoteTargetId("");
-    setGradeResults([]);
-    setGradeError("");
-    setStudentDecisions(new Map());
-    setPromotionResults(null);
+  // SKO-404: promotion is reviewed as one versioned year-end plan, so every
+  // entry point leads there; the per-class wizard below no longer opens (its
+  // endpoint is retired) and is kept only until its contract baseline is reviewed.
+  const openPromotionWizard = (_sourceClassId?: string) => {
+    const plan = document.getElementById("year-end-rollover");
+    if (plan) { plan.scrollIntoView({ behavior: "smooth", block: "start" }); plan.focus(); return; }
+    toast.info(ui("Promotion is reviewed as a year-end plan under Promote Students."));
   };
 
   const loadStudentsFallback = useCallback(async (classId: string) => {
@@ -221,10 +231,10 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
   const handlePromote = useCallback(async () => {
     const toPromote = gradeResults.filter((g) => studentDecisions.get(g.studentId) === "promote");
-    if (toPromote.length === 0) { toast.error("No students selected for promotion"); return; }
-    if (!promoteTargetId) { toast.error("Select a target class"); return; }
+    if (toPromote.length === 0) { toast.error(ui("No students selected for promotion")); return; }
+    if (!promoteTargetId) { toast.error(ui("Select a target class")); return; }
     const srcClass = yearGroups.flatMap((yg) => yg.classes).find((c) => c.id === promoteSourceId);
-    if (!srcClass) { toast.error("Source class missing"); return; }
+    if (!srcClass) { toast.error(ui("The source class could not be found")); return; }
 
     setPromoting(true);
     try {
@@ -264,7 +274,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`/api/academic-year/history?academicYear=${year}&classId=${classId}${campusId ? `&campusId=${campusId}` : ""}`);
       const json = await res.json();
       if (json.success) setHistoryRecords(json.data?.students || []);
-    } catch { toast.error("Failed to load history"); }
+    } catch { toast.error(ui("Year history could not be loaded")); }
     finally { setHistoryLoading(false); }
   }, [campusId]);
 
@@ -280,19 +290,19 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
     return (
       <div className="space-y-4">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-lg overflow-hidden animate-skeleton-in" style={{ animationDelay: `${i * 100}ms` }}>
+          <div key={i} className="sk-panel overflow-hidden animate-skeleton-in" style={{ animationDelay: `${i * 100}ms` }}>
             <div className="flex items-center justify-between p-5">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+                <div className="h-12 w-12 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
                 <div className="space-y-2">
-                  <div className="h-5 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+                  <div className="h-5 w-40 rounded-full bg-border-subtle/50 skeleton-shimmer" />
                   <div className="flex items-center gap-3">
-                    <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                    <div className="h-4 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-20 rounded-full bg-border-subtle/30 skeleton-shimmer" />
                   </div>
                 </div>
               </div>
-              <div className="h-5 w-5 rounded bg-[#e8e0ec]/30 skeleton-shimmer" />
+              <div className="h-5 w-5 rounded bg-border-subtle/30 skeleton-shimmer" />
             </div>
           </div>
         ))}
@@ -302,36 +312,47 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
   return (
     <div className="space-y-6">
+      <ConfirmAction
+        open={confirmCloseYear !== null}
+        tone="danger"
+        title={ui("Close academic year {0}?", [confirmCloseYear ?? ""])}
+        description={ui("You can still view past year data after closing.")}
+        detail={<ul className="list-disc space-y-1 ps-5 text-sm text-ink-muted"><li>{ui("Save final grades to student history")}</li><li>{ui("Mark all classes as completed")}</li><li>{ui("Generate admission numbers for students without one")}</li></ul>}
+        confirmLabel={ui("Close year")}
+        busy={closing}
+        onCancel={() => setConfirmCloseYear(null)}
+        onConfirm={() => { const y = confirmCloseYear; setConfirmCloseYear(null); if (y !== null) void handleCloseYear(y); }}
+      />
       <div className="flex flex-wrap gap-3">
-        <BrandButton variant="dark" icon={<ArrowRight className="w-4 h-4" />} onClick={() => openPromotionWizard()}>
-          Promote Students
+        <BrandButton variant="dark" icon={<ArrowRight className="w-4 h-4 rtl:rotate-180" />} onClick={() => openPromotionWizard()}>
+          {ui("Promote students")}
         </BrandButton>
       </div>
 
       {yearGroups.length === 0 ? (
-        <EmptyState icon={Calendar} title="No Academic Years" description="Create classes with an academic year to get started." />
+        <EmptyState icon={Calendar} title={ui("No academic years")} description={ui("Create classes with an academic year to get started.")} />
       ) : (
         <div className="space-y-4">
           {yearGroups.map((yg, i) => (
-            <div key={yg.year} className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] overflow-hidden" style={{ animationDelay: `${i * 100}ms` }}>
+            <div key={yg.year} className="sk-panel sk-rise overflow-hidden" style={{ animationDelay: `${i * 100}ms` }}>
               <div
                 role="button" tabIndex={0}
                 onClick={() => setExpandedYear(expandedYear === yg.year ? null : yg.year)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedYear(expandedYear === yg.year ? null : yg.year); } }}
-                className="w-full flex items-center justify-between p-5 text-left cursor-pointer hover:bg-[#fbf0fe]/30 transition-colors"
+                className="w-full flex items-center justify-between p-5 text-start cursor-pointer hover:bg-brand-50/30 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${yg.status === "COMPLETED" ? "bg-status-success-surface text-status-success-text" : "bg-brand-50 text-primary"}`}>
                     {yg.status === "COMPLETED" ? <CheckCircle2 className="h-6 w-6" /> : <Calendar className="h-6 w-6" />}
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-[#1d1b20]">Academic Year {yg.year}</h3>
+                    <h3 className="text-lg font-bold text-ink-strong">{ui("Academic year {0}", [yg.year])}</h3>
                     <div className="flex items-center gap-3 mt-0.5">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${yg.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                      <Badge size="sm" dot variant={yg.status === "COMPLETED" ? "success" : "info"}>
                         {yearStatusLabel(yg.status)}
-                      </span>
-                      <span className="text-[11px] font-semibold text-ink-muted">{yg.classes.length} classes</span>
-                      <span className="text-[11px] font-semibold text-ink-muted">{yg.classes.reduce((s, c) => s + c._count.students, 0)} students</span>
+                      </Badge>
+                      <span className="text-2xs font-semibold text-ink-muted">{ui("{0} classes", [yg.classes.length])}</span>
+                      <span className="text-2xs font-semibold text-ink-muted">{ui("{0} students", [yg.classes.reduce((s, c) => s + c._count.students, 0)])}</span>
                     </div>
                   </div>
                 </div>
@@ -339,11 +360,12 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   {yg.status === "ACTIVE" && (
                     <BrandButton
                       variant="soft"
-                      icon={closing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleCloseYear(yg.year); }}
+                      icon={closing ? null : <Lock className="w-4 h-4" />}
+                      loading={closing}
+                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); setConfirmCloseYear(yg.year); }}
                       disabled={closing}
                     >
-                      Close Year
+                      {ui("Close year")}
                     </BrandButton>
                   )}
                   {expandedYear === yg.year ? <ChevronDown className="h-5 w-5 text-ink-subtle" /> : <ChevronRight className="h-5 w-5 text-ink-subtle" />}
@@ -351,53 +373,53 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
               </div>
 
               {expandedYear === yg.year && (
-                <div className="border-t border-[#cfc2d6]/10 p-5 bg-[#fbf0fe]/10">
+                <div className="border-t border-edge/10 p-5 bg-brand-50/10">
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {yg.classes.map((cls) => (
-                      <div key={cls.id} className="rounded-2xl bg-white border border-[#cfc2d6]/10 p-4 hover:shadow-md transition-all">
+                      <div key={cls.id} className="sk-panel p-4 transition-all">
                         <div className="flex items-start justify-between mb-3">
                           <div>
-                            <h4 className="text-sm font-bold text-[#1d1b20]">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
-                            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">
+                            <h4 className="text-sm font-bold text-ink-strong">{cls.name}{cls.section ? ` - ${cls.section}` : ""}</h4>
+                            <p className="text-2xs font-medium text-ink-subtle mt-0.5">
                               {cls.classTeacher?.fullName || "No class teacher"}
                             </p>
                           </div>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                          <Badge size="sm" dot variant={cls.status === "COMPLETED" ? "success" : "info"}>
                             {yearStatusLabel(cls.status)}
-                          </span>
+                          </Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-3">
-                          <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
-                            <p className="text-sm font-bold text-[#8127cf]">{cls._count.students}</p>
-                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Students</p>
+                          <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
+                            <p className="text-sm font-bold text-primary">{cls._count.students}</p>
+                            <p className="text-3xs font-semibold text-ink-subtle">{ui("Students")}</p>
                           </div>
-                          <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
-                            <p className="text-sm font-bold text-[#1d1b20]">{cls._count.subjects}</p>
-                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Subjects</p>
+                          <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
+                            <p className="text-sm font-bold text-ink-strong">{cls._count.subjects}</p>
+                            <p className="text-3xs font-semibold text-ink-subtle">{ui("Subjects")}</p>
                           </div>
-                          <div className="rounded-xl bg-[#fbf0fe]/60 px-2 py-1.5 text-center">
-                            <p className="text-sm font-bold text-[#1d1b20]">{cls._count.exams}</p>
-                            <p className="text-[8px] font-semibold uppercase text-ink-subtle">Exams</p>
+                          <div className="rounded-xl bg-brand-50/60 px-2 py-1.5 text-center">
+                            <p className="text-sm font-bold text-ink-strong">{cls._count.exams}</p>
+                            <p className="text-3xs font-semibold text-ink-subtle">{ui("Exams")}</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
                           {cls.status === "COMPLETED" && (
                             <>
-                              <button type="button" onClick={() => loadHistory(yg.year, cls.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] py-2 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer">
-                                <History className="h-3.5 w-3.5" /> History
-                              </button>
-                              <button type="button" onClick={() => openPromotionWizard(cls.id)}
-                                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 py-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 transition-all cursor-pointer">
-                                <ArrowRight className="h-3.5 w-3.5" /> Promote
-                              </button>
+                              <Button variant="secondary" size="sm" type="button" onClick={() => loadHistory(yg.year, cls.id)}
+                                className="flex-1 flex items-center justify-center gap-1.5">
+                                <History className="h-3.5 w-3.5" />{" "}{ui("History")}
+                              </Button>
+                              <Button variant="secondary" size="sm" type="button" onClick={() => openPromotionWizard(cls.id)}
+                                className="flex-1 flex items-center justify-center gap-1.5">
+                                <ArrowRight className="h-3.5 w-3.5" />{" "}{ui("Promote")}
+                              </Button>
                             </>
                           )}
                           {cls.status === "ACTIVE" && cls._count.students > 0 && (
-                            <button type="button" onClick={() => openPromotionWizard(cls.id)}
-                              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe]/60 hover:bg-[#fbf0fe] py-2 text-[10px] font-bold uppercase tracking-wider text-[#8127cf] transition-all cursor-pointer">
-                              <ArrowRight className="h-3.5 w-3.5" /> Promote
-                            </button>
+                            <Button variant="secondary" size="sm" type="button" onClick={() => openPromotionWizard(cls.id)}
+                              className="flex-1 flex items-center justify-center gap-1.5">
+                              <ArrowRight className="h-3.5 w-3.5" />{" "}{ui("Promote")}
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -413,7 +435,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       {/* ── History Modal ── */}
       {historyYear && historyClassId && (
         <Modal
-          title="Class History"
+          title={ui("Class history")}
           eyebrow={`Academic Year ${historyYear}`}
           icon={History}
           size="lg"
@@ -424,59 +446,59 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
               <div className="space-y-2 py-4 animate-skeleton-in">
                 <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-2.5 w-12 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                    <div key={i} className="h-2.5 w-12 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                   ))}
                 </div>
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
-                    <div className="h-3 w-5 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
-                    <div className="h-3.5 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                    <div className="h-3 w-16 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-10 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-3 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                    <div className="h-5 w-14 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                    <div className="h-3 w-5 rounded-full bg-border-subtle/30 skeleton-shimmer" />
+                    <div className="h-3.5 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                    <div className="h-3 w-16 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-10 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-3 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
+                    <div className="h-5 w-14 rounded-full bg-border-subtle/30 skeleton-shimmer" />
                   </div>
                 ))}
               </div>
             ) : historyRecords.length > 0 ? (
               <div className="space-y-2">
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
-                  <span>#</span><span>Student</span><span>Admission No</span><span>Roll No</span><span>Grade</span><span>Status</span>
+                <div className="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-4 py-2 text-2xs font-semibold text-ink-subtle">
+                  <span>#</span><span>{ui("Student")}</span><span>{ui("Admission no.")}</span><span>{ui("Roll no.")}</span><span>{gradeLabel}</span><span>{ui("Status")}</span>
                 </div>
                 {historyRecords.map((record, i) => (
-                  <div key={record.id} className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 items-center px-4 py-3 rounded-2xl hover:bg-[#fbf0fe]/30 transition-colors">
-                    <span className="text-xs font-bold text-ink-subtle">{i + 1}</span>
+                  <div key={record.id} className="grid grid-cols-[auto_1fr_auto] sm:grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 gap-y-1 items-center px-4 py-3 rounded-2xl hover:bg-brand-50/30 transition-colors">
+                    <span className="text-xs font-bold text-ink-subtle tabular-nums">{i + 1}</span>
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-9 w-9 shrink-0 rounded-xl bg-[#fbf0fe] overflow-hidden">
-                        <AvatarImage src={record.student.profileImageUrl} name={record.student.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-[11px]" />
+                      <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-50 overflow-hidden">
+                        <AvatarImage src={record.student.profileImageUrl} name={record.student.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-2xs" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#1d1b20] truncate">{record.student.fullName}</p>
+                        <p className="text-sm font-bold text-ink-strong truncate">{record.student.fullName}</p>
                         {record.student.class && (
-                          <p className="text-[10px] font-semibold text-ink-subtle">
-                            Now in: {record.student.class.name}{record.student.class.section ? ` - ${record.student.class.section}` : ""}
+                          <p className="text-2xs font-semibold text-ink-subtle">
+                            {ui("Now in:")}{" "}{record.student.class.name}{record.student.class.section ? ` - ${record.student.class.section}` : ""}
                           </p>
                         )}
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-[#8127cf]">{record.student.admissionNo || "—"}</span>
-                    <span className="text-xs font-semibold text-ink-muted">{record.rollNo}</span>
-                    <span className="text-sm font-bold text-[#1d1b20]">
+                    <span className="hidden sm:inline text-xs font-bold text-primary tabular-nums">{record.student.admissionNo || "—"}</span>
+                    <span className="hidden sm:inline text-xs font-semibold text-ink-muted tabular-nums">{record.rollNo}</span>
+                    <span className="hidden sm:inline text-sm font-bold text-ink-strong tabular-nums">
                       {record.finalGrade || (record.finalPercentage ? `${Math.round(record.finalPercentage)}%` : "—")}
                     </span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full ${
-                      record.status === "PROMOTED" ? "bg-emerald-50 text-emerald-600" :
-                      record.status === "GRADUATED" ? "bg-blue-50 text-blue-600" :
-                      record.status === "DROPPED" ? "bg-rose-50 text-rose-600" :
-                      "bg-[#fbf0fe] text-[#8127cf]"
-                    }`}>
+                    <Badge size="sm" dot variant={
+                      record.status === "PROMOTED" ? "success" :
+                      record.status === "GRADUATED" ? "info" :
+                      record.status === "DROPPED" ? "danger" :
+                      "default"
+                    }>
                       {record.status}
-                    </span>
+                    </Badge>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-center text-sm font-semibold text-ink-muted py-12">No history records for this class.</p>
+              <EmptyState size="sm" icon={History} title={ui("No history records")} description={ui("No student records were saved for this class in this academic year.")} />
             )}
         </Modal>
       )}
@@ -484,13 +506,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       {/* ── Promotion Wizard ── */}
       {showPromoteModal && (
         <Modal
-          title={
-            promoteStep === "source" ? "Select Source Class" :
-            promoteStep === "review" ? "Review Students & Results" :
-            promoteStep === "target" ? "Select Target & Preview" :
-            "Promotion Complete"
-          }
-          eyebrow="Student Promotion"
+          title={ui(
+            promoteStep === "source" ? "Select the source class" :
+            promoteStep === "review" ? "Review students and results" :
+            promoteStep === "target" ? "Select the target and preview" :
+            "Promotion complete"
+          )}
+          eyebrow={ui("Student promotion")}
           icon={GraduationCap}
           size="xl"
           onClose={closePromotionWizard}
@@ -505,16 +527,16 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   const isDone = idx < stepIdx;
                   return (
                     <div key={step} className="flex items-center gap-2">
-                      {idx > 0 && <div className={cn("h-0.5 w-8", isDone || isActive ? "bg-[#8127cf]" : "bg-[#e8e0ec]")} />}
-                      <div className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all",
-                        isActive ? "bg-[#8127cf] text-white" : isDone ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
+                      {idx > 0 && <div className={cn("h-0.5 w-8", isDone || isActive ? "bg-primary" : "bg-border-subtle")} />}
+                      <div className={cn("flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all",
+                        isActive ? "bg-primary text-white" : isDone ? "bg-status-success-surface text-status-success-text" : "bg-muted text-ink-subtle"
                       )}>
                         {isDone ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
                       </div>
-                      <span className={cn("text-[10px] font-bold uppercase tracking-wider hidden sm:block",
-                        isActive ? "text-[#8127cf]" : isDone ? "text-emerald-600" : "text-ink-subtle"
+                      <span className={cn("text-2xs font-semibold hidden sm:block",
+                        isActive ? "text-primary" : isDone ? "text-status-success-text" : "text-ink-subtle"
                       )}>
-                        {step === "source" ? "Select Class" : step === "review" ? "Review" : "Promote"}
+                        {ui(step === "source" ? "Select class" : step === "review" ? "Review" : "Promote")}
                       </span>
                     </div>
                   );
@@ -525,43 +547,38 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {/* ── Step 1: Source ── */}
             {promoteStep === "source" && (
               <div className="space-y-4">
-                <p className="text-xs font-semibold text-ink-muted">
-                  Select the class whose students you want to promote. You can choose any class with students.
+                <p className="text-sm font-normal leading-relaxed text-ink-muted">
+                  {ui("Select the class whose students you want to promote. You can choose any class with students.")}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {allClasses.filter((c) => c._count.students > 0).map((cls) => (
-                    <button key={cls.id} type="button" onClick={() => setPromoteSourceId(cls.id)}
-                      className={cn("text-left rounded-2xl border p-4 transition-all cursor-pointer",
-                        promoteSourceId === cls.id ? "border-[#8127cf] bg-[#fbf0fe]/50 ring-2 ring-[#8127cf]/20 shadow-md" : "border-[#cfc2d6]/10 bg-white hover:shadow-md"
-                      )}>
+                    <Button aria-pressed={promoteSourceId === cls.id} variant="choice" key={cls.id} type="button" onClick={() => setPromoteSourceId(cls.id)}
+                      className="block text-start">
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="text-sm font-bold text-[#1d1b20]">{clsLabel(cls)}</h4>
-                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${cls.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600" : "bg-[#fbf0fe] text-[#8127cf]"}`}>
+                        <h4 className="text-sm font-bold text-ink-strong">{clsLabel(cls)}</h4>
+                        <Badge size="sm" dot variant={cls.status === "COMPLETED" ? "success" : "info"}>
                           {yearStatusLabel(cls.status)}
-                        </span>
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] font-semibold text-ink-muted">
-                        <span>{cls._count.students} students</span>
-                        <span>Year {cls.academicYear}</span>
+                      <div className="flex items-center gap-3 text-2xs font-semibold text-ink-muted">
+                        <span>{ui("{0} students", [cls._count.students])}</span>
+                        <span>{ui("Year {0}", [cls.academicYear])}</span>
                         <span>{cls.classTeacher?.fullName || "No teacher"}</span>
                       </div>
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 {allClasses.filter((c) => c._count.students > 0).length === 0 && (
-                  <div className="py-12 text-center">
-                    <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                    <p className="text-sm font-bold text-ink-subtle">No classes with students found</p>
-                  </div>
+                  <EmptyState size="sm" icon={Users} title={ui("No classes with students found")} description={ui("Enrol students in a class for this year, then come back to promote them.")} />
                 )}
-                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-[#cfc2d6]/10">
-                  <BrandButton variant="soft" onClick={closePromotionWizard}>Cancel</BrandButton>
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-edge/10">
+                  <BrandButton variant="soft" onClick={closePromotionWizard}>{ui("Cancel")}</BrandButton>
                   <BrandButton variant="dark" disabled={!promoteSourceId} onClick={() => {
                     const src = allClasses.find((c) => c.id === promoteSourceId);
                     setPromoteStep("review");
                     loadGrades(promoteSourceId, src?.academicYear ?? new Date().getFullYear());
                   }}>
-                    Next <ArrowRight className="w-4 h-4 ml-1" />
+                    {ui("Next")}{" "}<ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
                   </BrandButton>
                 </div>
               </div>
@@ -571,11 +588,11 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {promoteStep === "review" && (
               <div className="space-y-5">
                 {sourceClass && (
-                  <div className="flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 px-4 py-3">
-                    <GraduationCap className="h-5 w-5 text-[#8127cf] shrink-0" />
+                  <div className="flex items-center gap-3 rounded-2xl bg-brand-50/50 border border-edge/10 px-4 py-3">
+                    <GraduationCap className="h-5 w-5 text-primary shrink-0" />
                     <div>
-                      <p className="text-sm font-bold text-[#1f1a23]">{clsLabel(sourceClass)}</p>
-                      <p className="text-[10px] font-semibold text-ink-muted">Year {sourceClass.academicYear} · {sourceClass._count.students} students</p>
+                      <p className="text-sm font-bold text-ink-strong">{clsLabel(sourceClass)}</p>
+                      <p className="text-2xs font-medium text-ink-muted">{ui("Year {0}", [sourceClass.academicYear])} · {ui("{0} students", [sourceClass._count.students])}</p>
                     </div>
                   </div>
                 )}
@@ -584,29 +601,21 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   <div className="space-y-3 py-4 animate-skeleton-in">
                     {Array.from({ length: 4 }).map((_, i) => (
                       <div key={i} className="flex items-center gap-4 px-4 py-3 rounded-2xl animate-skeleton-in" style={{ animationDelay: `${i * 60}ms` }}>
-                        <div className="h-8 w-8 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                        <div className="h-8 w-8 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                         <div className="flex-1 space-y-1.5">
-                          <div className="h-3.5 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                          <div className="h-2.5 w-20 rounded-full bg-[#e8e0ec]/30 skeleton-shimmer" />
+                          <div className="h-3.5 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+                          <div className="h-2.5 w-20 rounded-full bg-border-subtle/30 skeleton-shimmer" />
                         </div>
-                        <div className="h-5 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+                        <div className="h-5 w-14 rounded-full bg-border-subtle/40 skeleton-shimmer" />
                       </div>
                     ))}
                   </div>
                 ) : (
                   <>
                     {gradeError && (
-                      <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-5">
-                        <div className="flex items-start gap-3">
-                          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-bold text-amber-800">{gradeError}</p>
-                            <p className="text-xs font-semibold text-amber-700/70 mt-1">
-                              Grade data not available — students are listed below without scores. You can still select who to promote.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      <Alert tone="warning" title={gradeError} live="polite">
+                        {ui("Grade data not available — students are listed below without scores. You can still select who to promote.")}
+                      </Alert>
                     )}
 
                     {gradeResults.length > 0 ? (
@@ -614,100 +623,100 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         {/* Summary stats */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           {[
-                            { label: "Total Students", value: gradeResults.length, tone: "bg-[#fbf0fe] text-[#8127cf]" },
+                            { label: "Total Students", value: gradeResults.length, tone: "bg-brand-50 text-primary" },
                             ...(gradeError ? [] : [
-                              { label: "Passed", value: gradeResults.filter((g) => g.passed).length, tone: "bg-emerald-50 text-emerald-600" },
-                              { label: "Failed", value: gradeResults.filter((g) => !g.passed).length, tone: "bg-rose-50 text-rose-500" },
+                              { label: "Passed", value: gradeResults.filter((g) => g.passed).length, tone: "bg-status-success-surface text-status-success-text" },
+                              { label: "Failed", value: gradeResults.filter((g) => !g.passed).length, tone: "bg-status-error-surface text-status-error-text" },
                             ]),
-                            { label: "To Promote", value: studentsToPromote.length, tone: "bg-[#1f1a23] text-white" },
+                            { label: "To promote", value: studentsToPromote.length, tone: "bg-primary text-primary-foreground" },
                           ].map((s) => (
                             <div key={s.label} className={cn("rounded-2xl px-4 py-3 text-center", s.tone)}>
-                              <p className="text-xl font-black">{s.value}</p>
-                              <p className="text-[9px] font-bold uppercase tracking-wider opacity-70">{s.label}</p>
+                              <p className="text-xl font-bold tabular-nums">{s.value}</p>
+                              <p className="text-2xs font-semibold opacity-70">{s.label}</p>
                             </div>
                           ))}
                         </div>
 
                         {/* Student list with checkboxes */}
-                        <div className="overflow-x-auto rounded-2xl border border-[#cfc2d6]/10">
-                          <table className="w-full text-left">
+                        <div className="overflow-x-auto rounded-2xl border border-edge/10">
+                          <table className="w-full text-start">
                             <thead>
-                              <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">
-                                  <input type="checkbox"
+                              <tr className="border-b border-edge/10 bg-brand-50/30">
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">
+                                  <SystemCheckbox
                                     checked={gradeResults.length > 0 && gradeResults.every((g) => studentDecisions.get(g.studentId) === "promote")}
                                     onChange={(e) => {
                                       const next = new Map(studentDecisions);
                                       gradeResults.forEach((g) => next.set(g.studentId, e.target.checked ? "promote" : "retain"));
                                       setStudentDecisions(next);
                                     }}
-                                    className="accent-[#8127cf] h-4 w-4 rounded cursor-pointer"
+                                    className="accent-primary h-4 w-4 rounded cursor-pointer"
                                   />
                                 </th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">#</th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Student</th>
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted">Roll No</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">#</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">{ui("Student")}</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted">{ui("Roll no.")}</th>
                                 {!gradeError && (
                                   <>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">%</th>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Grade</th>
-                                    <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Status</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">%</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">{gradeLabel}</th>
+                                    <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">{ui("Status")}</th>
                                   </>
                                 )}
-                                <th className="px-4 py-3 text-[9px] font-black uppercase tracking-wider text-ink-muted text-center">Decision</th>
+                                <th className="px-4 py-3 text-2xs font-semibold text-ink-muted text-center">{ui("Decision")}</th>
                               </tr>
                             </thead>
                             <tbody>
                               {gradeResults.map((g) => {
                                 const decision = studentDecisions.get(g.studentId) || "promote";
                                 return (
-                                  <tr key={g.studentId} className={cn("border-b border-[#cfc2d6]/5 transition-colors",
-                                    !g.passed && !gradeError ? "bg-rose-50/30" : decision === "retain" ? "bg-amber-50/20" : "hover:bg-[#fbf0fe]/20"
+                                  <tr key={g.studentId} className={cn("border-b border-edge/5 transition-colors",
+                                    !g.passed && !gradeError ? "bg-status-error-surface/30" : decision === "retain" ? "bg-status-warning-surface/20" : "hover:bg-brand-50/20"
                                   )}>
                                     <td className="px-4 py-3">
-                                      <input type="checkbox" checked={decision === "promote"}
+                                      <SystemCheckbox  checked={decision === "promote"}
                                         onChange={(e) => {
                                           const next = new Map(studentDecisions);
                                           next.set(g.studentId, e.target.checked ? "promote" : "retain");
                                           setStudentDecisions(next);
                                         }}
-                                        className="accent-[#8127cf] h-4 w-4 rounded cursor-pointer"
+                                        className="accent-primary h-4 w-4 rounded cursor-pointer"
                                       />
                                     </td>
                                     <td className="px-4 py-3 text-xs font-bold text-ink-subtle">{g.rank}</td>
-                                    <td className="px-4 py-3 text-sm font-bold text-[#1f1a23] truncate max-w-[200px]">{g.studentName}</td>
+                                    <td className="px-4 py-3 text-sm font-bold text-ink-strong truncate max-w-[200px]">{g.studentName}</td>
                                     <td className="px-4 py-3 text-xs font-semibold text-ink-muted">{g.rollNo || "—"}</td>
                                     {!gradeError && (
                                       <>
                                         <td className="px-4 py-3 text-center">
-                                          <span className={cn("text-sm font-black",
-                                            g.overallPercentage >= 80 ? "text-emerald-600" : g.overallPercentage >= 50 ? "text-amber-600" : "text-rose-500"
+                                          <span className={cn("text-sm font-bold",
+                                            g.overallPercentage >= 80 ? "text-status-success-text" : g.overallPercentage >= 50 ? "text-status-warning-text" : "text-status-error-text"
                                           )}>{Math.round(g.overallPercentage)}%</span>
                                         </td>
-                                        <td className="px-4 py-3 text-center text-sm font-bold text-[#1f1a23]">{g.overallGrade}</td>
+                                        <td className="px-4 py-3 text-center text-sm font-bold text-ink-strong">{g.overallGrade}</td>
                                         <td className="px-4 py-3 text-center">
-                                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                                            g.passed ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-500"
+                                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-semibold",
+                                            g.passed ? "bg-status-success-surface text-status-success-text" : "bg-status-error-surface text-status-error-text"
                                           )}>
                                             {g.passed ? <CheckCircle2 className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                                            {g.passed ? "Pass" : "Fail"}
+                                            {ui(g.passed ? "Pass" : "Fail")}
                                           </span>
                                         </td>
                                       </>
                                     )}
                                     <td className="px-4 py-3 text-center">
-                                      <select value={decision}
+                                      <SystemSelect value={decision}
                                         onChange={(e) => {
                                           const next = new Map(studentDecisions);
                                           next.set(g.studentId, e.target.value as StudentDecision);
                                           setStudentDecisions(next);
                                         }}
-                                        className={cn("rounded-lg border px-2 py-1 text-[10px] font-bold outline-none cursor-pointer",
-                                          decision === "promote" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
+                                        className={cn("px-2 py-1",
+                                          decision === "promote" ? "" : ""
                                         )}>
-                                        <option value="promote">Promote</option>
-                                        <option value="retain">Retain</option>
-                                      </select>
+                                        <option value="promote">{ui("Promote")}</option>
+                                        <option value="retain">{ui("Retain")}</option>
+                                      </SystemSelect>
                                     </td>
                                   </tr>
                                 );
@@ -717,20 +726,17 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         </div>
                       </>
                     ) : (
-                      <div className="py-12 text-center">
-                        <Users className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                        <p className="text-sm font-bold text-ink-subtle">No students found in this class</p>
-                      </div>
+                      <EmptyState size="sm" icon={Users} title={ui("No students found in this class")} description={ui("Go back and choose a different source class.")} />
                     )}
                   </>
                 )}
 
-                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-[#cfc2d6]/10">
+                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={() => setPromoteStep("source")}>
-                    Back
+                    {ui("Back")}
                   </BrandButton>
                   <BrandButton variant="dark" disabled={studentsToPromote.length === 0} onClick={() => setPromoteStep("target")}>
-                    Next — Select Target <ArrowRight className="w-4 h-4 ml-1" />
+                    {ui("Next: choose the target")}{" "}<ArrowRight className="w-4 h-4 ms-1 rtl:rotate-180" />
                   </BrandButton>
                 </div>
               </div>
@@ -743,62 +749,62 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                   {/* Left: target selection */}
                   <div>
                     <label className="block mb-4">
-                      <span className="mb-1.5 block pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Target Class</span>
-                      <select value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
-                        className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none cursor-pointer">
-                        <option value="">Select target class</option>
+                      <span className="mb-1.5 block ps-2 text-2xs font-semibold text-ink-muted">{ui("Target class")}</span>
+                      <SystemSelect value={promoteTargetId} onChange={(e) => setPromoteTargetId(e.target.value)}
+                        className="h-14 w-full px-4">
+                        <option value="">{ui("Select target class")}</option>
                         {activeClasses
                           .filter((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1)
                           .map((c) => (
-                            <option key={c.id} value={c.id}>{clsLabel(c)} ({c.academicYear}) — {c._count.students} existing</option>
+                            <option key={c.id} value={c.id}>{clsLabel(c)} ({c.academicYear}) — {ui("{0} existing", [c._count.students])}</option>
                           ))}
-                      </select>
+                      </SystemSelect>
                     </label>
 
                     {!activeClasses.some((c) => c.id !== promoteSourceId && c.academicYear === (sourceClass?.academicYear ?? 0) + 1) ? (
-                      <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-4 mb-3">
-                        <p className="text-xs font-bold text-amber-700">
-                          <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
-                          No class exists for {sourceClass ? sourceClass.academicYear + 1 : "next year"} yet.
+                      <div className="rounded-2xl border border-status-warning-border/40 bg-status-warning-surface p-4 mb-3">
+                        <p className="text-xs font-bold text-status-warning-text">
+                          <AlertTriangle className="h-3.5 w-3.5 inline me-1" />
+                          {sourceClass ? ui("No class exists for {0} yet.", [sourceClass.academicYear + 1]) : ui("No class exists for next year yet.")}
                         </p>
-                        <p className="text-[11px] font-semibold text-amber-700/70 mt-1">
-                          Create the destination class in the Academic Plan first, then promote into it.
+                        <p className="text-2xs font-semibold text-status-warning-text/70 mt-1">
+                          {ui("Create the destination class in the Academic Plan first, then promote into it.")}
                         </p>
                       </div>
                     ) : null}
 
-                    <div className="rounded-2xl border border-[#8127cf]/15 bg-[#fbf0fe]/60 p-4 mb-3">
-                      <p className="text-[11px] font-bold text-[#8127cf]">
-                        <Lock className="h-3.5 w-3.5 inline mr-1" />
-                        Class changes are only allowed via promotion
+                    <div className="rounded-2xl border border-primary/15 bg-brand-50/60 p-4 mb-3">
+                      <p className="text-2xs font-bold text-primary">
+                        <Lock className="h-3.5 w-3.5 inline me-1" />
+                        {ui("Class changes are only allowed via promotion")}
                       </p>
-                      <p className="text-[10px] font-semibold text-ink-muted mt-0.5">
-                        Moving a student mid-year is possible from the student profile, but year-end promotion records history and final results.
+                      <p className="text-2xs font-semibold text-ink-muted mt-0.5">
+                        {ui("Moving a student mid-year is possible from the student profile, but year-end promotion records history and final results.")}
                       </p>
                     </div>
 
                     {/* Summary */}
-                    <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 space-y-3">
+                    <div className="rounded-2xl bg-brand-50/50 border border-edge/10 p-4 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-ink-muted">Students to promote</span>
-                        <span className="text-sm font-black text-emerald-600">{studentsToPromote.length}</span>
+                        <span className="text-xs font-semibold text-ink-muted">{ui("Students to promote")}</span>
+                        <span className="text-sm font-bold text-status-success-text">{studentsToPromote.length}</span>
                       </div>
                       {studentsToRetain.length > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink-muted">Students retained</span>
-                          <span className="text-sm font-black text-amber-600">{studentsToRetain.length}</span>
+                          <span className="text-xs font-semibold text-ink-muted">{ui("Students retained")}</span>
+                          <span className="text-sm font-bold text-status-warning-text">{studentsToRetain.length}</span>
                         </div>
                       )}
                       {sourceClass && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink-muted">From</span>
-                          <span className="text-sm font-bold text-[#1f1a23]">{clsLabel(sourceClass)} ({sourceClass.academicYear})</span>
+                          <span className="text-xs font-semibold text-ink-muted">{ui("From")}</span>
+                          <span className="text-sm font-bold text-ink-strong">{clsLabel(sourceClass)} ({sourceClass.academicYear})</span>
                         </div>
                       )}
                       {targetClass && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-ink-muted">To</span>
-                          <span className="text-sm font-bold text-[#8127cf]">{clsLabel(targetClass)} ({targetClass.academicYear})</span>
+                          <span className="text-xs font-semibold text-ink-muted">{ui("To")}</span>
+                          <span className="text-sm font-bold text-primary">{clsLabel(targetClass)} ({targetClass.academicYear})</span>
                         </div>
                       )}
                     </div>
@@ -806,25 +812,25 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
 
                   {/* Right: roll number preview */}
                   <div>
-                    <p className="mb-1.5 pl-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">New Roll Number Preview</p>
+                    <p className="mb-1.5 ps-2 text-2xs font-semibold text-ink-muted">{ui("New roll number preview")}</p>
                     {promoteTargetId && targetClass ? (
-                      <div className="max-h-[400px] overflow-y-auto rounded-2xl border border-[#cfc2d6]/10 custom-scrollbar">
-                        <table className="w-full text-left">
+                      <div className="max-h-[400px] overflow-y-auto rounded-2xl border border-edge/10 custom-scrollbar">
+                        <table className="w-full text-start">
                           <thead>
-                            <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30 sticky top-0">
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted">Student</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted">Old Roll</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-ink-muted text-center">→</th>
-                              <th className="px-3 py-2 text-[9px] font-black uppercase text-[#8127cf]">New Roll</th>
+                            <tr className="border-b border-edge/10 bg-brand-50/30 sticky top-0">
+                              <th className="px-3 py-2 text-2xs font-semibold text-ink-muted">{ui("Student")}</th>
+                              <th className="px-3 py-2 text-2xs font-semibold text-ink-muted">{ui("Old roll no.")}</th>
+                              <th className="px-3 py-2 text-2xs font-semibold text-ink-muted text-center">→</th>
+                              <th className="px-3 py-2 text-2xs font-semibold text-primary">{ui("New roll no.")}</th>
                             </tr>
                           </thead>
                           <tbody>
                             {studentsToPromote.map((g, idx) => (
-                              <tr key={g.studentId} className="border-b border-[#cfc2d6]/5 hover:bg-[#fbf0fe]/20">
-                                <td className="px-3 py-2 text-xs font-bold text-[#1f1a23] truncate max-w-[160px]">{g.studentName}</td>
+                              <tr key={g.studentId} className="border-b border-edge/5 hover:bg-brand-50/20">
+                                <td className="px-3 py-2 text-xs font-bold text-ink-strong truncate max-w-[160px]">{g.studentName}</td>
                                 <td className="px-3 py-2 text-xs font-semibold text-ink-muted">{g.rollNo || "—"}</td>
-                                <td className="px-3 py-2 text-center"><ArrowRight className="h-3 w-3 text-[#8127cf] mx-auto" /></td>
-                                <td className="px-3 py-2 text-xs font-black text-[#8127cf]">
+                                <td className="px-3 py-2 text-center"><ArrowRight className="h-3 w-3 text-primary mx-auto" /></td>
+                                <td className="px-3 py-2 text-xs font-bold text-primary">
                                   {generateRollNoPreview(targetClass.name, targetClass.section, idx, targetClass._count.students)}
                                 </td>
                               </tr>
@@ -833,33 +839,33 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                         </table>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center h-[200px] rounded-2xl border border-dashed border-[#cfc2d6]/20">
-                        <p className="text-xs font-bold text-ink-subtle">Select a target class to preview roll numbers</p>
+                      <div className="flex items-center justify-center h-[200px] rounded-2xl border border-dashed border-edge/20">
+                        <p className="text-xs font-bold text-ink-subtle">{ui("Select a target class to preview roll numbers")}</p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {studentsToRetain.length > 0 && (
-                  <div className="rounded-2xl border border-amber-200/40 bg-amber-50 p-4">
-                    <p className="text-xs font-bold text-amber-700 mb-2">
-                      <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
-                      {studentsToRetain.length} student{studentsToRetain.length !== 1 ? "s" : ""} will be retained in {sourceClass ? clsLabel(sourceClass) : "current class"}
+                  <div className="rounded-2xl border border-status-warning-border/40 bg-status-warning-surface p-4">
+                    <p className="text-xs font-bold text-status-warning-text mb-2">
+                      <AlertTriangle className="h-3.5 w-3.5 inline me-1" />
+                      {studentsToRetain.length === 1 ? ui("1 student will be retained in {0}", [sourceClass ? clsLabel(sourceClass) : ui("the current class")]) : ui("{0} students will be retained in {1}", [studentsToRetain.length, sourceClass ? clsLabel(sourceClass) : ui("the current class")])}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {studentsToRetain.map((g) => (
-                        <span key={g.studentId} className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-bold text-amber-700">{g.studentName}</span>
+                        <span key={g.studentId} className="rounded-full bg-status-warning-surface px-2.5 py-0.5 text-2xs font-bold text-status-warning-text">{g.studentName}</span>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-[#cfc2d6]/10">
+                <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-edge/10">
                   <BrandButton variant="soft" onClick={() => setPromoteStep(gradeResults.length > 0 ? "review" : "source")}>
-                    Back
+                    {ui("Back")}
                   </BrandButton>
-                  <BrandButton variant="dark" disabled={promoting || !promoteTargetId || studentsToPromote.length === 0} onClick={handlePromote}>
-                    {promoting ? <><Loader2 className="w-4 h-4 animate-spin" /> Promoting...</> : `Promote ${studentsToPromote.length} Students`}
+                  <BrandButton variant="dark" loading={promoting} disabled={promoting || !promoteTargetId || studentsToPromote.length === 0} onClick={handlePromote}>
+                    {`Promote ${studentsToPromote.length} Students`}
                   </BrandButton>
                 </div>
               </div>
@@ -869,13 +875,13 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
             {promoteStep === "confirm" && promotionResults && (
               <div className="space-y-6 text-center">
                 <div className="flex flex-col items-center gap-4 py-6">
-                  <div className="h-20 w-20 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+                  <div className="h-20 w-20 rounded-full bg-status-success-surface flex items-center justify-center">
+                    <CheckCircle2 className="h-10 w-10 text-status-success-text" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-[#1f1a23]">Promotion Complete</h3>
+                    <h3 className="text-2xl font-bold text-ink-strong">{ui("Promotion complete")}</h3>
                     <p className="text-sm font-semibold text-ink-muted mt-2">
-                      {promotionResults.promoted} student{promotionResults.promoted !== 1 ? "s" : ""} promoted
+                      {promotionResults.promoted === 1 ? ui("1 student promoted") : ui("{0} students promoted", [promotionResults.promoted])}
                       {targetClass ? ` to ${clsLabel(targetClass)}` : ""}
                       {promotionResults.retained > 0 ? `, ${promotionResults.retained} retained` : ""}
                     </p>
@@ -883,22 +889,22 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                  <div className="rounded-2xl bg-emerald-50 p-4 text-center">
-                    <p className="text-3xl font-black text-emerald-600">{promotionResults.promoted}</p>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600/70 mt-1">Promoted</p>
+                  <div className="rounded-2xl bg-status-success-surface p-4 text-center">
+                    <p className="text-3xl font-extrabold text-status-success-text">{promotionResults.promoted}</p>
+                    <p className="text-2xs font-semibold text-status-success-text/70 mt-1">{ui("Promoted")}</p>
                   </div>
-                  <div className="rounded-2xl bg-amber-50 p-4 text-center">
-                    <p className="text-3xl font-black text-amber-600">{promotionResults.retained}</p>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600/70 mt-1">Retained</p>
+                  <div className="rounded-2xl bg-status-warning-surface p-4 text-center">
+                    <p className="text-3xl font-extrabold text-status-warning-text">{promotionResults.retained}</p>
+                    <p className="text-2xs font-semibold text-status-warning-text/70 mt-1">{ui("Retained")}</p>
                   </div>
                 </div>
 
                 <p className="text-xs font-semibold text-ink-subtle">
-                  New roll numbers have been assigned automatically. Student history records have been saved.
+                  {ui("New roll numbers have been assigned automatically. Student history records have been saved.")}
                 </p>
 
-                <div className="flex justify-center gap-3 pt-4 border-t border-[#cfc2d6]/10">
-                  <BrandButton variant="soft" onClick={closePromotionWizard}>Done</BrandButton>
+                <div className="flex justify-center gap-3 pt-4 border-t border-edge/10">
+                  <BrandButton variant="soft" onClick={closePromotionWizard}>{ui("Done")}</BrandButton>
                   <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={() => {
                     setPromoteStep("source");
                     setPromoteSourceId("");
@@ -907,7 +913,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
                     setStudentDecisions(new Map());
                     setPromotionResults(null);
                   }}>
-                    Promote Another Class
+                    {ui("Promote another class")}
                   </BrandButton>
                 </div>
               </div>

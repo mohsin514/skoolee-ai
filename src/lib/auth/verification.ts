@@ -30,3 +30,13 @@ export async function verifyVerificationToken(token: string): Promise<string | n
     return null;
   }
 }
+
+/**
+ * SKO-457: an account is waiting for email verification only when it is a self-registered owner
+ * that is inactive and has never been verified. A deactivated account never matches, so neither a
+ * verification link nor a resend request can bring it back.
+ */
+export const pendingVerificationWhere = { isActive: false, emailVerifiedAt: null, isInstitutionOwner: true } as const;
+
+export const isPendingVerification = (user: { isActive: boolean; emailVerifiedAt: Date | null; isInstitutionOwner: boolean }) =>
+  !user.isActive && !user.emailVerifiedAt && user.isInstitutionOwner;

@@ -16,6 +16,7 @@
 
 # next.js
 /.next/
+/.next-*/
 /out/
 
 # production
@@ -87,3 +88,13 @@ docs/qa/evidence/*.sql
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# Synthetic recovery run artifacts (can contain SQL dumps)
+/recovery-evidence/
+
+# Local agent worktrees and generated UI audit artifacts
+/.codex/
+/docs/qa/evidence/ui-plan/**/*.png
+/docs/qa/evidence/ui-plan/**/*.json
+/docs/qa/evidence/ui-plan/**/*.txt
+/docs/qa/evidence/ui-plan/**/*.log

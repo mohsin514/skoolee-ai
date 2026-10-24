@@ -1,19 +1,21 @@
 "use client";
 
+import { fillNodes } from "@/lib/auth/fill-nodes";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Check,
-  Loader2,
   Send,
   MapPin,
   Network,
   Phone,
   User,
 } from "lucide-react";
-import { toast } from "sonner";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { Alert } from "@/components/ui/alert";
 import { inviteStaff } from "@/app/actions/invite";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/staff/hierarchy-presets";
 import {
@@ -30,6 +32,8 @@ import {
   ReviewSection,
   WizardShell,
 } from "@/components/shared-admin/wizard-shell";
+import { Button } from "@/components/ui/button";
+
 
 interface AddStaffFormProps {
   role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST";
@@ -38,9 +42,9 @@ interface AddStaffFormProps {
 }
 
 const STEPS = [
-  { label: "Personal Info", icon: User, blurb: "Who they are and how the school reaches them." },
-  { label: "Address & Emergency", icon: MapPin, blurb: "Where they live and who to call in an emergency." },
-  { label: "Review & Submit", icon: Check, blurb: "Check everything, then send the invitation." },
+  { label: "Personal info", icon: User, blurb: "Who they are and how the school reaches them." },
+  { label: "Address & emergency", icon: MapPin, blurb: "Where they live and who to call in an emergency." },
+  { label: "Review & submit", icon: Check, blurb: "Check everything, then send the invitation." },
 ];
 
 const PROVINCES = [
@@ -71,14 +75,16 @@ const emptyForm = {
 type FormData = typeof emptyForm;
 
 const ROLE_LABELS: Record<string, { title: string; eyebrow: string; submitLabel: string }> = {
-  CAMPUS_ADMIN: { title: "Invite Admin", eyebrow: "Campus Administration", submitLabel: "Send Invitation" },
-  PRINCIPAL: { title: "Invite Principal", eyebrow: "Academic Leadership", submitLabel: "Send Invitation" },
-  ACCOUNTANT: { title: "Invite Accountant", eyebrow: "Finance Team", submitLabel: "Send Invitation" },
-  LIBRARIAN: { title: "Invite Librarian", eyebrow: "Library Staff", submitLabel: "Send Invitation" },
-  RECEPTIONIST: { title: "Invite Receptionist", eyebrow: "Front Desk", submitLabel: "Send Invitation" },
+  // EN UI keys. A CAMPUS_ADMIN invited from /admin is the single-school owner's deputy (§2.1 row 4).
+  CAMPUS_ADMIN: { title: "Invite deputy admin", eyebrow: "School administration", submitLabel: "Send invitation" },
+  PRINCIPAL: { title: "Appoint principal", eyebrow: "Academic leadership", submitLabel: "Send invitation" },
+  ACCOUNTANT: { title: "Invite accountant", eyebrow: "Finance team", submitLabel: "Send invitation" },
+  LIBRARIAN: { title: "Invite librarian", eyebrow: "Library staff", submitLabel: "Send invitation" },
+  RECEPTIONIST: { title: "Invite receptionist", eyebrow: "Front desk", submitLabel: "Send invitation" },
 };
 
 export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
+  const ui = useUiText();
   const labels = ROLE_LABELS[role];
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>({ ...emptyForm });
@@ -120,7 +126,7 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
   const handleSubmit = async () => {
     if (!validateStep(0)) {
-      toast.error("Please fix errors in the form");
+      toast.error(ui("Fix the highlighted fields, then send the invitation again."));
       return;
     }
 
@@ -153,10 +159,10 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
           employeeCode: position.employeeCode.trim() || undefined,
         },
       });
-      toast.success(`Invitation sent to ${form.email.trim().toLowerCase()}`);
+      toast.success(ui("Invitation sent to {0}", [form.email.trim().toLowerCase()]));
       onSuccess();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not send invitation");
+      toast.error(friendlyErrorMessage(error, ui("Could not send the invitation. Please try again.")));
     } finally {
       setIsSubmitting(false);
     }
@@ -181,25 +187,25 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
     >
           {step === 0 && (
             <div className="space-y-5">
-              <FormSection icon={User} title="Identity" hint="Their name as it should appear on campus records.">
+              <FormSection icon={User} title={ui("Identity")} hint={ui("Their name as it should appear on campus records.")}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <Field label="Full Name" required error={errors.fullName}>
+                    <Field label={ui("Full Name")} required error={errors.fullName}>
                       <Input
                         value={form.fullName}
                         onChange={(e) => update("fullName", e.target.value)}
-                        placeholder={role === "PRINCIPAL" ? "Principal's full name" : role === "CAMPUS_ADMIN" ? "Admin's full name" : "Staff member's full name"}
+                        placeholder={role === "PRINCIPAL" ? ui("Principal's full name") : role === "CAMPUS_ADMIN" ? ui("Admin's full name") : ui("Staff member's full name")}
                       />
                     </Field>
                   </div>
-                  <Field label="CNIC" hint="National ID, if you record it">
+                  <Field label={ui("CNIC")} hint={ui("National ID, if you record it")}>
                     <Input
                       value={form.cnic}
                       onChange={(e) => update("cnic", e.target.value)}
-                      placeholder="XXXXX-XXXXXXX-X"
+                      placeholder={ui("XXXXX-XXXXXXX-X")}
                     />
                   </Field>
-                  <Field label="Date of Birth">
+                  <Field label={ui("Date of Birth")}>
                     <Input
                       type="date"
                       value={form.dateOfBirth}
@@ -207,21 +213,17 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
                     />
                   </Field>
                   <div className="sm:col-span-2">
-                    <Field label="Gender">
+                    <Field label={ui("Gender")}>
                       <div className="flex gap-2">
                         {(["MALE", "FEMALE", "OTHER"] as const).map((g) => (
-                          <button
+                          <Button aria-pressed={form.gender === g} variant="choice" size="sm"
                             key={g}
                             type="button"
-                            className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${
-                              form.gender === g
-                                ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-                                : "bg-[#f3f4f9] text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                            }`}
+                            className="flex-1"
                             onClick={() => update("gender", g)}
                           >
-                            {g === "MALE" ? "Male" : g === "FEMALE" ? "Female" : "Other"}
-                          </button>
+                            {g === "MALE" ? ui("Male") : g === "FEMALE" ? ui("Female") : ui("Other")}
+                          </Button>
                         ))}
                       </div>
                     </Field>
@@ -231,24 +233,24 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
               <FormSection
                 icon={Phone}
-                title="Contact & Sign-in"
-                hint="The invitation goes to this email. It becomes their sign-in address and cannot be changed later."
+                title={ui("Contact & Sign-in")}
+                hint={ui("The invitation goes to this email. It becomes their sign-in address and cannot be changed later.")}
               >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Email" required error={errors.email}>
+                  <Field label={ui("Email")} required error={errors.email}>
                     <Input
                       type="email"
                       value={form.email}
                       onChange={(e) => update("email", e.target.value)}
-                      placeholder="official@school.edu"
+                      placeholder={ui("official@school.edu")}
                     />
                   </Field>
-                  <Field label="Phone" required error={errors.phone}>
+                  <Field label={ui("Phone")} required error={errors.phone}>
                     <Input
                       type="tel"
                       value={form.phone}
                       onChange={(e) => update("phone", e.target.value)}
-                      placeholder="03XX-XXXXXXX"
+                      placeholder={ui("03XX-XXXXXXX")}
                     />
                   </Field>
                 </div>
@@ -256,8 +258,8 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
               <FormSection
                 icon={Network}
-                title="Position & Reporting"
-                hint="Where they sit in the institution. All of it can be changed later from Staff → Hierarchy."
+                title={ui("Position & Reporting")}
+                hint={ui("Where they sit in the institution. All of it can be changed later in Staff structure.")}
               >
                 <PositionFields value={position} onChange={setPosition} options={positionOptions} />
               </FormSection>
@@ -266,61 +268,61 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
 
           {step === 1 && (
             <div className="space-y-5">
-              <FormSection icon={MapPin} title="Address" hint="Where they live. Printed on official records.">
+              <FormSection icon={MapPin} title={ui("Address")} hint={ui("Where they live. Printed on official records.")}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <Field label="Address">
+                    <Field label={ui("Address")}>
                       <Textarea
                         value={form.address}
                         onChange={(e) => update("address", e.target.value)}
-                        placeholder="Full residential address"
+                        placeholder={ui("Full residential address")}
                         rows={2}
                       />
                     </Field>
                   </div>
-                  <Field label="City">
+                  <Field label={ui("City")}>
                     <Input
                       value={form.city}
                       onChange={(e) => update("city", e.target.value)}
-                      placeholder="City"
+                      placeholder={ui("City")}
                     />
                   </Field>
-                  <Field label="Province">
+                  <Field label={ui("Province")}>
                     <Select
                       value={form.province}
                       onChange={(e) => update("province", e.target.value)}
                     >
-                      <option value="">Select province</option>
+                      <option value="">{ui("Select province")}</option>
                       {PROVINCES.map((p) => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Postal Code">
+                  <Field label={ui("Postal Code")}>
                     <Input
                       value={form.postalCode}
                       onChange={(e) => update("postalCode", e.target.value)}
-                      placeholder="Postal code"
+                      placeholder={ui("Postal code")}
                     />
                   </Field>
                 </div>
               </FormSection>
 
-              <FormSection icon={Phone} title="Emergency Contact" hint="Who the school calls if something happens at work.">
+              <FormSection icon={Phone} title={ui("Emergency contact")} hint={ui("Who the school calls if something happens at work.")}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Contact Person">
+                  <Field label={ui("Contact Person")}>
                     <Input
                       value={form.emergencyContact}
                       onChange={(e) => update("emergencyContact", e.target.value)}
-                      placeholder="Contact name"
+                      placeholder={ui("Contact name")}
                     />
                   </Field>
-                  <Field label="Emergency Phone">
+                  <Field label={ui("Emergency phone")}>
                     <Input
                       type="tel"
                       value={form.emergencyPhone}
                       onChange={(e) => update("emergencyPhone", e.target.value)}
-                      placeholder="03XX-XXXXXXX"
+                      placeholder={ui("03XX-XXXXXXX")}
                     />
                   </Field>
                 </div>
@@ -332,56 +334,52 @@ export function AddStaffForm({ role, onSuccess, onClose }: AddStaffFormProps) {
             <div className="space-y-5">
               <ReviewHero
                 icon={User}
-                eyebrow="Ready to invite"
-                title={form.fullName || "Unnamed"}
-                meta={`${labels.title} · ${form.email || "No email"}`}
+                eyebrow={ui("Ready to invite")}
+                title={form.fullName || ui("Unnamed")}
+                meta={ui("{0} · {1}", [ui(labels.title), form.email || ui("No email")])}
               />
 
-              <ReviewSection title="Personal Information" icon={User} onEdit={() => setStep(0)}>
-                <ReviewRow label="Full Name" value={form.fullName} required />
-                <ReviewRow label="Email" value={form.email} required />
-                <ReviewRow label="Phone" value={form.phone} />
-                <ReviewRow label="CNIC" value={form.cnic} />
-                <ReviewRow label="Date of Birth" value={form.dateOfBirth} />
-                <ReviewRow label="Gender" value={form.gender === "MALE" ? "Male" : form.gender === "FEMALE" ? "Female" : "Other"} />
+              <ReviewSection title={ui("Personal information")} icon={User} onEdit={() => setStep(0)}>
+                <ReviewRow label={ui("Full Name")} value={form.fullName} required />
+                <ReviewRow label={ui("Email")} value={form.email} required />
+                <ReviewRow label={ui("Phone")} value={form.phone} />
+                <ReviewRow label={ui("CNIC")} value={form.cnic} />
+                <ReviewRow label={ui("Date of Birth")} value={form.dateOfBirth} />
+                <ReviewRow label={ui("Gender")} value={form.gender === "MALE" ? "Male" : form.gender === "FEMALE" ? "Female" : "Other"} />
               </ReviewSection>
 
-              <ReviewSection title="Position & Reporting" icon={Network} onEdit={() => setStep(0)}>
+              <ReviewSection title={ui("Position & Reporting")} icon={Network} onEdit={() => setStep(0)}>
                 <ReviewRow
-                  label="Rank"
+                  label={ui("Rank")}
                   value={positionOptions.designations.find((d) => d.id === position.designationId)?.name ?? ""}
                 />
                 <ReviewRow
-                  label="Home Department"
+                  label={ui("Home department")}
                   value={positionOptions.departments.find((d) => d.id === position.primaryDepartmentId)?.name ?? ""}
                 />
                 <ReviewRow
-                  label="Reports To"
+                  label={ui("Reports to")}
                   value={positionOptions.managers.find((m) => m.id === position.reportsToId)?.name ?? ""}
                 />
                 <ReviewRow
-                  label="Employment Type"
-                  value={EMPLOYMENT_TYPE_LABELS[position.employmentType as keyof typeof EMPLOYMENT_TYPE_LABELS] ?? ""}
+                  label={ui("Employment type")}
+                  value={ui(EMPLOYMENT_TYPE_LABELS[position.employmentType as keyof typeof EMPLOYMENT_TYPE_LABELS] ?? "")}
                 />
-                <ReviewRow label="Staff Code" value={position.employeeCode} />
+                <ReviewRow label={ui("Staff code")} value={position.employeeCode} />
               </ReviewSection>
 
-              <ReviewSection title="Address & Emergency" icon={MapPin} onEdit={() => setStep(1)}>
-                <ReviewRow label="Address" value={form.address} />
-                <ReviewRow label="City" value={form.city} />
-                <ReviewRow label="Province" value={form.province} />
-                <ReviewRow label="Postal Code" value={form.postalCode} />
-                <ReviewRow label="Emergency Contact" value={form.emergencyContact} />
-                <ReviewRow label="Emergency Phone" value={form.emergencyPhone} />
+              <ReviewSection title={ui("Address & Emergency")} icon={MapPin} onEdit={() => setStep(1)}>
+                <ReviewRow label={ui("Address")} value={form.address} />
+                <ReviewRow label={ui("City")} value={form.city} />
+                <ReviewRow label={ui("Province")} value={form.province} />
+                <ReviewRow label={ui("Postal Code")} value={form.postalCode} />
+                <ReviewRow label={ui("Emergency contact")} value={form.emergencyContact} />
+                <ReviewRow label={ui("Emergency phone")} value={form.emergencyPhone} />
               </ReviewSection>
 
-              <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                <p className="text-xs font-semibold text-amber-800">
-                  This does not create an account. An invitation goes to <b>{form.email || "their email"}</b>; they must
-                  open the link, set a password and finish onboarding before the role becomes active.
-                </p>
-              </div>
+              <Alert tone="warning" compact live="off" title={ui("This sends an invitation, not an account")}>
+                {fillNodes(ui("An invitation goes to {0}; they must open the link, set a password and finish onboarding before the role becomes active."), <b><bdi dir="ltr">{form.email || ui("their email")}</bdi></b>)}
+              </Alert>
             </div>
           )}
     </WizardShell>

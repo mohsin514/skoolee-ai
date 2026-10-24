@@ -1,0 +1,57 @@
+{
+  "startedAt": "2026-10-08T04:40:56.115715+00:00",
+  "status": "blocked",
+  "dataClass": "synthetic",
+  "notificationIsolation": "No app, worker or notification SDK is executed; subprocess environment excludes all provider credentials.",
+  "operatorSignOff": null,
+  "schoolReopenDecision": "Requires operator review; synthetic proof is not production readiness.",
+  "checks": [
+    {
+      "name": "clean-provisioning-and-schema-drift",
+      "passed": true
+    },
+    {
+      "name": "populated-schema-push-adoption-and-upgrade",
+      "passed": true
+    },
+    {
+      "name": "all-record-counts-and-content-hashes",
+      "passed": true
+    },
+    {
+      "name": "invoice-balance-and-grade",
+      "passed": true
+    },
+    {
+      "name": "referenced-files-have-matching-manifest",
+      "passed": true
+    },
+    {
+      "name": "file-reconciliation:synthetic/attachment.txt",
+      "passed": false
+    }
+  ],
+  "fault": "missing-file",
+  "destination": {
+    "host": "127.0.0.1",
+    "port": 55412,
+    "databases": {
+      "clean": "rehearsal_f47dca256370_clean",
+      "upgrade": "rehearsal_f47dca256370_upgrade",
+      "restored": "rehearsal_f47dca256370_restored",
+      "failure": "rehearsal_f47dca256370_failure"
+    }
+  },
+  "supportedUpgradePaths": [
+    "dev-9c5193d-schema-push-to-versioned-baseline",
+    "verified-baseline-to-head"
+  ],
+  "actualRestoredPointUtc": "2026-10-08 04:41:06.163144 UTC",
+  "backupStartedAt": "2026-10-08T04:41:06.164774+00:00",
+  "backupAgeSecondsAtRestore": 0.848887,
+  "error": "file-reconciliation:synthetic/attachment.txt",
+  "restoreAttemptElapsedSeconds": 7.134,
+  "elapsedSeconds": 17.309,
+  "completedAt": "2026-10-08T04:41:13.424713+00:00",
+  "diagnostics": "diagnostics.log"
+}

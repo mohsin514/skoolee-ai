@@ -1,9 +1,11 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -43,7 +45,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     const parsed = feeStructureSchema.safeParse(body);
@@ -90,6 +93,8 @@ export async function POST(req: NextRequest) {
       });
     } else {
       data.createdBy = user.userId;
+      data.currency = (await getLocalePackage(user.schoolId, campusId, activeFrom)).currency;
+      if ((body.currency || "PKR") !== data.currency) throw new ApiError("Currency changed. Reload the fee form before saving.", 409);
       structure = await prisma.feeStructure.create({
         data,
         include: {

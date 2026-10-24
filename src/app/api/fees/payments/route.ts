@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
           invoice: {
             select: {
               invoiceNumber: true,
+              currency: true,
               totalAmount: true,
               balanceDue: true,
               status: true,

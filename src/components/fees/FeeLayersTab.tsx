@@ -1,12 +1,23 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
+import { getFinancialLocale } from "@/app/actions/locale";
+import { CurrencySelect } from "@/components/locale/CurrencySelect";
+
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, Check, Layers, Loader2, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
-import { toast } from "sonner";
+import { BookOpen, Check, Layers, MoreHorizontal, Pencil, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
+import { toast } from "@/components/ui/toast";
+import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
+import { ErrorState as SharedErrorState } from "@/components/ui/error-state";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { ModalFrame, ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
+import { ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
+import { Modal } from "@/components/ui/modal";
+import { Menu, type MenuItem } from "@/components/ui/menu";
 import type {
+  PanelCommand,
   CarryForwardRow,
   ClassOption,
   DiscountAssignmentRow,
@@ -17,62 +28,29 @@ import type {
   MasterLineRow,
   StudentLite,
 } from "./fee-types";
-import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees } from "./fee-utils";
+import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees, usePanelCommand } from "./fee-utils";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
 
-const inputClass = "w-full h-14 rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/40 px-4 text-sm font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]";
-const labelClass = "block mb-2 pl-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle";
-
-export function FeeLayersTab({ campusId }: { campusId?: string }) {
-  const [active, setActive] = useState<"types" | "groups" | "master" | "assign" | "discounts" | "carry">("types");
-
-  const tabs = [
-    { key: "types" as const, label: "Types", icon: Tag },
-    { key: "groups" as const, label: "Groups", icon: Layers },
-    { key: "master" as const, label: "Master", icon: BookOpen },
-    { key: "assign" as const, label: "Assign", icon: Check },
-    { key: "discounts" as const, label: "Discounts", icon: Percent },
-    { key: "carry" as const, label: "Carry Forward", icon: Wallet },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = active === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActive(tab.key)}
-              className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                isActive ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {active === "types" && <TypesPanel campusId={campusId} />}
-      {active === "groups" && <GroupsPanel campusId={campusId} />}
-      {active === "master" && <MasterPanel campusId={campusId} />}
-      {active === "assign" && <AssignPanel campusId={campusId} />}
-      {active === "discounts" && <DiscountsPanel campusId={campusId} />}
-      {active === "carry" && <CarryPanel campusId={campusId} />}
-    </div>
-  );
-}
+const inputClass = "w-full";
+const labelClass = "block mb-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
 
 export { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel };
 
+/**
+ * Every fee-setup panel takes the console's header command "create" (role-ux §4.4b accountant · Fee setup: the
+ * section's create action is the PageHeader primary). `hideCreate` drops the panel's own create button so the
+ * screen keeps one primary; the empty state may still repeat it (§4.5.7). A command that cannot run yet says why.
+ */
+export type FeeSetupPanelProps = { campusId?: string; command?: PanelCommand | null; hideCreate?: boolean };
+
 /* ── Types ─────────────────────────────────────────────── */
 
-function TypesPanel({ campusId }: { campusId?: string }) {
+function TypesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
+  const tr = useUiText();
   const [types, setTypes] = useState<FeeTypeRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeTypeRow | null>(null);
   const [name, setName] = useState("");
@@ -85,13 +63,14 @@ function TypesPanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch(`${API}/types${qp}`);
       const json = await res.json();
       if (json.success) setTypes(json.data);
-      else toast.error(json.error || "Failed to load fee types");
+      else setLoadFailed(true);
     } catch {
-      toast.error("Failed to load fee types");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -109,7 +88,7 @@ function TypesPanel({ campusId }: { campusId?: string }) {
 
   const handleSave = async () => {
     if (!name.trim() || !code.trim()) {
-      toast.error("Name and code are required");
+      toast.error(tr("Name and code are required"));
       return;
     }
     setSaving(true);
@@ -121,14 +100,14 @@ function TypesPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fee type saved");
+        toast.success(tr(json.message || "Fee type saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save fee type");
+      toast.error(tr("Failed to save fee type"));
     } finally {
       setSaving(false);
     }
@@ -139,70 +118,65 @@ function TypesPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/types?id=${row.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Fee type deleted");
+        toast.success(tr("Fee type deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
-      toast.error("Failed to delete fee type");
+      toast.error(tr("Failed to delete fee type"));
       setDeleting(null);
     }
   };
+  usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
   if (loading) {
     return <SkeletonRows />;
+  }
+  if (loadFailed) {
+    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Fee Types</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-            Reusable fee heads &mdash; Tuition, Admission, Lab, Books&hellip;
-          </p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee types"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Reusable fee heads such as tuition, admission, lab and books."}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>
-          New Type
-        </BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New fee type"}</UiText></BrandButton>}
       </div>
 
       {types.length === 0 ? (
         <EmptyState
           icon={Tag}
-          title="No fee types yet"
-          description="Create fee heads first — groups then price them in the Master tab."
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>Create Fee Type</BrandButton>}
+          title={tr("No fee types yet")}
+          description={tr("Create fee heads first — groups then price them in Amounts.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New fee type"}</UiText></BrandButton>}
         />
       ) : (
         <div className="space-y-2.5">
           {types.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={t.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">{t.name}</p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
-                  {t.code} · {t._count?.masters ?? 0} line(s)
-                  {t.description ? ` · ${t.description}` : ""}
+                <p className="text-sm font-bold text-ink-strong">{t.name}</p>
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
+                  <span dir="ltr">{t.code}</span> · {tr("Amounts: {0}", [t._count?.masters ?? 0])}{t.description ? <> · <bdi>{t.description}</bdi></> : null}
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => openModal(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
-                  <BookOpen className="w-3.5 h-3.5" />
-                </button>
-                <button type="button" onClick={() => setDeleting(t)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <RowMenu onEdit={() => openModal(t)} onDelete={() => setDeleting(t)} />
                 <ConfirmAction
                   open={deleting?.id === t.id}
-                  title="Delete Fee Type"
-                  description={`Delete "${t.name}"? Lines using it in any group will also be removed.`}
+                  title={tr("Delete fee type?")}
+                  description={tr("Delete \"{0}\"? Lines using it in any group will also be removed.", [t.name])}
                   onConfirm={() => handleDelete(t)}
                   onCancel={() => setDeleting(null)}
                   tone="danger"
-                  confirmLabel="Delete"
+                  confirmLabel={tr("Delete")}
+                  cancelLabel={tr("Keep editing")}
                 />
               </div>
             </div>
@@ -211,14 +185,14 @@ function TypesPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? "Edit Fee Type" : "New Fee Type"} eyebrow="Fee Layers · Types" onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit fee type") : tr("New fee type")} eyebrow={tr("Fee setup · Fee types")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Name" value={name} placeholder="e.g. Monthly Tuition" onChange={setName} />
-            <FormInput label="Code" value={code} placeholder="e.g. MONTHLY_TUITION" onChange={setCode} />
-            <FormInput label="Description (optional)" value={description} placeholder="e.g. Standard monthly tuition" onChange={setDescription} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Update Type" : "Create Type"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Monthly Tuition")} onChange={setName} />
+            <FormInput label={tr("Code")} value={code} placeholder={tr("e.g. MONTHLY_TUITION")} onChange={setCode} />
+            <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("e.g. Standard monthly tuition")} onChange={setDescription} />
+            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fee type")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
     </div>
   );
@@ -226,9 +200,12 @@ function TypesPanel({ campusId }: { campusId?: string }) {
 
 /* ── Groups ────────────────────────────────────────────── */
 
-function GroupsPanel({ campusId }: { campusId?: string }) {
+function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [groups, setGroups] = useState<FeeGroupRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeGroupRow | null>(null);
   const [name, setName] = useState("");
@@ -240,13 +217,14 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch(`${API}/groups${qp}`);
       const json = await res.json();
       if (json.success) setGroups(json.data);
-      else toast.error(json.error || "Failed to load fee groups");
+      else setLoadFailed(true);
     } catch {
-      toast.error("Failed to load fee groups");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -263,7 +241,7 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error("Name is required");
+      toast.error(tr("Name is required"));
       return;
     }
     setSaving(true);
@@ -275,14 +253,14 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fee group saved");
+        toast.success(tr(json.message || "Fee group saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save fee group");
+      toast.error(tr("Failed to save fee group"));
     } finally {
       setSaving(false);
     }
@@ -293,81 +271,76 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/groups?id=${row.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Fee group deleted");
+        toast.success(tr("Fee group deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
-      toast.error("Failed to delete fee group");
+      toast.error(tr("Failed to delete fee group"));
       setDeleting(null);
     }
   };
+  usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
   if (loading) {
     return <SkeletonRows />;
+  }
+  if (loadFailed) {
+    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Fee Groups</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-            Packages bundling multiple fee types &mdash; price them in Master
-          </p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fee groups"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Bundles of fee types for a class; set their amounts under Amounts."}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>
-          New Group
-        </BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New fee group"}</UiText></BrandButton>}
       </div>
 
       {groups.length === 0 ? (
         <EmptyState
           icon={Layers}
-          title="No fee groups yet"
-          description="Create a group like 'Legacy — Grade 1' or 'Day Scholar Package'."
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>Create Fee Group</BrandButton>}
+          title={tr("No fee groups yet")}
+          description={tr("Create a group like 'Legacy — Grade 1' or 'Day Scholar Package'.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New fee group"}</UiText></BrandButton>}
         />
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">
           {groups.map((g) => {
             const lineTotal = g.lines.reduce((s, l) => s + l.amount, 0);
             return (
-              <div key={g.id} className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10)]">
+              <div key={g.id} className="sk-panel p-5">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <p className="text-sm font-black text-[#1f1a23]">{g.name}</p>
-                    <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
-                      {g.lines.length} fee line(s) · {g.assignments.length} class assignment(s)
-                    </p>
+                    <p className="text-sm font-bold text-ink-strong"><bdi>{g.name}</bdi></p>
+                    <p className="text-2xs font-bold text-ink-subtle mt-0.5">
+                      {tr("Amounts: {0} · Classes: {1}", [g.lines.length, g.assignments.length])}</p>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <button type="button" onClick={() => openModal(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
-                      <BookOpen className="w-3.5 h-3.5" />
-                    </button>
-                    <button type="button" onClick={() => setDeleting(g)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <RowMenu onEdit={() => openModal(g)} onDelete={() => setDeleting(g)} />
                     <ConfirmAction
                       open={deleting?.id === g.id}
-                      title="Delete Fee Group"
-                      description={`Delete "${g.name}"? Its lines and class assignments will be removed.`}
+                      title={tr("Delete fee group?")}
+                      description={tr("Delete \"{0}\"? Its lines and class assignments will be removed.", [g.name])}
                       onConfirm={() => handleDelete(g)}
                       onCancel={() => setDeleting(null)}
                       tone="danger"
-                      confirmLabel="Delete"
+                      confirmLabel={tr("Delete")}
+                      cancelLabel={tr("Keep editing")}
                     />
                   </div>
                 </div>
-                <div className="rounded-xl bg-[#fbf0fe]/50 px-3 py-2 flex items-center justify-between">
-                  <p className="text-[9px] font-black uppercase text-ink-subtle">Bundled value</p>
-                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(lineTotal)}</p>
+                <div className="rounded-xl bg-brand-50/50 px-3 py-2 flex items-center justify-between">
+                  <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Bundled value"}</UiText></p>
+                  <p className="text-sm font-bold text-primary">{formatPKR(lineTotal, g.currency)}</p>
                 </div>
                 {g.description && (
-                  <p className="text-[10px] font-semibold text-ink-subtle mt-2 px-1">{g.description}</p>
+                  <p className="text-2xs font-semibold text-ink-subtle mt-2 px-1">{g.description}</p>
                 )}
               </div>
             );
@@ -376,13 +349,13 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? "Edit Fee Group" : "New Fee Group"} eyebrow="Fee Layers · Groups" onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit fee group") : tr("New fee group")} eyebrow={tr("Fee setup · Fee groups")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Name" value={name} placeholder="e.g. Day Scholar Package" onChange={setName} />
-            <FormInput label="Description (optional)" value={description} placeholder="e.g. Tuition + books + lab" onChange={setDescription} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Update Group" : "Create Group"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Day Scholar Package")} onChange={setName} />
+            <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("e.g. Tuition + books + lab")} onChange={setDescription} />
+            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fee group")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
     </div>
   );
@@ -390,11 +363,14 @@ function GroupsPanel({ campusId }: { campusId?: string }) {
 
 /* ── Master (priced lines) ─────────────────────────────── */
 
-function MasterPanel({ campusId }: { campusId?: string }) {
+function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
   const [groups, setGroups] = useState<FeeGroupRow[]>([]);
   const [types, setTypes] = useState<FeeTypeRow[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<MasterLineRow | null>(null);
   const [feeTypeId, setFeeTypeId] = useState("");
@@ -407,13 +383,15 @@ function MasterPanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [gRes, tRes] = await Promise.all([fetch(`${API}/groups${qp}`), fetch(`${API}/types${qp}`)]);
       const [gJson, tJson] = await Promise.all([gRes.json(), tRes.json()]);
       if (gJson.success) setGroups(gJson.data);
+      else setLoadFailed(true);
       if (tJson.success) setTypes(tJson.data);
     } catch {
-      toast.error("Failed to load master data");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -426,14 +404,14 @@ function MasterPanel({ campusId }: { campusId?: string }) {
   const openModal = (line: MasterLineRow | null) => {
     setEditing(line);
     setFeeTypeId(line?.feeTypeId ?? "");
-    setAmount(line ? String(paisaToRupees(line.amount)) : "");
+    setAmount(line ? String(paisaToRupees(line.amount, selectedGroup?.currency)) : "");
     setDueDate(line?.dueDate ? new Date(line.dueDate).toISOString().split("T")[0] : "");
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!feeTypeId || !amount) {
-      toast.error("Fee type and amount required");
+      toast.error(tr("Fee type and amount required"));
       return;
     }
     setSaving(true);
@@ -444,20 +422,21 @@ function MasterPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({
           ...(editing ? { id: editing.id } : { campusId: campusId || undefined, feeGroupId: selectedGroupId }),
           feeTypeId,
-          amount: rupeesToPaisa(parseFloat(amount)),
+          currency: selectedGroup?.currency,
+          amount: rupeesToPaisa(amount, selectedGroup?.currency),
           dueDate: dueDate || null,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Master line saved");
+        toast.success(tr("Master line saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save master line");
+      toast.error(tr("Failed to save master line"));
     } finally {
       setSaving(false);
     }
@@ -468,82 +447,84 @@ function MasterPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/master-lines?id=${line.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Master line deleted");
+        toast.success(tr("Master line deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
-      toast.error("Failed to delete master line");
+      toast.error(tr("Failed to delete master line"));
       setDeleting(null);
     }
   };
+  usePanelCommand(command, {
+    create: () => {
+      if (!selectedGroup) toast.info(tr("Select a fee group first, then add its amounts."));
+      else if (types.length === 0) toast.info(tr("Create a fee type first."));
+      else openModal(null);
+    },
+  }, !loading);
 
   if (loading) {
     return <SkeletonRows />;
+  }
+  if (loadFailed) {
+    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-        <div className="w-full sm:max-w-xs">
-          <label className={labelClass}>Fee Group</label>
-          <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className={inputClass}>
-            <option value="">Select a group...</option>
+        <label className="w-full sm:max-w-xs">
+          <span className={labelClass}><UiText>{"Fee group"}</UiText></span>
+          <SystemSelect value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full">
+            <option value=""><UiText>{"Select a group..."}</UiText></option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
-          </select>
-        </div>
-        {selectedGroup && (
-          <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)} disabled={types.length === 0}>
-            Add Line
-          </BrandButton>
+          </SystemSelect>
+        </label>
+        {selectedGroup && !hideCreate && (
+          <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)} disabled={types.length === 0}><UiText>{"Add an amount"}</UiText></BrandButton>
         )}
       </div>
 
       {!selectedGroup ? (
-        <EmptyState icon={BookOpen} title="Pick a fee group" description="Select a group above to see its priced lines." />
+        <EmptyState icon={BookOpen} title={tr("Pick a fee group")} description={tr("Select a group above to see its priced lines.")} />
       ) : (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-              {selectedGroup.name} &mdash; {selectedGroup.lines.length} line(s)
-            </p>
-            <p className="text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-              {formatPKR(selectedGroup.lines.reduce((s, l) => s + l.amount, 0))} total
-            </p>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">
+              <bdi>{selectedGroup.name}</bdi> · {tr("Amounts: {0}", [selectedGroup.lines.length])}</p>
+            <p className="text-2xs font-semibold uppercase tracking-wider text-primary">
+              {tr("Total {0}", [formatPKR(selectedGroup.lines.reduce((s, l) => s + l.amount, 0), selectedGroup.currency)])}</p>
           </div>
           {selectedGroup.lines.length === 0 ? (
-            <EmptyState icon={BookOpen} title="No lines yet" description="Price the first fee type in this group." />
+            <EmptyState icon={BookOpen} title={tr("No lines yet")} description={tr("Price the first fee type in this group.")} />
           ) : (
             selectedGroup.lines.map((line) => (
-              <div key={line.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+              <div key={line.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
                 <div>
-                  <p className="text-sm font-black text-[#1f1a23]">{line.feeType?.name ?? "Unknown"}</p>
-                  <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                  <p className="text-sm font-bold text-ink-strong">{line.feeType?.name ?? tr("Unknown")}</p>
+                  <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                     {line.feeType?.code}
-                    {line.dueDate ? ` · due ${new Date(line.dueDate).toLocaleDateString()}` : ""}
+                    {line.dueDate ? tr(" · due {0}", [new Date(line.dueDate).toLocaleDateString()]) : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-black text-[#8127cf]">{formatPKR(line.amount)}</p>
-                  <button type="button" onClick={() => openModal(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
-                    <BookOpen className="w-3.5 h-3.5" />
-                  </button>
-                  <button type="button" onClick={() => setDeleting(line)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <p className="text-sm font-bold text-primary">{formatPKR(line.amount, selectedGroup?.currency)}</p>
+                  <RowMenu onEdit={() => openModal(line)} onDelete={() => setDeleting(line)} />
                   <ConfirmAction
                     open={deleting?.id === line.id}
-                    title="Delete Master Line"
-                    description={`Remove "${line.feeType?.name}" from ${selectedGroup.name}?`}
+                    title={tr("Remove this amount?")}
+                    description={tr("\"{0}\" is no longer charged as part of {1}. Invoices already issued keep their lines.", [line.feeType?.name ?? tr("This fee type"), selectedGroup.name])}
                     onConfirm={() => handleDelete(line)}
                     onCancel={() => setDeleting(null)}
                     tone="danger"
-                    confirmLabel="Delete"
+                    confirmLabel={tr("Remove")}
+                    cancelLabel={tr("Keep editing")}
                   />
                 </div>
               </div>
@@ -553,19 +534,19 @@ function MasterPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && selectedGroup && (
-        <ModalFrame title={editing ? "Edit Master Line" : "Add Master Line"} eyebrow={`Fee Layers · ${selectedGroup.name}`} onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit amount") : tr("Add an amount")} eyebrow={`${tr("Fee setup")} · ${selectedGroup.name}`} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormSelect label="Fee Type" value={feeTypeId} onChange={setFeeTypeId}>
-              <option value="">Select fee type...</option>
+            <FormSelect label={tr("Fee type")} value={feeTypeId} onChange={setFeeTypeId}>
+              <option value=""><UiText>{"Select fee type..."}</UiText></option>
               {types.map((t) => (
                 <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
               ))}
             </FormSelect>
-            <FormInput label="Amount (PKR)" type="number" value={amount} placeholder="e.g. 5000" onChange={setAmount} />
-            <FormInput label="Due date (optional)" type="date" value={dueDate} placeholder="" onChange={setDueDate} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Update Line" : "Add Line"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <FormInput label={`${tr("Amount")} (${selectedGroup.currency})`} type="number" value={amount} placeholder={tr("e.g. 5000")} onChange={setAmount} />
+            <FormInput label={tr("Due date (optional)")} type="date" value={dueDate} placeholder="" onChange={setDueDate} />
+            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Add amount")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
     </div>
   );
@@ -573,11 +554,13 @@ function MasterPanel({ campusId }: { campusId?: string }) {
 
 /* ── Assign ────────────────────────────────────────────── */
 
-function AssignPanel({ campusId }: { campusId?: string }) {
+function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
+  const tr = useUiText();
   const [assignments, setAssignments] = useState<GroupAssignmentRow[]>([]);
   const [groups, setGroups] = useState<FeeGroupRow[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [feeGroupId, setFeeGroupId] = useState("");
   const [classId, setClassId] = useState("");
@@ -589,6 +572,7 @@ function AssignPanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [aRes, gRes, cRes] = await Promise.all([
         fetch(`${API}/assignments${qp}`),
@@ -600,7 +584,7 @@ function AssignPanel({ campusId }: { campusId?: string }) {
       if (gJson.success) setGroups(gJson.data);
       if (cJson.success) setClasses(cJson.data);
     } catch {
-      toast.error("Failed to load assignments");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -610,7 +594,7 @@ function AssignPanel({ campusId }: { campusId?: string }) {
 
   const handleSave = async () => {
     if (!feeGroupId || !classId || !academicYear) {
-      toast.error("Group, class and year required");
+      toast.error(tr("Group, class and year required"));
       return;
     }
     setSaving(true);
@@ -622,16 +606,16 @@ function AssignPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Assignment created");
+        toast.success(tr("Assignment created"));
         setShowModal(false);
         setFeeGroupId("");
         setClassId("");
         load();
       } else {
-        toast.error(json.error || "Failed to assign");
+        toast.error(tr(json.error || "Failed to assign"));
       }
     } catch {
-      toast.error("Failed to assign group");
+      toast.error(tr("Failed to assign group"));
     } finally {
       setSaving(false);
     }
@@ -642,63 +626,68 @@ function AssignPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/assignments?id=${row.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Assignment removed");
+        toast.success(tr("Assignment removed"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to remove");
+        toast.error(tr(json.error || "Failed to remove"));
         setDeleting(null);
       }
     } catch {
-      toast.error("Failed to remove assignment");
+      toast.error(tr("Failed to remove assignment"));
       setDeleting(null);
     }
   };
+  usePanelCommand(command, {
+    create: () => {
+      if (groups.length === 0) toast.info(tr("Create a fee group first."));
+      else if (classes.length === 0) toast.info(tr("Add a class before assigning a fee group."));
+      else setShowModal(true);
+    },
+  }, !loading);
 
   if (loading) {
     return <SkeletonRows />;
+  }
+  if (loadFailed) {
+    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Class Assignments</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-            Which fee group serves each class, per academic year
-          </p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Class groups"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Which fee group serves each class, per academic year"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)} disabled={groups.length === 0 || classes.length === 0}>
-          Assign Group
-        </BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)} disabled={groups.length === 0 || classes.length === 0}><UiText>{"Assign a fee group"}</UiText></BrandButton>}
       </div>
 
       {assignments.length === 0 ? (
-        <EmptyState icon={Check} title="No assignments yet" description="Assign a fee group to a class for the current year." />
+        <EmptyState icon={Check} title={tr("No assignments yet")} description={tr("Assign a fee group to a class for the current year.")} />
       ) : (
         <div className="space-y-2.5">
           {assignments.map((a) => (
-            <div key={a.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={a.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">
-                  {a.class ? classLabel(a.class.name, a.class.section) : "Unknown class"}
+                <p className="text-sm font-bold text-ink-strong">
+                  {a.class ? classLabel(a.class.name, a.class.section) : tr("Unknown class")}
                 </p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
                   {a.feeGroup?.name} · {a.academicYear}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setDeleting(a)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <RowMenu onDelete={() => setDeleting(a)} deleteLabel="Remove" />
                 <ConfirmAction
                   open={deleting?.id === a.id}
-                  title="Remove Assignment"
-                  description={`Stop serving ${a.feeGroup?.name} to ${a.class ? classLabel(a.class.name, a.class.section) : "this class"} for ${a.academicYear}?`}
+                  title={tr("Remove this fee group from the class?")}
+                  description={tr("{0} is no longer charged to {1} for {2}. Invoices already issued are not changed.", [a.feeGroup?.name ?? tr("This fee group"), a.class ? classLabel(a.class.name, a.class.section) : tr("this class"), a.academicYear])}
                   onConfirm={() => handleDelete(a)}
                   onCancel={() => setDeleting(null)}
                   tone="danger"
-                  confirmLabel="Remove"
+                  confirmLabel={tr("Remove")}
+                  cancelLabel={tr("Keep editing")}
                 />
               </div>
             </div>
@@ -707,24 +696,24 @@ function AssignPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title="Assign Fee Group" eyebrow="Fee Layers · Assign" onClose={() => setShowModal(false)}>
+        <Modal title={tr("Assign a fee group")} eyebrow={tr("Fee setup · Class groups")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormSelect label="Fee Group" value={feeGroupId} onChange={setFeeGroupId}>
-              <option value="">Select group...</option>
+            <FormSelect label={tr("Fee group")} value={feeGroupId} onChange={setFeeGroupId}>
+              <option value=""><UiText>{"Select group..."}</UiText></option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </FormSelect>
-            <FormSelect label="Class" value={classId} onChange={setClassId}>
-              <option value="">Select class...</option>
+            <FormSelect label={tr("Class")} value={classId} onChange={setClassId}>
+              <option value=""><UiText>{"Select class..."}</UiText></option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>{classLabel(c.name, c.section)}</option>
               ))}
             </FormSelect>
-            <FormInput label="Academic Year" type="number" value={academicYear} placeholder="2026" onChange={setAcademicYear} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel="Assign Group" onClose={() => setShowModal(false)} onSave={handleSave} />
+            <FormInput label={tr("Academic year")} type="number" value={academicYear} placeholder="2026" onChange={setAcademicYear} />
+            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={tr("Assign")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
     </div>
   );
@@ -732,10 +721,16 @@ function AssignPanel({ campusId }: { campusId?: string }) {
 
 /* ── Discounts ─────────────────────────────────────────── */
 
-function DiscountsPanel({ campusId }: { campusId?: string }) {
+function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
+  // Starts in the campus currency (locale package) and follows the financial policy once it loads (R7).
+  const [currency, setCurrency] = useState<string>(useLocale().currency);
+  useEffect(() => { void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => {}); }, [campusId]);
   const [discounts, setDiscounts] = useState<FeeDiscountRow[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeDiscountRow | null>(null);
   const [name, setName] = useState("");
@@ -755,6 +750,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [dRes, cRes] = await Promise.all([
         fetch(`${API}/discounts${qp}`),
@@ -764,7 +760,7 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       if (dJson.success) setDiscounts(dJson.data);
       if (cJson.success) setCategories(cJson.data);
     } catch {
-      toast.error("Failed to load discounts");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -777,14 +773,15 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
     setName(row?.name ?? "");
     setCode(row?.code ?? "");
     setType(row?.type ?? "PERCENT");
-    setValue(row ? String(row.value) : "");
+    setValue(row ? String(row.type === "FLAT" ? paisaToRupees(row.value, row.currency) : row.value) : "");
+    if (row) setCurrency(row.currency);
     setCategoryId(row?.categoryId ?? "");
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!name.trim() || !code.trim() || !value) {
-      toast.error("Name, code and value required");
+      toast.error(tr("Name, code and value required"));
       return;
     }
     setSaving(true);
@@ -797,20 +794,21 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
           name: name.trim(),
           code: code.trim(),
           type,
-          value: Math.round(parseFloat(value) * (type === "FLAT" ? 100 : 1)),
+          currency,
+          value: type === "FLAT" ? rupeesToPaisa(value, currency) : Number(value),
           categoryId: categoryId || null,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Discount saved");
+        toast.success(tr(json.message || "Discount saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save discount");
+      toast.error(tr("Failed to save discount"));
     } finally {
       setSaving(false);
     }
@@ -821,22 +819,25 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/discounts?id=${row.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Discount deleted");
+        toast.success(tr("Discount deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
-      toast.error("Failed to delete discount");
+      toast.error(tr("Failed to delete discount"));
       setDeleting(null);
     }
   };
 
+  // A failed load stays in the dialog with a retry (R4: load failures are never a toast).
+  const [assignFailed, setAssignFailed] = useState(false);
   const openAssign = async (row: FeeDiscountRow) => {
     setAssigning(row);
     setSearch("");
+    setAssignFailed(false);
     try {
       const [sRes, aRes] = await Promise.all([
         fetch(`/api/students${qp ? `${qp}&` : "?"}pageSize=1000`),
@@ -845,8 +846,9 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       const [sJson, aJson] = await Promise.all([sRes.json(), aRes.json()]);
       if (sJson.success) setStudents(sJson.data);
       if (aJson.success) setAssigned(aJson.data);
+      if (!sJson.success || !aJson.success) setAssignFailed(true);
     } catch {
-      toast.error("Failed to load students");
+      setAssignFailed(true);
     }
   };
 
@@ -861,16 +863,16 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Discount assigned");
+        toast.success(tr("Discount assigned"));
         const aRes = await fetch(`${API}/discount-assignments?discountId=${assigning.id}`);
         const aJson = await aRes.json();
         if (aJson.success) setAssigned(aJson.data);
         load();
       } else {
-        toast.error(json.error || "Failed to assign");
+        toast.error(tr(json.error || "Failed to assign"));
       }
     } catch {
-      toast.error("Failed to assign discount");
+      toast.error(tr("Failed to assign discount"));
     } finally {
       setAssignBusy(false);
     }
@@ -888,64 +890,59 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
         if (aJson.success) setAssigned(aJson.data);
         load();
       } else {
-        toast.error(json.error || "Failed to remove");
+        toast.error(tr(json.error || "Failed to remove"));
       }
     } catch {
-      toast.error("Failed to remove assignment");
+      toast.error(tr("Failed to remove assignment"));
     } finally {
       setAssignBusy(false);
     }
   };
 
+  usePanelCommand(command, { create: () => openModal(null) }, !loading);
+
   if (loading) {
     return <SkeletonRows />;
+  }
+  if (loadFailed) {
+    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Discounts</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-            Flat (PKR) or percent &mdash; per student or auto-applied to a category
-          </p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Discounts"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle">{tr("Flat amount")} (<bdi>{currency}</bdi>) / {tr("Percent (max 100)")}</p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>
-          New Discount
-        </BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New discount"}</UiText></BrandButton>}
       </div>
 
       {discounts.length === 0 ? (
-        <EmptyState icon={Percent} title="No discounts yet" description="Create discounts to apply to students or whole categories." />
+        <EmptyState icon={Percent} title={tr("No discounts yet")} description={tr("Create discounts to apply to students or whole categories.")} />
       ) : (
         <div className="space-y-2.5">
           {discounts.map((d) => (
-            <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={d.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">{d.name}</p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
-                  {d.code} · {d.type === "PERCENT" ? `${d.value}%` : formatPKR(d.value)}
-                  {d.category ? ` · auto: ${d.category.name}` : ""} · {d._count?.assignments ?? 0} student(s)
-                </p>
+                <p className="text-sm font-bold text-ink-strong">{d.name}</p>
+                <p className="text-2xs font-bold text-ink-subtle mt-0.5">
+                  {d.code} · {d.type === "PERCENT" ? `${d.value}%` : formatPKR(d.value, d.currency)}
+                  {d.category ? tr(" · auto: {0}", [d.category.name]) : ""} · {tr("Students: {0}", [d._count?.assignments ?? 0])}</p>
               </div>
               <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => openAssign(d)} className="h-8 px-2.5 rounded-xl bg-[#fbf0fe] text-[#8127cf] flex items-center gap-1 hover:bg-white transition-colors cursor-pointer text-[9px] font-black uppercase tracking-wider">
-                  <Users className="w-3.5 h-3.5" /> Assign
-                </button>
-                <button type="button" onClick={() => openModal(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-colors cursor-pointer text-ink-muted">
-                  <BookOpen className="w-3.5 h-3.5" />
-                </button>
-                <button type="button" onClick={() => setDeleting(d)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <Button variant="outline" type="button" onClick={() => openAssign(d)} className="justify-start px-2.5 flex items-center gap-1">
+                  <Users className="w-3.5 h-3.5" /><UiText>{"Assign"}</UiText></Button>
+                <RowMenu onEdit={() => openModal(d)} onDelete={() => setDeleting(d)} />
                 <ConfirmAction
                   open={deleting?.id === d.id}
-                  title="Delete Discount"
-                  description={`Delete "${d.name}"? All student assignments for it will be removed.`}
+                  title={tr("Delete discount?")}
+                  description={tr("Delete \"{0}\"? All student assignments for it will be removed.", [d.name])}
                   onConfirm={() => handleDelete(d)}
                   onCancel={() => setDeleting(null)}
                   tone="danger"
-                  confirmLabel="Delete"
+                  confirmLabel={tr("Delete")}
+                  cancelLabel={tr("Keep editing")}
                 />
               </div>
             </div>
@@ -954,63 +951,64 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? "Edit Discount" : "New Discount"} eyebrow="Fee Layers · Discounts" onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit discount") : tr("New discount")} eyebrow={tr("Fee setup · Discounts")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Name" value={name} placeholder="e.g. Sibling Discount" onChange={setName} />
-            <FormInput label="Code" value={code} placeholder="e.g. SIBLING_10" onChange={setCode} />
+            <FormInput label={tr("Name")} value={name} placeholder={tr("e.g. Sibling Discount")} onChange={setName} />
+            <FormInput label={tr("Code")} value={code} placeholder={tr("e.g. SIBLING_10")} onChange={setCode} />
             <div className="grid grid-cols-2 gap-3">
-              <FormSelect label="Type" value={type} onChange={(v) => setType(v as "PERCENT" | "FLAT")}>
-                <option value="PERCENT">Percent (%)</option>
-                <option value="FLAT">Flat (PKR)</option>
+              <FormSelect label={tr("Type")} value={type} onChange={(v) => setType(v as "PERCENT" | "FLAT")}>
+                <option value="PERCENT"><UiText>{"Percent (%)"}</UiText></option>
+                <option value="FLAT">{tr("Flat amount")} ({currency})</option>
               </FormSelect>
               <FormInput
-                label={type === "PERCENT" ? "Percent (max 100)" : "Amount (PKR)"}
+                label={type === "PERCENT" ? tr("Percent (max 100)") : `${tr("Amount")} (${currency})`}
                 type="number"
                 value={value}
                 placeholder={type === "PERCENT" ? "10" : "500"}
                 onChange={setValue}
               />
             </div>
-            <FormSelect label="Auto-apply category (optional)" value={categoryId} onChange={setCategoryId}>
-              <option value="">No category</option>
+            <p className="-mt-2 text-xs text-ink-subtle">{type === "PERCENT" ? tr("Percent discounts take this share off the fee, up to 100%.") : tr("Flat discounts take this fixed amount off the fee.")}</p>
+            <FormSelect label={tr("Auto-apply category (optional)")} value={categoryId} onChange={setCategoryId}>
+              <option value=""><UiText>{"No category"}</UiText></option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </FormSelect>
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Update Discount" : "Create Discount"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create discount")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
 
       {assigning && (
-        <ModalFrame title={`Assign: ${assigning.name}`} eyebrow="Fee Layers · Discounts" onClose={() => setAssigning(null)} wide>
+        <Modal title={tr("Assign: {0}", [assigning.name])} eyebrow={tr("Fee setup · Discounts")} onClose={() => setAssigning(null)} wide>
+          {assignFailed ? (
+            <SharedErrorState title={tr("Students for this discount could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void openAssign(assigning)} />
+          ) : (
           <div className="space-y-5">
-            <div>
-              <label className={labelClass}>Find student</label>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type name or roll no..." className={inputClass} />
-            </div>
+            <label>
+              <span className={labelClass}><UiText>{"Find student"}</UiText></span>
+              <SystemInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr("Type name or roll no...")} className="w-full" />
+            </label>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2">
-                Assigned ({assigned.length})
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2">{tr("Assigned ({0})", [assigned.length])}
               </p>
               {assigned.length === 0 ? (
-                <p className="text-[10px] font-semibold text-ink-subtle italic">No students assigned yet.</p>
+                <SharedEmptyState size="sm" icon={Users} title={tr("No students assigned yet.")} description={tr("Search for a student above to assign this discount.")} />
               ) : (
-                <div className="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pe-1">
                   {assigned.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between rounded-xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 px-3 py-2">
-                      <p className="text-xs font-black text-[#1f1a23]">
+                    <div key={a.id} className="flex items-center justify-between rounded-xl bg-brand-50/50 border border-edge/10 px-3 py-2">
+                      <p className="text-xs font-bold text-ink-strong">
                         {a.student?.fullName} <span className="text-ink-subtle font-bold">· {a.student?.rollNo ?? ""}</span>
                       </p>
-                      <button
+                      <Button variant="secondary"
                         type="button"
                         disabled={assignBusy}
                         onClick={() => removeAssignment(a.id)}
-                        className="h-7 px-2 rounded-lg bg-rose-50 text-rose-500 text-[9px] font-black uppercase hover:bg-rose-100 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        Remove
-                      </button>
+                        className="px-2"
+                      ><UiText>{"Remove"}</UiText></Button>
                     </div>
                   ))}
                 </div>
@@ -1018,8 +1016,8 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
             </div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-2">Add student</p>
-              <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pr-1">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle mb-2"><UiText>{"Add student"}</UiText></p>
+              <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pe-1">
                 {students
                   .filter((s) => {
                     const q = search.trim().toLowerCase();
@@ -1031,27 +1029,26 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
                   })
                   .slice(0, 20)
                   .map((s) => (
-                    <div key={s.id} className="flex items-center justify-between rounded-xl border border-[#cfc2d6]/10 px-3 py-2">
-                      <p className="text-xs font-bold text-[#1f1a23]">
+                    <div key={s.id} className="flex items-center justify-between rounded-xl border border-edge/10 px-3 py-2">
+                      <p className="text-xs font-bold text-ink-strong">
                         {s.fullName} <span className="text-ink-subtle font-bold">· {s.rollNo ?? ""}</span>
                       </p>
-                      <button
+                      <Button variant="outline"
                         type="button"
                         disabled={assignBusy}
                         onClick={() => addAssignment(s.id)}
-                        className="h-7 px-2 rounded-lg bg-[#fbf0fe] text-[#8127cf] text-[9px] font-black uppercase hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        Add
-                      </button>
+                        className="px-2"
+                      ><UiText>{"Add"}</UiText></Button>
                     </div>
                   ))}
                 {students.filter((s) => !assigned.some((a) => a.studentId === s.id)).length === 0 && (
-                  <p className="text-[10px] font-semibold text-ink-subtle italic">All students already assigned.</p>
+                  <p className="text-2xs font-semibold text-ink-subtle italic"><UiText>{"All students already assigned."}</UiText></p>
                 )}
               </div>
             </div>
           </div>
-        </ModalFrame>
+          )}
+        </Modal>
       )}
     </div>
   );
@@ -1059,10 +1056,16 @@ function DiscountsPanel({ campusId }: { campusId?: string }) {
 
 /* ── Carry Forward ─────────────────────────────────────── */
 
-function CarryPanel({ campusId }: { campusId?: string }) {
+function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
+  // Starts in the campus currency (locale package) and follows the financial policy once it loads (R7).
+  const [currency, setCurrency] = useState<string>(useLocale().currency);
+  useEffect(() => { void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => {}); }, [campusId]);
   const [forwards, setForwards] = useState<CarryForwardRow[]>([]);
   const [students, setStudents] = useState<StudentLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [studentId, setStudentId] = useState("");
   const [fromYear, setFromYear] = useState(String(new Date().getFullYear()));
@@ -1076,6 +1079,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [fRes, sRes] = await Promise.all([
         fetch(`${API}/carry-forwards${qp}`),
@@ -1085,7 +1089,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
       if (fJson.success) setForwards(fJson.data);
       if (sJson.success) setStudents(sJson.data);
     } catch {
-      toast.error("Failed to load carry-forwards");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -1095,7 +1099,7 @@ function CarryPanel({ campusId }: { campusId?: string }) {
 
   const handleSave = async () => {
     if (!studentId || !fromYear || !toYear || balance === "") {
-      toast.error("Student, years and balance required");
+      toast.error(tr("Student, years and balance required"));
       return;
     }
     setSaving(true);
@@ -1108,23 +1112,24 @@ function CarryPanel({ campusId }: { campusId?: string }) {
           studentId,
           fromAcademicYear: Number(fromYear),
           toAcademicYear: Number(toYear),
-          balance: rupeesToPaisa(parseFloat(balance)),
+          currency,
+          balance: rupeesToPaisa(balance, currency),
           note: note || null,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Carry-forward created");
+        toast.success(tr("Carry-forward created"));
         setShowModal(false);
         setStudentId("");
         setBalance("");
         setNote("");
         load();
       } else {
-        toast.error(json.error || "Failed to create");
+        toast.error(tr(json.error || "Failed to create"));
       }
     } catch {
-      toast.error("Failed to create carry-forward");
+      toast.error(tr("Failed to create carry-forward"));
     } finally {
       setSaving(false);
     }
@@ -1135,65 +1140,66 @@ function CarryPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/carry-forwards?id=${row.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Carry-forward deleted");
+        toast.success(tr("Carry-forward deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
         setDeleting(null);
       }
     } catch {
-      toast.error("Failed to delete carry-forward");
+      toast.error(tr("Failed to delete carry-forward"));
       setDeleting(null);
     }
   };
+  usePanelCommand(command, {
+    create: () => { if (students.length === 0) toast.info(tr("There are no students on this campus to carry a balance for.")); else setShowModal(true); },
+  }, !loading);
 
   if (loading) {
     return <SkeletonRows />;
+  }
+  if (loadFailed) {
+    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-black text-[#1f1a23]">Carry Forward</h3>
-          <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-            Session-end balances moved to the next academic year
-          </p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Carry forward"}</UiText></h3>
+          <p className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle"><UiText>{"Session-end balances moved to the next academic year"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)} disabled={students.length === 0}>
-          New Carry-Forward
-        </BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowModal(true)} disabled={students.length === 0}><UiText>{"New carry-forward"}</UiText></BrandButton>}
       </div>
 
       {forwards.length === 0 ? (
-        <EmptyState icon={Wallet} title="No carry-forwards yet" description="Move a student's outstanding balance or credit into the next year." />
+        <EmptyState icon={Wallet} title={tr("No carry-forwards yet")} description={tr("Move a student's outstanding balance or credit into the next year.")} />
       ) : (
         <div className="space-y-2.5">
           {forwards.map((f) => (
-            <div key={f.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+            <div key={f.id} className="sk-panel flex items-center justify-between gap-3 px-4 py-3">
               <div>
-                <p className="text-sm font-black text-[#1f1a23]">{f.student?.fullName ?? "Unknown"}</p>
-                <p className="text-[9px] font-bold text-ink-subtle mt-0.5">
-                  {f.fromAcademicYear} &rarr; {f.toAcademicYear}
-                  {f.note ? ` · ${f.note}` : ""}
+                <p className="text-sm font-bold text-ink-strong"><bdi>{f.student?.fullName ?? tr("Unknown")}</bdi></p>
+                <p className="text-2xs font-medium text-ink-subtle mt-0.5">
+                  {tr("{0} to {1}", [f.fromAcademicYear, f.toAcademicYear])}
+                  {f.note ? <> · <bdi>{f.note}</bdi></> : null}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-sm font-black ${f.balance < 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                  {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance))}
+                <span className={`text-sm font-bold ${f.balance < 0 ? "text-status-success-text" : "text-status-error-text"} tabular-nums`}>
+                  {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance), f.currency)}
                 </span>
-                <button type="button" onClick={() => setDeleting(f)} className="h-8 w-8 rounded-xl bg-[#f3f4f9] flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer text-ink-muted">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <RowMenu onDelete={() => setDeleting(f)} />
                 <ConfirmAction
                   open={deleting?.id === f.id}
-                  title="Delete Carry-Forward"
-                  description={`Remove the ${f.toAcademicYear} carry-forward for ${f.student?.fullName ?? "this student"}?`}
+                  title={tr("Delete carry-forward?")}
+                  description={tr("Remove the {0} carry-forward for {1}?", [f.toAcademicYear, f.student?.fullName ?? tr("this student")])}
                   onConfirm={() => handleDelete(f)}
                   onCancel={() => setDeleting(null)}
                   tone="danger"
-                  confirmLabel="Delete"
+                  confirmLabel={tr("Delete")}
+                  cancelLabel={tr("Keep editing")}
                 />
               </div>
             </div>
@@ -1202,23 +1208,24 @@ function CarryPanel({ campusId }: { campusId?: string }) {
       )}
 
       {showModal && (
-        <ModalFrame title="New Carry-Forward" eyebrow="Fee Layers · Carry Forward" onClose={() => setShowModal(false)}>
+        <Modal title={tr("New carry-forward")} eyebrow={tr("Fee setup · Carry forward")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormSelect label="Student" value={studentId} onChange={setStudentId}>
-              <option value="">Select student...</option>
+            <CurrencySelect value={currency} onChange={setCurrency} /><FormSelect label={tr("Student")} value={studentId} onChange={setStudentId}>
+              <option value=""><UiText>{"Select student..."}</UiText></option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>{s.fullName} ({s.rollNo ?? ""})</option>
               ))}
             </FormSelect>
             <div className="grid grid-cols-2 gap-3">
-              <FormInput label="From Year" type="number" value={fromYear} placeholder="2025" onChange={setFromYear} />
-              <FormInput label="To Year" type="number" value={toYear} placeholder="2026" onChange={setToYear} />
+              <FormInput label={tr("From year")} type="number" value={fromYear} placeholder="2025" onChange={setFromYear} />
+              <FormInput label={tr("To year")} type="number" value={toYear} placeholder="2026" onChange={setToYear} />
             </div>
-            <FormInput label="Balance (PKR, negative = credit)" type="number" value={balance} placeholder="e.g. 2500 or -500" onChange={setBalance} />
-            <FormInput label="Note (optional)" value={note} placeholder="e.g. outstanding May dues" onChange={setNote} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel="Create Carry-Forward" onClose={() => setShowModal(false)} onSave={handleSave} />
+            <FormInput label={`${tr("Balance")} (${currency})`} type="number" value={balance} placeholder={tr("e.g. 2500 or -500")} onChange={setBalance} />
+            <p className="-mt-2 text-xs text-ink-subtle">{tr("A positive balance is owed by the student; a negative balance is a credit carried forward.")}</p>
+            <FormInput label={tr("Note (optional)")} value={note} placeholder={tr("e.g. outstanding May dues")} onChange={setNote} />
+            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={tr("Create carry-forward")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
     </div>
   );
@@ -1236,9 +1243,16 @@ interface FineRuleRow {
   description?: string | null;
 }
 
-export function FineRulesPanel({ campusId }: { campusId?: string }) {
+export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProps) {
+ const { money: formatPKR } = useLocaleFormat();
+  const tr = useUiText();
+  // Flat and per-day fines are in the campus currency from the school's locale package (R7: never a fixed "PKR").
+  // Starts in the campus currency (locale package) and follows the financial policy once it loads (R7).
+  const [currency, setCurrency] = useState<string>(useLocale().currency);
+  useEffect(() => { void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => {}); }, [campusId]);
   const [rules, setRules] = useState<FineRuleRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FineRuleRow | null>(null);
   const [name, setName] = useState("");
@@ -1254,12 +1268,14 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const res = await fetch(`${API}/fine-rules${qp}`);
       const json = await res.json();
       if (json.success) setRules(json.data);
+      else setLoadFailed(true);
     } catch {
-      toast.error("Failed to load fine rules");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -1279,7 +1295,7 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
 
   const handleSave = async () => {
     if (!name.trim() || !value) {
-      toast.error("Name and value required");
+      toast.error(tr("Name and value required"));
       return;
     }
     setSaving(true);
@@ -1298,14 +1314,14 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(json.message || "Fine rule saved");
+        toast.success(tr(json.message || "Fine rule saved"));
         setShowModal(false);
         load();
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(tr(json.error || "Failed to save"));
       }
     } catch {
-      toast.error("Failed to save fine rule");
+      toast.error(tr("Failed to save fine rule"));
     } finally {
       setSaving(false);
     }
@@ -1320,11 +1336,11 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
         body: JSON.stringify({ id: rule.id, isActive: !rule.isActive }),
       });
       const json = await res.json();
-      if (json.success) toast.success(rule.isActive ? "Rule deactivated" : "Rule activated");
-      else toast.error(json.error || "Failed to toggle");
+      if (json.success) toast.success(tr(rule.isActive ? "Rule deactivated" : "Rule activated"));
+      else toast.error(tr(json.error || "Failed to toggle"));
       load();
     } catch {
-      toast.error("Failed to toggle rule");
+      toast.error(tr("Failed to toggle rule"));
     } finally {
       setTogglingId(null);
     }
@@ -1336,128 +1352,114 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
       const res = await fetch(`${API}/fine-rules?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Fine rule deleted");
+        toast.success(tr("Fine rule deleted"));
         setDeleting(null);
         load();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(tr(json.error || "Failed to delete"));
       }
     } catch {
-      toast.error("Failed to delete fine rule");
+      toast.error(tr("Failed to delete fine rule"));
     }
   };
+
+  usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Fine Rules</p>
-          <p className="text-sm font-black text-[#1f1a23]">
-            Late-payment fines applied when collecting overdue invoices
-          </p>
-          <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">
-            PERCENT = % of balance · FLAT = fixed PKR · PER_DAY = PKR per day past due
-          </p>
+          <h3 className="text-lg font-bold text-ink-strong"><UiText>{"Fine rules"}</UiText></h3>
+          <p className="text-sm text-ink-muted"><UiText>{"Late-payment fines applied when collecting overdue invoices"}</UiText></p>
+          <p className="text-2xs font-medium text-ink-subtle mt-0.5"><UiText>{"Percent: a share of the balance · Flat: one fixed amount · Per day: an amount for each day past due"}</UiText></p>
         </div>
-        <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Fine Rule</BrandButton>
+        {hideCreate ? null : <BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New fine rule"}</UiText></BrandButton>}
       </div>
 
       {loading ? (
         <SkeletonRows />
+      ) : loadFailed ? (
+        <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
       ) : rules.length === 0 ? (
         <EmptyState
           icon={Timer}
-          title="No fine rules yet"
-          description="Create a rule to start charging late-payment fines."
-          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}>New Fine Rule</BrandButton>}
+          title={tr("No fine rules yet")}
+          description={tr("Create a rule to start charging late-payment fines.")}
+          action={<BrandButton icon={<Plus className="w-4 h-4" />} onClick={() => openModal(null)}><UiText>{"New fine rule"}</UiText></BrandButton>}
         />
       ) : (
         <div className="space-y-3">
           {rules.map((rule) => (
-            <div key={rule.id} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8127cf]/10 text-[#8127cf]">
+            <div key={rule.id} className="sk-panel p-5 flex items-center gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Timer className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-[#1f1a23]">
+                <p className="text-sm font-bold text-ink-strong">
                   {rule.name}
-                  {rule.description ? <span className="ml-2 text-[10px] font-semibold text-ink-subtle">{rule.description}</span> : null}
+                  {rule.description ? <span className="ms-2 text-2xs font-medium text-ink-subtle">{rule.description}</span> : null}
                 </p>
-                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">
+                <p className="text-2xs font-medium text-ink-subtle mt-0.5">
                   {rule.type === "PERCENT"
-                    ? `${rule.value}% of balance`
+                    ? tr("{0}% of balance", [rule.value])
                     : rule.type === "PER_DAY"
-                      ? `${formatPKR(rule.value)} per day`
-                      : formatPKR(rule.value) + " flat"}
-                  {" · "}{rule.graceDays > 0 ? `${rule.graceDays} day grace` : "no grace period"}
+                      ? tr("{0} per day", [formatPKR(rule.value, currency)])
+                      : tr("{0} flat", [formatPKR(rule.value, currency)])}
+                  {" · "}{rule.graceDays > 0 ? tr("{0} day grace", [rule.graceDays]) : tr("no grace period")}
                 </p>
               </div>
-              <button
+              <Button aria-pressed={rule.isActive} variant="choice"
                 type="button"
                 onClick={() => handleToggle(rule)}
-                disabled={togglingId === rule.id}
-                className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-wider cursor-pointer transition-colors disabled:opacity-50 ${
-                  rule.isActive ? "bg-emerald-50 text-emerald-700" : "bg-[#f3f4f9] text-ink-subtle"
-                }`}
+                loading={togglingId === rule.id}
+                className={"justify-start " + (`flex items-center gap-2 px-3 py-1.5 ${
+                  ""
+                } `)}
               >
-                {togglingId === rule.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                {rule.isActive ? "Active" : "Inactive"}
-              </button>
-              <button
-                type="button"
-                onClick={() => openModal(rule)}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-[#8127cf] transition-colors cursor-pointer"
-                aria-label="Edit fine rule"
-              >
-                <Tag className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleting(rule)}
-                className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink-muted hover:text-rose-500 transition-colors cursor-pointer"
-                aria-label="Delete fine rule"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+                {togglingId !== rule.id && <Check className="w-3 h-3" aria-hidden="true" />}
+                {rule.isActive ? tr("Active") : tr("Inactive")}
+              </Button>
+              <RowMenu onEdit={() => openModal(rule)} onDelete={() => setDeleting(rule)} />
             </div>
           ))}
         </div>
       )}
 
       {showModal && (
-        <ModalFrame title={editing ? "Edit Fine Rule" : "New Fine Rule"} eyebrow="Fee Layers · Fine Rules" onClose={() => setShowModal(false)}>
+        <Modal title={editing ? tr("Edit fine rule") : tr("New fine rule")} eyebrow={tr("Fee setup · Fine rules")} onClose={() => setShowModal(false)}>
           <div className="space-y-4">
-            <FormInput label="Rule Name" value={name} placeholder="e.g. Monthly late fine" onChange={setName} />
+            <FormInput label={tr("Rule name")} value={name} placeholder={tr("e.g. Monthly late fine")} onChange={setName} />
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}>Type</label>
-                <select value={type} onChange={(e) => setType(e.target.value as any)} className={inputClass}>
-                  <option value="PERCENT">Percent of balance</option>
-                  <option value="FLAT">Flat amount</option>
-                  <option value="PER_DAY">Per day</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Value (PKR or %)</label>
-                <input type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? "e.g. 5" : "e.g. 200"} className={inputClass} />
-              </div>
+              <label>
+                <span className={labelClass}><UiText>{"Type"}</UiText></span>
+                <SystemSelect value={type} onChange={(e) => setType(e.target.value as any)} className="w-full">
+                  <option value="PERCENT"><UiText>{"Percent of balance"}</UiText></option>
+                  <option value="FLAT"><UiText>{"Flat amount"}</UiText></option>
+                  <option value="PER_DAY"><UiText>{"Per day"}</UiText></option>
+                </SystemSelect>
+              </label>
+              <label>
+                <span className={labelClass}>{type === "PERCENT" ? tr("Percent of balance") : `${tr("Amount")} (${currency})`}</span>
+                <SystemInput type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "PERCENT" ? tr("e.g. 5") : tr("e.g. 200")} className="w-full" />
+              </label>
             </div>
-            <div>
-              <label className={labelClass}>Grace Days (0 = none)</label>
-              <input type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className={inputClass} />
-            </div>
-            <FormInput label="Description (optional)" value={description} placeholder="Shown in reports" onChange={setDescription} />
-            <ModalActions busy={saving} busyLabel="Saving..." actionLabel={editing ? "Save Changes" : "Create Rule"} onClose={() => setShowModal(false)} onSave={handleSave} />
+            <label>
+              <span className={labelClass}><UiText>{"Grace days (0 = none)"}</UiText></span>
+              <SystemInput type="number" min="0" value={graceDays} onChange={(e) => setGraceDays(e.target.value)} placeholder="0" className="w-full" />
+            </label>
+            <FormInput label={tr("Description (optional)")} value={description} placeholder={tr("Shown in reports")} onChange={setDescription} />
+            <ModalActions busy={saving} busyLabel={tr("Saving…")} actionLabel={editing ? tr("Save changes") : tr("Create fine rule")} onClose={() => setShowModal(false)} onSave={handleSave} />
           </div>
-        </ModalFrame>
+        </Modal>
       )}
 
       {deleting && (
         <ConfirmAction
           open
-          title="Delete fine rule?"
-          description={`"${deleting.name}" will no longer be available for late fines.`}
-          confirmLabel="Delete"
+          title={tr("Delete fine rule?")}
+          description={tr("\"{0}\" will no longer be available for late fines.", [deleting.name])}
+          confirmLabel={tr("Delete")}
+          cancelLabel={tr("Keep editing")}
           tone="danger"
           onConfirm={handleDelete}
           onCancel={() => setDeleting(null)}
@@ -1469,19 +1471,38 @@ export function FineRulesPanel({ campusId }: { campusId?: string }) {
 
 /* ── Shared ────────────────────────────────────────────── */
 
+/**
+ * One row overflow menu (role-ux §4.5.2–3): Edit, then the destructive action last in danger tone. The delete
+ * itself still asks through the row's ConfirmAction.
+ */
+function RowMenu({ onEdit, onDelete, deleteLabel = "Delete" }: { onEdit?: () => void; onDelete: () => void; deleteLabel?: string }) {
+  const tr = useUiText();
+  const items: MenuItem[] = [
+    ...(onEdit ? [{ id: "edit", label: "Edit", icon: Pencil, onSelect: onEdit }] : []),
+    { id: "delete", label: deleteLabel, icon: Trash2, tone: "danger" as const, onSelect: onDelete },
+  ];
+  return (
+    <Menu
+      label="More actions"
+      items={items}
+      trigger={<IconButton variant="ghost" label={tr("More actions")}><MoreHorizontal aria-hidden="true" /></IconButton>}
+    />
+  );
+}
+
 function SkeletonRows() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="rounded-[24px] border border-[#cfc2d6]/10 bg-white p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
+        <div key={i} className="sk-panel p-5 animate-skeleton-in" style={{ animationDelay: `${i * 80}ms` }}>
           <div className="flex items-start justify-between mb-3">
             <div className="space-y-2">
-              <div className="h-4 w-28 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-              <div className="h-3 w-40 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
+              <div className="h-4 w-28 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+              <div className="h-3 w-40 rounded-full bg-border-subtle/40 skeleton-shimmer" />
             </div>
-            <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div className="h-8 w-8 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
           </div>
-          <div className="h-12 rounded-xl bg-[#f3f4f9]/50 skeleton-shimmer" />
+          <div className="h-12 rounded-xl bg-muted/50 skeleton-shimmer" />
         </div>
       ))}
     </div>

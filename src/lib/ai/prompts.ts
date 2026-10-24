@@ -68,15 +68,14 @@ const ROLE_FEATURES: Record<UserRole, AIFeature[]> = {
     "rewrite_remark",
     "translate_remark",
   ],
+  // M6/G42: the group admin works across campuses — network insights only. Campus-level learner features
+  // (at-risk students, class summaries) and the AI review queue belong to each campus's academic lead.
   SUPER_ADMIN: [
     "campus_comparison",
     "weak_campuses",
     "ai_usage_by_campus",
     "fee_recovery_insights",
     "academic_trend_summary",
-    "at_risk_students",
-    "class_performance_summary",
-    "pending_review_queue",
   ],
   CAMPUS_ADMIN: [
     "at_risk_students",

@@ -1,19 +1,36 @@
 "use client";
 
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { clearDeviceDrafts } from "@/lib/drafts/store";
+
 /** Signing out is a POST, so it cannot be a plain link. */
-export function SignOutLink() {
+export function SignOutLink({ label = "Sign out" }: { label?: string }) {
+  // The button stays busy until the browser leaves for /login, so a second
+  // press cannot fire another logout request.
+  const [pending, setPending] = useState(false);
+
   const signOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    setPending(true);
+    clearDeviceDrafts();
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Network failure: stay on the page and let the person try again.
+      setPending(false);
+      return;
+    }
     window.location.href = "/login";
   };
 
   return (
-    <button
+    <Button variant="outline"
       type="button"
       onClick={signOut}
-      className="inline-flex h-11 w-full items-center justify-center rounded-2xl border border-[#cfc2d6]/50 px-6 text-sm font-black text-ink-muted transition-colors hover:bg-[#f3f4f9]"
+      loading={pending}
+      className="w-full"
     >
-      Sign out
-    </button>
+      {label}
+    </Button>
   );
 }

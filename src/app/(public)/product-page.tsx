@@ -1,7 +1,11 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import type { CSSProperties } from "react";
+import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import SkooleeLogo from "@/components/SkooleeLogo";
 
 export interface ProductPageCopy {
@@ -47,108 +51,115 @@ function demoMailto(context: string) {
 
 export function ProductPage({ copy }: { copy: ProductPageCopy }) {
   return (
-    <main className="min-h-screen bg-white text-[#1f1a23]">
-      <header className="border-b border-[#e8e0ed] bg-white/95">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2 font-black tracking-normal">
+    <main className="min-h-screen text-ink-strong">
+      <header className="border-b border-border-subtle bg-white/95">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-normal">
             <SkooleeLogo size="1.15rem" />
           </Link>
-          <nav className="flex items-center gap-3 text-sm font-semibold">
-            <Link href="/privacy" className="hidden text-ink hover:text-[#8127cf] sm:block">
+          <nav aria-label="Product navigation" className="flex w-full flex-wrap items-center gap-2 text-sm font-semibold sm:w-auto">
+            <Link href="/privacy" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Trust
             </Link>
-            <Link href="/login" className="text-ink hover:text-[#8127cf]">
+            <Link href="/pricing" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              Pricing
+            </Link>
+            <Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Login
             </Link>
-            <a href={demoMailto(copy.eyebrow)}>
-              <Button size="sm">Book a demo</Button>
-            </a>
+            <a href={demoMailto(copy.eyebrow)} className={buttonVariants({ size: "sm" })}>Book a demo</a>
           </nav>
         </div>
       </header>
 
-      <section className="bg-[#fbf0fe]/60">
-        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 lg:grid-cols-[1fr_420px] lg:items-center">
-          <div>
-            <p className="text-xs font-black uppercase tracking-normal text-[#8127cf]">{copy.eyebrow}</p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-normal sm:text-5xl">
+      <section className="sk-hero-wash">
+        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 sm:py-14 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
+          <div className="sk-enter min-w-0">
+            <p className="sk-eyebrow text-primary">{copy.eyebrow}</p>
+            <h1 className="mt-4 max-w-3xl text-3xl font-bold leading-tight tracking-tight text-ink-strong sm:text-4xl lg:text-5xl">
               {copy.title}
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-ink">{copy.description}</p>
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-muted sm:text-lg">{copy.description}</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <a href={demoMailto(copy.eyebrow)}>
-                <Button>
-                  {copy.primaryCta || "Book a demo"}
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
+              <a href={demoMailto(copy.eyebrow)} className={buttonVariants({ className: "sk-nudge-trigger" })}>
+                {copy.primaryCta || "Book a demo"}
+                <ArrowRight aria-hidden="true" className="sk-nudge h-4 w-4 rtl:rotate-180" />
               </a>
-              <Link href="/security">
-                <Button variant="outline">{copy.secondaryCta || "Review security"}</Button>
+              <Link href="/security" className={buttonVariants({ variant: "outline" })}>
+                {copy.secondaryCta || "Review security"}
               </Link>
             </div>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            <ul className="mt-8 grid gap-3 sm:grid-cols-2">
               {copy.highlights.map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm font-semibold text-ink">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  {item}
-                </div>
+                <li key={item} className="flex items-start gap-2 text-sm font-medium text-ink">
+                  <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-status-success-text" />
+                  <span className="min-w-0">{item}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
-          <div className="rounded-lg border border-[#e8e0ed] bg-white p-4 shadow-xl">
-            <div className="mb-4 flex items-center gap-2 border-b border-[#f0e8f5] pb-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              <span className="ml-auto text-xs font-bold text-ink-subtle">Live school dashboard</span>
+          <Card variant="featured" className="sk-enter-scale min-w-0 p-4" style={{ "--sk-delay": "120ms" } as CSSProperties}>
+            <div className="mb-4 flex items-center gap-2 border-b border-border-subtle pb-3">
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+              <span className="ms-auto text-xs font-medium text-ink-subtle">Illustrative dashboard</span>
             </div>
+            <Alert tone="warning" compact icon={false} live="off" className="mb-3 text-xs font-medium">
+              Synthetic example data. This is not a customer result or measured outcome.
+            </Alert>
             <div className="grid gap-3">
-              <div className="rounded-lg bg-[#f6f8fb] p-4">
-                <p className="text-xs font-bold uppercase tracking-normal text-[#8127cf]">AI remark draft</p>
-                <p className="mt-2 text-sm font-semibold leading-6">
+              <div className="rounded-xl bg-surface-subtle p-4">
+                <p className="sk-eyebrow text-primary">AI remark draft</p>
+                <p className="mt-2 text-sm font-medium leading-relaxed text-ink">
                   English and Urdu report card comments queued for principal review.
                 </p>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {["Students", "Fees", "Campuses"].map((label, index) => (
-                  <div key={label} className="rounded-lg border border-[#e8e0ed] p-3">
-                    <p className="text-[10px] font-bold uppercase text-ink-subtle">{label}</p>
-                    <p className="mt-2 text-xl font-black">{[482, "91%", 4][index]}</p>
+                  <div key={label} className="min-w-0 rounded-xl border border-border-subtle p-2.5 sm:p-3">
+                    <p className="sk-eyebrow truncate text-ink-subtle">{label}</p>
+                    <p className="mt-2 text-xl font-bold tabular-nums text-ink-strong">{[482, "91%", 4][index]}</p>
                   </div>
                 ))}
               </div>
-              <div className="space-y-2 rounded-lg border border-[#e8e0ed] p-3">
+              <ul className="space-y-2 rounded-xl border border-border-subtle p-3">
                 {["WhatsApp sent", "PDF exported", "Human reviewed"].map((label) => (
-                  <div key={label} className="flex items-center justify-between text-sm">
-                    <span className="font-semibold">{label}</span>
-                    <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">OK</span>
-                  </div>
+                  <li key={label} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 font-medium text-ink">{label}</span>
+                    <Badge variant="success" size="sm" dot>OK</Badge>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
-          </div>
+          </Card>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-14">
-        <div className="grid gap-5 md:grid-cols-3">
+      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-14">
+        <div className="sk-stagger grid gap-5 md:grid-cols-3">
           {copy.sections.map((section) => (
-            <article key={section.title} className="rounded-lg border border-[#e8e0ed] bg-white p-5 shadow-sm">
-              <section.icon className="h-6 w-6 text-[#8127cf]" />
-              <h2 className="mt-4 text-lg font-bold tracking-normal">{section.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-ink">{section.body}</p>
+            <article key={section.title} className="sk-panel min-w-0 p-5 sm:p-6">
+              <span aria-hidden="true" className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-primary ring-1 ring-brand-100">
+                <section.icon className="h-5 w-5" />
+              </span>
+              <h2 className="mt-4 text-lg font-bold tracking-tight text-ink-strong">{section.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">{section.body}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="border-y border-[#e8e0ed] bg-[#f7faf8]">
-        <div className="mx-auto grid max-w-6xl gap-4 px-6 py-10 md:grid-cols-3">
+      <section className="border-y border-status-success-border/60 bg-status-success-surface/60">
+        <ul className="mx-auto grid max-w-6xl gap-4 px-4 py-10 sm:px-6 md:grid-cols-3">
           {copy.proof.map((item) => (
-            <p key={item} className="text-sm font-bold text-[#315f49]">{item}</p>
+            <li key={item} className="flex items-start gap-2 text-sm font-medium leading-relaxed text-status-success-text">
+              <ShieldCheck aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="min-w-0">{item}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
     </main>
   );

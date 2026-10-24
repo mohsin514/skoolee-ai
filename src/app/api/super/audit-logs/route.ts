@@ -5,13 +5,15 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (user.role !== "SUPER_ADMIN") throw new ApiError("Forbidden", 403);
+    // G12: the institution authority (group admin, or the school admin of a single school), school-scoped.
+    if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action") || "";
@@ -19,8 +21,10 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10), 1), 200);
     const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
 
+    // The platform audit table is global; this school sees only actions by its own people or about itself.
     const where: any = {
       createdAt: { gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) },
+      OR: [{ user: { schoolId: user.schoolId } }, { newValues: { path: ["schoolId"], equals: user.schoolId } }],
     };
     if (action) where.action = action;
 

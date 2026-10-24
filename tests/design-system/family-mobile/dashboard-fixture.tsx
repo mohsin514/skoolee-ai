@@ -1,0 +1,10 @@
+import { createRoot } from 'react-dom/client';
+import { ParentShell } from '../../../src/app/parent/parent-shell';
+import { StudentShell } from '../../../src/app/student/student-shell';
+import ParentOverviewPage from '../../../src/app/parent/page';
+import StudentDashboard from '../../../src/app/student/page';
+import { StaticLocaleProvider } from '../../../src/components/locale/LocaleProvider';
+import { defaultLocale } from '../../../src/lib/locale/package';
+import { FixtureData } from './dashboard-data-mock';
+const language = document.documentElement.lang as 'en'|'ar'|'ur';
+createRoot(document.getElementById('root')!).render(<StaticLocaleProvider value={{ ...defaultLocale, language }}><FixtureData>{location.pathname.startsWith('/parent') ? <ParentShell><ParentOverviewPage /></ParentShell> : <StudentShell><StudentDashboard /></StudentShell>}</FixtureData></StaticLocaleProvider>);

@@ -1,14 +1,17 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 
+import { Button } from "@/components/ui/button";
 import React, { useMemo } from "react";
 import { CalendarDays, Clock, DoorOpen, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   classLabel,
   daysFromToday,
-  formatDayHeading,
   type ExamItem,
 } from "@/lib/academic/exam-pipeline";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import type { DetailTab } from "@/components/academic/ExamBoardCard";
 
 export interface ScheduleRow {
@@ -27,13 +30,24 @@ export interface ScheduleRow {
   } | null;
 }
 
-function relativeLabel(date: string): { text: string; tone: "past" | "today" | "soon" | "future" } {
+type Ui = (source: string, values?: unknown[]) => string;
+
+function relativeLabel(date: string, ui: Ui): { text: string; tone: "past" | "today" | "soon" | "future" } {
   const days = daysFromToday(date);
-  if (days === 0) return { text: "Today", tone: "today" };
-  if (days === 1) return { text: "Tomorrow", tone: "soon" };
-  if (days < 0) return { text: `${Math.abs(days)} day${days === -1 ? "" : "s"} ago`, tone: "past" };
-  if (days <= 7) return { text: `In ${days} days`, tone: "soon" };
-  return { text: `In ${days} days`, tone: "future" };
+  if (days === 0) return { text: ui("Today"), tone: "today" };
+  if (days === 1) return { text: ui("Tomorrow"), tone: "soon" };
+  if (days < 0) return { text: ui(days === -1 ? "{0} day ago" : "{0} days ago", [Math.abs(days)]), tone: "past" };
+  if (days <= 7) return { text: ui("In {0} days", [days]), tone: "soon" };
+  return { text: ui("In {0} days", [days]), tone: "future" };
+}
+
+/** The day heading in the viewer's language (R7: dates through Intl). */
+function dayHeading(date: string, language: string) {
+  try {
+    return new Intl.DateTimeFormat(language, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date(date));
+  } catch {
+    return date;
+  }
 }
 
 /**
@@ -50,6 +64,8 @@ export function ExamTimelineView({
   unscheduled: ExamItem[];
   onOpen: (examId: string, tab?: DetailTab) => void;
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   const days = useMemo(() => {
     const grouped = new Map<string, ScheduleRow[]>();
     rows.forEach((r) => {
@@ -71,69 +87,68 @@ export function ExamTimelineView({
 
   if (days.length === 0 && unscheduled.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
-        <CalendarDays className="mb-3 h-10 w-10 text-ink-subtle" />
-        <p className="text-sm font-bold text-ink-muted">Nothing is on the datesheet yet</p>
-        <p className="mt-1 text-xs font-semibold text-ink-subtle">
-          Open an exam and set its dates to see it here.
-        </p>
-      </div>
+      <EmptyState
+        icon={CalendarDays}
+        title={ui("Nothing is on the datesheet yet")}
+        description={ui("Open an exam and set its dates to see it here.")}
+      />
     );
   }
 
   return (
     <div className="space-y-4">
       {days.map(({ date, papers }) => {
-        const rel = relativeLabel(date);
+        const rel = relativeLabel(date, ui);
         return (
           <section
             key={date}
             className={cn(
-              "overflow-hidden rounded-3xl border bg-white shadow-sm transition-opacity",
+              "overflow-hidden rounded-3xl border bg-card shadow-sm transition-opacity",
               rel.tone === "today"
-                ? "border-[#8127cf]/40 ring-2 ring-[#8127cf]/10"
-                : "border-[#cfc2d6]/15",
+                ? "border-primary/40 ring-2 ring-primary/10"
+                : "border-edge/15",
               rel.tone === "past" && "opacity-70",
             )}
           >
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#cfc2d6]/10 bg-[#faf7fc] px-5 py-3">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-edge/10 bg-surface-subtle px-5 py-3">
               <div className="flex items-center gap-2.5">
                 <span
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-2xl",
                     rel.tone === "today"
-                      ? "bg-[#8127cf] text-white"
+                      ? "bg-primary text-primary-foreground"
                       : rel.tone === "past"
-                        ? "bg-[#f3f4f9] text-ink-subtle"
-                        : "bg-[#fbf0fe] text-[#8127cf]",
+                        ? "bg-muted text-ink-subtle"
+                        : "bg-brand-50 text-primary",
                   )}
+                  aria-hidden="true"
                 >
                   <CalendarDays className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-sm font-black text-[#1d1b20]">{formatDayHeading(date)}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-                    {papers.length} paper{papers.length > 1 ? "s" : ""}
+                  <p className="text-sm font-bold text-ink-strong">{dayHeading(date, language)}</p>
+                  <p className="text-xs font-semibold text-ink-subtle">
+                    {ui(papers.length > 1 ? "{0} papers" : "{0} paper", [papers.length])}
                   </p>
                 </div>
               </div>
-              <span
-                className={cn(
-                  "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider",
+              <Badge
+                variant={
                   rel.tone === "today"
-                    ? "bg-[#8127cf] text-white"
+                    ? "default"
                     : rel.tone === "soon"
-                      ? "bg-amber-50 text-amber-700"
+                      ? "warning"
                       : rel.tone === "past"
-                        ? "bg-[#f3f4f9] text-ink-subtle"
-                        : "bg-teal-50 text-teal-700",
-                )}
+                        ? "neutral"
+                        : "info"
+                }
+                className="shrink-0"
               >
                 {rel.text}
-              </span>
+              </Badge>
             </header>
 
-            <ul className="divide-y divide-[#cfc2d6]/8">
+            <ul className="divide-y divide-edge/8">
               {papers.map((p) => {
                 const roomNames =
                   p.rooms && p.rooms.length > 0
@@ -143,42 +158,41 @@ export function ExamTimelineView({
                       : [];
                 return (
                   <li key={p.id}>
-                    <button
+                    <Button variant="secondary"
                       type="button"
                       onClick={() => onOpen(p.examId, "schedule")}
-                      className="flex w-full cursor-pointer flex-wrap items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-[#fbf0fe]/30"
+                      className="sk-row-interactive justify-start flex w-full flex-wrap items-center gap-3 px-5 py-3 text-start"
                     >
-                      <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-black text-[#8127cf]">
-                        <Clock className="h-3.5 w-3.5" />
+                      <span className="flex w-24 shrink-0 items-center gap-1.5 text-xs font-bold text-primary">
+                        <Clock aria-hidden="true" className="h-3.5 w-3.5" />
                         {p.periodDefinition
-                          ? `${p.periodDefinition.startTime}`
-                          : "No time"}
+                          ? <bdi dir="ltr">{p.periodDefinition.startTime}</bdi>
+                          : ui("No time")}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-black text-[#1d1b20]">
-                          {p.subject?.name || "Paper"}
-                        </span>
-                        <span className="block text-[11px] font-semibold text-ink-muted">
+                        <bdi className="block text-sm font-bold text-ink-strong">
+                          {p.subject?.name || ui("Paper")}
+                        </bdi>
+                        <bdi className="block text-xs text-ink-subtle">
                           {classLabel(p.exam?.class)} · {p.exam?.title}
-                        </span>
+                        </bdi>
                       </span>
                       {p.periodDefinition ? (
-                        <span className="rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[10px] font-bold text-ink-muted">
-                          Period {p.periodDefinition.periodNumber} ·{" "}
-                          {p.periodDefinition.startTime}–{p.periodDefinition.endTime}
-                        </span>
+                        <Badge variant="neutral" size="sm" className="tabular-nums">
+                          {ui("Period {0} · {1}–{2}", [p.periodDefinition.periodNumber, p.periodDefinition.startTime, p.periodDefinition.endTime])}
+                        </Badge>
                       ) : null}
                       {roomNames.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold text-teal-700">
-                          <DoorOpen className="h-3 w-3" />
+                        <Badge variant="success" size="sm">
+                          <DoorOpen className="h-3 w-3" aria-hidden="true" />
                           {roomNames.join(" + ")}
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">
-                          <MapPin className="h-3 w-3" /> No room
-                        </span>
+                        <Badge variant="warning" size="sm">
+                          <MapPin className="h-3 w-3" aria-hidden="true" /> {ui("No room")}
+                        </Badge>
                       )}
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
@@ -188,33 +202,33 @@ export function ExamTimelineView({
       })}
 
       {unscheduled.length > 0 ? (
-        <section className="overflow-hidden rounded-3xl border border-dashed border-amber-200 bg-amber-50/40">
-          <header className="border-b border-amber-200/60 px-5 py-3">
-            <p className="text-sm font-black text-amber-800">
-              {unscheduled.length} exam{unscheduled.length > 1 ? "s" : ""} with no dates yet
+        <section className="overflow-hidden rounded-3xl border border-dashed border-status-warning-border bg-status-warning-surface">
+          <header className="border-b border-status-warning-border px-5 py-3">
+            <p className="text-sm font-bold text-status-warning-text">
+              {ui(unscheduled.length > 1 ? "{0} exams with no dates yet" : "{0} exam with no dates yet", [unscheduled.length])}
             </p>
-            <p className="text-[11px] font-semibold text-amber-700">
-              These will not appear on the datesheet families see.
+            <p className="text-xs leading-relaxed text-status-warning-text">
+              {ui("These will not appear on the datesheet families see.")}
             </p>
           </header>
-          <ul className="divide-y divide-amber-200/40">
+          <ul className="divide-y divide-status-warning-border">
             {unscheduled.map((e) => (
               <li key={e.id}>
-                <button
+                <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(e.id, "schedule")}
-                  className="flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-amber-100/40"
+                  className="flex w-full items-center justify-between gap-3 px-5 py-3 text-start"
                 >
                   <span>
-                    <span className="block text-sm font-black text-[#1d1b20]">{e.title}</span>
-                    <span className="block text-[11px] font-semibold text-ink-muted">
+                    <bdi className="block text-sm font-bold text-ink-strong">{e.title}</bdi>
+                    <span className="block text-xs text-ink-subtle">
                       {classLabel(e.class)} · {e.term} {e.academicYear}
                     </span>
                   </span>
-                  <span className="rounded-xl bg-amber-500 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white">
-                    Set dates
-                  </span>
-                </button>
+                  <Badge variant="warning" className="shrink-0">
+                    {ui("Set dates")}
+                  </Badge>
+                </Button>
               </li>
             ))}
           </ul>

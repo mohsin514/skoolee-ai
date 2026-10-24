@@ -1,15 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
-import { Toaster } from "sonner";
+import { Noto_Sans_Arabic, Plus_Jakarta_Sans } from "next/font/google";
+import { AppToaster } from "@/components/ui/app-toaster";
 import { Suspense } from "react";
 import { AppLoaderProvider } from "@/components/providers/app-loader-provider";
+import BootSplash from "@/components/BootSplash";
 import { NetworkProvider } from "@/components/providers/network-provider";
+import { CandidateExamGuard } from "@/components/providers/candidate-exam-guard";
+import { FirstRunGuide } from "@/components/onboarding/FirstRunGuide";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+  // latin-ext covers Turkish, Polish, Czech, Vietnamese-adjacent names that
+  // international schools enter for staff, guardians and learners.
+  subsets: ["latin", "latin-ext"],
   variable: "--font-plus-jakarta-sans",
   display: "swap",
+});
+
+// Arabic and Urdu glyphs. Not preloaded: its @font-face carries the Arabic
+// unicode-range, so an English-only session never downloads it.
+const notoSansArabic = Noto_Sans_Arabic({
+  subsets: ["arabic"],
+  variable: "--font-noto-arabic",
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -69,62 +83,16 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${plusJakartaSans.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${notoSansArabic.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">
+        {/* Brand splash on every hard load (not "/", which has its own); then the route's skeleton. */}
+        <BootSplash />
         <Suspense fallback={null}>
           <AppLoaderProvider>
-            <NetworkProvider>{children}</NetworkProvider>
-            {/*
-              Bottom-centre, collapsed.
-
-              Top-right put the stack directly over the close button of every
-              centred dialog — elementFromPoint confirmed the toast, not the
-              button, received the click. Bottom-right was no better: a toast is
-              ~356px wide and the wide dialogs are 896px, so at any viewport the
-              toast overhangs their bottom-right corner, which is exactly where
-              the primary action sits. Bottom-centre is the one corner-free
-              position: the dialog footers put their buttons hard left and hard
-              right, so a centred toast clears both.
-            */}
-            <Toaster
-              position="bottom-center"
-              richColors
-              closeButton
-              visibleToasts={3}
-              /*
-                Below md the role consoles carry a fixed bottom tab bar — 58px
-                of primary navigation. Sonner's default 16px mobile offset put
-                every toast squarely on top of it, so for five seconds after any
-                action the navigation was simply gone. Lift it clear of the bar
-                and of the home indicator below that. Desktop keeps the 24px
-                default and the corner-free reasoning above.
-              */
-              mobileOffset={{
-                bottom: "calc(74px + env(safe-area-inset-bottom, 0px))",
-                top: 16,
-                left: 16,
-                right: 16,
-              }}
-              toastOptions={{
-                duration: 5000,
-                style: { 
-                  fontFamily: "var(--font-plus-jakarta-sans)",
-                  borderRadius: "28px",
-                  padding: "18px 20px",
-                  fontSize: "13px",
-                  fontWeight: "700",
-                  letterSpacing: "0",
-                  color: "#1f1a23",
-                  border: "1px solid rgba(207, 194, 214, 0.36)",
-                  boxShadow: "0 28px 70px -18px rgba(31, 26, 35, 0.28)",
-                  background: "rgba(255, 255, 255, 0.96)",
-                  backdropFilter: "blur(14px)",
-                },
-                className: "skoolee-toast",
-              }}
-            />
+            <NetworkProvider><CandidateExamGuard>{children}<FirstRunGuide /></CandidateExamGuard></NetworkProvider>
+            <AppToaster />
           </AppLoaderProvider>
         </Suspense>
       </body>

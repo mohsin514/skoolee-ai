@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
     const body = await req.json();
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
     const body = await req.json();
@@ -88,7 +88,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
     const id = req.nextUrl.searchParams.get("id");
@@ -97,6 +97,9 @@ export async function DELETE(req: NextRequest) {
     const supplier = await prisma.supplier.findFirst({ where: { id, campusId } });
     if (!supplier) throw new ApiError("Supplier not found", 404);
 
+    // SKO-389: stock history keeps the supplier it came from.
+    const transactions = await prisma.itemTransaction.count({ where: { supplierId: id } });
+    if (transactions) throw new ApiError(`This supplier appears on ${transactions} stock transaction(s), so it cannot be deleted. Its history stays linked.`, 409);
     await prisma.supplier.delete({ where: { id } });
 
     return Response.json({ success: true, data: { id } });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   assertPermission,
   assertStaffRole,
-  canManageOperations,
+  canManageAcademics,
   errorResponse,
   requireAuthUser,
   scopedCampusWhere,
@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
-    if (!canManageOperations(user)) {
+    if (!canManageAcademics(user)) {
       return Response.json({ error: "Insufficient permissions" }, { status: 403 });
     }
     await assertPermission(user, "students", "view");

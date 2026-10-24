@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
     const body = await req.json();
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
     const body = await req.json();
@@ -104,7 +104,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
     const id = req.nextUrl.searchParams.get("id");

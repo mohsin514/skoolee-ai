@@ -55,9 +55,10 @@ export async function PUT(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await prisma.$transaction([
+      prisma.loginSession.updateMany({ where: { userId: user.userId }, data: { isActive: false, logoutAt: new Date() } }),
       prisma.user.update({
         where: { id: user.userId },
-        data: { password: hashedPassword, lastPasswordChange: new Date() },
+        data: { password: hashedPassword, lastPasswordChange: new Date(), accessVersion: { increment: 1 } },
       }),
       prisma.passwordHistory.create({
         data: {
@@ -69,7 +70,7 @@ export async function PUT(req: NextRequest) {
       }),
     ]);
 
-    return Response.json({ success: true, message: "Password changed successfully" });
+    return Response.json({ success: true, message: "Password changed. Sign in again on each device." });
   } catch (error) {
     return errorResponse(error, "[auth/change-password] PUT failed");
   }

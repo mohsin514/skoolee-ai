@@ -13,6 +13,14 @@ import { useId, useMemo, useState, type ReactNode } from "react";
 import { BarChart3, Table2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { INK, compact } from "./palette";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+
+/** Small caps labels. Arabic and Urdu are connected scripts: no case change and no letter spacing (R8). */
+const CAPS = "uppercase tracking-wider rtl:normal-case rtl:tracking-normal";
+
 
 /* ─── Card shell ─────────────────────────────────────────── */
 
@@ -47,6 +55,7 @@ export function InsightCard({
   delay = 0,
   children,
 }: InsightCardProps) {
+  const t = useUiText();
   const [showTable, setShowTable] = useState(false);
   const headingId = useId();
 
@@ -54,42 +63,39 @@ export function InsightCard({
     <section
       aria-labelledby={headingId}
       className={cn(
-        "sk-rise group/card relative flex flex-col overflow-hidden rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5",
-        "shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]",
-        "transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]",
+        "sk-panel sk-rise group/card relative flex min-w-0 flex-col overflow-hidden p-[12px] sm:p-5",
         className,
       )}
       style={delay > 0 ? { animationDelay: `${delay}ms` } : undefined}
     >
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
+      <header className="mb-[12px] flex flex-wrap items-start justify-between gap-[12px]">
+        <div className="flex min-w-[min(100%,12rem)] flex-1 items-start gap-[10px]">
           {Icon ? (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] shadow-sm">
-              <Icon className="h-4.5 w-4.5" />
+            <span className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary shadow-sm">
+              <Icon className="h-[18px] w-[18px]" />
             </span>
           ) : null}
           <div className="min-w-0">
-            <h3 id={headingId} className="truncate text-sm font-black tracking-tight text-[#1f1a23]">
+            <h3 id={headingId} className="break-words text-base font-bold tracking-tight text-ink-strong">
               {title}
             </h3>
             {subtitle ? (
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{subtitle}</p>
+              <p className="mt-1 text-xs font-medium text-ink-muted">{subtitle}</p>
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center gap-[8px]">
           {actions}
           {table ? (
-            <button
-              type="button"
+            <IconButton
+              variant="default"
+              label={t(showTable ? "Show chart" : "Show table")}
+              tooltip={t(showTable ? "Show chart" : "Show the numbers as a table")}
               onClick={() => setShowTable((v) => !v)}
               aria-pressed={showTable}
-              title={showTable ? "Show chart" : "Show the numbers as a table"}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf] transition-all hover:bg-[#8127cf] hover:text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/15"
             >
-              {showTable ? <BarChart3 className="h-4 w-4" /> : <Table2 className="h-4 w-4" />}
-              <span className="sr-only">{showTable ? "Show chart" : "Show table"}</span>
-            </button>
+              {showTable ? <BarChart3 aria-hidden="true" /> : <Table2 aria-hidden="true" />}
+            </IconButton>
           ) : null}
         </div>
       </header>
@@ -103,19 +109,21 @@ export function InsightCard({
 
 /** The WCAG-clean twin of a chart. Numbers align, so they get tabular figures. */
 export function DataTable({ columns, rows }: TableTwin) {
+  const { number } = useLocaleFormat();
   if (rows.length === 0) return <EmptyChart label="Nothing to tabulate yet" />;
   return (
-    <div className="max-h-[300px] overflow-auto custom-scrollbar rounded-2xl border border-[#cfc2d6]/25">
-      <table className="w-full border-collapse text-left">
-        <thead className="sticky top-0 bg-[#fbf0fe]">
+    <div className="max-h-[300px] overflow-auto custom-scrollbar rounded-2xl border border-edge/25">
+      <table className="sk-data-table border-collapse">
+        <thead className="sticky top-0 bg-brand-50">
           <tr>
             {columns.map((c, i) => (
               <th
                 key={c}
                 scope="col"
                 className={cn(
-                  "px-3 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle",
-                  i > 0 && "text-right",
+                  "px-3 py-2 text-2xs font-semibold text-ink-subtle",
+                  CAPS,
+                  i > 0 && "text-end",
                 )}
               >
                 {c}
@@ -125,16 +133,16 @@ export function DataTable({ columns, rows }: TableTwin) {
         </thead>
         <tbody>
           {rows.map((row, r) => (
-            <tr key={r} className="border-t border-[#cfc2d6]/20">
+            <tr key={r} className="border-t border-edge/20">
               {row.map((cell, c) => (
                 <td
                   key={c}
                   className={cn(
-                    "px-3 py-2 text-xs font-bold text-[#1f1a23]",
-                    c > 0 && "text-right [font-variant-numeric:tabular-nums]",
+                    "px-3 py-2 text-xs font-bold text-ink-strong",
+                    c > 0 && "text-end tabular-nums",
                   )}
                 >
-                  {typeof cell === "number" ? cell.toLocaleString() : cell}
+                  {typeof cell === "number" ? <bdi>{number(cell, 2)}</bdi> : cell}
                 </td>
               ))}
             </tr>
@@ -160,12 +168,13 @@ interface VizTooltipProps {
 }
 
 export function VizTooltip({ active, payload, label, unit = "", format, titleFor }: VizTooltipProps) {
+  const { number } = useLocaleFormat();
   if (!active || !payload?.length) return null;
   const heading = titleFor ? titleFor(label, payload) : String(label ?? "");
   return (
-    <div className="pointer-events-none rounded-2xl border border-[#cfc2d6]/30 bg-white/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(31,26,35,0.22)] backdrop-blur">
+    <div className="pointer-events-none rounded-2xl border border-edge/30 bg-card/95 px-3 py-2 shadow-[0_10px_28px_-6px_rgba(120,70,180,0.22)] backdrop-blur">
       {heading ? (
-        <p className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">{heading}</p>
+        <p className={cn("mb-1.5 text-2xs font-semibold text-ink-subtle", CAPS)}>{heading}</p>
       ) : null}
       <ul className="space-y-1">
         {payload.map((entry: any, i: number) => {
@@ -178,9 +187,9 @@ export function VizTooltip({ active, payload, label, unit = "", format, titleFor
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ background: entry.color || entry.payload?.fill || INK.muted }}
               />
-              <span className="text-[11px] font-bold text-ink-muted">{name}</span>
-              <span className="ml-auto text-[11px] font-black text-[#1f1a23] [font-variant-numeric:tabular-nums]">
-                {format ? format(value, String(name), entry) : `${value.toLocaleString()}${unit}`}
+              <span className="text-2xs font-bold text-ink-muted">{name}</span>
+              <span className="ms-auto text-2xs font-bold text-ink-strong tabular-nums">
+                <bdi>{format ? format(value, String(name), entry) : `${number(value, 2)}${unit}`}</bdi>
               </span>
             </li>
           );
@@ -201,15 +210,16 @@ export interface LegendItem {
 /** Present whenever a chart carries two or more series — identity is never
  *  left to colour-matching alone. */
 export function SeriesLegend({ items, className }: { items: LegendItem[]; className?: string }) {
+  const { number } = useLocaleFormat();
   return (
     <ul className={cn("flex flex-wrap items-center gap-x-4 gap-y-1.5", className)}>
       {items.map((item) => (
         <li key={item.label} className="flex items-center gap-1.5">
           <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: item.color }} />
-          <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{item.label}</span>
+          <span className={cn("text-2xs font-semibold text-ink-subtle", CAPS)}>{item.label}</span>
           {item.value !== undefined ? (
-            <span className="text-[10px] font-black text-[#1f1a23] [font-variant-numeric:tabular-nums]">
-              {typeof item.value === "number" ? item.value.toLocaleString() : item.value}
+            <span className="text-2xs font-bold text-ink-strong tabular-nums">
+              <bdi>{typeof item.value === "number" ? number(item.value, 2) : item.value}</bdi>
             </span>
           ) : null}
         </li>
@@ -239,12 +249,12 @@ export function HeroFigure({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-black uppercase tracking-wider text-white/55">{label}</p>
+      <p className={cn("text-2xs font-semibold text-white/55", CAPS)}>{label}</p>
       <div className="mt-2 flex flex-wrap items-end gap-3">
-        <span className="text-5xl font-black leading-none tracking-tight text-white sm:text-6xl">{value}</span>
+        <bdi className="min-w-0 break-words text-3xl font-extrabold leading-none tracking-tight text-white sm:text-5xl xl:text-6xl">{value}</bdi>
         {accent}
       </div>
-      {caption ? <p className="mt-3 text-[11px] font-bold leading-relaxed text-white/55">{caption}</p> : null}
+      {caption ? <p className="mt-3 text-2xs font-medium leading-relaxed text-white/55">{caption}</p> : null}
       {children}
     </div>
   );
@@ -275,7 +285,8 @@ export function Meter({
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <span
           className={cn(
-            "truncate text-[10px] font-black uppercase tracking-wider",
+            "truncate text-2xs font-semibold",
+            CAPS,
             onDark ? "text-white/55" : "text-ink-subtle",
           )}
         >
@@ -283,11 +294,11 @@ export function Meter({
         </span>
         <span
           className={cn(
-            "shrink-0 text-[11px] font-black [font-variant-numeric:tabular-nums]",
-            onDark ? "text-white" : "text-[#1f1a23]",
+            "shrink-0 text-2xs font-bold tabular-nums",
+            onDark ? "text-white" : "text-ink-strong",
           )}
         >
-          {valueLabel ?? `${Math.round(pct)}%`}
+          <bdi>{valueLabel ?? `${Math.round(pct)}%`}</bdi>
         </span>
       </div>
       <div
@@ -323,6 +334,7 @@ export function RadialGauge({
   color?: string;
   size?: number;
 }) {
+  const t = useUiText();
   const stroke = 12;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
@@ -338,7 +350,7 @@ export function RadialGauge({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         role="img"
-        aria-label={`${label}: ${Math.round(clamped)} percent`}
+        aria-label={t("{0}: {1} percent", [label, Math.round(clamped)])}
         className="-rotate-[225deg]"
       >
         <circle
@@ -364,14 +376,14 @@ export function RadialGauge({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-3xl font-black leading-none tracking-tight text-[#1f1a23]">
+        <span className="text-3xl font-extrabold leading-none tracking-tight text-ink-strong">
           {Math.round(clamped)}
           <span className="text-lg">%</span>
         </span>
-        <span className="mt-1 px-4 text-[9px] font-black uppercase leading-tight tracking-wider text-ink-subtle">
+        <span className={cn("mt-1 px-4 text-2xs font-semibold leading-tight text-ink-subtle", CAPS)}>
           {label}
         </span>
-        {sublabel ? <span className="mt-0.5 text-[9px] font-bold text-ink-faint">{sublabel}</span> : null}
+        {sublabel ? <span className="mt-0.5 text-2xs font-medium text-ink-subtle">{sublabel}</span> : null}
       </div>
     </div>
   );
@@ -448,37 +460,38 @@ export function StatTile({
   onClick?: () => void;
   delay?: number;
 }) {
+  const t = useUiText();
   const toneChip: Record<string, string> = {
-    brand: "bg-[#fbf0fe] text-[#8127cf]",
-    good: "bg-emerald-50 text-emerald-700",
-    warning: "bg-amber-50 text-amber-700",
-    critical: "bg-rose-50 text-rose-700",
-    dark: "bg-[#1f1a23] text-white",
+    brand: "bg-brand-50 text-primary",
+    good: "bg-status-success-surface text-status-success-text",
+    warning: "bg-status-warning-surface text-status-warning-text",
+    critical: "bg-status-error-surface text-status-error-text",
+    dark: "bg-ink-strong text-white",
   };
   const toneGlow: Record<string, string> = {
-    brand: "bg-[#8127cf]/18",
-    good: "bg-emerald-500/18",
-    warning: "bg-amber-500/18",
-    critical: "bg-rose-500/18",
-    dark: "bg-[#1f1a23]/18",
+    brand: "bg-primary/18",
+    good: "bg-status-success-text/18",
+    warning: "bg-status-warning-text/18",
+    critical: "bg-status-error-text/18",
+    dark: "bg-ink-strong/18",
   };
 
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">{label}</p>
+          <p className={cn("mb-2 text-2xs font-semibold text-ink-subtle", CAPS)}>{label}</p>
           {/* A long word ("Enterprise") does not fit the tile at 3xl and was
               getting clipped by the icon, so the type steps down instead. */}
           <p
             className={cn(
-              "font-black leading-none tracking-tight text-[#1f1a23]",
+              "font-bold leading-none tracking-tight text-ink-strong",
               typeof value === "string" && value.length > 8 ? "text-xl" : "text-3xl",
             )}
           >
-            {typeof value === "number" ? compact(value) : value}
+            <bdi>{typeof value === "number" ? compact(value) : value}</bdi>
           </p>
-          {sub ? <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{sub}</p> : null}
+          {sub ? <p className={cn("mt-2 text-2xs font-semibold text-ink-subtle", CAPS)}>{sub}</p> : null}
         </div>
         <div className="relative shrink-0">
           <div
@@ -496,7 +509,7 @@ export function StatTile({
           (usually all zeroes) is dropped rather than drawn. */}
       {trend && trend.length > 1 && new Set(trend).size > 1 ? (
         <div className="mt-3">
-          <Sparkline points={trend} color={trendColor ?? "#8127cf"} label={`${label} trend`} width={120} />
+          <Sparkline points={trend} color={trendColor ?? "#8127cf"} label={t("{0} trend", [label])} width={120} />
         </div>
       ) : null}
       {meter ? (
@@ -504,7 +517,7 @@ export function StatTile({
           <Meter
             value={meter.value}
             max={meter.max}
-            label={meter.label ?? "Used"}
+            label={meter.label ?? t("Used")}
             color={meter.color ?? "#8127cf"}
           />
         </div>
@@ -512,19 +525,14 @@ export function StatTile({
     </>
   );
 
-  const className = cn(
-    "sk-rise group/tile rounded-[28px] border border-[#cfc2d6]/25 bg-white p-5",
-    "shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all",
-    onClick &&
-      "w-full cursor-pointer text-left hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/15",
-  );
+  const className = cn("sk-panel sk-rise group/tile block p-5", onClick && "w-full cursor-pointer text-start");
   const style = delay > 0 ? { animationDelay: `${delay}ms` } : undefined;
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={className} style={style}>
+      <Button variant="ghost" type="button" onClick={onClick} className={className} style={style}>
         {body}
-      </button>
+      </Button>
     );
   }
   return (
@@ -552,27 +560,29 @@ export function SingleFigure({
   color: string;
   note?: string;
 }) {
+  const { number } = useLocaleFormat();
   return (
     <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 text-center">
-      <span className="text-5xl font-black leading-none tracking-tight text-[#1f1a23]">
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </span>
+      <bdi className="text-5xl font-extrabold leading-none tracking-tight text-ink-strong">
+        {typeof value === "number" ? number(value, 2) : value}
+      </bdi>
       <span className="flex items-center gap-1.5">
         <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-        <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{label}</span>
+        <span className={cn("text-2xs font-semibold text-ink-subtle", CAPS)}>{label}</span>
       </span>
-      {note ? <p className="max-w-[220px] text-[10px] font-bold leading-relaxed text-ink-faint">{note}</p> : null}
+      {note ? <p className="max-w-56 text-2xs font-medium leading-relaxed text-ink-subtle">{note}</p> : null}
     </div>
   );
 }
 
 /* ─── Empty ──────────────────────────────────────────────── */
 
+/** `label` is an EN UI key (or already-translated text); it is translated here. */
 export function EmptyChart({ label = "No data for this period yet" }: { label?: string }) {
+  const t = useUiText();
   return (
-    <div className="flex h-full min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-[#cfc2d6]/40 bg-[#fbf0fe]/25 px-4 py-8 text-center">
-      <BarChart3 className="h-6 w-6 text-[#cfc2d6]" />
-      <p className="text-[11px] font-bold text-ink-subtle">{label}</p>
+    <div className="flex h-full min-h-[180px] flex-col items-center justify-center">
+      <EmptyState size="sm" icon={BarChart3} title={t(label)} />
     </div>
   );
 }

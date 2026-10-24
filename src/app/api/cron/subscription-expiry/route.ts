@@ -37,6 +37,11 @@ export async function POST(req: NextRequest) {
       where: {
         planEndsAt: { not: null },
         status: { in: ["ACTIVE", "TRIAL"] },
+        // SKO-373: Stripe-managed renewals are driven by verified provider
+        // events; this sweep only covers manually renewed (SafePay/bank) plans.
+        stripeSubscriptionId: null,
+        // An operator-approved grace extension is honoured until it ends.
+        NOT: { subscriptionLifecycleState: "APPROVED_GRACE", graceEndsAt: { gt: new Date() } },
       },
       select: { id: true, name: true, plan: true, planEndsAt: true },
     });
@@ -50,10 +55,11 @@ export async function POST(req: NextRequest) {
       if (overdue <= 0) continue;
 
       if (overdue > graceMs) {
-        await prisma.school.update({
-          where: { id: school.id },
-          data: { status: "SUSPENDED" },
-        });
+        await prisma.$transaction([
+          prisma.school.update({ where: { id: school.id }, data: { status: "SUSPENDED", subscriptionLifecycleState: "PAST_DUE" } }),
+          prisma.auditLog.create({ data: { schoolId: school.id, userId: "subscription-expiry-cron", tableName: "schools", recordId: school.id,
+            oldValue: { status: "ACTIVE", planEndsAt: end.toISOString() }, newValue: { status: "SUSPENDED", subscriptionLifecycleState: "PAST_DUE", reason: `Paid period ended more than ${GRACE_PERIOD_DAYS} days ago` } } }),
+        ]);
         notify("SUBSCRIPTION_SUSPENDED", {
           schoolId: school.id,
           actorName: "System",

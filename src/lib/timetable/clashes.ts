@@ -34,40 +34,33 @@ export function classLabelOf(slot: ClashSlot) {
   return `${slot.className}${slot.classSection ? ` ${slot.classSection}` : ""}`;
 }
 
+/** SKO-403: two lessons collide when their clock times overlap, whatever their period numbers. */
+function overlapping(a: ClashSlot, b: ClashSlot) {
+  if (a.dayOfWeek !== b.dayOfWeek) return false;
+  if (!a.startTime || !a.endTime || !b.startTime || !b.endTime) return a.periodNumber === b.periodNumber;
+  return a.startTime < b.endTime && b.startTime < a.endTime;
+}
+
 /**
- * Group teaching slots by day+period and keep the groups that land the teacher
- * in more than one class at once. Two slots for the *same* class are not a
- * clash — that is just a double period.
+ * Group teaching slots whose times overlap and keep the groups that land the teacher in more than one
+ * class at once. Two slots for the *same* class are not a clash — that is just a double period.
  */
 export function detectSlotClashes(slots: ClashSlot[]): SlotClash[] {
-  const byKey = new Map<string, ClashSlot[]>();
-  for (const slot of slots) {
-    if (slot.slotType !== "CLASS" || !slot.subject) continue;
-    const key = `${slot.dayOfWeek}-${slot.periodNumber}`;
-    byKey.set(key, [...(byKey.get(key) || []), slot]);
+  const teaching = slots.filter((slot) => slot.slotType === "CLASS" && slot.subject)
+    .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime) || a.periodNumber - b.periodNumber);
+  const groups: ClashSlot[][] = [];
+  for (const slot of teaching) {
+    const group = groups.find((items) => items.some((other) => overlapping(slot, other)));
+    if (group) group.push(slot); else groups.push([slot]);
   }
-
-  return [...byKey.entries()]
-    .map(([key, group]) => {
-      const classes = [...new Set(group.map(classLabelOf))];
-      return {
-        key,
-        dayOfWeek: group[0].dayOfWeek,
-        periodNumber: group[0].periodNumber,
-        startTime: group[0].startTime,
-        classes,
-      };
-    })
+  return groups
+    .map((group) => ({ key: `${group[0].dayOfWeek}-${group[0].periodNumber}`, dayOfWeek: group[0].dayOfWeek, periodNumber: group[0].periodNumber, startTime: group[0].startTime, classes: [...new Set(group.map(classLabelOf))], ids: group.map((slot) => slot.id) }))
     .filter((clash) => clash.classes.length > 1)
-    .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.periodNumber - b.periodNumber);
+    .map(({ ids: _ids, ...clash }) => clash);
 }
 
 /** Slot ids that participate in a clash, for highlighting individual cards. */
 export function clashingSlotIds(slots: ClashSlot[]): Set<string> {
-  const keys = new Set(detectSlotClashes(slots).map((c) => c.key));
-  return new Set(
-    slots
-      .filter((s) => keys.has(`${s.dayOfWeek}-${s.periodNumber}`))
-      .map((s) => s.id),
-  );
+  const teaching = slots.filter((slot) => slot.slotType === "CLASS" && slot.subject);
+  return new Set(teaching.filter((slot) => teaching.some((other) => other.id !== slot.id && classLabelOf(other) !== classLabelOf(slot) && overlapping(slot, other))).map((slot) => slot.id));
 }

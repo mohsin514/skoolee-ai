@@ -62,8 +62,11 @@ export async function POST(req: Request) {
       }
 
       const baseUrl = appUrl();
-      const refreshUrl = `${baseUrl}/owner?tab=pricing&connect_refresh=true`;
-      const returnUrl = `${baseUrl}/owner?tab=pricing&connect_success=true`;
+      // M111: Stripe returns to the Payment gateways view the operator started from (registry view
+      // `payments`), not the old `?tab=pricing`, which the console never read.
+      const connectUrl = (state: "success" | "refresh") => `${baseUrl}/owner?${new URLSearchParams({ view: "payments", connect: state }).toString()}`;
+      const refreshUrl = connectUrl("refresh");
+      const returnUrl = connectUrl("success");
       const onboardingUrl = await createConnectOnboardingLink(accountId, refreshUrl, returnUrl);
 
       return Response.json({ success: true, url: onboardingUrl });

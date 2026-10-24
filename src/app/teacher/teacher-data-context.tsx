@@ -1,7 +1,6 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react"
-import { toast } from "sonner"
 import { userMessage } from "@/lib/errors"
 import { getTeacherDashboardData } from "@/app/actions/dashboard"
 
@@ -19,47 +18,43 @@ const TeacherDataContext = createContext<TeacherDataContextType>({
   refetch: () => {},
 })
 
-const CACHE_KEY = "teacher-dashboard"
-const CACHE_TTL = 60_000
-const cache = new Map<string, { data: any; ts: number }>()
-
 export function TeacherDataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<any>(() => {
-    const cached = cache.get(CACHE_KEY)
-    return cached && Date.now() - cached.ts < CACHE_TTL ? cached.data : null
-  })
-  const [loading, setLoading] = useState(data === null)
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const fetchedRef = useRef(false)
+  const requestVersion = useRef(0)
 
+  // Stale-while-revalidate within this mount (addendum 2026-10-22 §3): a refresh after a save (marks, report
+  // cards, an AI draft) keeps the screen the teacher is working on instead of dropping it to the skeleton, and the
+  // fresh payload replaces it when it lands. A refresh that fails clears what was shown (fail closed: a revoked
+  // assignment must not leave its records on screen) and the page shows its inline error with Retry.
   const loadData = useCallback(async () => {
+    const version = ++requestVersion.current
     setLoading(true)
     setError(null)
     try {
       const fresh = await getTeacherDashboardData()
-      cache.set(CACHE_KEY, { data: fresh, ts: Date.now() })
+      if (version !== requestVersion.current) return
       setData(fresh)
     } catch (err: any) {
+      if (version !== requestVersion.current) return
+      setData(null)
       // Server-action failures surface raw engine text (query, build paths,
       // database host), so they never go straight to the user.
-      const message = userMessage(err, "Could not load your dashboard.")
-      setError(message)
-      toast.error(message)
+      // Reported once, inline, by the page's ErrorState with a retry — never
+      // also as a toast (R4).
+      setError(userMessage(err, "Could not load your dashboard."))
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
   }, [])
 
+  // The layout retains this context between teacher routes. A module-global
+  // cache would outlive its actor/campus and expose the previous roster on a
+  // new scope's first render. Each scoped mount starts closed instead.
   useEffect(() => {
-    if (fetchedRef.current) return
-    const cached = cache.get(CACHE_KEY)
-    if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      setData(cached.data)
-      setLoading(false)
-      return
-    }
-    fetchedRef.current = true
-    loadData()
+    void loadData()
+    return () => { requestVersion.current += 1 }
   }, [loadData])
 
   return (

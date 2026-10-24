@@ -1,3 +1,4 @@
+import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import {
   assertPermission,
@@ -5,7 +6,6 @@ import {
   canManageOperations,
   errorResponse,
   requireAuthUser,
-  resolveCampusId,
 } from "@/lib/api/scope";
 import { allocateExamRooms, getSeatingPlan } from "@/lib/academic/exam-rooms";
 
@@ -22,10 +22,10 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
-    const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
     const scheduleId = req.nextUrl.searchParams.get("scheduleId");
     if (!scheduleId) return Response.json({ error: "scheduleId is required" }, { status: 400 });
 
+    const campusId = await resolveExamSchedulingCampus(user, req.nextUrl.searchParams.get("campusId"), { kind: "schedule", id: scheduleId });
     return Response.json({ success: true, data: await getSeatingPlan(campusId, scheduleId) });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/rooms] GET failed");
@@ -47,9 +47,11 @@ export async function PUT(req: NextRequest) {
       return Response.json({ error: "scheduleId and roomIds[] are required" }, { status: 400 });
     }
 
-    const campusId = await resolveCampusId(user, body.campusId);
-    const plan = await allocateExamRooms({ campusId, scheduleId, roomIds });
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "schedule", id: scheduleId });
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
+    const plan = await allocateExamRooms({ db: prisma, campusId, scheduleId, roomIds });
     return Response.json({ success: true, data: plan });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-schedule/rooms] PUT failed");
   }

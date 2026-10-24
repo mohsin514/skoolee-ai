@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
 
 // Secondary reporting lines (Module 8b).
 //
@@ -20,7 +21,7 @@ const LineInput = z.object({
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
     const input = LineInput.parse(await req.json());
 
@@ -42,13 +43,17 @@ export async function POST(req: NextRequest) {
     });
     if (duplicate) throw new ApiError("That reporting line already exists", 409);
 
-    const line = await prisma.staffReportingLine.create({
-      data: {
-        userId: input.userId,
-        managerId: input.managerId,
-        kind: input.kind,
-        label: input.label || null,
-      },
+    const line = await prisma.$transaction(async (tx) => {
+      const created = await tx.staffReportingLine.create({
+        data: {
+          userId: input.userId,
+          managerId: input.managerId,
+          kind: input.kind,
+          label: input.label || null,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "staff_reporting_lines", recordId: created.id, action: "CREATE", after: { userId: created.userId, managerId: created.managerId, kind: created.kind } });
+      return created;
     });
 
     return Response.json({ success: true, line }, { status: 201 });
@@ -60,15 +65,18 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
     const id = req.nextUrl.searchParams.get("id");
     if (!id) throw new ApiError("id is required", 400);
 
-    const line = await prisma.staffReportingLine.findFirst({ where: { id }, select: { id: true } });
+    const line = await prisma.staffReportingLine.findFirst({ where: { id }, select: { id: true, userId: true, managerId: true, kind: true } });
     if (!line) throw new ApiError("Reporting line not found", 404);
 
-    await prisma.staffReportingLine.update({ where: { id }, data: { endedAt: new Date() } });
+    await prisma.$transaction(async (tx) => {
+      await tx.staffReportingLine.update({ where: { id }, data: { endedAt: new Date() } });
+      await writeAuditEvent(tx, user, { table: "staff_reporting_lines", recordId: id, action: "ARCHIVE", before: { userId: line.userId, managerId: line.managerId, kind: line.kind }, after: { ended: true } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[staff/reporting-lines] DELETE failed");

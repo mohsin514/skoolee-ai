@@ -1,6 +1,8 @@
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeCarryForward: session-end balance moved to the next academic year.
 // Balance is paisa; positive = owed, negative = credit.
@@ -30,13 +32,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
     const body = await req.json();
     if (!body.studentId) throw new ApiError("studentId required", 400);
     const fromAcademicYear = Number(body.fromAcademicYear ?? new Date().getFullYear());
     const toAcademicYear = Number(body.toAcademicYear ?? fromAcademicYear + 1);
     const balance = Number(body.balance);
+    const currency = body.currency || "PKR";
+    if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
 
     if (!Number.isInteger(fromAcademicYear) || !Number.isInteger(toAcademicYear) || toAcademicYear <= fromAcademicYear) {
       throw new ApiError("invalid academic years", 400);
@@ -54,15 +59,20 @@ export async function POST(req: NextRequest) {
     });
     if (existing) throw new ApiError("A carry-forward already exists for this student and year", 409);
 
-    const forward = await prisma.feeCarryForward.create({
-      data: {
-        campusId: student.campusId,
-        studentId: body.studentId,
-        fromAcademicYear,
-        toAcademicYear,
-        balance,
-        note: body.note ?? null,
-      },
+    const forward = await prisma.$transaction(async (tx) => {
+      const created = await tx.feeCarryForward.create({
+        data: {
+          currency,
+          campusId: student.campusId,
+          studentId: body.studentId,
+          fromAcademicYear,
+          toAcademicYear,
+          balance,
+          note: body.note ?? null,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_carry_forwards", recordId: created.id, action: "CREATE", campusId: student.campusId, after: { studentId: created.studentId, fromAcademicYear, toAcademicYear, balance, currency } });
+      return created;
     });
     return Response.json({ success: true, data: forward }, { status: 201 });
   } catch (error) {
@@ -73,7 +83,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "delete");
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) throw new ApiError("id required", 400);
@@ -83,7 +94,15 @@ export async function DELETE(req: NextRequest) {
     });
     if (!existing) throw new ApiError("Carry-forward not found", 404);
 
-    await prisma.feeCarryForward.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      // SKO-389: a credit created by a recorded overpayment, or a balance already carried onto invoices,
+      // is financial history; it changes only through a finance correction.
+      if (existing.balance < 0) throw new ApiError("This is a credit from a recorded payment. Change it through a finance correction instead of deleting it.", 409);
+      const applied = await tx.invoice.count({ where: { studentId: existing.studentId, carryForwardAmount: { not: 0 } } });
+      if (applied) throw new ApiError(`This balance has already been carried onto ${applied} invoice(s). Change it through a finance correction instead of deleting it.`, 409);
+      await tx.feeCarryForward.delete({ where: { id } });
+      await writeAuditEvent(tx, user, { table: "fee_carry_forwards", recordId: id, action: "DELETE", campusId: existing.campusId, before: { studentId: existing.studentId, fromAcademicYear: existing.fromAcademicYear, toAcademicYear: existing.toAcademicYear, balance: existing.balance, currency: existing.currency } });
+    });
     return Response.json({ success: true });
   } catch (error) {
     return errorResponse(error, "[fees/carry-forwards] DELETE failed");

@@ -1,0 +1,12 @@
+{
+  "$comment": "check:ui ratchets (§8.4). Counts of legacy patterns in src/ at tree af1c6a75, computed once by P9 with the ratchet code in adoption.test.ts run inside an export of that tree (git archive af1c6a75 src). The test reads this file and never runs git. Lower a number when the tree goes below it; never raise one.",
+  "source": "af1c6a75",
+  "computedAt": "2026-10-21",
+  "ratchets": {
+    "window-dialogs": 3,
+    "raw-h1": 57,
+    "literal-toasts": 237,
+    "legacy-dialog-imports": 40,
+    "physical-direction": 21
+  }
+}

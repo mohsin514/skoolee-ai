@@ -1,0 +1,161 @@
+[
+  {
+    "route": "/memberships",
+    "role": "APP_OWNER",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "language": "en",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "language": "ar",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "desktop",
+    "language": "ur",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "language": "en",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "language": "ar",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "tablet",
+    "language": "ur",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "phone",
+    "language": "en",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "phone",
+    "language": "ar",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "SUPER_ADMIN",
+    "viewport": "phone",
+    "language": "ur",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/memberships",
+    "role": "CAMPUS_ADMIN",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "ADMIN",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "PRINCIPAL",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "TEACHER",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "PARENT",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "STUDENT",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "ACCOUNTANT",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "LIBRARIAN",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/memberships",
+    "role": "RECEPTIONIST",
+    "viewport": "desktop",
+    "language": "en"
+  },
+  {
+    "route": "/accept-invite",
+    "viewport": "phone",
+    "language": "en",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/accept-invite",
+    "viewport": "phone",
+    "language": "ar",
+    "overflow": false,
+    "keyboard": true
+  },
+  {
+    "route": "/accept-invite",
+    "viewport": "phone",
+    "language": "ur",
+    "overflow": false,
+    "keyboard": true
+  }
+]

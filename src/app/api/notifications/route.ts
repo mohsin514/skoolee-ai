@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
+import { inboxCounts, listInbox, VIEWS, type InboxView } from "@/lib/notifications/actions";
 
+// SKO-416: ?view=all|mentions|actions&status=open|resolved. Items carry their current source state
+// (open / resolved / unavailable) rechecked for this viewer; unavailable items show no stored text.
 export async function GET(req: NextRequest) {
   try {
     const user = await getAuthUser();
@@ -11,43 +14,19 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Number(searchParams.get("limit")) || 20, 50);
     const cursor = searchParams.get("cursor") || undefined;
     const unreadOnly = searchParams.get("unreadOnly") === "true";
+    const view = (VIEWS as readonly string[]).includes(searchParams.get("view") ?? "") ? (searchParams.get("view") as InboxView) : "all";
+    const status = searchParams.get("status") === "resolved" ? "resolved" : searchParams.get("status") === "open" ? "open" : null;
 
-    const where: Record<string, unknown> = { userId: user.userId };
-    if (unreadOnly) where.isRead = false;
-
-    const notifications = await prisma.notification.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: limit + 1,
-      ...(cursor
-        ? { cursor: { id: cursor }, skip: 1 }
-        : {}),
-      select: {
-        id: true,
-        type: true,
-        title: true,
-        message: true,
-        icon: true,
-        link: true,
-        isRead: true,
-        actorId: true,
-        actorName: true,
-        createdAt: true,
-      },
-    });
-
-    const hasMore = notifications.length > limit;
-    const items = hasMore ? notifications.slice(0, limit) : notifications;
-    const nextCursor = hasMore ? items[items.length - 1]?.id : null;
-
-    const unreadCount = await prisma.notification.count({
-      where: { userId: user.userId, isRead: false },
-    });
+    const [{ items, nextCursor }, counts] = await Promise.all([
+      listInbox(user, { view, status, limit, cursor, unreadOnly }),
+      inboxCounts(user),
+    ]);
 
     return Response.json({
       success: true,
       notifications: items,
-      unreadCount,
+      unreadCount: counts.unread,
+      counts,
       nextCursor,
     });
   } catch (error) {
@@ -64,9 +43,11 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const now = new Date();
 
+    // Marking read is attention only: it never resolves an assigned action (SKO-416).
     if (body.all === true) {
+      const category = body.view === "mentions" ? "MENTION" : body.view === "actions" ? "ACTION" : body.view === "updates" ? "UPDATE" : undefined;
       const result = await prisma.notification.updateMany({
-        where: { userId: user.userId, isRead: false },
+        where: { userId: user.userId, isRead: false, ...(category ? { category } : {}) },
         data: { isRead: true, readAt: now },
       });
       return Response.json({ success: true, readCount: result.count });

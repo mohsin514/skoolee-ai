@@ -1,0 +1,13 @@
+✔ operator reconciliation requires current role and returns private no-store metadata (130.138125ms)
+✔ operator mutation rejects cross-origin and missing/incompatible reasons without audit writes (24.5985ms)
+✔ cancellation is school-scoped, audited with explicit reason, and terminal replay conflicts (33.990291ms)
+✔ existing operator cookie loses authority immediately on live role change or deactivation (16.752041ms)
+✔ retry preserves checkpoint and refuses uncertain external effects (49.709375ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 484.382667

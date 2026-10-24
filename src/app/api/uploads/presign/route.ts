@@ -1,4 +1,6 @@
+import { createPrivateUploadUrl, authorizePrivateUpload } from "@/lib/storage/private-upload";
 import { NextRequest } from "next/server";
+import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
@@ -8,14 +10,24 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { documentKey, staffDocumentKey, getUploadUrl } from "@/lib/storage/s3";
+import {
+  documentKey,
+  staffDocumentKey,
+  profileImageKey,
+  schoolLogoKey,
+  campusLogoKey,
+  getUploadUrl,
+} from "@/lib/storage/s3";
 import { randomUUID } from "crypto";
 
 // POST /api/uploads/presign
 // body: { studentId, fileName, contentType, kind? } — admission documents
 //       { userId, fileName, contentType }           — staff documents
-// Returns { key, uploadUrl } — a presigned S3 PUT the client uploads to
-// directly, then a document row is created via the matching documents route.
+//       { kind: "profile", fileName, contentType, sizeBytes } — own profile picture
+//       { kind: "school-logo", fileName, contentType, sizeBytes } — school logo
+//       { kind: "campus-logo", campusId, fileName, contentType, sizeBytes } — campus logo
+// Documents return an authenticated app PUT URL (private upload intent); profile
+// pictures and logos return a presigned S3 PUT limited to public image prefixes.
 
 const ALLOWED_CONTENT_TYPES = new Set([
   "application/pdf",
@@ -26,17 +38,38 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
+const IMAGE_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_IMAGE_BYTES = 1_500_000; // 1.5 MB
+
+function isCampusAdminLike(role: string) {
+  return role === "SUPER_ADMIN" || role === "CAMPUS_ADMIN" || role === "ADMIN";
+}
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    // A presigned PUT is a writable handle into the school's document bucket,
-    // under a key this route chooses for a student or staff member. Gated on
-    // the same bit as the documents route it feeds, so an account that may not
-    // attach a document cannot mint the URL that would upload one either.
-    assertStaffRole(user);
     const body = await req.json();
+    const kind = String(body.kind ?? "");
+
+    if (kind === "profile") {
+      return presignProfileImage(user, body);
+    }
+    if (kind === "school-logo") {
+      return presignSchoolLogo(user, body);
+    }
+    if (kind === "campus-logo") {
+      return presignCampusLogo(user, body);
+    }
+
+    // Legacy document presign — staff-only, gated by the documents permission.
+    assertStaffRole(user);
 
     const studentId = String(body.studentId ?? "");
     const staffUserId = String(body.userId ?? "");
@@ -62,7 +95,8 @@ export async function POST(req: NextRequest) {
       if (!staff) throw new ApiError("Staff member not found", 404);
       const campusId = await resolveCampusId(user, staff.campusId);
       const key = staffDocumentKey(campusId, staff.id, `${randomUUID()}-${fileName}`);
-      const uploadUrl = await getUploadUrl(key, contentType);
+      await authorizePrivateUpload(user, { kind: "staff", targetId: staff.id, storageKey: key, contentType: contentType as Parameters<typeof authorizePrivateUpload>[1]["contentType"], sizeBytes });
+      const uploadUrl = await createPrivateUploadUrl(user, { kind: "staff", targetId: staff.id, storageKey: key, contentType, sizeBytes, fileName });
       return Response.json({ success: true, data: { key, uploadUrl } });
     }
 
@@ -77,9 +111,66 @@ export async function POST(req: NextRequest) {
     const campusId = await resolveCampusId(user, student.campusId);
 
     const key = documentKey(campusId, student.id, `${randomUUID()}-${fileName}`);
-    const uploadUrl = await getUploadUrl(key, contentType);
+    await authorizePrivateUpload(user, { kind: "student", targetId: student.id, storageKey: key, contentType: contentType as Parameters<typeof authorizePrivateUpload>[1]["contentType"], sizeBytes });
+    const uploadUrl = await createPrivateUploadUrl(user, { kind: "student", targetId: student.id, storageKey: key, contentType, sizeBytes, fileName });
     return Response.json({ success: true, data: { key, uploadUrl } });
   } catch (error) {
     return errorResponse(error, "[uploads/presign] POST failed");
   }
+}
+
+function validateImageUpload(body: Record<string, unknown>) {
+  const fileName = String(body.fileName ?? "").trim();
+  const contentType = String(body.contentType ?? "").trim().toLowerCase();
+  const sizeBytes = Math.round(Number(body.sizeBytes ?? 0));
+
+  if (!fileName) throw new ApiError("fileName is required", 400);
+  if (!IMAGE_CONTENT_TYPES.has(contentType)) {
+    throw new ApiError("Only JPEG, PNG, WebP, and GIF images are allowed", 400);
+  }
+  if (sizeBytes <= 0 || sizeBytes > MAX_IMAGE_BYTES) {
+    throw new ApiError("Image must be between 1 byte and 1.5 MB", 400);
+  }
+  return { fileName, contentType, sizeBytes };
+}
+
+async function presignProfileImage(user: Awaited<ReturnType<typeof requireAuthUser>>, body: Record<string, unknown>) {
+  const { fileName, contentType } = validateImageUpload(body);
+  const key = profileImageKey(user.schoolId, user.userId, fileName);
+  const uploadUrl = await getUploadUrl(key, contentType);
+  return Response.json({ success: true, data: { key, uploadUrl } });
+}
+
+async function presignSchoolLogo(user: Awaited<ReturnType<typeof requireAuthUser>>, body: Record<string, unknown>) {
+  // G13: the school logo is institution identity — the institution authority only, decided by kind, not campus count.
+  if (!isInstitutionAuthority(user)) {
+    throw new ApiError("Only the institution administrator can change the school logo", 403);
+  }
+  const { fileName, contentType } = validateImageUpload(body);
+  const key = schoolLogoKey(user.schoolId, fileName);
+  const uploadUrl = await getUploadUrl(key, contentType);
+  return Response.json({ success: true, data: { key, uploadUrl } });
+}
+
+async function presignCampusLogo(user: Awaited<ReturnType<typeof requireAuthUser>>, body: Record<string, unknown>) {
+  if (!isCampusAdminLike(user.role)) {
+    throw new ApiError("Only administrators can change the campus logo", 403);
+  }
+  const campusId = String(body.campusId ?? "").trim();
+  if (!campusId) throw new ApiError("campusId is required for campus logo upload", 400);
+
+  const campus = await prisma.campus.findFirst({
+    where: { id: campusId, schoolId: user.schoolId },
+    select: { id: true },
+  });
+  if (!campus) throw new ApiError("Campus not found", 404);
+
+  if (user.role !== "SUPER_ADMIN" && user.campusId !== campusId) {
+    throw new ApiError("You can only change the logo of your own campus", 403);
+  }
+
+  const { fileName, contentType } = validateImageUpload(body);
+  const key = campusLogoKey(user.schoolId, campusId, fileName);
+  const uploadUrl = await getUploadUrl(key, contentType);
+  return Response.json({ success: true, data: { key, uploadUrl } });
 }

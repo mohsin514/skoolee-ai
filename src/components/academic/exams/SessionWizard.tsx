@@ -1,5 +1,7 @@
 "use client";
+import { EXAM_TERM_LABELS } from "@/lib/academic/exam-terms";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarRange,
@@ -7,12 +9,15 @@ import {
   GraduationCap,
   School,
   Sparkles,
-  Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { Field, inputClass, selectClass } from "@/components/academic/exams/shared";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
+import { useUiText } from "@/components/locale/LocaleProvider";
 
 /**
  * Create one exam for every class in a single pass (§80).
@@ -35,7 +40,7 @@ interface ClassRow {
   subjectCount?: number;
 }
 
-const TERMS = ["Term 1", "Term 2", "Term 3", "Annual"];
+const TERMS = EXAM_TERM_LABELS;
 
 const TYPES = [
   {
@@ -74,6 +79,7 @@ export function SessionWizard({
   onClose: () => void;
   onCreated: (sessionId: string) => void;
 }) {
+  const ui = useUiText();
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -102,7 +108,7 @@ export function SessionWizard({
         // them — so start with everything that has subjects already ticked.
         setSelected(new Set(list.filter((c) => countsOf(c).subjects > 0).map((c) => c.id)));
       } catch {
-        if (!cancelled) toast.error("Could not load classes");
+        if (!cancelled) toast.error(ui("Could not load classes"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -161,8 +167,8 @@ export function SessionWizard({
   const withoutSubjects = chosen.filter((c) => countsOf(c).subjects === 0);
 
   const submit = async () => {
-    if (!title.trim()) return toast.error("Give the exam a title");
-    if (selected.size === 0) return toast.error("Pick at least one class");
+    if (!title.trim()) return toast.error(ui("Give the exam a title"));
+    if (selected.size === 0) return toast.error(ui("Pick at least one class"));
     setBusy(true);
     try {
       const res = await fetch("/api/academic/exam-sessions", {
@@ -180,16 +186,14 @@ export function SessionWizard({
         }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "Could not create the exam");
+      if (!res.ok || !json.success) throw new Error(json.error || "");
 
       const skipped: string[] = json.skipped ?? [];
-      toast.success(
-        `${json.created} class${json.created === 1 ? "" : "es"} scheduled` +
-          (skipped.length ? ` · ${skipped.length} already had this exam` : ""),
-      );
+      const created = ui(json.created === 1 ? "1 class scheduled" : "{0} classes scheduled", [json.created]);
+      toast.success(skipped.length ? ui("{0} · {1} already had this exam", [created, skipped.length]) : created);
       onCreated(json.session.id);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not create the exam");
+      toast.error(friendlyErrorMessage(e, ui("Could not create the exam")));
     } finally {
       setBusy(false);
     }
@@ -197,9 +201,9 @@ export function SessionWizard({
 
   return (
     <Modal
-      title="Schedule an exam"
-      eyebrow="Exams & Results"
-      subtitle="One announcement, one exam per class. Dates and rooms come next."
+      title={ui("Schedule an exam")}
+      eyebrow={ui("Exams & results")}
+      subtitle={ui("One announcement, one exam per class. Dates and rooms come next.")}
       icon={Sparkles}
       tone="violet"
       size="lg"
@@ -208,15 +212,16 @@ export function SessionWizard({
       footer={
         <ModalActions
           busy={busy}
-          busyLabel="Scheduling…"
-          actionLabel={`Schedule for ${selected.size} class${selected.size === 1 ? "" : "es"}`}
+          busyLabel={ui("Scheduling…")}
+          actionLabel={ui(selected.size === 1 ? "Schedule for 1 class" : "Schedule for {0} classes", [selected.size])}
+          cancelLabel={ui("Cancel")}
           onCancel={onClose}
           onAction={submit}
           blockedReason={
             selected.size === 0
-              ? "Pick at least one class to sit this exam."
+              ? ui("Pick at least one class to sit this exam.")
               : !title.trim()
-              ? "Give the exam a title."
+              ? ui("Give the exam a title.")
               : null
           }
         />
@@ -225,65 +230,65 @@ export function SessionWizard({
       <div className="space-y-5">
         {/* ── What kind of exam ─────────────────────────────────────────── */}
         <div>
-          <p className="mb-2 pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-            What kind of exam
+          <p className="mb-2 ps-0.5 text-xs font-semibold text-ink-subtle">
+            {ui("What kind of exam")}
           </p>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {TYPES.map((t) => {
               const active = examType === t.value;
               return (
-                <button
+                <Button variant="choice"
                   key={t.value}
                   type="button"
                   onClick={() => setExamType(t.value)}
                   aria-pressed={active}
-                  className={cn(
-                    "group relative flex cursor-pointer items-start gap-3 overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-200",
+                  className={"justify-start " + (cn(
+                    "group relative flex items-start gap-3 overflow-hidden p-3.5 text-start",
                     active
-                      ? "border-[#8127cf] bg-gradient-to-br from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.35),0_12px_28px_-16px_rgba(129,39,207,0.5)]"
-                      : "border-[#cfc2d6]/25 bg-white hover:-translate-y-0.5 hover:border-[#8127cf]/35",
-                  )}
+                      ? ""
+                      : "hover:-translate-y-0.5",
+                  ))}
                 >
                   <span
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors",
-                      active ? "bg-[#8127cf] text-white" : "bg-[#f3eeff] text-[#8127cf]",
+                      active ? "bg-primary text-primary-foreground" : "bg-brand-100 text-primary",
                     )}
+                    aria-hidden="true"
                   >
                     <t.icon className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-black text-[#1f1a23]">{t.label}</span>
-                    <span className="mt-0.5 block text-[11px] font-semibold leading-snug text-ink-muted">
-                      {t.blurb}
+                    <span className="block text-sm font-bold text-ink-strong">{ui(t.label)}</span>
+                    <span className="mt-0.5 block text-2xs font-semibold leading-snug text-ink-muted">
+                      {ui(t.blurb)}
                     </span>
                   </span>
                   {active ? (
-                    <Check className="absolute right-3 top-3 h-4 w-4 text-[#8127cf]" />
+                    <Check aria-hidden="true" className="absolute end-3 top-3 h-4 w-4 text-primary" />
                   ) : null}
-                </button>
+                </Button>
               );
             })}
           </div>
-          <p className="mt-2 pl-0.5 text-[10px] font-semibold text-ink-subtle">
-            Quizzes and class tests are created by teachers for their own subjects — they
-            never need a date sheet or a seating plan.
+          <p className="mt-2 ps-0.5 text-2xs font-semibold text-ink-subtle">
+            {ui("Quizzes and class tests are created by teachers for their own subjects — they never need a date sheet or a seating plan.")}
           </p>
         </div>
 
         {/* ── When ──────────────────────────────────────────────────────── */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Term">
-            <select className={selectClass} value={term} onChange={(e) => setTerm(e.target.value)}>
+            <SystemSelect className={selectClass} value={term} onChange={(e) => setTerm(e.target.value)}>
               {TERMS.map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {ui(t)}
                 </option>
               ))}
-            </select>
+            </SystemSelect>
           </Field>
           <Field label="Title" className="sm:col-span-1 lg:col-span-1">
-            <input
+            <SystemInput
               className={inputClass}
               value={title}
               onChange={(e) => {
@@ -294,7 +299,7 @@ export function SessionWizard({
             />
           </Field>
           <Field label="Starts" hint="Optional — it just frames the planner">
-            <input
+            <SystemInput
               type="date"
               className={inputClass}
               value={startDate}
@@ -302,7 +307,7 @@ export function SessionWizard({
             />
           </Field>
           <Field label="Ends" hint="Optional">
-            <input
+            <SystemInput
               type="date"
               className={inputClass}
               value={endDate}
@@ -315,95 +320,92 @@ export function SessionWizard({
         {/* ── Which classes ─────────────────────────────────────────────── */}
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <p className="pl-0.5 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-              Which classes sit it
+            <p className="ps-0.5 text-xs font-semibold text-ink-subtle">
+              {ui("Which classes sit it")}
             </p>
-            <div className="ml-auto flex gap-1.5">
-              <button
+            <div className="ms-auto flex gap-1.5">
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setSelected(new Set(classes.map((c) => c.id)))}
-                className="cursor-pointer rounded-lg bg-[#f3eeff] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#e9dcfb]"
+                className="px-2.5 py-1"
               >
-                All
-              </button>
-              <button
+                {ui("All")}
+              </Button>
+              <Button variant="secondary"
                 type="button"
                 onClick={() => setSelected(new Set())}
-                className="cursor-pointer rounded-lg bg-[#f6f2fa] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:bg-[#eee7f4]"
+                className="px-2.5 py-1"
               >
-                None
-              </button>
+                {ui("None")}
+              </Button>
             </div>
           </div>
 
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-12 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div key={i} className="h-12 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
               ))}
             </div>
           ) : grouped.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-[#cfc2d6]/35 p-6 text-center text-xs font-bold text-ink-muted">
-              No classes for {academicYear} yet. Create classes first.
-            </p>
+            <EmptyState
+              size="sm"
+              icon={School}
+              title={ui("No classes for {0} yet", [academicYear])}
+              description={ui("Create classes for this academic year first, then schedule the exam.")}
+            />
           ) : (
-            <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-2.5 custom-scrollbar">
+            <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-edge/20 bg-surface-subtle p-2.5 custom-scrollbar">
               {grouped.map(([name, rows]) => {
                 const allOn = rows.every((r) => selected.has(r.id));
                 const someOn = !allOn && rows.some((r) => selected.has(r.id));
                 return (
                   <div
                     key={name}
-                    className="rounded-xl border border-[#cfc2d6]/20 bg-white p-2.5"
+                    className="sk-panel p-2.5"
                   >
                     <div className="flex items-center gap-2">
-                      <button
+                      <Button aria-pressed={allOn} variant="choice" size="icon"
                         type="button"
                         onClick={() => toggleGroup(rows)}
                         className={cn(
-                          "flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 transition-all",
+                          "flex shrink-0 items-center justify-center",
                           allOn
-                            ? "border-[#8127cf] bg-[#8127cf] text-white"
-                            : someOn
-                            ? "border-[#8127cf] bg-[#f3eeff]"
-                            : "border-[#cfc2d6]/50 bg-white hover:border-[#8127cf]/50",
+                            ? ""
+                            : "",
                         )}
-                        aria-label={`Select all sections of ${name}`}
+                        aria-label={ui("Select all sections of {0}", [name])}
                       >
-                        {allOn ? <Check className="h-3 w-3" /> : null}
-                        {someOn ? <span className="h-1.5 w-1.5 rounded-sm bg-[#8127cf]" /> : null}
-                      </button>
-                      <School className="h-3.5 w-3.5 shrink-0 text-[#8127cf]" />
-                      <span className="text-xs font-black text-[#1f1a23]">{name}</span>
-                      <span className="text-[10px] font-bold text-ink-subtle">
-                        {rows.length} section{rows.length === 1 ? "" : "s"}
+                        {allOn ? <Check aria-hidden="true" className="h-3 w-3" /> : null}
+                        {someOn ? <span aria-hidden="true" className="h-1.5 w-1.5 rounded-sm bg-primary" /> : null}
+                      </Button>
+                      <School aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <bdi className="text-xs font-bold text-ink-strong">{name}</bdi>
+                      <span className="text-2xs font-bold text-ink-subtle">
+                        {ui(rows.length === 1 ? "{0} section" : "{0} sections", [rows.length])}
                       </span>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5 pl-7">
+                    <div className="mt-2 flex flex-wrap gap-1.5 ps-7">
                       {rows.map((row) => {
                         const on = selected.has(row.id);
                         const n = countsOf(row);
                         return (
-                          <button
+                          <Button variant="choice"
                             key={row.id}
                             type="button"
                             onClick={() => toggle(row.id)}
                             aria-pressed={on}
-                            title={`${n.students} students · ${n.subjects} subjects`}
-                            className={cn(
-                              "flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-black transition-all",
-                              on
-                                ? "border-[#8127cf]/40 bg-[#f3eeff] text-[#8127cf]"
-                                : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/30",
-                              n.subjects === 0 && "opacity-60",
-                            )}
+                            className={"justify-start " + (cn(
+                              "flex items-center gap-1.5 px-2.5 py-1",
+                              "",
+                              n.subjects === 0 && "",
+                            ))}
                           >
-                            {labelOf(row)}
-                            <span className="flex items-center gap-0.5 text-[9px] font-bold opacity-70">
-                              <Users className="h-2.5 w-2.5" />
-                              {n.students}
+                            <bdi>{labelOf(row)}</bdi>
+                            <span className="text-xs font-normal text-ink-subtle tabular-nums">
+                              {ui("{0} students · {1} subjects", [n.students, n.subjects])}
                             </span>
-                          </button>
+                          </Button>
                         );
                       })}
                     </div>
@@ -415,26 +417,22 @@ export function SessionWizard({
         </div>
 
         {/* ── What this will create ─────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl bg-gradient-to-r from-[#f3eeff] to-[#faf7fc] px-4 py-3">
-          <p className="text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
-            This creates
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl bg-gradient-to-r from-brand-100 to-surface-subtle px-4 py-3">
+          <p className="text-xs font-semibold text-primary">
+            {ui("This creates")}
           </p>
-          <p className="text-xs font-bold text-[#1f1a23]">
-            <span className="tabular-nums">{selected.size}</span> exam
-            {selected.size === 1 ? "" : "s"}
+          <p className="text-xs font-bold text-ink-strong">
+            {ui(selected.size === 1 ? "{0} exam" : "{0} exams", [selected.size])}
           </p>
-          <p className="text-xs font-bold text-[#1f1a23]">
-            <span className="tabular-nums">{totals.papers}</span> paper
-            {totals.papers === 1 ? "" : "s"} to date
+          <p className="text-xs font-bold text-ink-strong">
+            {ui(totals.papers === 1 ? "{0} paper to date" : "{0} papers to date", [totals.papers])}
           </p>
-          <p className="text-xs font-bold text-[#1f1a23]">
-            <span className="tabular-nums">{totals.students}</span> candidate
-            {totals.students === 1 ? "" : "s"} to seat
+          <p className="text-xs font-bold text-ink-strong">
+            {ui(totals.students === 1 ? "{0} candidate to seat" : "{0} candidates to seat", [totals.students])}
           </p>
           {withoutSubjects.length > 0 ? (
-            <p className="w-full text-[10px] font-bold text-amber-600">
-              {withoutSubjects.map(labelOf).join(", ")} {withoutSubjects.length === 1 ? "has" : "have"}{" "}
-              no subjects, so {withoutSubjects.length === 1 ? "it" : "they"} will be skipped.
+            <p className="w-full text-2xs font-bold text-status-warning-text">
+              {ui(withoutSubjects.length === 1 ? "{0} has no subjects, so it will be skipped." : "{0} have no subjects, so they will be skipped.", [withoutSubjects.map(labelOf).join(", ")])}
             </p>
           ) : null}
         </div>

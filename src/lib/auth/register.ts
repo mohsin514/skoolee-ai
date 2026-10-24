@@ -4,7 +4,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { createVerificationToken } from "@/lib/auth/verification";
-import { sendVerificationEmail } from "@/lib/email";
+import { Prisma } from "@prisma/client";
+import { sendExistingAccountNotice, sendVerificationEmail } from "@/lib/email";
+import { authRateLimit } from "@/lib/auth/rate-limit";
+import { countrySchema, currencyForCountry } from "@/lib/locale/country";
+import { createPlanContract } from "@/config/commercial-contract";
 
 export const SignupStep1Schema = z.object({
   email: z.string().email(),
@@ -21,7 +25,14 @@ export const SignupStep2Schema = z.object({
   // it lands on the user record (staff directory, profile) and doubles as the
   // school's first contact number until onboarding overrides it.
   phone: z.string().trim().min(7, "Enter a valid phone number").optional().or(z.literal("")),
+  country: countrySchema.default("PK"),
+  /** The exact country (ISO 3166-1 alpha-2); `country` is only its billing market. Drives boards, dial codes and time zones. */
+  countryIso: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).optional(),
+  language: z.enum(["en", "ar", "ur"]).optional(),
 });
+
+// One wording for a new and an existing address when the email cannot be sent (SKO-457).
+const DELIVERY_WARNING = "We could not send the email just now. Request a new verification link from the sign-in page.";
 
 export type SignupStep1Input = z.infer<typeof SignupStep1Schema>;
 export type SignupStep2Input = z.infer<typeof SignupStep2Schema>;
@@ -107,49 +118,75 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
     prisma.school.findUnique({ where: { contactEmail: valid.email } }),
   ]);
   if (existingSchoolByRegId) return { success: false, error: "This Identity Code (Reg ID) is already registered." };
-  if (existingSchoolByEmail) return { success: false, error: "This email is already registered to a school." };
+  // SKO-457: an address that already owns a school is answered exactly like a new one; the owner
+  // is told by email instead, so the signup screen never confirms which addresses have accounts.
+  if (existingSchoolByEmail) return existingAddressOutcome(valid);
 
   const hashedPassword = await bcrypt.hash(valid.password, 10);
   const role = pending.registrationType === "school_group" ? "SUPER_ADMIN" : "ADMIN";
 
-  const user = await prisma.$transaction(async (tx) => {
+  let user: { id: string; email: string };
+  try {
+  user = await prisma.$transaction(async (tx) => {
     const phone = valid.phone?.trim() || null;
 
     const school = await tx.school.create({
       data: {
         name: valid.schoolName,
+        registrationKind: pending.registrationType === "school_group" ? "GROUP" : "STANDALONE",
         regId: valid.regId,
         slug: schoolSlug(valid.schoolName),
         contactEmail: valid.email,
         phone,
         city: "",
         status: "TRIAL",
+        commercialContract: createPlanContract("FREE"),
       },
     });
 
-    const createdUser = await tx.user.create({
+      const createdUser = await tx.user.create({
       data: {
         email: valid.email,
         password: hashedPassword,
         fullName: valid.fullName,
+        preferredLanguage: valid.language ?? "en",
         phone,
         role,
+        isInstitutionOwner: true,
+        canPurchaseSubscription: true,
+        canManageMemberships: true,
         schoolId: school.id,
         onboardingComplete: false,
         isActive: false,
       },
-    });
+      });
+
+      await tx.localePolicy.create({
+        data: {
+          schoolId: school.id,
+          scopeKey: "school",
+          settings: { country: valid.country, countryIso: valid.countryIso ?? (valid.country === "OTHER" ? undefined : valid.country), currency: currencyForCountry(valid.country) },
+          effectiveAt: new Date(),
+          createdBy: createdUser.id,
+        },
+      });
 
     await tx.pendingRegistration.delete({ where: { email: valid.email } });
 
     return createdUser;
   });
+  } catch (error) {
+    // A concurrent signup took this contact email between the check and the commit.
+    const target = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" ? String(error.meta?.target ?? "") : "";
+    if (target.includes("contact_email") || target.includes("contactEmail")) return existingAddressOutcome(valid);
+    throw error;
+  }
 
   // Signed, expiring, and bound to this user — the link is the only thing
   // /api/auth/verify will accept.
   const token = await createVerificationToken(user.id);
   try {
-    const delivery = await sendVerificationEmail(user.email, user.id, token);
+    const delivery = await sendVerificationEmail(user.email, user.id, token, valid.language);
     if ("bypass" in delivery && delivery.bypass && process.env.NODE_ENV !== "production") {
       return {
         success: true,
@@ -163,10 +200,26 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
     console.error("[signup-email]", error);
     return {
       success: true,
-      warning: "Account created, but the verification email could not be sent. Please contact support or try password reset from the login page.",
+      warning: DELIVERY_WARNING,
       user: { id: user.id, email: user.email },
     };
   }
 
   return { success: true, user: { id: user.id, email: user.email } };
+}
+
+/** The "new address" outcome for an address that already owns a school, plus a notice to its owner. */
+async function existingAddressOutcome(valid: SignupStep2Input): Promise<SignupResult> {
+  // Comparable work to a real signup: hash the password and attempt one delivery.
+  await bcrypt.hash(valid.password, 10);
+  await prisma.pendingRegistration.deleteMany({ where: { email: valid.email } });
+  if ((await authRateLimit(`signup-existing:${valid.email.toLowerCase()}`, { limit: 3, windowMs: 3_600_000 })).ok) {
+    try {
+      await sendExistingAccountNotice(valid.email);
+    } catch {
+      console.warn("[signup-existing] notice delivery failed");
+      return { success: true, warning: DELIVERY_WARNING };
+    }
+  }
+  return { success: true };
 }

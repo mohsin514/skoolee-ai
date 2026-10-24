@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 
 // Leave days are stored as Int tenths (5 = half day, 10 = one day).
 // These helpers keep the conversions in one place.
@@ -30,8 +30,8 @@ export interface LeaveBalance {
 }
 
 // Allocation resolution: a per-user override wins over a role-wide row.
-export async function getLeaveAllocations(campusId: string, userId: string, role: string, academicYear: number) {
-  return prisma.leaveAllocation.findMany({
+export async function getLeaveAllocations(campusId: string, userId: string, role: string, academicYear: number, db: Pick<TxClient, "leaveAllocation" | "leaveRequest"> = prisma) {
+  return db.leaveAllocation.findMany({
     where: {
       campusId,
       academicYear,
@@ -41,10 +41,10 @@ export async function getLeaveAllocations(campusId: string, userId: string, role
   });
 }
 
-export async function getLeaveBalances(campusId: string, userId: string, role: string, academicYear: number): Promise<LeaveBalance[]> {
+export async function getLeaveBalances(campusId: string, userId: string, role: string, academicYear: number, db: Pick<TxClient, "leaveAllocation" | "leaveRequest"> = prisma): Promise<LeaveBalance[]> {
   const [allocations, approvedRows, pendingRows] = await Promise.all([
-    getLeaveAllocations(campusId, userId, role, academicYear),
-    prisma.leaveRequest.findMany({
+    getLeaveAllocations(campusId, userId, role, academicYear, db),
+    db.leaveRequest.findMany({
       where: {
         campusId,
         userId,
@@ -53,7 +53,7 @@ export async function getLeaveBalances(campusId: string, userId: string, role: s
       },
       include: { leaveType: true },
     }),
-    prisma.leaveRequest.findMany({
+    db.leaveRequest.findMany({
       where: {
         campusId,
         userId,

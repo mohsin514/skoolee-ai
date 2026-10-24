@@ -1,14 +1,15 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageBilling, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { createStripeCustomer, getPriceId, createCheckoutSessionWithTransfer } from "@/lib/stripe/server";
+import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { createStripeCustomer, getPriceId, createCheckoutSessionWithTransfer, verifyStripePrice } from "@/lib/stripe/server";
 import { createSafePayOrder } from "@/lib/payments/safepay";
 import { ANNUAL_DISCOUNT, getPlanLimits, type BillingPeriod } from "@/config/plans";
 import type { PlanDetails } from "@/types";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { getPaymentConfig } from "@/lib/payments/gateway";
-import { dashboardPathForRole } from "@/lib/roles";
+import { COMMERCIAL_CONTRACT, createPlanContract, encodePlanContractMetadata } from "@/config/commercial-contract";
+import { findApprovedPlanChange, markPlanChangeCheckoutStarted, restorePlanChangeApproval } from "@/lib/billing/lifecycle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,19 +28,29 @@ function periodLabel(price: number | null | undefined, billingPeriod: BillingPer
   const amount = periodPrice(price, billingPeriod);
   if (amount == null) return "Custom";
   return billingPeriod === "annual"
-    ? `PKR ${amount.toLocaleString()}/yr (−${Math.round(ANNUAL_DISCOUNT * 100)}% annual)`
-    : `PKR ${amount.toLocaleString()}/mo`;
+    ? `${COMMERCIAL_CONTRACT.currency} ${amount.toLocaleString()}/yr (−${Math.round(ANNUAL_DISCOUNT * 100)}% annual)`
+    : `${COMMERCIAL_CONTRACT.currency} ${amount.toLocaleString()}/mo`;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
-    if (!canManageBilling(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
 
     const parsed = checkoutSchema.safeParse(await req.json());
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
+
+    const existingContract = await prisma.school.findUnique({
+      where: { id: user.schoolId },
+      select: { stripeSubscriptionId: true, subscriptionLifecycleState: true },
+    });
+    if (existingContract?.stripeSubscriptionId && existingContract.subscriptionLifecycleState !== "ENDED") {
+      throw new ApiError("This institution already has a provider subscription. Review plan capacity and effective dates in Billing & plan before changing it.", 409);
+    }
+    const approvedChange = await findApprovedPlanChange(user.schoolId, parsed.data.plan, parsed.data.billingPeriod);
+    if (!approvedChange) throw new ApiError("Review and approve this plan change in Billing & plan before starting checkout.", 409);
 
     const paymentConfig = await getPaymentConfig();
 
@@ -47,6 +58,17 @@ export async function POST(req: NextRequest) {
       const priceId = getPriceId(parsed.data.plan, parsed.data.billingPeriod);
       if (!priceId) {
         throw new ApiError(`${getPlanLimits(parsed.data.plan).name} checkout is not configured`, 503);
+      }
+
+      const billing = await getBillingSnapshot(user.schoolId);
+      const selectedPrice = billing.plans[parsed.data.plan].price;
+      if (selectedPrice !== getPlanLimits(parsed.data.plan).price) {
+        throw new ApiError("This school's approved price differs from the configured Stripe catalogue. Contact the billing owner before checkout.", 503);
+      }
+      try {
+        await verifyStripePrice(priceId, parsed.data.plan, parsed.data.billingPeriod, selectedPrice);
+      } catch (error) {
+        throw new ApiError(error instanceof Error ? error.message : "Stripe price validation failed", 503);
       }
 
       const school = await prisma.school.findUnique({
@@ -66,14 +88,27 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const url = await createCheckoutSessionWithTransfer(
-        customerId,
-        priceId,
-        school.id,
-        parsed.data.plan,
-        paymentConfig.stripe?.connectedAccountId || null
-      );
-      if (!url) throw new ApiError("Stripe did not return a checkout URL", 502);
+      if (approvedChange.state === "REVIEWED_APPROVED") await markPlanChangeCheckoutStarted(user.schoolId, approvedChange.id, user.userId);
+      let url: string;
+      try {
+        url = await createCheckoutSessionWithTransfer(
+          customerId,
+          priceId,
+          school.id,
+          parsed.data.plan,
+          paymentConfig.stripe?.connectedAccountId || null,
+          encodePlanContractMetadata(createPlanContract(parsed.data.plan)),
+          approvedChange.id,
+          `subscription-change-${approvedChange.id}`
+        );
+      } catch (error) {
+        await restorePlanChangeApproval(user.schoolId, approvedChange.id, user.userId);
+        throw error;
+      }
+      if (!url) {
+        await restorePlanChangeApproval(user.schoolId, approvedChange.id, user.userId);
+        throw new ApiError("Stripe did not return a checkout URL", 502);
+      }
 
       return Response.json({ success: true, method: "stripe", url });
     }
@@ -88,10 +123,18 @@ export async function POST(req: NextRequest) {
       const snapshot = await getBillingSnapshot(school.id);
       const planKey = parsed.data.plan as keyof typeof snapshot.plans;
       const planDetail = snapshot.plans[planKey] as PlanDetails;
+      const quotedContract = createPlanContract(parsed.data.plan, {
+        name: planDetail.name, price: planDetail.price, priceCurrency: COMMERCIAL_CONTRACT.currency,
+        priceLabel: planDetail.priceLabel, features: planDetail.features, aiCredits: planDetail.aiCredits,
+        maxStudents: planDetail.maxStudents, maxTeachers: planDetail.maxTeachers, maxCampuses: planDetail.maxCampuses,
+        whatsappEnabled: planDetail.whatsappEnabled, pdfExportEnabled: planDetail.pdfExportEnabled,
+        pdfBulkExport: planDetail.pdfBulkExport, analyticsEnabled: planDetail.analyticsEnabled,
+      });
+      const encodedContract = encodePlanContractMetadata(quotedContract);
       const price = periodPrice(planDetail.price, parsed.data.billingPeriod);
       const priceLabel = periodLabel(planDetail.price, parsed.data.billingPeriod);
 
-      const orderRef = `SKL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+      const orderRef = `SKL-${approvedChange.id}`.toUpperCase();
       const appBase = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
       const merchantId = process.env.SAFEPAY_MERCHANT_ID;
@@ -100,29 +143,24 @@ export async function POST(req: NextRequest) {
 
       if (merchantId && apiKey && secretKey) {
         const amountInPaisa = (price || 0) * 100;
-        // Land the payer back on their own billing hub: campus admins buy from
-        // the campus Plans & Billing view, school owners from the super view.
-        const billingHub =
-          dashboardPathForRole(user.role) === "/super"
-            ? "/super?view=billing"
-            : dashboardPathForRole(user.role) === "/admin"
-              ? "/admin?view=billing"
-              : "/dashboard/billing";
+        // §6.2: the provider returns to /billing, which resolves the payer's own Billing & plan view. One query
+        // string built with URLSearchParams (the old hub path already carried "?view=billing", so appending
+        // "?safepay_status=…" produced a second "?").
         const result = await createSafePayOrder(
           {
             merchantId,
             apiKey,
             secretKey,
-            returnUrl: `${appBase}${billingHub}?safepay_status=completed&ref=${orderRef}`,
+            returnUrl: `${appBase}/billing?${new URLSearchParams({ safepay_status: "completed", ref: orderRef })}`,
             sandbox: process.env.SAFEPAY_PRODUCTION !== "true",
           },
           {
             amount: amountInPaisa,
             orderRef,
-            description: `Upgrade to ${planDetail.name} plan (${parsed.data.billingPeriod})`,
+            description: `SkooleeAI ${planDetail.name} plan (${parsed.data.billingPeriod})`,
             customerEmail: user.email,
             customerName: user.fullName,
-            metadata: { schoolId: school.id, plan: parsed.data.plan, billingPeriod: parsed.data.billingPeriod },
+            metadata: { schoolId: school.id, plan: parsed.data.plan, billingPeriod: parsed.data.billingPeriod, commercialContract: encodedContract },
           }
         );
 
@@ -133,8 +171,7 @@ export async function POST(req: NextRequest) {
         return Response.json({ success: true, method: "safepay", url: result.redirectUrl });
       }
 
-      const simUrl = `${appBase}/safepay?orderRef=${orderRef}&schoolId=${school.id}&plan=${parsed.data.plan}&billingPeriod=${parsed.data.billingPeriod}&amountLabel=${encodeURIComponent(priceLabel)}`;
-      return Response.json({ success: true, method: "safepay", url: simUrl });
+      throw new ApiError("SafePay checkout is not configured. No simulated payment can activate a subscription.", 503);
     }
 
     const schoolForPrice = await prisma.school.findUnique({
@@ -167,15 +204,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return Response.json({
-      success: true,
-      method: "bank_transfer",
-      plan: parsed.data.plan,
-      billingPeriod: parsed.data.billingPeriod,
-      bank: null,
-      amount: btPrice,
-      amountLabel: btLabel,
-    });
+    throw new ApiError("No payment method is configured. Contact the platform billing administrator.", 503);
   } catch (error) {
     return errorResponse(error, "[checkout] failed");
   }

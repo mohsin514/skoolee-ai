@@ -1,0 +1,30 @@
+✔ operator actions require an explicit compatible privacy-safe reason (2.15975ms)
+✔ transaction rollback removes both domain mutation and event (49.218458ms)
+✔ SIGKILL after commit survives publish outage and real Redis duplicate delivery (238.953167ms)
+✔ competing dispatchers lease each event once; lost delivery lease recovers (6.917666ms)
+✔ concurrent consumers commit one domain effect; failed effect rolls back (15.539875ms)
+✔ killed mid-batch resumes checkpoint after a different tenant; no context leakage (169.616792ms)
+✔ retry budget, dead letter, current operator roles, audited retry and cancellation (29.840625ms)
+✔ 30-recipient batch crash after12 preserves partial progress across another tenant and retries only18 (223.557041ms)
+✔ operator reconciliation identifies orphaned, absent/expired lease and dead-letter work without payloads (9.148334ms)
+✔ uncertain provider effect is preserved and cannot be automatically or manually replayed (13.966458ms)
+{"event":"authorization.denied","decisionId":"cf51f1d0-fc47-4980-9768-976caa53c7d7","policy":"2026-10-15.1","reason":"scope_or_relationship_denied","resource":"job","action":"edit","actor":"0b738a61e1099b2e","tenant":"9dd29201f33bf05d"}
+✔ execution rechecks current publication and actor, report exposes no student content (22.489084ms)
+✔ expired worker token cannot commit after another worker recovers the job (9.971542ms)
+✔ production worker entry point dispatches a pending publication and emits the existing live inbox hint (2151.462708ms)
+✔ optional RLS ledger policy denies an unset or different school to a non-bypass role (111.988125ms)
+✔ actual webhook rejects invalid signatures, mutated bytes and unsigned bodies without mutations (56.854708ms)
+✔ signed out-of-order receipts are durable, duplicate-idempotent and preserve the originating intent (13.563875ms)
+✔ signed timestamp validation rejects pre-origin/future/malformed events and permits provider-second precision (5.52525ms)
+✔ wrong account/malformed envelope is ignored; unknown or unsent origin requests retry without mutations (5.490625ms)
+✔ ambiguous cross-tenant provider identity fails closed, then a unique origin accepts replay once (6.241833ms)
+✔ callback arriving before provider identity persistence is retried and stores exactly once after recovery (3.7005ms)
+✔ webhook size limit rejects before persistence and missing signing configuration fails closed (4.167541ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3414.231208

@@ -57,8 +57,8 @@ export function UrduInput({
           type="button"
           className={`shrink-0 rounded-xl px-2.5 transition-all ${
             showKeyboard
-              ? "bg-[#8127cf] text-white shadow-lg shadow-[#8127cf]/20"
-              : "bg-[#f3f4f9] text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+              ? "bg-primary text-white shadow-lg shadow-primary/20"
+              : "bg-muted text-ink-muted hover:bg-brand-50 hover:text-primary"
           }`}
           onClick={() => setShowKeyboard(!showKeyboard)}
           title="Urdu keyboard"
@@ -68,12 +68,12 @@ export function UrduInput({
       </div>
 
       {showKeyboard && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-2xl border border-[#cfc2d6]/25 bg-white p-2.5 shadow-xl shadow-black/10">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-2xl border border-edge/25 bg-white p-2.5 shadow-xl shadow-black/10">
           <div className="mb-1.5 flex items-center justify-between px-1">
-            <span className="text-[10px] font-bold text-ink-muted">اردو کی بورڈ</span>
+            <span className="text-2xs font-bold text-ink-muted">اردو کی بورڈ</span>
             <button
               type="button"
-              className="rounded-lg p-0.5 text-ink-subtle hover:text-[#8127cf]"
+              className="rounded-lg p-0.5 text-ink-subtle hover:text-primary"
               onClick={() => setShowKeyboard(false)}
             >
               <X className="h-3 w-3" />
@@ -87,8 +87,8 @@ export function UrduInput({
                   type="button"
                   className={`flex-1 rounded-lg py-1.5 text-sm font-semibold transition-all ${
                     char === " "
-                      ? "bg-[#f3f4f9] text-[10px] text-ink-subtle hover:bg-[#fbf0fe]"
-                      : "bg-[#f3f4f9] text-[#1f1a23] hover:bg-[#8127cf] hover:text-white active:scale-95"
+                      ? "bg-muted text-2xs text-ink-subtle hover:bg-brand-50"
+                      : "bg-muted text-ink-strong hover:bg-primary hover:text-white active:scale-95"
                   }`}
                   onClick={() => {
                     onChange(value + char);
@@ -102,14 +102,14 @@ export function UrduInput({
           <div className="mt-0.5 flex gap-0.5">
             <button
               type="button"
-              className="flex-1 rounded-lg bg-[#f3f4f9] py-1.5 text-[10px] font-bold text-ink-muted hover:bg-red-50 hover:text-red-500 active:scale-95"
+              className="flex-1 rounded-lg bg-muted py-1.5 text-2xs font-bold text-ink-muted hover:bg-red-50 hover:text-red-500 active:scale-95"
               onClick={() => onChange(value.slice(0, -1))}
             >
               ← Backspace
             </button>
             <button
               type="button"
-              className="flex-1 rounded-lg bg-[#f3f4f9] py-1.5 text-[10px] font-bold text-ink-muted hover:bg-red-50 hover:text-red-500 active:scale-95"
+              className="flex-1 rounded-lg bg-muted py-1.5 text-2xs font-bold text-ink-muted hover:bg-red-50 hover:text-red-500 active:scale-95"
               onClick={() => onChange("")}
             >
               Clear

@@ -10,7 +10,6 @@ import {
   Clock,
   DoorOpen,
   GraduationCap,
-  Loader2,
   Pencil,
   Plus,
   Printer,
@@ -19,8 +18,24 @@ import {
   User,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { Badge } from "@/components/ui/badge";
 import { Modal, ModalActions } from "@/components/ui/modal";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Tooltip } from "@/components/ui/tooltip";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { TimetableScopeControls, timetableScopeCopy, useTimetableScope } from "./TimetableScopeControls";
+import { timetablePeriods } from "@/lib/timetable/view-scope";
+import { AddPeriodDialog, addPeriodCopy } from "./AddPeriodDialog";
+import { PeriodChangeReview } from "./PeriodChangeReview";
+import { planPeriodChanges, type PeriodConfiguration } from "@/lib/timetable/period-changes";
+
 
 // ─── Types ────────────────────────────────────────────────
 interface SlotData {
@@ -82,6 +97,7 @@ const DAYS = [
   { num: 4, short: "Thu", full: "Thursday" },
   { num: 5, short: "Fri", full: "Friday" },
   { num: 6, short: "Sat", full: "Saturday" },
+  { num: 7, short: "Sun", full: "Sunday" },
 ];
 
 const SUBJECT_COLORS = [
@@ -98,10 +114,10 @@ const SUBJECT_COLORS = [
 ];
 
 const SLOT_TYPE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  BREAK: { bg: "bg-[#f3f4f9]", text: "text-ink-muted", label: "Break" },
-  PRAYER: { bg: "bg-amber-50/80", text: "text-amber-600/60", label: "Prayer / Namaz" },
-  ASSEMBLY: { bg: "bg-blue-50/80", text: "text-blue-600/60", label: "Assembly" },
-  ACTIVITY: { bg: "bg-emerald-50/80", text: "text-emerald-600/60", label: "Activity" },
+  BREAK: { bg: "bg-muted", text: "text-ink-muted", label: "Break" },
+  PRAYER: { bg: "bg-status-warning-surface/80", text: "text-status-warning-text/80", label: "Prayer / Namaz" },
+  ASSEMBLY: { bg: "bg-status-info-surface/80", text: "text-status-info-text/80", label: "Assembly" },
+  ACTIVITY: { bg: "bg-status-success-surface/80", text: "text-status-success-text/80", label: "Activity" },
 };
 
 type GridPeriod = { num: number; start: string; end: string; type: string };
@@ -110,26 +126,26 @@ type GridDay = { num: number; short: string; full: string };
 function TimetableGridSkeleton({ periods, visibleDays }: { periods: GridPeriod[]; visibleDays: GridDay[] }) {
   return (
     <div className="min-w-[800px]">
-      <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
+      <div className="grid border-b border-muted" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
         <div className="flex items-center justify-center p-3">
-          <div className="h-4 w-4 rounded bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-4 w-4 rounded bg-border-subtle/50 skeleton-shimmer" />
         </div>
         {visibleDays.map((day) => (
-          <div key={day.num} className="flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9]">
-            <div className="h-3 w-10 rounded bg-[#e8e0ec]/50 skeleton-shimmer" />
-            <div className="h-2 w-12 mt-1 rounded bg-[#e8e0ec]/40 skeleton-shimmer" />
+          <div key={day.num} className="flex flex-col items-center justify-center py-3 border-s border-muted">
+            <div className="h-3 w-10 rounded bg-border-subtle/50 skeleton-shimmer" />
+            <div className="h-2 w-12 mt-1 rounded bg-border-subtle/40 skeleton-shimmer" />
           </div>
         ))}
       </div>
       {periods.map((p) => (
-        <div key={p.num} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
-          <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
-            <div className="h-3 w-6 rounded bg-[#e8e0ec]/50 skeleton-shimmer" />
-            <div className="h-2 w-10 mt-1 rounded bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div key={p.num} className="grid border-b border-muted last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
+          <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
+            <div className="h-3 w-6 rounded bg-border-subtle/50 skeleton-shimmer" />
+            <div className="h-2 w-10 mt-1 rounded bg-border-subtle/40 skeleton-shimmer" />
           </div>
           {visibleDays.map((day) => (
-            <div key={day.num} className="border-l border-[#f3f4f9] p-1">
-              <div className="h-full min-h-[48px] rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
+            <div key={day.num} className="border-s border-muted p-1">
+              <div className="h-full min-h-[48px] rounded-xl bg-border-subtle/30 skeleton-shimmer" />
             </div>
           ))}
         </div>
@@ -144,7 +160,12 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [classLoading, setClassLoading] = useState(false);
+  const { language } = useLocale();
+  const scopeCopy = timetableScopeCopy(language);
+  const addCopy = addPeriodCopy(language);
+  const [addingPeriod, setAddingPeriod] = useState(false);
+  const [periodReview, setPeriodReview] = useState<PeriodConfiguration[] | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<(() => void) | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -169,14 +190,17 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
   const qp = campusId ? `?campusId=${campusId}` : "";
 
+  // R4: a failed load is an inline ErrorState with retry (teachers, students and families read this screen).
+  const [loadFailed, setLoadFailed] = useState(false);
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       const [ttRes, classRes, teacherRes, periodRes, roomRes, calRes] = await Promise.all([
         fetch(`/api/timetable${qp}`),
         fetch(`/api/classes${qp}`),
         fetch(`/api/staff${qp}`),
-        fetch(`/api/academic/periods?timeType=CLASS${qp}`),
+        fetch(`/api/academic/periods?timeType=CLASS${campusId ? `&campusId=${encodeURIComponent(campusId)}` : ""}`),
         fetch(`/api/academic/rooms${qp}`),
         fetch(`/api/academic/calendar${qp}`),
       ]);
@@ -200,7 +224,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         setTeachers(teacherList);
       }
     } catch {
-      toast.error("Failed to load timetable data");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -208,43 +232,34 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const activeTimetable = useMemo(() => {
-    if (!selectedClassId) return null;
-    return timetables.find((t) => t.classId === selectedClassId) || null;
-  }, [timetables, selectedClassId]);
+  const scope = useTimetableScope(timetables, classes, campusId);
+  const scopeClasses = useMemo(() => {
+    const options = classes.filter(cls => cls.academicYear === scope.year || timetables.some(timetable => timetable.classId === cls.id && timetable.academicYear === scope.year));
+    for (const timetable of timetables) if (timetable.academicYear === scope.year && !options.some(cls => cls.id === timetable.classId)) options.push({ ...timetable.class, academicYear: scope.year });
+    return options;
+  }, [classes, timetables, scope.year]);
+  const activeTimetable = scope.exact.find(timetable => timetable.classId === selectedClassId) || null;
+  const changing = creating || saving || publishing;
+  const changeSelection = (change: () => void) => {
+    if (changing) return;
+    if (pendingChanges.size) { setPendingSelection(() => change); return; }
+    setEditingSlot(null); change();
+  };
+  const finishSelection = () => { setPendingChanges(new Map()); setEditingSlot(null); pendingSelection?.(); setPendingSelection(null); };
+
 
   useEffect(() => {
+    setSubjects([]);
     if (!selectedClassId || !activeTimetable) return;
-    fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : ""}`)
+    const controller = new AbortController();
+    fetch(`/api/subjects?classId=${selectedClassId}${campusId ? `&campusId=${campusId}` : ""}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((j) => {
-        if (j.success || Array.isArray(j.data)) setSubjects(j.data || []);
+        if (!controller.signal.aborted && (j.success || Array.isArray(j.data))) setSubjects(j.data || []);
       })
       .catch(() => {});
+    return () => controller.abort();
   }, [selectedClassId, activeTimetable, campusId]);
-
-  // When a class is selected, make sure its slot data is present. The initial
-  // load may not have populated this class's slots yet, so show an inner
-  // skeleton in the grid until the data arrives (typically 3-4s on first open).
-  useEffect(() => {
-    if (!selectedClassId) return;
-    const existing = timetables.find((t) => t.classId === selectedClassId);
-    if (!existing || existing.slots.length > 0) return;
-    let cancelled = false;
-    setClassLoading(true);
-    fetch(`/api/timetable?classId=${selectedClassId}${qp}`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (cancelled || !j.success) return;
-        const fetched = Array.isArray(j.data) ? j.data[0] : null;
-        if (fetched) {
-          setTimetables((prev) => prev.map((t) => (t.classId === selectedClassId ? fetched : t)));
-        }
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setClassLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedClassId, timetables, qp]);
 
   const subjectColorMap = useMemo(() => {
     const m = new Map<string, typeof SUBJECT_COLORS[0]>();
@@ -261,28 +276,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
     [activeTimetable]
   );
 
-  const periods = useMemo(() => {
-    if (!activeTimetable) return [];
-    // Prefer campus-wide period definitions (Module 12) as the row headers;
-    // fall back to deriving them from the timetable's own slots.
-    if (periodDefs.length > 0) {
-      return [...periodDefs]
-        .sort((a, b) => a.periodNumber - b.periodNumber)
-        .map((p) => {
-          const slot = activeTimetable.slots.find((s) => s.periodNumber === p.periodNumber);
-          return { num: p.periodNumber, start: p.startTime, end: p.endTime, type: slot?.slotType || "CLASS" };
-        });
-    }
-    const seen = new Map<number, { start: string; end: string; type: string }>();
-    for (const s of activeTimetable.slots) {
-      if (!seen.has(s.periodNumber)) {
-        seen.set(s.periodNumber, { start: s.startTime, end: s.endTime, type: s.slotType });
-      }
-    }
-    return [...seen.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([num, v]) => ({ num, ...v }));
-  }, [activeTimetable, periodDefs]);
+  const periods = useMemo(() => timetablePeriods(viewMode === "class" ? activeTimetable?.slots || [] : scope.resources.flatMap(timetable => timetable.slots), periodDefs), [viewMode, activeTimetable, scope.resources, periodDefs]);
 
   const defaultPeriods = [
     { period: 1, start: "08:00", end: "08:40", type: "CLASS" },
@@ -303,7 +297,6 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
     if (!selectedClassId) return;
     setCreating(true);
     try {
-      const cls = classes.find((c) => c.id === selectedClassId);
       const fromDefs =
         periodDefs.length > 0
           ? periodDefs
@@ -315,20 +308,22 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           classId: selectedClassId,
-          academicYear: cls?.academicYear || new Date().getFullYear(),
+          campusId,
+          academicYear: scope.year,
+          term: scope.term,
           periods: periods || fromDefs || defaultPeriods,
         }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable created!");
+        toast.success(ui("Timetable created. Add lessons to each period."));
         setCustomPeriods([]);
         await loadData();
       } else {
-        toast.error(json.error || "Failed to create");
+        toast.error(json.error || "Could not create the timetable. Please try again.");
       }
     } catch {
-      toast.error("Failed to create timetable");
+      toast.error(ui("Could not create the timetable. Check your connection and try again."));
     } finally {
       setCreating(false);
     }
@@ -370,16 +365,16 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable saved!");
+        toast.success(ui("Timetable changes saved."));
         setPendingChanges(new Map());
         await loadData();
       } else if (json.conflicts) {
         json.conflicts.forEach((c: string) => toast.error(c));
       } else {
-        toast.error(json.error || "Failed to save");
+        toast.error(json.error || "Could not save the timetable. Please try again.");
       }
     } catch {
-      toast.error("Failed to save timetable");
+      toast.error(ui("Could not save the timetable. Check your connection and try again."));
     } finally {
       setSaving(false);
     }
@@ -397,76 +392,75 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       });
       const json = await res.json();
       if (json.success) {
-        toast.success(action === "publish" ? "Timetable published! Teachers and students can now see it." : "Timetable unpublished");
+        toast.success(action === "publish" ? "Timetable published! Teachers and students can now see it." : "Timetable unpublished. It is back to draft.");
         await loadData();
       } else {
-        toast.error(json.error || "Failed");
+        toast.error(json.error || "Could not change the timetable status. Please try again.");
       }
     } catch {
-      toast.error("Action failed");
+      toast.error(ui("Could not change the timetable status. Check your connection and try again."));
     } finally {
       setPublishing(false);
     }
   };
 
-  const handleSavePeriodConfig = async (periods: { period: number; start: string; end: string; type: string }[]) => {
-    if (!activeTimetable) return;
+  const savePeriodConfig = async (configuration: PeriodConfiguration[]): Promise<boolean> => {
+    if (!activeTimetable) return false;
     setSaving(true);
     try {
-      const slotUpdates = activeTimetable.slots.map((s) => {
-        const cfg = periods.find((p) => p.period === s.periodNumber);
-        return {
-          id: s.id,
-          dayOfWeek: s.dayOfWeek,
-          periodNumber: s.periodNumber,
-          startTime: cfg?.start || s.startTime,
-          endTime: cfg?.end || s.endTime,
-          slotType: cfg?.type || s.slotType,
-          subjectId: s.subjectId,
-          teacherId: s.teacherId,
-          roomId: s.roomId,
-          roomNumber: s.roomNumber,
-        };
-      });
+      const { updates } = planPeriodChanges(activeTimetable.slots, configuration);
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slots: slotUpdates }),
+        body: JSON.stringify({ slots: updates }),
       });
       const json = await res.json();
       if (json.success) {
-        toast.success("Period config saved!");
+        toast.success(ui("Period settings saved."));
         await loadData();
-      } else {
-        toast.error(json.error || "Failed to save");
+        return true;
       }
+      toast.error(json.error || "Could not save the period settings. Please try again.");
+      return false;
     } catch {
-      toast.error("Failed to save period config");
+      toast.error(ui("Could not save the period settings. Check your connection and try again."));
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  const [confirmDeleteTimetable, setConfirmDeleteTimetable] = useState(false), [deletingTimetable, setDeletingTimetable] = useState(false);
+  const ui = useUiText();
+  const handleSavePeriodConfig = (configuration: PeriodConfiguration[]) => {
+    if (!activeTimetable || pendingChanges.size > 0 || changing) return;
+    if (planPeriodChanges(activeTimetable.slots, configuration).clearing.length) setPeriodReview(configuration);
+    else void savePeriodConfig(configuration);
+  };
 
-  const handleDeleteTimetable = async () => {
+  // SKO-389: deletion is confirmed in a labelled dialog; the server refuses it once substitute history exists.
+  const handleDeleteTimetable = () => { if (activeTimetable) setConfirmDeleteTimetable(true); };
+  const deleteTimetable = async () => {
     if (!activeTimetable) return;
-    if (!confirm("Delete this timetable? This cannot be undone.")) return;
+    setDeletingTimetable(true);
     try {
       const res = await fetch(`/api/timetable/${activeTimetable.id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) {
-        toast.success("Timetable deleted");
+        toast.success(ui("Timetable deleted"));
         await loadData();
       } else {
-        toast.error(json.error || "Failed to delete");
+        toast.error(json.error || "Could not delete the timetable. Please try again.");
       }
     } catch {
-      toast.error("Failed to delete");
+      toast.error(ui("Could not delete the timetable. Check your connection and try again."));
+    } finally {
+      setDeletingTimetable(false); setConfirmDeleteTimetable(false);
     }
   };
 
   const teacherSlotMap = useMemo(() => {
     const map = new Map<string, { classLabel: string; day: number; period: number; subject: string; start: string; end: string }[]>();
-    for (const tt of timetables) {
+    for (const tt of scope.resources) {
       const clsLabel = `${tt.class.name}${tt.class.section ? ` ${tt.class.section}` : ""}`;
       for (const s of tt.slots) {
         if (!s.teacherId) continue;
@@ -483,29 +477,33 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       }
     }
     return map;
-  }, [timetables]);
+  }, [scope.resources]);
 
   const selectedTeacherSlots = selectedTeacherId ? teacherSlotMap.get(selectedTeacherId) || [] : [];
+
+  if (loadFailed && !loading) {
+    return <ErrorState title={ui("The timetable could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void loadData()} />;
+  }
 
   if (loading) {
     return (
       <div className="flex flex-col gap-6 min-h-[100vh]">
-        <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 w-fit animate-skeleton-in">
-          <div className="h-9 w-24 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-9 w-28 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 w-fit animate-skeleton-in">
+          <div className="h-9 w-24 rounded-xl bg-border-subtle/50 skeleton-shimmer" />
+          <div className="h-9 w-28 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
         </div>
-        <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto animate-skeleton-in" style={{ animationDelay: "80ms" }}>
+        <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto animate-skeleton-in" style={{ animationDelay: "80ms" }}>
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-9 w-20 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+            <div key={i} className="h-9 w-20 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
           ))}
         </div>
-        <div className="rounded-[28px] border border-[#cfc2d6]/10 bg-white shadow-xl p-4 flex-1 min-h-[400px] animate-skeleton-in" style={{ animationDelay: "160ms" }}>
+        <div className="sk-panel p-4 flex-1 min-h-[400px] animate-skeleton-in" style={{ animationDelay: "160ms" }}>
           <div className="space-y-3">
             {Array.from({ length: periodDefs.length || 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="h-10 w-16 rounded-xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+                <div className="h-10 w-16 rounded-xl bg-border-subtle/40 skeleton-shimmer" />
                 {Array.from({ length: visibleDays.length }).map((_, j) => (
-                  <div key={j} className="h-10 flex-1 rounded-xl bg-[#e8e0ec]/30 skeleton-shimmer" />
+                  <div key={j} className="h-10 flex-1 rounded-xl bg-border-subtle/30 skeleton-shimmer" />
                 ))}
               </div>
             ))}
@@ -516,58 +514,58 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
+      <TimetableScopeControls year={scope.year} term={scope.term} years={scope.years} terms={scope.terms} disabled={changing} onYear={year => changeSelection(() => { scope.setYear(year); setSelectedClassId(null); })} onTerm={term => changeSelection(() => scope.setTerm(term))} />
+      <ConfirmAction open={pendingSelection !== null} title={scopeCopy.changeTitle} description={scopeCopy.changeHint} confirmLabel={scopeCopy.discard} cancelLabel={scopeCopy.keep} onCancel={() => setPendingSelection(null)} onConfirm={finishSelection} />
+      <ConfirmAction open={confirmDeleteTimetable} title={ui("Delete this timetable?")} description={ui("Its lessons are removed from this class's weekly schedule. Attendance and marks already recorded are not affected. A timetable with substitute history cannot be deleted.")} confirmLabel={ui("Delete timetable")} tone="danger" busy={deletingTimetable} onCancel={() => setConfirmDeleteTimetable(false)} onConfirm={() => void deleteTimetable()} />
+      {addingPeriod && activeTimetable && <AddPeriodDialog key={activeTimetable.id} timetableId={activeTimetable.id} slots={activeTimetable.slots} definitions={periodDefs} weekendDays={weekendDays} onClose={() => setAddingPeriod(false)} onAdded={slot => { setTimetables(previous => previous.map(timetable => timetable.id === activeTimetable.id ? { ...timetable, slots: [...timetable.slots.filter(existing => existing.id !== slot.id), slot] } : timetable)); toast.success(addCopy.saved); }} />}
       {/* View mode tabs */}
-      <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 w-fit">
-        <button
+      <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 w-fit">
+        <Button aria-pressed={viewMode === "class"} variant="choice" size="sm"
           type="button"
           onClick={() => setViewMode("class")}
-          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-            viewMode === "class" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-          }`}
+          className="class"
         >
-          <Calendar className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Class View
-        </button>
-        <button
+          <Calendar className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Class View
+        </Button>
+        <Button aria-pressed={viewMode === "teacher"} variant="choice" size="sm"
           type="button"
           onClick={() => setViewMode("teacher")}
-          className={`rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-            viewMode === "teacher" ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]"
-          }`}
+          className="teacher"
         >
-          <User className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" />Teacher View
-        </button>
+          <User className="w-3.5 h-3.5 inline me-1.5 -mt-0.5" />Teacher View
+        </Button>
       </div>
 
       {viewMode === "teacher" ? (
         <>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <select
+              <SystemSelect
                 value={selectedTeacherId}
                 onChange={(e) => setSelectedTeacherId(e.target.value)}
-                className="h-11 rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 pr-10 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 appearance-none cursor-pointer"
+                className="px-4 pe-10 appearance-none"
               >
                 <option value="">— Select teacher —</option>
                 {teachers.map((t) => (
                   <option key={t.id} value={t.id}>{t.fullName}</option>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" />
+              </SystemSelect>
+
             </div>
             {selectedTeacherId && (
-              <span className="text-[10px] font-bold text-ink-muted">
+              <span className="text-2xs font-bold text-ink-muted">
                 {selectedTeacherSlots.length} slot{selectedTeacherSlots.length !== 1 ? "s" : ""} assigned
               </span>
             )}
             {selectedTeacherId && (
-              <button
+              <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => window.print()}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Printer className="h-3.5 w-3.5" />Print Routine
-              </button>
+              </Button>
             )}
           </div>
 
@@ -580,50 +578,50 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           )}
 
           {selectedTeacherId && (
-            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
               <div className="min-w-[800px]">
-                <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
+                <div className="grid border-b border-muted" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                   <div className="flex items-center justify-center p-3">
                     <Clock className="w-4 h-4 text-ink-subtle" />
                   </div>
                   {visibleDays.map((day) => (
-                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${weekendDays.includes(day.num) ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-s border-muted ${weekendDays.includes(day.num) ? "opacity-50 bg-muted/70" : ""}`}>
+                      <span className="text-2xs font-semibold text-ink-subtle">{day.short}</span>
+                      <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {weekendDays.includes(day.num) && (
-                        <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-[7px] font-black uppercase text-rose-500">Off</span>
+                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold text-status-error-text">Off</span>
                       )}
                     </div>
                   ))}
                 </div>
 
                 {periods.length > 0 ? periods.map((period) => (
-                  <div key={period.num} className="grid border-b border-[#f3f4f9] last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
-                    <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
-                      <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{period.start}</span>
+                  <div key={period.num} className="grid border-b border-muted last:border-b-0" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
+                    <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
+                      <span className="text-2xs font-bold text-primary">P{period.num}</span>
+                      <span className="text-2xs font-medium tabular-nums text-ink-subtle mt-0.5">{period.start}</span>
                     </div>
                     {visibleDays.map((day) => {
                       const isOff = weekendDays.includes(day.num);
                       const slotInfo = selectedTeacherSlots.find((s) => s.day === day.num && s.period === period.num);
                       const isConflict = selectedTeacherSlots.filter((s) => s.day === day.num && s.period === period.num).length > 1;
                       return (
-                        <div key={day.num} className={`border-l border-[#f3f4f9] p-1 ${isOff ? "opacity-40 bg-[#f3f4f9]/70" : ""}`}>
+                        <div key={day.num} className={`border-s border-muted p-1 ${isOff ? "opacity-40 bg-muted/70" : ""}`}>
                           {slotInfo ? (
-                            <div className={`h-full rounded-xl p-2 flex flex-col justify-center ${isConflict ? "bg-rose-100 border border-rose-300" : "bg-emerald-50 border border-emerald-200"}`}>
-                              <p className={`text-[10px] font-black leading-tight ${isConflict ? "text-rose-700" : "text-emerald-700"}`}>
+                            <div className={`h-full rounded-xl p-2 flex flex-col justify-center ${isConflict ? "bg-status-error-surface border border-status-error-border" : "bg-status-success-surface border border-status-success-border"}`}>
+                              <p className={`text-2xs font-bold leading-tight ${isConflict ? "text-status-error-text" : "text-status-success-text"}`}>
                                 {slotInfo.subject}
                               </p>
-                              <p className="text-[8px] font-semibold text-ink-muted mt-0.5">
+                              <p className="text-3xs font-semibold text-ink-muted mt-0.5">
                                 {slotInfo.classLabel}
                               </p>
                               {isConflict && (
-                                <span className="text-[7px] font-black uppercase text-rose-600 mt-0.5">CONFLICT</span>
+                                <span className="text-3xs font-semibold text-status-error-text mt-0.5">CONFLICT</span>
                               )}
                             </div>
                           ) : (
-                            <div className="h-full rounded-xl border border-dashed border-[#cfc2d6]/15 flex items-center justify-center">
-                              <span className="text-[8px] font-semibold text-ink-subtle">—</span>
+                            <div className="h-full rounded-xl border border-dashed border-edge/15 flex items-center justify-center">
+                              <span className="text-3xs font-semibold text-ink-subtle">—</span>
                             </div>
                           )}
                         </div>
@@ -631,9 +629,7 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     })}
                   </div>
                 )) : (
-                  <div className="flex items-center justify-center py-16 text-sm font-semibold text-ink-subtle">
-                    No timetable periods found. Create timetables for classes first.
-                  </div>
+                  <EmptyState size="sm" icon={Clock} title={ui("No timetable periods found")} description={ui("Create timetables for classes first.")} />
                 )}
               </div>
             </div>
@@ -643,26 +639,23 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
         <>
       {/* Class selector bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-1 overflow-x-auto">
-          {classes.map((cls) => {
-            const hasTimetable = timetables.some((t) => t.classId === cls.id);
-            const isPublished = timetables.find((t) => t.classId === cls.id)?.status === "PUBLISHED";
+        <div className="flex items-center gap-2 rounded-2xl bg-muted p-1 overflow-x-auto">
+          {scopeClasses.map((cls) => {
+            const hasTimetable = scope.exact.some((t) => t.classId === cls.id);
+            const isPublished = scope.exact.find((t) => t.classId === cls.id)?.status === "PUBLISHED";
             return (
-              <button
+              <Button aria-pressed={selectedClassId === cls.id} variant="choice" size="sm"
                 key={cls.id}
                 type="button"
-                onClick={() => setSelectedClassId(cls.id)}
-                className={`relative flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
-                  selectedClassId === cls.id
-                    ? "bg-white text-[#8127cf] shadow-sm"
-                    : "text-ink-muted hover:text-[#8127cf]"
-                }`}
+                onClick={() => changeSelection(() => setSelectedClassId(cls.id))}
+                disabled={changing}
+                className="relative flex justify-start items-center gap-1.5 whitespace-nowrap"
               >
                 {cls.name}{cls.section ? ` - ${cls.section}` : ""}
                 {hasTimetable && (
-                  <span className={`ml-1 h-1.5 w-1.5 rounded-full ${isPublished ? "bg-emerald-500" : "bg-amber-400"}`} />
+                  <span className={`ms-1 h-1.5 w-1.5 rounded-full ${isPublished ? "bg-status-success-text" : "bg-status-warning-text"}`} />
                 )}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -671,40 +664,40 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
       {!selectedClassId && (
         <EmptyStateCard
           icon={Calendar}
-          title="Select a Class"
-          description="Choose a class above to view or create its weekly timetable"
+          title={ui("Select a Class")}
+          description={ui("Choose a class above to view or create its weekly timetable")}
         />
       )}
 
       {selectedClassId && !activeTimetable && (
-        <div className="sk-rise flex flex-col items-center justify-center py-16" style={{ animationDelay: "120ms" }}>
-          <div className="h-20 w-20 rounded-[32px] bg-gradient-to-br from-[#8127cf]/10 to-[#fbf0fe] flex items-center justify-center mb-6">
-            <Calendar className="w-10 h-10 text-[#8127cf]/40" />
-          </div>
-          <h3 className="text-lg font-black text-[#1f1a23] mb-2">No Timetable Yet</h3>
-          <p className="text-sm text-ink-muted mb-8 max-w-sm text-center">
-            Create a weekly schedule for this class with configurable period timings ({visibleDays.map((d) => d.short).join("–")})
-          </p>
-          <div className="flex items-center gap-3">
-            <button
+        <EmptyState
+          className="sk-enter"
+          icon={Calendar}
+          title={ui("No timetable yet")}
+          description={ui("Create a weekly schedule for this class with configurable period timings ({0}).", [visibleDays.map((d) => d.short).join("–")])}
+          secondaryAction={
+            <Button variant="outline"
               type="button"
               onClick={() => { setCustomPeriods(defaultPeriods.map((p) => ({ ...p }))); setShowPeriodConfig(true); }}
-              className="flex items-center gap-2 rounded-2xl border-2 border-[#8127cf]/20 bg-white px-6 py-3 text-sm font-black text-[#8127cf] transition-all hover:border-[#8127cf]/40 cursor-pointer"
+              className="flex justify-start items-center gap-2"
             >
-              <Clock className="w-4 h-4" />
+              <Clock className="w-4 h-4" aria-hidden="true" />
               Configure Periods
-            </button>
-            <button
+            </Button>
+          }
+          action={
+            <Button variant="default"
               type="button"
               onClick={() => handleCreateTimetable()}
               disabled={creating}
-              className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-3 text-sm font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl hover:shadow-[#8127cf]/30 cursor-pointer disabled:opacity-50"
+              loading={creating}
+              className="flex justify-start items-center gap-2"
             >
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {!creating && <Plus className="h-4 w-4" aria-hidden="true" />}
               Quick Create (Default)
-            </button>
-          </div>
-        </div>
+            </Button>
+          }
+        />
       )}
 
       {selectedClassId && activeTimetable && (
@@ -712,72 +705,69 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           {/* Action bar */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${
-                activeTimetable.status === "PUBLISHED"
-                  ? "bg-emerald-50 text-emerald-600"
-                  : "bg-amber-50 text-amber-600"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${
-                  activeTimetable.status === "PUBLISHED" ? "bg-emerald-500" : "bg-amber-400"
-                }`} />
-                {activeTimetable.status}
-              </div>
+              <Badge variant={activeTimetable.status === "PUBLISHED" ? "success" : "warning"} dot>
+                {activeTimetable.status === "PUBLISHED" ? ui("Published") : ui("Draft")}
+              </Badge>
               {pendingChanges.size > 0 && (
-                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 rounded-lg px-2 py-1">
-                  {pendingChanges.size} unsaved change{pendingChanges.size > 1 ? "s" : ""}
-                </span>
+                <Badge variant="warning" size="sm" className="tabular-nums">
+                  {pendingChanges.size === 1 ? ui("1 unsaved change") : ui("{0} unsaved changes", [pendingChanges.size])}
+                </Badge>
               )}
             </div>
             <div className="flex items-center gap-2">
-              <button
+              {(() => {
+                const addDisabled = activeTimetable.status !== "DRAFT" || changing || pendingChanges.size > 0;
+                const addButton = <Button variant="outline" size="sm" disabled={addDisabled} onClick={() => setAddingPeriod(true)}><Plus aria-hidden="true" />{addCopy.title}</Button>;
+                return addDisabled ? <Tooltip content={addCopy.draftOnly}><span tabIndex={0} className="inline-flex">{addButton}</span></Tooltip> : addButton;
+              })()}
+              <Button variant="secondary" size="sm"
                 type="button"
+                disabled={changing || pendingChanges.size > 0}
                 onClick={() => {
                   const p = periods.map((pp) => ({ period: pp.num, start: pp.start, end: pp.end, type: pp.type }));
                   setCustomPeriods(p);
                   setShowPeriodConfig(true);
                 }}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Clock className="h-3.5 w-3.5" />Periods
-              </button>
-              <button
+              </Button>
+              <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => window.print()}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-3 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-all hover:bg-[#8127cf]/10 hover:text-[#8127cf] cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Printer className="h-3.5 w-3.5" />Print
-              </button>
-              <button
+              </Button>
+              <Button variant="destructive" size="sm"
                 type="button"
                 onClick={handleDeleteTimetable}
-                className="flex h-9 items-center gap-1.5 rounded-xl bg-rose-50 px-3 text-[10px] font-black uppercase tracking-wider text-rose-600 transition-all hover:bg-rose-100 cursor-pointer"
+                className="flex justify-start items-center gap-1.5"
               >
                 <Trash2 className="h-3.5 w-3.5" />Delete
-              </button>
+              </Button>
               {pendingChanges.size > 0 && (
-                <button
+                <Button variant="default" size="sm"
                   type="button"
                   onClick={handleSaveAll}
                   disabled={saving}
-                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0] cursor-pointer disabled:opacity-50"
+                  loading={saving}
+                  className="flex justify-start items-center gap-1.5"
                 >
-                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  {!saving && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
                   Save Changes
-                </button>
+                </Button>
               )}
-              <button
+              <Button variant={activeTimetable?.status === "PUBLISHED" ? "secondary" : "default"} size="sm"
                 type="button"
                 onClick={handlePublish}
-                disabled={publishing}
-                className={`flex h-9 items-center gap-1.5 rounded-xl px-4 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 ${
-                  activeTimetable.status === "PUBLISHED"
-                    ? "bg-amber-50 text-amber-600 hover:bg-amber-100"
-                    : "bg-emerald-500 text-white hover:bg-emerald-600"
-                }`}
+                disabled={changing || pendingChanges.size > 0}
+                loading={publishing}
+                className="flex justify-start items-center gap-1.5"
               >
-                {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {!publishing && <Send className="h-3.5 w-3.5" aria-hidden="true" />}
                 {activeTimetable.status === "PUBLISHED" ? "Unpublish" : "Publish"}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -786,11 +776,11 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
             {subjects.map((s) => {
               const c = subjectColorMap.get(s.id);
               return (
-                <div key={s.id} className={`flex items-center gap-1.5 rounded-xl ${c?.bg || "bg-gray-100"} px-3 py-1.5`}>
-                  <span className={`h-2 w-2 rounded-full ${c?.dot || "bg-gray-400"}`} />
-                  <span className={`text-[10px] font-black ${c?.text || "text-gray-600"}`}>{s.name}</span>
+                <div key={s.id} className={`flex items-center gap-1.5 rounded-xl ${c?.bg || "bg-surface-subtle"} px-3 py-1.5`}>
+                  <span className={`h-2 w-2 rounded-full ${c?.dot || "bg-ink-faint"}`} />
+                  <span className={`text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{s.name}</span>
                   {s.teacher && (
-                    <span className="text-[9px] font-semibold text-ink-subtle ml-1">({s.teacher.fullName})</span>
+                    <span className="text-2xs font-semibold text-ink-subtle ms-1">({s.teacher.fullName})</span>
                   )}
                 </div>
               );
@@ -798,26 +788,26 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           </div>
 
           {/* Timetable Grid */}
-          {classLoading ? (
-            <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          {loading ? (
+            <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
               <TimetableGridSkeleton periods={gridSkeletonPeriods} visibleDays={visibleDays} />
             </div>
           ) : (
-          <div className="sk-rise overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "160ms" }}>
+          <div className="sk-panel sk-rise overflow-x-auto" style={{ animationDelay: "160ms" }}>
             <div className="min-w-[800px]">
               {/* Header row */}
-              <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
+              <div className="grid border-b border-muted" style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}>
                 <div className="flex items-center justify-center p-3">
                   <Clock className="w-4 h-4 text-ink-subtle" />
                 </div>
                 {visibleDays.map((day) => {
                   const isOff = weekendDays.includes(day.num);
                   return (
-                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-l border-[#f3f4f9] ${isOff ? "opacity-50 bg-[#f3f4f9]/70" : ""}`}>
-                      <span className="text-[10px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
-                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">{day.full}</span>
+                    <div key={day.num} className={`flex flex-col items-center justify-center py-3 border-s border-muted ${isOff ? "opacity-50 bg-muted/70" : ""}`}>
+                      <span className="text-2xs font-semibold text-ink-subtle">{day.short}</span>
+                      <span className="text-2xs font-medium text-ink-subtle mt-0.5">{day.full}</span>
                       {isOff && (
-                        <span className="mt-0.5 rounded bg-rose-50 px-1 py-px text-[7px] font-black uppercase text-rose-500">Off</span>
+                        <span className="mt-0.5 rounded bg-status-error-surface px-1 py-px text-3xs font-semibold text-status-error-text">Off</span>
                       )}
                     </div>
                   );
@@ -832,18 +822,18 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                 return (
                   <div
                     key={period.num}
-                    className={`grid border-b border-[#f3f4f9] last:border-b-0 transition-colors ${
-                      isSpecial ? specialStyle?.bg || "bg-[#f3f4f9]" : "hover:bg-[#fbf0fe]/20"
+                    className={`grid border-b border-muted last:border-b-0 transition-colors ${
+                      isSpecial ? specialStyle?.bg || "bg-muted" : "hover:bg-brand-50/20"
                     }`}
                     style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}
                   >
                     {/* Time column */}
-                    <div className="flex flex-col items-center justify-center p-2 border-r border-[#f3f4f9]">
-                      <span className="text-[10px] font-black text-[#8127cf]">P{period.num}</span>
-                      <span className="text-[8px] font-bold text-ink-subtle mt-0.5">
+                    <div className="flex flex-col items-center justify-center p-2 border-e border-muted">
+                      <span className="text-2xs font-bold text-primary">P{period.num}</span>
+                      <span className="text-2xs font-medium tabular-nums text-ink-subtle mt-0.5">
                         {period.start}
                       </span>
-                      <span className="text-[7px] font-semibold text-ink-subtle">
+                      <span className="text-3xs font-semibold text-ink-subtle">
                         {period.end}
                       </span>
                     </div>
@@ -851,9 +841,9 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                     {/* Day cells */}
                     {visibleDays.map((day) => {
                       const isOff = weekendDays.includes(day.num);
-                      const offCls = isOff ? "opacity-40 bg-[#f3f4f9]/70" : "";
+                      const offCls = isOff ? "opacity-40 bg-muted/70" : "";
                       const slot = getSlot(day.num, period.num);
-                      if (!slot) return <div key={day.num} className={`border-l border-[#f3f4f9] p-1 ${offCls}`} />;
+                      if (!slot) return <div key={day.num} className={`border-s border-muted p-1 ${offCls}`} />;
 
                       const effectiveType = pendingChanges.get(slot.id)?.slotType || slot.slotType;
 
@@ -862,10 +852,12 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                         return (
                           <div
                             key={day.num}
-                            className={`border-l border-[#f3f4f9] flex items-center justify-center p-1 cursor-pointer ${offCls}`}
-                            onClick={() => setEditingSlot(slot)}
+                            className={`border-s border-muted flex items-center justify-center p-1 cursor-pointer hover:bg-surface-hover transition-colors ${offCls}`}
+                            onClick={() => setEditingSlot(slot)} role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingSlot(slot); } }}
                           >
-                            <span className={`text-[9px] font-bold ${style?.text || "text-ink-subtle"}`}>
+                            <span className={`text-2xs font-bold ${style?.text || "text-ink-subtle"}`}>
                               {style?.label || effectiveType}
                             </span>
                           </div>
@@ -897,30 +889,32 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
                       return (
                         <div
                           key={day.num}
-                          className={`border-l border-[#f3f4f9] p-1 cursor-pointer group transition-all ${offCls}`}
-                          onClick={() => setEditingSlot(slot)}
+                          className={`border-s border-muted p-1 cursor-pointer group transition-all hover:bg-surface-hover ${offCls}`}
+                          onClick={() => setEditingSlot(slot)} role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingSlot(slot); } }}
                         >
                           {subjectName ? (
-                            <div className={`h-full rounded-xl ${color?.bg || "bg-gray-50"} ${color?.border || "border-gray-200"} border p-2 flex flex-col justify-between transition-all group-hover:shadow-md group-hover:scale-[1.02] ${hasChange ? "ring-2 ring-amber-300" : ""}`}>
+                            <div className={`h-full rounded-xl ${color?.bg || "bg-surface-subtle"}  ${color?.border || "border-border-subtle"} border p-2 flex flex-col justify-between transition-shadow group-hover:shadow-md ${hasChange ? "ring-2 ring-status-warning-border" : ""}`}>
                               <div>
-                                <p className={`text-[10px] font-black leading-tight ${color?.text || "text-gray-600"}`}>
+                                <p className={`text-2xs font-bold leading-tight ${color?.text || "text-ink-muted"}`}>
                                   {subjectName}
                                 </p>
                                 {teacherName && (
-                                  <p className="text-[8px] font-semibold text-ink-subtle mt-1 flex items-center gap-0.5">
+                                  <p className="text-3xs font-semibold text-ink-subtle mt-1 flex items-center gap-0.5">
                                     <User className="w-2.5 h-2.5" />{teacherName}
                                   </p>
                                 )}
                                 {roomName && (
-                                  <p className="text-[8px] font-semibold text-ink-subtle mt-0.5 flex items-center gap-0.5">
+                                  <p className="text-3xs font-semibold text-ink-subtle mt-0.5 flex items-center gap-0.5">
                                     <DoorOpen className="w-2.5 h-2.5" />{roomName}
                                   </p>
                                 )}
                               </div>
                             </div>
                           ) : (
-                            <div className="h-full rounded-xl border border-dashed border-[#cfc2d6]/20 flex items-center justify-center transition-all group-hover:border-[#8127cf]/30 group-hover:bg-[#fbf0fe]/30">
-                              <Plus className="w-3.5 h-3.5 text-ink-subtle group-hover:text-[#8127cf]/40 transition-colors" />
+                            <div className="h-full rounded-xl border border-dashed border-edge/20 flex items-center justify-center transition-all group-hover:border-primary/30 group-hover:bg-brand-50/30">
+                              <Plus className="w-3.5 h-3.5 text-ink-subtle group-hover:text-primary/40 transition-colors" />
                             </div>
                           )}
                         </div>
@@ -976,6 +970,8 @@ export function TimetablePanel({ campusId }: { campusId?: string }) {
           #routine-print-root { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
         }
       `}</style>
+
+      {periodReview && activeTimetable && <PeriodChangeReview clearing={planPeriodChanges(activeTimetable.slots, periodReview).clearing} onCancel={() => { setCustomPeriods(periodReview); setPeriodReview(null); setShowPeriodConfig(true); }} onConfirm={async () => { const saved = await savePeriodConfig(periodReview); if (saved) setPeriodReview(null); return saved; }} />}
 
       {/* Period Config Modal */}
       {showPeriodConfig && (
@@ -1080,50 +1076,50 @@ function PeriodConfigModal({
             nested a scroller inside the dialog's scroller — two scrollbars, and
             a wheel gesture that stalled at the inner edge. The dialog body is
             the only thing that scrolls now. */}
-        <div className="space-y-3 pr-1">
+        <div className="space-y-3 pe-1">
           {localPeriods.map((p, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-2xl bg-[#f3f4f9] p-3">
-              <span className="w-6 text-center text-[10px] font-black text-[#8127cf]">P{p.period}</span>
-              <input
+            <div key={i} className="flex items-center gap-2 rounded-2xl bg-muted p-3">
+              <span className="w-6 text-center text-2xs font-bold text-primary">P{p.period}</span>
+              <SystemInput
                 type="time"
                 value={p.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="w-28 px-3 py-2"
               />
-              <span className="text-[10px] font-bold text-ink-subtle">to</span>
-              <input
+              <span className="text-2xs font-bold text-ink-subtle">to</span>
+              <SystemInput
                 type="time"
                 value={p.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
-                className="w-28 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-xs font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+                className="w-28 px-3 py-2"
               />
-              <select
+              <SystemSelect
                 value={p.type}
                 onChange={(e) => updatePeriod(i, "type", e.target.value)}
-                className="flex-1 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 cursor-pointer"
+                className="flex-1 px-3 py-2"
               >
                 <option value="CLASS">Class</option>
                 <option value="BREAK">Break</option>
                 <option value="PRAYER">Prayer</option>
                 <option value="ASSEMBLY">Assembly</option>
                 <option value="ACTIVITY">Activity</option>
-              </select>
-              <button
+              </SystemSelect>
+              <Button variant="destructive" size="icon"
                 type="button"
                 onClick={() => removePeriod(i)}
-                className="h-8 w-8 rounded-xl bg-white flex items-center justify-center text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+                className="flex items-center justify-center"
               >
                 <X className="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </div>
           ))}
-          <button
+          <Button variant="outline" size="sm"
             type="button"
             onClick={addPeriod}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#cfc2d6]/30 py-3 text-[10px] font-black uppercase tracking-wider text-ink-subtle hover:border-[#8127cf]/30 hover:text-[#8127cf] transition-all cursor-pointer"
+            className="flex w-full items-center justify-center gap-2"
           >
             <Plus className="w-4 h-4" />Add Period
-          </button>
+          </Button>
         </div>
 
     </Modal>
@@ -1202,41 +1198,37 @@ function SlotEditorModal({
       onClose={onClose}
       footer={
         <div className="flex items-center justify-between gap-3">
-          <button
+          <Button variant="destructive" size="sm"
             type="button"
             onClick={handleClear}
-            className="flex items-center gap-1.5 rounded-xl bg-[#f3f4f9] px-4 py-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
             <X className="w-3 h-3" />Clear
-          </button>
-          <button
+          </Button>
+          <Button variant="default" size="sm"
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] px-6 py-2.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg shadow-[#8127cf]/20 hover:shadow-xl transition-all cursor-pointer"
+            className="flex justify-start items-center gap-1.5"
           >
             <Check className="w-3.5 h-3.5" />Apply
-          </button>
+          </Button>
         </div>
       }
     >
 
         <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Slot Type</label>
-            <div className="flex gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+            <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Slot Type</label>
+            <div className="flex gap-1 rounded-2xl bg-muted p-1">
               {["CLASS", "BREAK", "PRAYER", "ASSEMBLY", "ACTIVITY"].map((type) => (
-                <button
+                <Button aria-pressed={slotType === type} variant="choice" size="sm"
                   key={type}
                   type="button"
                   onClick={() => setSlotType(type)}
-                  className={`flex-1 rounded-xl px-2 py-1.5 text-[9px] font-black uppercase transition-all cursor-pointer ${
-                    slotType === type
-                      ? "bg-white text-[#8127cf] shadow-sm"
-                      : "text-ink-subtle hover:text-[#8127cf]"
-                  }`}
+                  className="flex-1"
                 >
                   {type}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -1244,39 +1236,39 @@ function SlotEditorModal({
           {slotType === "CLASS" && (
             <>
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Subject</label>
-                <select
+                <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Subject</label>
+                <SystemSelect
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No subject —</option>
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
-                </select>
+                </SystemSelect>
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Teacher</label>
-                <select
+                <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Teacher</label>
+                <SystemSelect
                   value={teacherId}
                   onChange={(e) => setTeacherId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No teacher —</option>
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>{t.fullName}</option>
                   ))}
-                </select>
+                </SystemSelect>
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-ink-muted mb-1.5 block">Room (Optional)</label>
-                <select
+                <label className="text-2xs font-semibold text-ink-muted mb-1.5 block">Room (Optional)</label>
+                <SystemSelect
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                  className="w-full px-4 py-2.5"
                 >
                   <option value="">— No room —</option>
                   {rooms.map((r) => (
@@ -1284,9 +1276,9 @@ function SlotEditorModal({
                       {r.roomNumber}{r.capacity > 0 ? ` (${r.capacity} seats)` : ""}
                     </option>
                   ))}
-                </select>
+                </SystemSelect>
                 {selectedRoom && selectedRoom.capacity > 0 && (
-                  <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">
+                  <p className="mt-1.5 text-2xs font-semibold text-ink-subtle">
                     Room capacity is {selectedRoom.capacity} — assigned classes should not exceed this (warning only).
                   </p>
                 )}
@@ -1317,7 +1309,7 @@ function RoutinePrintGrid({
         .routine-print h2 { font-size: 16px; font-weight: 800; margin: 0 0 12px; }
         .routine-print table { width: 100%; border-collapse: collapse; }
         .routine-print th, .routine-print td { border: 1px solid #ccc; padding: 6px 8px; font-size: 11px; text-align: center; vertical-align: top; }
-        .routine-print th { background: #f2eef5; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .routine-print th { background: #f2eef5; font-size: 10px; }
         .routine-print td.time { font-weight: 800; font-size: 10px; white-space: nowrap; }
         .routine-print .cell { font-weight: 700; }
         .routine-print .sub { font-weight: 400; color: #555; font-size: 9px; }
@@ -1360,10 +1352,10 @@ function RoutinePrintGrid({
 function EmptyStateCard({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
   return (
     <div className="sk-rise flex flex-col items-center justify-center py-20 text-center">
-      <div className="h-16 w-16 rounded-[28px] bg-[#fbf0fe] flex items-center justify-center mb-5">
-        <Icon className="w-8 h-8 text-[#8127cf]/30" />
+      <div className="h-16 w-16 rounded-[28px] bg-brand-50 flex items-center justify-center mb-5">
+        <Icon className="w-8 h-8 text-primary/30" />
       </div>
-      <h3 className="text-lg font-black text-[#1f1a23]">{title}</h3>
+      <h3 className="text-lg font-bold text-ink-strong">{title}</h3>
       <p className="mt-2 text-sm font-semibold text-ink-muted max-w-sm">{description}</p>
     </div>
   );
@@ -1386,6 +1378,7 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
   title?: string;
   weekendDays?: number[];
 }) {
+  const ui = useUiText();
   // Render only the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = useMemo(
     () => DAYS.filter((d) => !weekendDays.includes(d.num)),
@@ -1421,11 +1414,12 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
   };
 
   if (slots.length === 0) {
+    // R5: the shared EmptyState, not a local copy.
     return (
-      <EmptyStateCard
+      <EmptyState
         icon={Calendar}
-        title="No Timetable Available"
-        description="The timetable hasn't been published yet. Check back later."
+        title={ui("No timetable yet")}
+        description={ui("The timetable has not been published yet. Check back later.")}
       />
     );
   }
@@ -1434,10 +1428,10 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
     <div className="space-y-4">
       {title && (
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center">
-            <Calendar className="w-4 h-4 text-[#8127cf]" />
+          <div aria-hidden="true" className="h-8 w-8 rounded-xl bg-brand-50 flex items-center justify-center">
+            <Calendar className="w-4 h-4 text-primary" />
           </div>
-          <h3 className="text-sm font-black text-[#1f1a23]">{title}</h3>
+          <h3 className="text-sm font-bold text-ink-strong">{ui(title)}</h3>
         </div>
       )}
 
@@ -1446,23 +1440,23 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
         {subjectNames.map((name) => {
           const c = subjectColorMap.get(name);
           return (
-            <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg || "bg-gray-100"} px-2 py-1`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${c?.dot || "bg-gray-400"}`} />
-              <span className={`text-[9px] font-black ${c?.text || "text-gray-600"}`}>{name}</span>
+            <span key={name} className={`flex items-center gap-1 rounded-lg ${c?.bg || "bg-surface-subtle"} px-2 py-1`}>
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${c?.dot || "bg-ink-faint"}`} />
+              <bdi className={`text-2xs font-bold ${c?.text || "text-ink-muted"}`}>{name}</bdi>
             </span>
           );
         })}
       </div>
 
-      <div className="overflow-x-auto rounded-[24px] border border-[#cfc2d6]/10 bg-white shadow-lg">
+      <div className="sk-panel overflow-x-auto">
         <div className="min-w-[700px]">
-          <div className="grid border-b border-[#f3f4f9]" style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}>
+          <div className="grid border-b border-muted" style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}>
             <div className="flex items-center justify-center p-2">
-              <Clock className="w-3.5 h-3.5 text-ink-subtle" />
+              <Clock aria-label={ui("Time")} className="w-3.5 h-3.5 text-ink-subtle" />
             </div>
             {visibleDays.map((day) => (
-              <div key={day.num} className="flex items-center justify-center py-2.5 border-l border-[#f3f4f9]">
-                <span className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">{day.short}</span>
+              <div key={day.num} className="flex items-center justify-center py-2.5 border-s border-muted">
+                <abbr title={ui(day.full)} className="text-xs font-semibold text-ink-subtle no-underline">{ui(day.short)}</abbr>
               </div>
             ))}
           </div>
@@ -1474,23 +1468,23 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
             return (
               <div
                 key={period.num}
-                className={`grid border-b border-[#f3f4f9] last:border-b-0 ${isSpecial ? specialStyle?.bg || "bg-[#f3f4f9]" : ""}`}
+                className={`grid border-b border-muted last:border-b-0 ${isSpecial ? specialStyle?.bg || "bg-muted" : ""}`}
                 style={{ gridTemplateColumns: `70px repeat(${visibleDays.length}, 1fr)` }}
               >
-                <div className="flex flex-col items-center justify-center p-1.5 border-r border-[#f3f4f9]">
-                  <span className="text-[9px] font-black text-[#8127cf]">P{period.num}</span>
-                  <span className="text-[7px] font-bold text-ink-subtle">{period.start}</span>
+                <div className="flex flex-col items-center justify-center p-1.5 border-e border-muted">
+                  <span className="text-2xs font-bold text-primary" title={ui("Period {0}", [period.num])}>{ui("P{0}", [period.num])}</span>
+                  <bdi dir="ltr" className="text-2xs font-medium tabular-nums text-ink-subtle">{period.start}</bdi>
                 </div>
                 {visibleDays.map((day) => {
                   const slot = getSlot(day.num, period.num);
-                  if (!slot) return <div key={day.num} className="border-l border-[#f3f4f9] p-1" />;
+                  if (!slot) return <div key={day.num} className="border-s border-muted p-1" />;
 
                   if (slot.slotType !== "CLASS") {
                     const style = SLOT_TYPE_STYLES[slot.slotType];
                     return (
-                      <div key={day.num} className="border-l border-[#f3f4f9] flex items-center justify-center p-1">
-                        <span className={`text-[8px] font-bold ${style?.text || "text-ink-subtle"}`}>
-                          {style?.label || slot.slotType}
+                      <div key={day.num} className="border-s border-muted flex items-center justify-center p-1">
+                        <span className={`text-2xs font-bold ${style?.text || "text-ink-subtle"}`}>
+                          {ui(style?.label || slot.slotType)}
                         </span>
                       </div>
                     );
@@ -1499,26 +1493,26 @@ export function TimetableReadOnly({ slots, title, weekendDays = [] }: {
                   const color = slot.subject?.name ? subjectColorMap.get(slot.subject.name) : null;
 
                   return (
-                    <div key={day.num} className="border-l border-[#f3f4f9] p-1">
+                    <div key={day.num} className="border-s border-muted p-1">
                       {slot.subject ? (
-                        <div className={`h-full rounded-lg ${color?.bg || "bg-gray-50"} ${color?.border || "border-gray-200"} border p-1.5`}>
-                          <p className={`text-[9px] font-black leading-tight ${color?.text || "text-gray-600"}`}>
+                        <div className={`h-full rounded-lg ${color?.bg || "bg-surface-subtle"}  ${color?.border || "border-border-subtle"} border p-1.5`}>
+                          <bdi className={`block text-2xs font-bold leading-tight ${color?.text || "text-ink-muted"}`}>
                             {slot.subject.name}
-                          </p>
+                          </bdi>
                           {slot.className && (
-                            <p className="text-[7px] font-semibold text-ink-subtle mt-0.5">
+                            <bdi className="block text-2xs font-semibold text-ink-subtle mt-0.5">
                               {slot.className}{slot.classSection ? ` - ${slot.classSection}` : ""}
-                            </p>
+                            </bdi>
                           )}
                           {slot.teacher && (
-                            <p className="text-[7px] font-semibold text-ink-subtle mt-0.5">
+                            <bdi className="block text-2xs font-semibold text-ink-subtle mt-0.5">
                               {slot.teacher.fullName}
-                            </p>
+                            </bdi>
                           )}
                         </div>
                       ) : (
-                        <div className="h-full rounded-lg border border-dashed border-[#cfc2d6]/15 flex items-center justify-center">
-                          <span className="text-[8px] font-semibold text-ink-subtle">—</span>
+                        <div className="h-full rounded-lg border border-dashed border-edge/15 flex items-center justify-center">
+                          <span className="text-3xs font-semibold text-ink-subtle">—</span>
                         </div>
                       )}
                     </div>

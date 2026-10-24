@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
@@ -10,12 +11,18 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
-import { BrandButton } from "@/components/role-dashboard";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { UiText, useUiText } from "@/components/locale/LocaleProvider";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 
 interface ScheduleRow {
   id: string;
@@ -63,6 +70,7 @@ export function DatesheetBuilder({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const tr = useUiText();
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [periods, setPeriods] = useState<ExamPeriod[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -113,7 +121,7 @@ export function DatesheetBuilder({
       const wk = new Set<number>((calRes.data?.weekends || []) as number[]);
       setWeekends(wk);
     } catch {
-      toast.error("Failed to load datesheet");
+      toast.error(tr("The date sheet could not be loaded"));
     } finally {
       setLoading(false);
     }
@@ -175,7 +183,7 @@ export function DatesheetBuilder({
   const handleCellClick = (subjectId: string | null, date: string, periodId: string | null) => {
     const sid = subjectId ?? armed;
     if (!sid) {
-      toast.error("Select a subject from the left first");
+      toast.error(tr("Select a subject from the left first"));
       return;
     }
     setPending({ subjectId: sid, date, periodId });
@@ -191,7 +199,7 @@ export function DatesheetBuilder({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to remove");
-      toast.success("Removed from datesheet");
+      toast.success(tr("Removed from the date sheet"));
       await load();
       onChanged?.();
     } catch (e: any) {
@@ -204,8 +212,8 @@ export function DatesheetBuilder({
   if (loading) {
     return (
       <div className="space-y-3 animate-skeleton-in">
-        <div className="h-32 w-full rounded-3xl bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-64 w-full rounded-3xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-32 w-full rounded-3xl bg-border-subtle/40 skeleton-shimmer" />
+        <div className="h-64 w-full rounded-3xl bg-border-subtle/40 skeleton-shimmer" />
       </div>
     );
   }
@@ -213,11 +221,11 @@ export function DatesheetBuilder({
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
       {/* Subject sidebar */}
-      <div className="rounded-3xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm">
-        <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-ink-muted">
+      <div className="sk-panel p-4">
+        <p className="mb-1 text-2xs font-semibold text-ink-muted">
           Exam Subjects
         </p>
-        <p className="mb-3 text-[10px] font-semibold text-ink-subtle">
+        <p className="mb-3 text-2xs font-semibold text-ink-subtle">
           {armed ? "Tap a slot to schedule" : "Tap to select, then a slot"}
         </p>
         <div className="space-y-2">
@@ -225,47 +233,48 @@ export function DatesheetBuilder({
             const isScheduled = scheduledSubjectIds.has(s.id);
             const isArmed = armed === s.id;
             return (
-              <button
+              <Button aria-pressed={isArmed} variant="choice"
                 key={s.id}
                 type="button"
                 disabled={isScheduled}
                 onClick={() => setArmed(isArmed ? null : s.id)}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left transition-all cursor-pointer",
+                  "flex w-full items-center justify-between px-3 py-2.5 text-start",
                   isScheduled
-                    ? "border-[#cfc2d6]/15 bg-[#f3f4f9] text-ink-subtle"
-                    : isArmed
-                    ? "border-[#8127cf] bg-[#fbf0fe] text-[#8127cf] shadow-sm"
-                    : "border-[#cfc2d6]/15 bg-white text-[#1d1b20] hover:border-[#8127cf]/40"
+                    ? ""
+                    : ""
                 )}
               >
                 <span className="text-sm font-bold">{s.name}</span>
                 {isScheduled ? (
-                  <span className="text-[9px] font-black uppercase text-emerald-600">done</span>
+                  <Badge variant="success" size="sm" dot><UiText>Done</UiText></Badge>
                 ) : isArmed ? (
                   <Plus className="h-4 w-4" />
                 ) : null}
-              </button>
+              </Button>
             );
           })}
           {subjects.length === 0 ? (
-            <p className="rounded-2xl bg-[#f3f4f9] px-3 py-4 text-center text-[11px] font-semibold text-ink-subtle">
-              No subjects found
-            </p>
+            <EmptyState
+              size="sm"
+              icon={BookOpen}
+              title={tr("No subjects found")}
+              description={tr("Add subjects to these classes to schedule papers.")}
+            />
           ) : null}
         </div>
       </div>
 
       {/* Calendar grid */}
-      <div className="overflow-x-auto rounded-3xl border border-[#cfc2d6]/15 bg-white p-4 shadow-sm custom-scrollbar">
+      <div className="sk-panel overflow-x-auto p-4 custom-scrollbar">
         <div className="mb-3 flex items-center gap-2 text-ink-muted">
-          <CalendarDays className="h-4 w-4 text-[#8127cf]" />
+          <CalendarDays className="h-4 w-4 text-primary" />
           <span className="text-xs font-bold">
-            Datesheet · {days.length} working day{days.length !== 1 ? "s" : ""}
+            {days.length === 1 ? tr("Datesheet · 1 working day") : tr("Datesheet · {0} working days", [days.length])}
           </span>
-          <span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-600">
-            <AlertTriangle className="mr-1 inline h-3 w-3" /> weekends hidden
-          </span>
+          <Badge variant="warning" size="sm" className="ms-auto">
+            <AlertTriangle aria-hidden="true" className="h-3 w-3" /> <UiText>Weekends hidden</UiText>
+          </Badge>
         </div>
         <div className="min-w-max">
           <div
@@ -276,7 +285,7 @@ export function DatesheetBuilder({
             {periodCols.map((p) => (
               <div
                 key={p.id || "none"}
-                className="rounded-xl bg-[#fbf0fe] px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-wider text-[#8127cf]"
+                className="rounded-xl bg-brand-50 px-2 py-1.5 text-center text-2xs font-semibold text-primary"
               >
                 {p.label}
               </div>
@@ -291,7 +300,7 @@ export function DatesheetBuilder({
               });
               return (
                 <React.Fragment key={date}>
-                  <div className="flex items-center rounded-xl bg-[#f3f4f9] px-3 py-2 text-xs font-bold text-[#1d1b20]">
+                  <div className="flex items-center rounded-xl bg-muted px-3 py-2 text-xs font-bold text-ink-strong">
                     {label}
                   </div>
                   {periodCols.map((p) => {
@@ -305,43 +314,43 @@ export function DatesheetBuilder({
                           "min-h-[56px] rounded-xl border border-dashed p-1.5 transition-all cursor-pointer",
                           sched
                             ? "border-transparent"
-                            : "border-[#cfc2d6]/30 hover:border-[#8127cf]/50 hover:bg-[#fbf0fe]/40"
+                            : "border-edge/30 hover:border-primary/50 hover:bg-brand-50/40"
                         )}
                       >
                         {sched ? (
-                          <div className="group relative rounded-lg bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 p-2">
-                            <button
+                          <div className="group relative rounded-lg bg-gradient-to-br from-primary/10 to-brand-300/10 p-2">
+                            <Button aria-label="Remove scheduled exam" variant="destructive" size="icon"
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeSchedule(sched.id);
                               }}
                               disabled={busy}
-                              className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-md bg-white/70 text-rose-500 hover:bg-rose-500 hover:text-white group-hover:flex cursor-pointer"
+                              className="absolute end-1 top-1 flex items-center justify-center"
                             >
                               <Trash2 className="h-3 w-3" />
-                            </button>
-                            <p className="pr-4 text-[11px] font-black text-[#1d1b20]">
+                            </Button>
+                            <p className="pe-4 text-2xs font-semibold text-ink-strong">
                               {sched.subject.name}
                             </p>
                             {sched.rooms && sched.rooms.length > 1 ? (
-                              <span className="inline-flex items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 py-1 text-[10px] font-black text-[#8127cf]">
-                                <DoorOpen className="h-3 w-3" />
+                              <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-2xs font-semibold text-primary">
+                                <DoorOpen aria-hidden="true" className="h-3 w-3" />
                                 {sched.rooms.map((r: any) => r.room.roomNumber).join(" + ")}
                               </span>
                             ) : sched.room ? (
-                              <p className="mt-0.5 flex items-center gap-1 text-[9px] font-bold text-[#0f766e]">
-                                <DoorOpen className="h-3 w-3" />
+                              <p className="mt-0.5 flex items-center gap-1 text-2xs font-medium text-status-success-text">
+                                <DoorOpen aria-hidden="true" className="h-3 w-3" />
                                 {sched.room.roomNumber}
                               </p>
                             ) : (
-                              <p className="mt-0.5 text-[9px] font-semibold text-ink-subtle">
+                              <p className="mt-0.5 text-2xs font-semibold text-ink-subtle">
                                 No room
                               </p>
                             )}
                           </div>
                         ) : (
-                          <div className="flex h-full items-center justify-center text-[#cfc2d6]">
+                          <div className="flex h-full items-center justify-center text-edge">
                             <Plus className="h-4 w-4" />
                           </div>
                         )}
@@ -395,6 +404,7 @@ function AssignmentPopover({
   onClose: () => void;
   onScheduled: () => void;
 }) {
+  const tr = useUiText();
   const [rooms, setRooms] = useState<any[]>([]);
   // §58: a paper can be split across rooms, so this is a set rather than one
   // id. Order matters — it is the order students are seated in, and the first
@@ -524,7 +534,7 @@ function AssignmentPopover({
           `${subject?.name} scheduled across ${roomIds.length} rooms — ${allocData.data.totalStudents} students seated`,
         );
       } else {
-        toast.success(`${subject?.name} scheduled`);
+        toast.success(tr("{0} scheduled", [subject?.name ?? ""]));
       }
       onScheduled();
     } catch (e: any) {
@@ -536,35 +546,40 @@ function AssignmentPopover({
 
   return (
     <Modal
-      title={subject?.name ?? "Schedule paper"}
+      title={subject?.name ?? tr("Schedule paper")}
       eyebrow="Schedule"
       icon={CalendarDays}
       size="xs"
       onClose={onClose}
       footer={
         <div className="flex items-center justify-end gap-3">
-          <button
+          <Button variant="secondary"
             type="button"
             onClick={onClose}
-            className="rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted hover:bg-[#4d4354]/5 cursor-pointer transition-colors"
+            className="px-5 py-2.5"
           >
             Cancel
-          </button>
-          <BrandButton
-            variant="gradient"
-            onClick={submit}
-            disabled={busy || blocked}
-            title={blocked ? "Seat the whole class before scheduling" : undefined}
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Schedule
-          </BrandButton>
+          </Button>
+          <Tooltip content="Seat the whole class before scheduling" disabled={!blocked}>
+            <span tabIndex={blocked ? 0 : undefined} className="inline-flex">
+              <Button
+                variant="default"
+                onClick={submit}
+                disabled={busy || blocked}
+                loading={busy}
+                className="inline-flex items-center gap-2"
+              >
+                {busy ? null : <Plus className="h-4 w-4" aria-hidden="true" />}
+                Schedule
+              </Button>
+            </span>
+          </Tooltip>
         </div>
       }
     >
         <div className="space-y-4">
-          <div className="flex items-center gap-2 rounded-2xl bg-[#fbf0fe] px-4 py-3 text-sm font-bold text-[#1d1b20]">
-            <CalendarDays className="h-4 w-4 text-[#8127cf]" />
+          <div className="flex items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm font-bold text-ink-strong">
+            <CalendarDays className="h-4 w-4 text-primary" />
             {new Date(date).toLocaleDateString(undefined, {
               weekday: "long",
               day: "numeric",
@@ -573,10 +588,10 @@ function AssignmentPopover({
             })}
           </div>
           <label className="block">
-            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
+            <span className="mb-1.5 block text-2xs font-semibold text-ink-muted">
               Rooms (free rooms only) — pick more than one to split the paper
             </span>
-            <div className="max-h-52 space-y-1 overflow-y-auto rounded-2xl border border-[#cfc2d6]/20 bg-white p-1.5">
+            <div className="sk-panel max-h-52 space-y-1 overflow-y-auto p-1.5">
               {rooms.map((r) => {
                 const order = roomIds.indexOf(r.id);
                 const checked = order !== -1;
@@ -584,24 +599,24 @@ function AssignmentPopover({
                   <label
                     key={r.id}
                     className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                      checked ? "bg-[#fbf0fe] text-[#1d1b20]" : "text-ink hover:bg-[#4d4354]/5"
+                      checked ? "bg-brand-50 text-ink-strong" : "text-ink hover:bg-ink/5"
                     }`}
                   >
-                    <input
-                      type="checkbox"
+                    <SystemCheckbox
+
                       checked={checked}
                       onChange={() => toggleRoom(r.id)}
-                      className="h-4 w-4 shrink-0 accent-[#8127cf]"
+                      className="shrink-0"
                     />
-                    <DoorOpen className="h-4 w-4 shrink-0 text-[#8127cf]" />
+                    <DoorOpen className="h-4 w-4 shrink-0 text-primary" />
                     <span className="min-w-0 flex-1 truncate">{r.roomNumber}</span>
-                    <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
+                    <span className="shrink-0 text-2xs font-semibold text-ink-subtle">
                       {r.unmeasured
                         ? "no size recorded"
                         : `${r.examCapacity} exam seats${r.teachingCapacity > r.examCapacity ? ` · ${r.teachingCapacity} teaching` : ""}`}
                     </span>
                     {checked && roomIds.length > 1 ? (
-                      <span className="shrink-0 rounded-md bg-[#8127cf] px-1.5 py-0.5 text-[9px] font-black text-white">
+                      <span className="shrink-0 rounded-md bg-primary px-1.5 py-0.5 text-2xs font-bold text-white">
                         {order === 0 ? "MAIN" : `#${order + 1}`}
                       </span>
                     ) : null}
@@ -610,20 +625,20 @@ function AssignmentPopover({
               })}
             </div>
             {selectedRooms.length > 0 ? (
-              <p className="mt-1 text-[10px] font-bold text-ink-muted">
+              <p className="mt-1 text-2xs font-bold text-ink-muted">
                 {selectedRooms.length} room{selectedRooms.length === 1 ? "" : "s"} selected ·{" "}
                 {seatsAvailable} seats for {studentsCount} students
                 {multiRoom ? " · students are seated in roll-number order" : ""}
               </p>
             ) : null}
             {roomsLoading ? (
-              <p className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-ink-subtle">
+              <p className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-ink-subtle">
                 <Loader2 className="h-3 w-3 animate-spin" /> Checking room availability…
               </p>
             ) : roomsError ? (
               <div className="mt-1 flex items-center gap-2">
-                <p className="text-[10px] font-semibold text-rose-500">{roomsError}</p>
-                <button
+                <Alert tone="danger" compact live="off" className="min-w-0 flex-1">{roomsError}</Alert>
+                <Button variant="secondary"
                   type="button"
                   onClick={() => {
                     const reloadKey = Date.now();
@@ -631,45 +646,30 @@ function AssignmentPopover({
                     setRoomsError(null);
                     setReloadTick(reloadKey);
                   }}
-                  className="flex cursor-pointer items-center gap-1 rounded-lg bg-[#fbf0fe] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf] hover:bg-[#fdf0fe]"
+                  className="justify-start flex items-center gap-1 px-2 py-1"
                 >
                   <RefreshCw className="h-2.5 w-2.5" /> Retry
-                </button>
+                </Button>
               </div>
             ) : rooms.length === 0 ? (
-              <p className="mt-1 text-[10px] font-semibold text-ink-subtle">
+              <p className="mt-1 text-2xs font-semibold text-ink-subtle">
                 No free rooms for this slot.
               </p>
             ) : shortBy > 0 ? (
-              <p
-                role="alert"
-                className="mt-1 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] font-bold leading-relaxed text-rose-600"
-              >
-                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-                <span>
-                  Capacity conflict — {studentsCount} students sit this paper but the selected
-                  room{selectedRooms.length === 1 ? "" : "s"} hold {seatsAvailable} ({shortBy} short).
-                  Tick another room to seat the rest.
-                </span>
-              </p>
+              <Alert tone="danger" compact live="polite" className="mt-1">
+                {tr("Capacity conflict: {0} students sit this paper but the selected rooms hold {1} ({2} short). Tick another room to seat the rest.", [studentsCount, seatsAvailable, shortBy])}
+              </Alert>
             ) : multiRoom && unsized.length > 0 ? (
-              <p
-                role="alert"
-                className="mt-1 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[10px] font-bold leading-relaxed text-rose-600"
-              >
-                <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-                <span>
-                  Room {unsized.map((r) => r.roomNumber).join(", ")} has no recorded size, so it
-                  cannot be part of a split. Set its bench layout under Rooms, or pick another room.
-                </span>
-              </p>
+              <Alert tone="danger" compact live="polite" className="mt-1">
+                {tr("Room {0} has no recorded size, so it cannot be part of a split. Set its bench layout under Rooms, or pick another room.", [unsized.map((r) => r.roomNumber).join(", ")])}
+              </Alert>
             ) : multiRoom ? (
-              <p className="mt-1 text-[10px] font-semibold text-[#0f766e]">
+              <p className="mt-1 text-2xs font-medium text-status-success-text">
                 Split across {roomIds.length} rooms — {studentsCount} students seated in roll-number
                 order, {selectedRooms[0]?.roomNumber} first.
               </p>
             ) : (
-              <p className="mt-1 text-[10px] font-semibold text-[#0f766e]">
+              <p className="mt-1 text-2xs font-medium text-status-success-text">
                 Auto-picked the smallest free room fitting {studentsCount || "the class"} — tick more
                 rooms above to split the paper.
               </p>

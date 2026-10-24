@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Button as SystemButton } from "@/components/ui/button";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowRight,
@@ -21,10 +22,14 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { describeCounts } from "@/components/shared-admin/academic-impact";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { AvatarImage } from "@/components/ui/avatar-image";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 import {
@@ -52,6 +57,8 @@ import {
   classLabel,
   groupClasses,
 } from "@/components/shared-admin";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { Select as SystemSelect } from "@/components/ui/select";
 
 /* ────────────────────────── Sorting ────────────────────────── */
 
@@ -82,6 +89,7 @@ const SORTS: Record<string, { label: string; compare: (a: Student, b: Student) =
 interface Student {
   id: string;
   fullName?: string;
+  admissionNo?: string | null;
   rollNo?: string;
   profileImageUrl?: string | null;
   guardianName?: string | null;
@@ -97,7 +105,6 @@ interface Student {
   studentUser?: { email?: string } | null;
   reportCards?: { status: string }[];
 }
-
 interface TagOption {
   id: string;
   name: string;
@@ -116,6 +123,15 @@ function waHref(phone?: string | null) {
   return cleaned.length >= 8 ? `https://wa.me/${cleaned}` : null;
 }
 
+/**
+ * The student directory. It is the whole "Student list" view, so its header is the page's one PageHeader
+ * (h1 by default): primary "Add student", secondaries "Bulk import" and "Export" (§4.4).
+ *
+ * `readOnly` (principal, M58) hides every write: Add, Bulk import, bulk actions, archive and the edit path.
+ * Export runs on the server with the filters the server understands (search, section, archived), so it
+ * returns every matching student rather than the page on screen (M40); filters only the browser knows
+ * (category, group, contact, login) export the filtered rows from here.
+ */
 export function StudentsPanel({
   students,
   classes,
@@ -126,10 +142,13 @@ export function StudentsPanel({
   onRefresh,
   incomingFilter,
   onIncomingFilterApplied,
+  readOnly = false,
+  title = "Students",
+  headingLevel = 1,
 }: {
   students: Student[];
   classes: { id: string; name?: string; section?: string | null }[];
-  onAddStudent: (classId?: string) => void;
+  onAddStudent?: (classId?: string) => void;
   /** Receives the student and the list currently on screen, so the profile
    *  dialog can step through exactly what the admin is looking at. */
   onViewStudent: (student: Student, visible?: Student[]) => void;
@@ -141,20 +160,33 @@ export function StudentsPanel({
   /** A filter handed in from elsewhere — e.g. "show me this category". */
   incomingFilter?: { categoryId?: string; groupId?: string } | null;
   onIncomingFilterApplied?: () => void;
+  /** Hides Add, Bulk import, bulk changes, archive and edit (principal). */
+  readOnly?: boolean;
+  /** The hosting view's registry label (EN UI key). */
+  title?: string;
+  headingLevel?: 1 | 2;
 }) {
+  const ui = useUiText();
   const [prefs, patchPrefs] = useWorkspacePrefs("students", {
     view: "cards",
     sortKey: "name",
     perPage: 12,
   });
 
-  const [classFilter, setClassFilter] = useState("all");
-  const [sectionFilter, setSectionFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [groupFilter, setGroupFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [onlyMissingGuardian, setOnlyMissingGuardian] = useState(false);
-  const [onlyNoLogin, setOnlyNoLogin] = useState(false);
+  // SKO-401: the directory's filters, search and page live in the URL, so Back, refresh and a link from
+  // record search land on the same view. Read once on mount; written back on every change.
+  const initial = useMemo(() => {
+    const params = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+    return { q: params.get("sq") ?? "", cls: params.get("sclass") ?? "all", section: params.get("class") ?? params.get("ssection") ?? "all", category: params.get("scat") ?? "all", group: params.get("sgroup") ?? "all", missing: params.get("smissing") === "1", nologin: params.get("snologin") === "1", page: Number(params.get("spage") ?? "1") || 1 };
+  }, []);
+  const [classFilter, setClassFilter] = useState(initial.cls);
+  const [sectionFilter, setSectionFilter] = useState(initial.section);
+  const [categoryFilter, setCategoryFilter] = useState(initial.category);
+  const [groupFilter, setGroupFilter] = useState(initial.group);
+  const [searchQuery, setSearchQuery] = useState(initial.q);
+  const [onlyMissingGuardian, setOnlyMissingGuardian] = useState(initial.missing);
+  const [onlyNoLogin, setOnlyNoLogin] = useState(initial.nologin);
+  const pendingPage = useRef(initial.page > 1 ? initial.page : 0);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -232,6 +264,8 @@ export function StudentsPanel({
       if (onlyNoLogin && student.studentUser?.email) return false;
       if (!q) return true;
       return Boolean(
+        student.id.toLowerCase().includes(q) ||
+        student.admissionNo?.toLowerCase().includes(q) ||
         student.fullName?.toLowerCase().includes(q) ||
           student.rollNo?.toLowerCase().includes(q) ||
           student.guardianName?.toLowerCase().includes(q) ||
@@ -256,6 +290,21 @@ export function StudentsPanel({
   ]);
 
   const paged = usePaged(filtered, prefs.perPage);
+  // The page from the URL is applied once the roster has loaded (paging resets when the row count changes).
+  useEffect(() => {
+    if (pendingPage.current && students.length && paged.totalPages >= pendingPage.current) { paged.setPage(pendingPage.current); pendingPage.current = 0; }
+  }, [students.length, paged]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const set = (key: string, value: string | null) => { if (value) params.set(key, value); else params.delete(key); };
+    set("sq", searchQuery.trim() || null); set("sclass", classFilter !== "all" ? classFilter : null); set("ssection", sectionFilter !== "all" ? sectionFilter : null);
+    set("scat", categoryFilter !== "all" ? categoryFilter : null); set("sgroup", groupFilter !== "all" ? groupFilter : null);
+    set("smissing", onlyMissingGuardian ? "1" : null); set("snologin", onlyNoLogin ? "1" : null); set("spage", paged.page > 1 && !pendingPage.current ? String(paged.page) : pendingPage.current ? String(pendingPage.current) : null);
+    params.delete("class");
+    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
+  }, [searchQuery, classFilter, sectionFilter, categoryFilter, groupFilter, onlyMissingGuardian, onlyNoLogin, paged.page]);
 
   // Arriving from "show me the 12 students on Scholarship" should land on those
   // twelve, with the rest of the filters cleared so the count adds up.
@@ -308,7 +357,7 @@ export function StudentsPanel({
 
   /* ── Bulk work ───────────────────────────────────────────────── */
 
-  /** Status is the one thing the API changes in a single call. */
+  /** Status is the one thing the API changes in a single call. Archiving carries the audit reason (SKO-389). */
   const runBulkStatus = useCallback(
     async (status: "archived" | "active") => {
       setBusy(true);
@@ -316,26 +365,54 @@ export function StudentsPanel({
         const res = await fetch("/api/students", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: Array.from(selected), status }),
+          body: JSON.stringify({ ids: Array.from(selected), status, ...(status === "archived" ? { reason: "Archived by administrator" } : {}) }),
         });
         const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Could not update those students");
+        if (!res.ok) throw new Error(json.error || ui("Could not change the selected students. Please try again."));
         toast.success(
-          status === "archived"
-            ? `${json.updated} student${json.updated === 1 ? "" : "s"} archived`
-            : `${json.updated} student${json.updated === 1 ? "" : "s"} restored`,
+          json.unchanged
+            ? ui("{0} student(s) changed; {1} already had this status.", [json.updated, json.unchanged])
+            : ui("{0} student(s) changed.", [json.updated]),
         );
         clearSelection();
         await onRefresh?.();
       } catch (e) {
-        toast.error((e as Error)?.message || "Could not update those students");
+        toast.error(friendlyErrorMessage(e, ui("Could not change the selected students. Please try again.")));
       } finally {
         setBusy(false);
         setConfirmArchive(null);
+        setArchiveSummary(null);
       }
     },
-    [selected, clearSelection, onRefresh],
+    [selected, clearSelection, onRefresh, ui],
   );
+
+  /**
+   * SKO-389: before a bulk archive, the server's dependency counts for every selected student are summed
+   * and shown in the confirmation, so nobody archives a roster's marks and invoices blind.
+   */
+  const [archiveSummary, setArchiveSummary] = useState<string | null>(null);
+  const reviewBulkArchive = useCallback(async () => {
+    setBusy(true);
+    try {
+      const previews = await Promise.all([...selected].map(async (id) => {
+        const response = await fetch(`/api/students?id=${encodeURIComponent(id)}&preview=true`, { method: "DELETE" });
+        const preview = await response.json();
+        if (!response.ok) throw new Error(preview.error || ui("Could not calculate student impact"));
+        return (preview.dependencies || {}) as Record<string, number>;
+      }));
+      const totals = previews.reduce<Record<string, number>>((all, item) => {
+        for (const [key, count] of Object.entries(item)) all[key] = (all[key] || 0) + Number(count || 0);
+        return all;
+      }, {});
+      setArchiveSummary(describeCounts(totals, ui));
+      setConfirmArchive("archived");
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, ui("Could not calculate student impact")));
+    } finally {
+      setBusy(false);
+    }
+  }, [selected, ui, setArchiveSummary]);
 
   /**
    * Tags and class moves go one student at a time — the API deliberately keeps
@@ -366,7 +443,7 @@ export function StudentsPanel({
       setBusy(false);
       if (done > 0) toast.success(describe(done));
       if (failures.length > 0) {
-        toast.error(`${failures.length} could not be updated`, { description: failures[0] });
+        toast.error(ui("{0} could not be updated", [failures.length]), { description: failures[0] });
       }
       clearSelection();
       setBulkTag(null);
@@ -386,11 +463,12 @@ export function StudentsPanel({
         onRun: () => onExport(selectedStudents),
       });
     }
+    // Read-only consoles may export what they selected; nothing else changes records.
+    if (readOnly) return actions;
     actions.push({
       key: "move",
-      label: "Move to section",
+      label: "Review enrollment changes",
       icon: ArrowRightLeft,
-      accent: "#0d9488",
       onRun: () => setBulkMove(true),
     });
     if (allCategories.length > 0) {
@@ -398,7 +476,6 @@ export function StudentsPanel({
         key: "category",
         label: "Set category",
         icon: Tag,
-        accent: "#8127cf",
         onRun: () => setBulkTag({ kind: "category" }),
       });
     }
@@ -407,7 +484,6 @@ export function StudentsPanel({
         key: "group",
         label: "Set group",
         icon: Users,
-        accent: "#0284c7",
         onRun: () => setBulkTag({ kind: "group" }),
       });
     }
@@ -417,7 +493,6 @@ export function StudentsPanel({
         key: "restore",
         label: "Restore",
         icon: RotateCcw,
-        accent: "#10b981",
         onRun: () => setConfirmArchive("active"),
       });
     } else {
@@ -425,24 +500,28 @@ export function StudentsPanel({
         key: "archive",
         label: "Archive",
         icon: Archive,
-        accent: "#e11d48",
-        onRun: () => setConfirmArchive("archived"),
+        tone: "danger",
+        onRun: () => void reviewBulkArchive(),
       });
     }
     return actions;
-  }, [onExport, selectedStudents, allCategories.length, allGroups.length]);
+  }, [onExport, selectedStudents, allCategories.length, allGroups.length, reviewBulkArchive, readOnly]);
 
   /* ── Tiles ───────────────────────────────────────────────────── */
 
   const tiles: StatTileSpec[] = [
-    { key: "roll", icon: Users, label: "Students on roll", value: students.length, tone: "violet" },
+    // SKO-401: both tiles act on the list. "On roll" shows everyone on roll (clearing every filter);
+    // "Classes with students" orders the list class by class.
+    { key: "roll", icon: Users, label: "Students on roll", value: students.length, tone: "violet", hint: filtersActive ? "Tap to show all" : "Showing all", active: !filtersActive, onClick: filtersActive ? () => resetFilters() : undefined },
     {
       key: "classes",
       icon: School,
       label: "Classes with students",
       value: classesCovered,
-      hint: `of ${classes.length} class${classes.length === 1 ? "" : "es"}`,
+      hint: prefs.sortKey === "classOrder" ? "Sorted by class" : classes.length === 1 ? ui("of 1 class · tap to sort by class") : ui("of {0} classes · tap to sort by class", [classes.length]),
       tone: "teal",
+      active: prefs.sortKey === "classOrder",
+      onClick: () => patchPrefs({ sortKey: prefs.sortKey === "classOrder" ? "name" : "classOrder" }),
     },
     {
       key: "contact",
@@ -474,36 +553,41 @@ export function StudentsPanel({
       label: "Student",
       sortable: true,
       render: (s) => (
-        <button
+        <SystemButton variant="ghost"
           type="button"
           onClick={() => onViewStudent(s, filtered)}
-          className="flex cursor-pointer items-center gap-2.5 text-left"
+          className="flex items-center gap-2.5 text-start justify-start"
         >
-          <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-[#cfc2d6]/30 bg-[#fbf0fe]">
+          <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-edge/30 bg-brand-50">
             <AvatarImage
               src={s.profileImageUrl}
               name={s.fullName}
               alt=""
-              initialsClassName="text-[10px]"
+              initialsClassName="text-2xs"
               className="h-full w-full object-cover"
             />
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-sm font-black text-[#1f1a23] transition-colors hover:text-[#8127cf]">
+            <span className="block truncate text-sm font-bold text-ink-strong transition-colors hover:text-primary">
               {s.fullName}
             </span>
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-              Roll {s.rollNo || "—"}
+            <span className="block text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">
+              {ui("Roll {0}", [s.rollNo || "—"])}
             </span>
           </span>
-        </button>
+        </SystemButton>
       ),
+    },
+    {
+      key: "identity",
+      label: "Enrolment history",
+      render: (s) => <a className="sk-link block max-w-40 truncate text-xs text-primary" href={`/pupils/${s.id}`} onClick={e => e.stopPropagation()} aria-label={ui("Enrolment history for {0}", [s.fullName || s.rollNo || "—"])}><bdi>{s.admissionNo || s.rollNo || ui("Enrolment history")}</bdi></a>,
     },
     {
       key: "classOrder",
       label: "Class",
       sortable: true,
-      render: (s) => <span className="text-xs font-bold text-ink">{classLabel(s.class)}</span>,
+      render: (s) => <span className="text-xs font-medium text-ink">{classLabel(s.class)}</span>,
     },
     {
       key: "tags",
@@ -512,17 +596,13 @@ export function StudentsPanel({
       render: (s) => (
         <div className="flex flex-wrap gap-1">
           {s.category?.name ? (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-600">
-              {s.category.name}
-            </span>
+            <Badge variant="success" size="sm">{s.category.name}</Badge>
           ) : null}
           {s.group?.name ? (
-            <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-sky-600">
-              {s.group.name}
-            </span>
+            <Badge variant="info" size="sm">{s.group.name}</Badge>
           ) : null}
           {!s.category?.name && !s.group?.name ? (
-            <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+            <span className="text-2xs font-semibold text-ink-subtle">—</span>
           ) : null}
         </div>
       ),
@@ -535,18 +615,27 @@ export function StudentsPanel({
         const noContact = !s.guardianPhone && !s.guardianEmail;
         return (
           <div className="min-w-0">
-            <p className="truncate text-xs font-bold text-ink">{s.guardianName || "Not linked"}</p>
+            <p className="truncate text-xs font-bold text-ink">{s.guardianName || ui("Not linked")}</p>
             <p
               className={cn(
-                "truncate text-[10px] font-bold",
-                noContact ? "text-amber-600" : "text-ink-subtle",
+                "truncate text-2xs font-medium",
+                noContact ? "text-status-warning-text" : "text-ink-subtle",
               )}
             >
-              {noContact ? "No phone or email" : s.guardianPhone || s.guardianEmail}
+              {noContact ? ui("No phone or email") : s.guardianPhone || s.guardianEmail}
             </p>
           </div>
         );
       },
+    },
+    {
+      key: "login",
+      label: "Login",
+      secondary: true,
+      // M40: whether the learner can sign in, carried over from the retired legacy roster.
+      render: (s) => s.studentUser?.email
+        ? <Badge variant="success" size="sm">{ui("Login ready")}</Badge>
+        : <Badge variant="warning" size="sm">{ui("No login")}</Badge>,
     },
     {
       key: "contact",
@@ -558,36 +647,52 @@ export function StudentsPanel({
     {
       key: "report",
       label: "Report",
-      align: "right",
+      align: "end",
       render: (s) => <StatusPill status={s.reportCards?.[0]?.status ?? "NO_REPORT"} />,
     },
   ];
 
   /* ── Empty roster ────────────────────────────────────────────── */
 
+  const canAdd = !readOnly && Boolean(onAddStudent);
+  const noClassReason = "Create a class first. Students are admitted into a class.";
+
+  /** M40: export every student matching the filters, from the server — not just the page on screen. */
+  const exportMatching = () => {
+    const clientOnly = categoryFilter !== "all" || groupFilter !== "all" || onlyMissingGuardian || onlyNoLogin || (classFilter !== "all" && sectionFilter === "all");
+    if (clientOnly || !onExport) {
+      onExport?.(filtered);
+      return;
+    }
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set("search", searchQuery.trim());
+    if (sectionFilter !== "all") params.set("classId", sectionFilter);
+    window.location.href = `/api/students/export?${params.toString()}`;
+  };
+
   if (students.length === 0) {
     return (
-      <EmptyState
-        icon={GraduationCap}
-        title={classes.length === 0 ? "Create a class first" : "No students enrolled yet"}
-        description={
-          classes.length === 0
-            ? "Students are admitted into a class, so there is nothing to enrol them into yet. Create your classes and sections under Academics → Classes & Subjects, then come back here."
-            : "Admit your first student, or bulk-import an existing roster from a spreadsheet."
-        }
-        action={
-          classes.length === 0 ? undefined : (
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <BrandButton onClick={() => onAddStudent()}>Add Student</BrandButton>
-              {onBulkImport ? (
-                <BrandButton variant="soft" icon={<Upload className="h-4 w-4" />} onClick={onBulkImport}>
-                  Bulk Import
-                </BrandButton>
-              ) : null}
-            </div>
-          )
-        }
-      />
+      <div className="space-y-5">
+        <WorkspaceHeader
+          icon={GraduationCap}
+          title={title}
+          headingLevel={headingLevel}
+          primaryAction={canAdd ? { id: "add-student", label: "Add student", icon: Plus, onClick: () => onAddStudent?.(), disabled: classes.length === 0, disabledReason: noClassReason } : undefined}
+          secondaryActions={canAdd && onBulkImport ? [{ id: "bulk-import", label: "Bulk import", icon: Upload, onClick: onBulkImport, disabled: classes.length === 0, disabledReason: noClassReason }] : []}
+        />
+        <EmptyState
+          icon={GraduationCap}
+          title={ui(classes.length === 0 ? "Create a class first" : "No students enrolled yet")}
+          description={ui(
+            classes.length === 0
+              ? "Students are admitted into a class, so there is nothing to enrol them into yet. Create your classes and sections under Classes & subjects, then come back here."
+              : "Admit your first student, or bulk-import an existing roster from a spreadsheet.",
+          )}
+          action={classes.length === 0 || !canAdd ? undefined : (
+            <SystemButton type="button" onClick={() => onAddStudent?.()}><Plus aria-hidden="true" />{ui("Add student")}</SystemButton>
+          )}
+        />
+      </div>
     );
   }
 
@@ -595,41 +700,23 @@ export function StudentsPanel({
     <div className="space-y-3">
       <WorkspaceHeader
         icon={GraduationCap}
-        eyebrow="Students"
-        title="Student Directory"
-        tone="students"
+        title={title}
+        headingLevel={headingLevel}
         summary={
           <>
-            {filtered.length} of {students.length} shown
-            {missingGuardian > 0 ? ` · ${missingGuardian} with no guardian contact` : ""}
-            {untagged > 0 ? ` · ${untagged} with no category` : ""}
+            {ui("{0} of {1} shown", [filtered.length, students.length])}
+            {missingGuardian > 0 ? <> · {ui("{0} with no guardian contact", [missingGuardian])}</> : null}
+            {!readOnly && untagged > 0 ? <> · {ui("{0} with no category", [untagged])}</> : null}
           </>
         }
-        actions={
-          <>
-            <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => onAddStudent()}>
-              Add Student
-            </BrandButton>
-            {onBulkImport ? (
-              <BrandButton variant="soft" icon={<Upload className="h-4 w-4" />} onClick={onBulkImport}>
-                Bulk Import
-              </BrandButton>
-            ) : null}
-            {onExport ? (
-              <BrandButton
-                variant="soft"
-                icon={<Download className="h-4 w-4" />}
-                onClick={() => onExport(filtered)}
-                disabled={filtered.length === 0}
-              >
-                Export {filtersActive ? `${filtered.length} Shown` : "CSV"}
-              </BrandButton>
-            ) : null}
-          </>
-        }
+        primaryAction={canAdd ? { id: "add-student", label: "Add student", icon: Plus, onClick: () => onAddStudent?.(), disabled: classes.length === 0, disabledReason: noClassReason } : undefined}
+        secondaryActions={[
+          ...(canAdd && onBulkImport ? [{ id: "bulk-import", label: "Bulk import", icon: Upload, onClick: onBulkImport }] : []),
+          ...(onExport ? [{ id: "export-students", label: "Export", icon: Download, onClick: exportMatching, disabled: filtered.length === 0, disabledReason: "No students match your filters." }] : []),
+        ]}
       />
 
-      <StatTiles tiles={tiles} />
+      <StatTiles tiles={readOnly ? tiles.filter(tile => tile.key !== "login") : tiles} />
 
       <WorkspaceToolbar
         trailing={
@@ -637,7 +724,7 @@ export function StudentsPanel({
             <ToolbarSelect
               value={prefs.sortKey}
               onChange={(v) => patchPrefs({ sortKey: v })}
-              label="Sort by"
+              label={ui("Sort by")}
               options={Object.entries(SORTS).map(([k, v]) => [k, v.label] as [string, string])}
             />
             <SortDirButton
@@ -658,7 +745,7 @@ export function StudentsPanel({
         <SearchField
           value={searchQuery}
           onChange={setSearchQuery}
-          placeholder="Name, roll no, guardian, phone…"
+          placeholder={ui("Name, roll no, guardian, phone…")}
         />
         <ToolbarSelect
           value={classFilter}
@@ -666,7 +753,7 @@ export function StudentsPanel({
             setClassFilter(v);
             setSectionFilter("all");
           }}
-          label="Class"
+          label={ui("Class")}
           options={[
             ["all", "All classes"],
             ...classGroups.map((g) => [g.key, `${g.name} · ${g.academicYear}`] as [string, string]),
@@ -675,7 +762,7 @@ export function StudentsPanel({
         <ToolbarSelect
           value={sectionFilter}
           onChange={setSectionFilter}
-          label="Section"
+          label={ui("Section")}
           options={[
             ["all", "All sections"],
             ...(selectedGroup?.sections || classes).map(
@@ -687,7 +774,7 @@ export function StudentsPanel({
           <ToolbarSelect
             value={categoryFilter}
             onChange={setCategoryFilter}
-            label="Category"
+            label={ui("Category")}
             options={[
               ["all", "All categories"],
               ["none", "No category"],
@@ -699,7 +786,7 @@ export function StudentsPanel({
           <ToolbarSelect
             value={groupFilter}
             onChange={setGroupFilter}
-            label="Group"
+            label={ui("Group")}
             options={[
               ["all", "All groups"],
               ["none", "No group"],
@@ -711,19 +798,19 @@ export function StudentsPanel({
           <ToolbarToggle
             active={onlyMissingGuardian}
             icon={TriangleAlert}
-            label="No contact"
+            label={ui("No contact")}
             count={missingGuardian}
             onClick={() => setOnlyMissingGuardian((v) => !v)}
           />
         ) : null}
         {filtersActive ? (
-          <button
+          <SystemButton variant="ghost"
             type="button"
             onClick={resetFilters}
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            className="flex items-center gap-1.5 px-3 justify-start"
           >
-            <X className="h-3 w-3" /> Clear
-          </button>
+            <X aria-hidden="true" className="h-3 w-3" /> {ui("Clear")}
+          </SystemButton>
         ) : null}
       </WorkspaceToolbar>
 
@@ -737,7 +824,7 @@ export function StudentsPanel({
       {prefs.view === "table" ? (
         <DataTable
           rows={paged.rows}
-          columns={columns}
+          columns={readOnly ? columns.filter(column => column.key !== "login") : columns}
           rowKey={(s) => s.id}
           selected={selected}
           onToggleSelect={toggleSelect}
@@ -774,13 +861,13 @@ export function StudentsPanel({
           ))}
           {paged.rows.length === 0 ? (
             <div className="col-span-full">
-              <EmptyInline text="No students match your search and filters. Try clearing them." />
+              <EmptyInline text={ui("No students match your search and filters. Try clearing them.")} />
             </div>
           ) : null}
         </div>
       )}
 
-      <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-4 py-2.5 shadow-sm">
+      <div className="sk-panel px-4 py-2.5">
         <Pagination
           page={paged.page}
           totalPages={paged.totalPages}
@@ -814,30 +901,26 @@ export function StudentsPanel({
       ) : null}
 
       {bulkMove ? (
-        <BulkMoveModal
-          count={selected.size}
-          classes={classes}
-          busy={busy}
-          onClose={() => setBulkMove(false)}
-          onApply={(classId) =>
-            runBulkPatch({ classId }, (n) => `${n} student${n === 1 ? "" : "s"} moved`)
-          }
-        />
+        <Modal onClose={() => setBulkMove(false)} title={ui("Review enrollment changes")}>
+          <p className="mb-4">{ui("Review each pupil’s permanent identity, effective date and preserved records before changing placement.")}</p>
+          <ul className="space-y-3">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id}><a className="sk-link text-primary underline" href={`/pupils/${student.id}`}><bdi>{student.fullName}</bdi> · <bdi>{student.rollNo || "—"}</bdi></a></li>)}</ul>
+        </Modal>
       ) : null}
 
       <ConfirmAction
         open={confirmArchive !== null}
-        title={confirmArchive === "archived" ? "Archive these students?" : "Restore these students?"}
+        title={confirmArchive === "archived" ? ui("Archive {0} student(s)?", [selected.size]) : ui("Restore these students?")}
         description={
           confirmArchive === "archived"
-            ? `${selected.size} student${selected.size === 1 ? "" : "s"} will move off the active roster. Their records, marks and fees are kept, and you can restore them from Promote Students.`
-            : `${selected.size} student${selected.size === 1 ? "" : "s"} will return to the active roster in their existing class.`
+            ? ui("The selected students have {0}. Archive removes them from active lists; academic, financial and document history stays preserved and each can be restored later.", [archiveSummary ?? ui("no linked records")])
+            : ui("{0} student(s) will return to the active roster in their existing class.", [selected.size])
         }
-        confirmLabel={confirmArchive === "archived" ? "Archive" : "Restore"}
-        tone={confirmArchive === "archived" ? "danger" : "success"}
+        confirmLabel={confirmArchive === "archived" ? ui("Archive Student") : ui("Restore")}
+        cancelLabel={ui("Keep editing")}
+        tone={confirmArchive === "archived" ? "warning" : "success"}
         busy={busy}
-        onCancel={() => setConfirmArchive(null)}
-        onConfirm={() => confirmArchive && runBulkStatus(confirmArchive)}
+        onCancel={() => { setConfirmArchive(null); setArchiveSummary(null); }}
+        onConfirm={async () => { if (confirmArchive) await runBulkStatus(confirmArchive); }}
       />
     </div>
   );
@@ -860,6 +943,7 @@ function StudentCard({
   onToggleSelect: () => void;
   onOpen: () => void;
 }) {
+  const ui = useUiText();
   const report = student.reportCards?.[0];
   const noContact = !student.guardianPhone && !student.guardianEmail;
 
@@ -878,32 +962,32 @@ function StudentCard({
         }
       }}
       className={cn(
-        "sk-rise group/student relative cursor-pointer overflow-hidden rounded-[20px] border bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_20px_-12px_rgba(31,26,35,0.3)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
-        selected ? "border-[#8127cf] ring-2 ring-[#8127cf]/20" : "border-[#cfc2d6]/25 hover:border-[#8127cf]/30",
+        "sk-rise sk-panel sk-hover-lift group/student relative cursor-pointer overflow-hidden p-4 transition-all duration-300",
+        selected ? "border-primary ring-2 ring-primary/20" : "border-edge/25 hover:border-primary/30",
       )}
       style={{ animationDelay: `${index * 60}ms` }}
     >
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#8127cf] via-[#b876f0] to-[#8127cf] opacity-0 transition-opacity duration-300 group-hover/student:opacity-70" />
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-brand-300 to-primary opacity-0 transition-opacity duration-300 group-hover/student:opacity-70" />
 
       <div className="relative">
         <div className="flex items-start gap-3">
-          <input
-            type="checkbox"
+          <SystemCheckbox
+
             checked={selected}
             onChange={onToggleSelect}
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Select ${student.fullName}`}
+            aria-label={ui("Select {0}", [student.fullName])}
             className={cn(
-              "mt-1 h-4 w-4 shrink-0 cursor-pointer accent-[#8127cf] transition-opacity",
+              "mt-1 h-4 w-4 shrink-0 cursor-pointer accent-primary transition-opacity",
               selectionActive || selected ? "opacity-100" : "opacity-0 group-hover/student:opacity-100",
             )}
           />
-          <div className="h-16 w-16 shrink-0 rounded-full bg-gradient-to-br from-[#8127cf]/35 to-[#9c48ea]/20 p-[2.5px] shadow-sm transition-all duration-300 group-hover/student:scale-105 group-hover/student:from-[#8127cf] group-hover/student:to-[#9c48ea]">
-            <div className="h-full w-full overflow-hidden rounded-full border-2 border-white bg-[#fbf0fe]">
+          <div className="h-16 w-16 shrink-0 rounded-full bg-gradient-to-br from-primary/35 to-brand-400/20 p-[2.5px] shadow-sm transition-all duration-300 group-hover/student:scale-105 group-hover/student:from-primary group-hover/student:to-brand-400">
+            <div className="h-full w-full overflow-hidden rounded-full border-2 border-white bg-brand-50">
               <AvatarImage
                 src={student.profileImageUrl}
                 name={student.fullName}
-                alt="Student photo"
+                alt={ui("Student photo")}
                 initialsClassName="text-base"
                 className="h-full w-full object-cover transition-transform duration-500 group-hover/student:scale-110"
               />
@@ -911,56 +995,52 @@ function StudentCard({
           </div>
           <div className="min-w-0 flex-1">
             <p
-              className="truncate text-base font-black tracking-tight text-[#1f1a23] transition-colors duration-300 group-hover/student:text-[#8127cf]"
+              className="truncate text-base font-bold tracking-tight text-ink-strong transition-colors duration-300 group-hover/student:text-primary"
               title={student.fullName}
             >
               {student.fullName}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#fbf0fe] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-[#8127cf]">
-                Roll {student.rollNo || "—"}
+              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-brand-50 px-2.5 py-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-primary">
+                {ui("Roll {0}", [student.rollNo || "—"])}
               </span>
-              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#f3f4f9] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-ink-muted">
+              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-muted px-2.5 py-1 text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-muted">
                 {classLabel(student.class)}
               </span>
               {student.category?.name ? (
-                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-600">
-                  {student.category.name}
-                </span>
+                <Badge variant="success" size="sm">{student.category.name}</Badge>
               ) : null}
               {student.group?.name ? (
-                <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-sky-600">
-                  {student.group.name}
-                </span>
+                <Badge variant="info" size="sm">{student.group.name}</Badge>
               ) : null}
             </div>
           </div>
         </div>
 
-        <div className="mt-4 border-t border-[#f3f4f9] pt-3.5">
+        <div className="mt-4 border-t border-muted pt-3.5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[8px] font-black uppercase tracking-wider text-ink-subtle">Guardian</p>
+              <p className="text-3xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-subtle">{ui("Guardian")}</p>
               <p className="truncate text-xs font-bold text-ink" title={student.guardianName || undefined}>
-                {student.guardianName || "Not linked"}
+                {student.guardianName || ui("Not linked")}
               </p>
               <p
                 className={cn(
-                  "truncate text-[10px] font-bold",
-                  noContact ? "text-amber-600" : "text-ink-subtle",
+                  "break-words text-2xs font-medium",
+                  noContact ? "text-status-warning-text" : "text-ink-subtle",
                 )}
               >
-                {noContact ? "No phone or email" : student.guardianPhone || student.guardianEmail}
+                {noContact ? ui("No phone or email") : student.guardianPhone || student.guardianEmail}
               </p>
             </div>
             {/* Reaching a guardian used to mean opening the student, reading a
                 number and typing it into a phone. */}
-            <ContactActions student={student} />
+            <div><ContactActions student={student} /><a className="mt-2 block text-xs text-primary underline" href={`/pupils/${student.id}`} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()} aria-label={ui("Enrolment history for {0}", [student.fullName])}>{ui("Enrolment history")}</a></div>
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-2">
             <StatusPill status={report ? report.status : "NO_REPORT"} />
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fbf0fe] text-[#8127cf]/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-[#8127cf] group-hover/student:text-white">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-primary/50 transition-all duration-300 group-hover/student:translate-x-0.5 group-hover/student:bg-primary group-hover/student:text-white">
               <ArrowRight className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -972,39 +1052,45 @@ function StudentCard({
 
 /** Call, WhatsApp and email a guardian without leaving the roster. */
 function ContactActions({ student }: { student: Student }) {
+  const ui = useUiText();
   const tel = telHref(student.guardianPhone);
   const wa = waHref(student.guardianWhatsapp || student.guardianPhone);
   const mail = student.guardianEmail ? `mailto:${student.guardianEmail}` : null;
-  if (!tel && !wa && !mail) return <span className="text-[11px] font-semibold text-ink-subtle">—</span>;
+  if (!tel && !wa && !mail) return <span className="text-2xs font-semibold text-ink-subtle">—</span>;
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const cls =
-    "flex h-7 w-7 items-center justify-center rounded-full border border-[#cfc2d6]/25 bg-white text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]";
+    "flex h-10 w-10 items-center justify-center rounded-full border border-edge/25 bg-card sm:h-8 sm:w-8 text-ink-muted transition-colors hover:border-primary/40 hover:text-primary";
 
   return (
     <div className="flex shrink-0 items-center gap-1">
       {tel ? (
-        <a href={tel} onClick={stop} title={`Call ${student.guardianPhone}`} aria-label="Call guardian" className={cls}>
-          <PhoneCall className="h-3 w-3" />
-        </a>
+        <Tooltip content={ui("Call {0}", [student.guardianPhone])}>
+          <a href={tel} onClick={stop} aria-label={ui("Call guardian")} className={cls}>
+            <PhoneCall aria-hidden="true" className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
       {wa ? (
-        <a
-          href={wa}
-          onClick={stop}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Message on WhatsApp"
-          aria-label="Message guardian on WhatsApp"
-          className={cls}
-        >
-          <MessageCircle className="h-3 w-3" />
-        </a>
+        <Tooltip content={ui("Message on WhatsApp")}>
+          <a
+            href={wa}
+            onClick={stop}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={ui("Message guardian on WhatsApp")}
+            className={cls}
+          >
+            <MessageCircle aria-hidden="true" className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
       {mail ? (
-        <a href={mail} onClick={stop} title={student.guardianEmail || ""} aria-label="Email guardian" className={cls}>
-          <Mail className="h-3 w-3" />
-        </a>
+        <Tooltip content={student.guardianEmail || ui("Email guardian")}>
+          <a href={mail} onClick={stop} aria-label={ui("Email guardian")} className={cls}>
+            <Mail aria-hidden="true" className="h-3 w-3" />
+          </a>
+        </Tooltip>
       ) : null}
     </div>
   );
@@ -1027,10 +1113,11 @@ function BulkSheet({
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
+  const ui = useUiText();
   return (
     <Modal
       title={title}
-      eyebrow="Bulk change"
+      eyebrow={ui("Bulk change")}
       subtitle={subtitle}
       icon={Users}
       size="xs"
@@ -1059,129 +1146,46 @@ function BulkTagModal({
   onClose: () => void;
   onApply: (value: string) => void;
 }) {
+  const ui = useUiText();
   const [value, setValue] = useState("");
   const noun = kind === "category" ? "category" : "group";
 
   return (
     <BulkSheet
-      title={`Set ${noun}`}
-      subtitle={`${count} student${count === 1 ? "" : "s"} selected`}
+      title={ui(noun === "category" ? "Set category" : "Set group")}
+      subtitle={ui(count === 1 ? "{0} student selected" : "{0} students selected", [count])}
       busy={busy}
       onClose={onClose}
       footer={
         <>
           <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">
-            Cancel
+            {ui("Cancel")}
           </BrandButton>
           <BrandButton variant="gradient" onClick={() => onApply(value)} disabled={busy} className="flex-1">
-            {value ? `Apply ${noun}` : `Clear ${noun}`}
+            {noun === "category" ? (value ? ui("Apply category") : ui("Clear category")) : (value ? ui("Apply group") : ui("Clear group"))}
           </BrandButton>
         </>
       }
     >
       <label className="block">
-        <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
-          {kind === "category" ? "Category" : "Group"}
+        <span className="mb-1.5 block text-2xs font-semibold ltr:uppercase ltr:tracking-wider text-ink-muted">
+          {kind === "category" ? ui("Category") : ui("Group")}
         </span>
-        <select
+        <SystemSelect
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
+          className="w-full cursor-pointer px-4 py-2.5"
         >
-          <option value="">— None (clear it) —</option>
+          <option value="">{ui("— None (clear it) —")}</option>
           {options.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}
             </option>
           ))}
-        </select>
+        </SystemSelect>
       </label>
-      <p className="mt-3 text-[11px] font-semibold leading-relaxed text-ink-muted">
-        This replaces whatever {noun} each selected student has now.
-      </p>
-    </BulkSheet>
-  );
-}
-
-function BulkMoveModal({
-  count,
-  classes,
-  busy,
-  onClose,
-  onApply,
-}: {
-  count: number;
-  classes: { id: string; name?: string; section?: string | null }[];
-  busy: boolean;
-  onClose: () => void;
-  onApply: (classId: string) => void;
-}) {
-  const groups = useMemo(() => groupClasses(classes), [classes]);
-  const [groupKey, setGroupKey] = useState("");
-  const [classId, setClassId] = useState("");
-  const sections = groups.find((g) => g.key === groupKey)?.sections || [];
-
-  return (
-    <BulkSheet
-      title="Move to a section"
-      subtitle={`${count} student${count === 1 ? "" : "s"} selected`}
-      busy={busy}
-      onClose={onClose}
-      footer={
-        <>
-          <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">
-            Cancel
-          </BrandButton>
-          <BrandButton
-            variant="gradient"
-            onClick={() => onApply(classId)}
-            disabled={busy || !classId}
-            className="flex-1"
-          >
-            Move {count}
-          </BrandButton>
-        </>
-      }
-    >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">Class</span>
-          <select
-            value={groupKey}
-            onChange={(e) => {
-              setGroupKey(e.target.value);
-              setClassId("");
-            }}
-            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40"
-          >
-            <option value="">Select class</option>
-            {groups.map((g) => (
-              <option key={g.key} value={g.key}>
-                {g.name} · {g.academicYear}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">Section</span>
-          <select
-            value={classId}
-            onChange={(e) => setClassId(e.target.value)}
-            disabled={!groupKey}
-            className="w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-4 py-2.5 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 disabled:opacity-50"
-          >
-            <option value="">Select section</option>
-            {sections.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.section ? `Section ${c.section}` : "Whole class"}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="mt-3 text-[11px] font-semibold leading-relaxed text-amber-700">
-        Each student is re-issued a roll number in the new section. Students already in the chosen
-        section are left alone.
+      <p className="mt-3 text-2xs font-semibold leading-relaxed text-ink-muted">
+        {ui(noun === "category" ? "This replaces the category each selected student has now." : "This replaces the group each selected student has now.")}
       </p>
     </BulkSheet>
   );

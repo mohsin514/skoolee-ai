@@ -1,0 +1,14 @@
+"use client";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FormField } from "@/components/ui/form-field";
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { schoolAICopy } from "@/lib/school-ai/copy";
+import { schoolOperationsCopy } from "./school-operations-copy";
+type Duty = { id: string; date: string; startTime: string; endTime: string; className: string; subjectName: string; roomNumber: string | null; teacherName: string; originalTeacherName: string; covering: boolean };
+export function SubstituteDuties({ campusId }: { campusId?: string }) {
+  const { language } = useLocale(), t = schoolOperationsCopy(language), c = schoolAICopy(language), [date, setDate] = useState(""), [duties, setDuties] = useState<Duty[]>([]), [state, setState] = useState<"loading" | "ready" | "failed">("loading"), [reload, setReload] = useState(0);
+  useEffect(() => { const controller = new AbortController(); void fetch(`/api/timetable/substitute-duties?campusId=${encodeURIComponent(campusId || "")}&date=${encodeURIComponent(date)}`, { cache: "no-store", signal: controller.signal }).then(async response => { if (!response.ok) throw new Error("failed"); return response.json() as Promise<{ duties: Duty[] }>; }).then(result => { if (!controller.signal.aborted) { setDuties(result.duties); setState("ready"); } }).catch(() => { if (!controller.signal.aborted) setState("failed"); }); return () => controller.abort(); }, [campusId, date, reload]);
+  return <section className="sk-panel min-w-0 space-y-4 p-5" dir={language === "en" ? "ltr" : "rtl"}><h2 className="text-lg font-bold">{t.substitutes}</h2><div className="flex flex-wrap items-end gap-3"><FormField name="substitute-duty-date" label={t.date}><Input type="date" value={date} onChange={event => { setDate(event.target.value); setState("loading"); }} /></FormField><Button variant="outline" onClick={() => { setState("loading"); setReload(value => value + 1); }}>{t.refresh}</Button></div>{state === "loading" ? <p role="status">{c.loading}</p> : state === "failed" ? <p role="alert">{c.failed}</p> : !duties.length ? <p className="text-sm text-ink-muted">{language === "ar" ? "لا توجد تغطية حصص خلال 31 يوماً من التاريخ المحدد." : language === "ur" ? "منتخب تاریخ سے 31 دن تک کوئی متبادل ذمہ داری نہیں ہے۔" : "No dated cover in the 31 days from the selected date."}</p> : <div className="grid min-w-0 gap-3 md:grid-cols-2">{duties.map(duty => <article key={duty.id} className="min-w-0 space-y-2 rounded-xl border border-border-subtle p-4 text-sm"><p className="font-semibold">{duty.className} · {duty.subjectName}</p><p><bdi>{duty.date} · {duty.startTime}–{duty.endTime}</bdi> · {duty.roomNumber}</p><p>{t.original}: {duty.originalTeacherName}</p><p>{t.replacement}: {duty.teacherName}</p></article>)}</div>}</section>;
+}

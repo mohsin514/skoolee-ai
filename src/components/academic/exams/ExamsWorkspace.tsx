@@ -1,5 +1,13 @@
 "use client";
 
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ErrorState } from "@/components/ui/error-state";
+import { ExamInvigilationPanel } from "@/components/school-ai/exam-session-plan-panel";
+import { examSessionPlanCopy } from "@/components/school-ai/exam-session-plan-copy";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -10,7 +18,6 @@ import {
   ChevronRight,
   ClipboardCheck,
   FileText,
-  Loader2,
   Lock,
   MoreHorizontal,
   PenLine,
@@ -21,7 +28,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -30,9 +37,15 @@ import { EXAM_TYPE_LABELS, type ExamType } from "@/lib/academic/exam-permissions
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
 import { SessionWizard } from "@/components/academic/exams/SessionWizard";
 import { MasterDatesheet } from "@/components/academic/exams/MasterDatesheet";
+import { DatesheetPublication } from "./DatesheetPublication";
+import { PapersStep } from "./PapersStep";
+import { ControlTower } from "./ControlTower";
+import { ExceptionsDesk } from "./ExceptionsDesk";
+import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { SeatingPlanner } from "@/components/academic/exams/SeatingPlanner";
 import { ExamDetailDialog } from "@/components/academic/exams/ExamDetailDialog";
 import { Meter, Panel, ProgressStat, StepEmpty } from "@/components/academic/exams/shared";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 
 /**
  * Exams & Results, as five steps in the order they actually happen (§80).
@@ -85,10 +98,12 @@ interface Session {
   publishedCount: number;
   firstDate: string | null;
   lastDate: string | null;
+  paperSlots?: number;
+  papersSealed?: number;
   classes: SessionClass[];
 }
 
-type StepKey = "plan" | "datesheet" | "seating" | "marks" | "results";
+type StepKey = "plan" | "datesheet" | "papers" | "seating" | "marks" | "results";
 
 const STEPS: {
   key: StepKey;
@@ -99,9 +114,11 @@ const STEPS: {
 }[] = [
   { key: "plan", index: 1, label: "Schedule", blurb: "Pick the classes that sit it", icon: Sparkles },
   { key: "datesheet", index: 2, label: "Date sheet", blurb: "Give every paper a day and a time", icon: CalendarDays },
-  { key: "seating", index: 3, label: "Seating", blurb: "Fill rooms at exam spacing", icon: ArmchairIcon },
-  { key: "marks", index: 4, label: "Marks", blurb: "Enter and check every subject", icon: PenLine },
-  { key: "results", index: 5, label: "Results", blurb: "Review, lock and publish", icon: BadgeCheck },
+  // SKO-500: papers are requested once the date sheet exists, and sealed before seating.
+  { key: "papers", index: 3, label: "Papers", blurb: "Request each paper and track it", icon: FileText },
+  { key: "seating", index: 4, label: "Seating", blurb: "Fill rooms at exam spacing", icon: ArmchairIcon },
+  { key: "marks", index: 5, label: "Marks", blurb: "Enter and check every subject", icon: PenLine },
+  { key: "results", index: 6, label: "Results", blurb: "Review, lock and publish", icon: BadgeCheck },
 ];
 
 function pct(value: number, total: number) {
@@ -112,30 +129,50 @@ function classLabel(c: { className: string; section: string | null }) {
   return `${c.className}${c.section ? ` ${c.section}` : ""}`;
 }
 
-export function ExamsWorkspace({ campusId }: { campusId?: string }) {
+export interface ExamsWorkspaceProps {
+  campusId?: string;
+  /**
+   * §4.4: the hosting page's PageHeader owns "Schedule exam" (primary) and "Refresh" (secondary). With
+   * `hideActions` the session card drops its own two buttons; each change of `scheduleRequest` opens the
+   * scheduling wizard and each change of `refreshRequest` reloads quietly. Without it (older hosts) the
+   * buttons stay on the card.
+   */
+  hideActions?: boolean;
+  scheduleRequest?: number;
+  refreshRequest?: number;
+}
+
+export function ExamsWorkspace({ campusId, hideActions = false, scheduleRequest, refreshRequest }: ExamsWorkspaceProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [legacy, setLegacy] = useState<ExamItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [step, setStep] = useState<StepKey>("datesheet");
+  // SKO-506: the control tower re-reads the ledger when the exceptions desk changes it.
+  const [towerTick, setTowerTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [wizard, setWizard] = useState(false);
   const [openExam, setOpenExam] = useState<ExamItem | null>(null);
   const [deleting, setDeleting] = useState<Session | null>(null);
   const [showLegacy, setShowLegacy] = useState(false);
+  // R4: the first load failing is an inline ErrorState with retry; a silent refresh failing keeps the last figures.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const ui = useUiText();
 
-  const academicYear = new Date().getFullYear();
+  // SKO-500 (audit): the active academic cycle's year, not the calendar year, so the wizard lists this cycle's classes.
+  const academicYear = useAcademicYear();
 
   const load = useCallback(
     async (silent = false) => {
       if (silent) setRefreshing(true);
-      else setLoading(true);
+      else { setLoading(true); setLoadFailed(false); }
       try {
         const qs = campusId ? `?campusId=${campusId}` : "";
         const [sessRes, examRes] = await Promise.all([
-          fetch(`/api/academic/exam-sessions${qs}`).then((r) => r.json()),
-          fetch(`/api/exams${qs}`).then((r) => r.json()),
+          fetch(`/api/academic/exam-sessions${qs}`, { cache: "no-store" }).then((r) => r.json()),
+          fetch(`/api/exams${qs}`, { cache: "no-store" }).then((r) => r.json()),
         ]);
+        if (!sessRes.success && !examRes.success) throw new Error("load failed");
 
         const list: Session[] = sessRes.success ? sessRes.data : [];
         setSessions(list);
@@ -147,7 +184,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
         const all: ExamItem[] = examRes.success ? examRes.exams : [];
         setLegacy(all.filter((e) => !(e as ExamItem & { sessionId?: string }).sessionId));
       } catch {
-        if (!silent) toast.error("Could not load exams");
+        if (!silent) setLoadFailed(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -159,6 +196,20 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Host-owned actions (PageHeader): the first render never fires; only a change of the counter does.
+  const lastSchedule = useRef(scheduleRequest);
+  useEffect(() => {
+    if (scheduleRequest === undefined || scheduleRequest === lastSchedule.current) return;
+    lastSchedule.current = scheduleRequest;
+    setWizard(true);
+  }, [scheduleRequest]);
+  const lastRefresh = useRef(refreshRequest);
+  useEffect(() => {
+    if (refreshRequest === undefined || refreshRequest === lastRefresh.current) return;
+    lastRefresh.current = refreshRequest;
+    void load(true);
+  }, [refreshRequest, load]);
 
   // Marks land from teachers' browsers while the office is watching, so the
   // counts refresh quietly rather than going stale until a manual reload.
@@ -179,11 +230,12 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
   /** How far each step has got, so the rail can show it rather than assert it. */
   const progress = useMemo(() => {
     if (!active) {
-      return { plan: 0, datesheet: 0, seating: 0, marks: 0, results: 0 };
+      return { plan: 0, datesheet: 0, papers: 0, seating: 0, marks: 0, results: 0 };
     }
     return {
       plan: active.classCount > 0 ? 100 : 0,
       datesheet: pct(active.papersScheduled, active.papersExpected),
+      papers: pct(active.papersSealed ?? 0, active.paperSlots ?? 0),
       seating: pct(active.papersSeated, active.papersScheduled),
       marks: pct(active.marksEntered, active.marksExpected),
       results: pct(active.publishedCount, active.classCount),
@@ -219,22 +271,28 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
       if (!res.ok || !json.success) throw new Error(json.error || "Could not remove the exam");
       toast.success(
         json.data.keptExams > 0
-          ? `Removed. ${json.data.keptExams} class${json.data.keptExams === 1 ? "" : "es"} kept because they already have marks.`
-          : "Exam removed",
+          ? json.data.keptExams === 1
+            ? ui("Exam removed. 1 class was kept because it already has marks.")
+            : ui("Exam removed. {0} classes were kept because they already have marks.", [json.data.keptExams])
+          : ui("Exam removed"),
       );
       setDeleting(null);
       await load(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not remove the exam");
+      toast.error(friendlyErrorMessage(e, ui("Could not remove the exam")));
     }
   };
+
+  if (loadFailed && !loading) {
+    return <ErrorState title={ui("Exams could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />;
+  }
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-24 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-20 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-72 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-24 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
+        <div className="h-20 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
+        <div className="h-72 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
       </div>
     );
   }
@@ -242,48 +300,57 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
   return (
     <div className="sk-rise space-y-4">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="relative overflow-hidden rounded-[28px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#8127cf] via-[#7322bb] to-[#5c1a96] px-6 py-5 text-white shadow-[0_18px_48px_-24px_rgba(129,39,207,0.7)]">
+      <header className="relative overflow-hidden rounded-3xl border border-edge/25 sk-brand-surface px-4 py-5 text-white shadow-brand sm:px-6">
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl"
+          className="pointer-events-none absolute -end-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-2xl"
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -bottom-24 left-24 h-56 w-56 rounded-full bg-[#b06bea]/25 blur-3xl"
+          className="pointer-events-none absolute -bottom-24 start-24 h-56 w-56 rounded-full bg-brand-300/25 blur-3xl"
         />
         <div className="relative flex flex-wrap items-center gap-4">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/60">
-              Exams &amp; Results
+            {/* The page title ("Exams & results") lives in the host PageHeader; this card names the session. */}
+            <p className="text-2xs font-semibold text-white/70">
+              {ui(active ? "Exam session" : "Exams")}
             </p>
-            <h2 className="mt-0.5 text-2xl font-black tracking-tight">
-              {active ? active.title : "No exam scheduled yet"}
+            <h2 className="mt-0.5 text-2xl font-bold tracking-tight">
+              {active ? <bdi>{active.title}</bdi> : ui("No exam scheduled yet")}
             </h2>
             <p className="mt-1 text-xs font-semibold text-white/70">
               {active
-                ? `${active.classCount} class${active.classCount === 1 ? "" : "es"} · ${active.studentCount} candidates · ${active.term} ${active.academicYear}` +
-                  (active.firstDate ? ` · ${active.firstDate} to ${active.lastDate}` : "")
-                : "Schedule mid-term or final exams for every class in one step."}
+                ? [
+                    active.classCount === 1 ? ui("1 class") : ui("{0} classes", [active.classCount]),
+                    ui("{0} candidates", [active.studentCount]),
+                    `${active.term} ${active.academicYear}`,
+                    active.firstDate ? ui("{0} to {1}", [active.firstDate, active.lastDate ?? active.firstDate]) : null,
+                  ].filter(Boolean).join(" · ")
+                : ui("Schedule mid-term or final exams for every class in one step.")}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => load(true)}
-              aria-label="Refresh"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl bg-white/12 text-white/80 transition-colors hover:bg-white/20"
-            >
-              <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setWizard(true)}
-              className="flex h-10 cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#8127cf] shadow-lg transition-all hover:scale-[1.03] active:scale-95"
-            >
-              <Plus className="h-4 w-4" />
-              Schedule exam
-            </button>
-          </div>
+          {hideActions ? (
+            refreshing ? <RefreshCw aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-white/70 motion-reduce:animate-none" /> : null
+          ) : (
+            <div className="flex shrink-0 items-center gap-2">
+              <Button variant="default" size="icon"
+                type="button"
+                onClick={() => load(true)}
+                aria-label={ui("Refresh")}
+                className="flex items-center justify-center"
+              >
+                <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin motion-reduce:animate-none")} />
+              </Button>
+              <Button variant="outline"
+                type="button"
+                onClick={() => setWizard(true)}
+                className="justify-start flex items-center gap-2 px-4"
+              >
+                <Plus className="h-4 w-4" />
+                {ui("Schedule exam")}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Session switcher — only when there is a choice to make. */}
@@ -292,20 +359,18 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
             {sessions.map((s) => {
               const on = s.id === activeId;
               return (
-                <button
+                <Button variant="choice"
                   key={s.id}
                   type="button"
                   onClick={() => setActiveId(s.id)}
                   aria-pressed={on}
                   className={cn(
-                    "shrink-0 cursor-pointer rounded-xl px-3 py-1.5 text-[11px] font-black transition-all",
-                    on
-                      ? "bg-white text-[#8127cf] shadow-md"
-                      : "bg-white/12 text-white/75 hover:bg-white/20",
+                    "shrink-0 px-3 py-1.5",
+                    "",
                   )}
                 >
                   {s.title}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -318,17 +383,22 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
           title="Schedule your first exam"
           body="Pick mid-term or final, choose which classes sit it, and one exam is created for each. From there you build one date sheet for the whole school, seat every room, and publish results."
           action={
-            <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setWizard(true)}>
-              Schedule an exam
-            </BrandButton>
+            // §4.5.7: the empty state repeats the page's primary action with the same label.
+            <Button type="button" onClick={() => setWizard(true)}>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              {ui("Schedule exam")}
+            </Button>
           }
         />
       ) : (
         <>
+          {/* SKO-506: the control tower answers "are we ready for <day>?" above the steps. */}
+          <ControlTower sessionId={active.id} refreshKey={`${step}:${towerTick}`} />
+
           {/* ── The rail ──────────────────────────────────────────────── */}
           <nav
-            aria-label="Exam steps"
-            className="grid gap-2 rounded-[24px] border border-[#cfc2d6]/25 bg-white p-2.5 shadow-[0_2px_6px_rgba(31,26,35,0.05),0_14px_34px_-22px_rgba(129,39,207,0.3)] sm:grid-cols-3 xl:grid-cols-5"
+            aria-label={ui("Exam steps")}
+            className="sk-panel grid gap-2 p-2.5 sm:grid-cols-3 2xl:grid-cols-6"
           >
             {STEPS.map((s) => {
               const value = progress[s.key];
@@ -336,27 +406,28 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
               const done = value >= 100;
               const isNext = currentStep === s.key && !done;
               return (
-                <button
+                <Button data-selected={on} data-exam-step={s.key} variant="choice"
                   key={s.key}
                   type="button"
                   onClick={() => setStep(s.key)}
                   aria-current={on ? "step" : undefined}
-                  className={cn(
-                    "group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[18px] border px-3 py-2.5 text-left transition-all duration-200",
+                  className={"justify-start " + (cn(
+                    "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-start",
                     on
-                      ? "border-[#8127cf] bg-gradient-to-br from-[#faf5ff] to-white shadow-[0_0_0_1px_rgba(129,39,207,0.28)]"
-                      : "border-transparent bg-[#faf7fc] hover:-translate-y-0.5 hover:border-[#8127cf]/25 hover:bg-white",
-                  )}
+                      ? ""
+                      : "hover:-translate-y-0.5",
+                  ))}
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black transition-colors",
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors",
                       done
-                        ? "bg-emerald-500 text-white"
+                        ? "bg-status-success-text text-primary-foreground"
                         : on || isNext
-                        ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white"
-                        : "bg-white text-ink-subtle ring-1 ring-[#cfc2d6]/35",
+                        ? "bg-gradient-to-br from-primary to-brand-400 text-primary-foreground"
+                        : "bg-card text-ink-subtle ring-1 ring-edge/35",
                     )}
+                    aria-hidden="true"
                   >
                     {done ? <Check className="h-4 w-4" /> : <s.icon className="h-4 w-4" />}
                   </span>
@@ -364,20 +435,20 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                     <span className="flex items-center gap-1.5">
                       <span
                         className={cn(
-                          "truncate text-xs font-black",
-                          on ? "text-[#8127cf]" : "text-[#1f1a23]",
+                          "truncate text-xs font-bold",
+                          on ? "text-primary" : "text-ink-strong",
                         )}
                       >
-                        {s.index}. {s.label}
+                        <bdi dir="ltr">{s.index}.</bdi> {ui(s.label)}
                       </span>
                       {isNext ? (
-                        <span className="shrink-0 rounded bg-[#f3eeff] px-1 py-px text-[8px] font-black uppercase tracking-wider text-[#8127cf]">
-                          Next
+                        <span className="shrink-0 rounded bg-brand-100 px-1 py-px text-2xs font-semibold text-primary">
+                          {ui("Next")}
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block truncate text-[10px] font-semibold text-ink-subtle">
-                      {done ? "Done" : `${value}% · ${s.blurb}`}
+                    <span className="mt-0.5 block truncate text-2xs font-semibold text-ink-subtle">
+                      {done ? ui("Done") : `${value}% · ${ui(s.blurb)}`}
                     </span>
                     <Meter
                       value={value}
@@ -386,7 +457,7 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
                       className="mt-1.5"
                     />
                   </span>
-                </button>
+                </Button>
               );
             })}
           </nav>
@@ -413,12 +484,16 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
               />
             ) : null}
 
+            {step === "papers" ? (
+              <PapersStep sessionId={active.id} onChanged={() => load(true)} />
+            ) : null}
+
             {step === "seating" ? (
-              <SeatingPlanner
-                sessionId={active.id}
-                campusId={campusId}
-                onChanged={() => load(true)}
-              />
+              <div className="space-y-4">
+                <ExamDutyControl sessionId={active.id} />
+                <SeatingPlanner sessionId={active.id} campusId={campusId} onChanged={() => load(true)} />
+                <DatesheetPublication sessionId={active.id} />
+              </div>
             ) : null}
 
             {step === "marks" ? (
@@ -428,6 +503,9 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
               />
             ) : null}
 
+            {step === "results" ? (
+              <ExceptionsDesk sessionId={active.id} onChanged={() => { setTowerTick((n) => n + 1); void load(true); }} />
+            ) : null}
             {step === "results" ? (
               <ResultsStep
                 session={active}
@@ -442,51 +520,50 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
 
       {/* ── Teachers' own assessments, out of the way ───────────────────── */}
       {legacy.length > 0 ? (
-        <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white">
-          <button
+        <div className="sk-panel ">
+          <Button variant="ghost"
             type="button"
             onClick={() => setShowLegacy((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-3 px-5 py-3.5 text-left"
+            className="justify-start flex w-full items-center gap-3 px-5 py-3.5 text-start"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3f4f9]">
+            <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted">
               <MoreHorizontal className="h-4 w-4 text-ink-muted" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-black text-[#1f1a23]">
-                Other exams ({legacy.length})
+              <span className="block text-sm font-bold text-ink-strong">
+                {ui("Other exams ({0})", [legacy.length])}
               </span>
-              <span className="block text-[11px] font-semibold text-ink-muted">
-                Teachers&apos; quizzes and class tests, plus anything scheduled before exams were
-                organised by term.
+              <span className="block text-xs font-medium text-ink-subtle">
+                {ui("Teachers' quizzes and class tests, plus anything scheduled before exams were organised by term.")}
               </span>
             </span>
             <ChevronRight
+              aria-hidden="true"
               className={cn(
                 "h-4 w-4 shrink-0 text-ink-subtle transition-transform",
-                showLegacy && "rotate-90",
+                showLegacy ? "rotate-90" : "rtl:rotate-180",
               )}
             />
-          </button>
+          </Button>
           {showLegacy ? (
-            <ul className="divide-y divide-[#cfc2d6]/12 border-t border-[#cfc2d6]/12">
+            <ul className="divide-y divide-edge/12 border-t border-edge/12">
               {legacy.map((e) => (
                 <li key={e.id}>
-                  <button
+                  <Button variant="secondary"
                     type="button"
                     onClick={() => setOpenExam(e)}
-                    className="flex w-full cursor-pointer items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-[#faf7fc]"
+                    className="sk-row-interactive justify-start flex w-full items-center gap-3 px-5 py-2.5 text-start"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-black text-[#1f1a23]">
+                      <bdi className="block truncate text-xs font-bold text-ink-strong">
                         {e.title}
-                      </span>
-                      <span className="block truncate text-[10px] font-semibold text-ink-subtle">
-                        {[e.class?.name, e.class?.section].filter(Boolean).join(" ")} ·{" "}
-                        {EXAM_TYPE_LABELS[e.examType as ExamType] ?? e.examType} · {e.term}
+                      </bdi>
+                      <span className="block truncate text-2xs font-semibold text-ink-subtle">
+                        {[[e.class?.name, e.class?.section].filter(Boolean).join(" "), ui(EXAM_TYPE_LABELS[e.examType as ExamType] ?? e.examType), e.term].filter(Boolean).join(" · ")}
                       </span>
                     </span>
                     <StatusPill status={e.status} />
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -520,8 +597,8 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
 
       {deleting ? (
         <Modal
-          title={`Remove "${deleting.title}"?`}
-          subtitle="Classes that already have marks are kept and simply detached. Empty ones are removed with it."
+          title={ui("Remove {0}?", [deleting.title])}
+          subtitle={ui("Classes that already have marks are kept and simply detached. Empty ones are removed with it.")}
           icon={Trash2}
           tone="rose"
           size="sm"
@@ -529,17 +606,16 @@ export function ExamsWorkspace({ campusId }: { campusId?: string }) {
           onClose={() => setDeleting(null)}
           footer={
             <ModalActions
-              actionLabel="Remove exam"
-              cancelLabel="Keep it"
+              actionLabel={ui("Remove exam")}
+              cancelLabel={ui("Keep editing")}
               tone="rose"
               onCancel={() => setDeleting(null)}
               onAction={() => deleteSession(deleting)}
             />
           }
         >
-          <p className="text-sm font-semibold text-ink-muted">
-            The date sheet and seating plan for the empty classes go too. No marks are ever
-            deleted.
+          <p className="text-sm leading-relaxed text-ink-muted">
+            {ui("The date sheet and seating plan for the empty classes go too. No marks are ever deleted.")}
           </p>
         </Modal>
       ) : null}
@@ -575,6 +651,7 @@ function PlanStep({
   onDelete: () => void;
   onNext: () => void;
 }) {
+  const ui = useUiText();
   return (
     <div className="space-y-4">
       <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
@@ -606,20 +683,20 @@ function PlanStep({
         icon={Users}
         actions={
           <>
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={onDelete}
-              className="flex h-9 cursor-pointer items-center gap-1.5 rounded-xl px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:bg-rose-50 hover:text-rose-600"
+              className="justify-start flex items-center gap-1.5 px-3"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              Remove exam
-            </button>
+              <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+              {ui("Remove exam")}
+            </Button>
             <BrandButton
               onClick={onNext}
-              icon={<ChevronRight className="h-4 w-4" />}
+              icon={<ChevronRight aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />}
               className="min-h-9 px-3.5 text-xs"
             >
-              Build the date sheet
+              {ui("Build the date sheet")}
             </BrandButton>
           </>
         }
@@ -627,27 +704,27 @@ function PlanStep({
       >
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {session.classes.map((cls) => (
-            <button
+            <Button variant="outline"
               key={cls.examId}
               type="button"
               onClick={() => onOpenExam(cls.examId)}
-              className="group cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/35 hover:shadow-[0_12px_28px_-18px_rgba(129,39,207,0.5)]"
+              className="sk-hover-lift block group p-3 text-start"
             >
               <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-black text-[#1f1a23]">
+                <bdi className="min-w-0 flex-1 truncate text-sm font-bold text-ink-strong">
                   {classLabel(cls)}
-                </span>
+                </bdi>
                 <StatusPill status={cls.status} />
               </div>
-              <p className="mt-1 text-[10px] font-bold text-ink-subtle">
-                {cls.studentCount} students · {cls.subjectCount} subjects
+              <p className="mt-1 text-2xs font-bold text-ink-subtle">
+                {ui("{0} students · {1} subjects", [cls.studentCount, cls.subjectCount])}
               </p>
               <div className="mt-2 space-y-1.5">
                 <MiniBar label="Dated" value={cls.scheduled} total={cls.subjectCount} />
                 <MiniBar label="Seated" value={cls.seated} total={cls.scheduled} />
                 <MiniBar label="Marked" value={cls.marksEntered} total={cls.marksExpected} />
               </div>
-            </button>
+            </Button>
           ))}
         </div>
       </Panel>
@@ -656,16 +733,17 @@ function PlanStep({
 }
 
 function MiniBar({ label, value, total }: { label: string; value: number; total: number }) {
+  const ui = useUiText();
   const done = total > 0 && value >= total;
   return (
     <div className="flex items-center gap-2">
-      <span className="w-11 shrink-0 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-        {label}
+      <span className="w-14 shrink-0 truncate text-2xs font-semibold text-ink-subtle">
+        {ui(label)}
       </span>
       <Meter value={value} total={total} tone={done ? "emerald" : "violet"} className="flex-1" />
-      <span className="w-11 shrink-0 text-right text-[9px] font-bold tabular-nums text-ink-subtle">
+      <bdi dir="ltr" className="w-11 shrink-0 text-end text-2xs font-bold tabular-nums text-ink-subtle">
         {value}/{total}
-      </span>
+      </bdi>
     </div>
   );
 }
@@ -679,6 +757,7 @@ function MarksStep({
   session: Session;
   onOpen: (cls: SessionClass) => void;
 }) {
+  const ui = useUiText();
   const sorted = useMemo(
     () =>
       [...session.classes].sort((a, b) => {
@@ -729,29 +808,30 @@ function MarksStep({
         icon={PenLine}
         bodyClassName="p-0"
       >
-        <ul className="divide-y divide-[#cfc2d6]/12">
+        <ul className="divide-y divide-edge/12">
           {sorted.map((cls) => {
             const done = cls.marksExpected > 0 && cls.marksEntered >= cls.marksExpected;
             return (
               <li key={cls.examId}>
-                <button
+                <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(cls)}
-                  className="group flex w-full cursor-pointer items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-[#faf7fc]"
+                  className="sk-row-interactive group flex w-full items-center gap-3 px-5 py-3 text-start"
                 >
                   <span
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                      done ? "bg-emerald-50 text-emerald-600" : "bg-[#f3eeff] text-[#8127cf]",
+                      done ? "bg-status-success-surface text-status-success-text" : "bg-brand-100 text-primary",
                     )}
+                    aria-hidden="true"
                   >
                     {done ? <Check className="h-4 w-4" /> : <PenLine className="h-4 w-4" />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-black text-[#1f1a23]">
+                      <bdi className="truncate text-sm font-bold text-ink-strong">
                         {classLabel(cls)}
-                      </span>
+                      </bdi>
                       <StatusPill status={cls.status} />
                     </span>
                     <span className="mt-1 flex items-center gap-2">
@@ -761,13 +841,13 @@ function MarksStep({
                         tone={done ? "emerald" : "violet"}
                         className="max-w-xs"
                       />
-                      <span className="shrink-0 text-[10px] font-bold tabular-nums text-ink-subtle">
+                      <bdi dir="ltr" className="shrink-0 text-2xs font-bold tabular-nums text-ink-subtle">
                         {cls.marksEntered}/{cls.marksExpected}
-                      </span>
+                      </bdi>
                     </span>
                   </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-[#8127cf]" />
-                </button>
+                  <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle transition-transform group-hover:text-primary rtl:rotate-180" />
+                </Button>
               </li>
             );
           })}
@@ -780,6 +860,8 @@ function MarksStep({
 /* ────────────────────────────── Step 5 ─────────────────────────────── */
 
 const RESULT_ACTIONS: Record<string, { next: string; label: string; icon: React.ComponentType<{ className?: string }> } | undefined> = {
+  // SKO-500 (audit ExamsWorkspace.tsx:980): a draft class exam is opened for marks, never shown as published.
+  DRAFT: { next: "ACTIVE", label: "Open for marks", icon: PenLine },
   MARKS_ENTRY: { next: "LOCKED", label: "Lock marks", icon: Lock },
   ACTIVE: { next: "LOCKED", label: "Lock marks", icon: Lock },
   LOCKED: { next: "PRINCIPAL_REVIEWED", label: "Mark reviewed", icon: ClipboardCheck },
@@ -797,22 +879,39 @@ function ResultsStep({
   onOpen: (cls: SessionClass) => void;
   onChanged: () => void;
 }) {
+  const ui = useUiText();
+  // G30/G31: locking office-exam marks, the review and publication are the academic lead's acts (the principal,
+  // or the campus admin while no principal is appointed). Anyone else sees the status and who acts next.
+  const lead = useNavigationAccess().has("academicLead");
   const [busy, setBusy] = useState<string | null>(null);
+  // F16: publishing results releases report cards to families, so it is confirmed first (R3).
+  const [confirmPublish, setConfirmPublish] = useState<SessionClass | null>(null);
+  // The spotlight anchor goes on the first rendered Publish button only (anchors are unique per page, §9.4).
+  const firstPublishable = lead ? session.classes.find((c) => RESULT_ACTIONS[c.status]?.next === "PUBLISHED")?.examId ?? null : null;
 
   const advance = async (cls: SessionClass, status: string) => {
+    setConfirmPublish(null);
     setBusy(cls.examId);
     try {
-      const res = await fetch("/api/exams", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: cls.examId, status }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Could not update this exam");
-      toast.success(`${classLabel(cls)} → ${status.replaceAll("_", " ").toLowerCase()}`);
+      // Locking has its own endpoint (it freezes marks and generates this exam's result cards; G30 decides who
+      // may lock). The status PATCH only accepts the review and publish transitions after that.
+      const res = status === "LOCKED"
+        ? await fetch(`/api/exams/${encodeURIComponent(cls.examId)}/lock`, { method: "POST" })
+        : await fetch("/api/exams", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: cls.examId, status }),
+        });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : ui("Could not update this exam"));
+      toast.success(status === "PUBLISHED"
+        ? ui("Results published for {0}", [classLabel(cls)])
+        : status === "LOCKED"
+          ? ui("Marks locked for {0}", [classLabel(cls)])
+          : ui("{0} marked as reviewed", [classLabel(cls)]));
       onChanged();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not update this exam");
+      toast.error(friendlyErrorMessage(e, ui("Could not update this exam")));
     } finally {
       setBusy(null);
     }
@@ -850,22 +949,23 @@ function ResultsStep({
       </div>
 
       {incomplete.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-amber-200/70 bg-amber-50/50 px-4 py-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-          <p className="min-w-0 flex-1 text-xs font-bold text-amber-700">
-            {incomplete.length} class{incomplete.length === 1 ? "" : "es"} still have marks
-            outstanding. Publishing before they are in produces report cards with blanks on them.
+        <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-status-warning-border bg-status-warning-surface px-4 py-3">
+          <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-status-warning-text" />
+          <p className="min-w-0 flex-1 text-xs font-bold text-status-warning-text">
+            {ui(incomplete.length === 1
+              ? "{0} class still has marks outstanding. Publishing before they are in produces report cards with blanks on them."
+              : "{0} classes still have marks outstanding. Publishing before they are in produces report cards with blanks on them.", [incomplete.length])}
           </p>
         </div>
       ) : null}
 
       <Panel
         title="Review and publish"
-        subtitle="Lock the marks, have them reviewed, then release the report cards."
+        subtitle={lead ? "Lock the marks, have them reviewed, then release the report cards." : "Your principal locks the marks, reviews them and releases the report cards."}
         icon={BadgeCheck}
         bodyClassName="p-0"
       >
-        <ul className="divide-y divide-[#cfc2d6]/12">
+        <ul className="divide-y divide-edge/12">
           {session.classes.map((cls) => {
             const action = RESULT_ACTIONS[cls.status];
             const complete = cls.marksExpected > 0 && cls.marksEntered >= cls.marksExpected;
@@ -875,62 +975,84 @@ function ResultsStep({
                 <span
                   className={cn(
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                    published ? "bg-emerald-50 text-emerald-600" : "bg-[#f3eeff] text-[#8127cf]",
+                    published ? "bg-status-success-surface text-status-success-text" : "bg-brand-100 text-primary",
                   )}
+                  aria-hidden="true"
                 >
                   {published ? <BadgeCheck className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
-                    <span className="truncate text-sm font-black text-[#1f1a23]">
+                    <bdi className="truncate text-sm font-bold text-ink-strong">
                       {classLabel(cls)}
-                    </span>
+                    </bdi>
                     <StatusPill status={cls.status} />
                   </span>
-                  <span className="mt-0.5 block text-[10px] font-bold text-ink-subtle">
-                    {cls.marksEntered}/{cls.marksExpected} marks ·{" "}
-                    {complete ? "complete" : "incomplete"}
+                  <span className="mt-0.5 block text-2xs font-bold text-ink-subtle">
+                    {ui(complete ? "{0}/{1} marks · complete" : "{0}/{1} marks · incomplete", [cls.marksEntered, cls.marksExpected])}
                   </span>
                 </span>
 
-                <button
+                <Button variant="secondary"
                   type="button"
                   onClick={() => onOpen(cls)}
-                  className="h-9 cursor-pointer rounded-xl bg-[#f6f2fa] px-3 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:bg-[#f3eeff] hover:text-[#8127cf]"
+                  className="px-3"
                 >
-                  Report cards
-                </button>
+                  {ui("Report cards")}
+                </Button>
 
-                {action ? (
-                  <button
-                    type="button"
-                    disabled={busy === cls.examId || (!complete && action.next === "LOCKED")}
-                    onClick={() => advance(cls, action.next)}
-                    title={
-                      !complete && action.next === "LOCKED"
-                        ? "Every mark has to be in before the exam can be locked"
-                        : undefined
-                    }
-                    className="flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] px-3 text-[11px] font-black uppercase tracking-wider text-white shadow-[0_8px_20px_-10px_rgba(129,39,207,0.6)] transition-all enabled:cursor-pointer enabled:hover:scale-[1.03] disabled:opacity-40"
-                  >
-                    {busy === cls.examId ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <action.icon className="h-3.5 w-3.5" />
-                    )}
-                    {action.label}
-                  </button>
-                ) : (
-                  <span className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-[11px] font-black uppercase tracking-wider text-emerald-600">
-                    <Check className="h-3.5 w-3.5" />
-                    Published
-                  </span>
-                )}
+                {action && !lead && action.next !== "ACTIVE" ? (
+                  <span className="text-2xs font-semibold text-ink-muted">{ui("With your principal")}</span>
+                ) : action ? (() => {
+                  const lockBlocked = !complete && action.next === "LOCKED";
+                  const btn = (
+                    <Button variant="default"
+                      type="button"
+                      loading={busy === cls.examId}
+                      disabled={busy === cls.examId || lockBlocked}
+                      onClick={() => (action.next === "PUBLISHED" ? setConfirmPublish(cls) : advance(cls, action.next))}
+                      data-tour={action.next === "PUBLISHED" && cls.examId === firstPublishable ? "principal.exams.publish" : undefined}
+                      className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
+                    >
+                      {busy === cls.examId ? null : <action.icon className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {ui(action.label)}
+                    </Button>
+                  );
+                  return lockBlocked ? (
+                    <Tooltip content={ui("Every mark has to be in before the exam can be locked")}>
+                      <span tabIndex={0} className="inline-flex">{btn}</span>
+                    </Tooltip>
+                  ) : btn;
+                })() : published ? (
+                  <Badge variant="success" dot>
+                    {ui("Published")}
+                  </Badge>
+                ) : null}
               </li>
             );
           })}
         </ul>
       </Panel>
+      <ConfirmAction
+        open={confirmPublish !== null}
+        title={ui("Publish results?")}
+        description={confirmPublish
+          ? ui("Report cards for {0} become visible to students and families, who are notified. A later correction needs a mark-correction request.", [classLabel(confirmPublish)])
+          : ""}
+        confirmLabel={ui("Publish results")}
+        cancelLabel={ui("Keep editing")}
+        tone="warning"
+        busy={confirmPublish !== null && busy === confirmPublish.examId}
+        onCancel={() => setConfirmPublish(null)}
+        onConfirm={() => { if (confirmPublish) void advance(confirmPublish, "PUBLISHED"); }}
+      />
     </div>
   );
+}
+
+/** The same duty editor is reachable beside the existing seating editor. */
+function ExamDutyControl({ sessionId }: { sessionId: string }) {
+  const { language } = useLocale(), t = examSessionPlanCopy(language);
+  const [open, setOpen] = useState(false), [dirty, setDirty] = useState(false);
+  return <><Button variant="outline" onClick={() => setOpen(true)}><Users aria-hidden="true" />{t.duties}</Button>{open && <Modal title={t.duties} onClose={() => setOpen(false)} dirty={dirty} wide><ExamInvigilationPanel language={language} sessionId={sessionId} canEdit onDraftChange={setDirty} /></Modal>}</>;
 }

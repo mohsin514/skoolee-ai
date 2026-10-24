@@ -49,9 +49,10 @@ DASHBOARD RUNBOOK — repeat 5×, once per environment
 4. Put DATABASE_URL + DIRECT_URL in:
       • GitHub → repo → Settings → Environments → <env> → Add secret
       • Vercel → skoolee-ai-<env> → Settings → Environment Variables
-5. The GitHub Action (.github/workflows/deploy.yml) runs
-   `prisma migrate deploy` on the next push to that branch — a FRESH empty
-   DB gets all 26 migrations applied cleanly. No hand-backfill needed.
+5. Follow docs/recovery/RUNBOOK.md before deployment. Controlled environments
+   require exact-SHA approval and current recovery evidence. Fresh empty DBs
+   use versioned `prisma migrate deploy`; existing DBs require reviewed adoption.
+   Development pushes do not automatically run database migrations.
 
 ⚠  Migrations run against DIRECT_URL (port 5432), never the pooler.
 ⚠  Never point two environments at the same project — that defeats isolation.

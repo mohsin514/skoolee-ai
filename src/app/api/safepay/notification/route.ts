@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { verifySafePayNotification } from "@/lib/payments/safepay";
-import { activatePlan } from "@/lib/billing/entitlements";
-import { getBillingSnapshot } from "@/lib/billing/entitlements";
+import { activatePlan, getBillingSnapshot } from "@/lib/billing/entitlements";
 import { ANNUAL_DISCOUNT, normalizePlan } from "@/config/plans";
 import { recordPayment } from "@/lib/fees/payment";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
+import { decodePlanContractMetadata } from "@/config/commercial-contract";
+import { settleVerifiedCheckoutIntent } from "@/lib/billing/checkout-intents";
+import { claimProviderEvent, finishProviderEvent, NeedsReview } from "@/lib/billing/provider-events";
 
 const ANNUAL_PERIOD_DAYS = 365;
 
@@ -46,12 +48,68 @@ async function handleNotification(req: NextRequest) {
     const event = body.event as string;
     const data = body.data as Record<string, any> | undefined;
 
-    if (event === "order.completed" && data) {
+    if (["order.completed", "order.cancelled", "order.failed"].includes(event) && data) {
       const orderRef = (data.order_ref || data.metadata?.orderRef || data.metadata?.orderId) as string | undefined;
       const schoolId = (data.metadata?.schoolId) as string | undefined;
       const plan = (data.metadata?.plan) as string | undefined;
       const kind = (data.metadata?.kind) as string | undefined;
       const billingPeriod = (data.metadata?.billingPeriod) as string | undefined;
+      const quotedContract = decodePlanContractMetadata(data.metadata?.commercialContract, normalizePlan(plan || ""));
+
+      const checkoutIntentId = data.metadata?.checkoutIntentId as string | undefined;
+      if (checkoutIntentId) {
+        const orderRef = (data.order_ref || data.metadata?.orderRef || data.metadata?.orderId) as string | undefined;
+        const schoolId = data.metadata?.schoolId as string | undefined;
+        const plan = data.metadata?.plan as string | undefined;
+        const billingPeriod = data.metadata?.billingPeriod as string | undefined;
+        if (!orderRef || !schoolId || !plan || !["monthly", "annual"].includes(billingPeriod || "")) {
+          return Response.json({ error: "Checkout confirmation is incomplete" }, { status: 400 });
+        }
+
+        const intent = await prisma.onboardingCheckoutIntent.findFirst({
+          where: { id: checkoutIntentId, schoolId },
+        });
+        if (!intent || intent.provider !== "SAFEPAY" || intent.providerReference !== orderRef ||
+            intent.plan !== plan || intent.billingPeriod !== billingPeriod) {
+          return Response.json({ error: "Checkout confirmation does not match a saved intent" }, { status: 409 });
+        }
+
+        if (event === "order.completed") {
+          const paid = parsePaidAmount(data.amount ?? data.order?.amount);
+          const expected = intent.amount;
+          if (paid == null || expected == null) {
+            return Response.json({ error: "SafePay did not report a verifiable paid amount" }, { status: 400 });
+          }
+          const paidPkr = paid >= expected * 100 ? paid / 100 : paid;
+          if (Math.abs(paidPkr - expected) >= 1) {
+            return Response.json({ error: "Amount mismatch" }, { status: 400 });
+          }
+          const callbackPlan = normalizePlan(plan);
+          const quotedContract = decodePlanContractMetadata(
+            data.metadata?.commercialContract as string | undefined,
+            callbackPlan,
+          );
+          if (!quotedContract || quotedContract.catalogVersion !== intent.catalogueVersion) {
+            return Response.json({ error: "Saved commercial terms could not be verified" }, { status: 409 });
+          }
+          await settleVerifiedCheckoutIntent({
+            id: intent.id,
+            schoolId: intent.schoolId,
+            provider: "SAFEPAY",
+            providerReference: orderRef,
+            plan: callbackPlan,
+            billingPeriod: billingPeriod as "monthly" | "annual",
+          });
+        } else if (event === "order.cancelled" || event === "order.failed") {
+          await prisma.onboardingCheckoutIntent.updateMany({
+            where: { id: intent.id, schoolId, provider: "SAFEPAY", providerReference: orderRef,
+              status: { in: ["CHECKOUT_PENDING", "PENDING_SETTLEMENT"] } },
+            data: { status: event === "order.cancelled" ? "CANCELLED" : "FAILED",
+              failureReason: event === "order.cancelled" ? null : "SafePay reported a failed payment." },
+          });
+        }
+        return Response.json({ success: true });
+      }
 
       // Fee payment — settle the OnlinePaymentOrder idempotently
       if (kind === "FEE" && orderRef) {
@@ -61,6 +119,8 @@ async function handleNotification(req: NextRequest) {
           // the guard constrains every write below.
           await runWithTenantContext({ schoolId: order.schoolId }, () =>
             prisma.$transaction(async (tx) => {
+              // SKO-431: concurrent or replayed confirmations wait here and then see COMPLETED.
+              await tx.$queryRaw`SELECT id FROM online_payment_orders WHERE id=${order.id} FOR UPDATE`;
               const current = await tx.onlinePaymentOrder.findUnique({ where: { id: order.id } });
               if (current?.status === "COMPLETED") return;
 
@@ -83,38 +143,42 @@ async function handleNotification(req: NextRequest) {
             }, { timeout: 20000 })
           );
         }
-      } else if (orderRef && schoolId && plan) {
+      } else if (event === "order.completed" && orderRef && schoolId && plan) {
         // Plan purchase — license record: plan, status, paid-through date.
-        // The signature already protects metadata integrity, but the paid
-        // amount is validated against the server-side plan price as a second
-        // layer: only a real payment for the selected plan can activate it.
-        const planType = normalizePlan(plan);
-        const isAnnual = billingPeriod === "annual";
-        const snapshot = await getBillingSnapshot(schoolId);
-        const planPrice = (snapshot.plans[planType] as { price?: number | null } | undefined)?.price;
-        const paid = parsePaidAmount(data.amount ?? data.order?.amount);
-
-        if (planPrice == null) {
-          throw new Error(`[safepay] no price defined for plan ${planType}`);
-        }
-        const expected = planPrice * (isAnnual ? (1 - ANNUAL_DISCOUNT) * 12 : 1);
-
-        if (paid != null) {
-          // Normalize paisa → PKR when the reported amount is clearly paisa
-          // (at least 100x the expected price — the exact multiple is what
-          // SafePay sends for paisa-denominated orders).
+        // SKO-373: one receipt per order, claimed before any effect, so a
+        // replayed confirmation never extends the paid-through date twice.
+        const eventId = `safepay:${event}:${orderRef}`;
+        const claim = await claimProviderEvent({ provider: "SAFEPAY", eventId, eventType: event, eventCreated: Math.floor(Date.now() / 1000) });
+        if (claim === "duplicate") return Response.json({ success: true, duplicate: true });
+        if (claim === "in_progress") return Response.json({ success: true, pending: true }, { status: 202 });
+        try {
+          if (!(await prisma.school.findUnique({ where: { id: schoolId }, select: { id: true } }))) throw new NeedsReview("No institution matches this SafePay order.");
+          // The signature protects metadata integrity; the paid amount is
+          // still checked against the plan price so only a real payment for
+          // the selected plan can activate it.
+          const planType = normalizePlan(plan);
+          const isAnnual = billingPeriod === "annual";
+          const snapshot = quotedContract ? null : await getBillingSnapshot(schoolId);
+          const planPrice = quotedContract?.price ?? (snapshot?.plans[planType] as { price?: number | null } | undefined)?.price;
+          if (planPrice == null) throw new NeedsReview(`No price is defined for plan ${planType}; the plan was not activated.`, schoolId);
+          const expected = planPrice * (isAnnual ? (1 - ANNUAL_DISCOUNT) * 12 : 1);
+          const paid = parsePaidAmount(data.amount ?? data.order?.amount);
+          if (paid == null) throw new NeedsReview("SafePay reported no paid amount; the plan was not activated.", schoolId);
+          // Normalize paisa → PKR when the reported amount is clearly paisa.
           const paidPkr = paid >= expected * 100 ? paid / 100 : paid;
-          if (Math.abs(paidPkr - expected) >= 1) {
-            console.error(
-              `[safepay] amount mismatch for ${orderRef}: paid ${paidPkr}, expected ${expected} (${planType} ${billingPeriod})`
-            );
-            return Response.json({ error: "Amount mismatch" }, { status: 400 });
+          if (Math.abs(paidPkr - expected) >= 1) throw new NeedsReview(`Paid ${paidPkr} does not match the expected ${expected} for ${planType} ${billingPeriod}; the plan was not activated.`, schoolId);
+          await prisma.$transaction(async tx => {
+            await activatePlan(schoolId, planType, tx, isAnnual ? ANNUAL_PERIOD_DAYS : undefined, quotedContract);
+            await tx.stripeWebhookReceipt.update({ where: { eventId }, data: { state: "PROCESSED", processedAt: new Date(), schoolId, error: null } });
+          });
+        } catch (error) {
+          if (error instanceof NeedsReview) {
+            await finishProviderEvent(eventId, "NEEDS_REVIEW", { error: error.message, schoolId: error.schoolId ?? null });
+            return Response.json({ success: true, review: true });
           }
-        } else {
-          console.warn(`[safepay] no amount reported for ${orderRef}; relying on signature only`);
+          await finishProviderEvent(eventId, "FAILED", { error }).catch(() => undefined);
+          throw error;
         }
-
-        await activatePlan(schoolId, planType, prisma, isAnnual ? ANNUAL_PERIOD_DAYS : undefined);
       }
     }
 

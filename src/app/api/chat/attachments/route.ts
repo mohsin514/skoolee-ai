@@ -3,30 +3,17 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { ApiError, errorResponse } from "@/lib/api/scope";
 import { requireChatUser } from "@/lib/chat/service";
-import { prisma } from "@/lib/db/prisma";
+import { requireMembership } from "@/lib/chat/membership";
 import { getChatSettings } from "@/lib/chat/policy";
-import { chatAttachmentKey, getUploadUrl } from "@/lib/storage/s3";
+import { chatAttachmentKey } from "@/lib/storage/s3";
+import { createPrivateUploadUrl } from "@/lib/storage/private-upload";
+import { CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TYPES } from "@/lib/chat/attachment-rules";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Deliberately narrow. A school messaging system is not a file host, and
-// every type outside this list is one a browser might be talked into
-// executing or rendering as something it is not.
-const ALLOWED_CONTENT_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
-]);
-
-const MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CONTENT_TYPES = CHAT_ATTACHMENT_TYPES;
+const MAX_BYTES = CHAT_ATTACHMENT_MAX_BYTES;
 
 const schema = z.object({
   conversationId: z.string().min(1),
@@ -36,7 +23,7 @@ const schema = z.object({
 });
 
 /**
- * Hands back a presigned PUT so the browser uploads straight to storage. The
+ * Hands back an authenticated application PUT URL, rechecked again at upload. The
  * attachment row is only written when the message that carries it is sent, so
  * an abandoned upload leaves an orphaned object rather than a dangling record.
  */
@@ -60,16 +47,11 @@ export async function POST(req: NextRequest) {
     }
     if (sizeBytes > MAX_BYTES) throw new ApiError("Files are limited to 10 MB", 400);
 
-    // Presigning for a thread the caller is not in would let them write into
-    // another conversation's prefix.
-    const membership = await prisma.conversationMember.findFirst({
-      where: { conversationId, userId: user.userId, leftAt: null },
-      select: { id: true },
-    });
-    if (!membership) throw new ApiError("Conversation not found", 404);
+    // Retained membership must still satisfy current exact-class or direct policy.
+    await requireMembership(user, conversationId);
 
     const key = chatAttachmentKey(user.schoolId, conversationId, `${randomUUID()}-${fileName}`);
-    const uploadUrl = await getUploadUrl(key, contentType);
+    const uploadUrl = await createPrivateUploadUrl(user, { kind: "chat", targetId: conversationId, storageKey: key, contentType, sizeBytes, fileName });
 
     return Response.json({ success: true, storageKey: key, uploadUrl });
   } catch (error) {
