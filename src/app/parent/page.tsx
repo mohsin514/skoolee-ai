@@ -10,6 +10,7 @@ import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/Local
 import { FamilyInbox, type InboxTopAction } from "@/components/parent/family-inbox";
 import { GuardianDigest } from "@/components/family/family-digest";
 import { FamilyCareMessages } from "@/components/care/care";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -109,6 +110,9 @@ export default function ParentHomePage() {
     >
       <div className="space-y-4">
         {invitationsBanner}
+
+        {/* AI Workflows first-login sheet (Slice 4); hidden once ready or set aside. */}
+        <SetupPrompt />
 
         {/* SKO-419: requests across every child come first; the panels below are the selected child's. */}
         <FamilyInbox onTopAction={onTopAction} />

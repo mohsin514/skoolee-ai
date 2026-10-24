@@ -20,6 +20,7 @@ import { MyLeavePanel } from "@/components/leave/my-leave";
 import { FinanceOverview } from "@/components/insights";
 import { AdjustmentsQueue } from "@/components/fees/adjustments-panel";
 import { LocaleCurrencyReview } from "@/components/settings/LocaleSettingsPanel";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
 /**
  * Finance desk (ACCOUNTANT) — role-ux §3 `accountant`, §3.1, §4.4.
@@ -241,7 +242,8 @@ function AccountantWorkspace({ data, view, tab, setView, setTab, retiredNotice }
       // What is waiting on the accountant (§4.5.8). A school or campus currency change stays in FINANCE_REVIEW until
       // an accountant who did not make it decides (§2.1 row 9, P4-G2); that review renders nothing when there is
       // none, so the refund/credit queue is usually the only one shown.
-      const queue = <><LocaleCurrencyReview /><AdjustmentsQueue showEmpty /></>;
+      // The first-login sheet (AI Workflows, Slice 5) leads the queue until the books are set up.
+      const queue = <><SetupPrompt /><LocaleCurrencyReview /><AdjustmentsQueue showEmpty /></>;
       return (
         <ConsolePage
           consoleId="accountant"

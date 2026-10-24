@@ -12,6 +12,7 @@ import { loadPeopleVocabulary } from "../pii/load-vocabulary";
 import { dataChannel } from "../pii/data-channel";
 import { capabilityContext } from "../jobs/actor";
 import { assertCanSpend, recordAttempt } from "../jobs/credits";
+import { acquireProviderSlot } from "../jobs/provider-limit";
 import { appendEvent } from "../jobs/events";
 import { savePlan, type PlannedStep } from "../jobs/job-service";
 import { retrieve } from "./retrieve";
@@ -53,6 +54,7 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
   prompt = masker.mask(prompt);
 
   const call = async (system: string, body: string) => {
+    await acquireProviderSlot();
     await appendEventTx(job, "MODEL_ATTEMPT_STARTED");
     const result = await generate({ system, prompt: body, temperature: 0, maxTokens: 4000, json: true, signal: AbortSignal.timeout(PLAN_TIMEOUT_MS) }).catch(error => {
       throw new WorkflowError(error instanceof Error && error.name === "AbortError" ? "DEADLINE" : "PROVIDER_UNAVAILABLE");
@@ -133,7 +135,8 @@ async function notSupported(user: AuthUser, job: AiWorkflowJob, nearest: string 
   await prisma.$transaction(async tx => {
     await tx.aiCapabilityGap.upsert({
       where: { schoolId_actorRole_nearestKey_reason: { schoolId: job.schoolId, actorRole: user.role, nearestKey, reason } },
-      create: { schoolId: job.schoolId, actorRole: user.role, language: job.language, reason, nearestKey, maskedSummary: scanForPII(summary).length ? "" : summary },
+      // Families and students leave no words behind, even masked: only the count of unmet requests.
+      create: { schoolId: job.schoolId, actorRole: user.role, language: job.language, reason, nearestKey, maskedSummary: user.role === "PARENT" || user.role === "STUDENT" || scanForPII(summary).length ? "" : summary },
       update: { count: { increment: 1 }, lastSeenAt: new Date() },
     });
     await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { status: "COMPLETED", outcome: "NOT_SUPPORTED", completedAt: new Date(), errorParams: nearestKey ? { nearest: nearestKey } : undefined, version: { increment: 1 } } });

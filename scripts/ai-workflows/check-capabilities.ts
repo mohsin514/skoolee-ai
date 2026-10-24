@@ -15,6 +15,7 @@ import { normaliseRoute, scanWriteHandlers } from "./scan-handlers";
 import { REGISTRY, coveredInventoryKeys } from "../../src/lib/ai-workflows/registry";
 import { exclusionFor } from "../../src/lib/ai-workflows/registry/exclusions";
 import { NEVER_SAFE_PATTERNS, ALLOWED_SYNTHETIC_REQUEST_CALLEES } from "../../src/lib/ai-workflows/registry/never-safe";
+import { examStudioViolation } from "../../src/lib/ai-workflows/registry/exam-studio";
 
 const BASELINE = "src/lib/ai-workflows/generated/capability-baseline.json";
 const APPENDIX = "docs/product-review-2026-10/ai-automation-plan-2026-10-23/appendix-a-capability-inventory.md";
@@ -41,6 +42,8 @@ export function evaluate() {
     const widened = entry.roles.filter(role => !allowed.has(role));
     if (widened.length) errors.push(`${entry.key}: roles ${widened.join(", ")} exceed the inventory (${[...allowed].join(", ")})`);
   }
+  // Lint 14: Exam Studio's chain is linked to, never run from AI Workflows.
+  for (const entry of REGISTRY.values()) { const problem = examStudioViolation(entry); if (problem) errors.push(problem); }
 
   const sources = (dir: string): string[] => readdirSync(dir).flatMap(name => { const path = join(dir, name); return statSync(path).isDirectory() ? sources(path) : path.endsWith(".ts") ? [path] : []; });
   for (const file of [...sources("src/lib/ai-workflows/registry"), ...sources("src/lib/ai-workflows/adapters")]) {

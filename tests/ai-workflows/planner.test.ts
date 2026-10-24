@@ -40,7 +40,9 @@ test("retrieval ranks by meaning words in all three languages and only within th
   const admin = entriesForRole("CAMPUS_ADMIN");
   assert.equal(rank("add a holiday on 12 november", admin)[0].entry.key, "setup.holidays");
   assert.equal(rank("کمرے شامل کریں", admin)[0].entry.key, "setup.rooms");
-  assert.equal(rank("أضف إجازة", admin)[0].entry.key, "setup.holidays");
+  // "إجازة" is both a school holiday and staff leave: both cards must reach the model (MAX_CARDS), which asks if unclear.
+  const arabic = rank("أضف إجازة", admin).slice(0, 8).map(item => item.entry.key);
+  assert.ok(arabic.includes("setup.holidays") && arabic.includes("leave.create_type"), arabic.join(","));
   assert.ok(!entriesForRole("TEACHER").some(entry => entry.key.startsWith("fees.")));
 });
 
@@ -63,4 +65,10 @@ test("every card the model can see renders in each language with a class note an
     assert.ok(card.title && card.whenToUse && card.examples.length && ["RUNS", "CONFIRM", "HANDOFF"].includes(card.class));
   }
   assert.ok(!JSON.stringify(cardFor(REGISTRY.get("work.save")!, "en")).includes("fees.generate_invoices"), "a draft plan cannot carry an operation");
+});
+
+test("amounts written with thousands separators count as the user's own number", () => {
+  const segments = [{ id: "s0", normalized: "record rs 12,500 cash for bilal" }];
+  assert.deepEqual(checkEvidence({ amount: 12500 }, ["/amount"], [{ pointer: "/amount", quote: "rs 12,500 cash" }], segments).missing, []);
+  assert.deepEqual(checkEvidence({ amount: 12600 }, ["/amount"], [{ pointer: "/amount", quote: "rs 12,500 cash" }], segments).missing, ["/amount"], "a different number is not supported");
 });

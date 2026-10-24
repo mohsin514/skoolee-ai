@@ -4,10 +4,10 @@ import { FlagshipCard } from "@/components/ui/flagship";
 import { useLocale } from "@/components/locale/LocaleProvider";
 
 const COPY = {
-  title: { en: "Your week, built live", ar: "أسبوعك، يُبنى أمامك", ur: "آپ کا ہفتہ، ابھی تیار" },
-  start: { en: "Answer a few questions about your classes and Skoolee sets up your first weeks: plans, meeting slots and class tests. You review each one before it is saved.", ar: "أجب عن أسئلة قليلة عن فصولك ويجهز Skoolee أسابيعك الأولى. تراجع كل شيء قبل حفظه.", ur: "اپنی کلاسوں کے بارے میں چند سوالات کے جواب دیں، اسکولی آپ کے پہلے ہفتے تیار کرے گا۔ ہر چیز محفوظ ہونے سے پہلے آپ دیکھیں گے۔" },
+  title: { en: "Set up your first weeks", ar: "جهّز أسابيعك الأولى", ur: "اپنے پہلے ہفتے تیار کریں" },
+  start: { en: "Answer a few short questions and Skoolee sets up your first weeks for you. Anything that changes school records waits for you to review it.", ar: "أجب عن أسئلة قصيرة ويجهز Skoolee أسابيعك الأولى. أي تغيير في سجلات المدرسة ينتظر مراجعتك.", ur: "چند مختصر سوالات کے جواب دیں، اسکولی آپ کے پہلے ہفتے تیار کرے گا۔ اسکول ریکارڈ کی ہر تبدیلی آپ کے جائزے کا انتظار کرے گی۔" },
   resume: { en: "Your setup is saved where you left it.", ar: "إعدادك محفوظ حيث توقفت.", ur: "آپ کا سیٹ اپ وہیں محفوظ ہے جہاں چھوڑا تھا۔" },
-  begin: { en: "Set up my week", ar: "جهّز أسبوعي", ur: "میرا ہفتہ تیار کریں" },
+  begin: { en: "Start", ar: "ابدأ", ur: "شروع کریں" },
   continue: { en: "Continue setup", ar: "متابعة الإعداد", ur: "سیٹ اپ جاری رکھیں" },
 };
 
@@ -24,6 +24,6 @@ export function SetupPrompt() {
   const fresh = setup.status === "NEW";
   return (
     <FlagshipCard kind="ai-workflows" title={COPY.title[language]} description={fresh ? COPY.start[language] : COPY.resume[language]}
-      action={{ label: fresh ? COPY.begin[language] : COPY.continue[language], href: "/ai/setup" }} tourAnchor="teacher.today.setup" />
+      action={{ label: fresh ? COPY.begin[language] : COPY.continue[language], href: "/ai/setup" }} tourAnchor="today.setup" />
   );
 }

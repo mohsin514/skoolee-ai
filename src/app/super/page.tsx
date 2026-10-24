@@ -50,6 +50,7 @@ import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView"
 import { RoleShell, ManagementCard, AiActionPanel, useShellSession } from "@/components/role-dashboard";
 import { CommandCentreSkeleton, PageSkeleton, PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 import { FlagshipCard } from "@/components/ui/flagship";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { PageHeader } from "@/components/ui/page-header";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { Menu } from "@/components/ui/menu";
@@ -450,6 +451,7 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
         status={retiredNotice ? <Alert tone="info" compact live="off">{t(retiredNotice)}</Alert> : undefined}
       />
 
+      {aiWorkflows && <SetupPrompt />}
       {aiWorkflows && <FlagshipCard kind="ai-workflows" title={groupCopy.title} description={groupCopy.body} action={{ label: groupCopy.action, href: "/setup/readiness" }} tourAnchor="super.today.flagship-ai" />}
 
       <section data-tour="super.overview.attention" aria-labelledby="attention-title" className="sk-panel p-4 sm:p-6">

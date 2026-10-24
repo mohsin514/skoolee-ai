@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { daysToTenths, tenthsToDays } from "@/lib/leave";
+import { createLeaveAllocation } from "@/lib/leave/create-allocation-command";
 
 // Leave allocations — role-wide rows (role set, userId null) or per-user
 // overrides (userId set, role null).
@@ -43,43 +44,7 @@ export async function POST(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "add");
     const body = await req.json();
-
-    const campusId = await resolveCampusId(user, body.campusId);
-    const leaveTypeId = String(body.leaveTypeId ?? "");
-    const academicYear = Number(body.academicYear) || new Date().getFullYear();
-    const role = body.role ? String(body.role).toUpperCase() : null;
-    const userId = body.userId ? String(body.userId) : null;
-    if (!leaveTypeId) throw new ApiError("leaveTypeId is required", 400);
-    if (!role && !userId) throw new ApiError("Provide either a role or a user", 400);
-    if (role && userId) throw new ApiError("Provide either a role or a user, not both", 400);
-
-    const leaveType = await prisma.leaveType.findFirst({
-      where: { id: leaveTypeId, campusId },
-    });
-    if (!leaveType) throw new ApiError("Leave type not found", 404);
-
-    if (userId) {
-      const target = await prisma.user.findFirst({
-        where: { id: userId, campusId, schoolId: user.schoolId },
-      });
-      if (!target) throw new ApiError("User not found on this campus", 404);
-    }
-
-    const days = daysToTenths(Number(body.days ?? 0));
-    const duplicate = await prisma.leaveAllocation.findFirst({
-      where: {
-        campusId,
-        leaveTypeId,
-        academicYear,
-        role: role ?? null,
-        userId: userId ?? null,
-      },
-    });
-    if (duplicate) throw new ApiError("An allocation for this leave type / scope / year already exists", 409);
-
-    const allocation = await prisma.leaveAllocation.create({
-      data: { campusId, leaveTypeId, role, userId, days, academicYear },
-    });
+    const allocation = await createLeaveAllocation(user, body);
     return Response.json({ success: true, data: allocation }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[leave/allocations] POST failed");

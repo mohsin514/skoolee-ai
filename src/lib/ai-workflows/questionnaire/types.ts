@@ -20,7 +20,13 @@ export type QuestionView =
   | { kind: "per-row-choice"; rows: Array<{ id: string; label: string; options: Option[] }> }
   | { kind: "schedule"; days: Array<{ day: number; label: string; slots: Array<{ id: string; label: string; free: boolean }> }>; weeks: { min: number; max: number } }
   | { kind: "test-rows"; rows: Array<{ id: string; label: string; defaultTotal: number }>; minDate: string }
-  | { kind: "group"; fields: Array<{ key: string; label: string; view: QuestionView; optional?: boolean }> };
+  | { kind: "group"; fields: Array<{ key: string; label: string; view: QuestionView; optional?: boolean }> }
+  /** A number per row (sections per grade, leave days per type): value Record<rowId, number>. */
+  | { kind: "row-steppers"; rows: Array<{ id: string; label: string }>; min: number; max: number; step: number; unit?: string }
+  /** Tags per row (subjects per grade band): value Record<rowId, string[]>. */
+  | { kind: "row-tags"; rows: Array<{ id: string; label: string; suggestions: string[] }>; max: number; placeholder: string }
+  /** Structured rows typed by the person (never model-read): value Array<Record<columnKey, string>>. */
+  | { kind: "table"; columns: Array<{ key: string; label: string; type: "text" | "email" | "tel" | "choice"; options?: Option[] }>; maxRows: number };
 
 export interface Question<P> {
   key: string;

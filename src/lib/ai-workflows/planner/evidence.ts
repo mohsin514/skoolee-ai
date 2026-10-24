@@ -60,9 +60,12 @@ export function expandPointers(input: unknown, pointers: readonly string[]): str
   });
 }
 
+export const joinThousands = (text: string) => text.replace(/(\d)[,\s.\u066C\u060C](?=\d{3}(?!\d))/g, "$1");
+
 export function checkEvidence(input: unknown, required: readonly string[], claims: readonly EvidenceClaim[], segments: readonly Segment[]) {
   const matches: EvidenceMatch[] = [], missing: string[] = [];
-  const userWords = new Set(segments.flatMap(segment => tokens(segment.normalized)));
+  // "Rs 12,500" and "12 500" are the user's 12500: thousands separators are joined before comparing numbers.
+  const userWords = new Set(segments.flatMap(segment => [...tokens(segment.normalized), ...tokens(joinThousands(segment.normalized))]));
   for (const pointer of expandPointers(input, required)) {
     const value = readPointer(input, pointer);
     if (value === undefined || value === null || (Array.isArray(value) && !value.length)) { missing.push(pointer); continue; }

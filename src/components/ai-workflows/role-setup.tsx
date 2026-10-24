@@ -45,6 +45,17 @@ const COPY: Record<string, Record<Lang, string>> = {
   planTest: { en: "Plan a test", ar: "خطط لاختبار", ur: "ٹیسٹ طے کریں" },
   notYet: { en: "Not yet", ar: "ليس بعد", ur: "ابھی نہیں" },
   total: { en: "Total marks", ar: "الدرجة الكلية", ur: "کل نمبر" },
+  addRow: { en: "Add a person", ar: "إضافة شخص", ur: "شخص شامل کریں" },
+  edit: { en: "Change my answers", ar: "تغيير إجاباتي", ur: "میرے جوابات تبدیل کریں" },
+  board: { en: "Campus launch board", ar: "لوحة إطلاق الفروع", ur: "کیمپس لانچ بورڈ" },
+  tileCampus: { en: "Campus ✓", ar: "الفرع ✓", ur: "کیمپس ✓" },
+  tileLeaderNONE: { en: "No administrator yet", ar: "لا مدير بعد", ur: "ابھی کوئی منتظم نہیں" },
+  tileLeaderINVITED: { en: "Invitation pending", ar: "الدعوة معلقة", ur: "دعوت زیر التوا" },
+  tileLeaderJOINED: { en: "Administrator joined", ar: "انضم المدير", ur: "منتظم شامل ہو گئے" },
+  tileSetupNEW: { en: "Setup not started", ar: "لم يبدأ الإعداد", ur: "سیٹ اپ شروع نہیں" },
+  tileSetupBUSY: { en: "Setting up", ar: "قيد الإعداد", ur: "سیٹ اپ جاری" },
+  tileSetupREADY: { en: "Set up", ar: "جاهز", ur: "تیار" },
+  remove: { en: "Remove", ar: "إزالة", ur: "ہٹائیں" },
   stale: { en: "This sheet changed in another tab. The latest answers are shown.", ar: "تغيّرت الصفحة في نافذة أخرى. تظهر أحدث الإجابات.", ur: "یہ شیٹ دوسرے ٹیب میں بدلی۔ تازہ جوابات دکھائے جا رہے ہیں۔" },
 };
 const c = (key: string, language: Lang, ...values: Array<string | number>) => t(COPY, key, language, ...values);
@@ -115,6 +126,44 @@ function Field({ view, value, onChange, label, language }: { view: QuestionView;
         })}</div>
       );
     }
+    case "row-steppers": {
+      const rows = (value ?? {}) as Record<string, number>;
+      return (
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2" role="group" aria-label={label}>{view.rows.map(row => (
+          <div key={row.id} className="flex items-center justify-between gap-3" data-row={row.id}>
+            <span className="text-sm font-medium">{row.label}</span>
+            <Stepper label={row.label} value={rows[row.id] ?? view.min} min={view.min} max={view.max} step={view.step} unit={view.unit} onChange={next => onChange({ ...rows, [row.id]: next })} />
+          </div>
+        ))}</div>
+      );
+    }
+    case "row-tags": {
+      const rows = (value ?? {}) as Record<string, string[]>;
+      return (
+        <div className="space-y-4">{view.rows.map(row => (
+          <div key={row.id} className="space-y-1.5" data-row={row.id}><span className="text-sm font-medium">{row.label}</span>
+            <TagList label={row.label} value={rows[row.id] ?? []} max={view.max} placeholder={view.placeholder} suggestions={row.suggestions} onChange={next => onChange({ ...rows, [row.id]: next })} />
+          </div>
+        ))}</div>
+      );
+    }
+    case "table": {
+      const rows = Array.isArray(value) ? (value as Array<Record<string, string>>) : [];
+      const set = (index: number, key: string, next: string) => onChange(rows.map((row, at) => (at === index ? { ...row, [key]: next } : row)));
+      return (
+        <div className="space-y-3" role="group" aria-label={label}>
+          {rows.map((row, index) => (
+            <div key={index} className="grid gap-2 rounded-xl border border-border p-3 sm:grid-cols-[repeat(auto-fit,minmax(9rem,1fr))_auto]" data-table-row={index}>
+              {view.columns.map(column => column.type === "choice"
+                ? <Select key={column.key} aria-label={column.label} value={row[column.key] ?? ""} onChange={event => set(index, column.key, event.target.value)}><option value="">{column.label}</option>{column.options?.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
+                : <Input key={column.key} aria-label={column.label} placeholder={column.label} type={column.type} dir={column.type === "text" ? "auto" : "ltr"} value={row[column.key] ?? ""} onChange={event => set(index, column.key, event.target.value)} />)}
+              <Button type="button" variant="ghost" size="sm" onClick={() => onChange(rows.filter((_, at) => at !== index))}>{c("remove", language)}</Button>
+            </div>
+          ))}
+          {rows.length < view.maxRows && <Button type="button" variant="outline" size="sm" onClick={() => onChange([...rows, {}])}>{c("addRow", language)}</Button>}
+        </div>
+      );
+    }
     case "group": {
       const current = (value ?? {}) as Record<string, unknown>;
       return (
@@ -133,7 +182,7 @@ function Field({ view, value, onChange, label, language }: { view: QuestionView;
  * as it is given and the left pane shows what Build will set up (pending ghosts) before anything runs.
  * Build compiles confirmed answers without a model call; the Run Sheet then takes over.
  */
-export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
+export function RoleSetup({ questionnaireKey, homeHref }: { questionnaireKey: string; homeHref: string }) {
   const { language } = useLocale();
   const [sheet, setSheet] = useState<SheetView | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -143,6 +192,8 @@ export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [initialRun, setInitialRun] = useState<RunView | null>(null);
   const [building, setBuilding] = useState(false);
+  // Back to the answers from a build: saving a change supersedes what still waits; what saved stays.
+  const [editing, setEditing] = useState(false);
   const { run, busy, error, send } = useWorkflowRun(initialRun);
   const pending = useRef<{ answers: Record<string, unknown>; confirmed: string[] } | null>(null);
   const timer = useRef<number | null>(null);
@@ -198,17 +249,34 @@ export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
     if (!sheet) return;
     if (timer.current) { window.clearTimeout(timer.current); await flush(); }
     setBuilding(true); setProblem(null);
-    try { const { run: next } = await call<{ run: RunView }>(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "build", version: version.current, language }) }); setInitialRun(next); }
+    try { const { run: next } = await call<{ run: RunView }>(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "build", version: version.current, language }) }); setInitialRun(next); setEditing(false); }
     catch (thrown) { setProblem(thrown instanceof WorkflowRequestError ? thrown.code : "INTERNAL"); }
     finally { setBuilding(false); }
   };
-  const defer = async () => { await call(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "defer" }) }).catch(() => undefined); window.location.assign("/teacher"); };
+  const defer = async () => { await call(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "defer" }) }).catch(() => undefined); window.location.assign(homeHref); };
 
   const dir = language === "en" ? "ltr" : "rtl";
   if (!sheet) return problem ? <Alert tone="danger" data-ai-error={problem}>{ERROR_WORDS[problem as keyof typeof ERROR_WORDS]?.[language] ?? problem}</Alert> : <div className="space-y-3 p-6"><Skeleton className="h-10 w-2/3" /><Skeleton className="h-48 w-full" /></div>;
 
+  const board = sheet.board?.length ? (
+    <section className="sk-panel space-y-2 p-4" data-ai-launch-board>
+      <h2 className="text-sm font-semibold">{c("board", language)}</h2>
+      <ul className="space-y-2">{sheet.board.map(tile => (
+        <li key={tile.campusId} data-ai-tile={tile.campusId} className="space-y-1 rounded-lg border border-border p-2 text-sm">
+          <p className="font-medium" dir="auto">{tile.campus}</p>
+          <div className="flex flex-wrap gap-1">
+            <Badge variant="success">{c("tileCampus", language)}</Badge>
+            <Badge variant={tile.leader === "JOINED" ? "success" : tile.leader === "INVITED" ? "warning" : "neutral"}>{c(`tileLeader${tile.leader}`, language)}</Badge>
+            {tile.setup && <Badge variant={tile.setup === "READY" ? "success" : "info"}>{c(`tileSetup${tile.setup === "READY" ? "READY" : tile.setup === "NEW" ? "NEW" : "BUSY"}`, language)}</Badge>}
+          </div>
+        </li>
+      ))}</ul>
+    </section>
+  ) : null;
+
   const ghosts = (
     <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start" data-ai-ghosts aria-live="polite">
+      {board}
       <section className="sk-panel space-y-2 p-4">
         <h2 className="text-sm font-semibold text-ink-muted">{c("known", language)}</h2>
         <dl className="space-y-2 text-sm">{sheet.known.map(fact => <div key={fact.label}><dt className="text-ink-muted">{fact.label}</dt><dd className="font-medium" dir="auto">{fact.value}</dd></div>)}</dl>
@@ -228,11 +296,12 @@ export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
     </aside>
   );
 
-  if (run) return (
+  if (run && !editing) return (
     <div className="mx-auto grid max-w-6xl gap-6 p-4 sm:p-6 lg:grid-cols-[1fr_20rem]" dir={dir} data-ai-setup-run>
       <div className="space-y-4">
         <h1 className="flex items-center gap-2 text-2xl font-bold">{run.status === "COMPLETED" && <CheckCircle2 className="size-6 text-success" aria-hidden />}{run.status === "COMPLETED" ? c("ready", language) : sheet.title}</h1>
         <RunSheet run={run} language={language} busy={busy} error={error} onCommand={(body, clickKey) => void send(body, clickKey)} />
+        <Button type="button" variant="outline" data-ai-edit-answers onClick={() => { setEditing(true); setPage(0); }}>{c("edit", language)}</Button>
         <section className="sk-panel space-y-2 p-4" data-ai-remains>
           <h2 className="font-semibold">{c("remains", language)}</h2>
           <ul className="space-y-2 text-sm">{sheet.remains.map(task => <li key={task.title} className="flex flex-wrap items-center justify-between gap-2"><span>{task.title} · <span className="text-ink-muted">{task.who}</span></span>{task.link && <Link className="underline" href={task.link}>{t({ o: { en: "Open", ar: "فتح", ur: "کھولیں" } }, "o", language)}</Link>}</li>)}</ul>

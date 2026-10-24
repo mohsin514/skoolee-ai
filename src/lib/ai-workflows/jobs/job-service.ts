@@ -16,8 +16,10 @@ import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
 import { capability } from "../registry";
 import { appendEvent } from "./events";
 import { aiWorkflowsV2Enabled } from "../flag";
+import { mentionsCare } from "../pii/care-detector";
 import { authorizeActor, capabilityContext, inTenant } from "./actor";
 import { withLease } from "./lease";
+import { PROVIDER_RETRIES, providerBackoffMs } from "./provider-limit";
 
 /** Requests are bounded; questionnaire jobs come from compiled sheets (Slice 2), not from this route. */
 export const startJobSchema = z.strictObject({
@@ -28,6 +30,7 @@ export const startJobSchema = z.strictObject({
 });
 const JOB_TTL_MS = 7 * 86_400_000;
 const STEP_CAP = 25;
+const QUESTIONNAIRE_STEP_CAP = 150;
 export const DEFAULT_BUDGET = { maxSteps: STEP_CAP, maxModelCalls: 12, maxQuestions: 8, maxReplans: 2 };
 
 const jobWhere = (user: AuthUser, id: string) => ({ id, schoolId: user.schoolId, actorId: user.userId });
@@ -39,6 +42,8 @@ export function startJob(user: AuthUser, raw: unknown): Promise<AiWorkflowJob> {
     const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
     if (!aiWorkflowsV2Enabled(school?.slug)) throw new WorkflowError("NOT_CONNECTED");
     const input = startJobSchema.parse(raw);
+    // Checked before anything is written: the words are never stored, planned or logged as a gap.
+    if (mentionsCare(input.message)) throw new WorkflowError("CARE_REFERRAL");
     const campusId = user.role === "APP_OWNER" ? null : user.role === "STUDENT" || user.role === "PARENT" ? user.campusId : await resolveWorkspaceCampus(user, input.campusId);
     if (input.campusId && input.campusId !== campusId) throw new WorkflowError("SCOPE_DENIED");
     const requestHash = sha256({ message: input.message, campusId, role: user.role });
@@ -72,9 +77,11 @@ export interface PlannedStep { stepKey: string; capabilityKey: string; dependsOn
 /** Persists a plan. The planner (Slice 1e) is the normal caller; class floors come from the registry, never the plan. */
 export async function savePlan(user: AuthUser, jobId: string, steps: PlannedStep[]) {
   return inTenant(user, async () => {
-    if (steps.length > STEP_CAP) throw new WorkflowError("BUDGET_EXHAUSTED", { cap: STEP_CAP });
     const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId) });
     if (!job) throw new WorkflowError("NOT_FOUND");
+    // A questionnaire Build is compiled, not model-planned, so it may carry a whole campus (red team: chunked, capped).
+    const cap = job.origin === "QUESTIONNAIRE" ? QUESTIONNAIRE_STEP_CAP : STEP_CAP;
+    if (steps.length > cap) throw new WorkflowError("BUDGET_EXHAUSTED", { cap });
     const planVersion = job.planVersion + 1;
     await prisma.$transaction(async tx => {
       for (const planned of steps) {
@@ -87,7 +94,8 @@ export async function savePlan(user: AuthUser, jobId: string, steps: PlannedStep
           status: planned.missingFields?.length ? "NEEDS_INPUT" : "PENDING",
         } });
       }
-      await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { planVersion, status: "RUNNING", version: { increment: 1 } } });
+      // A plan that lands clears any earlier provider pause, so a finished job never shows a stale error.
+      await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { planVersion, status: "RUNNING", errorCode: null, errorParams: Prisma.DbNull, nextWakeAt: null, version: { increment: 1 } } });
       await appendEvent(tx, job, "PLAN_READY", null, { steps: steps.length });
     });
   });
@@ -112,9 +120,20 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
       catch { return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: "BLOCKED", errorCode: "STALE_VERSION", version: { increment: 1 } } }); }
       if (job.status === "PLANNING") {
         // Planning calls the model; a failure is recorded on the job, never thrown past the lease.
-        try { await planJob(user, job, generate); }
+        try {
+          await planJob(user, job, generate);
+          // Planning reached the model and finished (a plan, a question, an answer or "not supported"):
+          // any earlier provider pause is over, so a finished job never shows a stale error.
+          if (job.errorCode === "PROVIDER_UNAVAILABLE") await prisma.aiWorkflowJob.updateMany({ where: { id: job.id, schoolId: job.schoolId, errorCode: "PROVIDER_UNAVAILABLE" }, data: { errorCode: null, errorParams: Prisma.DbNull, nextWakeAt: null } });
+        }
         catch (error) {
           const failure = toWorkflowError(error);
+          // A provider outage, timeout or rate limit pauses with backoff (no credit was charged); the
+          // worker wakes the job and plans again. After PROVIDER_RETRIES attempts it fails honestly.
+          if (failure.code === "PROVIDER_UNAVAILABLE" || failure.code === "DEADLINE") {
+            const attempt = (((job.errorParams ?? {}) as { attempt?: number }).attempt ?? 0) + 1;
+            if (attempt <= PROVIDER_RETRIES) return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: "PAUSED", errorCode: "PROVIDER_UNAVAILABLE", errorParams: { attempt, ...(failure.params.reason ? { reason: failure.params.reason } : {}) }, nextWakeAt: new Date(Date.now() + providerBackoffMs(attempt)), version: { increment: 1 } } });
+          }
           return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: failure.code === "BUDGET_EXHAUSTED" || failure.code === "CREDITS_EXHAUSTED" ? "PAUSED" : "FAILED", errorCode: failure.code, version: { increment: 1 } } });
         }
         const planned = await prisma.aiWorkflowJob.findFirstOrThrow({ where: { id: job.id } });
@@ -123,7 +142,7 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
       }
       const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
       await observeHandoffs(job);
-      for (let pass = 0; pass < STEP_CAP; pass++) {
+      for (let pass = 0; pass < QUESTIONNAIRE_STEP_CAP; pass++) {
         const steps = await prisma.aiWorkflowStep.findMany({ where: { jobId: job.id, schoolId: job.schoolId, planVersion: job.planVersion }, orderBy: { createdAt: "asc" } });
         const statuses = new Map(steps.map(step => [step.stepKey, step.status as StepStatus]));
         let progressed = false;

@@ -1,5 +1,7 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
+import { clientIp } from "@/lib/http/client-ip";
 
 export const dynamic = "force-dynamic";
 
@@ -45,10 +47,21 @@ export async function PUT(request: Request) {
     if (process.env.NODE_ENV !== "production") {
       console.log("[platform-config] upserting with:", JSON.stringify(pricing));
     }
-    const config = await prisma.platformConfig.upsert({
-      where: { key: CONFIG_KEY },
-      create: { key: CONFIG_KEY, value: pricing, updatedBy: user.userId },
-      update: { value: pricing, updatedBy: user.userId },
+    // The price change and its audit row commit together: a default-pricing change is never unaudited.
+    const config = await prisma.$transaction(async (tx) => {
+      const previous = await tx.platformConfig.findUnique({ where: { key: CONFIG_KEY }, select: { value: true } });
+      const saved = await tx.platformConfig.upsert({
+        where: { key: CONFIG_KEY },
+        create: { key: CONFIG_KEY, value: pricing, updatedBy: user.userId },
+        update: { value: pricing, updatedBy: user.userId },
+      });
+      await tx.superAdminAuditLog.create({
+        data: {
+          userId: user.userId, action: "default_plan_pricing_updated", targetType: "platform_config", targetId: CONFIG_KEY, targetName: "Default plan pricing",
+          oldValues: (previous?.value ?? undefined) as Prisma.InputJsonValue | undefined, newValues: pricing, ipAddress: clientIp(request.headers), userAgent: request.headers.get("user-agent") || undefined,
+        },
+      });
+      return saved;
     });
 
     return Response.json({ success: true, message: "Default plan prices updated.", data: config.value });

@@ -15,6 +15,15 @@ import { appendEvent } from "../jobs/events";
 import { DEFAULT_BUDGET, advanceJob, getJob, savePlan } from "../jobs/job-service";
 import { toRunView, type RunView } from "../view";
 import { TEACHER_QUESTIONNAIRE } from "./roles/teacher";
+import { ADMIN_QUESTIONNAIRE, CAMPUS_ADMIN_QUESTIONNAIRE } from "./roles/operator";
+import { STUDENT_QUESTIONNAIRE } from "./roles/student";
+import { PARENT_QUESTIONNAIRE } from "./roles/parent";
+import { ACCOUNTANT_QUESTIONNAIRE } from "./roles/accountant";
+import { LIBRARIAN_QUESTIONNAIRE } from "./roles/librarian";
+import { RECEPTIONIST_QUESTIONNAIRE } from "./roles/receptionist";
+import { PRINCIPAL_QUESTIONNAIRE } from "./roles/principal";
+import { GROUP_QUESTIONNAIRE } from "./roles/group";
+import { OWNER_QUESTIONNAIRE } from "./roles/owner";
 import type { CompiledStep, QuestionnaireDefinition, QuestionView, RemainingTask } from "./types";
 
 /**
@@ -22,7 +31,7 @@ import type { CompiledStep, QuestionnaireDefinition, QuestionView, RemainingTask
  * user's live role; a URL key that does not match it is NOT_FOUND (red team RT14), so a teacher can
  * never open, answer or build another role's sheet.
  */
-const DEFINITIONS: readonly QuestionnaireDefinition<any>[] = [TEACHER_QUESTIONNAIRE];
+const DEFINITIONS: readonly QuestionnaireDefinition<any>[] = [TEACHER_QUESTIONNAIRE, ADMIN_QUESTIONNAIRE, CAMPUS_ADMIN_QUESTIONNAIRE, STUDENT_QUESTIONNAIRE, PARENT_QUESTIONNAIRE, ACCOUNTANT_QUESTIONNAIRE, LIBRARIAN_QUESTIONNAIRE, RECEPTIONIST_QUESTIONNAIRE, PRINCIPAL_QUESTIONNAIRE, GROUP_QUESTIONNAIRE, OWNER_QUESTIONNAIRE];
 
 export function definitionForRole(role: string): QuestionnaireDefinition<any> | null {
   return DEFINITIONS.find(definition => definition.roles.includes(role as never)) ?? null;
@@ -35,7 +44,9 @@ function definitionFor(user: AuthUser, key: string) {
 }
 
 async function setupContext(user: AuthUser, locale: Locale) {
-  const campusId = await resolveWorkspaceCampus(user, user.campusId);
+  // Families and students act on their own campus; they hold no workspace scope to resolve.
+  // Families and students act on their own campus; the group owner and platform owner set up without one.
+  const campusId = user.role === "PARENT" || user.role === "STUDENT" ? user.campusId : user.role === "SUPER_ADMIN" || user.role === "APP_OWNER" ? null : await resolveWorkspaceCampus(user, user.campusId);
   return capabilityContext(user, campusId, locale);
 }
 
@@ -49,6 +60,31 @@ export interface SheetView {
   notConnected: Array<{ capabilityKey: string; count: number }>;
   remains: Array<{ title: string; who: string; link?: string }>;
   run: RunView | null;
+  /** Group owner only: one tile per campus, tracking its administrator and their own setup sheet. */
+  board?: LaunchTile[];
+}
+
+export interface LaunchTile { campusId: string; campus: string; leader: "NONE" | "INVITED" | "JOINED"; setup: string | null }
+
+/**
+ * The group launch board (design-slices §10): campus created → leader invitation prepared → accepted →
+ * that campus admin's own sheet progress. Read-only, from the records; nothing is inferred.
+ */
+async function launchBoard(user: AuthUser): Promise<LaunchTile[]> {
+  const [campuses, admins, invites, responses] = await Promise.all([
+    prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true, name: true }, orderBy: { createdAt: "asc" }, take: 50 }),
+    prisma.user.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN", isActive: true }, select: { id: true, campusId: true } }),
+    prisma.staffInvitation.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN", status: "pending" }, select: { campusId: true } }).catch(() => []),
+    prisma.aiSetupResponse.findMany({ where: { schoolId: user.schoolId, role: "CAMPUS_ADMIN" }, select: { userId: true, status: true } }),
+  ]);
+  return campuses.map(campus => {
+    const admin = admins.find(row => row.campusId === campus.id);
+    return {
+      campusId: campus.id, campus: campus.name,
+      leader: admin ? "JOINED" : invites.some(row => row.campusId === campus.id) ? "INVITED" : "NONE",
+      setup: admin ? responses.find(row => row.userId === admin.id)?.status ?? "NEW" : null,
+    };
+  });
 }
 
 /** Only answered, confirmed questions that still apply; everything else is ignored by Build. */
@@ -125,6 +161,7 @@ export function getSheet(user: AuthUser, key: string, locale: Locale): Promise<S
       notConnected: countBy(missing).map(([capabilityKey, count]) => ({ capabilityKey, count })),
       remains: remains.map(task => ({ title: task.title[locale], who: task.who[locale], ...(task.link ? { link: task.link } : {}) })),
       run: running ? toRunView(running) : null,
+      ...(definition.key === "group" ? { board: await launchBoard(user) } : {}),
     };
   });
 }
@@ -248,6 +285,9 @@ export function setupStatus(user: AuthUser) {
   return inTenant(user, async () => {
     const definition = definitionForRole(user.role);
     if (!definition) return null;
+    // With AI Workflows off for this school there is no sheet to offer (the earlier setup paths remain).
+    const school = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { slug: true } });
+    if (!aiWorkflowsV2Enabled(school?.slug)) return { key: definition.key, status: "OFF", show: false };
     const response = await prisma.aiSetupResponse.findUnique({ where: { schoolId_userId_questionnaireKey: { schoolId: user.schoolId, userId: user.userId, questionnaireKey: definition.key } }, select: { status: true, deferrals: true, definitionVersion: true } });
     const status = response?.status ?? "NEW";
     const show = status === "NEW" || status === "DRAFT" || status === "PARTIAL" || status === "APPLYING" || (status === "DEFERRED" && (response?.deferrals ?? 0) < 3) || (status === "READY" && response!.definitionVersion < definition.version);
