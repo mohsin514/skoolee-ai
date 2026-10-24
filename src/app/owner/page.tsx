@@ -1152,7 +1152,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
                             <h3 className="min-w-0 truncate text-base font-bold text-ink-strong"><bdi>{school.name}</bdi></h3>
                             <PlanBadge plan={school.plan} />
                             {school.status !== "ACTIVE" ? <StatusPill status={school.status} /> : null}
-                            {school.aiWorkflowsLiveAt ? <Badge variant="warning" size="sm" dot>{t("AI live")}</Badge> : null}
+                            {school.aiWorkflowsLiveAt ? <Badge variant="warning" size="sm"><Zap aria-hidden="true" className="size-3" />{t("AI live")}</Badge> : null}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-subtle">
                             <span className="min-w-0 max-w-full truncate"><bdi dir="ltr">{school.contactEmail || "—"}</bdi></span>
@@ -2533,6 +2533,18 @@ function PaymentSettingsView() {
 function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void }) {
   const t = useUiText();
   const dates = useOwnerDates();
+  const { language } = useLocale();
+  const lang = language === "ar" || language === "ur" ? language : "en";
+  // Local copy for the lines this panel adds (the shared UI catalogue lives in src/lib, which this pass leaves alone).
+  const words = {
+    saving: { en: "Saving…", ar: "جارٍ الحفظ…", ur: "محفوظ ہو رہا ہے…" },
+    changes: { en: "What changes", ar: "ما الذي يتغيّر", ur: "کیا بدلے گا" },
+    changesBody: { en: "When staff confirm an AI step, it saves to this school's real records.", ar: "عندما يؤكد الموظفون خطوة من الذكاء الاصطناعي، تُحفظ في سجلات المدرسة الحقيقية.", ur: "جب عملہ اے آئی کے کسی قدم کی تصدیق کرے گا تو وہ اس اسکول کے اصل ریکارڈ میں محفوظ ہو گا۔" },
+    stays: { en: "What stays the same", ar: "ما الذي يبقى كما هو", ur: "کیا ویسا ہی رہے گا" },
+    staysBody: { en: "Nothing is saved without a person confirming it, and other schools stay in practice mode.", ar: "لا يُحفظ شيء دون تأكيد شخص، وتبقى المدارس الأخرى في وضع التدريب.", ur: "کسی شخص کی تصدیق کے بغیر کچھ محفوظ نہیں ہوتا، اور دوسرے اسکول مشق کے موڈ میں رہتے ہیں۔" },
+    back: { en: "Switching back", ar: "العودة", ur: "واپس جانا" },
+    backBody: { en: "Stops new saves; records already saved stay saved.", ar: "يوقف الحفظ الجديد؛ وتبقى السجلات المحفوظة محفوظة.", ur: "نئے اندراج رک جاتے ہیں؛ جو ریکارڈ محفوظ ہو چکے وہ محفوظ رہتے ہیں۔" },
+  } as const;
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const live = Boolean(school.aiWorkflowsLiveAt);
@@ -2549,41 +2561,67 @@ function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChang
       if (!res.ok || !json.success) throw new Error(json.error);
       onChange(school.id, json.data.aiWorkflowsLiveAt ?? null);
       toast.success(next ? t("AI Workflows are live for {0}.", [school.name]) : t("{0} is back in practice mode.", [school.name]));
+      // Close only once the server has saved: a failed save leaves the dialog open to retry.
+      setConfirming(false);
     } catch (error) {
       toast.error(friendlyErrorMessage(error, t("The AI Workflows setting could not be changed. Please try again.")));
     } finally {
       setSaving(false);
-      setConfirming(false);
     }
   };
 
+  const MarkIcon = live ? Zap : ShieldCheck;
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5">
+    <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-5" data-ai-live-state={live ? "live" : "practice"}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="sk-eyebrow text-primary">{t("AI Workflows")}</p>
-        {live ? <Badge variant="warning" size="sm" dot>{t("Live · saves real records")}</Badge> : <Badge variant="neutral" size="sm" dot>{t("Practice mode")}</Badge>}
+        {live ? <Badge variant="warning" size="sm"><Zap aria-hidden="true" />{t("Live · saves real records")}</Badge> : <Badge variant="neutral" size="sm"><ShieldCheck aria-hidden="true" />{t("Practice mode")}</Badge>}
       </div>
-      <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
-        <span className="min-w-0">
+      <label className="flex min-h-11 cursor-pointer items-center gap-4" aria-busy={saving || undefined}>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-(--duration-control)",
+            live ? "border-status-warning-border bg-status-warning-surface/50 text-status-warning-text" : "border-border-subtle bg-surface-subtle text-primary",
+          )}
+        >
+          <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-brand-500 text-primary-foreground">
+            <MarkIcon className="size-4" />
+          </span>
+        </span>
+        <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-ink-strong">{t("Let AI save real records")}</span>
           <span id={`ai-live-${school.id}`} className="mt-0.5 block text-xs leading-relaxed text-ink-muted">
             {live && school.aiWorkflowsLiveAt
-              ? <>{t("Live since")} <bdi className="tabular-nums">{dates.instant(school.aiWorkflowsLiveAt)}</bdi> · {t("Staff-confirmed AI steps change this school's records.")}</>
+              ? <>
+                  <span className="block">{t("Live since")} <bdi className="tabular-nums">{dates.instant(school.aiWorkflowsLiveAt)}</bdi></span>
+                  <span className="block">{t("Staff-confirmed AI steps change this school's records.")}</span>
+                </>
               : t("AI shows what it would do and saves nothing until the release evaluation is recorded.")}
           </span>
         </span>
-        <Switch
-          checked={live}
-          disabled={saving}
-          aria-describedby={`ai-live-${school.id}`}
-          onChange={(event) => { if (event.target.checked) setConfirming(true); else void save(false); }}
-        />
+        <span className="flex shrink-0 items-center gap-2">
+          {saving ? <span role="status" className="text-xs text-ink-muted">{words.saving[lang]}</span> : null}
+          <Switch
+            checked={live}
+            disabled={saving}
+            aria-describedby={`ai-live-${school.id}`}
+            onChange={(event) => { if (event.target.checked) setConfirming(true); else void save(false); }}
+          />
+        </span>
       </label>
       <ConfirmAction
         open={confirming}
         tone="warning"
         title={t("Turn AI Workflows live for {0}?", [school.name])}
         description={t("AI Workflows can then change {0}'s real records, such as students, attendance and fees, whenever its staff confirm a step. Practice mode ends for this school only. You can switch it back at any time.", [school.name])}
+        detail={
+          <dl className="space-y-2 text-xs">
+            <div><dt className="font-semibold text-ink-strong">{words.changes[lang]}</dt><dd className="text-ink-muted">{words.changesBody[lang]}</dd></div>
+            <div><dt className="font-semibold text-ink-strong">{words.stays[lang]}</dt><dd className="text-ink-muted">{words.staysBody[lang]}</dd></div>
+            <div><dt className="font-semibold text-ink-strong">{words.back[lang]}</dt><dd className="text-ink-muted">{words.backBody[lang]}</dd></div>
+          </dl>
+        }
         confirmLabel={t("Turn live")}
         cancelLabel={t("Keep practice mode")}
         busy={saving}

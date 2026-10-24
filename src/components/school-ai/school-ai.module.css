@@ -85,3 +85,61 @@
   .generationHeader { gap: 14px; align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) { .generationWorking::before, .generationWorking::after { animation: none; } }
+
+/* ═══ AI Workflows · staff /ai frame (command deck, launchpad, health grid). Appended; nothing above changes. ═══ */
+.overviewStack.overviewStack { display: grid; gap: 24px; min-width: 0; }
+.overviewStack.overviewStack > * { margin-block: 0; min-width: 0; }
+.commandDeck { display: grid; min-width: 0; }
+.askStage { position: relative; z-index: 10; margin-top: -2rem; padding-inline: clamp(8px, 2.4vw, 32px); min-width: 0; }
+.askStage [data-ai-workspace] { box-shadow: var(--shadow-glow); }
+.secondaryLinks { margin-top: 16px; padding-inline: clamp(8px, 2.4vw, 32px); }
+.scopeField { width: 100%; max-width: 28rem; min-width: 0; }
+.scopeField [data-form-field] button[aria-label] { color: var(--brand-200); }
+.scopeField [data-form-field] button[aria-label]:hover { color: var(--color-primary); }
+.scopeAttention select { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-200) 70%, transparent), 0 0 0 6px color-mix(in srgb, var(--brand-500) 30%, transparent); }
+.healthGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
+.healthSpanFull { grid-column: 1 / -1; min-width: 0; }
+.statCell { min-width: 0; padding-inline: 12px; }
+.statCell:first-child { padding-inline-start: 0; }
+.statCell:last-child { padding-inline-end: 0; }
+.disclosure { border-radius: 24px; }
+.disclosure > summary { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; cursor: pointer; list-style: none; border-radius: inherit; }
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosureChevron { margin-inline-start: auto; flex-shrink: 0; transition: transform var(--duration-control) var(--ease-standard); }
+.disclosure[open] .disclosureChevron { transform: rotate(180deg); }
+.disclosureBody { padding: 0 16px 16px; }
+.lpHideSm.lpHideSm { display: none; }
+.lpSetupBand { display: grid; gap: 16px; }
+.wfCard { position: relative; transition: border-color var(--duration-control) var(--ease-standard), box-shadow var(--duration-control) var(--ease-standard); box-shadow: var(--shadow-xs); }
+.wfCard:hover:not([data-blocked]), .wfCard:focus-within { border-color: var(--brand-200); box-shadow: var(--shadow-md); }
+.wfCard[data-blocked] .wfDim { opacity: .55; }
+.wfCard.wfCard button { width: auto; margin-top: auto; }
+.wfOpen { position: static; }
+.wfOpen::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.wfRowChevron { display: none; }
+.lane { display: grid; gap: 12px; }
+@media (min-width: 640px) {
+  .lpHideSm.lpHideSm { display: grid; }
+  .scopeField { width: auto; }
+  .askStage { margin-top: -2.5rem; }
+}
+@media (min-width: 1024px) {
+  .overviewStack.overviewStack { gap: 32px; }
+  .healthGrid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .healthSpan7 { grid-column: span 7 / span 7; min-width: 0; }
+  .healthSpan5 { grid-column: span 5 / span 5; min-width: 0; }
+}
+/* Phones: workflow cards become 56px rows; the whole row stays one tap target. */
+@media (max-width: 639px) {
+  .wfCard.wfCard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border-radius: 16px; }
+  .wfCard.wfCard > p { display: none; }
+  .wfCard.wfCard h3, .wfCard.wfCard h4 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .wfCard.wfCard button { min-height: 44px; min-width: 44px; padding: 0; margin: 0; background: none; border: 0; box-shadow: none; justify-content: center; }
+  .wfOpenLabel, .wfOpenArrow { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .wfRowChevron { display: inline-block; }
+  .statCell { padding-inline: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .disclosureChevron, .wfCard { transition: none; }
+  .disclosure[open] .disclosureChevron { transform: none; }
+}

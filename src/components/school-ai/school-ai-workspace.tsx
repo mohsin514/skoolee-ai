@@ -5,14 +5,26 @@ import { roleGuideCopy } from "@/components/onboarding/role-guide-copy";
 import { canConfigureCampus, roleAllowsWorkflowTab } from "@/lib/school-ai/setup-role";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, CheckCircle2, ClipboardList, Clock3, FileText, History, LayoutDashboard, Mail, ReceiptText, ListChecks, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
-import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { Activity, ArrowDown, ArrowLeft, ArrowRight, BookOpen, Building2, CalendarClock, ChevronDown, ClipboardCheck, ClipboardList, Clock3, FileCheck2, FileText, GraduationCap, History, LayoutDashboard, Library, ListChecks, ListTodo, Lock, Megaphone, MessagesSquare, ReceiptText, RefreshCw, ShieldCheck, Sparkles, Users, Wallet } from "lucide-react";
+import { InkHeading } from "@/components/ui/ink-heading";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InfoTip } from "@/components/ui/tooltip";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { LiveAnnouncer } from "@/components/ui/live-announcer";
+import { ClassMark } from "@/components/ai-workflows/workflow-marks";
+import { Num } from "@/components/ai-workflows/workflow-format";
+import { InboxCountChip } from "@/components/ai-workflows/inbox-count-chip";
+import { CLASS_WORDS, UI, t as runText } from "@/components/ai-workflows/run-copy";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { FlagshipChip } from "@/components/ui/flagship";
 import { normalizeUserRole } from "@/lib/roles";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { FormField } from "@/components/ui/form-field";
 import { TaskFeedback, TaskStatus } from "@/components/ui/task-patterns";
+import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
 import { SkeletonBar } from "@/components/ui/skeleton";
 import { schoolAICopy } from "@/lib/school-ai/copy";
@@ -62,14 +74,38 @@ type Tab = "overview" | "sources" | "curriculum" | "academicSetup" | "timetableS
 type Capabilities = WorkspaceCapabilities & { setupDefaults?: SetupAnswers };
 interface WorkspaceResponse { records: AiWorkspaceRecord[]; capabilities: Capabilities; nextCursor?: string | null }
 const tabs = [
-  { id: "overview", Icon: LayoutDashboard }, { id: "schoolSetup", Icon: ListChecks }, { id: "schoolOperations", Icon: CalendarDays }, { id: "financeOperations", Icon: ReceiptText }, { id: "runs", Icon: ListChecks }, { id: "sources", Icon: FileText }, { id: "curriculum", Icon: BookOpen }, { id: "academicSetup", Icon: CalendarDays }, { id: "timetableSetup", Icon: Clock3 }, { id: "announcements", Icon: Mail }, { id: "examPlanning", Icon: CalendarDays }, { id: "feeInvoices", Icon: ReceiptText }, { id: "setupTasks", Icon: ListChecks }, { id: "work", Icon: ClipboardList }, { id: "policies", Icon: ShieldCheck }, {id:"knowledge",Icon:BookOpen}, { id: "history", Icon: History },
+  { id: "overview", Icon: LayoutDashboard }, { id: "schoolSetup", Icon: Users }, { id: "schoolOperations", Icon: Building2 }, { id: "financeOperations", Icon: Wallet }, { id: "runs", Icon: Activity }, { id: "sources", Icon: FileText }, { id: "curriculum", Icon: BookOpen }, { id: "academicSetup", Icon: GraduationCap }, { id: "timetableSetup", Icon: Clock3 }, { id: "announcements", Icon: Megaphone }, { id: "examPlanning", Icon: CalendarClock }, { id: "feeInvoices", Icon: ReceiptText }, { id: "setupTasks", Icon: ListTodo }, { id: "work", Icon: ClipboardList }, { id: "policies", Icon: ShieldCheck }, {id:"knowledge",Icon:Library}, { id: "history", Icon: History },
 ] as const;
 
-export function SchoolAIWorkspace(props: { role?: string; campusId?: string | null; examOnly?: boolean; workflowsV2?: { practiceMode: boolean } | null } = {}) {
+type Words = { en: string; ar: string; ur: string };
+// Frame copy for the staff /ai command deck and its lower dashboard (EN / AR / UR).
+const FRAME = {
+  heroSub: { en: "Say what you need. Skoolee plans it within your role and checks with you before anything is saved.", ar: "قل ما تحتاجه. يخطط سكولي له ضمن صلاحيات دورك ويرجع إليك قبل أي حفظ.", ur: "بتائیں آپ کو کیا چاہیے۔ اسکولی آپ کے کردار کی حدود میں منصوبہ بناتا ہے اور محفوظ کرنے سے پہلے آپ سے پوچھتا ہے۔" },
+  askLocked: { en: "Choose a campus to start asking", ar: "اختر فرعًا لتبدأ بالسؤال", ur: "پوچھنا شروع کرنے کے لیے شاخ منتخب کریں" },
+  superNote: { en: "Workflows and saved records below need a campus.", ar: "تحتاج مسارات العمل والسجلات المحفوظة أدناه إلى فرع.", ur: "نیچے کے ورک فلوز اور محفوظ ریکارڈ کے لیے شاخ درکار ہے۔" },
+  nowWorkingIn: { en: "Now working in {0}", ar: "تعمل الآن ضمن {0}", ur: "اب {0} میں کام ہو رہا ہے" },
+  legend: { en: "What happens after you ask", ar: "ماذا يحدث بعد أن تسأل", ur: "پوچھنے کے بعد کیا ہوتا ہے" },
+  secondary: { en: "More in AI Workflows", ar: "المزيد في مسارات الذكاء الاصطناعي", ur: "اے آئی ورک فلوز میں مزید" },
+  delivery: { en: "Delivery & results", ar: "التسليم والنتائج", ur: "ترسیل اور نتائج" },
+  status: { en: "Workspace status", ar: "حالة مساحة العمل", ur: "ورک اسپیس کی صورتحال" },
+  glance: { en: "Your AI work at a glance", ar: "عملك مع الذكاء الاصطناعي في لمحة", ur: "آپ کا اے آئی کام ایک نظر میں" },
+  pendingCampus: { en: "Choose a campus to see counts", ar: "اختر فرعًا لعرض الأعداد", ur: "گنتی دیکھنے کے لیے شاخ منتخب کریں" },
+  pendingSubject: { en: "Choose a subject to see counts", ar: "اختر مادة لعرض الأعداد", ur: "گنتی دیکھنے کے لیے مضمون منتخب کریں" },
+  aiServices: { en: "AI services", ar: "خدمات الذكاء الاصطناعي", ur: "اے آئی خدمات" },
+  examDelivery: { en: "Exam delivery", ar: "تقديم الاختبارات", ur: "امتحان کی ترسیل" },
+  checkAgain: { en: "Check again", ar: "تحقّق مجددًا", ur: "دوبارہ جانچیں" },
+  chat: { en: "Chat and drafting only", ar: "محادثة وصياغة فقط", ur: "گفتگو اور مسودہ فقط" },
+  chatHint: { en: "Ask questions or draft text without starting a workflow.", ar: "اطرح أسئلة أو اكتب مسودات دون بدء مسار عمل.", ur: "ورک فلو شروع کیے بغیر سوال پوچھیں یا متن کا مسودہ بنائیں۔" },
+  readyGroups: { en: "{0} of {1} areas ready", ar: "{0} من {1} مجالات جاهزة", ur: "{1} میں سے {0} حصے تیار" },
+} satisfies Record<string, Words>;
+const AI_SERVICE_KEYS = ["documentUpload", "documentExtraction", "voiceTranscription", "assistant", "paperGeneration"] as const;
+const EXAM_DELIVERY_KEYS = ["secureBrowser", "proctoring", "optionalRecording"] as const;
+
+export function SchoolAIWorkspace(props: { role?: string; campusId?: string | null; examOnly?: boolean; workflowsV2?: { practiceMode: boolean } | null; askExamples?: string[]; askInitialMessage?: string } = {}) {
   return <WorkspaceDraftBoundary><SchoolAIWorkspaceContent {...props} /></WorkspaceDraftBoundary>;
 }
 
-function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId, examOnly = false, workflowsV2 = null }: { role?: string; campusId?: string | null; examOnly?: boolean; workflowsV2?: { practiceMode: boolean } | null }) {
+function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId, examOnly = false, workflowsV2 = null, askExamples, askInitialMessage }: { role?: string; campusId?: string | null; examOnly?: boolean; workflowsV2?: { practiceMode: boolean } | null; askExamples?: string[]; askInitialMessage?: string }) {
   const searchParams = useSearchParams();
   const setupIntent = searchParams.get("setup") === "1" && !searchParams.has("workflow");
   const { language } = useLocale();
@@ -79,6 +115,9 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const prototype = prototypeCopy(language);
   const studioCopy = studioShellCopy(language);
   const guard = useWorkspaceDraftNavigation();
+  const format = useLocaleFormat();
+  const f = (words: Words, ...values: string[]) => values.reduce((text, value, index) => text.replace(`{${index}}`, value), words[language as keyof Words] ?? words.en);
+  const [scopeAnnouncement, setScopeAnnouncement] = useState<string | null>(null);
   const [records, setRecords] = useState<AiWorkspaceRecord[]>([]);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [features, setFeatures] = useState<AIFeatureCapabilities>(UNCONFIGURED_CAPABILITIES);
@@ -281,7 +320,17 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
   const runsVisible = !examOnly && manager && Boolean(capabilities?.tools?.length);
   useEffect(() => { if (!runsVisible || !window.location.hash.startsWith("#run-")) return; const frame = requestAnimationFrame(() => setTab("runs")); return () => cancelAnimationFrame(frame); }, [runsVisible]);
   // Shaped like the landing it stands in for (hero band + workflow cards), so nothing shifts when it arrives.
-  if (loading) return <div role="status" aria-busy="true" className="space-y-6"><span className="sr-only">{c.loading}</span><SkeletonBar className="h-48 w-full rounded-3xl sm:h-56" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map(i => <SkeletonBar key={i} className="h-40 rounded-2xl" delay={i * 80} />)}</div></div>;
+  if (loading && examOnly) return <div role="status" aria-busy="true" className="space-y-6"><span className="sr-only">{c.loading}</span><SkeletonBar className="h-48 w-full rounded-3xl sm:h-56" /><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map(i => <SkeletonBar key={i} className="h-40 rounded-2xl" delay={i * 80} />)}</div></div>;
+  // Mirrors the command deck (ink cover, overlapping Ask, chip row) and the launchpad, so nothing jumps when it arrives.
+  if (loading) return <SkeletonRegion label={c.loading} className={cn(styles.workspace, styles.overviewStack)}>
+    <div className={styles.commandDeck}>
+      <div className="sk-ink-cover h-40 p-5 sm:h-44 sm:p-8" aria-hidden="true"><SkeletonBar tone="dark" className="h-6 w-40 rounded-full" /><SkeletonBar tone="dark" className="mt-5 h-9 w-2/3 rounded-xl" delay={60} /></div>
+      <div className={styles.askStage}><Skeleton className="h-44 w-full rounded-3xl" delay={120} /></div>
+      <div className={cn(styles.secondaryLinks, "flex flex-wrap gap-2")}>{[0, 1, 2].map(i => <Skeleton key={i} className="h-11 w-32 rounded-xl" delay={180 + i * 60} />)}</div>
+    </div>
+    <Skeleton className="h-20 w-full rounded-3xl" delay={240} />
+    <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-14 rounded-2xl sm:h-44" delay={i * 60} />)}</div>
+  </SkeletonRegion>;
   if (!capabilities) return <div className={styles.workspace}><TaskFeedback kind="error" title={c.failed} action={<Button onClick={() => { setLoading(true); void refresh(); }}><RefreshCw aria-hidden="true" />{c.retry}</Button>} /><DemoWorkflowPanel language={language} initialWorkflow={examOnly ? "paper" : "assistant"} /></div>;
   const active = visibleRecords.filter(record => record.status !== "ARCHIVED");
   const onboarding = active.find(record => record.kind === "ONBOARDING");
@@ -316,11 +365,19 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     const target = document.querySelector<HTMLElement>("[data-ai-workflow-launchpad]");
     target?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   };
-  // Plain values only (no handler objects built during render — react-hooks/refs): which first step, its label and
-  // its one outline secondary; the buttons below pick the handler for the mode.
-  const heroMode: "setup" | "workflows" | null = examOnly ? null : canRunQuestionnaire && setupUnfinished ? "setup" : "workflows";
-  const heroLabel = heroMode === "setup" ? ui(onboarding ? "Continue setting up your school with AI" : "Set up your school with AI") : role === "SUPER_ADMIN" ? (language === "ar" ? "مراجعة مسارات المجموعة" : language === "ur" ? "گروپ ورک فلوز کا جائزہ" : "Review group workflows") : ui("Run an AI workflow");
-  const heroSecondary: "workflows" | "runs" | null = heroMode === "setup" ? "workflows" : heroMode === "workflows" && runsVisible && campusId ? "runs" : null;
+  // Ask is the overview's one primary (UI pass). While setup is unfinished the launchpad's setup button is the hero's
+  // first step; otherwise "See all workflows" is.
+  const setupMode = canRunQuestionnaire && setupUnfinished;
+  const featureState: "checking" | "unknown" | "live" | "prototype" = featureStatusKnown ? features.assistant ? "live" : "prototype" : featureStatusFailed ? "unknown" : "checking";
+  const featureChecking = featureState === "checking";
+  const capabilityGroups = [{ id: "ai", title: FRAME.aiServices, keys: AI_SERVICE_KEYS as readonly (keyof AIFeatureCapabilities)[] }, ...(hasKind("PAPER") ? [{ id: "exam", title: FRAME.examDelivery, keys: EXAM_DELIVERY_KEYS as readonly (keyof AIFeatureCapabilities)[] }] : [])];
+  const statsPending = needsCampus || needsSubject;
+  const stats = [
+    { id: "saved-plans", label: c.savedPlans, count: active.filter(record => record.kind === "WORKFLOW").length, tab: "work" as Tab, Icon: ClipboardList },
+    { id: "in-review", label: c.reviewCount, count: active.filter(record => record.status === "IN_REVIEW").length, tab: "history" as Tab, Icon: History },
+    { id: "approved-sources", label: c.approvedSources, count: active.filter(record => record.kind === "SOURCE" && record.status === "APPROVED").length, tab: "sources" as Tab, Icon: FileText },
+  ];
+  const readinessGroups = onboarding ? setupReadiness(setupAnswers) : [];
   const navigateStudio = (next: StudioWorkspaceTab) => guard(() => {
     if (!visibleTabs.some(item => item.id === next)) return;
     setTab(next); setError(""); setNotice("");
@@ -334,6 +391,36 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
       setAcademicRecordId(null); setTimetableRecordId(null); setAnnouncementRecordId(null); setFeeRecordId(null); setExamPlanRecordId(null); setOperationRecordId(null); setFinanceOperationRecordId(null); setSchoolSetupRecordId(null); setWorkflowRecordId(null); setPolicyRecordId(null); setError(""); setNotice("");
     });
   };
+  const guide = roleGuideCopy(normalizeUserRole(role) ?? "ADMIN", language);
+  const campusName = capabilities.campuses.find(item => item.id === campusId)?.name;
+  const onCampusChange = (value: string) => {
+    if (value === selectedCampus) return;
+    changeScope(() => {
+      setSelectedCampus(value);
+      const name = capabilities.campuses.find(item => item.id === value)?.name;
+      setScopeAnnouncement(name ? f(FRAME.nowWorkingIn, name) : null);
+    });
+  };
+  // One campus select only: on the cover (AI Workflows) or in its own panel (Exam Studio). Label and combobox name stay
+  // exactly c.workspaceCampus.
+  const campusField = (onCover: boolean) => <FormField name="ai-campus-scope" label={onCover ? <span className="sk-eyebrow text-brand-100">{c.workspaceCampus}</span> : c.workspaceCampus} tooltip={onCover ? c.workspaceCampusHint : undefined} hint={onCover ? <span className="text-brand-200 sm:sr-only">{c.workspaceCampusHint}</span> : c.workspaceCampusHint}>
+    <div className="relative" data-ai-scope data-attention={needsCampus || undefined}>
+      {onCover ? <Building2 aria-hidden="true" className="pointer-events-none absolute inset-y-0 start-3 z-10 my-auto size-4 text-ink-muted" /> : null}
+      <Select dir="auto" className={onCover ? "min-h-11 ps-10 sm:w-auto sm:min-w-[16rem] sm:max-w-md" : undefined} value={selectedCampus} onChange={event => onCampusChange(event.target.value)}><option value="">{c.chooseCampus}</option>{capabilities.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select>
+    </div>
+  </FormField>;
+  const subjectField = <FormField name="ai-teaching-scope" label={c.subject} hint={c.selectSubjectHint}><Select value={selectedSubject} onChange={event => { const value = event.target.value; if (value !== selectedSubject) changeScope(() => setSelectedSubject(value)); }}><option value="">{c.chooseSubject}</option>{subjects.filter(item => role === "TEACHER" || item.campusId === campusId).map(item => <option key={item.id} value={item.id}>{item.className} · {item.name}</option>)}</Select></FormField>;
+  const overview = tab === "overview";
+  const deckHeader = <header className={cn("sk-ink-cover", overview ? "px-5 pb-14 pt-5 sm:px-8 sm:pb-16 sm:pt-7" : "mb-5 p-4 sm:p-5")} data-ai-workflows-hero data-compact={!overview || undefined}>
+    <span className="sk-quiz-orb" data-tone="brand" aria-hidden="true" />
+    <span className="sk-quiz-orb" data-tone="berry" aria-hidden="true" />
+    <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+      <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brand-100 ring-1 ring-white/15"><FlagshipChip />{ui("AI Workflows")}</p>
+      {manager ? <div className={cn(styles.scopeField, needsCampus && styles.scopeAttention, "sm:w-auto")}>{campusField(true)}</div> : null}
+    </div>
+    <InkHeading as="h1" text={guide.title} className={overview ? "mt-3 text-3xl sm:text-4xl" : "mt-2 text-[1.75rem]"} />
+    {overview ? <p className="mt-2 line-clamp-2 max-w-2xl text-sm leading-relaxed text-brand-100 sm:line-clamp-none sm:text-base">{f(FRAME.heroSub)}</p> : null}
+  </header>;
   return <><div className={styles.workspace} dir={language === "en" ? "ltr" : "rtl"}>
     <WorkspaceIntent permitted={visibleTabs.map(item => item.id)} onOpen={(next, unavailable) => {
       setUnavailableWorkflow(unavailable);
@@ -352,36 +439,43 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
         setSetup(false); setTab(next); setError(""); setNotice("");
       }
     }} />
-    {/* The flagship hero (addendum 2026-10-22): full on the landing, compact above a workflow so the tool stays in view. */}
-    {!examOnly && <header className={`relative isolate mb-5 overflow-hidden rounded-3xl bg-brand-50 ring-1 ring-brand-100 ${tab === "overview" ? "p-5 sm:p-8" : "p-4 sm:p-5"}`} data-ai-workflows-hero data-compact={tab !== "overview" || undefined}>
-      {/* A soft brand glow at the end edge (mirrors in RTL), never behind text that needs contrast. */}
-      <div aria-hidden="true" className="pointer-events-none absolute -end-24 -top-28 -z-10 size-80 rounded-full bg-brand-200/50 blur-3xl" />
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className={`min-w-0 max-w-3xl ${tab === "overview" ? "space-y-3" : "space-y-1.5"}`}>
-          <p className="flex flex-wrap items-center gap-2"><FlagshipChip /><span className="text-xs font-semibold text-brand-700">{ui("AI Workflows")}</span></p>
-          <h1 className={`font-bold tracking-tight text-ink-strong [overflow-wrap:anywhere] ${tab === "overview" ? "text-2xl sm:text-3xl lg:text-4xl" : "text-xl sm:text-2xl"}`}>{roleGuideCopy(normalizeUserRole(role) ?? "ADMIN", language).title}</h1>
-          {tab === "overview" ? <p className="text-sm leading-relaxed text-ink-muted sm:text-base">{roleGuideCopy(normalizeUserRole(role) ?? "ADMIN", language).introduction}</p> : null}
-          <p className="flex items-start gap-1.5 text-xs font-semibold text-status-success-text"><ShieldCheck aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{(language === "ar" ? "ينفذ الذكاء الاصطناعي طلبك ضمن صلاحيات دورك ويسأل عن التفاصيل الناقصة." : language === "ur" ? "اے آئی آپ کے کردار کی اجازت کے مطابق کام کرتا ہے اور نامکمل تفصیل پوچھتا ہے۔" : "AI carries out your request within your role and asks for missing details.")}</p>
-        </div>
-        {tab === "overview" && heroMode ? <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row lg:flex-col xl:flex-row">
-          {heroSecondary ? <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => { if (heroSecondary === "runs") selectTab("runs"); else scrollToWorkflows(); }}>{ui(heroSecondary === "runs" ? "Run history" : "See all workflows")}</Button> : null}
-          <Button type="button" className="order-first w-full gap-2 sm:order-none sm:w-auto" disabled={heroMode === "setup" && (needsCampus || !canCreate)} loading={heroMode === "setup" && openingSetup} onClick={() => { if (heroMode === "setup") beginSetup(); else scrollToWorkflows(); }} data-ai-hero-action>
-            {heroMode === "setup" && openingSetup ? null : <Sparkles aria-hidden="true" />}{heroLabel}<ArrowRight aria-hidden="true" className="rtl:rotate-180" />
-          </Button>
-        </div> : null}
-      </div>
-    </header>}
-    {manager && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mb-5 p-5"}`}><FormField name="ai-campus-scope" label={c.workspaceCampus} hint={c.workspaceCampusHint}><Select value={selectedCampus} onChange={event => { const value = event.target.value; if (value !== selectedCampus) changeScope(() => setSelectedCampus(value)); }}><option value="">{c.chooseCampus}</option>{capabilities.campuses.map(campus => <option key={campus.id} value={campus.id}>{campus.name}</option>)}</Select></FormField>{needsCampus && <p className="mt-3 text-sm text-ink-muted">{setupAfterCampus || setupIntent ? ui("Choose a campus to open the setup questionnaire.") : c.selectCampusToStart}</p>}</section>}
-    {/* SKO-500: in Exam Studio a principal or admin also picks a class and subject, to start a brief or read a map. */}
-    {(role === "TEACHER" || (examOnly && manager && Boolean(campusId))) && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mb-5 p-5"}`}><FormField name="ai-teaching-scope" label={c.subject} hint={c.selectSubjectHint}><Select value={selectedSubject} onChange={event => { const value = event.target.value; if (value !== selectedSubject) changeScope(() => setSelectedSubject(value)); }}><option value="">{c.chooseSubject}</option>{subjects.filter(item => role === "TEACHER" || item.campusId === campusId).map(item => <option key={item.id} value={item.id}>{item.className} · {item.name}</option>)}</Select></FormField></section>}
+    <LiveAnnouncer message={scopeAnnouncement} />
+    {/* The command deck (UI pass): a compact ink cover with the scope control; Ask overlaps its lower edge. */}
+    {!examOnly && tab !== "overview" && deckHeader}
+    {manager && examOnly && <section className="sk-panel mt-3 p-3 sm:mt-5 sm:p-5">{campusField(false)}{needsCampus && <p className="mt-3 text-sm text-ink-muted">{setupAfterCampus || setupIntent ? ui("Choose a campus to open the setup questionnaire.") : c.selectCampusToStart}</p>}</section>}
+    {/* SKO-500: in Exam Studio a principal or admin also picks a class and subject, to start a brief or read a map. On the
+        AI Workflows overview a teacher's subject lives in the launchpad instead (the deck stays about Ask). */}
+    {(examOnly ? manager && Boolean(campusId) || role === "TEACHER" : role === "TEACHER" && tab !== "overview") && <section className={`sk-panel ${examOnly ? "mt-3 p-3 sm:mt-5 sm:p-5" : "mb-5 p-5"}`}>{subjectField}</section>}
     {(examOnly || tab !== "overview") && <><nav className={styles.mobileNavigation} aria-label={c.workspace}><FormField name="ai-workspace-tool" label={prototype.navigation}><Select value={tab} onChange={event => selectTab(event.target.value as Tab)}>{visibleTabs.map(({ id }) => <option key={id} value={id}>{examOnly ? studioCopy[id as StudioWorkspaceTab] : c[id]}</option>)}</Select></FormField></nav>
     <nav className={`${styles.tabs} ${examOnly ? studioStyles.workspaceTabs : ""}`} aria-label={c.workspace}>{visibleTabs.map(({ id, Icon }) => <Button key={id} type="button" variant="choice" aria-pressed={tab === id} className={styles.tab} onClick={() => selectTab(id)}><Icon aria-hidden="true" />{examOnly ? studioCopy[id as StudioWorkspaceTab] : c[id]}</Button>)}</nav></>}
     {/* Exam Studio is the second flagship with its own row; from the AI Workflows landing it is a quiet link, never a second primary. */}
-    {!examOnly && tab === "overview" && hasKind("PAPER") && <div className="mb-5 flex flex-wrap gap-3"><Link className={buttonVariants({ variant: "outline" })} href={EXAM_STUDIO_HREF}><Sparkles aria-hidden="true" />{studioCopy.openStudio}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Link><Link className={buttonVariants({ variant: "outline" })} href="/ai/exams"><BookOpen aria-hidden="true" />{c.exams}<ArrowRight className="rtl:rotate-180" aria-hidden="true" /></Link></div>}
+    {!examOnly && overview && <section data-ai-command-deck className={cn(styles.commandDeck, "mb-6 lg:mb-8")}>
+      {deckHeader}
+      <div className={`${styles.askStage} sk-enter`} key={`stage-${campusId}`}>
+        {(!needsCampus || role === "SUPER_ADMIN") ? <AskWorkspace key={`ask-${campusId}`} campusId={campusId ?? null} practiceMode={workflowsV2?.practiceMode ?? false} enabled={Boolean(workflowsV2)} examples={askExamples} initialMessage={askInitialMessage} />
+          : <section data-ai-ask-locked className="sk-panel flex items-start gap-4 rounded-3xl p-5 shadow-md sm:p-6" aria-labelledby="ai-ask-locked-title">
+            <span aria-hidden="true" className="sk-icon-tile grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-50 text-primary ring-1 ring-brand-200/60"><Lock className="size-5" /></span>
+            <div className="min-w-0"><h2 id="ai-ask-locked-title" className="font-semibold text-ink-strong">{f(FRAME.askLocked)}</h2><p className="mt-1 text-sm leading-relaxed text-ink-muted">{setupAfterCampus || setupIntent ? ui("Choose a campus to open the setup questionnaire.") : c.selectCampusToStart}</p></div>
+          </section>}
+        {needsCampus && role === "SUPER_ADMIN" ? <p className="mt-3 text-xs text-ink-muted">{setupAfterCampus || setupIntent ? ui("Choose a campus to open the setup questionnaire.") : f(FRAME.superNote)}</p> : null}
+        {!needsCampus || role === "SUPER_ADMIN" ? <div className="mt-4 flex flex-wrap items-center gap-2" data-ai-trust-legend>
+          <span className="sk-eyebrow text-ink-muted">{f(FRAME.legend)}</span>
+          {(["A", "B", "C"] as const).map(cls => <ClassMark key={cls} cls={cls} size="long" language={language} />)}
+          <InfoTip label={runText(UI, "howItFinishes", language)} content={<ul className="grid gap-1.5">{(["A", "B", "C"] as const).map(cls => <li key={cls}><strong className="font-semibold">{CLASS_WORDS[cls].short[language]}</strong> — {CLASS_WORDS[cls].help[language]}</li>)}</ul>} />
+        </div> : null}
+      </div>
+      <nav aria-label={f(FRAME.secondary)} data-ai-secondary-links className={cn(styles.secondaryLinks, "flex flex-wrap gap-2")}>
+        {hasKind("PAPER") && <Link className={buttonVariants({ variant: "outline", size: "sm", className: "sk-nudge-trigger" })} href={EXAM_STUDIO_HREF}><FileCheck2 aria-hidden="true" />{studioCopy.openStudio}<FlagshipChip /><ArrowRight className="sk-nudge rtl:rotate-180" aria-hidden="true" /></Link>}
+        {hasKind("PAPER") && <Link className={buttonVariants({ variant: "outline", size: "sm", className: "sk-nudge-trigger" })} href="/ai/exams"><ClipboardCheck aria-hidden="true" />{f(FRAME.delivery)}<ArrowRight className="sk-nudge rtl:rotate-180" aria-hidden="true" /></Link>}
+        {workflowsV2 ? <InboxCountChip tone="paper" /> : null}
+        {runsVisible && campusId ? <Button type="button" variant="outline" size="sm" className="sk-nudge-trigger" onClick={() => selectTab("runs")}><Activity aria-hidden="true" />{ui("Run history")}<ArrowRight className="sk-nudge rtl:rotate-180" aria-hidden="true" /></Button> : null}
+        <Button type="button" variant="outline" size="sm" className="sk-nudge-trigger" onClick={scrollToWorkflows} data-ai-hero-action={setupMode ? undefined : true}>{ui("See all workflows")}<ArrowDown className="sk-nudge" aria-hidden="true" /></Button>
+      </nav>
+    </section>}
     {error && <div className="mb-5"><TaskFeedback kind="error" title={c[error as "failed" | "serviceUnavailable" | "uploadInvalid"] || c.failed} action={<Button variant="outline" onClick={() => guard(() => void refresh())}><RefreshCw aria-hidden="true" />{c.reload}</Button>} /></div>}
-    {notice && <p role="status" className={`${styles.notice} mb-5`}><CheckCircle2 className="mt-1 size-4 shrink-0" aria-hidden="true" />{notice}</p>}
+    {notice && <Alert tone="success" compact className="mb-5" onDismiss={() => setNotice("")} data-ai-notice>{notice}</Alert>}
     <div ref={toolContent} tabIndex={-1} data-ai-workspace-tool-content>
-    {unavailableWorkflow && <TaskFeedback kind="error" title={launchCopy.unavailable} />}
+    {unavailableWorkflow && <Alert tone="warning" compact className="mb-5" onDismiss={() => setUnavailableWorkflow(false)}>{launchCopy.unavailable}</Alert>}
     {!examOnly && tab !== "overview" && <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><Button variant="outline" onClick={() => selectTab("overview")}><ArrowLeft className="rtl:rotate-180" aria-hidden="true" />{launchCopy.back}</Button><p className="text-sm font-semibold text-ink-muted">{capabilities.campuses.find(item => item.id === campusId)?.name}{subject ? ` · ${subject.className} · ${subject.name}` : ""}</p></div>}
     {tab === "overview" && examOnly && capabilities && <StudioSpaces language={language} capabilities={capabilities} records={visibleRecords} reload={() => void refresh()} openTool={navigateStudio}
       scope={resolveStudioScope(capabilities, { campusId: campusId ?? "", subjectId: selectedSubject })}>
@@ -389,20 +483,61 @@ function SchoolAIWorkspaceContent({ role: initialRole, campusId: initialCampusId
     </StudioSpaces>}
     {/* SKO-500: the sample sits below the rail, folded, and goes away once a live AI provider is configured. */}
     {examOnly && !(featureStatusKnown && features.assistant) && <details className="sk-panel mt-5 p-3 sm:p-4" data-studio-sample><summary className="cursor-pointer text-sm font-semibold text-ink-muted">{studioHomeCopy(language).sampleDisclosure}</summary><div className="mt-3"><DemoWorkflowPanel language={language} initialWorkflow="paper" /></div></details>}
-    {tab === "overview" && !examOnly && <>
-      {(!needsCampus || role === "SUPER_ADMIN") && <AskWorkspace key={`ask-${campusId}`} campusId={campusId ?? null} practiceMode={workflowsV2?.practiceMode ?? false} enabled={Boolean(workflowsV2)} />}
-      <WorkspaceLaunchpad language={language} tabs={visibleTabs} onboarding={onboarding} scopeName={subject ? `${subject.className} · ${subject.name}` : capabilities.campuses.find(item => item.id === campusId)?.name} needsCampus={needsCampus} needsSubject={needsSubject} hasCampuses={capabilities.campuses.length > 0} hasSubjects={subjects.length > 0} canCreate={canCreate} canOnboard={canRunQuestionnaire} openingSetup={openingSetup} featureState={featureStatusKnown ? features.assistant ? "live" : "prototype" : featureStatusFailed ? "unknown" : "checking"} onSetup={beginSetup} onOpen={selectTab} onRefreshFeatures={() => void refreshFeatures()} setupVariant={heroMode ? "outline" : "default"} />
-      {nextCursor && <p className="text-xs text-ink-muted">{c.loadedRecords}</p>}
-      <div className={styles.metrics}>{[{ label: c.savedPlans, count: active.filter(record => record.kind === "WORKFLOW").length }, { label: c.reviewCount, count: active.filter(record => record.status === "IN_REVIEW").length }, { label: c.approvedSources, count: active.filter(record => record.kind === "SOURCE" && record.status === "APPROVED").length }].map(metric => <div className={`sk-panel ${styles.metric}`} key={metric.label}><span className={styles.metricNumber}>{new Intl.NumberFormat(language).format(metric.count)}</span><span className={styles.metricLabel}>{metric.label}</span></div>)}</div>
-      <div className={styles.columns}><section className={`sk-panel ${styles.panel}`}>
-        {!needsCampus && !needsSubject && <details><summary className="cursor-pointer text-sm font-semibold">{language === "ar" ? "محادثة وصياغة فقط" : language === "ur" ? "گفتگو اور مسودہ فقط" : "Chat and drafting only"}</summary><PrivateAssistant language={language} campusId={campusId} {...scope} canCreate={canCreate} assistantAvailable={features.assistant} voiceAvailable={features.voiceTranscription} disabled={uploading} onUpload={upload} onRecord={putRecord} /></details>}
-        {(needsCampus || needsSubject) && <p className={styles.description}>{needsCampus ? c.selectCampusToStart : c.selectSubjectHint}</p>}
-      </section><aside className="space-y-5"><section className={`sk-panel ${styles.panel}`}><h2 className={styles.sectionTitle}>{c.readiness}</h2>{onboarding ? setupReadiness(setupAnswers).map(group => <div className={styles.recordRow} key={group.label}><span className="text-sm font-semibold">{c[group.label]}</span><TaskStatus attention={Boolean(group.missing.length)}>{group.missing.length ? c.needsInformation : c.readyDraft}</TaskStatus></div>) : <><p className={styles.description}>{canRunQuestionnaire ? c.setupHint : c.setupRestricted}</p>{canRunQuestionnaire && <Button variant="outline" disabled={needsCampus} onClick={beginSetup}>{c.startSetup}</Button>}</>}</section>
-        <section className={`sk-panel ${styles.panel}`}><h2 className="mb-3 font-bold">{c.capabilities}</h2>{(Object.keys(UNCONFIGURED_CAPABILITIES) as (keyof AIFeatureCapabilities)[]).map(key => <div className={styles.recordRow} key={key}><span className="text-xs font-semibold">{c[key]}</span><span className={`text-xs ${features[key] ? "text-primary" : "text-ink-muted"}`}>{!featureStatusKnown ? c.capabilityUnknown : features[key] ? prototype.configured : key === "secureBrowser" || key === "proctoring" ? c.notAvailable : c.notConfigured}</span></div>)}</section>
-      </aside></div>
+    {overview && !examOnly && <div className={styles.overviewStack}>
+      <WorkspaceLaunchpad language={language} tabs={visibleTabs} onboarding={onboarding} scopeName={subject ? `${subject.className} · ${subject.name}` : campusName} needsCampus={needsCampus} needsSubject={needsSubject} hasCampuses={capabilities.campuses.length > 0} hasSubjects={subjects.length > 0} canCreate={canCreate} canOnboard={canRunQuestionnaire} openingSetup={openingSetup} featureState={featureState} onSetup={beginSetup} onOpen={selectTab} onRefreshFeatures={() => void refreshFeatures()} setupVariant={setupMode ? "secondary" : "outline"} heroAction={setupMode} scopeControl={role === "TEACHER" ? subjectField : undefined} />
+      <section aria-labelledby="ai-health-title" className="grid gap-4">
+        <h2 id="ai-health-title" className="text-xl font-semibold text-ink-strong">{f(FRAME.status)}</h2>
+        <div className={styles.healthGrid}>
+          <section data-ai-stats data-ai-stats-pending={statsPending || undefined} className={cn("sk-panel p-5 sm:p-6", styles.healthSpan7)} data-static="" aria-labelledby="ai-stats-title" aria-describedby={nextCursor && !statsPending ? "ai-stats-caption" : undefined}>
+            <h3 id="ai-stats-title" className="sk-eyebrow text-ink-muted">{f(FRAME.glance)}</h3>
+            <dl className="mt-4 grid grid-cols-3 divide-x divide-border-subtle rtl:divide-x-reverse">{stats.map(stat => {
+              const tile = <span aria-hidden="true" className="sk-icon-tile hidden size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-primary ring-1 ring-brand-200/60 sm:grid"><stat.Icon className="size-4" /></span>;
+              const value = statsPending ? <span aria-hidden="true" className="text-2xl font-bold text-ink-faint sm:text-3xl">—</span> : <Num value={stat.count} className="text-2xl font-bold text-ink-strong sm:text-3xl" />;
+              return <div key={stat.id} className={cn(styles.statCell, "grid min-w-0 content-start gap-2")} data-ai-stat={stat.id}>
+                <dt className="sk-eyebrow min-w-0 text-ink-muted [overflow-wrap:anywhere]">{stat.label}</dt>
+                <dd className="min-w-0">{!statsPending && visibleTabs.some(item => item.id === stat.tab)
+                  ? <Button type="button" variant="ghost" size="sm" className="-ms-2 h-auto gap-3 px-2 py-1" aria-label={`${stat.label}: ${format.number(stat.count)}`} onClick={() => selectTab(stat.tab)}>{tile}{value}</Button>
+                  : <span className="flex items-center gap-3">{tile}{value}</span>}</dd>
+              </div>;
+            })}</dl>
+            {statsPending ? <p className="mt-4 text-xs text-ink-muted">{f(needsCampus ? FRAME.pendingCampus : FRAME.pendingSubject)}</p> : nextCursor ? <p id="ai-stats-caption" className="mt-4 text-xs text-ink-muted">{c.loadedRecords}</p> : null}
+          </section>
+          <section className={cn("sk-panel p-5 sm:p-6", styles.healthSpan5)} data-static="" data-ai-overview-readiness aria-labelledby={onboarding ? "ai-readiness-title" : undefined} aria-label={onboarding ? undefined : c.readiness}>
+            {onboarding ? <>
+              <h3 id="ai-readiness-title" className="font-semibold text-ink-strong">{c.readiness}</h3>
+              <Progress className="mt-3" size="sm" value={readinessGroups.filter(group => !group.missing.length).length} max={readinessGroups.length} label={c.readiness} valueText={f(FRAME.readyGroups, format.number(readinessGroups.filter(group => !group.missing.length).length), format.number(readinessGroups.length))} />
+              <div className="mt-2">{readinessGroups.map(group => <div className={styles.recordRow} key={group.label}><span className="min-w-0 text-sm font-semibold [overflow-wrap:anywhere]">{c[group.label]}</span><TaskStatus attention={Boolean(group.missing.length)}>{group.missing.length ? c.needsInformation : c.readyDraft}</TaskStatus></div>)}</div>
+            </> : <>
+              <EmptyState size="sm" icon={ListChecks} title={c.readiness} description={canRunQuestionnaire ? c.setupHint : c.setupRestricted} action={canRunQuestionnaire ? <Button variant="ghost" size="sm" disabled={needsCampus} onClick={beginSetup}>{c.startSetup}</Button> : undefined} />
+            </>}
+          </section>
+          <section className={cn("sk-panel p-5 sm:p-6", styles.healthSpanFull)} data-static="" aria-labelledby="ai-capabilities-title">
+            <h3 id="ai-capabilities-title" className="font-semibold text-ink-strong">{c.capabilities}</h3>
+            {featureStatusFailed ? <Alert className="mt-3" tone="warning" compact actions={<Button variant="ghost" size="sm" onClick={() => void refreshFeatures()}><RefreshCw aria-hidden="true" />{f(FRAME.checkAgain)}</Button>}>{c.capabilityUnknown}</Alert> : null}
+            <div className="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-2" role={featureChecking ? "status" : undefined} aria-busy={featureChecking || undefined}>
+              {capabilityGroups.map(group => <div key={group.id} className="min-w-0">
+                <h4 className="sk-eyebrow text-ink-muted">{f(group.title)}</h4>
+                <dl className="mt-1">{group.keys.map(key => <div className={cn(styles.recordRow, "items-center")} key={key} data-ai-capability={key}>
+                  <dt className="min-w-0 text-sm font-medium text-ink [overflow-wrap:anywhere]">{c[key]}</dt>
+                  <dd className="shrink-0">{featureChecking ? <Skeleton className="h-5 w-24 rounded-full" /> : featureStatusFailed ? <Badge size="sm" variant="neutral"><span aria-hidden="true">—</span><span className="sr-only">{c.capabilityUnknown}</span></Badge> : <Badge size="sm" dot variant={features[key] ? "success" : key === "secureBrowser" || key === "proctoring" ? "outline" : "neutral"}>{features[key] ? prototype.configured : key === "secureBrowser" || key === "proctoring" ? c.notAvailable : c.notConfigured}</Badge>}</dd>
+                </div>)}</dl>
+              </div>)}
+              {featureChecking ? <span className="sr-only">{c.loading}</span> : null}
+            </div>
+          </section>
+          {!needsCampus && !needsSubject && <details className={cn("sk-panel", styles.disclosure, styles.healthSpanFull)} data-static="" data-ai-chat-disclosure>
+            <summary>
+              <span aria-hidden="true" className="sk-icon-tile grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-50 text-primary ring-1 ring-brand-200/60"><MessagesSquare className="size-5" /></span>
+              <span className="grid min-w-0"><span className="text-sm font-semibold text-ink-strong">{f(FRAME.chat)}</span><span className="text-xs text-ink-muted">{f(FRAME.chatHint)}</span></span>
+              <ChevronDown aria-hidden="true" className={cn(styles.disclosureChevron, "size-5 text-ink-muted")} />
+            </summary>
+            <div className={styles.disclosureBody}><PrivateAssistant language={language} campusId={campusId} {...scope} canCreate={canCreate} assistantAvailable={features.assistant} voiceAvailable={features.voiceTranscription} disabled={uploading} onUpload={upload} onRecord={putRecord} /></div>
+          </details>}
+        </div>
+      </section>
       {manager && campusId && <WorkspaceInsights key={campusId} language={language} campusId={campusId} />}
-      {role !== "SUPER_ADMIN" && <DemoWorkflowPanel language={language} />}
-    </>}
+      <DemoWorkflowPanel language={language} />
+    </div>}
     {tab === "sources" && <SourceLibrary initialRecordId={sourceRecordId} onRecord={putRecord} canArchive={capabilities.canArchive} key={`${campusId}:${selectedSubject}:${sourceRecordId}`} language={language} records={visibleRecords} canCreate={canCreate} canApprove={capabilities.canApprove} onSave={saveRecord} onAction={recordAction} onUpload={upload} scope={scope} uploading={uploading} campusId={campusId} canImportRoster={!examOnly && capabilities.canImportRoster} />}
     {tab !== "overview" && tab !== "history" && !needsCampus && !needsSubject && <DomainAssistant key={`${campusId}:${selectedSubject}:${tab}`} domain={tab} title={c[tab]} records={visibleRecords} language={language} campusId={campusId} {...scope} canCreate={canCreate} assistantAvailable={features.assistant} voiceAvailable={features.voiceTranscription} disabled={uploading} onUpload={upload} onRecord={putRecord}/> }
     {tab === "curriculum" && <AssessmentStudio key={`${campusId}:${selectedSubject}`} records={visibleRecords} locale={language} onRefresh={refresh} campusId={campusId} subjects={subjects.filter(item => item.campusId === campusId && (role !== "TEACHER" || item.id === selectedSubject))} canCreate={canCreate} canApprove={capabilities.canApprove} />}

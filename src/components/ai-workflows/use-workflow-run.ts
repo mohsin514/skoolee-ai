@@ -26,8 +26,10 @@ export function useWorkflowRun(initial: RunView | null) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const commandIds = useRef(new Map<string, string>());
+  // Consecutive failed polls: drives the backoff (2 s, 4 s, 8 s, capped at 15 s) and "Reconnecting…".
+  const [failures, setFailures] = useState(0);
 
-  useEffect(() => { setRun(initial); }, [initial]);
+  useEffect(() => { setRun(initial); setFailures(0); }, [initial]);
 
   const refresh = useCallback(async (id: string) => {
     const { run: next } = await request<{ run: RunView }>(`/api/ai-workflows/${id}`);
@@ -35,11 +37,26 @@ export function useWorkflowRun(initial: RunView | null) {
     return next;
   }, []);
 
+  const poll = useCallback((id: string) => refresh(id).then(() => setFailures(0), () => setFailures(count => count + 1)), [refresh]);
+
   useEffect(() => {
     if (!run || !MOVING.has(run.status)) return;
-    const timer = window.setTimeout(() => { void refresh(run.id).catch(() => undefined); }, 1000);
+    const delay = failures === 0 ? 1000 : Math.min(15_000, 1000 * 2 ** failures);
+    // A hidden tab skips the tick; becoming visible again checks once (below).
+    const timer = window.setTimeout(() => { if (!document.hidden) void poll(run.id); }, delay);
     return () => window.clearTimeout(timer);
-  }, [run, refresh]);
+  }, [run, failures, poll]);
+
+  useEffect(() => {
+    if (!run || !MOVING.has(run.status)) return;
+    const id = run.id;
+    const onVisible = () => { if (!document.hidden) void poll(id); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [run, poll]);
+
+  /** One explicit read ("Check now", "Check for updates"); never sends a command. */
+  const checkNow = useCallback(() => { if (run) void poll(run.id); }, [run, poll]);
 
   const send = useCallback(async (body: Record<string, unknown>, clickKey?: string) => {
     if (!run) return;
@@ -58,7 +75,8 @@ export function useWorkflowRun(initial: RunView | null) {
     } finally { setBusy(false); }
   }, [run, refresh]);
 
-  return { run, setRun, busy, error, setError, refresh, send };
+  const connection: "live" | "retrying" = failures > 0 ? "retrying" : "live";
+  return { run, setRun, busy, error, setError, refresh, send, connection, checkNow };
 }
 
 export async function startWorkflow(message: string, language: "en" | "ar" | "ur", idempotencyKey: string, campusId: string | null) {

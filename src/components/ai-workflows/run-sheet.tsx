@@ -1,91 +1,102 @@
 "use client";
-import { useState } from "react";
-import Link from "next/link";
+import { useEffect, useId, useRef, useState } from "react";
+import { Play, RotateCcw } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { LiveAnnouncer } from "@/components/ui/live-announcer";
 import type { RunView, StepView } from "@/lib/ai-workflows/view";
-import { ERROR_WORDS, QUESTION_WORDS, STATE_WORDS, UI, t } from "./run-copy";
+import { STATE_WORDS, UI, errorWords, runStatusWords, t, type Lang } from "./run-copy";
+import { RunHeader, type RunControl } from "./run-header";
+import { runText } from "./run-links";
+import { RunOutcome } from "./run-outcome";
+import { RunPlanning } from "./run-planning";
+import { RunQuestions } from "./run-questions";
+import { RunSteps } from "./run-step";
+import { useWorkflowFormat } from "./workflow-format";
 
-type Lang = "en" | "ar" | "ur";
-const DONE_STATES = new Set(["saved", "looked_up", "draft", "approved_elsewhere"]);
-const TONE: Partial<Record<StepView["state"], "success" | "warning" | "danger" | "info" | "neutral">> = {
-  saved: "success", approved_elsewhere: "success", looked_up: "info", draft: "info", awaiting_confirm: "warning", needs_input: "warning",
-  handed_off: "info", failed: "danger", uncertain: "danger", stale: "warning", practice: "neutral", skipped: "neutral", cancelled: "neutral",
-};
+export { assertReceipt } from "./run-step";
 
-/** "Saved" is rendered only from a receipt (UX §3.1 hard rule). */
-function assertReceipt(step: StepView) {
-  if (DONE_STATES.has(step.state) && !step.receipt && process.env.NODE_ENV !== "production") throw new Error(`Step ${step.key} shows ${step.state} without a receipt`);
+/** One sentence per real transition, diffed against the previous render; nothing for an unchanged poll. */
+function useRunAnnouncement(run: RunView, language: Lang) {
+  const format = useWorkflowFormat();
+  const previous = useRef<RunView | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = run;
+    if (!before) return;
+    let next: string | null = null;
+    const states = new Map(before.steps.map(step => [step.id, step]));
+    if (before.steps.length === 0 && run.steps.length > 0) next = runText("planReady", language, format.count(run.steps.length));
+    else if (run.steps.some(step => step.preview && states.get(step.id)?.preview && states.get(step.id)!.preview!.version !== step.preview.version)) next = runText("previewUpdated", language);
+    else if (run.status === "NEEDS_INPUT" && before.status !== "NEEDS_INPUT" && run.questions.length > 0) next = t(UI, "questionsTitle", language);
+    else {
+      const changed = run.steps.filter(step => states.get(step.id) && states.get(step.id)!.state !== step.state).at(-1);
+      if (changed) next = `${changed.title}: ${STATE_WORDS[changed.state][language]}`;
+      else if (before.status !== run.status) next = runStatusWords(run.status, language) || null;
+    }
+    if (next) setMessage(next);
+  }, [run, language, format]);
+  return message;
 }
 
-function StepRow({ step, language, busy, onConfirm, onAction }: { step: StepView; language: Lang; busy: boolean; onConfirm: (step: StepView) => void; onAction: (step: StepView, actionId: string, expect: number) => void }) {
-  assertReceipt(step);
-  const count = step.preview ? Object.values(step.preview.counts).reduce((sum, value) => sum + value, 0) : 0;
-  return (
-    <li data-ai-step={step.capabilityKey} data-ai-state={step.state} className="space-y-2 rounded-xl border border-border p-3" aria-current={step.state === "running" ? "step" : undefined}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-semibold">{step.title}</span>
-        <Badge variant={TONE[step.state] ?? "secondary"}>{STATE_WORDS[step.state][language]}</Badge>
-      </div>
-      {step.state === "awaiting_confirm" && step.preview && (
-        <div className="space-y-2">
-          {step.preview.lines.length > 0 && <ul className="space-y-1 text-sm">{step.preview.lines.slice(0, 10).map((line, index) => <li key={index}><span className="text-ink-muted">{line.label}</span> {line.value}</li>)}</ul>}
-          {/* Only a person's own tap changes what is saved (control P3): e.g. "Mark the other 31 present". */}
-          {step.preview.actions?.map(action => <Button key={action.id} data-ai-amend={action.id} variant="outline" disabled={busy} onClick={() => onAction(step, action.id, action.expect)}>{action.label}</Button>)}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button data-ai-confirm data-ai-preview={step.preview.code} disabled={busy} onClick={() => onConfirm(step)}>{step.preview.confirmLabel ?? `${t(UI, "saveStep", language)} · ${step.title}${count ? ` · ${count}` : ""}`}</Button>
-            <Badge variant="outline"><code dir="ltr">{`${t(UI, "previewCode", language)} ${step.preview.code}`}</code></Badge>
-          </div>
-        </div>
-      )}
-      {step.state === "handed_off" && step.handoff && (
-        <p className="text-sm">{t(UI, "withApprover", language, step.handoff.roles.join(", "))} · <Link className="underline" href={step.handoff.link}>{t(UI, "openScreen", language)}</Link></p>
-      )}
-      {step.receipt && (
-        <p data-ai-receipt={step.receipt.kind} className="text-xs text-ink-muted">
-          {step.receipt.text ?? Object.entries(step.receipt.counts).map(([key, value]) => `${key}: ${value}`).join(" · ")}
-          {step.receipt.link && <> · <Link className="underline" href={step.receipt.link}>{t(UI, "openScreen", language)}</Link></>}
-        </p>
-      )}
-      {step.errorCode && ERROR_WORDS[step.errorCode as keyof typeof ERROR_WORDS] && <p className="text-sm text-danger">{ERROR_WORDS[step.errorCode as keyof typeof ERROR_WORDS]![language]}</p>}
-    </li>
-  );
-}
+/**
+ * The live Run Sheet: header, the plan as a timeline, open questions, and the server's outcome.
+ * Every "saved" comes from a receipt; Save is applied only by the person's own click.
+ * Render it as <RunSheet key={run.id} …> so answer text, pending state and expansions never leak between runs.
+ */
+export function RunSheet({
+  run, language, busy, error, onCommand,
+  chrome = "full", headingLevel = 3, requestText, onRephrase, examples, celebrate = true, connection = "live", onCheckNow,
+}: {
+  run: RunView; language: Lang; busy: boolean; error: string | null; onCommand: (body: Record<string, unknown>, clickKey?: string) => void;
+  chrome?: "full" | "compact"; headingLevel?: 2 | 3 | 4; requestText?: string; onRephrase?: (text: string) => void; examples?: string[]; celebrate?: boolean;
+  connection?: "live" | "retrying"; onCheckNow?: () => void;
+}) {
+  const headingId = useId();
+  const sheet = useRef<HTMLElement>(null);
+  // Presentation only: which control was pressed, so only that one spins. Command bodies are unchanged.
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const announcement = useRunAnnouncement(run, language);
+  const command = (key: string, body: Record<string, unknown>, clickKey?: string) => { setPendingKey(key); onCommand(body, clickKey); };
 
-export function RunSheet({ run, language, busy, error, onCommand }: { run: RunView; language: Lang; busy: boolean; error: string | null; onCommand: (body: Record<string, unknown>, clickKey?: string) => void }) {
-  const [answer, setAnswer] = useState("");
-  const done = run.steps.filter(step => DONE_STATES.has(step.state)).length;
-  const amend = (step: StepView, actionId: string, expect: number) => onCommand({ type: "amend", stepId: step.id, previewVersion: step.preview!.version, actionId, expect });
-  const confirm = (step: StepView) => onCommand({ type: "confirm", steps: [{ stepId: step.id, previewVersion: step.preview!.version, previewHash: step.preview!.hash, inputHash: step.preview!.inputHash }] }, `confirm:${step.id}:${step.preview!.version}`);
+  const amend = (step: StepView, actionId: string, expect: number) => command(`amend:${actionId}`, { type: "amend", stepId: step.id, previewVersion: step.preview!.version, actionId, expect });
+  const confirm = (step: StepView) => {
+    const clickKey = `confirm:${step.id}:${step.preview!.version}`;
+    command(clickKey, { type: "confirm", steps: [{ stepId: step.id, previewVersion: step.preview!.version, previewHash: step.preview!.hash, inputHash: step.preview!.inputHash }] }, clickKey);
+  };
+  const answer = (text: string, key: string) => command(key, { type: "answer", text }, `answer:${run.version}`);
+  const control = (kind: RunControl) => command(kind, { type: kind });
+
+  const planningEmpty = (run.status === "PLANNING" || run.status === "PLAN_REVIEW") && run.steps.length === 0;
+  const runError = run.errorCode && !run.outcome ? run.errorCode : null;
+  const resumeInAlert = Boolean(runError && ["PAUSED", "FAILED"].includes(run.status));
+  const level = (Math.min(headingLevel + 1, 5)) as 3 | 4 | 5;
+
   return (
-    <section data-ai-run-sheet data-ai-status={run.status} className="space-y-4" dir={language === "en" ? "ltr" : "rtl"} aria-live="polite">
-      {run.steps.length > 0 && <p className="text-sm text-ink-muted">{t(UI, "counts", language, done, run.steps.length)}</p>}
-      <ol className="space-y-3">{run.steps.map(step => <StepRow key={step.id} step={step} language={language} busy={busy} onConfirm={confirm} onAction={amend} />)}</ol>
-      {run.outcome && <Alert tone={run.outcome === "EXECUTED" ? "success" : run.outcome === "NOT_SUPPORTED" || run.outcome === "NOTHING_DONE" ? "warning" : "info"} data-ai-outcome={run.outcome}>{t(UI, `outcome_${run.outcome}`, language)}</Alert>}
-      {run.errorCode && !run.outcome && ERROR_WORDS[run.errorCode as keyof typeof ERROR_WORDS] && <Alert tone="danger">{ERROR_WORDS[run.errorCode as keyof typeof ERROR_WORDS]![language]}</Alert>}
-      {error && ERROR_WORDS[error as keyof typeof ERROR_WORDS] && <Alert tone="danger" data-ai-error={error}>{ERROR_WORDS[error as keyof typeof ERROR_WORDS]![language]}</Alert>}
-      {run.status === "NEEDS_INPUT" && run.questions.length > 0 && (
-        <div className="space-y-2" data-ai-questions>
-          <h3 className="font-semibold">{t(UI, "questionsTitle", language)}</h3>
-          <ul className="list-disc space-y-2 ps-5 text-sm">{run.questions.map(question => (
-            <li key={question.id} data-ai-question={question.promptKey}>
-              {question.text ?? (QUESTION_WORDS[question.promptKey] ? t(QUESTION_WORDS, question.promptKey, language, question.pointer ?? "") : t(UI, "missingField", language, `${question.capabilityTitle ?? ""} ${question.pointer ?? ""}`.trim()))}
-              {question.options.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-2">{question.options.map(option => <Button key={option.value} size="sm" variant="outline" data-ai-option={option.value} disabled={busy} onClick={() => onCommand({ type: "answer", text: option.label }, `answer:${run.version}`)}>{option.label}</Button>)}</div>
-              )}
-            </li>
-          ))}</ul>
-          <Textarea data-ai-answer value={answer} onChange={event => setAnswer(event.target.value)} maxLength={4000} dir="auto" />
-          <Button data-ai-answer-submit disabled={busy || !answer.trim()} onClick={() => { onCommand({ type: "answer", text: answer }, `answer:${run.version}`); setAnswer(""); }}>{t(UI, "answer", language)}</Button>
-        </div>
-      )}
-      <div className="flex flex-wrap gap-2">
-        {["RUNNING", "WAITING_CONFIRM", "WAITING_HANDOFF", "NEEDS_INPUT"].includes(run.status) && <Button data-ai-pause variant="outline" disabled={busy} onClick={() => onCommand({ type: "pause" })}>{t(UI, "pause", language)}</Button>}
-        {["PAUSED", "FAILED"].includes(run.status) && <Button data-ai-resume variant="outline" disabled={busy} onClick={() => onCommand({ type: "resume" })}>{t(UI, "resume", language)}</Button>}
-        {!["COMPLETED", "CANCELLED", "EXPIRED"].includes(run.status) && <Button data-ai-cancel variant="ghost" disabled={busy} onClick={() => onCommand({ type: "cancel" })}>{t(UI, "cancel", language)}</Button>}
-      </div>
+    <section ref={sheet} data-ai-run-sheet data-ai-status={run.status} data-ai-run-phase={run.status} aria-labelledby={headingId}
+      className="space-y-4" dir={language === "en" ? "ltr" : "rtl"}>
+      <RunHeader run={run} language={language} busy={busy} pendingKey={pendingKey} chrome={chrome} headingLevel={headingLevel} headingId={headingId}
+        requestText={requestText} connection={connection} resumeElsewhere={resumeInAlert} onControl={control} onCheckNow={onCheckNow} />
+      {planningEmpty ? <RunPlanning language={language} /> : null}
+      {run.steps.length > 0 ? <RunSteps run={run} language={language} busy={busy} pendingKey={pendingKey} onConfirm={confirm} onAmend={amend} /> : null}
+      {run.status === "NEEDS_INPUT" && run.questions.length > 0 ? (
+        <RunQuestions run={run} language={language} busy={busy} pendingKey={pendingKey} level={level} onAnswer={answer} />
+      ) : null}
+      <RunOutcome run={run} language={language} celebrate={celebrate} requestText={requestText} onRephrase={onRephrase} examples={examples} sheetRef={sheet} />
+      {runError ? (
+        <Alert tone="danger" data-ai-error={runError}
+          actions={resumeInAlert ? (
+            <Button type="button" data-ai-resume variant="outline" size="sm" className="w-full sm:w-auto" disabled={busy} loading={busy && pendingKey === "resume"} onClick={() => control("resume")}>
+              {busy && pendingKey === "resume" ? null : run.status === "FAILED" ? <RotateCcw aria-hidden="true" /> : <Play aria-hidden="true" className="rtl:-scale-x-100" />}
+              {run.status === "FAILED" ? runText("tryAgain", language) : t(UI, "resume", language)}
+            </Button>
+          ) : undefined}>
+          {errorWords(runError, language)}
+        </Alert>
+      ) : null}
+      {error ? <Alert tone="danger" data-ai-error={error}>{errorWords(error, language)}</Alert> : null}
+      <LiveAnnouncer message={announcement} />
     </section>
   );
 }
