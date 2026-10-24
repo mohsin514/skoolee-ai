@@ -19,6 +19,7 @@ import { ForwardArrow } from "@/components/onboarding/ForwardArrow";
 import { useLocale } from "@/components/locale/LocaleProvider";
 import { getReadinessCopy } from "./readiness-copy";
 import { getLaunchCopy } from "./readiness-launch-copy";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
 /**
  * School readiness as "launch control": a hero with the share of required checks done, a spotlight on the
@@ -127,6 +128,9 @@ export function ReadinessHome() {
       {/* Copy is already in the reader's language (readiness-copy.ts), so it goes in as nodes and is not looked up again. */}
       {standalone ? <PageHeader title={<>{t.title}</>} description={<>{t.intro}</>} icon={Rocket} /> : null}
 
+      {/* Group owners finish first-login setup here (AI Workflows Slice 8; this page was a dead end). */}
+      <SetupPrompt />
+
       {/* ── Hero (once the view is known, so a denied reader never sees a status that is not theirs) ── */}
       {view ? <section aria-labelledby="readiness-status" className="sk-launch-hero">
         <div className="min-w-0 space-y-3">
@@ -142,7 +146,7 @@ export function ReadinessHome() {
           ) : null}
           {/* Flagship (addendum 2026-10-22): the AI setup questionnaire drafts what these checks ask for; a secondary link
               here because the spotlight below carries this screen's one primary action. */}
-          {lead?.aiSetup && !live ? <Link href="/ai?workflow=schoolSetup" data-flagship-link="ai-workflows" className={buttonVariants({ variant: "link", className: "h-auto gap-2 p-0" })}><FlagshipChip />{t.aiSetup}</Link> : null}
+          {lead?.aiSetup && !live ? <Link href="/ai?setup=1" data-flagship-link="ai-workflows" className={buttonVariants({ variant: "link", className: "h-auto gap-2 p-0" })}><FlagshipChip />{t.aiSetup}</Link> : null}
         </div>
         {lead ? (
           <div className="sk-launch-ring" style={{ ["--sk-ring-value" as string]: `${percent}%` }} role="img" aria-label={fill(l.progress, doneRequired, required.length)}>

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { DashboardSkeleton, StudentErrorState } from "@/components/student/student-components";
 import { StudentToday, type StudentNextAction } from "@/components/student/student-today";
 import { useStudentData } from "./student-data-context";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
 /**
  * Today — the learner's landing screen (SPEC §4.4, M99): StudentToday and nothing else. Its next step
@@ -41,7 +42,10 @@ export default function StudentTodayPage() {
           description={tr("The account is active, but no central student record is linked to it yet. Ask the school office to link it.")}
         />
       ) : (
-        <StudentToday onNextAction={onNextAction} />
+        <>
+          <SetupPrompt />
+          <StudentToday onNextAction={onNextAction} />
+        </>
       )}
     </StudentPage>
   );

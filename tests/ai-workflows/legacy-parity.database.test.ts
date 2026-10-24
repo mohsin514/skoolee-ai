@@ -25,7 +25,8 @@ async function fixture(role: AuthUser["role"]) {
   await db.campus.create({ data: { id: campusId, schoolId, regId: campusId, name: "Synthetic campus", city: "Test" } });
   await db.user.create({ data: { id: userId, schoolId, campusId: role === "APP_OWNER" || role === "SUPER_ADMIN" ? null : campusId, email: `${userId}@example.invalid`, fullName: "Synthetic actor", role, isActive: true } });
   const cycle = await db.academicCycle.create({ data: { schoolId, campusId, academicYear: 2026, label: "2026", status: "ACTIVE" } });
-  const user: AuthUser = { schoolId, campusId: role === "APP_OWNER" || role === "SUPER_ADMIN" ? null : campusId, userId, role, email: `${userId}@example.invalid`, accessVersion: 0 };
+  // A SUPER_ADMIN is a group's institution authority (Slice 8 rebuilt campus.create on the group console rule).
+  const user: AuthUser = { schoolId, campusId: role === "APP_OWNER" || role === "SUPER_ADMIN" ? null : campusId, userId, role, email: `${userId}@example.invalid`, accessVersion: 0, ...(role === "SUPER_ADMIN" ? { institutionKind: "GROUP" as const } : {}) };
   return { user, schoolId, campusId, cycle };
 }
 

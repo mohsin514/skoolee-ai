@@ -42,6 +42,22 @@ export function effectKey(jobId: string, capabilityKey: string, capabilityVersio
   return `wf-${jobId}-${sha256({ capability: capabilityKey, version: capabilityVersion, input }).slice(0, 40)}`;
 }
 
+/**
+ * A serialization conflict or deadlock (Prisma P2034) aborts the whole domain transaction, so nothing
+ * was written and the same keyed write can safely run again. Found by the load test: concurrent jobs
+ * on one school otherwise left steps UNCERTAIN for no real reason.
+ */
+const isConflict = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError ? error.code === "P2034" : /write conflict or a deadlock/i.test((error as Error)?.message ?? "");
+export async function withConflictRetry<T>(work: () => Promise<T>, attempts = 4): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try { return await work(); }
+    catch (error) {
+      if (!isConflict(error) || attempt >= attempts) throw error;
+      await new Promise(resolve => setTimeout(resolve, 20 * 2 ** attempt + Math.floor(Math.random() * 25)));
+    }
+  }
+}
+
 export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, step: AiWorkflowStep, entry: ExecEntry, input: unknown, opts: { confirmed?: boolean } = {}): Promise<Receipt | null> {
   // Class B runs only inside the user's confirming request (control P5); the worker and advance never pass this.
   if (step.effectiveClass !== "A" && !opts.confirmed) throw new WorkflowError("CONFIRM_REQUIRED");
@@ -76,7 +92,7 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
   try {
     const gate = await runGates(ctx, entry.gates);
     if (!gate.ok) throw new WorkflowError(gate.code === "SEAT" ? "SEAT_HELD" : gate.code === "SCOPE" ? "SCOPE_DENIED" : "ROLE_NOT_ALLOWED");
-    const receipt = await entry.execute(ctx, input, { idempotencyKey: key });
+    const receipt = await withConflictRetry(() => entry.execute(ctx, input, { idempotencyKey: key }));
     await prisma.$transaction(async tx => {
       await tx.aiWorkflowIntent.update({ where: { id: intent!.id }, data: { state: "COMMITTED", receipt: json(receipt), committedAt: new Date() } });
       const updated = await tx.aiWorkflowStep.updateMany({ where: { id: step.id, schoolId: step.schoolId, version: running.version }, data: { status: "SUCCEEDED", receipt: json(receipt), finishedAt: new Date(), version: { increment: 1 } } });

@@ -1,8 +1,7 @@
-import { getLocalePackage } from "@/lib/locale/store";
-import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
+import { createBankAccount } from "@/lib/accounts/bank-account-command";
 import {
   ApiError,
   assertModuleRead,
@@ -43,37 +42,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "accounts", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    if (!name) throw new ApiError("name is required", 400);
-
-    const currency = body.currency || (await getLocalePackage(user.schoolId, campusId)).currency;
-    if (!CURRENCIES.includes(currency)) throw new ApiError("Invalid currency", 400);
-    const openingBalance = Number(body.openingBalance ?? 0);
-    if (!Number.isSafeInteger(openingBalance)) throw new ApiError("Opening balance must be an integer in minor units", 400);
-
-    const existing = await prisma.bankAccount.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A bank account with this name already exists", 409);
-
-    const bank = await prisma.$transaction(async (tx) => {
-      const created = await tx.bankAccount.create({
-        data: {
-          schoolId: user.schoolId,
-          currency,
-          campusId,
-          name,
-          bankName: body.bankName ? String(body.bankName).trim() : null,
-          accountNumber: body.accountNumber ? String(body.accountNumber).trim() : null,
-          openingBalance,
-          isActive: body.isActive !== false,
-        },
-      });
-      await writeAuditEvent(tx, user, {
-        table: "bank_accounts", recordId: created.id, action: "CREATE", campusId: created.campusId,
-        after: { currency: created.currency, openingBalance: created.openingBalance, isActive: created.isActive },
-      });
-      return created;
-    });
+    const bank = await createBankAccount(user, body);
 
     return Response.json({ success: true, data: bank }, { status: 201 });
   } catch (error) {

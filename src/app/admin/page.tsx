@@ -1388,7 +1388,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
                 kind="ai-workflows"
                 title="Let AI draft your school's setup"
                 description="Answer a short questionnaire. AI drafts your academic year, classes, calendar, timetable, fees and family messages; you review every part, and nothing applies until you approve it."
-                action={{ label: "Set up your school with AI", href: "/ai?workflow=schoolSetup" }}
+                action={{ label: "Set up your school with AI", href: "/ai?setup=1" }}
                 tourAnchor="admin.today.flagship-ai"
               />
             ) : (

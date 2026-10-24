@@ -1,8 +1,8 @@
-import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
-import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { createDiscount } from "@/lib/fees/discount-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
 
 // FeeDiscount: named discount, PERCENT (value 0-100) or FLAT (paisa).
 // Optional categoryId auto-applies to all students in that StudentCategory.
@@ -35,36 +35,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "fees", "add");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    const code = String(body.code ?? "").trim().toUpperCase().replace(/\s+/g, "_");
-    const type = String(body.type ?? "").toUpperCase();
-
-    if (!name || !code) throw new ApiError("name and code required", 400);
-    if (type !== "PERCENT" && type !== "FLAT") throw new ApiError("type must be PERCENT or FLAT", 400);
-
-    const value = Number(body.value);
-    if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
-    if (type === "PERCENT" && value > 100) throw new ApiError("percent discount cannot exceed 100", 400);
-
-    if (body.categoryId) {
-      const category = await prisma.studentCategory.findFirst({ where: { id: body.categoryId, campusId } });
-      if (!category) throw new ApiError("Category not found", 404);
-    }
-
-    const existing = await prisma.feeDiscount.findUnique({ where: { campusId_code: { campusId, code } } });
-    if (existing) throw new ApiError("A discount with this code already exists", 409);
-
-    const currency = (await getLocalePackage(user.schoolId, campusId)).currency;
-    if ((body.currency || "PKR") !== currency) throw new ApiError("Currency changed. Reload discount form.", 409);
-    const discount = await prisma.$transaction(async (tx) => {
-      const created = await tx.feeDiscount.create({
-        data: { campusId, currency, name, code, type, value, categoryId: body.categoryId ?? null },
-        include: { category: { select: { id: true, name: true } } },
-      });
-      await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: created.id, action: "CREATE", campusId, after: { type, value, currency, categoryId: created.categoryId } });
-      return created;
-    });
+    const discount = await createDiscount(user, body);
     return Response.json({ success: true, data: discount }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/discounts] POST failed");

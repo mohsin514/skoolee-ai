@@ -83,6 +83,9 @@ const SCHOOL_AI_SETUP_FEATURE = "SETUP_GENERATION_V1";
 async function aiSetupPendingFor(session: AuthUser): Promise<boolean> {
   if (!isInstitutionAuthority(session)) return false;
   try {
+    // A completed first-login questionnaire (AI Workflows) counts as set up, like a completed generation.
+    const built = await prisma.aiSetupResponse.count({ where: { schoolId: session.schoolId, userId: session.userId, status: "READY" } });
+    if (built > 0) return false;
     const [generated, activeYears] = await Promise.all([
       prisma.schoolAiRequest.count({ where: { schoolId: session.schoolId, feature: SCHOOL_AI_SETUP_FEATURE, status: "COMPLETED" } }),
       prisma.academicCycle.count({ where: { schoolId: session.schoolId, status: "ACTIVE" } }),

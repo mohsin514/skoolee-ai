@@ -114,7 +114,8 @@ export async function issueCopy(user: AuthUser, raw: unknown) {
     if (hold) await tx.bookReservation.update({ where: { id: hold.id }, data: { status: hold.memberId === member.id ? "FULFILLED" : "WAITING", copyId: null, readyUntil: null } });
     else await tx.book.update({ where: { id: copy.bookId }, data: { copiesAvailable: { decrement: 1 } } });
     const now = new Date();
-    const snapshot = { ...rules, ...(input.overrideReason ? { holdOverride: { by: user.userId, reason: input.overrideReason } } : {}) };
+    // `issuedById` lets a replay recognise only the loans this desk user made (AI Workflows reconcile, RT17).
+    const snapshot = { ...rules, issuedById: user.userId, ...(input.overrideReason ? { holdOverride: { by: user.userId, reason: input.overrideReason } } : {}) };
     return tx.bookIssue.create({ data: { schoolId: user.schoolId, bookId: copy.bookId, memberId: member.id, copyId: copy.id, dueAt: dueDate(now, rules), policySnapshot: snapshot as unknown as Prisma.InputJsonValue } });
   });
 }

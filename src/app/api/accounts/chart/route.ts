@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
+import { ACCOUNT_TYPES as TYPES, createChartAccount } from "@/lib/accounts/chart-account-command";
 import {
   ApiError,
   assertModuleRead,
@@ -18,7 +19,6 @@ import {
 // PATCH /api/accounts/chart {id, name?, type?, isActive?}  → type is fixed once entries exist
 // DELETE /api/accounts/chart?id=           → blocked when entries exist; deactivate instead
 
-const TYPES = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"];
 // Campus staff may only change accounts in their own campus; school owners may change any campus.
 const campusFence = (user: { role: string; schoolId: string; campusId?: string | null }) => ({ schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId || "" }) });
 
@@ -48,26 +48,7 @@ export async function POST(req: NextRequest) {
     await assertPermission(user, "accounts", "edit");
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    const type = String(body.type ?? "").toUpperCase();
-
-    if (!name) throw new ApiError("name is required", 400);
-    if (!TYPES.includes(type)) throw new ApiError(`type must be one of ${TYPES.join(", ")}`, 400);
-
-    const existing = await prisma.chartOfAccount.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("An account with this name already exists", 409);
-
-    const account = await prisma.$transaction(async (tx) => {
-      const created = await tx.chartOfAccount.create({
-        data: { campusId, name, type, isSystem: false },
-      });
-      await writeAuditEvent(tx, user, {
-        table: "chart_of_accounts", recordId: created.id, action: "CREATE", campusId: created.campusId,
-        after: { type: created.type, isSystem: created.isSystem },
-      });
-      return created;
-    });
+    const account = await createChartAccount(user, body);
 
     return Response.json({ success: true, data: account }, { status: 201 });
   } catch (error) {
