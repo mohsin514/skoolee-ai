@@ -19,6 +19,7 @@ import { aiWorkflowsV2Enabled } from "../flag";
 import { mentionsCare } from "../pii/care-detector";
 import { authorizeActor, capabilityContext, inTenant } from "./actor";
 import { withLease } from "./lease";
+import { PROVIDER_RETRIES, providerBackoffMs } from "./provider-limit";
 
 /** Requests are bounded; questionnaire jobs come from compiled sheets (Slice 2), not from this route. */
 export const startJobSchema = z.strictObject({
@@ -93,7 +94,8 @@ export async function savePlan(user: AuthUser, jobId: string, steps: PlannedStep
           status: planned.missingFields?.length ? "NEEDS_INPUT" : "PENDING",
         } });
       }
-      await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { planVersion, status: "RUNNING", version: { increment: 1 } } });
+      // A plan that lands clears any earlier provider pause, so a finished job never shows a stale error.
+      await tx.aiWorkflowJob.update({ where: { id: job.id }, data: { planVersion, status: "RUNNING", errorCode: null, errorParams: Prisma.DbNull, nextWakeAt: null, version: { increment: 1 } } });
       await appendEvent(tx, job, "PLAN_READY", null, { steps: steps.length });
     });
   });
@@ -118,9 +120,20 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
       catch { return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: "BLOCKED", errorCode: "STALE_VERSION", version: { increment: 1 } } }); }
       if (job.status === "PLANNING") {
         // Planning calls the model; a failure is recorded on the job, never thrown past the lease.
-        try { await planJob(user, job, generate); }
+        try {
+          await planJob(user, job, generate);
+          // Planning reached the model and finished (a plan, a question, an answer or "not supported"):
+          // any earlier provider pause is over, so a finished job never shows a stale error.
+          if (job.errorCode === "PROVIDER_UNAVAILABLE") await prisma.aiWorkflowJob.updateMany({ where: { id: job.id, schoolId: job.schoolId, errorCode: "PROVIDER_UNAVAILABLE" }, data: { errorCode: null, errorParams: Prisma.DbNull, nextWakeAt: null } });
+        }
         catch (error) {
           const failure = toWorkflowError(error);
+          // A provider outage, timeout or rate limit pauses with backoff (no credit was charged); the
+          // worker wakes the job and plans again. After PROVIDER_RETRIES attempts it fails honestly.
+          if (failure.code === "PROVIDER_UNAVAILABLE" || failure.code === "DEADLINE") {
+            const attempt = (((job.errorParams ?? {}) as { attempt?: number }).attempt ?? 0) + 1;
+            if (attempt <= PROVIDER_RETRIES) return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: "PAUSED", errorCode: "PROVIDER_UNAVAILABLE", errorParams: { attempt, ...(failure.params.reason ? { reason: failure.params.reason } : {}) }, nextWakeAt: new Date(Date.now() + providerBackoffMs(attempt)), version: { increment: 1 } } });
+          }
           return prisma.aiWorkflowJob.update({ where: { id: job.id }, data: { status: failure.code === "BUDGET_EXHAUSTED" || failure.code === "CREDITS_EXHAUSTED" ? "PAUSED" : "FAILED", errorCode: failure.code, version: { increment: 1 } } });
         }
         const planned = await prisma.aiWorkflowJob.findFirstOrThrow({ where: { id: job.id } });

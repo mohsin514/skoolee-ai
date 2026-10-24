@@ -42,3 +42,4 @@ test("job status follows the most urgent step", () => {
   assert.equal(deriveJobStatus([{ status: "WAITING_HANDOFF", kind: "handoff" }]), "WAITING_HANDOFF");
   assert.equal(deriveJobStatus([{ status: "SUCCEEDED", kind: "write" }, { status: "FAILED", kind: null }]), "COMPLETED");
 });
+
