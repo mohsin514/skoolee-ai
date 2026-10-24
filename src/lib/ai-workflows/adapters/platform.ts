@@ -149,3 +149,54 @@ export function activeSessionsForEmail(user: AuthUser, reason: string, email: st
     return { accounts, sessions };
   });
 }
+
+export interface WorkflowMetrics {
+  windowHours: number; jobs: number;
+  planLatencyMs: { p50: number | null; p95: number | null };
+  modelCallsPerJob: number | null;
+  uncertainSteps: number; pausedForProvider: number;
+  openHandoffs: { count: number; oldestHours: number | null };
+  sweepLagSeconds: number | null;
+  creditsCharged: number;
+}
+
+const percentile = (values: number[], p: number) => {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
+};
+
+/**
+ * Operations view for the platform owner (design-slices §11): planning latency, model calls per job,
+ * uncertain steps, provider pauses, hand-off age and sweep lag across every school. Counts and timings
+ * only; no school, person or request text is returned.
+ */
+export function workflowMetrics(user: AuthUser, windowHours = 24, now = new Date()): Promise<WorkflowMetrics> {
+  return asOwner(user, PLATFORM_UNSCOPED_REASON, async () => {
+    const since = new Date(now.getTime() - windowHours * 3_600_000);
+    const [jobs, started, planned, attempts, uncertain, paused, handoffs, waiting, credits] = await Promise.all([
+      prisma.aiWorkflowJob.count({ where: { createdAt: { gte: since } } }),
+      prisma.aiWorkflowEvent.findMany({ where: { type: "JOB_STARTED", createdAt: { gte: since } }, select: { jobId: true, createdAt: true }, take: 20_000 }),
+      prisma.aiWorkflowEvent.findMany({ where: { type: "PLAN_READY", createdAt: { gte: since } }, select: { jobId: true, createdAt: true }, take: 20_000 }),
+      prisma.aiWorkflowEvent.count({ where: { type: "MODEL_ATTEMPT_STARTED", createdAt: { gte: since } } }),
+      prisma.aiWorkflowStep.count({ where: { status: { in: ["UNCERTAIN", "FAILED_UNVERIFIED"] }, createdAt: { gte: since } } }),
+      prisma.aiWorkflowJob.count({ where: { status: "PAUSED", errorCode: "PROVIDER_UNAVAILABLE" } }),
+      prisma.aiWorkflowHandoff.findMany({ where: { status: { in: ["OPEN", "CLAIMED"] } }, select: { createdAt: true }, orderBy: { createdAt: "asc" }, take: 1 }),
+      prisma.aiWorkflowJob.findFirst({ where: { status: "RUNNING" }, orderBy: { updatedAt: "asc" }, select: { updatedAt: true } }),
+      prisma.aiWorkflowJob.aggregate({ where: { createdAt: { gte: since } }, _sum: { creditsCharged: true } }),
+    ]);
+    const firstPlan = new Map<string, number>();
+    for (const event of planned) if (!firstPlan.has(event.jobId)) firstPlan.set(event.jobId, event.createdAt.getTime());
+    const latencies = started.flatMap(event => { const at = firstPlan.get(event.jobId); return at ? [at - event.createdAt.getTime()] : []; });
+    const openCount = await prisma.aiWorkflowHandoff.count({ where: { status: { in: ["OPEN", "CLAIMED"] } } });
+    return {
+      windowHours, jobs,
+      planLatencyMs: { p50: percentile(latencies, 50), p95: percentile(latencies, 95) },
+      modelCallsPerJob: jobs ? Math.round((attempts / jobs) * 100) / 100 : null,
+      uncertainSteps: uncertain, pausedForProvider: paused,
+      openHandoffs: { count: openCount, oldestHours: handoffs[0] ? Math.round((now.getTime() - handoffs[0].createdAt.getTime()) / 360_000) / 10 : null },
+      sweepLagSeconds: waiting ? Math.round((now.getTime() - waiting.updatedAt.getTime()) / 1000) : null,
+      creditsCharged: credits._sum.creditsCharged ?? 0,
+    };
+  });
+}

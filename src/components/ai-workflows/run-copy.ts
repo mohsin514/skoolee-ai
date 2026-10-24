@@ -24,6 +24,7 @@ export const STATE_WORDS: Record<StepUiState, T> = {
 };
 
 export const ERROR_WORDS: Partial<Record<WorkflowErrorCode | "PRACTICE_MODE", T>> = {
+  EXPIRED: { en: "Nobody took this within 14 days, so it was not done. Ask again if it is still needed.", ar: "لم يتولَّ أحد هذا خلال 14 يوماً فلم يُنفَّذ. اطلبه مجدداً إن لزم.", ur: "14 دن میں کسی نے یہ نہیں لیا، اس لیے یہ نہیں ہوا۔ ضرورت ہو تو دوبارہ کہیں۔" },
   CARE_REFERRAL: { en: "This sounds important, and it is not something AI should handle. Please talk to someone at school you trust: your class teacher, the principal or the school office. If anyone is in danger right now, call your local emergency number. Nothing you typed was saved.", ar: "يبدو هذا مهماً، وليس أمراً يتولاه الذكاء الاصطناعي. تحدث إلى شخص تثق به في المدرسة: معلم الفصل أو المدير أو مكتب المدرسة. إن كان أحد في خطر الآن فاتصل برقم الطوارئ. لم يُحفظ شيء مما كتبته.", ur: "یہ اہم بات لگتی ہے، اور اسے اے آئی کو نہیں سنبھالنا چاہیے۔ اسکول میں کسی قابلِ اعتماد شخص سے بات کریں: کلاس ٹیچر، پرنسپل یا اسکول دفتر۔ اگر ابھی کوئی خطرے میں ہے تو ایمرجنسی نمبر پر کال کریں۔ آپ نے جو لکھا وہ محفوظ نہیں ہوا۔" },
   ACCESS_CHANGED: { en: "Your access changed. Sign in again to continue.", ar: "تغيّرت صلاحياتك. سجّل الدخول مجدداً.", ur: "آپ کی رسائی بدل گئی۔ دوبارہ سائن ان کریں۔" },
   ROLE_NOT_ALLOWED: { en: "This is not part of your role.", ar: "هذا ليس ضمن دورك.", ur: "یہ آپ کے کردار میں شامل نہیں۔" },
@@ -34,7 +35,7 @@ export const ERROR_WORDS: Partial<Record<WorkflowErrorCode | "PRACTICE_MODE", T>
   CONFIRM_REQUIRED: { en: "Use the save button on the card; typing yes does not save.", ar: "استخدم زر الحفظ؛ كتابة نعم لا تحفظ.", ur: "کارڈ کا بٹن دبائیں؛ جی لکھنے سے محفوظ نہیں ہوتا۔" },
   BUDGET_EXHAUSTED: { en: "This request reached its AI limit. Start a new request to continue.", ar: "بلغ الطلب حده. ابدأ طلباً جديداً.", ur: "اس درخواست کی حد پوری ہو گئی۔ نئی درخواست شروع کریں۔" },
   CREDITS_EXHAUSTED: { en: "Your school has no AI credits left this month.", ar: "لا رصيد ذكاء اصطناعي متبقٍ هذا الشهر.", ur: "اس مہینے اسکول کے اے آئی کریڈٹ ختم ہو گئے۔" },
-  PROVIDER_UNAVAILABLE: { en: "AI is not reachable right now. Nothing was changed; try again.", ar: "الذكاء الاصطناعي غير متاح. لم يتغير شيء.", ur: "اے آئی ابھی دستیاب نہیں۔ کچھ نہیں بدلا؛ دوبارہ کوشش کریں۔" },
+  PROVIDER_UNAVAILABLE: { en: "AI is busy or not reachable right now. Nothing was changed and nothing was charged; it tries again by itself shortly, or press Resume.", ar: "الذكاء الاصطناعي مشغول أو غير متاح. لم يتغير شيء ولم يُخصم شيء؛ سيحاول مجدداً قريباً، أو اضغط استئناف.", ur: "اے آئی ابھی مصروف یا دستیاب نہیں۔ کچھ نہیں بدلا اور کوئی کریڈٹ نہیں کٹا؛ یہ خود جلد دوبارہ کوشش کرے گا، یا دوبارہ شروع دبائیں۔" },
   DEADLINE: { en: "That took too long. Nothing new was saved; try again.", ar: "استغرق وقتاً طويلاً. لم يُحفظ شيء جديد.", ur: "بہت وقت لگا۔ کچھ نیا محفوظ نہیں ہوا؛ دوبارہ کوشش کریں۔" },
   DOMAIN_REFUSED: { en: "The school's rules refused this. Open the screen to see why.", ar: "رفضت قواعد المدرسة ذلك. افتح الشاشة للسبب.", ur: "اسکول کے اصولوں نے یہ رد کیا۔ وجہ کے لیے اسکرین کھولیں۔" },
   INVALID_INPUT: { en: "Some details are missing or not valid.", ar: "بعض التفاصيل ناقصة أو غير صحيحة.", ur: "کچھ تفصیلات نامکمل یا غلط ہیں۔" },

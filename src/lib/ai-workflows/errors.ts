@@ -27,6 +27,8 @@ export const WORKFLOW_ERROR_CODES = {
   PRACTICE_MODE: 423,
   /** A child-safety or wellbeing request: nothing was stored; the person is shown how to reach a trusted adult. */
   CARE_REFERRAL: 422,
+  /** A hand-off nobody took within 14 days; the work was not done. */
+  EXPIRED: 410,
   INTERNAL: 500,
 } as const;
 export type WorkflowErrorCode = keyof typeof WORKFLOW_ERROR_CODES;

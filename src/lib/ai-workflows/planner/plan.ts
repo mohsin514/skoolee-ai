@@ -12,6 +12,7 @@ import { loadPeopleVocabulary } from "../pii/load-vocabulary";
 import { dataChannel } from "../pii/data-channel";
 import { capabilityContext } from "../jobs/actor";
 import { assertCanSpend, recordAttempt } from "../jobs/credits";
+import { acquireProviderSlot } from "../jobs/provider-limit";
 import { appendEvent } from "../jobs/events";
 import { savePlan, type PlannedStep } from "../jobs/job-service";
 import { retrieve } from "./retrieve";
@@ -53,6 +54,7 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
   prompt = masker.mask(prompt);
 
   const call = async (system: string, body: string) => {
+    await acquireProviderSlot();
     await appendEventTx(job, "MODEL_ATTEMPT_STARTED");
     const result = await generate({ system, prompt: body, temperature: 0, maxTokens: 1500, json: true, signal: AbortSignal.timeout(PLAN_TIMEOUT_MS) }).catch(error => {
       throw new WorkflowError(error instanceof Error && error.name === "AbortError" ? "DEADLINE" : "PROVIDER_UNAVAILABLE");

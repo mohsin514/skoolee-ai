@@ -10,6 +10,8 @@ import { AskWorkspace } from "@/components/ai-workflows/ask-workspace";
 import { aiWorkflowsV2Enabled } from "@/lib/ai-workflows/flag";
 import { practiceModeApplies } from "@/lib/ai-workflows/practice";
 import { definitionForRole } from "@/lib/ai-workflows/questionnaire/service";
+import { isDemoSchool } from "@/lib/ai-workflows/demo";
+import { DemoSchoolBadge } from "@/components/ai-workflows/demo-school-badge";
 
 export const metadata = { title: "AI Workflows" };
 
@@ -33,6 +35,7 @@ export default async function SchoolAiPage({ searchParams }: { searchParams: Pro
   const personalCampus = user.role === "APP_OWNER" ? null : user.campusId;
   return (
     <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.campuses[0]?.logoUrl || brand?.logoUrl || null} chatDock={user.schoolStatus !== "SUSPENDED"}>
+      {isDemoSchool(brand?.slug) ? <DemoSchoolBadge /> : null}
       {personalWorkspace ? <div className="mx-auto max-w-5xl p-6"><AskWorkspace campusId={personalCampus} practiceMode={workflowsV2?.practiceMode ?? false} enabled={Boolean(workflowsV2)} /></div> : <SchoolAIWorkspace role={user.role} campusId={user.campusId} workflowsV2={workflowsV2} />}
     </RoleFrame>
   );

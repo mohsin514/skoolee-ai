@@ -15,12 +15,16 @@ export const PER_SCHOOL = 2;
  * inside the owner's own request, after requirePlatformOwner (session, MFA and support-grant fence).
  */
 export async function sweepWorkflowJobs(db: PrismaClient, now = new Date()) {
+  // Wake jobs paused by a provider outage once their backoff has passed: they plan again from PLANNING.
+  const woke = await db.aiWorkflowJob.updateMany({ where: { status: "PAUSED", errorCode: "PROVIDER_UNAVAILABLE", actorRole: { not: OWNER_ROLE }, nextWakeAt: { lte: now } }, data: { status: "PLANNING", nextWakeAt: null, version: { increment: 1 } } });
+  // Hand-offs nobody took within 14 days expire; the step says so instead of waiting forever.
+  const expired = await expireHandoffs(db, now);
   const rows = await db.$queryRaw<Array<{ id: string; schoolId: string; actorId: string; actorRole: string; accessVersion: number }>>`
     SELECT id, school_id AS "schoolId", actor_id AS "actorId", actor_role AS "actorRole", access_version AS "accessVersion"
     FROM (
       SELECT *, row_number() OVER (PARTITION BY school_id ORDER BY updated_at, id) AS n
       FROM ai_workflow_jobs
-      WHERE status = 'RUNNING' AND actor_role <> ${OWNER_ROLE} AND (lease_expires_at IS NULL OR lease_expires_at <= ${now}) AND (next_wake_at IS NULL OR next_wake_at <= ${now})
+      WHERE status IN ('RUNNING', 'PLANNING') AND actor_role <> ${OWNER_ROLE} AND (lease_expires_at IS NULL OR lease_expires_at <= ${now}) AND (next_wake_at IS NULL OR next_wake_at <= ${now})
     ) ranked
     WHERE n <= ${PER_SCHOOL}
     ORDER BY updated_at, id
@@ -40,5 +44,19 @@ export async function sweepWorkflowJobs(db: PrismaClient, now = new Date()) {
     try { await advanceJob(actor, row.id, "worker"); advanced++; }
     catch { /* Another worker or the browser holds the lease, or the step recorded its own failure. */ }
   }
-  return { considered: rows.length, advanced };
+  return { considered: rows.length, advanced, woke: woke.count, expired };
+}
+
+async function expireHandoffs(db: PrismaClient, now: Date) {
+  const stale = await db.aiWorkflowHandoff.findMany({ where: { status: { in: ["OPEN", "CLAIMED"] }, expiresAt: { lte: now } }, select: { id: true, schoolId: true, stepId: true, jobId: true, status: true }, take: 200 });
+  let count = 0;
+  for (const handoff of stale) {
+    await db.$transaction(async tx => {
+      const updated = await tx.aiWorkflowHandoff.updateMany({ where: { id: handoff.id, status: handoff.status }, data: { status: "EXPIRED" } });
+      if (!updated.count) return;
+      await tx.aiWorkflowStep.updateMany({ where: { id: handoff.stepId, schoolId: handoff.schoolId, status: "WAITING_HANDOFF" }, data: { status: "FAILED", errorCode: "EXPIRED", finishedAt: now, version: { increment: 1 } } });
+      count++;
+    }).catch(() => undefined);
+  }
+  return count;
 }
