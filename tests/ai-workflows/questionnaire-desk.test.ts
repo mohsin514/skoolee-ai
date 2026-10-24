@@ -27,3 +27,12 @@ test("the librarian's sheet never sets money: fines go to the administrator as a
   assert.ok(steps.some(step => step.capabilityKey === "library.desk_save_rules_money"));
   assert.equal(steps.filter(step => step.capabilityKey === "library.category_create").length, 1, "existing sections are kept");
 });
+
+test("the principal's answers compile to teacher assignments by name, a weekly cap and a grading draft the registry accepts", async () => {
+  const { compilePrincipal } = await import("../../src/lib/ai-workflows/questionnaire/roles/principal");
+  const prefill = { language: null, cycleStatus: "ACTIVE", classes: [{ id: "c1", label: "7 B", classTeacherId: null }], subjects: [{ id: "s1", label: "Maths · 7 B", teacherId: null }], teachers: [{ id: "t1", name: "Noor Fatima" }] };
+  const steps = compilePrincipal({ firstPriority: ["TEACHERS"], classTeachers: { c1: "t1" }, subjectTeachers: { s1: "t1", ghost: "t1" }, teacherWeeklyCap: 28, gradingDraft: "YES" }, prefill);
+  assert.deepEqual(steps.map(step => step.capabilityKey), ["personal.save_plan", "academic.class.assign_teacher", "academic.subject.assign_teacher", "staff.set_workload_capacity", "academic.model.create_draft"]);
+  for (const step of steps) assert.ok(capability(step.capabilityKey)!.input.safeParse(step.input).success, `${step.capabilityKey} ${JSON.stringify(step.input)}`);
+  assert.ok(!steps.some(step => /period|room|holiday|publish|activate/.test(step.capabilityKey)), "periods, rooms, publishing and activation are never compiled for the principal");
+});

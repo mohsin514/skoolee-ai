@@ -22,7 +22,7 @@ const prefill = (overrides: Partial<TeacherPrefill> = {}): TeacherPrefill => ({
 });
 
 test("only the signed-in role's own definition exists (RT14): each role maps to its own key or none", () => {
-  const expected: Record<string, string> = { TEACHER: "teacher", ADMIN: "admin", CAMPUS_ADMIN: "campus-admin", PARENT: "parent", STUDENT: "student", ACCOUNTANT: "accountant", LIBRARIAN: "librarian", RECEPTIONIST: "receptionist" };
+  const expected: Record<string, string> = { TEACHER: "teacher", ADMIN: "admin", CAMPUS_ADMIN: "campus-admin", PARENT: "parent", STUDENT: "student", ACCOUNTANT: "accountant", LIBRARIAN: "librarian", RECEPTIONIST: "receptionist", PRINCIPAL: "principal" };
   for (const role of USER_ROLES) assert.equal(definitionForRole(role)?.key ?? null, expected[role] ?? null, role);
 });
 

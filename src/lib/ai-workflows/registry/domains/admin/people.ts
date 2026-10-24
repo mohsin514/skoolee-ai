@@ -604,7 +604,7 @@ async function pendingLeave(ctx: CapabilityContext, input: ReviewInput) {
 }
 
 const LEAVE_REVIEW = defineCapability<ReviewInput>({
-  key: "leave.review", version: 1, cluster: "C2", inventoryKeys: ["leave.review"], risk: "APPROVAL_DECISION", roles: OPERATORS, class: "C",
+  key: "leave.review", version: 1, cluster: "C2", inventoryKeys: ["leave.review"], risk: "APPROVAL_DECISION", roles: [...OPERATORS, "PRINCIPAL"], class: "C",
   input: reviewInput, evidence: ["/staff"],
   gates: [roles(OPERATORS), predicate("canManageAcademics", canManageAcademics, OPERATORS), permission("leave", "edit"), ownCampus()], scope: { kind: "own-campus" },
   copy: c(
