@@ -2990,3 +2990,121 @@ html:has(.sk-step-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom
   .sk-choice-card-option[aria-checked="true"], .sk-choice-card-option[aria-pressed="true"], .sk-segmented button[aria-checked="true"], .sk-step-pill[aria-current="step"] { outline: 2px solid Highlight; }
   .sk-choice-mark { forced-color-adjust: none; border-color: CanvasText; }
 }
+
+/* ═══ AI Workflows · UI pass (run sheet, ask, catalogue, inbox, frame) ═══ */
+/* Shared by every AI Workflows surface. Tokens only; reuses the #64 setup
+   classes (.sk-quiz-*, .sk-kbd) and the shared motion classes without
+   re-declaring them. */
+@layer components {
+  /* A changed value flashes brand-50 once. */
+  @keyframes sk-ai-flash {
+    0% { background-color: color-mix(in srgb, var(--brand-100) 70%, transparent); }
+    100% { background-color: transparent; }
+  }
+  .sk-ai-flash { animation: sk-ai-flash 1200ms var(--ease-standard) 1 both; border-radius: inherit; }
+
+  /* Something arrived that needs the person: two soft rings, never infinite. */
+  @keyframes sk-ai-attention {
+    from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sk-ai-attention-color, var(--brand-400)) 45%, transparent); }
+    to { box-shadow: 0 0 0 10px transparent; }
+  }
+  .sk-ai-attention { animation: sk-ai-attention 600ms var(--ease-standard) 2; }
+  .sk-ai-attention[data-tone="warning"] { --sk-ai-attention-color: var(--status-warning-border); }
+
+  /* Vertical step rail; the fill reaches the last receipt-backed step. */
+  .sk-ai-rail { position: relative; padding-inline-start: 2.75rem; list-style: none; }
+  .sk-ai-rail::before {
+    content: "";
+    position: absolute;
+    inset-block: 1rem;
+    inset-inline-start: 1rem;
+    inline-size: 1px;
+    background: var(--border-subtle);
+  }
+  .sk-ai-rail > [data-part="fill"] {
+    position: absolute;
+    inset-block-start: 1rem;
+    inset-inline-start: 1rem;
+    inline-size: 1px;
+    block-size: var(--sk-rail-fill, 0%);
+    background: var(--status-success-border);
+    transition: block-size var(--duration-control) var(--ease-standard);
+  }
+  /* Horizontal mini-timeline (launch tiles, SetupPrompt, catalogue). */
+  .sk-ai-rail[data-axis="inline"] { display: flex; align-items: center; padding: 0; }
+  .sk-ai-rail[data-axis="inline"]::before,
+  .sk-ai-rail[data-axis="inline"] > [data-part="fill"] { display: none; }
+  .sk-ai-rail[data-axis="inline"] > [data-part="link"] {
+    flex: 1 1 1rem;
+    block-size: 1px;
+    min-inline-size: .75rem;
+    background: var(--border-subtle);
+  }
+  .sk-ai-rail[data-axis="inline"] > [data-part="link"][data-done] { background: var(--brand-300); }
+
+  /* Step-state node: glyph + tone, readable without motion or colour. */
+  .sk-ai-node {
+    position: relative;
+    display: grid;
+    place-items: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    flex: none;
+    border-radius: 9999px;
+    border: 1px solid var(--border-subtle);
+    background: hsl(var(--card));
+    color: var(--ink-faint);
+    transition: background-color var(--duration-control) var(--ease-standard), color var(--duration-control) var(--ease-standard), border-color var(--duration-control) var(--ease-standard);
+  }
+  .sk-ai-node > svg { inline-size: 1rem; block-size: 1rem; }
+  .sk-ai-node[data-tone="working"] { background: var(--brand-50); color: var(--color-primary); border-color: var(--brand-200); }
+  .sk-ai-node[data-tone="attention"] { background: var(--status-warning-surface); color: var(--status-warning-text); border-color: var(--status-warning-border); }
+  .sk-ai-node[data-tone="done"] { background: var(--status-success-surface); color: var(--status-success-text); border-color: var(--status-success-border); }
+  .sk-ai-node[data-tone="info"] { background: var(--status-info-surface); color: var(--status-info-text); border-color: var(--status-info-border); }
+  .sk-ai-node[data-tone="danger"] { background: var(--status-error-surface); color: var(--status-error-text); border-color: var(--status-error-border); }
+  .sk-ai-node[data-tone="muted"] { background: var(--surface-subtle); border-style: dashed; }
+  .sk-ai-node[data-size="sm"] { inline-size: 1.25rem; block-size: 1.25rem; }
+  .sk-ai-node[data-size="sm"] > svg { inline-size: .75rem; block-size: .75rem; }
+  .sk-ai-node > [data-part="ping"] { position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--brand-300); pointer-events: none; }
+
+  /* Compound field surface (Ask composer, answer composer, TagList,
+     AvailabilityGrid); mirrors .sk-input-group, since focus-within:
+     utilities are rejected by check:ui. */
+  [data-field-shell] {
+    border: 1px solid var(--field-border);
+    border-radius: 1rem;
+    background-color: var(--field-surface);
+    box-shadow: var(--field-shadow-rest);
+    transition: background-color 200ms, border-color 200ms, box-shadow 200ms;
+  }
+  [data-field-shell]:hover { border-color: var(--field-border-hover); }
+  [data-field-shell]:focus-within {
+    border-color: var(--field-focus-border);
+    box-shadow: var(--field-focus-ring);
+    outline: none;
+  }
+  [data-field-shell][data-invalid] { border-color: var(--field-error-border); background-color: var(--field-surface-invalid); }
+  [data-field-shell][data-invalid]:focus-within { box-shadow: var(--field-error-ring); }
+
+  /* Read-only panels keep their resting border on hover. */
+  .sk-panel[data-static]:hover { border-color: var(--border-subtle); }
+
+  /* Keyboard hints only for fine pointers. */
+  .sk-ai-fine-only { display: none; }
+  @media (hover: hover) and (pointer: fine) {
+    .sk-ai-fine-only { display: inline-flex; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk-ai-flash, .sk-ai-attention { animation: none !important; }
+    .sk-ai-rail > [data-part="fill"], .sk-ai-node, [data-field-shell] { transition: none !important; }
+    .sk-ai-node > [data-part="ping"] { display: none; }
+  }
+
+  @media (forced-colors: active) {
+    .sk-ai-node { border: 1px solid CanvasText; }
+    .sk-ai-node[data-tone="done"] { background: Highlight; color: HighlightText; }
+    [data-field-shell]:focus-within { outline: 2px solid Highlight; }
+    .sk-ai-rail::before, .sk-ai-rail > [data-part="fill"] { background: CanvasText; }
+  }
+}
