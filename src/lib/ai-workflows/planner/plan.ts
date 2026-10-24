@@ -54,7 +54,7 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
 
   const call = async (system: string, body: string) => {
     await appendEventTx(job, "MODEL_ATTEMPT_STARTED");
-    const result = await generate({ system, prompt: body, temperature: 0, maxTokens: 1500, json: true, signal: AbortSignal.timeout(PLAN_TIMEOUT_MS) }).catch(error => {
+    const result = await generate({ system, prompt: body, temperature: 0, maxTokens: 4000, json: true, signal: AbortSignal.timeout(PLAN_TIMEOUT_MS) }).catch(error => {
       throw new WorkflowError(error instanceof Error && error.name === "AbortError" ? "DEADLINE" : "PROVIDER_UNAVAILABLE");
     });
     return result;
