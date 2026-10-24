@@ -13,6 +13,7 @@ import { ViewTabs } from "@/components/ui/view-tabs";
 import { MyLeavePanel } from "@/components/leave/my-leave";
 import { LibraryOverview } from "@/components/insights";
 import type { PanelCommand } from "@/components/fees/fee-types";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
 /**
  * Library (LIBRARIAN) — role-ux §3 `librarian`: Today · Lending desk · Catalogue & members · Messages, with My
@@ -132,6 +133,7 @@ function LibraryWorkspace({ data, view, tab, setView, setTab, retiredNotice }: {
           icon={BookCopy}
           primaryAction={{ id: "open-lending", label: "Open lending desk", icon: ScanLine, onClick: () => run("scan", "lending") }}
         >
+          <SetupPrompt />
           {data.summary?.kind === "LIBRARIAN" ? (
             <LibraryOverview summary={data.summary} campusLabel={campusLine(data)} onNavigate={(next) => setView(next)} />
           ) : null}

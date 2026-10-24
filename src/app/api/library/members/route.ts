@@ -8,6 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { createMember } from "@/lib/library/catalogue-command";
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,22 +38,7 @@ export async function POST(req: NextRequest) {
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const { userId, memberNo } = body;
-
-    if (!userId) throw new ApiError("userId is required", 400);
-    if (!memberNo) throw new ApiError("memberNo is required", 400);
-
-    const [dupUser, dupMemberNo] = await Promise.all([
-      prisma.libraryMember.findFirst({ where: { campusId, userId } }),
-      prisma.libraryMember.findFirst({ where: { campusId, memberNo } }),
-    ]);
-    if (dupUser) throw new ApiError("This user is already a library member", 409);
-    if (dupMemberNo) throw new ApiError("Member number already in use", 409);
-
-    const data = await prisma.libraryMember.create({
-      data: { campusId, userId, memberNo },
-    });
+    const data = await createMember(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {

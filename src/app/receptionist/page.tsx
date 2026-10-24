@@ -24,6 +24,7 @@ import { AdmissionQueriesPanel } from "@/components/shared-admin/index";
 import { MyLeavePanel } from "@/components/leave/my-leave";
 import { FrontDeskOverview, type FrontDeskSummary } from "@/components/insights";
 import type { PanelCommand } from "@/components/fees/fee-types";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 
 /**
  * Front desk (RECEPTIONIST) — role-ux §3 `receptionist`, §3.1, §4.4.
@@ -229,6 +230,7 @@ function ReceptionWorkspace({ data, view, tab, setView, setTab, retiredNotice }:
           primaryAction={{ id: "check-in", label: "Check in visitor", icon: LogIn, onClick: () => run("check-in", "visitors") }}
           secondaryActions={[{ id: "log-call", label: "Log call", icon: Phone, onClick: () => run("log-call", "phone-calls") }]}
         >
+          <SetupPrompt />
           {data.summary?.kind === "RECEPTIONIST" ? <ReceptionToday summary={data.summary} campusLabel={campusLine(data)} onNavigate={(next) => setView(next)} /> : null}
         </ConsolePage>
       );
