@@ -20,7 +20,7 @@ export default async function AiSetupPage() {
   if (!aiWorkflowsV2Enabled(brand?.slug)) redirect(definition.key === "teacher" ? dashboardPathForRole(user.role) : "/ai?workflow=schoolSetup");
   return (
     <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.logoUrl ?? null} chatDock={false}>
-      <RoleSetup questionnaireKey={definition.key} />
+      <RoleSetup questionnaireKey={definition.key} homeHref={dashboardPathForRole(user.role)} />
     </RoleFrame>
   );
 }

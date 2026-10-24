@@ -6,6 +6,7 @@ import { WorkflowError } from "../errors";
 import { sha256 } from "../executor/canonical";
 import { entryFor, runExecStep } from "../executor/step-runner";
 import { normalizeText } from "../planner/normalize";
+import { mentionsCare } from "../pii/care-detector";
 import { authorizeActor, capabilityContext, inTenant } from "./actor";
 import { appendEvent } from "./events";
 import { advanceJob, cancelJob } from "./job-service";
@@ -70,6 +71,7 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
     }
 
     if (command.type === "answer") {
+      if (mentionsCare(command.text)) throw new WorkflowError("CARE_REFERRAL");
       if (job.status !== "NEEDS_INPUT") throw new WorkflowError("SUPERSEDED");
       if (job.version !== command.jobVersion) throw new WorkflowError("STALE_VERSION");
       await prisma.$transaction(async tx => {

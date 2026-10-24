@@ -58,7 +58,14 @@ test("gates mirror roles and the live permission matrix; SUPER_ADMIN keeps fixed
 });
 
 test("roles only see entries listed for them; families cannot reach school operations", () => {
-  for (const role of ["STUDENT", "PARENT"] as const) assert.deepEqual(entriesForRole(role).map(entry => entry.key).sort(), ["assistant.answer", "personal.save_plan", "profile.update"]);
+  // Families and students hold only personal and family entries (Slice 4): no typed school operation,
+  // no fee, leave, staff, roster or setup capability, and nothing scoped beyond self or own child.
+  for (const role of ["STUDENT", "PARENT"] as const) for (const entry of entriesForRole(role)) {
+    assert.ok(!/^(setup|academics|fees\.(?!start_online_payment$)|leave\.create|staff|imports|academic|timetable|finance|attendance\.)/.test(entry.key), `${role} reaches ${entry.key}`);
+    if (entry.risk === "FINANCIAL") assert.equal(entry.class, "C", `${role} ${entry.key} may only hand off money`);
+    assert.ok(["self", "own-child"].includes(entry.scope.kind), `${role} ${entry.key} scope ${entry.scope.kind}`);
+  }
+  assert.ok(entriesForRole("STUDENT").some(entry => entry.key === "pathways.save_goal_private"));
   assert.ok(entriesForRole("TEACHER").every(entry => !entry.key.startsWith("setup.")));
 });
 

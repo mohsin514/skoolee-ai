@@ -25,6 +25,8 @@ export const CLASS_A_ALLOWLIST: Readonly<Record<string, string>> = {
   "work.save": "Saves an unapproved draft plan; no operational record changes.",
   "digests.prepare": "Builds an unsent draft only from evidence already released to families; sending is a separate reviewed step.",
   "marks_scan.create_template": "Prints a blank paper marks sheet from the class roster; no mark changes until a scanned batch is reviewed and approved.",
+  "pathways.save_goal_private": "Saves the learner's own goal with no audience: only the learner sees it until they confirm sharing it.",
+  "pathways.add_action": "Adds the learner's own next step to one of their own goals; it is seen only by whoever the goal is already shared with.",
   "resources.create": "Saves a link as a staff-only DRAFT; nothing is visible to learners or families until it is published on the Resources screen; the same link in a class is never added twice.",
   "curriculum.import_topics": "Appends missing topics only from approved, page-referenced sources; existing topics are kept.",
 };

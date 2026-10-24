@@ -174,7 +174,7 @@ function Field({ view, value, onChange, label, language }: { view: QuestionView;
  * as it is given and the left pane shows what Build will set up (pending ghosts) before anything runs.
  * Build compiles confirmed answers without a model call; the Run Sheet then takes over.
  */
-export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
+export function RoleSetup({ questionnaireKey, homeHref }: { questionnaireKey: string; homeHref: string }) {
   const { language } = useLocale();
   const [sheet, setSheet] = useState<SheetView | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -245,7 +245,7 @@ export function RoleSetup({ questionnaireKey }: { questionnaireKey: string }) {
     catch (thrown) { setProblem(thrown instanceof WorkflowRequestError ? thrown.code : "INTERNAL"); }
     finally { setBuilding(false); }
   };
-  const defer = async () => { await call(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "defer" }) }).catch(() => undefined); window.location.assign("/teacher"); };
+  const defer = async () => { await call(`/api/ai-workflows/questionnaire/${questionnaireKey}`, { method: "POST", body: JSON.stringify({ action: "defer" }) }).catch(() => undefined); window.location.assign(homeHref); };
 
   const dir = language === "en" ? "ltr" : "rtl";
   if (!sheet) return problem ? <Alert tone="danger" data-ai-error={problem}>{ERROR_WORDS[problem as keyof typeof ERROR_WORDS]?.[language] ?? problem}</Alert> : <div className="space-y-3 p-6"><Skeleton className="h-10 w-2/3" /><Skeleton className="h-48 w-full" /></div>;

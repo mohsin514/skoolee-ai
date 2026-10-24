@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { answerOffer, cancelPlace, familyActivities, guardiansOf, requestPlace } from "@/lib/activities/service";
-import { deliverNotification } from "@/lib/notifications/in-app";
-import { prisma } from "@/lib/db/prisma";
+import { answerOffer, cancelPlace, familyActivities, requestPlace } from "@/lib/activities/service";
+import { notifyOfferedPlaces } from "@/lib/activities/offer-notice";
 
 export const runtime = "nodejs";
 
@@ -19,12 +18,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     if (user.role !== "PARENT") throw new ApiError("Not found", 404);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-    const offerNotice = async (placeIds: string[]) => {
-      if (!placeIds.length) return;
-      const places = await prisma.activityPlace.findMany({ where: { id: { in: placeIds } }, select: { studentId: true } });
-      const recipients = await guardiansOf(user.schoolId, places.map(p => p.studentId));
-      if (recipients.length) await deliverNotification("ACTIVITY_PLACE_OFFERED", { schoolId: user.schoolId, campusId: user.campusId ?? "", actorId: user.userId, recipientIds: recipients }).catch(error => console.error("[family/activities] offer notice failed", error));
-    };
+    const offerNotice = (placeIds: string[]) => notifyOfferedPlaces(user, placeIds);
     if (body.action === "request") { const r = await requestPlace(user, body); await offerNotice(r.offered); return Response.json({ success: true, data: { id: r.place.id, status: r.place.status, repeated: r.repeated } }, { status: r.repeated ? 200 : 201 }); }
     if (body.action === "answer") { const r = await answerOffer(user, body); await offerNotice(r.offered); return Response.json({ success: true, data: { status: r.status } }); }
     if (body.action === "withdraw") { const r = await cancelPlace(user, body); await offerNotice(r.offered); return Response.json({ success: true, data: { status: r.status, late: "late" in r ? r.late : false } }); }

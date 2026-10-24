@@ -15,8 +15,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function SchoolAiLayout({ children }: { children: React.ReactNode }) {
   const user = await requirePageSession();
-  // Families and the platform operator go home, not to /403 (G44). Students keep /ai/exams.
-  if (["APP_OWNER", "PARENT"].includes(user.role)) redirect(dashboardPathForRole(user.role));
+  // The platform operator goes home, not to /403 (G44); families and students use AI Workflows (Slice 4).
+  if (user.role === "APP_OWNER") redirect(dashboardPathForRole(user.role));
   try { await assertSchoolOperational(user.schoolId); }
   catch (error) {
     if (error instanceof BillingAccessError && error.status === 402) redirect("/subscription-suspended");
