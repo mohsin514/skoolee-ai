@@ -9,6 +9,7 @@ import {
   errorResponse,
   requireAuthUser,
   resolveCampusId,
+  readJsonObject,
 } from "@/lib/api/scope";
 import {
   documentKey,
@@ -55,7 +56,7 @@ function isCampusAdminLike(role: string) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    const body = await readJsonObject(req);
     const kind = String(body.kind ?? "");
 
     if (kind === "profile") {

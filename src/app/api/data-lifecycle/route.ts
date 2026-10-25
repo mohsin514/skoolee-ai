@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, errorResponse, requireAuthUser, readJsonObject } from "@/lib/api/scope";
 import { lifecycleOverview, placeLegalHold, previewRetention, releaseLegalHold, setRetentionSchedule } from "@/lib/data-lifecycle/service";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const { action, ...input } = await req.json();
+    const { action, ...input } = await readJsonObject(req);
     if (action === "schedule") return Response.json({ success: true, schedule: await setRetentionSchedule(user, input) }, { headers: noStore });
     if (action === "hold") return Response.json({ success: true, hold: await placeLegalHold(user, input) }, { headers: noStore });
     if (action === "release") return Response.json({ success: true, ...(await releaseLegalHold(user, input)) }, { headers: noStore });

@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/rate-limit";
 // SKO-398: a family attaches a document to its own draft (multipart: reference, key, file; X-Resume-Key header).
 export async function POST(request: NextRequest) {
   try {
+    if (!request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data")) throw new ApiError("Upload a multipart form.", 415);
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
     if (!rateLimit(`admissions:upload:${ip}`, { limit: 30, windowMs: 60_000 }).ok) throw new ApiError("Too many uploads. Wait a minute and try again.", 429);
     const form = await request.formData();
