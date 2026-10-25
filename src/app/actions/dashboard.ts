@@ -463,7 +463,8 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
-  const { currency } = await getLocalePackage(session.schoolId, campusId);
+  const { currency: localeCurrency } = await getLocalePackage(session.schoolId, campusId);
+  const currency = await dominantInvoiceCurrency(session.schoolId, [campusId], localeCurrency);
   const aiSetupPending = aiSetupPendingFor(session);
 
   const [
@@ -699,14 +700,14 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     }),
     prisma.invoice.aggregate({
       where: { currency, campusId, campus: { schoolId: session.schoolId } },
-      _sum: { totalAmount: true },
+      _sum: { totalAmount: true, totalAmountPaid: true },
       _count: true,
     }),
     prisma.invoice.groupBy({
       by: ["status"],
       where: { currency, campusId, campus: { schoolId: session.schoolId } },
       _count: true,
-      _sum: { totalAmount: true },
+      _sum: { totalAmount: true, totalAmountPaid: true },
     }),
   ]);
 
@@ -1029,7 +1030,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
-  const { currency } = await getLocalePackage(session.schoolId, campusId);
+  const { currency: localeCurrency } = await getLocalePackage(session.schoolId, campusId);
+  const currency = await dominantInvoiceCurrency(session.schoolId, [campusId], localeCurrency);
   const communicationScope = { schoolId: session.schoolId, campusId, ...await announcementHistoryRestriction(session) };
 
   const today = new Date(new Date().setHours(0, 0, 0, 0));
@@ -1309,14 +1311,14 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     }),
     prisma.invoice.aggregate({
       where: { currency, campusId, campus: { schoolId: session.schoolId } },
-      _sum: { totalAmount: true },
+      _sum: { totalAmount: true, totalAmountPaid: true },
       _count: true,
     }),
     prisma.invoice.groupBy({
       by: ["status"],
       where: { currency, campusId, campus: { schoolId: session.schoolId } },
       _count: true,
-      _sum: { totalAmount: true },
+      _sum: { totalAmount: true, totalAmountPaid: true },
     }),
     prisma.staffInvitation.findMany({
       where: {
