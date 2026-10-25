@@ -557,7 +557,7 @@ export function AcademicPanel({
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
@@ -1256,7 +1256,7 @@ export function ClassDetailModal({
   /** Omitted for a read-only viewer: no Delete class control. */
   onDeleteClass?: (cls: any) => void;
   /** Omitted for a read-only viewer: no Edit control for the class details. */
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {
@@ -1324,12 +1324,12 @@ export function ClassDetailModal({
 
   const saveClassEdit = async () => {
     if (!onUpdateClass) return;
-    await onUpdateClass(cls.id, {
+    const saved = await onUpdateClass(cls.id, {
       name: editClassName,
       section: editClassSection,
       academicYear: Number(editClassAcademicYear) || new Date().getFullYear(),
     });
-    setEditingClass(false);
+    if (saved !== false) setEditingClass(false);
   };
 
   const startEditingSubject = (subject: any) => {
@@ -3663,7 +3663,7 @@ export function ClassGroupCard({
   onViewClass: (cls: any) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   onAddSection?: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;
@@ -3877,7 +3877,7 @@ export function SectionCard({
   onBulkImport?: (classId?: string) => void;
   onChangeTeacher: (classId: string, teacherId: string) => Promise<void>;
   onDeleteClass?: (cls: any) => void;
-  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  onUpdateClass?: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean | void>;
   onDeleteSubject?: (subject: any) => void;
   onUpdateSubject?: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
 }) {

@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/db/prisma";
 import { USER_ROLES } from "@/lib/roles";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { SCHOOL_AI_STAFF_ROLES } from "@/lib/school-ai/access";
@@ -112,10 +113,14 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
   }),
   defineCapability({
     key: "school.inspect", version: 1, cluster: "C9", inventoryKeys: ["school.inspect"], risk: "READ", roles: ["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT"], class: "A",
-    input: assistantCatalogQuerySchema, evidence: [], gates: [roles(["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT"]), ownCampus()], scope: { kind: "own-campus" },
-    copy: c(["Look up current school records", "Read the current classes, teachers, rooms or other records an operation needs.", "Which classes have no timetable yet?"], ["الاطلاع على السجلات", "قراءة الفصول والمعلمين والقاعات الحالية.", "أي الفصول بلا جدول؟"], ["موجودہ ریکارڈ دیکھیں", "موجودہ کلاسیں، اساتذہ، کمرے وغیرہ پڑھیں۔", "کن کلاسوں کا ٹائم ٹیبل ابھی نہیں بنا؟"]),
+    input: z.union([assistantCatalogQuerySchema, z.strictObject({ entity: z.literal("classes") })]), evidence: [], gates: [roles(["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT"]), ownCampus()], scope: { kind: "own-campus" },
+    copy: c(["Look up current school records", "For a campus class count use entity: classes. Otherwise read the current classes, teachers, rooms or other records an operation needs.", "Which classes have no timetable yet?"], ["الاطلاع على السجلات", "قراءة الفصول والمعلمين والقاعات الحالية.", "أي الفصول بلا جدول؟"], ["موجودہ ریکارڈ دیکھیں", "موجودہ کلاسیں، اساتذہ، کمرے وغیرہ پڑھیں۔", "کن کلاسوں کا ٹائم ٹیبل ابھی نہیں بنا؟"]),
     idempotency: { mode: "convergent" }, source: { service: "src/lib/school-ai/assistant-catalog-service.ts:getAssistantCatalog", reuse: "direct" },
-    execute: async (ctx, input) => {
+    execute: async (ctx, input): Promise<Receipt> => {
+      if ("entity" in input) {
+        const classes = await prisma.class.count({ where: { schoolId: ctx.user.schoolId, campusId: ctx.campusId!, archivedAt: null, status: "ACTIVE" } });
+        return { kind: "read", capability: "school.inspect", entities: [], counts: { classes }, link: null, replayed: false, detail: { totalClasses: classes } };
+      }
       const catalog = await getAssistantCatalog(ctx.user, ctx.campusId, input);
       return { kind: "read", capability: "school.inspect", entities: [], counts: { entities: catalog.entities.length }, link: null, replayed: false, detail: { operation: "school.inspect", ...catalog } };
     },

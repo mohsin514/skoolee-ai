@@ -24,7 +24,7 @@ let browser: Browser, invoiceId = "";
 
 async function user(key: string, role: string, campus: string | null, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { "admin-campus": { v: 1, s: "done", at: new Date().toISOString() }, super: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
