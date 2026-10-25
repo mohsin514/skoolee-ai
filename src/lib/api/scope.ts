@@ -40,6 +40,14 @@ export class ValidationError extends ApiError {
   }
 }
 
+/** Parse JSON request bodies as objects so malformed, null, and primitive JSON stay client errors. */
+export async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
+  let value: unknown;
+  try { value = await request.json(); } catch { throw new ApiError("Send a valid JSON object.", 400); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new ApiError("Send a valid JSON object.", 400);
+  return value as Record<string, unknown>;
+}
+
 export async function requireAuthUser(options: { allowSuspended?: boolean } = {}): Promise<AuthUser> {
   const user = await getAuthUser();
 
