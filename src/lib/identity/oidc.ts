@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { checkDestination } from "@/lib/integrations/destination";
 
 // SKO-446: the one supported protocol — OpenID Connect authorization code flow with PKCE (S256), a signed state
 // cookie carrying state, nonce and verifier, and ID tokens verified against the issuer's JWKS for issuer,
@@ -9,11 +10,20 @@ import { JWT_SECRET } from "@/lib/auth/secret";
 export type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string; id_token_signing_alg_values_supported?: string[] };
 const allowedTestIssuers = () => process.env.NODE_ENV === "production" ? [] : (process.env.IDENTITY_TEST_ALLOWED_ISSUERS ?? "").split(",").map(s => s.trim()).filter(Boolean);
 const httpsOrTest = (u: string) => { try { const x = new URL(u); return x.protocol === "https:" || (x.protocol === "http:" && allowedTestIssuers().includes(x.origin)); } catch { return false; } };
+async function safeDestination(raw: string) {
+  if (!httpsOrTest(raw)) return false;
+  // Test-only HTTP issuers remain opt-in, but still go through the same DNS/IP
+  // checks. Production never permits the exception.
+  const url = new URL(raw);
+  if (url.protocol === "http:" && allowedTestIssuers().includes(url.origin)) return true;
+  const result = await checkDestination(raw);
+  return result.ok;
+}
 
 /** Fetches and checks provider metadata: the issuer must match exactly and every endpoint must be HTTPS. */
 export async function discover(issuer: string): Promise<{ ok: true; discovery: Discovery } | { ok: false; reason: string }> {
   const clean = issuer.replace(/\/$/, "");
-  if (!httpsOrTest(clean)) return { ok: false, reason: "The issuer must be an HTTPS URL." };
+  if (!(await safeDestination(clean))) return { ok: false, reason: "The issuer must be HTTPS and resolve to a public address." };
   let doc: Discovery;
   try {
     const r = await fetch(`${clean}/.well-known/openid-configuration`, { signal: AbortSignal.timeout(5000), redirect: "error" });
@@ -21,7 +31,9 @@ export async function discover(issuer: string): Promise<{ ok: true; discovery: D
     doc = await r.json();
   } catch { return { ok: false, reason: "The provider metadata could not be reached." }; }
   if (doc.issuer?.replace(/\/$/, "") !== clean) return { ok: false, reason: `The metadata names a different issuer (${doc.issuer}).` };
-  for (const k of ["authorization_endpoint", "token_endpoint", "jwks_uri"] as const) if (!doc[k] || !httpsOrTest(doc[k])) return { ok: false, reason: `The provider's ${k} is missing or not HTTPS.` };
+  for (const k of ["authorization_endpoint", "token_endpoint", "jwks_uri"] as const) {
+    if (!doc[k] || !(await safeDestination(doc[k]))) return { ok: false, reason: `The provider's ${k} is missing or resolves to a private address.` };
+  }
   if (doc.id_token_signing_alg_values_supported && !doc.id_token_signing_alg_values_supported.some(a => ["RS256", "ES256", "PS256"].includes(a))) return { ok: false, reason: "The provider does not sign ID tokens with a supported algorithm (RS256, ES256, PS256)." };
   return { ok: true, discovery: doc };
 }
