@@ -57,7 +57,7 @@ function RunDetail({ run }: { run: Run }) {
       <TableBody>{Object.entries(run.results.workloads).map(([name, w]) => <TableRow key={name} data-workload={name}><TableCell><bdi dir="ltr">{name}</bdi></TableCell><TableCell>{w.serviceClass}</TableCell><TableCell><bdi dir="ltr">{w.count}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(w.p50)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(w.p95)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(run.results.baseline?.[name]?.p95 ?? null)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(w.p99)}</bdi></TableCell><TableCell><bdi dir="ltr">{w.errors}</bdi></TableCell><TableCell><bdi dir="ltr">{w.rejected}</bdi></TableCell><TableCell><bdi dir="ltr">{w.timeouts}</bdi></TableCell></TableRow>)}</TableBody></Table></div>
     {run.results.backgroundPeaks.length ? <p className="text-xs text-ink-muted">{ui("Background requests in flight per school (server-measured peak / limit)")}: {run.results.backgroundPeaks.map(p => <bdi key={p.schoolId} dir="ltr" className="me-2">{p.schoolId.slice(0, 18)} {p.peak}/{p.limit}</bdi>)}</p> : null}
     <Button size="sm" variant="ghost" onClick={() => setEvidence(!evidence)} aria-expanded={evidence} data-run-evidence>{ui("Open benchmark evidence")}</Button>
-    {evidence ? <pre dir="ltr" className="max-h-64 overflow-auto rounded-xl bg-surface-muted p-3 text-xs">{JSON.stringify({ environment: run.environment, release: run.release, dataset: run.dataset, concurrency: run.concurrency, startedAt: run.startedAt, finishedAt: run.finishedAt }, null, 2)}</pre> : null}
+    {evidence ? <pre dir="ltr" className="max-w-full max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-surface-muted p-3 text-xs">{JSON.stringify({ environment: run.environment, release: run.release, dataset: run.dataset, concurrency: run.concurrency, startedAt: run.startedAt, finishedAt: run.finishedAt }, null, 2)}</pre> : null}
   </div>;
 }
 
@@ -146,7 +146,7 @@ export function CapacityReport() {
           <span className="font-semibold"><bdi dir="ltr">{r.runId}</bdi> · <bdi>{r.profile}</bdi></span>
           <Badge variant={r.passed ? "success" : "danger"} dot>{r.passed ? ui("All objectives met") : ui("Objectives not met")}</Badge>
         </Button>
-        <p className="mt-1 text-xs text-ink-muted">{ui("Release")} <bdi dir="ltr">{r.release}</bdi> · <bdi>{r.environment}</bdi> · {dateTime(r.finishedAt)}</p>
+        <p className="mt-1 min-w-0 text-xs text-ink-muted">{ui("Release")} <bdi dir="ltr" className="break-all">{r.release}</bdi> · <bdi dir="ltr" className="break-all">{r.environment}</bdi> · {dateTime(r.finishedAt)}</p>
         {open === r.id ? <div className="mt-3"><RunDetail run={r} /></div> : null}
       </li>)}</ul>}
     </section>

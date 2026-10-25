@@ -60,7 +60,7 @@ async function noOverflow(page: Page) {expect(await page.evaluate(()=>document.d
 
 test("calendar dialog uses modal semantics, traps focus and restores its trigger",async({page})=>{
   await mount(page,"calendar");
-  const trigger=page.locator('button.group.relative.h-16').first();await trigger.click();
+  const trigger=page.locator('button.group.relative').first();await trigger.click();
   const dialog=page.getByRole("dialog");await expect(dialog).toBeVisible();
   await page.screenshot({path:`${evidence}/${process.env.OWNED_BASELINE?'baseline-':''}calendar-dialog.png`,fullPage:true});
   await expect(dialog).toHaveAttribute("aria-modal","true");
@@ -73,16 +73,16 @@ test("holiday date contracts, dirty guard and pending protections stay intact",a
   const requests=await mount(page,"calendar");await page.getByRole("button",{name:/Events on/}).first().click();
   const dialog=page.getByRole("dialog");const from=dialog.locator('input[type=date]').nth(0),to=dialog.locator('input[type=date]').nth(1);
   await from.fill("2026-10-12");await to.fill("2026-10-11");await dialog.getByRole("textbox",{name:/Holiday name for/}).fill("Synthetic holiday");
-  await expect(to).toHaveAttribute("min","2026-10-12");await expect(to).toHaveAttribute("aria-invalid","true");await expect(dialog.getByRole("button",{name:"Add Holiday",exact:true})).toBeDisabled();
+  await expect(to).toHaveAttribute("min","2026-10-12");await expect(to).toHaveAttribute("aria-invalid","true");await expect(dialog.getByRole("button",{name:"Add holiday",exact:true})).toBeDisabled();
   await to.fill("2026-10-13");await page.keyboard.press("Escape");await expect(page.getByRole("alertdialog")).toBeVisible();await page.getByRole("button",{name:"Keep editing"}).click();await expect(dialog.getByRole("textbox",{name:/Holiday name for/})).toHaveValue("Synthetic holiday");
   const pending:Route[]=[];await page.route("**/api/academic/calendar?*",route=>{pending.push(route);});
-  await dialog.getByRole("button",{name:"Add Holiday",exact:true}).click();await expect(dialog.getByRole("textbox",{name:/Holiday name for/})).toHaveAttribute("readonly","");await expect(dialog.getByRole("button",{name:/Close/})).toBeDisabled();await expect(dialog.getByRole("button",{name:"Schedule Exam",exact:true})).toBeDisabled();
+  await dialog.getByRole("button",{name:"Add holiday",exact:true}).click();await expect(dialog.getByRole("textbox",{name:/Holiday name for/})).toHaveAttribute("readonly","");await expect(dialog.getByRole("button",{name:/Close/})).toBeDisabled();await expect(dialog.getByRole("button",{name:"Schedule exam",exact:true})).toBeDisabled();
   expect(pending).toHaveLength(1);expect(pending[0].request().method()).toBe("POST");expect(pending[0].request().postDataJSON()).toEqual({name:"Synthetic holiday",fromDate:"2026-10-12",toDate:"2026-10-13"});
-  await pending[0].fulfill({status:400,json:{success:false,error:"Synthetic failure"}});await expect(dialog.getByRole("button",{name:"Add Holiday",exact:true})).toBeEnabled();expect(requests.filter(r=>r.method!=="GET")).toHaveLength(0);
+  await pending[0].fulfill({status:400,json:{success:false,error:"Synthetic failure"}});await expect(dialog.getByRole("button",{name:"Add holiday",exact:true})).toBeEnabled();expect(requests.filter(r=>r.method!=="GET")).toHaveLength(0);
 });
 
 test("calendar permission boundary keeps parent view read-only",async({page})=>{
-  await mount(page,"calendar","en",true);await page.getByRole("button",{name:/Events on/}).first().click();await expect(page.getByRole("dialog")).toBeVisible();await expect(page.getByRole("button",{name:"Add Holiday",exact:true})).toHaveCount(0);await expect(page.getByRole("textbox")).toHaveCount(0);
+  await mount(page,"calendar","en",true);await page.getByRole("button",{name:/Events on/}).first().click();await expect(page.getByRole("dialog")).toBeVisible();await expect(page.getByRole("button",{name:"Add holiday",exact:true})).toHaveCount(0);await expect(page.getByRole("textbox")).toHaveCount(0);
 });
 
 test("invoice filters retain query and selected state with named keyboard search",async({page})=>{
@@ -105,5 +105,5 @@ for(const language of ["en","ar","ur"])test(`currency values and account labels 
 });
 
 for(const language of ["en","ar","ur"])test(`calendar mobile geometry in ${language}`,async({page})=>{
- await page.setViewportSize({width:390,height:844});await mount(page,"calendar",language);const trigger=page.locator("button.group.relative.h-16").first();await expect(trigger).toBeVisible();await noOverflow(page);await trigger.click();await expect(page.getByRole("dialog")).toBeVisible();await noOverflow(page);await page.screenshot({path:`${evidence}/calendar-${language}-390.png`,fullPage:true});
+ await page.setViewportSize({width:390,height:844});await mount(page,"calendar",language);const trigger=page.locator("button.group.relative").first();await expect(trigger).toBeVisible();await noOverflow(page);await trigger.click();await expect(page.getByRole("dialog")).toBeVisible();await noOverflow(page);await page.screenshot({path:`${evidence}/calendar-${language}-390.png`,fullPage:true});
 });
