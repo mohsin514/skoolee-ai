@@ -34,8 +34,10 @@ export async function PUT(request: Request) {
     const parsed = defaultPricingSchema.safeParse(body?.pricing);
     if (!parsed.success) throw new ApiError("Provide valid plan prices: each price must be a finite non-negative number", 400);
     const pricing = parsed.data;
+    const expected = body.expected === undefined ? undefined : defaultPricingSchema.safeParse(body.expected);
+    if (expected && !expected.success) throw new ApiError("Reload the saved prices before trying again", 400);
 
-    const pricingSaved = await saveDefaultPlanPrices(user, pricing, { ipAddress: clientIp(request.headers), userAgent: request.headers.get("user-agent") || undefined });
+    const pricingSaved = await saveDefaultPlanPrices(user, pricing, { expected: expected?.data, ipAddress: clientIp(request.headers), userAgent: request.headers.get("user-agent") || undefined });
 
     return Response.json({ success: true, message: "Default plan prices updated.", data: pricingSaved });
   } catch (error) {
