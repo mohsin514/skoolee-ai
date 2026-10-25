@@ -136,7 +136,7 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
   let proposal = parse(first.text);
   if (!proposal) {
     // One repair for a syntax or shape error; it is logged but does not take a second credit.
-    const repair = await call(REPAIR_SYSTEM, JSON.stringify({ invalid: first.text.slice(0, 6000), required: "{kind, steps, question, answer, unsupportedNearest}" }));
+    const repair = await call(REPAIR_SYSTEM, JSON.stringify({ invalid: first.text.slice(0, 6000), required: aiOutputSchema(planProposalSchema), context: JSON.parse(prompt) }));
     await recordAttempt(user, job, { model: repair.model, tokensUsed: repair.tokensUsed, action: "PLAN_REPAIR", stepKey: null });
     proposal = parse(repair.text);
   }
