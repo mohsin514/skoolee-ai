@@ -2,7 +2,7 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/prisma";
-import { requireAuthUser, ApiError, errorResponse } from "@/lib/api/scope";
+import { requireAuthUser, ApiError, errorResponse, readJsonObject } from "@/lib/api/scope";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
 export async function GET() {
   try {
@@ -16,7 +16,7 @@ export async function GET() {
 export async function DELETE(req: Request) {
   try {
     assertSameOrigin(req);
-    const user = await requireAuthUser(); const { id } = await req.json();
+    const user = await requireAuthUser(); const { id } = await readJsonObject(req);
     if (typeof id !== "string") throw new ApiError("Choose a session", 400);
     const closed = await prisma.loginSession.updateMany({ where: { id, userId: user.userId, schoolId: user.schoolId, isActive: true }, data: { isActive: false, logoutAt: new Date() } });
     if (closed.count !== 1) throw new ApiError("Session is unavailable", 404);

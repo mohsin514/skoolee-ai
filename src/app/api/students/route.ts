@@ -14,6 +14,7 @@ import {
   requireAuthUser,
   resolveCampusId,
   scopedCampusWhere,
+  readJsonObject,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 
@@ -186,7 +187,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "students", "edit");
 
-    const body = await req.json();
+    const body = await readJsonObject(req);
 
     if (body?.action === "restore") {
       const id = typeof body.id === "string" ? body.id : "";
