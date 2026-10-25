@@ -212,6 +212,10 @@ export function ParentDataProvider({ children, identity = null }: {
   const seed = lastPayload && lastPayload.identity === identity && lastPayload.requested === requestedChild ? lastPayload : null;
   const seedAccess = lastAccess && lastAccess.identity === identity ? lastAccess.access : null;
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(requestedChild);
+  // Shared layouts persist across client navigation and payment-return query changes.
+  useEffect(() => {
+    if (requestedChild !== null) setSelectedStudentId(requestedChild);
+  }, [requestedChild]);
   const [data, setData] = useState<ParentData | null>(seed?.data ?? null);
   const [childList, setChildList] = useState<ParentChild[]>(seed?.children ?? []);
   const [loading, setLoading] = useState(!seed);
