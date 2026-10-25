@@ -416,15 +416,20 @@ export async function staffStart(user: AuthUser, campusId: string, body: Record<
 
 export async function staffSaveAnswers(user: AuthUser, campusId: string, body: Record<string, unknown>) {
   await canEdit(user);
-  const application = await prisma.admissionApplication.findFirst({ where: { id: String(body.id ?? ""), campusId, schoolId: user.schoolId }, include: { formVersion: true } });
-  if (!application) throw new ApiError("Application not found", 404);
-  if (application.channel !== "STAFF" || !FAMILY_EDITABLE.includes(application.status)) throw new ApiError("Only a draft entered by staff can be edited here. A family's own answers stay as they sent them.", 409);
-  const definition = asDefinition(application.formVersion.definition);
-  const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
-  const problems = answerProblems(definition, answers, [], false);
-  if (problems.length) throw problemsError(problems);
-  const { resumeKeyHash: _key, ...data } = await prisma.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: { increment: 1 } } });
-  return data;
+  return schoolAiTransaction(user, async db => {
+    const application = await db.admissionApplication.findFirst({ where: { id: String(body.id ?? ""), campusId, schoolId: user.schoolId }, include: { formVersion: true } });
+    if (!application) throw new ApiError("Application not found", 404);
+    if (application.channel !== "STAFF" || !FAMILY_EDITABLE.includes(application.status)) throw new ApiError("Only a draft entered by staff can be edited here. A family's own answers stay as they sent them.", 409);
+    const definition = asDefinition(application.formVersion.definition);
+    const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
+    const problems = answerProblems(definition, answers, [], false);
+    if (problems.length) throw problemsError(problems);
+    const nextVersion = application.version + 1;
+    const updated = await db.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: nextVersion } });
+    await db.admissionApplicationEvent.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind: "ANSWERS_UPDATED", actorId: user.userId, detail: { fromVersion: application.version, toVersion: nextVersion } } });
+    const { resumeKeyHash: _key, ...data } = updated;
+    return data;
+  });
 }
 
 export async function staffUpload(user: AuthUser, campusId: string, id: string, key: string, file: File) {
