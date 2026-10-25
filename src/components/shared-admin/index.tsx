@@ -1977,7 +1977,10 @@ export function StudentDetailModal({
     >
       {/* Pinned inside the scroll area: on a profile this long the actions
           and the tab strip used to scroll out of reach within one flick. */}
-      <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-edge/15 bg-card/95 px-6 pt-6 pb-3 backdrop-blur sm:-mx-7 sm:px-7">
+      {/* At narrow widths and enlarged text this action strip can grow taller than
+          the usable viewport. Keeping it in normal flow prevents it from covering
+          the next keyboard-focused field; desktop retains the pinned actions. */}
+      <div className="relative z-10 mb-4 -mx-6 -mt-6 border-b border-edge/15 bg-card/95 px-6 pb-3 pt-6 backdrop-blur sm:sticky sm:top-0 sm:-mx-7 sm:px-7">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {readOnly ? null : (
