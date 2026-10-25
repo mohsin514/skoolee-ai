@@ -21,13 +21,16 @@ export default async function OperationalLayout({ children }: { children: React.
     pathname.startsWith("/super/billing") ||
     pathname.startsWith("/dashboard/billing");
 
-  const school = await prisma.school.findUnique({
-    where: { id: user.schoolId },
-    select: { status: true },
-  });
-
-  if (school?.status === "SUSPENDED" && !billingPath) {
-    redirect("/subscription-suspended");
+  // Platform operators must remain able to restore schools, including the
+  // institution attached to their account. Match the proxy's owner exemption.
+  if (user.role !== "APP_OWNER") {
+    const school = await prisma.school.findUnique({
+      where: { id: user.schoolId },
+      select: { status: true },
+    });
+    if (school?.status === "SUSPENDED" && !billingPath) {
+      redirect("/subscription-suspended");
+    }
   }
 
   return <LocaleProvider initialLocale={await getDisplayLocale(user)}>{children}</LocaleProvider>;

@@ -1310,7 +1310,7 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Grade boundaries", "حدود التقديرات", "گریڈ کی حدود"],
   ["Grade {0} from", "التقدير {0} من", "گریڈ {0} از"],
   // ── Fix pass + addendum: principal header actions, flagships, year closing ──
-  ["AI Workflows", "مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز"],
+  ["AI Workflows", "مهام الذكاء الاصطناعي", "AI ورک فلوز"],
   ["Exam Studio", "استوديو الاختبارات", "ایگزام اسٹوڈیو"],
   ["Let AI draft timetables, exam sessions and announcements for your campus. You review every draft, and nothing applies until you approve it.", "دع الذكاء الاصطناعي يصيغ الجداول وجلسات الامتحانات والإعلانات لفرعك. تراجع كل مسودة، ولا يُطبَّق شيء حتى توافق عليه.", "اے آئی کو اپنے کیمپس کے لیے ٹائم ٹیبل، امتحانی سیشنز اور اعلانات کا مسودہ تیار کرنے دیں۔ آپ ہر مسودے کا جائزہ لیتے ہیں، اور آپ کی منظوری تک کچھ لاگو نہیں ہوتا۔"],
   ["Create an exam with AI from your source material, review the paper, then deliver it securely and mark it.", "أنشئ اختبارًا بالذكاء الاصطناعي من موادك المرجعية، وراجع الورقة، ثم قدّمه بأمان وصحّحه.", "اپنے ماخذی مواد سے اے آئی کے ذریعے امتحان بنائیں، پرچے کا جائزہ لیں، پھر اسے محفوظ طریقے سے لیں اور جانچیں۔"],

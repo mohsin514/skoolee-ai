@@ -528,6 +528,7 @@ function SupportSessionBanner() {
       const response = await fetch(`/api/owner/support/grants/${session.id}`, { method: "DELETE" });
       if (!response.ok) { toast.error(t("Could not end support access")); return; }
       setSession(null); toast.success(t("Support access ended"));
+      window.dispatchEvent(new Event("skoolee:support-session-change"));
     } catch {
       toast.error(t("Could not end support access"));
     } finally {
@@ -574,7 +575,7 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   const [actions, setActions] = useState<string[]>(["read"]);
   const [emergency, setEmergency] = useState(false);
   const [closureEvidence, setClosureEvidence] = useState<Record<string, string>>({});
-  const [actionType, setActionType] = useState("read");
+  const [actionType, setActionType] = useState("write");
   const [writeField, setWriteField] = useState("phone");
   const [writeValue, setWriteValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -600,16 +601,21 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   }, [t]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    const refresh = () => { void load(); };
+    window.addEventListener("skoolee:support-session-change", refresh);
+    return () => window.removeEventListener("skoolee:support-session-change", refresh);
+  }, [load]);
+  useEffect(() => {
     if (!supportSession) return;
     const poll = window.setInterval(() => {
       void fetch("/api/owner/support/session", { cache: "no-store" }).then(async (response) => {
-        if (!response.ok) { setSupportSession(null); setPreview(null); return; }
+        if (!response.ok) { void load(); return; }
         const json = await response.json();
         if (!json.success || json.data.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
       }).catch(() => { setSupportSession(null); setPreview(null); });
     }, 10_000);
     return () => window.clearInterval(poll);
-  }, [supportSession]);
+  }, [supportSession, load]);
 
   const track = async (key: string, failure: string, task: () => Promise<void>) => {
     setPendingKey(key);
@@ -662,7 +668,7 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   });
   const queueAction = async () => {
     if (!supportSession) return;
-    const chosenAction = supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export") || "";
+    const chosenAction = selectedAction;
     if (!chosenAction) return;
     const payload = chosenAction === "write" ? { field: writeField, value: writeValue } : undefined;
     await track("queue", t("Could not queue support action"), async () => {
@@ -683,13 +689,14 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   const toggle = (items: string[], setter: (value: string[]) => void, value: string) => setter(items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
   const domainLabels: Record<string, string> = { school_profile: "School profile", operations: "Operations", users: "Staff directory", finance: "Finance", learning: "Learning records" };
   const selectedAction = supportSession
-    ? (supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export"))
+    ? ((actionType === "write" || actionType === "export") && supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export"))
     : undefined;
   const canSubmit = Boolean(schoolId)
     && purpose.trim().length >= 12
     && impact.trim().length >= 8
     && scope.length > 0
     && actions.length > 0
+    && Number.isInteger(durationMinutes) && durationMinutes >= 5 && durationMinutes <= (emergency ? 60 : 480)
     && !(emergency && emergencyReason.trim().length < 20);
 
   // §4.4b: "Request access" is the screen's one primary action; it brings the request form into view.
@@ -1301,11 +1308,15 @@ function UsersView() {
   const [schoolOptions, setSchoolOptions] = useState<
     { id: string; name: string; plan?: string; campuses?: { id: string; name: string }[] }[]
   >([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(true);
+  const [schoolsFailed, setSchoolsFailed] = useState(false);
 
   // The Add User modal needs every school with its campuses. Fetched once
   // on demand rather than with the paginated user list.
   const loadSchoolOptions = useCallback(async () => {
     if (schoolOptions.length) return;
+    setSchoolsLoading(true);
+    setSchoolsFailed(false);
     try {
       const schools = await loadOwnerPages<SchoolRow>("/api/owner/schools");
       setSchoolOptions(schools.map((school) => ({
@@ -1313,7 +1324,9 @@ function UsersView() {
         campuses: school.campuses.map((campus) => ({ id: campus.id, name: campus.name })),
       })));
     } catch {
-      toast.error(t("Could not load the school list for the new user. Close the form and try again."));
+      setSchoolsFailed(true);
+    } finally {
+      setSchoolsLoading(false);
     }
   }, [schoolOptions.length, t]);
 
@@ -1377,13 +1390,15 @@ function UsersView() {
         description={t("{0} accounts across every school. Changing a school's people is the school's own job; use these tools only for support.", [dates.number(pagination.total)])}
         secondaryActions={[
           { id: "export", label: "Export", icon: Download, onClick: () => void exportUsers(), loading: exporting, disabled: loading || pagination.total === 0 },
-          { id: "add-user", label: "Add user", icon: UserPlus, onClick: openAddUser },
+          { id: "add-user", label: "Add user", icon: UserPlus, onClick: openAddUser, disabled: schoolsLoading || schoolsFailed || !schoolOptions.length },
         ]}
       />
 
+      {schoolsFailed ? <Alert tone="warning" title={t("The school list did not load")} actions={<Button variant="outline" onClick={() => void loadSchoolOptions()}>{t("Try again")}</Button>}>{t("Retry to filter by school or add a user. The account list is still available.")}</Alert> : null}
       {showAddUser && (
         <AddUserModal
           schools={schoolOptions}
+          initialSchoolId={schoolFilter}
           onClose={() => setShowAddUser(false)}
           onCreated={() => void loadUsers(pagination.page)}
         />
@@ -1452,7 +1467,7 @@ function UsersView() {
           />
         ) : (
           <>
-              <div className="space-y-3 sm:hidden" data-owner-user-cards>
+              <div className="grid gap-3 sm:grid-cols-2 xl:hidden" data-owner-user-cards>
                 {users.map((u) => <article key={u.id} className="rounded-2xl border border-border-subtle bg-card p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -1471,7 +1486,7 @@ function UsersView() {
                   </dl>
                 </article>)}
               </div>
-              <Table containerClassName="hidden sm:block overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
+              <Table containerClassName="hidden xl:block overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
                 <TableHeader>
                   <TableRow className="text-ink-subtle">
                     <TableHead className="px-4 py-3">{t("User")}</TableHead>
@@ -2078,11 +2093,12 @@ function BillingView({ stats, loading, onRetry }: { stats: Stats | null; loading
 }
 
 /** One plan's monthly catalogue price, in the platform catalogue currency. Blank keeps the meaning the section describes. */
-function PlanPriceField({ scope, plan, value, placeholder, onChange }: {
+function PlanPriceField({ scope, plan, value, placeholder, disabled, onChange }: {
   scope: string;
   plan: string;
   value: string;
   placeholder: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -2092,6 +2108,8 @@ function PlanPriceField({ scope, plan, value, placeholder, onChange }: {
         <SystemInput
           type="number"
           min="0"
+          step="any"
+          disabled={disabled}
           dir="ltr"
           placeholder={placeholder}
           value={value}
@@ -2104,11 +2122,16 @@ function PlanPriceField({ scope, plan, value, placeholder, onChange }: {
 }
 
 const DEFAULT_PRICE_FIELDS = { FREE: { price: "0" }, BASIC: { price: "4000" }, PRO: { price: "7000" }, ENTERPRISE: { price: "" } };
+const EMPTY_PRICE_FIELDS = { FREE: { price: "" }, BASIC: { price: "" }, PRO: { price: "" }, ENTERPRISE: { price: "" } };
+type SavedPrices = Record<string, { price?: number | null }>;
+const priceFields = (prices: SavedPrices | null | undefined) => Object.fromEntries(
+  PLAN_CHOICES.map(plan => [plan, { price: prices?.[plan]?.price == null ? "" : String(prices[plan].price) }]),
+);
 
 function PricingView({ stats }: { stats: Stats | null }) {
   const t = useUiText();
   const [pricingSchoolId, setPricingSchoolId] = useState("");
-  const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>(DEFAULT_PRICE_FIELDS);
+  const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>(EMPTY_PRICE_FIELDS);
   const [savingPricing, setSavingPricing] = useState(false);
   const [pricingSaved, setPricingSaved] = useState(false);
   const [loadingPricing, setLoadingPricing] = useState(false);
@@ -2117,34 +2140,35 @@ function PricingView({ stats }: { stats: Stats | null }) {
   const [defaultPricing, setDefaultPricing] = useState<Record<string, { price: string }>>(DEFAULT_PRICE_FIELDS);
   const [savingDefaults, setSavingDefaults] = useState(false);
   const [defaultsFailed, setDefaultsFailed] = useState(false);
+  const [loadingDefaults, setLoadingDefaults] = useState(true);
+  const [savedDefaults, setSavedDefaults] = useState<SavedPrices | null>(null);
+  const pricingVersion = useRef(0);
 
   const loadDefaultPricing = async () => {
+    setLoadingDefaults(true);
     setDefaultsFailed(false);
     try {
       const res = await fetch("/api/owner/platform-config", { cache: "no-store" });
       const json = await res.json();
-      if (json.success && json.data) {
-        const d = json.data as Record<string, { price?: number | null }>;
-        setDefaultPricing({
-          FREE: { price: String(d.FREE?.price ?? 0) },
-          BASIC: { price: String(d.BASIC?.price ?? 4000) },
-          PRO: { price: String(d.PRO?.price ?? 7000) },
-          ENTERPRISE: { price: d.ENTERPRISE?.price != null ? String(d.ENTERPRISE.price) : "" },
-        });
+      if (res.ok && json.success && json.data) {
+        setSavedDefaults(json.data);
+        setDefaultPricing(priceFields(json.data));
       } else {
         setDefaultsFailed(true);
       }
     } catch {
-      // The form keeps its built-in values; the notice below says so.
       setDefaultsFailed(true);
+    } finally {
+      setLoadingDefaults(false);
     }
   };
 
   const saveDefaultPricing = async () => {
+    if (loadingDefaults || defaultsFailed || !savedDefaults || savingDefaults) return;
     const pricing: Record<string, { price?: number | null }> = {};
     for (const [plan, vals] of Object.entries(defaultPricing)) {
       const num = vals.price === "" ? null : Number(vals.price);
-      if (num !== null && (isNaN(num) || num < 0)) {
+      if (num !== null && (!Number.isFinite(num) || num < 0)) {
         toast.error(t("Enter a price of 0 or more for {0}.", [planLabel(plan)]));
         return;
       }
@@ -2155,10 +2179,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
       const res = await fetch("/api/owner/platform-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pricing }),
+        body: JSON.stringify({ pricing, expected: savedDefaults }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error);
+      setSavedDefaults(json.data);
       toast.success(t("Default prices saved. Schools see the new catalogue prices from their next renewal."));
       setDefaultsFailed(false);
     } catch (err) {
@@ -2171,38 +2196,30 @@ function PricingView({ stats }: { stats: Stats | null }) {
   useEffect(() => { void loadDefaultPricing(); }, []);
 
   const loadPricing = async (schoolId: string) => {
+    const version = ++pricingVersion.current;
     setLoadingPricing(true);
     setPricingLoadFailed(false);
     try {
       const res = await fetch(`/api/owner/schools/${schoolId}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== pricingVersion.current) return;
       if (!res.ok) throw new Error(json.error);
-      if (json.data?.planPricing) {
-        const p = json.data.planPricing as Record<string, { price?: number }>;
-        setPricingValues({
-          FREE: { price: String(p.FREE?.price ?? 0) },
-          BASIC: { price: String(p.BASIC?.price ?? 4000) },
-          PRO: { price: String(p.PRO?.price ?? 7000) },
-          ENTERPRISE: { price: p.ENTERPRISE?.price != null ? String(p.ENTERPRISE.price) : "" },
-        });
-      } else {
-        setPricingValues(DEFAULT_PRICE_FIELDS);
-      }
+      setPricingValues(priceFields(json.data?.planPricing));
       setPricingSaved(false);
     } catch {
       // R4: shown inline under the school picker, with a retry.
-      setPricingLoadFailed(true);
+      if (version === pricingVersion.current) setPricingLoadFailed(true);
     } finally {
-      setLoadingPricing(false);
+      if (version === pricingVersion.current) setLoadingPricing(false);
     }
   };
 
   const savePricing = async () => {
-    if (!pricingSchoolId) return;
+    if (!pricingSchoolId || loadingPricing || pricingLoadFailed || savingPricing) return;
     const pricing: Record<string, { price?: number }> = {};
     for (const [plan, vals] of Object.entries(pricingValues)) {
       const num = vals.price === "" ? undefined : Number(vals.price);
-      if (num !== undefined && (isNaN(num) || num < 0)) {
+      if (num !== undefined && (!Number.isFinite(num) || num < 0)) {
         toast.error(t("Enter a price of 0 or more for {0}.", [planLabel(plan)]));
         return;
       }
@@ -2232,7 +2249,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
       <ViewHeader
         title="Pricing"
         description={t("Default monthly catalogue prices for every school, and per-school overrides. Prices are in {0}.", [COMMERCIAL_CONTRACT.currency])}
-        primaryAction={{ id: "save-prices", label: "Save prices", icon: Save, onClick: () => void saveDefaultPricing(), loading: savingDefaults }}
+        primaryAction={{ id: "save-prices", label: "Save prices", icon: Save, onClick: () => void saveDefaultPricing(), loading: savingDefaults, disabled: loadingDefaults || defaultsFailed || !savedDefaults }}
       />
 
       <section aria-labelledby="pricing-defaults-heading" className="sk-panel p-4 sm:p-6">
@@ -2249,10 +2266,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
             title={t("The saved default prices did not load")}
             actions={<Button variant="outline" size="sm" type="button" onClick={() => void loadDefaultPricing()}><RefreshCw aria-hidden="true" />{t("Try again")}</Button>}
           >
-            {t("The fields show the built-in prices, not what is saved. Check them before you save.")}
+            {t("Load the saved prices before making changes.")}
           </Alert>
         ) : null}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Button variant="ghost" size="sm" type="button" disabled={loadingDefaults || savingDefaults} onClick={() => void loadDefaultPricing()} className="mb-3"><RefreshCw aria-hidden="true" />{t("Reload saved prices")}</Button>
+        {loadingDefaults ? <SkeletonList rows={2} label={t("Loading saved prices")} /> : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Object.entries(defaultPricing).map(([plan, vals]) => (
             <PlanPriceField
               key={plan}
@@ -2260,10 +2278,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
               plan={plan}
               value={vals.price}
               placeholder={t("Not set")}
+              disabled={defaultsFailed || savingDefaults}
               onChange={(value) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: value } }))}
             />
           ))}
-        </div>
+        </div>}
       </section>
 
       <section aria-labelledby="pricing-override-heading" className="sk-panel p-4 sm:p-6">
@@ -2281,8 +2300,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
         >
           <SystemSelect
             value={pricingSchoolId}
+            disabled={savingPricing}
             onChange={(e) => {
+              ++pricingVersion.current;
               setPricingSchoolId(e.target.value);
+              setPricingValues(EMPTY_PRICE_FIELDS);
               if (e.target.value) void loadPricing(e.target.value);
               setPricingSaved(false);
             }}
@@ -2309,6 +2331,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                     plan={plan}
                     value={vals.price}
                     placeholder={t("Use default")}
+                    disabled={savingPricing}
                     onChange={(value) => { setPricingSaved(false); setPricingValues(prev => ({ ...prev, [plan]: { price: value } })); }}
                   />
                 ))}
@@ -2389,7 +2412,6 @@ function PaymentSettingsView() {
     const query = params.toString();
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
     // Runs once per mount: the parameter is gone after this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const retryLoad = () => { setLoading(true); setLoadFailed(false); void loadSettings(); };
@@ -2450,7 +2472,7 @@ function PaymentSettingsView() {
     );
   }
 
-  if (loadFailed && !settings) {
+  if (loadFailed) {
     return (
       <div className={VIEW_BODY}>
         {header}

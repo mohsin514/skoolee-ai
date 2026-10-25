@@ -65,23 +65,31 @@ function PolicyForm({ data, onDone }: { data: Report; onDone: () => void }) {
   const ui = useUiText();
   const [f, setF] = useState({ targetSchoolId: "", scope: "BACKGROUND_REQUESTS", limitValue: "2", reason: "", expiresAt: "" });
   const [busy, setBusy] = useState(false), [done, setDone] = useState<{ before: { limit: number }; after: { limit: number } } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [openedAt] = useState(() => Date.now());
+  const limit = Number(f.limitValue);
+  const limitError = f.limitValue.trim() === "" || !Number.isInteger(limit) || limit < 0 || limit > 1000;
+  const expiryError = Boolean(f.targetSchoolId && !f.expiresAt) || Boolean(f.expiresAt && (!Number.isFinite(new Date(f.expiresAt).getTime()) || new Date(f.expiresAt).getTime() <= openedAt));
   if (done) return <div className="space-y-3" data-policy-result><p className="font-bold">{ui("Scoped policy applied. A follow-up measurement is required.")}</p><p className="text-sm">{ui("Limit {0} → {1}", [String(done.before.limit), String(done.after.limit)])}</p><Button onClick={onDone} data-policy-close>{ui("Done")}</Button></div>;
   return <div className="space-y-3" data-policy-form>
+    {error ? <Alert tone="danger" compact>{error}</Alert> : null}
+    <fieldset disabled={busy} className="space-y-3">
     <FormField name="cp-school" label={ui("Scope")}><Select value={f.targetSchoolId} onChange={e => setF({ ...f, targetSchoolId: e.target.value })} data-policy-school><option value="">{ui("Platform default (all schools)")}</option>{data.schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></FormField>
     <div className="grid gap-2 sm:grid-cols-2">
       <FormField name="cp-scope" label={ui("Work it limits")}><Select value={f.scope} onChange={e => setF({ ...f, scope: e.target.value })} data-policy-scope><option value="BACKGROUND_REQUESTS">{scopeLabel(ui, "BACKGROUND_REQUESTS")}</option><option value="BACKGROUND_JOBS">{scopeLabel(ui, "BACKGROUND_JOBS")}</option></Select></FormField>
-      <FormField name="cp-limit" label={ui("Limit")}><Input type="number" min={0} max={1000} value={f.limitValue} onChange={e => setF({ ...f, limitValue: e.target.value })} dir="ltr" data-policy-limit /></FormField>
+      <FormField name="cp-limit" label={ui("Limit")} error={limitError ? ui("Enter a whole number from 0 to 1000.") : undefined}><Input type="number" min={0} max={1000} step={1} value={f.limitValue} onChange={e => setF({ ...f, limitValue: e.target.value })} dir="ltr" data-policy-limit /></FormField>
     </div>
     <FormField name="cp-reason" label={ui("Reason")}><Textarea value={f.reason} onChange={e => setF({ ...f, reason: e.target.value })} rows={2} dir="auto" data-policy-reason /></FormField>
-    <FormField name="cp-exp" label={ui("Expiry")} hint={ui("Required for a school-scoped change, such as the end of the incident.")}><Input type="datetime-local" value={f.expiresAt} onChange={e => setF({ ...f, expiresAt: e.target.value })} data-policy-expires /></FormField>
+    <FormField name="cp-exp" label={ui("Expiry")} required={Boolean(f.targetSchoolId)} error={expiryError ? ui("Choose a future expiry for this change.") : undefined} hint={ui("Required for a school-scoped change, such as the end of the incident.")}><Input type="datetime-local" value={f.expiresAt} onChange={e => setF({ ...f, expiresAt: e.target.value })} data-policy-expires /></FormField>
+    </fieldset>
     <p className="text-xs text-ink-muted">{ui("Exam answer saves and payment confirmation are never limited by these settings.")}</p>
     <div className="flex flex-wrap gap-2">
-      <Button disabled={busy || f.reason.trim().length < 10} data-policy-save onClick={async () => {
-        setBusy(true);
+      <Button loading={busy} disabled={busy || limitError || expiryError || f.reason.trim().length < 10} data-policy-save onClick={async () => {
+        setBusy(true); setError(null);
         try { setDone(await call("/api/owner/capacity", "POST", { action: "apply", targetSchoolId: f.targetSchoolId || null, scope: f.scope, limitValue: Number(f.limitValue), reason: f.reason, expiresAt: f.expiresAt ? new Date(f.expiresAt).toISOString() : null })); }
-        catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); }
+        catch (e) { setError(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); }
       }}>{ui("Apply scoped policy")}</Button>
-      <Button variant="outline" onClick={onDone} data-policy-keep>{ui("Keep current policy")}</Button>
+      <Button variant="outline" disabled={busy} onClick={onDone} data-policy-keep>{ui("Keep current policy")}</Button>
     </div>
   </div>;
 }
@@ -133,7 +141,7 @@ export function CapacityReport() {
     <section className="sk-panel space-y-3 p-4" data-runs>
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Release performance report")}</h2>
         <Button size="sm" variant={failingOnly ? "default" : "outline"} aria-pressed={failingOnly} onClick={() => { setFailingOnly(!failingOnly); const f = data.runs.find(r => !r.passed); if (!failingOnly && f) setOpen(f.id); }} data-review-failing>{ui("Review failing workload")}</Button></div>
-      {!data.runs.length ? <p className="text-sm" data-runs-empty>{ui("No representative benchmark has been recorded for this workload. No capacity claim is available until this workload is measured.")}</p> : <ul className="space-y-2">{runs.map(r => <li key={r.id} className="rounded-xl border border-border p-3" data-run={r.runId} data-run-passed={String(r.passed)}>
+      {!data.runs.length ? <p className="text-sm" data-runs-empty>{ui("No representative benchmark has been recorded for this workload. No capacity claim is available until this workload is measured.")}</p> : !runs.length ? <p className="text-sm" role="status">{ui("No failing workloads in the recorded runs.")}</p> : <ul className="space-y-2">{runs.map(r => <li key={r.id} className="rounded-xl border border-border p-3" data-run={r.runId} data-run-passed={String(r.passed)}>
         <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)} data-run-toggle={r.runId}>
           <span className="font-semibold"><bdi dir="ltr">{r.runId}</bdi> · <bdi>{r.profile}</bdi></span>
           <Badge variant={r.passed ? "success" : "danger"} dot>{r.passed ? ui("All objectives met") : ui("Objectives not met")}</Badge>
