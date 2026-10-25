@@ -55,11 +55,31 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [copyForm, setCopyForm] = useState({ bookId: "", barcodes: "" });
-  const load = useCallback(async () => { try { setOverview(await call("/api/library/desk")); } catch (e) { setError(ui((e as Error).message)); } }, [ui]);
-  useEffect(() => { void load(); }, [load]);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const overviewVersion = useRef(0);
+  const load = useCallback(async () => {
+    const version = ++overviewVersion.current;
+    setOverviewError(null); setOverviewLoading(true);
+    try {
+      const next = await call("/api/library/desk");
+      if (version === overviewVersion.current) setOverview(next);
+    } catch (failure) {
+      if (version === overviewVersion.current) setOverviewError(ui((failure as Error).message));
+    } finally { if (version === overviewVersion.current) setOverviewLoading(false); }
+  }, [ui]);
+  useEffect(() => { void load(); return () => { overviewVersion.current++; }; }, [load]);
   const refocus = () => requestAnimationFrame(() => scanRef.current?.focus());
   const post = async (action: string, data: object) => { try { const r = await call("/api/library/desk", { method: "POST", body: JSON.stringify({ action, data }) }); setError(null); return r; } catch (e) { setError(ui((e as Error).message)); setMessage(null); return null; } };
-  const refreshMember = async () => { if (member) setMember(await call(`/api/library/desk?code=${encodeURIComponent(member.member.memberNo)}`)); };
+  const refreshMember = async () => {
+    if (!member) return;
+    try { setMember(await call(`/api/library/desk?code=${encodeURIComponent(member.member.memberNo)}`)); }
+    catch {
+      // The mutation already committed. Keep its receipt and prevent stale loan actions.
+      setMember(null);
+      setError(ui("The action was saved, but the reader's loans could not be refreshed. Scan the card again."));
+    }
+  };
   const money = (amount: number, currency: string) => `${number(amount)} ${currency}`;
   // "Renew" (PageHeader secondary, §4.4b): with a reader's loans on screen it moves to the first loan's Renew;
   // otherwise it asks for the reader's card first. Renewing stays one deliberate press per loan.
@@ -106,13 +126,15 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
         onConfirm={() => { const loan = losing; setLosing(null); if (loan) void markLost(loan); }}
         onCancel={() => setLosing(null)}
       />
+      {overviewLoading && !overview ? <p role="status" className="text-sm text-ink-muted">{ui("Loading library data…")}</p> : null}
+      {overviewError ? <Alert tone="warning" compact actions={<Button size="sm" variant="outline" disabled={overviewLoading} onClick={() => void load()}>{ui("Try again")}</Button>}>{overviewError}</Alert> : null}
       <div aria-live="polite">
         {error ? <Alert tone="danger" compact>{error}</Alert> : null}
         {message ? <p role="status" className="text-sm font-medium text-status-success-text">{message}</p> : null}
       </div>
 
       <form className="flex flex-wrap items-end gap-2" data-tour="library.lending.scan" onSubmit={(e) => { e.preventDefault(); void scan(code); }}>
-        <FormField name="desk-scan" label={ui("Scan a member card or a copy")} hint={ui(member ? "Scan each copy to issue it to this reader." : "Scan a member card first to issue books.")} className="min-w-[16rem] flex-1">
+        <FormField name="desk-scan" label={ui("Scan a member card or a copy")} hint={ui(member ? "Scan each copy to issue it to this reader." : "Scan a member card first to issue books.")} className="min-w-0 flex-1 sm:min-w-[16rem]">
           <Input ref={scanRef} dir="ltr" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
         </FormField>
         {/* A scanner submits with Enter; the button is the fallback and never competes with the one primary (§4.4). */}
@@ -142,7 +164,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
           {!member && copy.copy.status === "AVAILABLE" ? <p className="text-ink-subtle">{ui("Copy {0} is ready to issue — scan a member card first.", [copy.copy.barcode])}</p> : null}
           {override === copy.copy.barcode ? (
             <div className="flex flex-wrap items-end gap-2">
-              <FormField name="desk-override" label={ui("Why release this held copy?")} className="min-w-[14rem] flex-1"><Input value={reasons.override ?? ""} onChange={(e) => setReasons((r) => ({ ...r, override: e.target.value }))} /></FormField>
+              <FormField name="desk-override" label={ui("Why release this held copy?")} className="min-w-0 flex-1 sm:min-w-[14rem]"><Input value={reasons.override ?? ""} onChange={(e) => setReasons((r) => ({ ...r, override: e.target.value }))} /></FormField>
               <Button size="sm" variant="outline" onClick={async () => { const issued = await post("issue", { memberId: member!.member.id, barcode: copy.copy.barcode, overrideReason: reasons.override }); if (issued) { setOverride(null); setMessage(ui("Copy {0} issued. Due {1}.", [copy.copy.barcode, String(issued.dueAt).slice(0, 10)])); await refreshMember(); void load(); } }}>{ui("Issue anyway")}</Button>
             </div>
           ) : null}
@@ -156,7 +178,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
         refocus();
       }}>
         <h3 className="w-full font-semibold">{ui("Return a copy")}</h3>
-        <FormField name="desk-return" label={ui("Copy barcode")} className="min-w-[12rem] flex-1"><Input dir="ltr" value={returnCode} onChange={(e) => { setReturnCode(e.target.value); setFine(null); }} /></FormField>
+        <FormField name="desk-return" label={ui("Copy barcode")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input dir="ltr" value={returnCode} onChange={(e) => { setReturnCode(e.target.value); setFine(null); }} /></FormField>
         <FormField name="desk-condition" label={ui("Condition")}><Select value={condition} onChange={(e) => setCondition(e.target.value)}><option value="GOOD">{ui("Good")}</option><option value="WORN">{ui("Worn")}</option><option value="DAMAGED">{ui("Damaged")}</option></Select></FormField>
         <Button type="button" variant="outline" disabled={!returnCode.trim()} onClick={async () => { try { const p = await call(`/api/library/desk?preview=${encodeURIComponent(returnCode.trim())}`); setFine(p.onLoan ? p.fine : null); if (!p.onLoan) setMessage(ui("Already returned · no duplicate change")); } catch (e) { setError(ui((e as Error).message)); } }}>{ui("Preview fine")}</Button>
         <Button type="submit" variant="secondary" disabled={!returnCode.trim()}>{ui("Confirm return")}</Button>
@@ -171,7 +193,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
               <div key={c.id} className="space-y-1 rounded-xl border border-border p-2 text-sm">
                 <p>{ui(KIND_LABEL[c.kind] ?? c.kind)} · {money(c.amount, c.currency)}</p>
                 <div className="flex flex-wrap items-end gap-2">
-                  <FormField name={`ch-${c.id}`} label={ui("Reason")} className="min-w-[12rem] flex-1"><Input value={reasons[c.id] ?? ""} onChange={(e) => setReasons((r) => ({ ...r, [c.id]: e.target.value }))} /></FormField>
+                  <FormField name={`ch-${c.id}`} label={ui("Reason")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input value={reasons[c.id] ?? ""} onChange={(e) => setReasons((r) => ({ ...r, [c.id]: e.target.value }))} /></FormField>
                   {overview.canWaive ? <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "WAIVE", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge waived; the reason and approver are recorded.")); void load(); } }}>{ui("Waive")}</Button> : <span className="text-xs text-ink-subtle">{ui("Your campus admin decides waivers; you can send the charge to the fees office.")}</span>}
                   <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "HAND_TO_FEES", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge handed to the fees office.")); void load(); } }}>{ui("Send to fees office")}</Button>
                 </div>
