@@ -26,3 +26,10 @@ test("schema conversion preserves business bounds and never suppresses actual se
   const unsafeSchema = aiOutputSchema(z.string().describe("Contact synthetic@example.invalid"));
   assert.throws(() => assertNoPII(JSON.stringify(unsafeSchema)), /personal identifier/);
 });
+
+test("schema conversion accepts transformed Zod inputs used by assistant actions", () => {
+  const schema = z.object({ term: z.string().transform(value => value.trim().toUpperCase()) });
+  assert.doesNotThrow(() => aiOutputSchema(schema));
+  assert.deepEqual(aiOutputSchema(schema).properties?.term, { type: "string" });
+  assert.equal(schema.parse({ term: "  synthetic  " }).term, "SYNTHETIC");
+});
