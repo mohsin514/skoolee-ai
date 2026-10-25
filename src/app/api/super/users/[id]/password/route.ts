@@ -43,6 +43,10 @@ export async function PUT(
       throw new ApiError("This account resets its own password.", 403);
     }
 
+    if (targetUser.password && await bcrypt.compare(newPassword, targetUser.password)) {
+      throw new ApiError("New password must be different from current password", 400);
+    }
+
     const recentPasswords = await prisma.passwordHistory.findMany({
       where: { userId: targetUserId },
       orderBy: { createdAt: "desc" },
@@ -60,14 +64,16 @@ export async function PUT(
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await prisma.$transaction([
+      prisma.loginSession.updateMany({ where: { userId: targetUserId, isActive: true }, data: { isActive: false, logoutAt: new Date() } }),
       prisma.user.update({
         where: { id: targetUserId },
-        data: { password: hashedPassword, lastPasswordChange: new Date() },
+        data: { password: hashedPassword, lastPasswordChange: new Date(), mustChangePassword: true },
       }),
       ...(targetUser.password
         ? [
             prisma.passwordHistory.create({
               data: {
+                schoolId: user.schoolId,
                 userId: targetUserId,
                 oldPasswordHash: targetUser.password,
                 changedBy: user.userId,
