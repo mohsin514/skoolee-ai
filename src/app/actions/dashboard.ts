@@ -179,98 +179,20 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
           select: { id: true, email: true, role: true, status: true, expiresAt: true, profile: true },
           orderBy: { createdAt: "desc" },
         },
-        classes: {
-          select: {
-            id: true,
-            name: true,
-            section: true,
-            academicYear: true,
-            classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-            _count: { select: { students: true, subjects: true, exams: true } },
-          },
-          orderBy: [{ academicYear: "desc" }, { name: "asc" }],
-        },
-        // Summary only. This is the whole campus roster on every dashboard
-        // load, so it carries what a list card, the filters and the CSV export
-        // actually render — and nothing else. Home address, medical notes,
-        // allergies, medications and special needs are read by exactly one
-        // screen, for one child at a time, and are fetched by
-        // GET /api/students/<id> when that profile is opened.
+        // Governance charts need dates and grades, not learner/guardian identities or full rosters.
         students: {
           select: {
-            id: true,
-            fullName: true,
-            rollNo: true,
-            dateOfBirth: true,
-            gender: true,
-            phone: true,
-            guardianName: true,
-            guardianPhone: true,
-            guardianEmail: true,
-            city: true,
             enrollmentDate: true,
-            status: true,
-            profileImageUrl: true,
-            studentUser: { select: { email: true, isActive: true } },
-            class: { select: { id: true, name: true, section: true, academicYear: true } },
-            // The roster's Category and Group filters build their options from
-            // these, and the CSV export has columns for them. Never selected,
-            // so both filters were permanently absent and both columns blank.
-            category: { select: { id: true, name: true } },
-            group: { select: { id: true, name: true } },
             reportCards: {
-              select: {
-                id: true,
-                percentage: true,
-                grade: true,
-                status: true,
-                remarksApproved: true,
-                deliveryStatus: true,
-                isSent: true,
-                generatedAt: true,
-                exam: { select: { title: true, term: true, status: true } },
-              },
-              orderBy: { generatedAt: "desc" },
+              select: { percentage: true, grade: true },
+              orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
               take: 1,
             },
           },
-          orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
-        },
-        exams: {
-          select: {
-            id: true,
-            title: true,
-            term: true,
-            academicYear: true,
-            status: true,
-            isLocked: true,
-            reviewedAt: true,
-            publishedAt: true,
-            class: { select: { name: true, section: true } },
-            _count: { select: { reportCards: true } },
-          },
-          orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-          take: 8,
-        },
-        reportCards: {
-          select: {
-            id: true,
-            percentage: true,
-            grade: true,
-            status: true,
-            remarksApproved: true,
-            deliveryStatus: true,
-            isSent: true,
-            generatedAt: true,
-            student: { select: { fullName: true, rollNo: true, class: { select: { name: true, section: true } } } },
-            exam: { select: { title: true, term: true, status: true } },
-          },
-          orderBy: { generatedAt: "desc" },
-          take: 8,
         },
         _count: {
           select: {
-            users: true,
+            users: { where: { isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] } } },
             classes: true,
             students: true,
             subjects: true,
@@ -310,7 +232,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       by: ["campusId", "status"],
       where: { currency, campus: { schoolId: session.schoolId } },
       _count: { _all: true },
-      _sum: { totalAmount: true },
+      _sum: { totalAmount: true, totalAmountPaid: true },
     }),
   ]);
 
@@ -326,11 +248,11 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     return acc;
   }, {});
 
-  const invoiceMap = invoiceSummary.reduce<Record<string, Record<string, { count: number; amount: number }>>>((acc, item) => {
+  const invoiceMap = invoiceSummary.reduce<Record<string, Record<string, { count: number; amount: number; collected: number }>>>((acc, item) => {
     const key = item.campusId || "school";
     acc[key] = {
       ...(acc[key] || {}),
-      [item.status]: { count: item._count._all, amount: item._sum.totalAmount || 0 },
+      [item.status]: { count: item._count._all, amount: item._sum.totalAmount || 0, collected: item._sum.totalAmountPaid || 0 },
     };
     return acc;
   }, {});
@@ -361,10 +283,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       communicationCount: campus._count.parentCommunications,
       teachers,
       teacherCount: teachers.length,
-      classes: campus.classes,
       students: campus.students,
-      recentExams: campus.exams,
-      recentReportCards: campus.reportCards,
       pendingInvitations: campus.staffInvitations.map(formatPendingInvite),
       pendingTeacherInvitations: pendingTeacherInvitations.map(formatPendingInvite),
       operationsStaff,
