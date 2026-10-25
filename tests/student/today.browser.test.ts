@@ -24,7 +24,7 @@ let browser: Browser;
 
 async function user(key: string, role: string, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { student: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, options: { viewport?: { width: number; height: number }; timezoneId?: string } = {}) {
@@ -37,7 +37,7 @@ async function context(key: string, options: { viewport?: { width: number; heigh
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: false }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: false }); };
 type Today = { weekend: number[]; day: string; today: string; schoolDay: boolean; closure: { kind: string; name: string | null } | null; lessons: { subject: string | null }[]; current: unknown; nextAction: { kind: string; title: string; href: string } | null; work: { id: string; title: string; state: string; overdue: boolean; extended: boolean }[]; examLock: boolean; returned: unknown[] };
 const today = async (ctx: BrowserContext, day?: string) => { const r = await ctx.request.get(`${base}/api/student/today${day ? `?day=${day}` : ""}`); const json = await r.json(); if (r.status() === 200 && !json.data) throw new Error(JSON.stringify(json)); if (r.status() >= 500) throw new Error(`Today ${r.status()}: ${JSON.stringify(json)}`); return { status: r.status(), data: json.data as Today }; };
 const days = (day: string, n: number) => new Date(new Date(`${day}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
@@ -169,6 +169,28 @@ test("screens: Today in a far timezone, the deep link and an unavailable task, o
   await ar.locator("[data-student-today]").scrollIntoViewIfNeeded();
   await shot(ar, "05-today-ar-390");
   await ar.close();
+});
+
+test("another learner's legacy offline copy is never loaded and authorization failures clear current work", async () => {
+  const ctx = await context("other"); const page = await ctx.newPage();
+  await page.addInitScript(() => localStorage.setItem("skoolee.student.today", JSON.stringify({ nextAction: { title: "PRIVATE OTHER LEARNER", href: "/secret" }, work: [], returned: [] })));
+  let status = 503;
+  await page.route("**/api/student/today", route => route.fulfill({ status, json: { success: false, error: "Today could not be refreshed." } }));
+  await page.goto(`${base}/student`);
+  await page.locator("[data-today-error]").waitFor();
+  assert.equal((await page.locator("body").innerText()).includes("PRIVATE OTHER LEARNER"), false);
+  assert.equal(await page.evaluate(() => localStorage.getItem("skoolee.student.today")), null);
+  await page.unroute("**/api/student/today");
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.locator("[data-work]").first().waitFor();
+  status = 403;
+  await page.route("**/api/student/today", route => route.fulfill({ status, json: { success: false, error: "Access denied" } }));
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await page.locator("[data-today-error]").waitFor();
+  assert.equal(await page.locator("[data-work]").count(), 0);
+  assert.equal(await page.locator("[data-next-action-link]").count(), 0);
+  await shot(page, "06-private-copy-denied-1440");
+  await ctx.close();
 });
 
 test("an exam in progress is the only next action and hides other work", async () => {
