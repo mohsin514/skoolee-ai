@@ -23,7 +23,7 @@ let browser: Browser;
 
 async function user(key: string, role: string, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { librarian: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email });
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -61,6 +61,7 @@ test("scan the member, scan the copy, return it twice — availability changes o
   await page.goto(`${base}/librarian?view=library`);
   const desk = page.locator("section[data-lending-desk]");
   await desk.waitFor({ timeout: 60_000 });
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
   const scan = desk.getByLabel("Scan a member card or a copy");
   await scan.fill("ST-104"); await scan.press("Enter");
   await desk.getByText("Loans: 0 of 4 allowed").waitFor({ timeout: 30_000 });
@@ -89,6 +90,7 @@ test("the desk reads right to left on a phone (AR)", async () => {
   await page.goto(`${base}/librarian?view=library`);
   const desk = page.locator("section[data-lending-desk]");
   await desk.waitFor({ timeout: 60_000 });
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
   const scan = desk.getByLabel("امسح بطاقة عضو أو نسخة كتاب");
   await scan.fill("BK-104-B"); await scan.press("Enter");
@@ -97,4 +99,39 @@ test("the desk reads right to left on a phone (AR)", async () => {
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${evidence}/lending-desk-ar-390.png` });
   await page.close();
+});
+
+
+test("failed initial desk data retries without reload at 320px", async () => {
+  const ctx = await context("librarian", { width: 320, height: 800 }); const page = await ctx.newPage(); let fail = true;
+  await page.route("**/api/library/desk", route => fail ? route.fulfill({ status: 503, json: { success: false, error: "Library data unavailable" } }) : route.continue());
+  await page.goto(`${base}/librarian?view=library`);
+  const desk = page.locator("[data-lending-desk]"); const retry = desk.getByRole("button", { name: "Try again" });
+  await retry.waitFor();
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
+  await desk.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${evidence}/library-retry-320.png` });
+  fail = false; await retry.click(); await retry.waitFor({ state: "hidden" });
+  await desk.getByText(/Loans last 14 days/).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await ctx.close();
+});
+
+test("a saved issue followed by a failed refresh keeps the receipt and removes stale reader actions", async () => {
+  const ctx = await context("librarian"); const page = await ctx.newPage(); const errors: string[] = []; let failRefresh = false;
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/library/desk?code=ST-104", route => failRefresh ? route.fulfill({ status: 503, json: { success: false } }) : route.continue());
+  await page.goto(`${base}/librarian?view=library`);
+  const desk = page.locator("[data-lending-desk]"); const scan = desk.getByLabel("Scan a member card or a copy");
+  await scan.fill("ST-104"); await scan.press("Enter"); await desk.getByText("Loans: 0 of 4 allowed").waitFor();
+  failRefresh = true;
+  await scan.fill("BK-104-A"); await scan.press("Enter");
+  await desk.getByText("The action was saved, but the reader's loans could not be refreshed. Scan the card again.").waitFor();
+  assert.match(await desk.innerText(), /Copy BK-104-A issued/);
+  assert.equal(await desk.locator("[data-lending-reader]").count(), 0);
+  assert.equal(await db.bookIssue.count({ where: { returnedAt: null, book: { campusId } } }), 1);
+  failRefresh = false;
+  await scan.fill("ST-104"); await scan.press("Enter"); await desk.getByText("Loans: 1 of 4 allowed").waitFor();
+  assert.deepEqual(errors, []);
+  await ctx.close();
 });
