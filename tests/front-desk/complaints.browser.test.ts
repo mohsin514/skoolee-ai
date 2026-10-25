@@ -25,7 +25,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
 
 async function user(key: string, role: string, campus: string | null = campusId, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { receptionist: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -42,12 +42,13 @@ const api = `${base}/api/front-desk/complaints`;
 const report = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.request.post(api, { data: { complainantName: "Synthetic Parent Rehan", type: "Transport", description: "Synthetic: the afternoon bus left fifteen minutes early twice this week.", date: today, ...body } });
 const act = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.request.patch(api, { data: body });
 const version = async (id: string) => (await db.complaint.findUniqueOrThrow({ where: { id } })).version;
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Olive Case School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Dubai", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Olive Creek"], [otherCampusId, "Olive Marina"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Dubai" } });
-  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40: campus admins own front-office work; the principal does not await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40: campus admins own front-office work; the principal does not
+  await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER"); await user("parent", "PARENT");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Dubai", currency: "AED" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   await db.authAttempt.deleteMany({});
@@ -166,7 +167,7 @@ test("reception records a routine complaint and gets a receipt; the leader revie
 test("Arabic reception at phone width reads the queue right-to-left without overflow", async () => {
   const ctx = await context("desk-ar", { width: 390, height: 844 }), page = await ctx.newPage();
   await page.goto(`${base}/receptionist?view=complaints`);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   if (!page.url().includes("view=complaints")) await page.goto(`${base}/receptionist?view=complaints`);
   await page.locator("[data-complaint]").first().waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");

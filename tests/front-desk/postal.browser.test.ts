@@ -25,7 +25,7 @@ const LONG_REF = "JD014600006281234567890-ДХЛ-واردة-0042";
 
 async function user(key: string, role: string, campus: string | null = campusId, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { receptionist: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -43,12 +43,13 @@ const record = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.reque
 const act = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.request.patch(api, { data: body });
 const item = (code: string) => db.postalRecord.findFirstOrThrow({ where: { campusId, itemCode: code } });
 const actions = (key: string, sourceId: string) => db.notification.findMany({ where: { userId: users.get(key)!.id, sourceType: "postal", sourceId } });
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Post School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Cedar North"], [otherCampusId, "Cedar South"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Riyadh" } });
-  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40 await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40
+  await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Riyadh", currency: "SAR" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   await db.authAttempt.deleteMany({});
@@ -183,7 +184,7 @@ test("Arabic reception at phone width reads the register right-to-left and wraps
   const ctx = await context("desk-ar", { width: 390, height: 844 }), page = await ctx.newPage();
   await record(ctx, { referenceNo: `${LONG_REF}-AR`, toName: "Synthetic Teacher Rana" });
   await page.goto(`${base}/receptionist?view=postal`);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   if (!page.url().includes("view=postal")) await page.goto(`${base}/receptionist?view=postal`);
   await page.locator("[data-postal-reference]").first().waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
