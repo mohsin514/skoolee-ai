@@ -116,17 +116,9 @@ export function resolveTarget(): TestTarget {
     sources.push(`.env.test.${name}`);
   }
 
-  // The local profile may lean on the app's own .env — it already names the
-  // dev database and dev origin, and duplicating them just invites drift.
-  // The remote profile never falls back: pointing production tests at
-  // whatever happened to be in .env is exactly the accident to avoid.
-  if (name === "local") {
-    const appEnv = resolve(ROOT, ".env");
-    if (existsSync(appEnv)) {
-      layers.push(parseEnvFile(appEnv));
-      sources.push(".env");
-    }
-  }
+  // Test targets must be explicit. In particular, never inherit the app's
+  // DATABASE_URL: a local HTTP server paired with a hosted database can pass
+  // the origin gate while mutating real application data.
 
   const fromEnv = (key: string): string | undefined => {
     const value = process.env[key];
@@ -173,7 +165,7 @@ export function resolveTarget(): TestTarget {
   // published address, not a test target, and treating it as one is what
   // pointed this suite at production. The target has to be stated.
   const rawBaseUrl = pick("TEST_BASE_URL", "BASE_URL");
-  const databaseUrl = pick("TEST_DATABASE_URL", "DATABASE_URL");
+  const databaseUrl = pick("TEST_DATABASE_URL");
 
   if (!rawBaseUrl) {
     throw new Error(
@@ -201,6 +193,12 @@ export function resolveTarget(): TestTarget {
   // the dangerous one — a stray TEST_BASE_URL would otherwise sail through the
   // gate below — so host, not profile name, has the final say.
   const isRemote = name === "remote" || !loopback;
+
+  const database = new URL(databaseUrl);
+  const databaseLoopback = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(database.hostname);
+  if (name === "local" && !databaseLoopback) {
+    throw new Error(`Refusing local tests against a non-local database (${database.hostname}). Set TEST_DATABASE_URL to an isolated loopback database.`);
+  }
 
   if (isRemote && process.env.ALLOW_REMOTE_TEST !== "1") {
     throw new Error(
