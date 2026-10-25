@@ -50,7 +50,6 @@ import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView"
 import { RoleShell, ManagementCard, AiActionPanel, useShellSession } from "@/components/role-dashboard";
 import { CommandCentreSkeleton, PageSkeleton, PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 import { FlagshipCard } from "@/components/ui/flagship";
-import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { PageHeader } from "@/components/ui/page-header";
 import { ViewTabs } from "@/components/ui/view-tabs";
 import { Menu } from "@/components/ui/menu";
@@ -192,7 +191,9 @@ export default function SuperAdminDashboard() {
   } else if (view === "campuses" && campusParam) {
     content = dataGate(() => selectedCampus
       ? <CampusDetail
+          key={selectedCampus.id}
           campus={selectedCampus}
+          onBack={() => setView("campuses")}
           onActivity={() => setActivity({ campusId: selectedCampus.id })}
           onRevoke={revokeLeader}
           onCancelInvite={cancelInvite}
@@ -228,11 +229,6 @@ export default function SuperAdminDashboard() {
       // F3 / §3.2: a paused school never opens the chat stream — decided from the school's state (server-read for
       // the page load, re-checked when a reload fails), not from whether the dashboard happened to load.
       chatDock={!suspended}
-      headerContext={view === "campuses" && campusParam ? (
-        <Button variant="ghost" size="sm" type="button" onClick={() => setView("campuses")} className="gap-1.5">
-          <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />{t("Back to all campuses")}
-        </Button>
-      ) : undefined}
     >
       {/* The shell draws the one page card (addendum 2026-10-22); this is its scrolling body. */}
       <div className={cn("custom-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY)} data-super-view={view} data-needs-data={needsData || undefined}>
@@ -367,19 +363,23 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
   const access = useConsoleAccess();
   const formatNumber = useFormatNumber();
   const [counts, setCounts] = useState<{ approvals: number; support: number; overrides: number } | null>(null);
+  const [countsFailed, setCountsFailed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    setCounts(null); setCountsFailed(false);
     const json = (url: string) => fetch(url, { cache: "no-store" }).then((response) => (response.ok ? response.json() : null)).catch(() => null);
     void Promise.all([json("/api/navigation/counts"), json("/api/super/support-grants"), json("/api/group-policy?view=library")]).then(([countBody, grants, library]) => {
       if (!alive) return;
+      if (!countBody || !grants || !library) { setCountsFailed(true); return; }
       // Same rule as GET /api/navigation/counts: a pending request, or emergency access still awaiting its review.
       const support = Array.isArray(grants?.data) ? grants.data.filter((grant: any) => grant.status === "pending" || (grant.status === "active" && grant.emergencyReason && !grant.reviewedAt)).length : 0;
       const overrides = Array.isArray(library?.data?.pending) ? library.data.pending.length : 0;
       setCounts({ approvals: Number(countBody?.counts?.approvals ?? support + overrides), support, overrides });
     });
     return () => { alive = false; };
-  }, []);
+  }, [data]);
 
   const campuses: Campus[] = data.campuses ?? [];
   const items: AttentionItem[] = [];
@@ -429,14 +429,11 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
     { feature: "academic_trend_summary", label: t("Academic trends"), placeholder: t("Optional exam or term focus") },
   ];
 
-  // Flagship (addendum 2026-10-22): AI Workflows for the group admin who may use School AI. While the school is not
-  // set up yet, the card's "Start the setup questionnaire" is THE primary action of the screen: the PageHeader carries
-  // no second filled button to the same place, and "Review approvals (n)" waits as a secondary. Afterwards the card
-  // offers the workflows and "Review approvals (n)" is the PageHeader primary again. Drafts apply only after approval.
+  // Group setup is governance/readiness; campus administrators own classroom setup.
+  // Keep one readiness entry so it does not compete with a second setup questionnaire.
   const { language } = useLocale();
   const groupCopy = language === "ar" ? { title: "إدارة جاهزية الفروع", body: "عيّن مسؤولي الفروع وراجع الجاهزية والسياسات المشتركة. يتولى كل مسؤول فرع إعداد الصفوف والطلاب والعمليات المحلية.", action: "مراجعة جاهزية الفروع" } : language === "ur" ? { title: "کیمپس کی تیاری کا انتظام", body: "کیمپس منتظم مقرر کریں اور تیاری اور مشترکہ پالیسیوں کا جائزہ لیں۔ ہر کیمپس کا منتظم اپنی کلاسیں، طلبہ اور مقامی امور ترتیب دیتا ہے۔", action: "کیمپس کی تیاری دیکھیں" } : { title: "Manage campus readiness", body: "Appoint campus administrators and review readiness and shared policies. Each campus administrator sets up their classes, students and local operations.", action: "Review campus readiness" };
   const aiWorkflows = access.has("ai") && access.has("schoolAi");
-  const setupFirst = aiWorkflows && data.aiSetupPending === true;
   const review = counts && counts.approvals > 0
     ? { id: "review-approvals", label: t("Review approvals ({0})", [formatNumber(counts.approvals)]), icon: ShieldCheck, onClick: () => onNavigate("approvals") }
     : undefined;
@@ -446,12 +443,13 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
       <PageHeader
         title="Overview"
         description="Decisions waiting on you and how every campus is doing."
-        primaryAction={setupFirst ? undefined : review}
-        secondaryActions={setupFirst && review ? [review] : undefined}
+        primaryAction={review}
+        secondaryActions={[
+          { id: "refresh-group", label: "Refresh", icon: RefreshCw, loading: refreshing, onClick: async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } } },
+        ]}
         status={retiredNotice ? <Alert tone="info" compact live="off">{t(retiredNotice)}</Alert> : undefined}
       />
 
-      {aiWorkflows && <SetupPrompt />}
       {aiWorkflows && <FlagshipCard kind="ai-workflows" title={groupCopy.title} description={groupCopy.body} action={{ label: groupCopy.action, href: "/setup/readiness" }} tourAnchor="super.today.flagship-ai" />}
 
       <section data-tour="super.overview.attention" aria-labelledby="attention-title" className="sk-panel p-4 sm:p-6">
@@ -469,7 +467,8 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
             </Button>
           ) : null}
         </div>
-        {items.length === 0 ? (
+        {countsFailed && <Alert tone="warning" compact>{t("Approval counts could not be loaded. Refresh to check pending decisions.")}</Alert>}
+        {items.length === 0 && counts === null && !countsFailed ? <p role="status" className="text-sm text-ink-muted">{t("Checking pending decisions…")}</p> : items.length === 0 && !countsFailed ? (
           <EmptyState size="sm" icon={CheckCircle2} title={t("Nothing needs you right now")} description={t("Every campus has its leaders in post and no decisions are waiting.")} />
         ) : (
           <ul className="space-y-2">
@@ -543,6 +542,12 @@ function CampusesView({ campuses, onOpen, onAdd, onActivity, onAppoint, onPromot
 }) {
   const t = useUiText();
   const formatNumber = useFormatNumber();
+  const [search, setSearch] = useState("");
+  const [leadership, setLeadership] = useState("all");
+  const filtered = campuses.filter(campus => {
+    const matches = `${campus.name} ${campus.city ?? ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
+    return matches && (leadership === "all" || leadership === "admin" && !seated(campus.admin) || leadership === "principal" && !seated(campus.principal));
+  });
   return (
     <>
       <PageHeader
@@ -550,6 +555,13 @@ function CampusesView({ campuses, onOpen, onAdd, onActivity, onAppoint, onPromot
         description="Open a campus to see its numbers and the people who run it."
         primaryAction={{ id: "add-campus", label: "Add campus", icon: Plus, onClick: onAdd }}
       />
+      {campuses.length > 0 && <div className="grid gap-3 sm:grid-cols-2">
+        <FormField name="campus-search" label={t("Search campuses")}><Input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder={t("Campus name or city")} /></FormField>
+        <FormField name="campus-leadership" label={t("Leadership coverage")}><Select value={leadership} onChange={event => setLeadership(event.target.value)}>
+          <option value="all">{t("All campuses")}</option><option value="admin">{t("Needs a campus admin")}</option><option value="principal">{t("Needs a principal")}</option>
+        </Select></FormField>
+        <p className="text-sm text-ink-muted sm:col-span-2" role="status">{t("Showing {0} of {1} campuses", [formatNumber(filtered.length), formatNumber(campuses.length)])}</p>
+      </div>}
       {campuses.length === 0 ? (
         <div className="sk-panel">
           <EmptyState icon={Building2} title={t("No campuses yet")} description={t("Add the first campus, then appoint its campus admin and principal.")}
@@ -557,7 +569,7 @@ function CampusesView({ campuses, onOpen, onAdd, onActivity, onAppoint, onPromot
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {campuses.map((campus) => {
+          {filtered.map((campus) => {
             const vacant = !seated(campus.admin) && !campus.admin?.inviteId;
             const principal = seated(campus.principal) ? campus.principal : null;
             return (
@@ -601,6 +613,7 @@ function CampusesView({ campuses, onOpen, onAdd, onActivity, onAppoint, onPromot
           })}
         </ul>
       )}
+      {campuses.length > 0 && filtered.length === 0 && <EmptyState title={t("No matching campuses")} description={t("Try another name, city or leadership filter.")} action={<Button variant="outline" onClick={() => { setSearch(""); setLeadership("all"); }}>{t("Clear filters")}</Button>} />}
       {campuses.length > 0 ? (
         <div className="flex justify-end">
           <Button variant="ghost" size="sm" type="button" onClick={onActivity}><History aria-hidden="true" />{t("Activity log")}</Button>
@@ -612,8 +625,9 @@ function CampusesView({ campuses, onOpen, onAdd, onActivity, onAppoint, onPromot
   );
 }
 
-function CampusDetail({ campus, onActivity, onAppoint, onPromote, onResend, onRevoke, onCancelInvite, onSaved }: {
+function CampusDetail({ campus, onBack, onActivity, onAppoint, onPromote, onResend, onRevoke, onCancelInvite, onSaved }: {
   campus: Campus;
+  onBack: () => void;
   onActivity: () => void;
   onAppoint: (campusId: string | null, role: LeaderRole) => void;
   onPromote: (campus: Campus) => void;
@@ -632,6 +646,7 @@ function CampusDetail({ campus, onActivity, onAppoint, onPromote, onResend, onRe
 
   return (
     <>
+      <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft aria-hidden="true" className="rtl:rotate-180" />{t("Back to all campuses")}</Button>
       <PageHeader
         eyebrow="Campus"
         // The campus name is data, never a UI key (R7): rendered as given, isolated for RTL.
@@ -891,6 +906,8 @@ function AppointLeaderModal({ campuses, initial, onClose, onSent }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState("");
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [deliveryFailed, setDeliveryFailed] = useState(false);
   const campus = campuses.find((item) => item.id === campusId);
 
   const submit = async () => {
@@ -898,13 +915,14 @@ function AppointLeaderModal({ campuses, initial, onClose, onSent }: {
     if (!campusId) return;
     setBusy(true); setError(null);
     try {
-      const result = await inviteStaff({ email: email.trim(), role, campusId, canManageMemberships: role === "CAMPUS_ADMIN" && manage && mfa });
-      toast.success(t("Invitation sent to {0}.", [email.trim()]));
+      const result = await inviteStaff({ email: email.trim(), role, campusId, canManageMemberships: role === "CAMPUS_ADMIN" && manage && mfa }, { returnDeliveryStatus: true });
+      toast.success(t("Invitation saved"));
       setLink(result.inviteLink || "");
+      setDeliveryFailed(result.deliveryStatus === "failed");
       await onSent();
       if (!result.inviteLink) onClose();
     } catch (failure) {
-      toast.error(friendlyErrorMessage(failure, t("The invitation could not be sent. Please try again.")));
+      setError(friendlyErrorMessage(failure, t("The invitation could not be sent. Please try again.")));
     } finally {
       setBusy(false);
     }
@@ -912,14 +930,16 @@ function AppointLeaderModal({ campuses, initial, onClose, onSent }: {
 
   if (link) {
     return (
-      <Modal title={t("Invitation sent")} icon={Mail} size="sm" onClose={onClose}
+      <Modal title={t("Invitation saved")} icon={Mail} size="sm" onClose={onClose}
         footer={<div className="flex justify-end"><Button variant="outline" type="button" onClick={onClose}>{t("Close")}</Button></div>}>
         <div className="space-y-4">
+          {deliveryFailed && <Alert tone="warning">{t("Invitation saved, but email was not delivered. Share the link or resend the invitation from the campus.")}</Alert>}
           <p className="text-sm text-ink">{t("The invited person sets their own password when they accept. Share this link if the email does not arrive; it expires in 48 hours.")}</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div dir="ltr" className="min-w-0 flex-1 select-all break-all rounded-xl border border-border-subtle bg-surface-subtle p-3 font-mono text-xs text-ink">{link}</div>
-            <Button variant="outline" type="button" onClick={() => void navigator.clipboard.writeText(link).then(() => toast.success(t("Link copied to clipboard")), () => toast.error(t("The link could not be copied. Select it and copy it manually.")))}>{t("Copy")}</Button>
+            <Button variant="outline" type="button" onClick={async () => { try { await navigator.clipboard.writeText(link); setCopyFailed(false); toast.success(t("Link copied to clipboard")); } catch { setCopyFailed(true); } }}>{t("Copy")}</Button>
           </div>
+          {copyFailed && <Alert tone="warning">{t("The link could not be copied. Select it and copy it manually.")}</Alert>}
         </div>
       </Modal>
     );
@@ -932,10 +952,10 @@ function AppointLeaderModal({ campuses, initial, onClose, onSent }: {
       icon={UserPlus}
       size="sm"
       dirty={Boolean(email.trim()) && !busy}
-      onClose={onClose}
+      onClose={() => { if (!busy) onClose(); }}
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" type="button" disabled={busy} onClick={onClose}>{t("Keep editing")}</Button>
+          <Button variant="outline" type="button" disabled={busy} onClick={onClose}>{t("Cancel")}</Button>
           <Button type="button" loading={busy} disabled={busy || !campusId} onClick={() => void submit()}>{t("Send invitation")}</Button>
         </div>
       }
@@ -1035,6 +1055,9 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const [form, setForm] = useState({ ...EMPTY_CAMPUS, regId: generateRegId(), autoId: true });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof EMPTY_CAMPUS, string>>>({});
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [created, setCreated] = useState<Awaited<ReturnType<typeof addCampus>> | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   // The school's country picks the boards a new campus is offered.
   const [country, setCountry] = useState("");
   useEffect(() => { void getSchoolCountry().then(setCountry).catch(() => undefined); }, []);
@@ -1058,17 +1081,17 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setErrors(found);
     if (Object.keys(found).length) return;
     setBusy(true);
+    setSaveError(null);
     try {
-      await addCampus({
+      const result = await addCampus({
         name: form.name, city: form.city, address: form.address, phone: form.phone, email: form.email, website: form.website,
         principalName: form.principalName, board: form.board, adminEmail: form.adminEmail,
         regId: form.autoId ? form.regId || undefined : form.regId,
       });
-      toast.success(form.adminEmail.trim() ? t("{0} created — invitation sent to {1}.", [form.name.trim(), form.adminEmail.trim()]) : t("{0} created.", [form.name.trim()]));
-      onClose();
+      setCreated(result);
       await onCreated();
     } catch (failure) {
-      toast.error(friendlyErrorMessage(failure, t("The campus could not be created. Please try again.")));
+      setSaveError(friendlyErrorMessage(failure, t("The campus could not be created. Please try again.")));
     } finally {
       setBusy(false);
     }
@@ -1080,6 +1103,19 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
     </FormField>
   );
 
+  if (created) return <Modal title={t("Campus created")} icon={CheckCircle2} size="sm" onClose={onClose} footer={<Button onClick={onClose}>{t("Done")}</Button>}>
+    <div className="space-y-4">
+      <p><bdi>{created.campus.name}</bdi></p>
+      {created.invitation?.needsAttention ? <Alert tone="warning">{t("The campus was created, but its admin invitation needs attention. Open the campus to appoint the admin or resend the saved invitation.")}</Alert> : <Alert tone="success">{t("The campus is ready. Appoint its leaders and review campus readiness next.")}</Alert>}
+      {created.invitation?.link && <>
+        <p className="text-sm">{t("Share this invitation link with the campus admin if the email does not arrive.")}</p>
+        <Input aria-label={t("Invitation link")} readOnly dir="ltr" value={created.invitation.link} />
+        <Button variant="outline" onClick={async () => { try { await navigator.clipboard.writeText(created.invitation!.link); setCopyFailed(false); toast.success(t("Link copied to clipboard")); } catch { setCopyFailed(true); } }}>{t("Copy")}</Button>
+        {copyFailed && <Alert tone="warning">{t("The link could not be copied. Select it and copy it manually.")}</Alert>}
+      </>}
+    </div>
+  </Modal>;
+
   return (
     <Modal
       title={t("Add campus")}
@@ -1087,11 +1123,14 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
       icon={Building2}
       size="md"
       dirty={dirty && !busy}
-      onClose={onClose}
+      onClose={() => { if (!busy) onClose(); }}
       footer={
+        <div className="space-y-3">
+          {saveError && <Alert tone="danger">{saveError}</Alert>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" type="button" disabled={busy} onClick={onClose}>{t("Keep editing")}</Button>
+          <Button variant="outline" type="button" disabled={busy} onClick={onClose}>{t("Cancel")}</Button>
           <Button type="button" loading={busy} disabled={busy} onClick={() => void submit()}>{t("Add campus")}</Button>
+        </div>
         </div>
       }
     >

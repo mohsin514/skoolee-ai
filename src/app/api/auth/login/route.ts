@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
 
 async function handleLogin(req: NextRequest) {
   try {
+    const contentType = req.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    const fetchSite = req.headers.get("sec-fetch-site")?.toLowerCase();
+    const origin = req.headers.get("origin");
+    const requestOrigin = new URL(req.url).origin;
+    if (contentType !== "application/json" || fetchSite === "cross-site" || (origin && origin !== requestOrigin)) {
+      return Response.json({ error: "Unsupported login request" }, { status: 403 });
+    }
     const ip = clientIp(req.headers);
     const body = await req.json();
     const rateKeyEmail = typeof body?.email === "string" ? body.email.toLowerCase().trim() : "";
