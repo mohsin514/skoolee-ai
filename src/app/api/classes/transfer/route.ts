@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { applyEnrollment, assertRegistrar, dateOnly, enrollmentImpact } from "@/lib/students/enrollment";
 import { authorizeAssignment } from "@/lib/api/teacher-assignments";
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     // All or nothing: a section is never left half-moved.
     if (preview.blocked.length) throw new ApiError(`${preview.blocked.length} student(s) cannot move on this date. Resolve them first; nobody was moved.`, 409);
     const reason = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim().slice(0, 500) : `Section transfer to ${label(preview.to)}`;
-    const result = await prisma.$transaction(async tx => {
+    const apply = () => prisma.$transaction(async tx => {
       // Serialise transfers out of this section; a concurrent retry waits and then finds it empty.
       await tx.$queryRaw`SELECT id FROM classes WHERE id = ${preview.from.id} FOR UPDATE`;
       const remaining = await tx.student.findMany({ where: { classId: preview.from.id, archivedAt: null, status: "active" }, select: { id: true } });
@@ -83,6 +84,13 @@ export async function POST(req: NextRequest) {
       await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.userId, tableName: "class", recordId: preview.from.id, newValue: { action: "section.transfer", toClassId: preview.to.id, moved, archived, effectiveDate: effectiveDate.toISOString().slice(0, 10) } } });
       return { moved, archived };
     }, { isolationLevel: "Serializable", timeout: 60_000 });
+    let result;
+    for (let attempt = 1; ; attempt++) {
+      try { result = await apply(); break; }
+      catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2034" || attempt >= 3) throw error;
+      }
+    }
     return Response.json({ success: true, ...result, preview: summary });
   } catch (error) {
     return errorResponse(error, "[classes/transfer] failed");

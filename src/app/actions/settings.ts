@@ -356,7 +356,7 @@ export async function restoreCampus(campusId: string) {
     if (!campus) throw new Error("Campus not found.");
     if (!campus.archivedAt) return { success: true, alreadyActive: true };
     const clash = await tx.campus.findFirst({ where: { schoolId: session.schoolId, archivedAt: null, id: { not: id }, name: { equals: campus.name, mode: "insensitive" } }, select: { id: true } });
-    if (clash) throw new Error("An active campus already uses this name. Rename one of them before restoring.");
+    if (clash) return { success: false, error: "An active campus already uses this name. Rename one of them before restoring." };
     await tx.campus.update({ where: { id }, data: { archivedAt: null, archiveReason: null } });
     await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "campus", recordId: id, userId: session.userId, oldValue: { archived: true }, newValue: { archived: false } } });
     return { success: true, alreadyActive: false };

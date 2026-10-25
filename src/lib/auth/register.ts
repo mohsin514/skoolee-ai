@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { sendExistingAccountNotice, sendVerificationEmail } from "@/lib/email";
 import { authRateLimit } from "@/lib/auth/rate-limit";
 import { countrySchema, currencyForCountry } from "@/lib/locale/country";
+import { billingCountry, WORLD_COUNTRIES } from "@/lib/locale/world-countries";
 import { createPlanContract } from "@/config/commercial-contract";
 
 export const SignupStep1Schema = z.object({
@@ -29,6 +30,16 @@ export const SignupStep2Schema = z.object({
   /** The exact country (ISO 3166-1 alpha-2); `country` is only its billing market. Drives boards, dial codes and time zones. */
   countryIso: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).optional(),
   language: z.enum(["en", "ar", "ur"]).optional(),
+}).superRefine((value, ctx) => {
+  if (!value.countryIso) return;
+  if (!WORLD_COUNTRIES.some(([iso]) => iso === value.countryIso)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["countryIso"], message: "Choose a supported country." });
+    return;
+  }
+  const expectedBillingCountry = billingCountry(value.countryIso);
+  if (value.country !== expectedBillingCountry) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["countryIso"], message: "Country metadata does not match the selected billing country." });
+  }
 });
 
 // One wording for a new and an existing address when the email cannot be sent (SKO-457).
