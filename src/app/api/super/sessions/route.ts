@@ -1,3 +1,4 @@
+import { boundedInteger } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -18,20 +19,20 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId") || "";
     const activeOnly = searchParams.get("active") === "true";
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "30", 10), 1), 100);
+    const limit = boundedInteger(searchParams.get("limit"), 30, 100);
 
     const where: any = {
       user: { schoolId: user.schoolId },
     };
     if (userId) where.userId = userId;
-    if (activeOnly) where.isActive = true;
+    if (activeOnly) { where.isActive = true; where.expiresAt = { gt: new Date() }; }
 
     const sessions = await prisma.loginSession.findMany({
       where,
       include: {
         user: { select: { id: true, fullName: true, email: true, role: true } },
       },
-      orderBy: { loginAt: "desc" },
+      orderBy: [{ loginAt: "desc" }, { id: "desc" }],
       take: limit,
     });
 
