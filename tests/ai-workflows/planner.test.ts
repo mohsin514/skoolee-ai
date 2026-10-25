@@ -111,3 +111,11 @@ test("class-C form evidence survives missing fields or bad new citations but nev
   assert.equal(retainLiteralFields({}, [{ modelInput: { city: "Karachi" }, missingFields: ["/city"] }, ...history], ["/city"]).validated.size, 0);
   assert.deepEqual(retainLiteralFields({}, history, []).value, {});
 });
+
+
+test("owner pilot requests retrieve the pilot charter in English, Arabic and Urdu", () => {
+  const owner = entriesForRole("APP_OWNER");
+  for (const request of ["Start a pilot for a new school", "ابدأ تجربة لمدرسة جديدة", "نئے اسکول کا پائلٹ شروع کریں"]) {
+    assert.ok(rank(request, owner).slice(0, 12).some(item => item.entry.key === "platform.pilot_create"), request);
+  }
+});
