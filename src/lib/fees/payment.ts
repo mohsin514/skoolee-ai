@@ -39,6 +39,10 @@ export async function recordPayment(tx: TxClient, input: RecordPaymentInput) {
   await tx.$queryRaw`SELECT id FROM invoices WHERE id=${scopedInvoice.id} AND school_id=${scopedInvoice.schoolId} FOR UPDATE`;
   const invoice = await tx.invoice.findUnique({ where: { id: input.invoiceId } });
   if (!invoice) throw new Error("Invoice not found");
+  // A cancelled invoice is terminal until an explicit reinstatement workflow
+  // changes its status. Keep this guard inside the transaction after the row
+  // lock so every caller, including provider callbacks, cannot resurrect it.
+  if (invoice.status === "CANCELLED") throw new Error("Cancelled invoices cannot accept payments");
 
   const fineAmount = Math.max(0, Math.round(input.fineAmount ?? 0));
   const discountAmount = Math.max(0, Math.round(input.discountAmount ?? 0));
