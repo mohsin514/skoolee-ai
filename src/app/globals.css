@@ -826,7 +826,7 @@ button:disabled,
      changes the outer border (matches the production login fields). */
   --field-shadow-rest: 0 1px 2px rgb(55 27 77 / 0.05);
   --field-shadow-hover: var(--field-shadow-rest);
-  --field-focus-border: #b9a0dc;
+  --field-focus-border: #9b7ab8;
   /* Focus = slightly bolder edge (1px inset on the 1px border, no layout
      shift) + a tight same-hue ring + a soft diffuse "smoky" glow. */
   --field-focus-ring: inset 0 0 0 2px var(--field-focus-border), 0 4px 14px -4px rgb(129 39 207 / 0.18);

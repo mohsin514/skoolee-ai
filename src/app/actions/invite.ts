@@ -88,7 +88,7 @@ async function getRequestBaseUrl() {
   return `http://localhost:${process.env.PORT || "3000"}`;
 }
 
-export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
+export async function inviteStaff(data: z.infer<typeof InviteSchema>, options: { returnDeliveryStatus?: boolean } = {}) {
   const session = await getAuthUser();
   // G7b: the institution authority (by role and kind) or a campus delegate; never the owner flag alone.
   if (!session || !membershipAuthority(session).canManage) {
@@ -105,17 +105,19 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
 
   const campus = await prisma.campus.findUnique({ where: { id: targetCampusId } });
   const baseUrl = await getRequestBaseUrl();
+  let deliveryStatus: "sent" | "failed" = "sent";
   try {
     await sendInviteEmail(valid.email, valid.role, campus?.name || 'Your Campus', token, baseUrl);
     await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "sent", lastDeliveryAt: new Date() } });
   } catch {
+    deliveryStatus = "failed";
     await prisma.staffInvitation.update({ where: { id: invite.id }, data: { deliveryStatus: "failed", lastDeliveryAt: new Date() } });
     // A disabled or development-provider environment can never deliver mail and
     // is used for synthetic/preview verification. The invitation is already
     // saved and its link is returned below, so that must not be reported as a
     // failed invitation. A real provider outage still fails loudly.
     const readiness = emailProviderReadiness();
-    if (readiness.mode !== "disabled" && readiness.mode !== "development") {
+    if (!options.returnDeliveryStatus && readiness.mode !== "disabled" && readiness.mode !== "development") {
       throw new ApiError("Invitation saved, but email could not be delivered. Use Resend Invite to try again.", 503);
     }
   }
@@ -131,7 +133,7 @@ export async function inviteStaff(data: z.infer<typeof InviteSchema>) {
     roleName: valid.role,
   });
 
-  return { success: true, inviteLink };
+  return { success: true, inviteLink, deliveryStatus };
 }
 
 export async function removeStaff(userId: string) {

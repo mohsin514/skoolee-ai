@@ -5,7 +5,11 @@
 export type Installment = { dueDate: string; amount: number };
 export type InstallmentState = "PAID" | "PART_PAID" | "OVERDUE" | "DUE_TODAY" | "NOT_YET_DUE";
 
-const isDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+const isDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
 
 /** Why a proposed schedule is not acceptable, or null when it is. */
 export function validatePlan(installments: Installment[], balance: number, today: string): string | null {

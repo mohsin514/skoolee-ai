@@ -161,15 +161,14 @@ test("a campus without a campus admin shows what waits there when the loader ser
   for (const label of ["Fee adjustments requested: {0}", "Applications awaiting a decision: {0}", "Leave requests pending: {0}"]) assert.ok(page.includes(label), label);
 });
 
-test("the group Overview leads with the AI Workflows flagship (addendum 2026-10-22)", () => {
+test("the group Overview offers one readiness entry and keeps approvals and refresh available", () => {
   const page = code("src/app/super/page.tsx");
   assert.match(page, /tourAnchor="super\.today\.flagship-ai"/);
   assert.match(page, /const aiWorkflows = access\.has\("ai"\) && access\.has\("schoolAi"\)/);
-  assert.match(page, /const setupFirst = aiWorkflows && data\.aiSetupPending === true/);
-  assert.match(page, /primaryAction=\{setupFirst \? undefined : review\}/, "while the school is not set up, the card's setup questionnaire is THE primary action");
-  assert.match(page, /action=\{\{ label: "Start the setup questionnaire", href: "\/ai\?workflow=schoolSetup" \}\}/);
-  assert.match(page, /secondaryActions=\{setupFirst && review \? \[review\] : undefined\}/, "approvals stay one click away");
-  assert.match(page, /href: "\/ai" \}/, "afterwards the card opens AI Workflows");
+  assert.match(page, /primaryAction=\{review\}/);
+  assert.match(page, /href: "\/setup\/readiness"/);
+  assert.match(page, /id: "refresh-group"/);
+  assert.doesNotMatch(page, /<SetupPrompt/, "the group does not get a duplicate campus-setup card");
 });
 
 test("every console view sits in the shell's one page card, with the new skeletons (addendum 2026-10-22)", () => {
@@ -195,7 +194,7 @@ test("the accountant keeps a currency review surface (§2.1 row 9, audit P4-G2)"
 
 test("pilot evidence's primary is \"Add evidence\" in a dialog (§4.4b, F16, audit P4-G13)", () => {
   const pilots = code("src/components/owner/PilotEvidence.tsx");
-  assert.match(pilots, /primaryAction=\{detail \? \{ id: "add-evidence", label: "Add evidence"/);
+  assert.match(pilots, /primaryAction=\{currentDetail \? \{ id: "add-evidence", label: "Add evidence"/);
   assert.match(pilots, /<Modal title=\{ui\("Add evidence"\)\}/);
   assert.doesNotMatch(pilots, /window\.prompt/);
 });

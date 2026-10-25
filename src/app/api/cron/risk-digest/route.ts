@@ -12,8 +12,11 @@ export const maxDuration = 60;
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 export async function POST(req: NextRequest) {
+  if (!CRON_SECRET) {
+    return Response.json({ error: "Cron endpoint is not configured" }, { status: 503 });
+  }
   const authHeader = req.headers.get("authorization");
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${CRON_SECRET}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
