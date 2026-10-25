@@ -93,8 +93,16 @@ export async function GET(req: NextRequest) {
     const flag = (key: string) => ["1", "true"].includes(searchParams.get(key) ?? "");
     const missingGuardian = flag("missingGuardian");
     const noLogin = flag("noLogin");
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10), 1), 200);
+    const parsePageParam = (name: string, fallback: number, max: number) => {
+      const raw = searchParams.get(name);
+      if (raw === null || raw === "") return fallback;
+      if (!/^\d+$/.test(raw)) throw new ApiError(`${name} must be a positive integer`, 400);
+      const value = Number(raw);
+      if (!Number.isSafeInteger(value) || value < 1) throw new ApiError(`${name} must be a positive integer`, 400);
+      return Math.min(value, max);
+    };
+    const page = parsePageParam("page", 1, Number.MAX_SAFE_INTEGER);
+    const limit = parsePageParam("limit", 50, 200);
     const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
       ? null
       : await resolveCampusId(user, requestedCampusId);

@@ -394,7 +394,7 @@ export function campusRows(campuses: any[]): CampusRow[] {
         .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0), campus.currency ?? defaultLocale.currency,
     );
     const collected = fromMinor(
-      ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0), campus.currency ?? defaultLocale.currency,
+      Object.entries(invoice).filter(([status]) => status !== "CANCELLED").reduce((sum, [status, value]: [string, any]) => sum + (value?.collected ?? (status === "PAID" ? value?.amount ?? 0 : 0)), 0), campus.currency ?? defaultLocale.currency,
     );
 
     const percentages = (campus.students ?? [])
