@@ -85,8 +85,8 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
 
   return <div className="sk-panel space-y-4 p-5" data-class-register data-register-status={data?.register.status ?? ""}>
     <div className="flex flex-wrap items-end gap-3">
-      <FormField name="register-class" label={ui("Class")}><Select value={classId} onChange={event => { setClassId(event.target.value); setData(null); }} className="w-full sm:min-w-[220px]">{classes.map(cls => <option key={cls.id} value={cls.id}>{cls.label}</option>)}</Select></FormField>
-      <FormField name="register-date" label={ui("Date")}><Input type="date" value={date} max={data?.today} onChange={event => setDate(event.target.value)} /></FormField>
+      <FormField name="register-class" label={ui("Class")} className="min-w-0 flex-1 sm:flex-none"><Select value={classId} onChange={event => { setClassId(event.target.value); setData(null); }} className="w-full min-w-0 sm:min-w-[220px]">{classes.map(cls => <option key={cls.id} value={cls.id}>{cls.label}</option>)}</Select></FormField>
+      <FormField name="register-date" label={ui("Date")} className="min-w-0 flex-1 sm:flex-none"><Input type="date" value={date} max={data?.today} onChange={event => setDate(event.target.value)} className="w-full min-w-0 max-w-full" /></FormField>
       {data ? <Badge variant={submitted ? "success" : "warning"} dot data-register-state>{submitted ? ui("Submitted") : ui("Not submitted")}</Badge> : null}
     </div>
     {loadError ? <ErrorState title={ui("Couldn't load the register")} description={loadError} onRetry={() => void load()} /> : null}
