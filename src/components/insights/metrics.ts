@@ -271,6 +271,7 @@ export interface FeeBucket {
   label: string;
   count: number;
   amount: number;
+  collected: number;
   color: string;
 }
 
@@ -302,6 +303,7 @@ export function feeBuckets(byStatus: any[], currency: string = defaultLocale.cur
         label: FEE_LABEL[status] ?? status,
         count,
         amount: (row._sum?.totalAmount ?? 0) / 10 ** minorUnits(currency),
+        collected: (row._sum?.totalAmountPaid ?? (status === "PAID" ? row._sum?.totalAmount : 0) ?? 0) / 10 ** minorUnits(currency),
         color: FEE_COLOR[status] ?? STATUS.neutral,
       };
     })
@@ -311,7 +313,7 @@ export function feeBuckets(byStatus: any[], currency: string = defaultLocale.cur
 
 export function collectionRate(buckets: FeeBucket[]): { collected: number; billed: number; rate: number } {
   const billed = buckets.filter((b) => b.status !== "CANCELLED").reduce((sum, b) => sum + b.amount, 0);
-  const collected = buckets.filter((b) => b.status === "PAID" || b.status === "PARTIAL").reduce((sum, b) => sum + b.amount, 0);
+  const collected = buckets.filter((b) => b.status !== "CANCELLED").reduce((sum, b) => sum + b.collected, 0);
   return { collected, billed, rate: billed > 0 ? Math.round((collected / billed) * 100) : 0 };
 }
 
