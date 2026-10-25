@@ -97,7 +97,9 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
   const [showPayment, setShowPayment] = useState(false);
   const [showBankImport, setShowBankImport] = useState(false);
 
+  const requestVersion = useRef(0);
   const loadPayments = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -112,7 +114,8 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
 
       const res = await fetch(`${API}/payments?${params}`);
       const json = await res.json();
-      if (json.success) {
+      if (version !== requestVersion.current) return;
+      if (res.ok && json.success) {
         setPayments(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
@@ -120,15 +123,17 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         setLoadFailed(true);
       }
     } catch {
+      if (version !== requestVersion.current) return;
       // Shown in place with a retry (role-ux R4), never a toast.
       setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [campusId, methodFilter, dateFrom, dateTo, searchQuery, page]);
 
   useEffect(() => {
-    loadPayments();
+    void loadPayments();
+    return () => { requestVersion.current++; };
   }, [loadPayments]);
 
   const handleSearch = () => {
@@ -188,6 +193,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
       {show("payments") ? <>
       <div className="flex flex-wrap items-center gap-2">
         <SystemSelect
+          aria-label={tr("Payment method")}
           value={methodFilter}
           onChange={(e) => { setMethodFilter(e.target.value); setPage(1); }}
           className=""
@@ -197,20 +203,28 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
           ))}
         </SystemSelect>
 
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-medium">
+          <span>{tr("From")}</span>
         <SystemInput
           type="date"
+          aria-label={tr("From")}
           value={dateFrom}
           onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
           className=""
           placeholder={tr("From")}
         />
+        </label>
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-medium">
+          <span>{tr("To")}</span>
         <SystemInput
           type="date"
+          aria-label={tr("To")}
           value={dateTo}
           onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
           className=""
           placeholder={tr("To")}
         />
+        </label>
 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
           <SystemInput

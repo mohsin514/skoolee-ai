@@ -25,12 +25,12 @@ async function context(viewport = { width: 1440, height: 1000 }): Promise<Browse
   if (secret) { await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
   return ctx;
 }
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Tamarind School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Quetta", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Tamarind Main", regId: campusId, city: "Quetta" } });
-  await db.user.create({ data: { email, password: await bcrypt.hash(password, 12), fullName: "Synthetic accountant", role: "ACCOUNTANT", schoolId, campusId, isActive: true, onboardingComplete: true } });
+  await db.user.create({ data: { email, password: await bcrypt.hash(password, 12), fullName: "Synthetic accountant", role: "ACCOUNTANT", schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { accountant: { v: 1, s: "done", at: new Date().toISOString() } } } });
   await db.academicCycle.create({ data: { schoolId, campusId, label: "2026", academicYear: 2026, status: "ACTIVE" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Three", section: "A", academicYear: 2026 } });
   await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Synthetic Zara Tamarind", rollNo: "T-1", gender: "FEMALE", enrollmentDate: new Date("2026-04-01Z") } });
@@ -52,6 +52,7 @@ test("a collection whose response is lost replays the same receipt on retry and 
     return route.continue();
   });
   await page.goto(`${base}/accountant?view=payments`);
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Record payment" }).first().click({ timeout: 30_000 });
   await page.getByPlaceholder("Search by name or roll no...").fill("Tamarind");
   await page.getByPlaceholder("Search by name or roll no...").press("Enter");
