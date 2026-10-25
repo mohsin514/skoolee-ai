@@ -27,7 +27,7 @@ let browser: Browser;
 
 async function user(key: string, role: string, campus = north, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { parent: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -40,7 +40,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   sessions.set(key, await ctx.storageState());
   return ctx;
 }
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 type Item = { id: string; kind: string; state: string; childId: string; childName: string; schoolName: string; campusName: string; overdue: boolean; completedByOther: boolean; title: string };
 type Inbox = { children: { id: string }[]; counts: { action: number }; items: Item[] };
 const inbox = async (ctx: BrowserContext, query = "") => { const r = await ctx.request.get(`${base}/api/parent/inbox${query}`); return { status: r.status(), data: (await r.json()).data as Inbox }; };
@@ -57,7 +57,7 @@ before(async () => {
     await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Lahore" } });
     await db.academicCycle.create({ data: { schoolId, campusId: id, label: "2026", academicYear: 2026, status: "ACTIVE" } });
   }
-  await user("lead", "PRINCIPAL"); await user("parent", "PARENT"); await user("coparent", "PARENT"); await user("otherParent", "PARENT"); await user("parent-ar", "PARENT", north, "ar");
+  await user("lead", "CAMPUS_ADMIN"); await user("parent", "PARENT"); await user("coparent", "PARENT"); await user("otherParent", "PARENT"); await user("parent-ar", "PARENT", north, "ar");
   await db.class.create({ data: { id: classN, schoolId, campusId: north, name: "Grade 4", section: "A", academicYear: 2026 } });
   await db.class.create({ data: { id: classS, schoolId, campusId: south, name: "Grade 2", section: "B", academicYear: 2026 } });
   const pupil = async (key: string, name: string, campus: string, classId: string) => { ids[key] = randomUUID(); await db.student.create({ data: { id: ids[key], schoolId, campusId: campus, classId, fullName: name, rollNo: key, gender: "MALE", status: "active", enrollmentDate: new Date("2026-04-01Z") } as never }); };
@@ -118,15 +118,15 @@ test("a co-guardian's answer, the school's request for detail, the reply and the
   assert.equal((await parent.request.post(`${base}/api/parent/attendance`, { data: { attendanceId: ids.aliOld, reason: "Very late explanation", proposedStatus: "EXCUSED" } })).status(), 409, "the window has closed at the source too");
 });
 
-test("a single-child link stays single-child", async () => {
+test("retired capability links do not authenticate or alter a signed-in family's scope", async () => {
   const token = await new SignJWT({ type: "parent_portal", studentId: ids.zoya, schoolId, relationshipId: ids.relZoya, guardianUserId: users.get("parent")!.id }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("1h").sign(secret);
   const anonymous = await browser.newContext();
-  const scoped = await inbox(anonymous, `?token=${encodeURIComponent(token)}`);
-  assert.equal(scoped.status, 200, JSON.stringify(scoped.data));
-  assert.deepEqual(scoped.data.children.map(c => c.id), [ids.zoya]);
-  assert.ok(scoped.data.items.every(item => item.childId === ids.zoya));
-  const probe = await inbox(anonymous, `?token=${encodeURIComponent(token)}&studentId=${ids.ali}`);
-  assert.ok(probe.data.items.every(item => item.childId === ids.zoya), "a sibling id does not widen a single-child link");
+  assert.equal((await inbox(anonymous, `?token=${encodeURIComponent(token)}`)).status, 403);
+  const parent = await context("parent");
+  const ordinary = (await inbox(parent)).data;
+  const withOldLink = (await inbox(parent, `?token=${encodeURIComponent(token)}`)).data;
+  assert.deepEqual(withOldLink.children, ordinary.children);
+  assert.deepEqual(withOldLink.items.map(item => item.id).sort(), ordinary.items.map(item => item.id).sort());
   await anonymous.close();
 });
 
@@ -152,4 +152,36 @@ test("screens: the inbox across siblings, opening a request switches child, Arab
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
   await shot(ar, "04-inbox-ar-390");
   await ar.close();
+});
+
+
+test("client query navigation reloads the chosen child without remounting the family layout", async () => {
+  const ctx = await context("parent"); const page = await ctx.newPage();
+  await page.goto(`${base}/parent?student=${ids.ali}`);
+  await page.locator("[data-family-inbox] [data-inbox-item]").first().waitFor();
+  const changed = page.waitForResponse(response => response.url().includes(`/api/parent/data?studentId=${ids.zoya}`) && response.status() === 200);
+  await page.evaluate(id => window.history.pushState(null, "", `/parent?student=${id}`), ids.zoya);
+  const payload = await (await changed).json();
+  assert.equal(payload.data.selectedStudentId, ids.zoya);
+  assert.equal(payload.data.student.fullName, "Synthetic Zoya Raza");
+  await ctx.close();
+});
+
+test("network failure clears stale family actions, offers retry and recovers without an unhandled rejection", async () => {
+  const ctx = await context("parent", { width: 390, height: 844 }); const page = await ctx.newPage(); const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto(`${base}/parent`);
+  const panel = page.locator("[data-family-inbox]");
+  await panel.locator("[data-inbox-item]").first().waitFor();
+  await page.route("**/api/parent/inbox", route => route.abort("failed"));
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await panel.getByRole("button", { name: "Try again" }).waitFor();
+  assert.equal(await panel.locator("[data-inbox-item]").count(), 0);
+  assert.equal(await panel.getAttribute("data-action-count"), "0");
+  await shot(page, "05-inbox-network-retry-390");
+  await page.unroute("**/api/parent/inbox");
+  await panel.getByRole("button", { name: "Try again" }).click();
+  await panel.locator("[data-inbox-item]").first().waitFor();
+  assert.deepEqual(errors, []);
+  await ctx.close();
 });

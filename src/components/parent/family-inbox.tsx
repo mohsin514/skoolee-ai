@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -88,14 +88,24 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
   const { selectChild } = useParentData();
   const [data, setData] = useState<Inbox | null>(null), [error, setError] = useState("");
   const [view, setView] = useState<View>("ACTION"), [child, setChild] = useState<string>("all");
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setError("");
-    const response = await fetch("/api/parent/inbox", { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) { setError(ui(json.error || "Family requests could not be loaded.")); return; }
-    setData(json.data);
+    try {
+      const response = await fetch("/api/parent/inbox", { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (version !== requestVersion.current) return;
+      if (!response.ok || !json.success) throw new Error(json.error || "Family requests could not be loaded.");
+      setData(json.data);
+    } catch (failure) {
+      if (version !== requestVersion.current) return;
+      setData(null);
+      setError(ui(failure instanceof Error ? failure.message : "Family requests could not be loaded."));
+    }
   }, [ui]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { requestVersion.current++; }; }, [load]);
+  useEffect(() => () => onTopAction?.(null), [onTopAction]);
   useEffect(() => { const refresh = () => { if (document.visibilityState === "visible") void load(); }; document.addEventListener("visibilitychange", refresh); return () => document.removeEventListener("visibilitychange", refresh); }, [load]);
 
   useEffect(() => {
