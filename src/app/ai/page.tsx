@@ -13,7 +13,11 @@ import { definitionForRole } from "@/lib/ai-workflows/questionnaire/service";
 import { isDemoSchool } from "@/lib/ai-workflows/demo";
 import { DemoSchoolBadge } from "@/components/ai-workflows/demo-school-badge";
 import { AskHero } from "@/components/ai-workflows/ask-hero";
-import { entriesForRole } from "@/lib/ai-workflows/registry";
+import { CatalogExplorer } from "@/components/ai-workflows/catalog-explorer";
+import type { CatalogItem } from "@/components/ai-workflows/catalog-card";
+import { atlasFor } from "@/lib/ai-workflows/atlas";
+import { capabilityContext, inTenant } from "@/lib/ai-workflows/jobs/actor";
+import { capability, entriesForRole } from "@/lib/ai-workflows/registry";
 import { getDisplayLocale } from "@/lib/locale/display";
 import type { UserRole } from "@/lib/roles";
 
@@ -63,13 +67,23 @@ export default async function SchoolAiPage({ searchParams }: { searchParams: Pro
   const tried = tryKey && workflowsV2 ? entriesForRole(user.role as UserRole).find(entry => entry.key === tryKey) : undefined;
   const initialMessage = tried ? tried.copy.examples[language]?.[0] ?? tried.copy.examples.en?.[0] : undefined;
   const demo = isDemoSchool(brand?.slug);
+  const atlas = personalWorkspace ? await inTenant(user, async () => atlasFor(user, await capabilityContext(user, personalCampus, language), language)) : null;
+  const catalogItems: CatalogItem[] = atlas ? [
+    ...atlas.runs.map(item => ({ ...item, cls: "A" as const, handledBy: [] })),
+    ...atlas.confirm.map(item => ({ ...item, cls: "B" as const, handledBy: [] })),
+    ...atlas.approval.map(item => ({ ...item, cls: "C" as const, handledBy: [] })),
+    ...atlas.unavailable.map(item => ({ ...item, cls: "X" as const, handledBy: [...item.whoCan] })),
+  ].map(item => ({ ...item, whenToUse: capability(item.key)?.copy.whenToUse[language] ?? "", example: capability(item.key)?.copy.examples[language]?.[0] ?? null })) : [];
   return (
-    <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.campuses[0]?.logoUrl || brand?.logoUrl || null} chatDock={user.schoolStatus !== "SUSPENDED"}>
+    <RoleFrame role={user.role} userName={user.fullName || user.email} userEmail={user.email} logoUrl={brand?.campuses[0]?.logoUrl || brand?.logoUrl || null} chatDock={user.role !== "APP_OWNER" && user.schoolStatus !== "SUSPENDED"}>
       {personalWorkspace ? (
-        <div className="mx-auto flex w-full max-w-3xl flex-col">
+        <div className="flex w-full min-w-0 flex-col gap-6">
           <AskHero headingId={HERO_ID} badge={demo ? <DemoSchoolBadge /> : null} />
+          {atlas && <CatalogExplorer embedded items={catalogItems} connected={atlas.connected} total={atlas.total} language={language} enabled={Boolean(workflowsV2)} practice={workflowsV2?.practiceMode ?? false} demo={false} />}
+          <div className="mx-auto w-full max-w-3xl">
           <AskWorkspace campusId={personalCampus} practiceMode={workflowsV2?.practiceMode ?? false} enabled={Boolean(workflowsV2)}
             examples={examples} initialMessage={initialMessage} heading="none" labelledBy={HERO_ID} />
+          </div>
         </div>
       ) : (
         <>

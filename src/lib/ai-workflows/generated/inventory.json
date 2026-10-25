@@ -12178,6 +12178,88 @@
   "source": "appendix-a"
  },
  {
+  "key": "assistant.app_knowledge",
+  "cluster": "C8 Reviewed RAG knowledge",
+  "method": "POST",
+  "route": "/api/ai-knowledge/search",
+  "roles": [
+   "APP_OWNER",
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL",
+   "TEACHER",
+   "STUDENT",
+   "PARENT",
+   "ACCOUNTANT",
+   "LIBRARIAN",
+   "RECEPTIONIST"
+  ],
+  "risk": "READ",
+  "idempotent": "yes",
+  "aiToday": "connected",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "knowledge.create",
+  "cluster": "C8 Reviewed RAG knowledge",
+  "method": "POST",
+  "route": "/api/ai-knowledge",
+  "roles": [
+   "APP_OWNER",
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "CREATE",
+  "idempotent": "no",
+  "aiToday": "excluded",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "knowledge.extract",
+  "cluster": "C8 Reviewed RAG knowledge",
+  "method": "POST",
+  "route": "/api/ai-knowledge/extract",
+  "roles": [
+   "APP_OWNER",
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "READ",
+  "idempotent": "no",
+  "aiToday": "excluded",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "knowledge.manage",
+  "cluster": "C8 Reviewed RAG knowledge",
+  "method": "PATCH",
+  "route": "/api/ai-knowledge/[id]",
+  "roles": [
+   "APP_OWNER",
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "versioned",
+  "aiToday": "excluded",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "capture.create_ticket",
   "cluster": "C9a school-ai exams and Exam Studio",
   "method": "POST",

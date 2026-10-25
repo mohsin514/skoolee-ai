@@ -27,6 +27,7 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  ragDocuments RagDocument[]
   aiWorkflowJobs AiWorkflowJob[]
   aiCapabilityGaps AiCapabilityGap[]
   aiSetupResponses AiSetupResponse[]
@@ -350,6 +351,48 @@ model School {
   assignmentFeedback      AssignmentFeedback[]
 
   @@map("schools")
+}
+
+/// Reviewed knowledge, always tenant scoped. Updates withdraw the old searchable version.
+model RagDocument {
+  id           String @id @default(uuid())
+  schoolId     String @map("school_id")
+  school       School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId     String? @map("campus_id")
+  title        String
+  content      String
+  roles        String[]
+  status       String @default("DRAFT")
+  version      Int @default(1)
+  checksum     String
+  indexMode    String? @map("index_mode")
+  createdById  String @map("created_by_id")
+  publishedById String? @map("published_by_id")
+  publishedAt  DateTime? @map("published_at")
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  chunks       RagChunk[]
+  @@unique([id, schoolId])
+  @@index([schoolId, status, campusId])
+  @@map("rag_documents")
+}
+
+model RagChunk {
+  id          String @id @default(uuid())
+  schoolId    String @map("school_id")
+  documentId  String @map("document_id")
+  document    RagDocument @relation(fields: [documentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  version     Int
+  ordinal     Int
+  text        String
+  startOffset Int @map("start_offset")
+  endOffset   Int @map("end_offset")
+  embedding   Float[]
+  model       String?
+  @@unique([documentId, version, ordinal])
+  @@index([schoolId, documentId])
+  @@map("rag_chunks")
 }
 
 // Reference-only durable orchestration ledger. Sensitive content stays in domain tables.

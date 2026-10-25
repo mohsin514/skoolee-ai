@@ -5,6 +5,7 @@ import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { resolveWorkspaceCampus } from "@/lib/school-ai/access";
 import { WorkflowError, toWorkflowError } from "../errors";
+import { normalizeText } from "../planner/normalize";
 import { planJob, type Generate } from "../planner/plan";
 import { observeHandoffs } from "../executor/handoff";
 import { assertQuestionnaireCurrent } from "./questionnaire";
@@ -14,6 +15,7 @@ import { sha256 } from "../executor/canonical";
 import { deriveJobStatus, deriveOutcome, nextStepAction, type StepStatus } from "../executor/scheduler";
 import { entryFor, runExecStep, runHandoffStep } from "../executor/step-runner";
 import { capability } from "../registry";
+import { checkCapabilityAccess } from "../registry/gates";
 import { appendEvent } from "./events";
 import { aiWorkflowsV2Enabled } from "../flag";
 import { mentionsCare } from "../pii/care-detector";
@@ -27,6 +29,7 @@ export const startJobSchema = z.strictObject({
   campusId: z.string().min(1).max(128).nullable().optional(),
   language: z.enum(["en", "ar", "ur"]),
   idempotencyKey: z.string().min(8).max(128).regex(/^[\w-]+$/),
+  parentJobId: z.string().min(1).max(128).optional(),
 });
 const JOB_TTL_MS = 7 * 86_400_000;
 const STEP_CAP = 25;
@@ -46,18 +49,29 @@ export function startJob(user: AuthUser, raw: unknown): Promise<AiWorkflowJob> {
     if (mentionsCare(input.message)) throw new WorkflowError("CARE_REFERRAL");
     const campusId = user.role === "APP_OWNER" ? null : user.role === "STUDENT" || user.role === "PARENT" ? user.campusId : await resolveWorkspaceCampus(user, input.campusId);
     if (input.campusId && input.campusId !== campusId) throw new WorkflowError("SCOPE_DENIED");
-    const requestHash = sha256({ message: input.message, campusId, role: user.role });
+    let knowledgeQuery: string | null = null;
+    let parentJobId: string | null = null;
+    if (input.parentJobId) {
+      const parent = await prisma.aiWorkflowJob.findFirst({ where: { ...jobWhere(user, input.parentJobId), actorRole: user.role, status: "COMPLETED" }, include: { steps: true } });
+      parentJobId = parent?.id ?? null;
+      const steps = parent?.steps.filter(step => step.planVersion === parent.planVersion) ?? [];
+      if (steps.length === 1 && steps[0].capabilityKey === "assistant.app_knowledge" && steps[0].status === "SUCCEEDED") {
+        const previous = (steps[0].modelInput as { query?: unknown })?.query;
+        if (typeof previous === "string") knowledgeQuery = (await import("@/lib/rag/core")).knowledgeFollowup(input.message, previous);
+      }
+    }
+    const requestHash = sha256({ message: input.message, campusId, role: user.role, ...(input.parentJobId ? { parentJobId: input.parentJobId } : {}) });
     const existing = await prisma.aiWorkflowJob.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: user.schoolId, actorId: user.userId, idempotencyKey: input.idempotencyKey } } });
     if (existing) { if (existing.requestHash !== requestHash) throw new WorkflowError("KEY_CONFLICT"); return existing; }
     try {
       return await prisma.$transaction(async tx => {
         const job = await tx.aiWorkflowJob.create({ data: {
           schoolId: user.schoolId, campusId, actorId: user.userId, actorRole: user.role, accessVersion: user.accessVersion ?? 0, origin: "FREEFORM",
-          language: input.language, requestHash, idempotencyKey: input.idempotencyKey, budget: DEFAULT_BUDGET, expiresAt: new Date(Date.now() + JOB_TTL_MS),
+          language: input.language, parentJobId, requestHash, idempotencyKey: input.idempotencyKey, budget: { ...DEFAULT_BUDGET, ...(knowledgeQuery ? { knowledgeQuery } : {}) }, expiresAt: new Date(Date.now() + JOB_TTL_MS),
           ...(user.role === "APP_OWNER" ? { unscopedReason: "platform owner request" } : {}),
         } });
         // The user's own words are the only evidence base an action may quote.
-        await tx.aiWorkflowSegment.create({ data: { schoolId: user.schoolId, jobId: job.id, ordinal: 0, kind: "REQUEST", text: input.message, normalized: input.message.normalize("NFKC").replace(/\s+/g, " ").trim() } });
+        await tx.aiWorkflowSegment.create({ data: { schoolId: user.schoolId, jobId: job.id, ordinal: 0, kind: "REQUEST", text: input.message, normalized: normalizeText(input.message) } });
         await appendEvent(tx, job, "JOB_STARTED");
         return tx.aiWorkflowJob.findUniqueOrThrow({ where: { id: job.id } });
       });
@@ -72,7 +86,7 @@ export function startJob(user: AuthUser, raw: unknown): Promise<AiWorkflowJob> {
   });
 }
 
-export interface PlannedStep { stepKey: string; capabilityKey: string; dependsOn?: string[]; input: unknown; missingFields?: string[] }
+export interface PlannedStep { stepKey: string; capabilityKey: string; dependsOn?: string[]; input: unknown; missingFields?: string[]; invalidFields?: string[] }
 
 /** Persists a plan. The planner (Slice 1e) is the normal caller; class floors come from the registry, never the plan. */
 export async function savePlan(user: AuthUser, jobId: string, steps: PlannedStep[]) {
@@ -148,8 +162,24 @@ export async function advanceJob(user: AuthUser, jobId: string, owner = "request
         let progressed = false;
         for (const step of steps) {
           const action = nextStepAction({ status: step.status as StepStatus, effectiveClass: step.effectiveClass as "A" | "B" | "C", dependsOn: step.dependsOn, missingFields: step.missingFields, confirmed: false }, statuses);
-          if (action === "none" || action === "wait" || action === "ask") continue;
+          if (action === "none" || action === "wait") continue;
           const entry = entryFor(step);
+          const access = await checkCapabilityAccess(ctx, entry);
+          if (!access.ok) {
+            await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "BLOCKED", errorCode: "ROLE_NOT_ALLOWED", finishedAt: new Date(), version: { increment: 1 } } });
+            progressed = true; continue;
+          }
+          if (action === "ask") {
+            const open = await prisma.aiWorkflowQuestion.count({ where: { jobId: job.id, schoolId: job.schoolId, stepId: step.id, status: "OPEN" } });
+            if (!open) await prisma.$transaction(async tx => {
+              const pointers = step.missingFields.length ? step.missingFields : ["/"];
+              for (const pointer of pointers.slice(0, entry.dialogueFields ? 1 : 8)) await tx.aiWorkflowQuestion.create({ data: {
+                schoolId: job.schoolId, jobId: job.id, stepId: step.id, pointer, kind: "TEXT", promptKey: "FIELD", promptParams: { capability: entry.key, pointer },
+              } });
+              await appendEvent(tx, job, "QUESTION_ASKED", step.id, { count: Math.min(pointers.length, entry.dialogueFields ? 1 : 8) });
+            });
+            continue;
+          }
           if (action === "skip") { await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "SKIPPED", finishedAt: new Date(), version: { increment: 1 } } }); progressed = true; continue; }
           const parsed = entry.input.safeParse(step.modelInput);
           if (!parsed.success) { await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { status: "NEEDS_INPUT", missingFields: parsed.error.issues.map(issue => `/${issue.path.join("/")}`), version: { increment: 1 } } }); progressed = true; continue; }
@@ -192,12 +222,35 @@ export function getJob(user: AuthUser, jobId: string) {
   return inTenant(user, async () => {
     const job = await prisma.aiWorkflowJob.findFirst({ where: jobWhere(user, jobId), include: { steps: { orderBy: { createdAt: "asc" } }, handoffs: true, questions: { where: { status: "OPEN" } } } });
     if (!job) throw new WorkflowError("NOT_FOUND");
-    return job;
+    // Historical chat receipts must not bypass a source withdrawal or an audience change.
+    const { readableWhere, assertKnowledgeAccess } = await import("@/lib/rag/service");
+    for (const step of job.steps) {
+      const receipt = step.receipt as { detail?: { citations?: Array<{ documentId: string; version: number }>; text?: string } } | null;
+      const citations = receipt?.detail?.citations;
+      if (!citations?.length) continue;
+      await assertKnowledgeAccess(user);
+      const current = await prisma.ragDocument.findMany({ where: { ...readableWhere(user), OR: citations.map(source => ({ id: source.documentId, version: source.version })) }, select: { id: true, version: true } });
+      if (citations.some(source => !current.some(doc => doc.id === source.documentId && doc.version === source.version))) {
+        step.receipt = { ...(step.receipt as Prisma.JsonObject), detail: { text: "This answer used a source that changed or is no longer available to you. Ask again for current information.", citations: [] } };
+      }
+    }
+    const conversation: Array<{ id: string; question: string; text: string }> = [];
+    let parentId = job.parentJobId;
+    for (let depth = 0; parentId && depth < 10; depth++) {
+      const parent = await prisma.aiWorkflowJob.findFirst({ where: { ...jobWhere(user, parentId), actorRole: user.role, status: "COMPLETED" }, include: { steps: true, segments: { orderBy: { ordinal: "asc" }, take: 1 } } });
+      const step = parent?.steps.find(item => item.planVersion === parent.planVersion && item.capabilityKey === "assistant.conversation" && item.status === "SUCCEEDED");
+      const text = (step?.receipt as { detail?: { text?: unknown } } | null)?.detail?.text;
+      if (!parent || typeof text !== "string") break;
+      conversation.unshift({ id: parent.id, question: parent.segments[0]?.text ?? "", text });
+      parentId = parent.parentJobId;
+    }
+    const request = await prisma.aiWorkflowSegment.findFirst({ where: { schoolId: user.schoolId, jobId: job.id, kind: "REQUEST" }, orderBy: { ordinal: "asc" }, select: { text: true } });
+    return { ...job, conversation, requestText: request?.text };
   });
 }
 
 export function listJobs(user: AuthUser) {
-  return inTenant(user, () => prisma.aiWorkflowJob.findMany({ where: { schoolId: user.schoolId, actorId: user.userId }, orderBy: { updatedAt: "desc" }, take: 20 }));
+  return inTenant(user, () => prisma.aiWorkflowJob.findMany({ where: { schoolId: user.schoolId, actorId: user.userId }, orderBy: { updatedAt: "desc" }, take: 20, include: { segments: { where: { kind: "REQUEST" }, orderBy: { ordinal: "asc" }, take: 1, select: { text: true } } } }));
 }
 
 /** Events after `seq` for live progress; only the job's own actor may read them (control P14). */

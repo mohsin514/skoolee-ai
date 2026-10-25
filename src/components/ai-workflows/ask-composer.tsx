@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { ArrowUp, ShieldCheck, Sparkles } from "lucide-react";
+import styles from "./ask-composer.module.css";
+import { ArrowUp, Mic, Paperclip, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Kbd, KbdHint } from "@/components/ui/kbd";
+import { IconButton } from "@/components/ui/icon-button";
+import { useComposerInputs } from "./use-composer-inputs";
 import { LiveAnnouncer } from "@/components/ui/live-announcer";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -32,8 +34,7 @@ const prefersReducedMotion = () => typeof window !== "undefined" && window.match
  * focused (read-only) so focus never drops to the page.
  *
  * The placeholder cycles through the role's examples while the field is empty and unfocused (never
- * under reduced motion). Keyboard hints show only while focused with a fine pointer; otherwise the
- * footer says how AI acts, in words that stay true for steps that run on their own.
+ * under reduced motion). The toolbar contains text import, dictation and send only.
  */
 export function AskComposer({ value, onChange, onSubmit, starting, language, labelledBy, examples, fieldRef, mode = "ask", banner }: {
   value: string; onChange: (value: string) => void; onSubmit: () => void; starting: boolean; language: Lang;
@@ -46,6 +47,9 @@ export function AskComposer({ value, onChange, onSubmit, starting, language, lab
   const answering = mode === "answer";
   const max = answering ? ANSWER_MAX : ASK_MAX;
   const format = useWorkflowFormat();
+  const file = useRef<HTMLInputElement>(null);
+  const inputs = useComposerInputs(value, onChange, max, language, starting);
+  const occupied = starting || inputs.reading || inputs.listening;
   const hintId = useId();
   const length = value.length;
   const ready = Boolean(value.trim());
@@ -94,32 +98,23 @@ export function AskComposer({ value, onChange, onSubmit, starting, language, lab
   const example = pool.length ? pool[exampleIndex % pool.length] : null;
   const placeholder = answering ? runText("answerPlaceholder", language) : example ? runText("askPlaceholderExample", language, example) : t(UI, "askPlaceholder", language);
   // An empty field: the button invites typing instead of looking switched off.
-  const send = () => { if (ready) onSubmit(); else fieldRef.current?.focus(); };
+  const send = () => { if (ready && !occupied) onSubmit(); else fieldRef.current?.focus(); };
 
   return (
     <div
-      data-field-shell data-ready={ready || undefined} data-mode={mode}
+      data-field-shell data-ask-composer data-ready={ready || undefined} data-mode={mode}
       className={cn(
+        styles.composer,
         "group/ask rounded-3xl border border-border bg-card shadow-sm transition-[border-color,box-shadow] duration-(--duration-control)",
         (starting || answering) && "border-brand-300 shadow-glow",
       )}
     >
       {banner ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-brand-100 bg-brand-50/70 px-3 py-2 text-xs sm:px-4">{banner}</div> : null}
       {/* One surface: the input group strips the field's own border, so there is no box inside the box. */}
-      <div className="sk-input-group flex items-start pt-3 sm:pt-4">
-        <span
-          aria-hidden="true"
-          className={cn(
-            "order-first ms-3 mt-1 flex size-9 shrink-0 sm:ms-4 items-center justify-center rounded-2xl bg-brand-50 text-primary ring-1 ring-brand-200/70 transition-colors duration-(--duration-control)",
-            "group-focus-within/ask:bg-primary group-focus-within/ask:text-primary-foreground group-focus-within/ask:ring-primary",
-            starting && "motion-safe:animate-pulse-subtle",
-          )}
-        >
-          <Sparkles className="size-4" />
-        </span>
+      <div className={cn("sk-input-group flex items-start pt-3 sm:pt-4", styles.field)}>
         <Textarea
           ref={fieldRef} data-ai-request={answering ? undefined : ""} data-ai-answer={answering ? "" : undefined} value={value} rows={2} maxLength={max} dir="auto" enterKeyHint="send"
-          readOnly={starting} aria-busy={starting || undefined}
+          readOnly={occupied} aria-busy={starting || undefined}
           placeholder={placeholder} aria-labelledby={answering ? undefined : labelledBy} aria-label={answering ? runText("yourAnswer", language) : labelledBy ? undefined : t(UI, "askTitle", language)} aria-describedby={hintId}
           className="min-h-[4.5rem] max-h-64 resize-none overflow-y-auto pt-2 pb-1 text-base leading-relaxed [field-sizing:content] placeholder:text-ink-faint"
           onFocus={() => setFocused(true)}
@@ -129,25 +124,17 @@ export function AskComposer({ value, onChange, onSubmit, starting, language, lab
             if (event.key !== "Enter" || isComposing(event)) return;
             if (event.shiftKey && !(event.metaKey || event.ctrlKey)) return;
             event.preventDefault();
-            onSubmit();
+            if (ready && !occupied) onSubmit();
           }}
         />
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border-subtle px-3 py-2.5 sm:px-4">
-        <p id={hintId} className="flex min-w-0 flex-1 basis-56 items-center gap-1.5 text-xs text-ink-muted">
-          <span className="sr-only">{t(UI, "askHint", language)} </span>
-          {focused ? (
-            <KbdHint className="flex-wrap">
-              <Kbd>Enter</Kbd> {runText("kbdSend", language)}
-              <span className="px-1 text-ink-faint" aria-hidden="true">·</span>
-              <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> {runText("kbdNewLine", language)}
-            </KbdHint>
-          ) : null}
-          <span className={cn("inline-flex min-w-0 items-center gap-1.5", focused && "sk-ai-coarse-only")}>
-            <ShieldCheck aria-hidden="true" className="size-4 shrink-0 text-primary" />
-            <span className="min-w-0">{runText("askTrust", language)}</span>
-          </span>
-        </p>
+      <p id={hintId} className="sr-only">{t(UI, "askHint", language)}</p>
+      <div className="flex items-center gap-1 px-3 pb-3 sm:px-4">
+        <input ref={file} type="file" accept=".txt,.md,.csv,text/plain,text/csv,text/markdown" className="hidden" aria-label={inputs.c.attach} onChange={event => { void inputs.importFile(event.target.files?.[0]); event.target.value = ""; }} />
+        <IconButton label={inputs.c.attach} tooltip={inputs.c.fileHint} disabled={occupied} onClick={() => file.current?.click()} className="rounded-full text-ink-muted"><Paperclip aria-hidden="true" /></IconButton>
+        <IconButton label={inputs.listening ? inputs.c.stop : inputs.c.voice} aria-pressed={inputs.listening} disabled={starting || inputs.reading} onClick={inputs.dictate} className={cn("rounded-full text-ink-muted", inputs.listening && "bg-brand-100 text-primary motion-safe:animate-pulse")}>
+          {inputs.listening ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />}
+        </IconButton>
         {level > 0 ? (
           <span className={cn("text-2xs font-semibold tabular-nums", level === 2 ? "text-status-warning-text" : "text-ink-muted")}>
             <Num value={length} /> / <Num value={max} />
@@ -155,13 +142,14 @@ export function AskComposer({ value, onChange, onSubmit, starting, language, lab
         ) : null}
         <Button
           type="button" data-ai-start={answering ? undefined : ""} data-ai-answer-submit={answering ? "" : undefined} variant={ready || starting ? "default" : "outline"}
-          className={cn("ms-auto min-h-11 min-w-28 rounded-2xl", !ready && !starting && "text-primary")}
-          loading={starting} disabled={starting} aria-disabled={!ready || undefined} onClick={send}
+          className="ms-auto size-11 min-w-11 rounded-full p-0 shadow-sm"
+          aria-label={answering ? t(UI, "answer", language) : t(UI, "send", language)} title={answering ? t(UI, "answer", language) : t(UI, "send", language)}
+          loading={starting} disabled={occupied || !ready} onClick={send}
         >
           {starting ? null : <ArrowUp aria-hidden="true" className={cn("transition-transform duration-(--duration-control)", ready && "motion-safe:group-focus-within/ask:-translate-y-0.5")} />}
-          {answering ? t(UI, "answer", language) : t(UI, "send", language)}
         </Button>
       </div>
+      {(inputs.listening || inputs.feedback) ? <p className="px-4 pb-3 text-xs text-ink-muted" role="status">{inputs.listening ? inputs.c.listening : inputs.feedback}</p> : null}
       <LiveAnnouncer message={announcement} />
     </div>
   );

@@ -261,6 +261,8 @@ export const TENANT_MODELS = new Set<string>([
   "purchaseRequest",
   "queueItemEvent",
   "queueItemState",
+  "ragChunk",
+  "ragDocument",
   "readinessTask",
   "receiptSequence",
   "reportCard",

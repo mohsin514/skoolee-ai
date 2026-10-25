@@ -43,6 +43,10 @@ import { FormField } from "@/components/ui/form-field";
 
 const ROLE_OPTIONS: { value: UserRole; hint: string }[] = [
   { value: "SUPER_ADMIN", hint: "A school group's admin: every campus and the subscription" },
+  { value: "ADMIN", hint: "Runs a single school" },
+  { value: "ACCOUNTANT", hint: "Manages campus fees and accounts" },
+  { value: "LIBRARIAN", hint: "Manages campus books and lending" },
+  { value: "RECEPTIONIST", hint: "Manages the campus front desk" },
   { value: "CAMPUS_ADMIN", hint: "Runs operations on one campus" },
   { value: "PRINCIPAL", hint: "Leads academics on one campus" },
   { value: "TEACHER", hint: "Assigned classes only · uses a seat" },
@@ -205,17 +209,21 @@ const KIND_CHOICES: { value: InstitutionKindChoice; title: string; hint: string 
   { value: "STANDALONE", title: "Single school", hint: "One campus. The owner is the school admin: daily running and the subscription." },
 ];
 
-export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export interface SchoolProvisionPrefill {
+  schoolName?: string; city?: string; ownerName?: string; ownerEmail?: string; contactEmail?: string;
+  campusName?: string; kind?: "GROUP" | "STANDALONE"; plan?: PlanType;
+}
+export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHandoffId }: { onClose: () => void; onCreated: () => void; prefill?: SchoolProvisionPrefill; workflowHandoffId?: string }) {
   const t = useUiText();
   const locale = useLocale();
   const [form, setForm] = useState({
-    schoolName: "", city: "", contactEmail: "",
-    ownerName: "", ownerEmail: "", phone: "",
-    campusName: "", campusCity: "", board: "", address: "",
-    plan: "FREE" as PlanType, status: "TRIAL",
+    schoolName: prefill?.schoolName ?? "", city: prefill?.city ?? "", contactEmail: prefill?.contactEmail ?? "",
+    ownerName: prefill?.ownerName ?? "", ownerEmail: prefill?.ownerEmail ?? "", phone: "",
+    campusName: prefill?.campusName ?? "", campusCity: "", board: "", address: "",
+    plan: prefill?.plan && prefill.plan in PLANS ? prefill.plan : "FREE" as PlanType, status: "TRIAL",
   });
   // G22: no default — the operator states whether this is a school group or a single school.
-  const [kind, setKind] = useState<InstitutionKindChoice | null>(null);
+  const [kind, setKind] = useState<InstitutionKindChoice | null>(prefill?.kind === "GROUP" || prefill?.kind === "STANDALONE" ? prefill.kind : null);
   const [password, setPassword] = useState(makePassword());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -236,7 +244,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
       const res = await fetch("/api/owner/schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, kind, password }),
+        body: JSON.stringify({ ...form, kind, password, ...(workflowHandoffId ? { workflowHandoffId } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "");

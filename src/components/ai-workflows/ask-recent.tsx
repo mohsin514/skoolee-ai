@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useId, useState } from "react";
 import { History } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Alert } from "@/components/ui/alert";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { fillNode, runText } from "./run-links";
 import { Num, useWorkflowFormat } from "./workflow-format";
 import { StateNode } from "./workflow-marks";
 
-interface JobRow { id: string; status: string; outcome: string | null; version: number; createdAt: string; updatedAt: string }
+interface JobRow { id: string; title: string | null; status: string; outcome: string | null; version: number; createdAt: string; updatedAt: string }
 
 const NEEDS_YOU = new Set(["WAITING_CONFIRM", "NEEDS_INPUT"]);
 type BadgeVariant = NonNullable<BadgeProps["variant"]>;
@@ -40,13 +41,13 @@ async function readJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 /**
- * The actor's own recent requests (up to 5). Requests waiting for the person float to the top.
- * Titles come from each run's real steps; until they load only the status shows. Ids never enter the URL.
+ * The actor's own recent requests (up to 20). Requests waiting for the person float to the top.
+ * Titles come from the original request in the actor-scoped list response.
  */
 export function AskRecent({ language, currentId, refreshKey, onOpen, headingLevel = 3 }: { headingLevel?: 2 | 3; language: Lang; currentId: string | null; refreshKey: string | null; onOpen: (run: RunView) => void }) {
   const [rows, setRows] = useState<JobRow[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [titles, setTitles] = useState<Record<string, string>>({});
+  const [query, setQuery] = useState("");
   const [opening, setOpening] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const headingId = useId();
@@ -59,27 +60,11 @@ export function AskRecent({ language, currentId, refreshKey, onOpen, headingLeve
       try {
         const { jobs } = await readJson<{ jobs: JobRow[] }>("/api/ai-workflows", controller.signal);
         const sorted = [...jobs].sort((a, b) => Number(NEEDS_YOU.has(b.status)) - Number(NEEDS_YOU.has(a.status)));
-        setRows(sorted.slice(0, 5)); setFailed(false);
+        setRows(sorted); setFailed(false);
       } catch { if (!controller.signal.aborted) setFailed(true); }
     })();
     return () => controller.abort();
   }, [refreshKey, attempt]);
-
-  // Lazy, real titles for the visible rows only.
-  useEffect(() => {
-    if (!rows) return;
-    const controller = new AbortController();
-    for (const row of rows) {
-      if (titles[row.id] !== undefined) continue;
-      void readJson<{ run: RunView }>(`/api/ai-workflows/${row.id}`, controller.signal).then(({ run }) => {
-        const unique = [...new Set(run.steps.map(step => step.title))];
-        if (unique.length === 0) return;
-        const shown = unique.slice(0, 2).join(" · ");
-        setTitles(current => ({ ...current, [row.id]: unique.length > 2 ? `${shown} +${format.count(unique.length - 2)}` : shown }));
-      }, () => undefined);
-    }
-    return () => controller.abort();
-  }, [rows]);
 
   const open = useCallback(async (id: string) => {
     setOpening(id);
@@ -88,14 +73,17 @@ export function AskRecent({ language, currentId, refreshKey, onOpen, headingLeve
     finally { setOpening(null); }
   }, [onOpen]);
 
+  const filtered = rows?.filter(row => (row.title ?? "").toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const searchLabel = language === "ar" ? "ابحث في آخر 20 طلبًا" : language === "ur" ? "آخری 20 درخواستوں میں تلاش کریں" : "Search your latest 20 requests";
   const waiting = rows?.filter(row => NEEDS_YOU.has(row.status)).length ?? 0;
 
   return (
     <section data-ai-recent aria-labelledby={headingId} className="space-y-3">
-      <Heading id={headingId} className="flex items-center gap-2 text-sm font-semibold text-ink-strong">
+      <Heading id={headingId} className="sr-only">
         <History aria-hidden="true" className="size-4 text-ink-muted" />
         {t(UI, "history", language)}
       </Heading>
+      <Input type="search" value={query} onChange={event => setQuery(event.target.value)} aria-label={searchLabel} placeholder={searchLabel} />
       {failed && !rows ? (
         <ErrorState variant="panel" title={runText("recentError", language)} onRetry={() => { setFailed(false); setAttempt(value => value + 1); }} retryLabel={runText("retry", language)} />
       ) : !rows ? (
@@ -105,8 +93,9 @@ export function AskRecent({ language, currentId, refreshKey, onOpen, headingLeve
       ) : (
         <>
           {waiting > 0 ? <Alert compact tone="warning" live="off">{fillNode(runText("recentWaiting", language), <Num value={waiting} />)}</Alert> : null}
+          {filtered?.length === 0 ? <p role="status" className="py-6 text-center text-sm text-ink-muted">{language === "ar" ? "لا توجد نتائج مطابقة" : language === "ur" ? "کوئی مماثل درخواست نہیں ملی" : "No matching requests. Try another search."}</p> : null}
           <ul className="sk-stagger space-y-1">
-            {rows.map(row => (
+            {filtered?.map(row => (
               <li key={row.id}>
                 <Button type="button" variant="ghost" data-ai-recent-run={row.id} aria-current={row.id === currentId ? "true" : undefined}
                   loading={opening === row.id} disabled={Boolean(opening)} onClick={() => void open(row.id)}
@@ -116,7 +105,7 @@ export function AskRecent({ language, currentId, refreshKey, onOpen, headingLeve
                     {NEEDS_YOU.has(row.status) ? <span aria-hidden="true" className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-status-warning-text ring-2 ring-card" /> : null}
                   </span>
                   <span className="block min-w-0 flex-1 space-y-0.5">
-                    {titles[row.id] ? <span dir="auto" className="block truncate text-sm font-semibold text-ink-strong">{titles[row.id]}</span> : null}
+                    <span dir="auto" className="block truncate text-sm font-semibold text-ink-strong">{row.title || runStatusWords(row.status, language)}</span>
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-ink-muted">
                       <Badge size="sm" variant={TONE[row.status] ?? "neutral"}>{runStatusWords(row.status, language)}</Badge>
                       <time dateTime={row.updatedAt}>{format.relative(row.updatedAt)}</time>

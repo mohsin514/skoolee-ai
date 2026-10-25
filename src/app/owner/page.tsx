@@ -13,6 +13,7 @@
  *   ConfirmAction; a failed load is an inline ErrorState with retry, never a toast (R4).
  */
 
+import { loadOwnerPages } from "@/lib/owner/load-pages";
 import { useConsoleView } from "@/components/nav/useConsoleView";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { Menu } from "@/components/ui/menu";
@@ -82,7 +83,7 @@ import {
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { PlatformOverview } from "@/components/insights";
-import { AddUserModal } from "@/components/owner/provisioning-modals";
+import { AddUserModal, ProvisionSchoolModal, type SchoolProvisionPrefill } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { formatPlanLimit, getPlanLimits } from "@/config/plans";
 import {
@@ -960,11 +961,29 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
+  const [showProvisionSchool, setShowProvisionSchool] = useState(false);
+  const [preparedSchool, setPreparedSchool] = useState<{ id: string; prefill: SchoolProvisionPrefill } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1") return;
+    const id = params.get("workflowHandoffId");
+    if (!id) { setShowProvisionSchool(true); return; }
+    let active = true;
+    void fetch(`/api/ai-workflows/handoffs/${encodeURIComponent(id)}`, { method: "POST" })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || body.handoff?.targetRoute !== `/owner?view=schools&new=1&workflowHandoffId=${id}`) throw new Error("Prepared request is unavailable");
+        if (active) { setPreparedSchool({ id, prefill: body.handoff.prefill }); setShowProvisionSchool(true); }
+      }).catch(() => { if (active) toast.error(t("Could not open the prepared school request. Open it again from AI Workflows.")); });
+    return () => { active = false; };
+  }, [t]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailSchool, setDetailSchool] = useState<SchoolRow | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  const loadSchoolsVersion = useRef(0);
   const loadSchools = useCallback(async (page = 1) => {
+    const version = ++loadSchoolsVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -975,6 +994,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
 
       const res = await fetch(`/api/owner/schools?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadSchoolsVersion.current) return;
       if (json.success) {
         setSchools(json.data);
         setPagination(json.pagination);
@@ -982,9 +1002,9 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadSchoolsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadSchoolsVersion.current) setLoading(false);
     }
   }, [search, statusFilter, planFilter]);
 
@@ -1016,18 +1036,11 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
   const exportSchools = async () => {
     setExporting(true);
     try {
-      const rows: SchoolRow[] = [];
-      for (let page = 1; page <= 50; page += 1) {
-        const qp = new URLSearchParams({ page: String(page), limit: "100" });
-        if (search) qp.set("search", search);
-        if (statusFilter) qp.set("status", statusFilter);
-        if (planFilter) qp.set("plan", planFilter);
-        const res = await fetch(`/api/owner/schools?${qp}`, { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error);
-        rows.push(...json.data);
-        if (page >= (json.pagination?.pages ?? 1)) break;
-      }
+      const qp = new URLSearchParams();
+      if (search) qp.set("search", search);
+      if (statusFilter) qp.set("status", statusFilter);
+      if (planFilter) qp.set("plan", planFilter);
+      const rows = await loadOwnerPages<SchoolRow>("/api/owner/schools", qp);
       downloadCsv("schools", ["name", "slug", "plan", "status", "city", "contact_email", "campuses", "students", "staff", "classes", "ai_credits_used", "ai_credits_limit", "created"],
         rows.map((row) => [row.name, row.slug, row.plan, row.status, row.city, row.contactEmail, row.campusCount, row.totalStudents, row.totalStaff, row.totalClasses, row.aiCreditsUsed, row.aiCreditsLimit, row.createdAt.slice(0, 10)]));
       toast.success(t("Export downloaded."));
@@ -1043,8 +1056,8 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
       <ViewHeader
         title="Schools"
         description="Every school on the platform, with its plan, status and size."
-        primaryAction={pendingRequests > 0 ? { id: "review-requests", label: t("Review requests ({0})", [dates.number(pendingRequests)]), icon: CreditCard, onClick: onOpenRequests } : undefined}
-        secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: () => void exportSchools(), loading: exporting, disabled: loading || pagination.total === 0 }]}
+        primaryAction={{ id: "provision", label: "Provision a school", icon: Building2, onClick: () => { setPreparedSchool(null); setShowProvisionSchool(true); } }}
+        secondaryActions={[...(pendingRequests > 0 ? [{ id: "review-requests", label: t("Review requests ({0})", [dates.number(pendingRequests)]), icon: CreditCard, onClick: onOpenRequests }] : []), { id: "export", label: "Export", icon: Download, onClick: () => void exportSchools(), loading: exporting, disabled: loading || pagination.total === 0 }]}
       />
 
       {stats ? (
@@ -1227,9 +1240,12 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
         )}
       </section>
 
+      {showProvisionSchool && <ProvisionSchoolModal prefill={preparedSchool?.prefill} workflowHandoffId={preparedSchool?.id} onClose={() => setShowProvisionSchool(false)} onCreated={() => { void loadSchools(); onRefreshStats(); }} />}
+
       {detailSchool && (
         <SchoolDetailModal
           school={detailSchool}
+          onStatusChange={() => { setDetailSchool(null); void loadSchools(pagination.page); onRefreshStats(); }}
           onClose={() => setDetailSchool(null)}
           onPlanChange={async (schoolId, newPlan) => {
             const ok = await changeSchoolPlan(schoolId, newPlan);
@@ -1275,6 +1291,7 @@ function UsersView() {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [search, setSearch] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
@@ -1290,37 +1307,36 @@ function UsersView() {
   const loadSchoolOptions = useCallback(async () => {
     if (schoolOptions.length) return;
     try {
-      const res = await fetch("/api/owner/schools?limit=100");
-      const json = await res.json();
-      if (json.success) {
-        setSchoolOptions(
-          json.data.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            plan: s.plan,
-            campuses: s.campuses?.map((c: any) => ({ id: c.id, name: c.name })) ?? [],
-          }))
-        );
-      }
+      const schools = await loadOwnerPages<SchoolRow>("/api/owner/schools");
+      setSchoolOptions(schools.map((school) => ({
+        id: school.id, name: school.name, plan: school.plan,
+        campuses: school.campuses.map((campus) => ({ id: campus.id, name: campus.name })),
+      })));
     } catch {
       toast.error(t("Could not load the school list for the new user. Close the form and try again."));
     }
   }, [schoolOptions.length, t]);
 
+  useEffect(() => { void loadSchoolOptions(); }, [loadSchoolOptions]);
+
   const filters = useCallback((qp: URLSearchParams) => {
     if (search) qp.set("search", search);
+    if (schoolFilter) qp.set("schoolId", schoolFilter);
     if (roleFilter) qp.set("role", roleFilter);
     if (statusFilter) qp.set("status", statusFilter);
     return qp;
-  }, [search, roleFilter, statusFilter]);
+  }, [search, roleFilter, statusFilter, schoolFilter]);
 
+  const loadUsersVersion = useRef(0);
   const loadUsers = useCallback(async (page = 1) => {
+    const version = ++loadUsersVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
       const qp = filters(new URLSearchParams({ page: String(page), limit: "25" }));
       const res = await fetch(`/api/owner/users?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadUsersVersion.current) return;
       if (json.success) {
         setUsers(json.data);
         setPagination(json.pagination);
@@ -1328,30 +1344,22 @@ function UsersView() {
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadUsersVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadUsersVersion.current) setLoading(false);
     }
   }, [filters]);
 
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
-  const hasFilters = Boolean(search || roleFilter || statusFilter);
-  const clearFilters = () => { setSearch(""); setRoleFilter(""); setStatusFilter(""); };
+  const hasFilters = Boolean(search || roleFilter || statusFilter || schoolFilter);
+  const clearFilters = () => { setSchoolFilter(""); setSearch(""); setRoleFilter(""); setStatusFilter(""); };
   const openAddUser = () => { void loadSchoolOptions(); setShowAddUser(true); };
 
   const exportUsers = async () => {
     setExporting(true);
     try {
-      const rows: UserRow[] = [];
-      for (let page = 1; page <= 50; page += 1) {
-        const qp = filters(new URLSearchParams({ page: String(page), limit: "100" }));
-        const res = await fetch(`/api/owner/users?${qp}`, { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error);
-        rows.push(...json.data);
-        if (page >= (json.pagination?.pages ?? 1)) break;
-      }
+      const rows = await loadOwnerPages<UserRow>("/api/owner/users", filters(new URLSearchParams()));
       downloadCsv("tenant-users", ["name", "email", "role", "school", "campus", "status", "last_sign_in", "created"],
         rows.map((row) => [row.fullName, row.email, row.role, row.school?.name, row.campus?.name, row.isActive ? "active" : "inactive", row.lastLogin?.slice(0, 10) ?? "", row.createdAt.slice(0, 10)]));
       toast.success(t("Export downloaded."));
@@ -1394,6 +1402,10 @@ function UsersView() {
               className={"w-full"}
             />
           </InputGroup>
+          <SystemSelect value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} aria-label={t("Filter by school")} className={FILTER_SELECT}>
+            <option value="">{t("All schools")}</option>
+            {schoolOptions.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+          </SystemSelect>
           <SystemSelect
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -1440,7 +1452,26 @@ function UsersView() {
           />
         ) : (
           <>
-              <Table containerClassName="overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
+              <div className="space-y-3 sm:hidden" data-owner-user-cards>
+                {users.map((u) => <article key={u.id} className="rounded-2xl border border-border-subtle bg-card p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold text-ink-strong"><bdi>{u.fullName}</bdi></p>
+                      <p className="mt-1 break-all text-xs text-ink-muted"><bdi dir="ltr">{u.email}</bdi></p>
+                    </div>
+                    <Menu label="More actions" align="end"
+                      trigger={<IconButton label={t("More actions for {0}", [u.fullName])} variant="outline"><MoreHorizontal aria-hidden="true" /></IconButton>}
+                      items={[{ id: "reset-password", label: t("Reset password"), icon: KeyRound, onSelect: () => { setSelectedUser(u); setShowPasswordModal(true); } }]} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2"><RoleBadge role={u.role} /><Badge size="sm" variant={u.isActive ? "success" : "neutral"} dot>{t(u.isActive ? "Active" : "Inactive")}</Badge></div>
+                  <dl className="mt-3 space-y-2 text-xs">
+                    <div><dt className="text-ink-subtle">{t("School")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.school?.name || "—"}</bdi></dd></div>
+                    <div><dt className="text-ink-subtle">{t("Campus")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.campus?.name || "—"}</bdi></dd></div>
+                    <div><dt className="text-ink-subtle">{t("Last sign-in")}</dt><dd className="mt-0.5 text-ink"><bdi>{dates.when(u.lastLogin)}</bdi></dd></div>
+                  </dl>
+                </article>)}
+              </div>
+              <Table containerClassName="hidden sm:block overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
                 <TableHeader>
                   <TableRow className="text-ink-subtle">
                     <TableHead className="px-4 py-3">{t("User")}</TableHead>
@@ -1516,7 +1547,7 @@ function UsersView() {
   );
 }
 
-const AUDIT_ACTIONS = ["login", "login_failed", "logout", "password_change", "school_suspended", "school_activated", "session_terminated", "ai_workflows_live_on", "ai_workflows_live_off"] as const;
+const AUDIT_ACTIONS = ["login", "login_failed", "logout", "password_change", "school_suspended", "school_activated", "session_terminated", "school_provisioned", "user_provisioned", "plan_changed", "plan_pricing_updated", "default_plan_pricing_updated", "payment_bank_details_updated", "delete_school", "ai_workflows_live_on", "ai_workflows_live_off"] as const;
 
 function AuditLogView() {
   const t = useUiText();
@@ -1533,7 +1564,9 @@ function AuditLogView() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  const loadLogsVersion = useRef(0);
   const loadLogs = useCallback(async (p = 1) => {
+    const version = ++loadLogsVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -1542,6 +1575,7 @@ function AuditLogView() {
 
       const res = await fetch(`/api/owner/audit-logs?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadLogsVersion.current) return;
       if (json.success) {
         setLogs(json.data);
         setTotalPages(json.pagination.pages);
@@ -1551,9 +1585,9 @@ function AuditLogView() {
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadLogsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadLogsVersion.current) setLoading(false);
     }
   }, [actionFilter, daysFilter]);
 
@@ -1562,16 +1596,9 @@ function AuditLogView() {
   const exportLogs = async () => {
     setExporting(true);
     try {
-      const rows: AuditEntry[] = [];
-      for (let p = 1; p <= 50; p += 1) {
-        const qp = new URLSearchParams({ page: String(p), limit: "100", days: daysFilter });
-        if (actionFilter) qp.set("action", actionFilter);
-        const res = await fetch(`/api/owner/audit-logs?${qp}`, { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error);
-        rows.push(...json.data);
-        if (p >= (json.pagination?.pages ?? 1)) break;
-      }
+      const qp = new URLSearchParams({ days: daysFilter });
+      if (actionFilter) qp.set("action", actionFilter);
+      const rows = await loadOwnerPages<AuditEntry>("/api/owner/audit-logs", qp);
       downloadCsv("platform-audit-log", ["time", "action", "status", "actor", "actor_role", "target_type", "target", "ip_address"],
         rows.map((row) => [row.createdAt, row.action, row.status, row.user?.fullName ?? "", row.user?.role ?? "", row.targetType ?? "", row.targetName ?? "", row.ipAddress ?? ""]));
       toast.success(t("Export downloaded."));
@@ -1748,7 +1775,9 @@ function SessionsView() {
   const [terminatingId, setTerminatingId] = useState<string | null>(null);
   const [confirmSession, setConfirmSession] = useState<SessionEntry | null>(null);
 
+  const loadSessionsVersion = useRef(0);
   const loadSessions = useCallback(async (page = 1) => {
+    const version = ++loadSessionsVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -1757,6 +1786,7 @@ function SessionsView() {
 
       const res = await fetch(`/api/owner/sessions?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadSessionsVersion.current) return;
       if (json.success) {
         setSessions(json.data);
         setPagination(json.pagination);
@@ -1764,9 +1794,9 @@ function SessionsView() {
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadSessionsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadSessionsVersion.current) setLoading(false);
     }
   }, [showActiveOnly]);
 
@@ -2637,8 +2667,10 @@ function SchoolDetailModal({
   onClose,
   onPlanChange,
   onAiWorkflowsLiveChange,
+  onStatusChange,
 }: {
   school: SchoolRow;
+  onStatusChange: () => void;
   onClose: () => void;
   onPlanChange: (schoolId: string, newPlan: string) => Promise<void>;
   onAiWorkflowsLiveChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void;
@@ -2649,6 +2681,23 @@ function SchoolDetailModal({
   // A plan change rewrites the school's limits and AI allowance, so it is confirmed first.
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [changingPlan, setChangingPlan] = useState(false);
+  const [statusAction, setStatusAction] = useState<"ACTIVE" | "SUSPENDED" | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const changeStatus = async () => {
+    if (!statusAction) return;
+    setChangingStatus(true);
+    try {
+      const response = await fetch(`/api/owner/schools/${school.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: statusAction }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error);
+      toast.success(t("School status updated."));
+      onStatusChange();
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The school could not be updated. Try again.")));
+    } finally { setChangingStatus(false); setStatusAction(null); }
+  };
 
   const confirmPlanChange = async () => {
     if (!pendingPlan) return;
@@ -2752,6 +2801,12 @@ function SchoolDetailModal({
               >
                 {t("Use the Subscription tab to move this school to another plan.")}
               </Alert>
+              <Alert tone={school.status === "ACTIVE" || school.status === "TRIAL" ? "warning" : "info"} title={t("School access")} live="off"
+                actions={<Button type="button" variant="outline" size="sm" onClick={() => setStatusAction(school.status === "ACTIVE" || school.status === "TRIAL" ? "SUSPENDED" : "ACTIVE")}>
+                  {t(school.status === "ACTIVE" || school.status === "TRIAL" ? "Suspend school" : "Restore school")}
+                </Button>}>
+                {t("Suspension pauses school access while retaining its records. Restoring access clears the suspension and expired payment grace period.")}
+              </Alert>
             </div>
           )}
 
@@ -2808,6 +2863,10 @@ function SchoolDetailModal({
           )}
         </div>
 
+        <ConfirmAction open={Boolean(statusAction)} title={t(statusAction === "SUSPENDED" ? "Suspend school" : "Restore school")}
+          description={t(statusAction === "SUSPENDED" ? "Pause access for this school? Its records will be retained." : "Restore access for this school and clear its expired payment grace period?")}
+          detail={<bdi>{school.name}</bdi>} busy={changingStatus} tone={statusAction === "SUSPENDED" ? "warning" : "success"}
+          onConfirm={changeStatus} onCancel={() => setStatusAction(null)} />
         <ConfirmAction
           open={Boolean(pendingPlan)}
           tone="warning"
@@ -2901,7 +2960,7 @@ function ChangePasswordModal({
       }
     >
         <Alert tone="warning" live="off" className="mb-6" title={t("Use this only for support")}>
-          {t("The school's own administrator normally resets passwords. This change is logged, and the person needs the new password at their next sign-in.")}
+          {t("This change is logged and signs the person out on every device. Share the temporary password securely; they must replace it at their next sign-in.")}
         </Alert>
 
         <div className="mb-6 flex items-center gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">

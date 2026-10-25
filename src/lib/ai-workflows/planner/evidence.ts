@@ -17,7 +17,8 @@ function sentences(text: string): string[] { return text.split(/(?<=[.!?؟۔\n])
 export function matchQuote(quote: string, segments: readonly Segment[]): EvidenceMatch | null {
   const needle = normalizeText(quote);
   if (needle.length < 2) return null;
-  for (const segment of segments) {
+  for (const original of segments) {
+    const segment = { ...original, normalized: normalizeText(original.normalized) };
     const at = segment.normalized.indexOf(needle);
     if (at >= 0) return { pointer: "", segmentId: segment.id, start: at, end: at + needle.length };
   }
@@ -62,7 +63,7 @@ export function expandPointers(input: unknown, pointers: readonly string[]): str
 
 export const joinThousands = (text: string) => text.replace(/(\d)[,\s.\u066C\u060C](?=\d{3}(?!\d))/g, "$1");
 
-export function checkEvidence(input: unknown, required: readonly string[], claims: readonly EvidenceClaim[], segments: readonly Segment[]) {
+export function checkEvidence(input: unknown, required: readonly string[], claims: readonly EvidenceClaim[], segments: readonly Segment[], literalFields: readonly string[] = []) {
   const matches: EvidenceMatch[] = [], missing: string[] = [];
   // "Rs 12,500" and "12 500" are the user's 12500: thousands separators are joined before comparing numbers.
   const userWords = new Set(segments.flatMap(segment => [...tokens(segment.normalized), ...tokens(joinThousands(segment.normalized))]));
@@ -72,11 +73,46 @@ export function checkEvidence(input: unknown, required: readonly string[], claim
     // A claim on the field, below it, or on its own array item ("/entries/0" for "/entries/0/said"); never on the whole list.
     const item = /\/\d+$/.test(pointer.slice(0, pointer.lastIndexOf("/"))) ? pointer.slice(0, pointer.lastIndexOf("/")) : null;
     const claim = claims.find(claimed => claimed.pointer === pointer || claimed.pointer.startsWith(`${pointer}/`) || claimed.pointer === item);
-    const match = claim ? matchQuote(claim.quote, segments) : null;
+    // A missing model citation must not discard a literal value the person supplied.
+    // Recover only an exact, whole text value; no fuzzy matching, numeric inference,
+    // composite objects, or replacement of an explicitly invalid citation.
+    const literal = literalFields.includes(pointer) && !claim && typeof value === "string" ? normalizeText(value) : "";
+    const literalSegment = literal.length >= 2 ? segments.find(segment => {
+      const text = normalizeText(segment.normalized);
+      let at = text.indexOf(literal);
+      while (at >= 0) {
+        const before = text[at - 1] ?? "", after = text[at + literal.length] ?? "";
+        if (!/[\p{L}\p{N}@._+-]/u.test(before) && !/[\p{L}\p{N}@._+-]/u.test(after)) return true;
+        at = text.indexOf(literal, at + 1);
+      }
+      return false;
+    }) : undefined;
+    const match = claim ? matchQuote(claim.quote, segments) : literalSegment ? matchQuote(literal, [{ ...literalSegment, normalized: normalizeText(literalSegment.normalized) }]) : null;
     const words = wordsOf(value);
     const agrees = words.length === 0 || words.filter(word => userWords.has(word)).length / words.length >= 0.6;
     if (match && agrees) matches.push({ ...match, pointer });
     else missing.push(pointer);
   }
   return { matches, missing };
+}
+
+/** Keep already evidenced form text across clarification rounds. Only opt-in class-C literal fields
+ * are passed here; amounts, marks, attendance, IDs and nested records never inherit evidence.
+ * A changed value must earn fresh evidence. The most recent proposed value prevents an older value
+ * from silently overriding an attempted correction. */
+export function retainLiteralFields(input: Record<string, unknown>, history: readonly { modelInput: unknown; missingFields: unknown }[], fields: readonly string[]) {
+  const value = { ...input };
+  const validated = new Set<string>();
+  for (const pointer of fields) {
+    if (!/^\/[A-Za-z][A-Za-z0-9]*$/.test(pointer)) continue;
+    const key = pointer.slice(1);
+    const latest = history.find(row => readPointer(row.modelInput, pointer) !== undefined);
+    const previous = latest && readPointer(latest.modelInput, pointer);
+    if (typeof previous !== "string" || !previous.trim()) continue;
+    const accepted = history.some(row => readPointer(row.modelInput, pointer) === previous && Array.isArray(row.missingFields) && !row.missingFields.includes(pointer) && !row.missingFields.includes("/"));
+    if (!accepted) continue;
+    if (value[key] === undefined) value[key] = previous;
+    if (value[key] === previous) validated.add(pointer);
+  }
+  return { value, validated };
 }

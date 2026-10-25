@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { redis } from "../../src/lib/queue/connection";
 import { prisma } from "../../src/lib/db/prisma";
 import { normalizeText, detectScript, searchTokens } from "../../src/lib/ai-workflows/planner/normalize";
-import { matchQuote, checkEvidence } from "../../src/lib/ai-workflows/planner/evidence";
+import { matchQuote, checkEvidence, retainLiteralFields } from "../../src/lib/ai-workflows/planner/evidence";
 import { bindHandles } from "../../src/lib/ai-workflows/planner/context";
 import { rank } from "../../src/lib/ai-workflows/planner/retrieve";
 import { cardFor, PLANNER_SYSTEM } from "../../src/lib/ai-workflows/planner/protocol";
@@ -86,4 +86,28 @@ test("amounts written with thousands separators count as the user's own number",
   const segments = [{ id: "s0", normalized: "record rs 12,500 cash for bilal" }];
   assert.deepEqual(checkEvidence({ amount: 12500 }, ["/amount"], [{ pointer: "/amount", quote: "rs 12,500 cash" }], segments).missing, []);
   assert.deepEqual(checkEvidence({ amount: 12600 }, ["/amount"], [{ pointer: "/amount", quote: "rs 12,500 cash" }], segments).missing, ["/amount"], "a different number is not supported");
+});
+
+test("literal answers survive a missing model citation, but invented or partial values do not", () => {
+  const segments = [{ id: "s1", normalized: "BCH name city Lahore owner email is owner@example.invalid Sara" }];
+  const input = { schoolName: "BCH", city: "Lahore", ownerName: "Sara", ownerEmail: "owner@example.invalid" };
+  const fields = Object.keys(input).map(key => `/${key}`);
+  assert.deepEqual(checkEvidence(input, fields, [], segments, fields).missing, []);
+  assert.deepEqual(checkEvidence({ city: "Karachi" }, ["/city"], [], segments, ["/city"]).missing, ["/city"]);
+  assert.deepEqual(checkEvidence({ ownerEmail: "ner@example.invalid" }, ["/ownerEmail"], [], segments, ["/ownerEmail"]).missing, ["/ownerEmail"]);
+  assert.deepEqual(checkEvidence({ city: "Lahore" }, ["/city"], [{ pointer: "/city", quote: "the user never said this" }], segments).missing, ["/city"]);
+  assert.deepEqual(checkEvidence({ amount: 42 }, ["/amount"], [], [{ id: "s2", normalized: "42 pupils" }]).missing, ["/amount"]);
+  assert.deepEqual(checkEvidence(input, fields, [], segments).missing, fields, "other capabilities still require model quotes");
+  assert.ok(matchQuote("BCH", segments), "legacy mixed-case segments are normalized at read time");
+});
+
+
+test("class-C form evidence survives missing fields or bad new citations but never validates a changed value", () => {
+  const history = [{ modelInput: { schoolName: "QA School", city: "Lahore" }, missingFields: ["/kind"] }];
+  const retained = retainLiteralFields({ city: "Lahore", kind: "STANDALONE" }, history, ["/schoolName", "/city"]);
+  assert.deepEqual(retained.value, { schoolName: "QA School", city: "Lahore", kind: "STANDALONE" });
+  assert.deepEqual([...retained.validated], ["/schoolName", "/city"]);
+  assert.equal(retainLiteralFields({ city: "Karachi" }, history, ["/city"]).validated.size, 0);
+  assert.equal(retainLiteralFields({}, [{ modelInput: { city: "Karachi" }, missingFields: ["/city"] }, ...history], ["/city"]).validated.size, 0);
+  assert.deepEqual(retainLiteralFields({}, history, []).value, {});
 });

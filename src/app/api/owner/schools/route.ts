@@ -1,3 +1,5 @@
+import { bindProvisionHandoff, completeProvisionHandoff } from "@/lib/owner/workflow-provisioning";
+import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
@@ -21,20 +23,22 @@ export async function GET(req: NextRequest) {
     const user = await requirePlatformOwner();
 
     const { searchParams } = new URL(req.url);
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "25", 10), 1), 100);
+    const { page, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
     const status = searchParams.get("status") || "";
     const plan = searchParams.get("plan") || "";
 
     const where: any = {};
     if (status) where.status = status;
+    if (plan && !["FREE", "BASIC", "PRO", "ENTERPRISE"].includes(plan)) throw new ApiError("Unknown plan", 400);
     if (plan) where.plan = plan;
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
         { contactEmail: { contains: search, mode: "insensitive" } },
         { slug: { contains: search, mode: "insensitive" } },
+        { address: { contains: search, mode: "insensitive" } },
+        { city: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -52,12 +56,12 @@ export async function GET(req: NextRequest) {
               website: true,
               principalName: true,
               board: true,
-              _count: { select: { students: true, users: true, classes: true } },
+              _count: { select: { students: true, users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } }, classes: true } },
             },
           },
-          _count: { select: { users: true } },
+          _count: { select: { users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } } } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -83,7 +87,7 @@ export async function GET(req: NextRequest) {
       createdAt: school.createdAt,
       campusCount: school.campuses.length,
       totalStudents: school.campuses.reduce((sum, c) => sum + c._count.students, 0),
-      totalStaff: school.campuses.reduce((sum, c) => sum + c._count.users, 0),
+      totalStaff: school._count.users,
       totalClasses: school.campuses.reduce((sum, c) => sum + c._count.classes, 0),
       campuses: school.campuses.map((c) => ({
         id: c.id,
@@ -184,6 +188,7 @@ export async function POST(req: NextRequest) {
     const hashed = await bcrypt.hash(tempPassword, 12);
 
     const result = await prisma.$transaction(async (tx) => {
+      const handoff = await bindProvisionHandoff(tx, actor, body.workflowHandoffId);
       const school = await tx.school.create({
         data: {
           name: schoolName,
@@ -232,6 +237,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      if (handoff) await completeProvisionHandoff(tx, actor, handoff, school.id);
       return { school, campus, owner };
     });
 

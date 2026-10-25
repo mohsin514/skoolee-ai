@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { atLeast, floorFor, CLASS_A_ALLOWLIST } from "./floors";
 import type { CapabilityEntry, Exclusion, ExecEntry, HandoffEntry } from "./types";
 
@@ -16,6 +17,17 @@ function assertEntry(entry: CapabilityEntry) {
   if (!entry.roles.length) fail("no roles");
   if (!entry.inventoryKeys.length) fail("no inventory keys");
   if (!entry.gates.length) fail("at least one gate is required");
+  if (entry.literalEvidence?.some(pointer => entry.class !== "C" || !/^\/[^/]+$/.test(pointer) || !entry.evidence.includes(pointer))) fail("literal evidence is limited to declared top-level class-C form fields");
+  if (entry.dialogueFields && (entry.class !== "C" || entry.dialogueFields.some(field => !/^[a-zA-Z][a-zA-Z0-9]*$/.test(field.key) || /password|token|secret|(^id$)|Id$/.test(field.key) || !field.labels.length))) fail("dialogue forms require safe top-level class-C fields");
+  if (entry.dialogueFields) {
+    if (!(entry.input instanceof z.ZodObject)) fail("dialogue input must be an object schema");
+    else {
+      const shape = entry.input.shape;
+      const keys = new Set(entry.dialogueFields.map(field => field.key));
+      if (entry.dialogueFields.some(field => !shape[field.key])) fail("dialogue field is not in the input schema");
+      for (const [key, schema] of Object.entries(shape)) if (!(schema as z.ZodType).safeParse(undefined).success && !keys.has(key)) fail(`required dialogue field ${key} is missing`);
+    }
+  }
   const floor = floorFor(entry.key, entry.risk);
   if (!atLeast(entry.class, floor)) fail(`class ${entry.class} is below its ${entry.risk} floor ${floor}`);
   if (entry.class === "A" && entry.risk !== "READ" && !CLASS_A_ALLOWLIST[entry.key]) fail("class A write is not in CLASS_A_ALLOWLIST");

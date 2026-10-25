@@ -30,12 +30,12 @@ const QUOTES: Record<Lang, [string, string]> = { en: ["“", "”"], ar: ["«", 
 
 /**
  * A capability card. The card itself is not interactive; only "Try it" is, and it appears only for
- * connected A/B capabilities on a school where AI Workflows are switched on. The link carries the
+ * connected capabilities on a school where AI Workflows are switched on. The link carries the
  * registry key only, never user text; Ask pre-fills the example and never sends it on its own.
  */
 export function CatalogCard({ item, language, canTry }: { item: CatalogItem; language: Lang; canTry: boolean }) {
   const format = useWorkflowFormat();
-  const tryable = canTry && (item.cls === "A" || item.cls === "B");
+  const tryable = canTry && item.cls !== "X";
   const [open, close] = QUOTES[language];
   return (
     <li

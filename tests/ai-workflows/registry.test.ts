@@ -27,8 +27,14 @@ test("every entry respects its risk floor, has copy in three languages and a JSO
   }
 });
 
-test("money, messages, access, publication and approvals are never class A or B", () => {
+test("sensitive actions hand off, except explicitly confirmed owner catalogue pricing", () => {
   for (const entry of REGISTRY.values()) {
+    if (entry.key === "platform.set_default_plan_pricing") {
+      assert.equal(entry.class, "B");
+      assert.deepEqual(entry.roles, ["APP_OWNER"]);
+      assert.equal(entry.scope.kind, "platform");
+      continue;
+    }
     if (["FINANCIAL", "COMMUNICATION", "ACCESS_GRANT", "PUBLISH", "APPROVAL_DECISION", "DESTRUCTIVE"].includes(entry.risk)) assert.equal(entry.class, "C", entry.key);
   }
   assert.equal(REGISTRY.get("finance.apply_operation")?.class, "C");
@@ -81,4 +87,14 @@ test("lint 14: Exam Studio's chain is only ever deep-linked, never run", async (
   for (const key of ["exams.create", "curriculum.import_topics", "exams.session.create"]) assert.ok(!isExamStudioOwned(key), key);
   const runner = { ...[...REGISTRY.values()].find(entry => entry.class === "B")!, key: "exams.paper.generate", inventoryKeys: [] } as never;
   assert.match(examStudioViolation(runner) ?? "", /only a class C DEEP_LINK/);
+});
+
+test("mandatory capability boundary refuses forged roles and campus scope even without custom gates", async () => {
+  const { checkCapabilityAccess } = await import("../../src/lib/ai-workflows/registry/gates");
+  const { capability } = await import("../../src/lib/ai-workflows/registry");
+  const entry = capability("platform.inspect")!;
+  const ctx: CapabilityContext = { user: { userId: "u", email: "u@example.invalid", role: "STUDENT", schoolId: "s", campusId: "c" }, campusId: "c", permissions: new Map(), seats: async () => ({ campusAdmin: true, principal: false, accountant: false, receptionist: false, librarian: false }), locale: "en", now: new Date() };
+  assert.equal((await checkCapabilityAccess(ctx, { ...entry, gates: [] })).ok, false);
+  assert.equal((await checkCapabilityAccess(ctx, { ...entry, roles: ["STUDENT"], gates: [] })).ok, false, "platform boundary is mandatory too");
+  assert.equal((await checkCapabilityAccess({ ...ctx, campusId: "foreign" }, { ...entry, roles: ["STUDENT"], gates: [], scope: { kind: "own-campus" } })).ok, false);
 });

@@ -155,3 +155,25 @@ test("practice mode in production refuses the write and says so; the flag off st
     if (env.V2 === undefined) delete process.env.AI_WORKFLOWS_V2; else process.env.AI_WORKFLOWS_V2 = env.V2;
   }
 });
+
+test("a forged stored platform plan cannot resolve or read platform records for a student", async () => {
+  const { user } = await fixture("STUDENT");
+  const job = await start(user, "Show all schools");
+  await savePlan(user, job.id, [{ stepKey: "s1", capabilityKey: "platform.inspect", input: {} }]);
+  await advanceJob(user, job.id);
+  const step = await db.aiWorkflowStep.findFirstOrThrow({ where: { jobId: job.id } });
+  assert.equal(step.errorCode, "ROLE_NOT_ALLOWED");
+  assert.equal(step.receipt, null);
+  assert.equal(await db.aiWorkflowIntent.count({ where: { jobId: job.id } }), 0);
+});
+
+test("invalid saved input always produces a visible question instead of an empty NEEDS_INPUT state", async () => {
+  const { user } = await fixture("TEACHER");
+  const job = await start(user);
+  await savePlan(user, job.id, [{ stepKey: "s1", capabilityKey: "profile.update", input: { preferredLanguage: "invalid-language" } }]);
+  const waiting = await advanceJob(user, job.id);
+  assert.equal(waiting.status, "NEEDS_INPUT");
+  const questions = await db.aiWorkflowQuestion.findMany({ where: { jobId: job.id, status: "OPEN" } });
+  assert.ok(questions.length > 0);
+  assert.ok(questions.some(question => question.pointer === "/preferredLanguage"));
+});

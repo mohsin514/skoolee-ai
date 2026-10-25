@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { FlagshipChip } from "@/components/ui/flagship";
@@ -19,13 +20,14 @@ export function RunAnswer({ receipt, language }: { receipt: NonNullable<StepView
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-2 text-xs font-semibold text-brand-700">
           <FlagshipChip />
-          <span className="sk-eyebrow">{runText("found", language)}</span>
+          <span className="sk-eyebrow">{receipt.conversational ? "Skoolee" : runText("found", language)}</span>
         </span>
         <IconButton label={runText("copyAnswer", language)} onClick={() => void copy()}><Copy aria-hidden="true" /></IconButton>
       </div>
-      <p dir="auto" className="whitespace-pre-line text-sm leading-relaxed text-ink-strong [overflow-wrap:anywhere] sm:text-base">{receipt.text}</p>
+      <p dir="auto" className="whitespace-pre-line text-sm leading-relaxed text-ink-strong [overflow-wrap:anywhere] sm:text-base">{receipt.text.split(/(\*\*[^*\n]+\*\*)/g).map((part, index) => part.startsWith("**") && part.endsWith("**") ? <strong key={index}>{part.slice(2, -2)}</strong> : part)}</p>
+      {receipt.citations?.length ? <ul className="space-y-2 text-sm" aria-label="Sources">{receipt.citations.map(cite => <li key={cite.number}><Link className="font-medium text-primary underline underline-offset-4" href={cite.href}>[{cite.number}] {cite.title} · v{cite.version}</Link></li>)}</ul> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <Badge size="sm" variant="neutral">{t(UI, "nothingChanged", language)}</Badge>
+        {!receipt.conversational ? <Badge size="sm" variant="neutral">{t(UI, "nothingChanged", language)}</Badge> : null}
         {receipt.link ? <RunRecordLink href={receipt.link} language={language} className="sm:ms-auto" /> : null}
       </div>
     </div>

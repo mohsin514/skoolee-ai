@@ -1,7 +1,8 @@
 import type { AiWorkflowJob, AiWorkflowStep, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type { CapabilityContext, CapabilityEntry } from "../registry/types";
-import { InputRequired, toWorkflowError } from "../errors";
+import { InputRequired, WorkflowError, toWorkflowError } from "../errors";
+import { checkCapabilityAccess } from "../registry/gates";
 import { appendEvent } from "../jobs/events";
 
 /**
@@ -11,6 +12,8 @@ import { appendEvent } from "../jobs/events";
  */
 export async function prepareStep<T>(job: AiWorkflowJob, step: AiWorkflowStep, entry: CapabilityEntry, ctx: CapabilityContext, input: unknown, then: (resolved: unknown) => Promise<T>): Promise<T | null> {
   try {
+    const gate = await checkCapabilityAccess(ctx, entry);
+    if (!gate.ok) throw new WorkflowError(gate.code === "SEAT" ? "SEAT_HELD" : gate.code === "SCOPE" ? "SCOPE_DENIED" : "ROLE_NOT_ALLOWED");
     const resolved = entry.resolve ? await entry.resolve(ctx, input) : input;
     return await then(resolved);
   } catch (thrown) {

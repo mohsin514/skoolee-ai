@@ -1260,3 +1260,11 @@ Spot-checks (12):
 - PII: legacy /api/ai generate-remarks/insights send student marks and names to the model; memory policy requires pseudonymization before prompts. Automation catalog context loads profile, class lists, teacher names (catalog.ts:36,49). Intake stores originals in private storage (sourceStorageAvailable). Students.create saves guardian email as contact only, never invites.
 - Idempotency patterns: idempotencyKey on workspace create, assistant, conversations create, setup task create, runs create, execute, automation start, regenerate (uuid), transcribe; intake uses content hash; workspace PATCH/runs PATCH/conversation PATCH use optimistic version CAS (409 on replay) rather than keys.
 - Worker re-resolution: queued runs and document jobs re-resolve the stored actor via resolveWorkerPrincipal and block on role/accessVersion change (access.ts:97-103); automation authorize rechecks live actor role/campus/accessVersion each call (automation/service.ts:31-32).
+## C8 Reviewed RAG knowledge — added 2026-10-24
+
+| key | route | roles | risk | approval | idem. | AI today | reuse | notes |
+|---|---|---|---|---|---|---|---|---|
+| `knowledge.create` | `POST /api/ai-knowledge` | APP_OWNER, SUPER_ADMIN, CAMPUS_ADMIN, ADMIN, PRINCIPAL | CREATE | human authoring | no | excluded | direct | Draft only; scope and AI edit permission checked. No assistant publishing its own evidence. |
+| `knowledge.manage` | `PATCH /api/ai-knowledge/[id]` | APP_OWNER, SUPER_ADMIN, CAMPUS_ADMIN, ADMIN, PRINCIPAL | UPDATE | human review | versioned | excluded | direct | Publish, reindex, archive or delete reviewed source; exact version CAS, immediate index invalidation and audit. |
+| `knowledge.extract` | `POST /api/ai-knowledge/extract` | APP_OWNER, SUPER_ADMIN, CAMPUS_ADMIN, ADMIN, PRINCIPAL | READ | human intake | no | excluded | wrapper | Bounded file extraction; no automatic publication; existing approved media provider policy. |
+| `assistant.app_knowledge` | `POST /api/ai-knowledge/search` | APP_OWNER, SUPER_ADMIN, CAMPUS_ADMIN, ADMIN, PRINCIPAL, TEACHER, STUDENT, PARENT, ACCOUNTANT, LIBRARIAN, RECEPTIONIST | READ | none | yes | connected | direct | Tenant/campus/role-filtered hybrid retrieval and checked citations; cannot execute actions. |

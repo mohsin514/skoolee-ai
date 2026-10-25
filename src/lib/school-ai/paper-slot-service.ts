@@ -9,7 +9,7 @@
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError, assertSharedModuleRead, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertSharedModuleRead, canManageAcademics } from "@/lib/api/scope";
 import { assertExamSchedulingAccess } from "@/lib/academic/exam-scheduling-write";
 import { notify } from "@/lib/notifications/in-app";
 import { getAcademicLead } from "@/lib/notifications/events";
@@ -247,7 +247,7 @@ export async function mySlots(user: AuthUser, today = todayUtc()) {
   return schoolAiTransaction(user, async tx => {
     if (!user.campusId && user.role !== "SUPER_ADMIN") return { viewerId: user.userId, slots: [], scope: "NONE" as const };
     const campus = user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId! };
-    const office = user.campusId ? await assertExamOffice(user, user.campusId, tx).then(() => true, () => false) : canManageOperations(user);
+    const office = user.campusId ? await assertExamOffice(user, user.campusId, tx).then(() => true, () => false) : canManageAcademics(user);
     const members = await membersHeadedBy(tx, user.schoolId, user.userId);
     const where = office
       ? { schoolId: user.schoolId, ...campus }
@@ -331,7 +331,7 @@ export async function nudgeSlot(user: AuthUser, slotId: string, now = new Date()
 export async function linkPaperToSlot(user: AuthUser, paper: { id: string; version: number; status: string; campusId: string | null }, slotId: string, tx: TxClient, action: string) {
   const slot = await tx.examPaperSlot.findFirst({ where: { id: slotId, schoolId: user.schoolId, campusId: paper.campusId ?? "" }, select: { id: true, authorUserId: true, moderatorUserId: true, paperRecordId: true, cancelledAt: true, sealedAt: true, subjectName: true, gradeName: true, examSession: { select: { title: true } }, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
   if (!slot) throw new ApiError("This paper names a request that is not in your campus.", 403);
-  if (slot.authorUserId !== user.userId && !canManageOperations(user)) throw new ApiError("Only the paper's author writes the requested paper.", 403);
+  if (slot.authorUserId !== user.userId && !canManageAcademics(user)) throw new ApiError("Only the paper's author writes the requested paper.", 403);
   if (slot.paperRecordId && slot.paperRecordId !== paper.id) throw new ApiError("Another paper already answers this request.", 409);
   // A sealed slot keeps its sealed version, so a later edit reads CHANGED_AFTER_APPROVAL and cannot print.
   await tx.examPaperSlot.update({ where: { id: slot.id }, data: slot.sealedAt ? { paperRecordId: paper.id } : { paperRecordId: paper.id, paperVersion: paper.version } });
@@ -347,7 +347,7 @@ export async function linkPaperToSlot(user: AuthUser, paper: { id: string; versi
 export async function slotBrief(user: AuthUser, slotId: string) {
   const prepared = await schoolAiTransaction(user, async tx => {
     const { row, view } = await getSlot(user, slotId, tx);
-    if (row.authorUserId !== user.userId && !canManageOperations(user)) throw new ApiError("Only the paper's author starts its brief.", 403);
+    if (row.authorUserId !== user.userId && !canManageAcademics(user)) throw new ApiError("Only the paper's author starts its brief.", 403);
     if (row.cancelledAt) throw new ApiError("This paper request is cancelled.", 409);
     if (row.briefRecordId) {
       const existing = await tx.schoolAiRecord.findFirst({ where: { id: row.briefRecordId, schoolId: user.schoolId, kind: "BRIEF", status: { not: "ARCHIVED" } }, select: { id: true } });

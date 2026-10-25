@@ -8,6 +8,8 @@ import type { Exclusion, ExclusionCategory } from "./types";
 interface Rule { category: ExclusionCategory; reason: string; match(key: string): boolean; link?: string }
 
 const RULES: Rule[] = [
+  { category: "internal", reason: "Knowledge authoring, audience changes and publication require a human review; the assistant cannot publish its own evidence.", match: key => ["knowledge.create", "knowledge.manage"].includes(key), link: "/ai/knowledge" },
+  { category: "file-upload", reason: "Knowledge file extraction is user-initiated intake and must be reviewed before publication.", match: key => key === "knowledge.extract", link: "/ai/knowledge" },
   { category: "auth", reason: "Sign-in, sign-up, passwords, MFA and sessions belong to the person, never to an assistant acting for them.",
     match: key => key.startsWith("auth.") || ["account.manage_mfa", "onboarding.self_serve_signup", "governance.reset_user_password", "platform.reset_user_password"].includes(key) },
   { category: "webhook", reason: "Provider callbacks are verified machine-to-machine requests, not user actions.",

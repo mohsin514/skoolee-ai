@@ -1,3 +1,4 @@
+import { saveDefaultPlanPrices } from "@/lib/owner/default-pricing-service";
 import { createHash } from "node:crypto";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
@@ -9,7 +10,7 @@ export async function executePlatformAction(user: AuthUser, key: string, action:
  if (user.role !== "APP_OWNER") throw new SchoolAiError("Platform administration is restricted to the application owner.", 403);
  return runUnscoped(PLATFORM_UNSCOPED_REASON, async () => {
   if (action.tool === "platform.inspect") {
-   const schools = await prisma.school.findMany({ where: action.data.search ? { name: { contains: action.data.search, mode: "insensitive" } } : {}, select: { id: true, name: true, city: true, website: true, status: true, plan: true, _count: { select: { campuses: true } } }, orderBy: { name: "asc" }, take: 51 });
+   const schools = await prisma.school.findMany({ where: { status: { not: "DELETED" }, ...(action.data.search ? { name: { contains: action.data.search, mode: "insensitive" as const } } : {}), ...(action.data.missingCity ? { city: "" } : {}) }, select: { id: true, name: true, city: true, website: true, status: true, plan: true, _count: { select: { campuses: true } } }, orderBy: { name: "asc" }, take: 51 });
    return { operation: action.tool, schools: schools.slice(0,50), truncated: schools.length > 50 };
   }
   if (action.tool !== "platform.update_institution") throw new SchoolAiError("Unsupported platform action.", 422);
@@ -199,4 +200,8 @@ export function workflowMetrics(user: AuthUser, windowHours = 24, now = new Date
       creditsCharged: credits._sum.creditsCharged ?? 0,
     };
   });
+}
+
+export function updateDefaultPlanPrices(user: AuthUser, prices: Record<string, number | null>, expected: unknown, idempotencyKey: string) {
+  return asOwner(user, PLATFORM_UNSCOPED_REASON, () => saveDefaultPlanPrices(user, Object.fromEntries(Object.entries(prices).map(([key, price]) => [key, { price }])), { expected, idempotencyKey }));
 }

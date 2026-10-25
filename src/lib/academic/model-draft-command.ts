@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
-import { ApiError, assertPermission, canManageOperations, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageAcademics, resolveCampusId } from "@/lib/api/scope";
 import { academicModelConfigurationSchema, type AcademicModelConfiguration } from "@/lib/academic/model-config";
 
 /**
@@ -17,7 +17,7 @@ export type AcademicModelDraftResult =
 
 /** The route's guards, run before the body is read (and again by the command). */
 export async function assertAcademicModelDraftAccess(user: AuthUser) {
-  if (!canManageOperations(user)) throw new ApiError("Academic configuration editing is required", 403);
+  if (!canManageAcademics(user)) throw new ApiError("Academic configuration editing is required", 403);
   await assertPermission(user, "exams", "edit");
 }
 

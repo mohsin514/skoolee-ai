@@ -15,7 +15,7 @@ import { SignJWT, jwtVerify } from "jose";
 import QRCode from "qrcode";
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
-import { ApiError, canManageOperations } from "@/lib/api/scope";
+import { ApiError, canManageAcademics } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { paperDataSchema } from "./assessment";
 import { contentHash } from "./release";
@@ -228,6 +228,6 @@ export async function sittingView(user: AuthUser, slotId: string) {
         pupils: pupils.map(pupil => ({ id: pupil.id, name: pupil.fullName, rollNo: pupil.rollNo, attendance: att.get(pupil.id)?.status ?? null, reopened: Boolean(att.get(pupil.id)?.reopenedAt), script: scr.get(pupil.id) ? { id: scr.get(pupil.id)!.id, candidateNo: scr.get(pupil.id)!.candidateNo, scanned: Boolean(scr.get(pupil.id)!.scannedAt), total: scr.get(pupil.id)!.total, version: scr.get(pupil.id)!.version, marks: scr.get(pupil.id)!.marks } : null })),
       });
     }
-    return { slotId: slot.id, office, sealed: Boolean(slot.sealedAt), compromised: Boolean(slot.compromisedAt), questions: paper?.success ? paper.data.questions.map((question, index) => ({ id: question.id, number: index + 1, marks: question.marks })) : [], totalMarks: paper?.success ? paper.data.blueprint.totalMarks : null, sections, canManage: canManageOperations(user) || office };
+    return { slotId: slot.id, office, sealed: Boolean(slot.sealedAt), compromised: Boolean(slot.compromisedAt), questions: paper?.success ? paper.data.questions.map((question, index) => ({ id: question.id, number: index + 1, marks: question.marks })) : [], totalMarks: paper?.success ? paper.data.blueprint.totalMarks : null, sections, canManage: canManageAcademics(user) || office };
   });
 }

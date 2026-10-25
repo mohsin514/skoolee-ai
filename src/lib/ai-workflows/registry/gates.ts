@@ -1,7 +1,7 @@
 import type { UserRole } from "@/lib/roles";
 import type { PermissionAction, PermissionModule } from "@/lib/permissions";
 import type { AuthUser } from "@/lib/auth";
-import type { CapabilityContext, Gate, GateResult } from "./types";
+import type { CapabilityContext, CapabilityEntry, Gate, GateResult } from "./types";
 
 /**
  * Gates mirror the guards the source route already runs; they never invent new authority. Each gate
@@ -59,4 +59,17 @@ export async function runGates(ctx: CapabilityContext, gates: readonly Gate[]): 
     if (!result.ok) return result;
   }
   return OK;
+}
+
+/** Mandatory registry boundary, including entries whose custom gates accidentally omit a role gate. */
+export async function checkCapabilityAccess(ctx: CapabilityContext, entry: CapabilityEntry): Promise<GateResult> {
+  // Legacy prose receipts remain readable, but cannot be newly executed or replayed as verified reads.
+  if (entry.key === "assistant.answer") return { ok: false, code: "CAPABILITY_KEY" };
+  if (!entry.roles.includes(ctx.user.role)) return { ok: false, code: "ROLE", whoCan: entry.roles };
+  if (entry.scope.kind === "platform" && ctx.user.role !== "APP_OWNER") return { ok: false, code: "SCOPE" };
+  if (entry.scope.kind === "own-campus" || entry.scope.kind === "assigned-class") {
+    const campus = await ownCampus().check(ctx);
+    if (!campus.ok) return campus;
+  }
+  return runGates(ctx, entry.gates);
 }

@@ -1,8 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AiWorkflowJob, AiWorkflowStep } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { capability } from "../registry";
-import { runGates } from "../registry/gates";
+import { checkCapabilityAccess } from "../registry/gates";
 import type { CapabilityContext, ExecEntry, HandoffEntry, HandoffPrepared, Receipt } from "../registry/types";
 import { EscalationRequired, WorkflowError, toWorkflowError } from "../errors";
 import { appendEvent } from "../jobs/events";
@@ -65,6 +66,12 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
     await settle(step, job, { status: "FAILED", errorCode: "PRACTICE_MODE", boundInput: json(input), finishedAt: new Date() }, "STEP_FAILED", { code: "PRACTICE_MODE" });
     return null;
   }
+  const access = await checkCapabilityAccess(ctx, entry);
+  if (!access.ok) {
+    const code = access.code === "SEAT" ? "SEAT_HELD" : access.code === "SCOPE" ? "SCOPE_DENIED" : "ROLE_NOT_ALLOWED";
+    await settle(step, job, { status: "BLOCKED", errorCode: code, finishedAt: new Date() }, "STEP_FAILED", { code });
+    return null;
+  }
   const inputHash = sha256({ capability: entry.key, version: entry.version, input });
   const key = effectKey(effectScope(job), entry.key, entry.version, input);
   let intent = await prisma.aiWorkflowIntent.findUnique({ where: { schoolId_actorId_idempotencyKey: { schoolId: job.schoolId, actorId: job.actorId, idempotencyKey: key } } });
@@ -90,7 +97,7 @@ export async function runExecStep(ctx: CapabilityContext, job: AiWorkflowJob, st
   await settle(step, job, { status: "RUNNING", inputHash, boundInput: json(input), startedAt: new Date() }, "STEP_RUNNING");
   const running = { ...step, version: step.version + 1 };
   try {
-    const gate = await runGates(ctx, entry.gates);
+    const gate = await checkCapabilityAccess(ctx, entry);
     if (!gate.ok) throw new WorkflowError(gate.code === "SEAT" ? "SEAT_HELD" : gate.code === "SCOPE" ? "SCOPE_DENIED" : "ROLE_NOT_ALLOWED");
     const receipt = await withConflictRetry(() => entry.execute(ctx, input, { idempotencyKey: key }));
     await prisma.$transaction(async tx => {
@@ -123,7 +130,7 @@ export async function runHandoffStep(ctx: CapabilityContext, job: AiWorkflowJob,
     await settle(step, job, { status: "FAILED", errorCode: "PRACTICE_MODE", boundInput: json(input), finishedAt: new Date() }, "STEP_FAILED", { code: "PRACTICE_MODE" });
     return null;
   }
-  const gate = await runGates(ctx, entry.gates);
+  const gate = await checkCapabilityAccess(ctx, entry);
   if (!gate.ok) {
     await settle(step, job, { status: "BLOCKED", errorCode: gate.code === "SEAT" ? "SEAT_HELD" : "ROLE_NOT_ALLOWED", finishedAt: new Date() }, "STEP_FAILED", { code: gate.code });
     return null;
@@ -138,8 +145,11 @@ export async function runHandoffStep(ctx: CapabilityContext, job: AiWorkflowJob,
 }
 
 async function openHandoff(job: AiWorkflowJob, step: AiWorkflowStep, prepared: HandoffPrepared, key: string, input: unknown) {
+  const id = randomUUID();
+  const targetRoute = step.capabilityKey === "platform.provision_school" ? `${prepared.link}&workflowHandoffId=${id}` : prepared.link;
   const handoff = await prisma.aiWorkflowHandoff.create({ data: {
-    schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, stepId: step.id, kind: prepared.kind, targetRoute: prepared.link, targetRoles: [...prepared.targetRoles],
+    id,
+    schoolId: job.schoolId, campusId: job.campusId, jobId: job.id, stepId: step.id, kind: prepared.kind, targetRoute, targetRoles: [...prepared.targetRoles],
     originRole: job.actorRole, originUserId: job.actorId, recordId: typeof prepared.prefill.recordId === "string" ? prepared.prefill.recordId : null,
     recordVersion: typeof prepared.prefill.version === "number" ? prepared.prefill.version : null, prefill: json(prepared.prefill), prefillHash: sha256(prepared.prefill),
     idempotencyKey: key, expiresAt: new Date(Date.now() + 14 * 86_400_000),

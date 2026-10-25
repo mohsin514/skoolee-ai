@@ -17,10 +17,10 @@ export function RunRecordLink({ href, language, variant = "outline", className }
 }
 
 /** "Open its screen": a hand-off finishes on the decider's own screen. */
-export function RunScreenLink({ href, language, className }: { href: string; language: Lang; className?: string }) {
+export function RunScreenLink({ href, language, className, label }: { href: string; language: Lang; className?: string; label?: string }) {
   return (
     <Link href={href} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "sk-nudge-trigger w-full sm:w-auto", className)}>
-      <span>{t(UI, "openItsScreen", language)}</span>
+      <span>{label ?? t(UI, "openItsScreen", language)}</span>
       <ArrowRight aria-hidden="true" className="sk-nudge rtl:rotate-180" />
     </Link>
   );

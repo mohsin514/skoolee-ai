@@ -1,5 +1,5 @@
 import { entriesForRole } from "../registry";
-import { runGates } from "../registry/gates";
+import { checkCapabilityAccess } from "../registry/gates";
 import type { CapabilityContext, CapabilityEntry, GateResult } from "../registry/types";
 import { searchTokens as tokens } from "./normalize";
 
@@ -39,14 +39,18 @@ export function rank(query: string, entries: readonly CapabilityEntry[]): Array<
 
 export interface Retrieval { cards: CapabilityEntry[]; unavailable: Array<{ entry: CapabilityEntry; reason: Exclude<GateResult, { ok: true }> }> }
 
-export async function retrieve(ctx: CapabilityContext, maskedRequest: string): Promise<Retrieval> {
-  const ranked = rank(maskedRequest, entriesForRole(ctx.user.role));
+export async function retrieve(ctx: CapabilityContext, maskedRequest: string, continuing: readonly string[] = []): Promise<Retrieval> {
+  const ranked = rank(maskedRequest, entriesForRole(ctx.user.role).filter(entry => !["assistant.answer", "assistant.conversation"].includes(entry.key)));
+  // A brief clarification must not evict an existing action from the tool slate. Role and live
+  // gates still apply; a stale plan never grants permission. Up to 25 existing steps are supported.
+  const pinned = new Set(continuing);
+  ranked.sort((a, b) => Number(pinned.has(b.entry.key)) - Number(pinned.has(a.entry.key)));
   // Keep relevance order; entries with no lexical overlap still fill the slate so short or
   // cross-language requests are not left with nothing to choose from.
   const cards: CapabilityEntry[] = [], unavailable: Retrieval["unavailable"] = [];
   for (const { entry } of ranked) {
-    if (cards.length >= MAX_CARDS) break;
-    const gate = await runGates(ctx, entry.gates);
+    if (cards.length >= Math.max(MAX_CARDS, Math.min(pinned.size, 25))) break;
+    const gate = await checkCapabilityAccess(ctx, entry);
     if (gate.ok) cards.push(entry);
     else if (unavailable.length < 4) unavailable.push({ entry, reason: gate });
   }
