@@ -80,6 +80,7 @@ export function ArchivedCampusList({ campuses, onDone }: { campuses: { id: strin
     setBusy(true); setError("");
     try {
       const result = await restoreCampus(restoring.id);
+      if (!result.success) { setError(ui(result.error)); return; }
       toast.success(result.alreadyActive ? ui("{0} is already active.", [restoring.name]) : ui("{0} restored.", [restoring.name]));
       setRestoring(null); await onDone();
     } catch (failure) { setError(friendlyErrorMessage(failure, ui("Could not restore this campus."))); } finally { setBusy(false); }
