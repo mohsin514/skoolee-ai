@@ -1,6 +1,5 @@
 "use client";
 
-import { createPortal } from "react-dom";
 import { IconButton } from "@/components/ui/icon-button";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
@@ -13,6 +12,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { ModalSurface, useDialogBehaviour } from "@/components/ui/modal";
 import { parseSections } from "@/lib/class-sections";
 import {
@@ -115,7 +115,7 @@ interface ClassManagerProps {
   onUpdateClass: (
     classId: string,
     updates: { name?: string; section?: string; academicYear?: number },
-  ) => Promise<boolean | void>;
+  ) => Promise<void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (
     classId: string,
@@ -321,21 +321,22 @@ function SettingsDrawer({
   }, [section.id]);
 
   const save = async () => {
-    const saved = await onUpdateClass(section.id, {
+    await onUpdateClass(section.id, {
       name: editName,
       section: editSection,
       academicYear: Number(editYear) || new Date().getFullYear(),
     });
-    if (saved !== false) onClose();
+    toast.success(ui("Class details updated"));
+    onClose();
   };
 
   /* A side drawer rather than a centred dialog, so it keeps its own layout —
      but it had no focus trap, no scroll lock and a hand-picked `z-[150]`. */
   const drawerRef = useRef<HTMLDivElement>(null);
   const requestClose = () => { if (!classUpdateBusy) onClose(); };
-  const { z } = useDialogBehaviour(drawerRef, { onClose: requestClose });
+  const { z, mounted } = useDialogBehaviour(drawerRef, { onClose: requestClose });
 
-  return createPortal(
+  return mounted ? createPortal((
     <div
       className="fixed inset-0 flex justify-end"
       style={{ zIndex: z }}
@@ -429,9 +430,8 @@ function SettingsDrawer({
           </div>
         </div>
       </div>
-    </div>,
-    document.body,
-  );
+    </div>
+  ), document.body) : null;
 }
 
 /* ------------------------------------------------------------------ */
