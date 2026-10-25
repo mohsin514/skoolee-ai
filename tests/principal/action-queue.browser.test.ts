@@ -46,7 +46,7 @@ const api = `${base}/api/principal/queue`;
 const queue = async (key = "principal") => (await (await (await context(key)).request.get(`${api}?campusId=${campusId}`)).json()).data;
 const typesOf = (data: { items: { type: string }[] }) => data.items.map(item => item.type);
 const act = async (body: Record<string, unknown>, key = "principal") => (await context(key)).request.post(api, { data: { campusId, ...body } });
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Oak Queue School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Karachi", status: "ACTIVE", plan: "PRO", registrationKind: "GROUP" } });
