@@ -163,7 +163,7 @@ export function classPerformance(classes: any[], studentsByClass?: Map<string, a
     const roster: any[] = studentsByClass?.get(klass.id) ?? klass.students ?? [];
     const percentages = roster
       .map((s: any) => s?.reportCards?.[0]?.percentage)
-      .filter((p: any) => typeof p === "number" && p > 0);
+      .filter((p: any) => typeof p === "number" && Number.isFinite(p) && p >= 0);
     const rates = roster.map(studentAttendanceRate).filter((r): r is number => r !== null);
 
     return {
@@ -399,7 +399,7 @@ export function campusRows(campuses: any[]): CampusRow[] {
 
     const percentages = (campus.students ?? [])
       .map((s: any) => s?.reportCards?.[0]?.percentage)
-      .filter((p: any) => typeof p === "number" && p > 0);
+      .filter((p: any) => typeof p === "number" && Number.isFinite(p) && p >= 0);
 
     const active = (status: any) => status === "Active";
 

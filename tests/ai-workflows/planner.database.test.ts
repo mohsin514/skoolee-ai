@@ -187,6 +187,21 @@ test("a malformed reply gets one repair; the repair costs no second credit", asy
   assert.equal(await db.aIUsageLog.count({ where: { schoolId: user.schoolId, feature: "AI_WORKFLOWS_V2" } }), 2, "both attempts are logged");
 });
 
+test("repair receives the complete schema and masked original context for invalid step keys", async () => {
+  const { user } = await fixture("TEACHER");
+  const job = await begin(user, "Set my city to Lahore");
+  const model = provider(
+    { kind: "plan", steps: [{ key: "profile.update", capability: "profile.update", input: { city: "Lahore" } }] },
+    { kind: "plan", steps: [{ key: "s1", capability: "profile.update", input: { city: "Lahore" }, evidence: [] }] },
+  );
+  assert.equal((await advanceJob(user, job.id, "request", model.generate)).outcome, "EXECUTED");
+  const repair = JSON.parse(model.prompts[1]);
+  assert.match(JSON.stringify(repair.required), /pattern/);
+  assert.ok(repair.context.capabilities.length > 0);
+  assert.ok(!model.prompts[1].includes(user.email));
+  assert.equal((await db.school.findUniqueOrThrow({ where: { id: user.schoolId } })).aiCreditsUsed, 1);
+});
+
 test("unverified model prose cannot masquerade as a database read", async () => {
   const { user } = await fixture("CAMPUS_ADMIN");
   const job = await begin(user, "How many classes do we have?");

@@ -29,7 +29,7 @@ const schoolDay = new Date(`${today}T12:00:00Z`).getUTCDay() !== 0;
 
 async function user(key: string, role: string, campus = campusId, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { principal: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -215,7 +215,7 @@ test("the principal sees the queue before the charts and snoozes with a reason",
 test("Arabic principal reads the queue right-to-left at phone width", async () => {
   const page = await (await context("principal-ar", { width: 390, height: 844 })).newPage();
   await page.goto(`${base}/principal`);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   await page.locator("[data-action-queue] [data-queue-item]").first().waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
   assert.match(await page.locator("#action-queue-title").innerText(), /بانتظارك/); // §8.2: "Action queue" → "Waiting on you"
