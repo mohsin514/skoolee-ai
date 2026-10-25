@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Camera, CheckCircle2, DoorOpen, Inbox, LogIn, Phone, Plus, ScanLine, ShieldAlert, Download } from "lucide-react";
-import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { callbackDueByToday } from "@/lib/front-desk/callback-day";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { getOperationsStaffDashboardData } from "@/app/actions/dashboard";
 import { RoleShell } from "@/components/role-dashboard";
 import { useConsoleView } from "@/components/nav/useConsoleView";
@@ -274,6 +275,7 @@ async function readJson(url: string) {
  */
 function useFrontDeskQueue(): FrontDeskQueueState {
   const tr = useUiText();
+  const { timezone } = useLocale();
   const { dateTime } = useLocaleFormat();
   type Sources = { checks: GateCheck[]; calls: CallRow[]; visitors: VisitorRow[] };
   const [state, setState] = useState<{ status: FrontDeskQueueState["status"]; sources: Sources | null }>({ status: "loading", sources: null });
@@ -303,9 +305,9 @@ function useFrontDeskQueue(): FrontDeskQueueState {
       const escalated = check.status === "ESCALATED";
       list.push({ id: `pickup-${check.checkId}`, view: "pickup", title: tr("Pickup for {0}", [check.student.name]), detail: tr(escalated ? "With the pickup lead · keep the student supervised" : "Identity not yet checked"), tone: escalated ? "danger" : "warning", rank: escalated ? 0 : 1, at: check.createdAt ? Date.parse(check.createdAt) : 0 });
     }
-    const endOfDay = new Date(); endOfDay.setHours(23, 59, 59, 999);
+    const now = new Date();
     for (const call of state.sources.calls) {
-      for (const callback of call.callbacks.filter((row) => row.status === "OPEN" && (row.overdue || Date.parse(row.dueAt) <= endOfDay.getTime()))) {
+      for (const callback of call.callbacks.filter((row) => row.status === "OPEN" && (row.overdue || callbackDueByToday(row.dueAt, now, timezone)))) {
         list.push({ id: `callback-${callback.id}`, view: "phone-calls", title: tr("Call back {0}", [call.name]), detail: tr(callback.overdue ? "Overdue since {0}" : "Due {0}", [dateTime(callback.dueAt)]), tone: callback.overdue ? "danger" : "info", rank: callback.overdue ? 2 : 3, at: Date.parse(callback.dueAt) });
       }
     }
@@ -313,7 +315,7 @@ function useFrontDeskQueue(): FrontDeskQueueState {
       list.push({ id: `visitor-${visitor.id}`, view: "visitors", title: tr("{0} is still signed in", [visitor.name]), detail: tr("Arrived {0}", [dateTime(visitor.inTime)]), tone: "warning", rank: 4, at: Date.parse(visitor.inTime) });
     }
     return list.sort((a, b) => a.rank - b.rank || a.at - b.at);
-  }, [state.sources, tr, dateTime]);
+  }, [state.sources, tr, dateTime, timezone]);
   return { status: state.status, items, pickupsWaiting: state.sources ? state.sources.checks.length : null, reload: () => void load() };
 }
 
