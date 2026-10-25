@@ -1,3 +1,4 @@
+import { boundedInteger, ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -17,9 +18,8 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action") || "";
-    const days = Math.min(Math.max(parseInt(searchParams.get("days") || "30", 10), 1), 365);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10), 1), 200);
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
+    const days = boundedInteger(searchParams.get("days"), 30, 365);
+    const { page, limit } = ownerPagination(searchParams, 50, 200);
 
     // The platform audit table is global; this school sees only actions by its own people or about itself.
     const where: any = {
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
         include: {
           user: { select: { id: true, fullName: true, email: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
       }),

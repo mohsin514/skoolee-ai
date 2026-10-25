@@ -567,7 +567,7 @@ export default function RegisterPage() {
     if (!draft) return;
     const manual = draft.regIdMode === "manual";
     setType(draft.type);
-    if (isCountry(draft.country) && draft.country !== "OTHER") setCountryIso(draft.country);
+    if (typeof draft.countryIso === "string" && WORLD_COUNTRIES.some(([iso]) => iso === draft.countryIso)) setCountryIso(draft.countryIso);
     setFormData((prev) => ({
       ...prev,
       name: draft.name ?? prev.name,
@@ -589,10 +589,11 @@ export default function RegisterPage() {
       phone: formData.phone,
       schoolName: formData.schoolName,
       country: formData.country,
+      countryIso,
       regIdMode: formData.autoId ? "auto" : "manual",
       regId: formData.autoId ? undefined : formData.regId,
     });
-  }, [step, type, formData.name, formData.email, formData.phone, formData.schoolName, formData.country, formData.autoId, formData.regId]);
+  }, [step, type, formData.name, formData.email, formData.phone, formData.schoolName, formData.country, countryIso, formData.autoId, formData.regId]);
 
   const passwordRequirements = useMemo(() => [
     { label: t.requirements[0], met: formData.password.length >= 8 },
