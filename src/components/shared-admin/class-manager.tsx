@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { IconButton } from "@/components/ui/icon-button";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
@@ -114,7 +115,7 @@ interface ClassManagerProps {
   onUpdateClass: (
     classId: string,
     updates: { name?: string; section?: string; academicYear?: number },
-  ) => Promise<void>;
+  ) => Promise<boolean | void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (
     classId: string,
@@ -320,13 +321,12 @@ function SettingsDrawer({
   }, [section.id]);
 
   const save = async () => {
-    await onUpdateClass(section.id, {
+    const saved = await onUpdateClass(section.id, {
       name: editName,
       section: editSection,
       academicYear: Number(editYear) || new Date().getFullYear(),
     });
-    toast.success(ui("Class details updated"));
-    onClose();
+    if (saved !== false) onClose();
   };
 
   /* A side drawer rather than a centred dialog, so it keeps its own layout —
@@ -335,7 +335,7 @@ function SettingsDrawer({
   const requestClose = () => { if (!classUpdateBusy) onClose(); };
   const { z } = useDialogBehaviour(drawerRef, { onClose: requestClose });
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 flex justify-end"
       style={{ zIndex: z }}
@@ -429,7 +429,8 @@ function SettingsDrawer({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

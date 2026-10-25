@@ -1,3 +1,5 @@
+import { isCampusClassCount, quotedAnnouncement } from "./campus-intent";
+import { checkCapabilityAccess } from "../registry/gates";
 import { PLANS } from "@/config/plans";
 import type { Prisma, AiWorkflowJob } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
@@ -84,6 +86,21 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
     return persistPlan(user, job, [{ stepKey: "s1", capabilityKey: "assistant.app_knowledge", input: { query: segments[0].text.slice(0, 1000) } }]);
   }
 
+  const literalAnnouncement = quotedAnnouncement(segments[0]?.text ?? "");
+  if (segments.length === 1) {
+    const key = isCampusClassCount(segments[0].text) ? "school.inspect" : literalAnnouncement !== null ? "communications.queue_announcement" : null;
+    const entry = key ? capability(key) : null;
+    if (entry && (await checkCapabilityAccess(ctx, entry)).ok) {
+      const input = key === "school.inspect" ? { entity: "classes" } : {
+        operation: key, messages: { [language]: { body: literalAnnouncement } }, fallbackLanguage: null,
+      };
+      const parsed = entry.input.safeParse(input);
+      return persistPlan(user, job, [{ stepKey: "s1", capabilityKey: entry.key, input,
+        missingFields: parsed.success ? [] : parsed.error.issues.map(issue => `/${issue.path.join("/")}`),
+      }]);
+    }
+  }
+
   const compound = segments.some(segment => hasMultipleActions(segment.text)) || isGuidanceQuestion(segments[0]?.text ?? "");
   const pricing = compound ? null : await planPricingDialogue(ctx, job, segments);
   if (pricing) return persistPlan(user, job, pricing);
@@ -106,6 +123,8 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
   }));
 
   const retrieval = await retrieve(ctx, userText.map(item => item.text).join("\n"), previousSteps.map(step => step.capabilityKey));
+  // Clarifications for an explicitly quoted announcement cannot turn its body into new actions.
+  if (literalAnnouncement !== null) retrieval.cards = retrieval.cards.filter(entry => entry.key === "communications.queue_announcement");
   const planner = await buildPlannerContext(ctx);
   const payload = {
     rolePlan: await buildRolePlan(ctx),
@@ -148,6 +167,13 @@ export async function planJob(user: AuthUser, job: AiWorkflowJob, generate: Gene
     proposal = parse(recheck.text) ?? proposal;
   }
   proposal = masker.unmaskObject(proposal);
+  if (literalAnnouncement !== null) {
+    for (const step of proposal.steps) if (step.capability === "communications.queue_announcement") {
+      const messages = step.input.messages && typeof step.input.messages === "object" ? step.input.messages as Record<string, unknown> : {};
+      const variant = messages[language] && typeof messages[language] === "object" ? messages[language] as Record<string, unknown> : {};
+      step.input.messages = { ...messages, [language]: { ...variant, body: literalAnnouncement } };
+    }
+  }
 
   const allowed = new Map(retrieval.cards.map(entry => [entry.key, entry]));
   // Model-authored prose is not evidence of a database read or a completed action.
