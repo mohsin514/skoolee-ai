@@ -37,6 +37,13 @@ test("provider-decided services are unsupported for regional placement; a loopba
   assert.equal(byService({ ...deployed, AI_PROVIDER: "ollama", OLLAMA_BASE_URL: "https://ollama.example.com" }).ai.state, "unsupported");
 });
 
+test("local text plus approved remote media is disclosed as mixed processing", () => {
+  const ai = byService({ ...deployed, AI_PROVIDER: "ollama", OLLAMA_BASE_URL: "http://127.0.0.1:11434", OPENAI_API_KEY: "test", SCHOOL_AI_MEDIA_EGRESS_APPROVED: "true", SCHOOL_AI_DOCUMENT_MODEL: "gpt-4.1-mini", SCHOOL_AI_TRANSCRIPTION_MODEL: "gpt-4o-transcribe" }).ai;
+  assert.equal(ai.location, null);
+  assert.equal(ai.provider, "Ollama (loopback) + OpenAI media");
+  assert.match(ai.note, /Raw media is sent to OpenAI/);
+});
+
 test("automatic R2 placement and an unidentifiable database are not presented as a region", () => {
   const services = byService({ DATABASE_URL: "postgresql://u:p@db.ref.supabase.co/postgres", S3_ENDPOINT: "https://acct.r2.cloudflarestorage.com", S3_REGION: "auto" });
   assert.equal(services.database.location, null);
