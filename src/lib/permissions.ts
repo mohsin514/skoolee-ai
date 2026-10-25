@@ -280,7 +280,9 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, Record<PermissionModule, Perm
 
 /** Rows last written before this instant that still equal the V1 default follow the V2 default (§7.4).
  *  The orchestrator sets the real deploy date at integration. */
-export const ROLE_DEFAULTS_V2_EFFECTIVE = new Date("2026-10-26T00:00:00.000Z");
+// The cut-over must not sit in the future: a permission row saved today that
+// happens to equal the legacy flags is still an explicit administrator choice.
+export const ROLE_DEFAULTS_V2_EFFECTIVE = new Date("2026-10-23T00:00:00.000Z");
 
 export function isFixedPermissionRole(role: UserRole | string | null | undefined) {
   return role === "APP_OWNER" || role === "SUPER_ADMIN";
