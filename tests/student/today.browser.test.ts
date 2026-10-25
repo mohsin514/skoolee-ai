@@ -167,6 +167,9 @@ test("screens: Today in a far timezone, the deep link and an unavailable task, o
   await ar.locator("[data-student-today] [data-next-action]").waitFor({ timeout: 30_000 });
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
   await ar.locator("[data-student-today]").scrollIntoViewIfNeeded();
+  const workTitle = ar.locator("[data-work] a > span").first();
+  const titleBox = await workTitle.boundingBox();
+  assert.ok(titleBox && titleBox.width > 200, "mobile work titles have a full readable row");
   await shot(ar, "05-today-ar-390");
   await ar.close();
 });

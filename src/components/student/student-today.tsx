@@ -155,8 +155,8 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
         {!data.examLock ? <section aria-labelledby="today-work" data-today-work={data.work.length}>
           <h3 id="today-work" className="text-sm font-bold text-ink-strong">{ui("Work")}</h3>
           {data.work.length === 0 ? <p className="mt-2 text-sm text-ink-muted">{ui("Nothing open.")}</p> : <ul className="mt-2 space-y-1">{data.work.slice(0, 6).map(item => <li key={item.id} data-work={item.id} data-work-state={item.state}>
-            <Link href={item.href} className="flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-muted">
-              <span className="min-w-0 flex-1 font-bold [overflow-wrap:anywhere]" dir="auto">{item.title}</span>
+            <Link href={item.href} className="flex flex-col items-start gap-1 rounded-lg px-2 py-1 text-sm hover:bg-muted sm:flex-row sm:items-center sm:gap-2">
+              <span className="w-full min-w-0 flex-1 font-bold [overflow-wrap:anywhere] sm:w-auto" dir="auto">{item.title}</span>
               <span className="text-xs text-ink-muted">{stateLabel(ui, item.state)} · <bdi>{dateTime(item.dueAt)}</bdi>{item.extended ? <> · {ui("Extended for you")}</> : null}</span>
               {item.overdue ? <span className="text-xs font-semibold text-status-error-text">{item.canSubmit ? ui("Past due") : ui("Closed for submission")}</span> : null}
             </Link>
