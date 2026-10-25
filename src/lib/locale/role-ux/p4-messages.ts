@@ -674,6 +674,20 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Loading history…", "جارٍ تحميل السجل…", "تاریخ لوڈ ہو رہی ہے…"],
   ["Record type", "نوع السجل", "ریکارڈ کی قسم"],
   ["Reviewed version", "الإصدار المُراجَع", "جائزہ شدہ ورژن"],
+  ["Search campuses", "البحث عن الفروع", "کیمپس تلاش کریں"],
+  ["Campus name or city", "اسم الفرع أو المدينة", "کیمپس کا نام یا شہر"],
+  ["Needs a campus admin", "يحتاج إلى مسؤول فرع", "کیمپس منتظم درکار ہے"],
+  ["Needs a principal", "يحتاج إلى مدير", "پرنسپل درکار ہے"],
+  ["Showing {0} of {1} campuses", "عرض {0} من {1} فروع", "{1} میں سے {0} کیمپس دکھائے جا رہے ہیں"],
+  ["No matching campuses", "لا توجد فروع مطابقة", "کوئی کیمپس نہیں ملا"],
+  ["Try another name, city or leadership filter.", "جرّب اسماً أو مدينة أو مرشح قيادة آخر.", "دوسرا نام، شہر یا قیادت کا فلٹر آزمائیں۔"],
+  ["Campus created", "تم إنشاء الفرع", "کیمپس بن گیا"],
+  ["The campus was created, but its admin invitation needs attention. Open the campus to appoint the admin or resend the saved invitation.", "تم إنشاء الفرع، لكن دعوة المسؤول تحتاج إلى متابعة. افتح الفرع لتعيين المسؤول أو إعادة إرسال الدعوة المحفوظة.", "کیمپس بن گیا ہے لیکن منتظم کی دعوت پر توجہ درکار ہے۔ کیمپس کھول کر منتظم مقرر کریں یا محفوظ دعوت دوبارہ بھیجیں۔"],
+  ["The campus is ready. Appoint its leaders and review campus readiness next.", "الفرع جاهز. عيّن قيادته وراجع جاهزيته بعد ذلك.", "کیمپس تیار ہے۔ اب اس کے منتظمین مقرر کریں اور تیاری کا جائزہ لیں۔"],
+  ["Share this invitation link with the campus admin if the email does not arrive.", "شارك رابط الدعوة مع مسؤول الفرع إذا لم تصله الرسالة.", "ای میل نہ ملنے پر یہ دعوتی لنک کیمپس منتظم کو دیں۔"],
+  ["Approval counts could not be loaded. Refresh to check pending decisions.", "تعذر تحميل أعداد الموافقات. حدّث للتحقق من القرارات المعلقة.", "منظوریوں کی تعداد لوڈ نہیں ہو سکی۔ زیر التوا فیصلے دیکھنے کے لیے تازہ کریں۔"],
+  ["Checking pending decisions…", "جارٍ التحقق من القرارات المعلقة…", "زیر التوا فیصلے دیکھے جا رہے ہیں…"],
+  ["Invitation saved, but email was not delivered. Share the link or resend the invitation from the campus.", "حُفظت الدعوة لكن لم تصل الرسالة. شارك الرابط أو أعد إرسال الدعوة من الفرع.", "دعوت محفوظ ہے مگر ای میل نہیں پہنچی۔ لنک شیئر کریں یا کیمپس سے دعوت دوبارہ بھیجیں۔"],
 ];
 
 export const arabicP4Ui: Record<string, string> = Object.fromEntries(ROWS.map(([en, ar]) => [en, ar]));

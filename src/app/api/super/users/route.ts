@@ -1,3 +1,5 @@
+import { UserRole } from "@prisma/client";
+import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -16,14 +18,14 @@ export async function GET(req: NextRequest) {
     if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 
     const { searchParams } = new URL(req.url);
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "25", 10), 1), 100);
+    const { page, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
     const role = searchParams.get("role") || "";
     const campusId = searchParams.get("campusId") || "";
     const status = searchParams.get("status") || "";
 
     const where: any = { schoolId: user.schoolId };
+    if (role && !Object.values(UserRole).includes(role as UserRole)) throw new ApiError("Choose a valid role", 400);
     if (role) where.role = role;
     if (campusId) where.campusId = campusId;
     if (status === "active") where.isActive = true;
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
           createdAt: true,
           campus: { select: { id: true, name: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
       }),

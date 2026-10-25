@@ -54,13 +54,16 @@ export async function addCampus(input: AddCampusInput) {
   const newCampus = await createCampusRecord(payload, valid);
 
   // Automatically trigger invite if email provided
+  let invitation: { link: string; needsAttention: boolean } | null = null;
   if (adminEmail) {
-    await inviteStaff({
-      email: adminEmail,
-      role: 'CAMPUS_ADMIN',
-      campusId: newCampus.id
-    });
+    try {
+      const result = await inviteStaff({ email: adminEmail, role: 'CAMPUS_ADMIN', campusId: newCampus.id }, { returnDeliveryStatus: true });
+      invitation = { link: result.inviteLink, needsAttention: result.deliveryStatus === "failed" };
+    } catch {
+      // Campus creation already committed. Never invite the caller to repeat it when only the invitation failed.
+      invitation = { link: "", needsAttention: true };
+    }
   }
 
-  return { success: true, campus: newCampus };
+  return { success: true, campus: newCampus, invitation };
 }
