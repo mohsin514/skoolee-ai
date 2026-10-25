@@ -6,6 +6,7 @@
  * Includes the strings that used to live in ReportCardPipeline's private dictionary (R11).
  */
 const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
+  ["Check-in status unavailable", "تعذّر تحميل حالة تسجيل الحضور", "حاضری کی کیفیت دستیاب نہیں"],
   ["Past 7 days", "الأيام السبعة الماضية", "گزشتہ 7 دن"],
   ["No class data for this period", "لا توجد بيانات صفوف لهذه الفترة", "اس مدت کے لیے جماعتوں کا ڈیٹا نہیں ہے"],
   ["Counts are attendance records across the selected days, not individual pupils.", "الأعداد هي سجلات الحضور خلال الأيام المحددة، وليست أعداد طلاب منفردين.", "یہ تعداد منتخب دنوں کے حاضری ریکارڈ کی ہے، انفرادی طلبہ کی نہیں۔"],

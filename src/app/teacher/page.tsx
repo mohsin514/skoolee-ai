@@ -1,5 +1,6 @@
 "use client";
 
+import { schoolClock } from "@/lib/timetable/school-clock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,26 +57,32 @@ export default function TeacherToday() {
   const [todaySlots, setTodaySlots] = useState<TimetableSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
   const [scheduleAvailability, setScheduleAvailability] = useState<"published" | "unpublished" | "failed">("published");
-  const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked">("loading");
+  const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked" | "failed">("loading");
   const [selfAttendanceTime, setSelfAttendanceTime] = useState<string | null>(null);
   const [markingSelf, setMarkingSelf] = useState(false);
 
+  const [attendanceRetry, setAttendanceRetry] = useState(0);
   useEffect(() => {
+    let active = true;
+    setSelfAttendanceStatus("loading");
     (async () => {
       try {
-        // YYYY-MM-DD on the viewer's calendar (an API value, not display text).
-        const today = new Date().toLocaleDateString("en-CA");
+        // API dates follow the school calendar, including when the teacher travels.
+        const today = schoolClock(new Date(), locale.timezone).day;
         const res = await fetch(`/api/teacher-attendance?userId=self&date=${today}`);
         const json = await res.json();
-        if (json.success && json.data?.length > 0) {
+        if (!active) return;
+        if (!res.ok || !json.success || !Array.isArray(json.data)) throw new Error("Attendance unavailable");
+        if (json.data.length > 0) {
           setSelfAttendanceStatus("marked");
           setSelfAttendanceTime(json.data[0].checkInTime);
         } else {
           setSelfAttendanceStatus("unmarked");
         }
-      } catch { setSelfAttendanceStatus("unmarked"); }
+      } catch { if (active) setSelfAttendanceStatus("failed"); }
     })();
-  }, []);
+    return () => { active = false; };
+  }, [locale.timezone, attendanceRetry]);
 
   const handleMarkSelfAttendance = useCallback(async () => {
     setMarkingSelf(true);
@@ -88,7 +95,7 @@ export default function TeacherToday() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ? ui(json.error) : ui("Could not check you in. Please try again."));
       setSelfAttendanceStatus("marked");
-      setSelfAttendanceTime(json.data?.checkInTime || new Date().toLocaleTimeString(localeTag(locale), { hour: "2-digit", minute: "2-digit", hour12: false }));
+      setSelfAttendanceTime(json.data?.checkInTime || new Date().toLocaleTimeString(localeTag(locale), { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: locale.timezone }));
       toast.success(json.alreadyMarked ? ui("You were already checked in today.") : ui("You're checked in for today."));
     } catch (err) { toast.error(err); }
     finally { setMarkingSelf(false); }
@@ -130,7 +137,7 @@ export default function TeacherToday() {
       const classId = student.class?.id;
       if (classId && student.todayAttendance == null) unmarked.set(classId, (unmarked.get(classId) ?? 0) + 1);
     }
-    const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+    const nowMinutes = schoolClock(new Date(), locale.timezone).minutes;
     const byLesson = [...todaySlots].sort((a, b) => {
       const aDone = toMinutes(a.endTime) <= nowMinutes ? 1 : 0;
       const bDone = toMinutes(b.endTime) <= nowMinutes ? 1 : 0;
@@ -138,7 +145,7 @@ export default function TeacherToday() {
     });
     const fromLessons = byLesson.find((slot) => (unmarked.get(slot.classId) ?? 0) > 0)?.classId;
     return fromLessons ?? [...unmarked.keys()][0] ?? null;
-  }, [data, todaySlots]);
+  }, [data, todaySlots, locale.timezone]);
 
   const hasUnmarkedAttendance = canRegister && attendanceStats.unmarked > 0;
   const hasMissingMarks = canMarks && missingMarksTotal > 0;
@@ -156,6 +163,11 @@ export default function TeacherToday() {
           {ui("Checked in")}
           {selfAttendanceTime ? <bdi data-numeric className="font-medium tabular-nums">{selfAttendanceTime}</bdi> : null}
         </Badge>
+      ) : selfAttendanceStatus === "failed" ? (
+        <span role="status" className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+          {ui("Check-in status unavailable")}
+          <Button variant="outline" size="sm" onClick={() => setAttendanceRetry(value => value + 1)}>{ui("Try again")}</Button>
+        </span>
       ) : (
         <Button variant="outline" onClick={handleMarkSelfAttendance} loading={markingSelf}>
           {markingSelf ? null : <UserCheck aria-hidden="true" />}

@@ -20,17 +20,21 @@ const schoolId = `sh479-${randomUUID()}`, campusId = randomUUID();
 const SCHOOL = "Synthetic Navigation QA International School of Excellence", CAMPUS = "QA Campus North";
 const users = new Map<string, { id: string; email: string }>();
 let browser: Browser, classId = "";
+const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
 
 async function user(key: string, role: string, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `QA ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `QA ${key}`, role: role as never, schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { teacher: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email });
 }
 async function context(key: string, viewport: { width: number; height: number }): Promise<BrowserContext> {
+  const saved = sessions.get(key);
+  if (saved) return browser.newContext({ viewport, reducedMotion: "reduce", storageState: saved });
   const c = await browser.newContext({ viewport, reducedMotion: "reduce" });
   assert.equal((await c.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password } })).status(), 200, `login ${key}`);
   const { secret } = await (await c.request.post(base + "/api/auth/mfa", { data: { action: "setup" } })).json().catch(() => ({}));
   if (secret) { await c.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await c.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
+  sessions.set(key, await c.storageState());
   return c;
 }
 async function students(n: number) {
@@ -61,7 +65,7 @@ test("the teacher workspace names the school and campus on desktop and phone; co
   for (const [viewport, name] of [[{ width: 1280, height: 900 }, "teacher-desktop-1280"], [{ width: 360, height: 800 }, "teacher-phone-360"]] as const) {
     const page = await (await context("teacher", viewport)).newPage();
     await page.goto(`${base}/teacher`);
-    const badge = page.getByTestId("scope-badge");
+    const badge = viewport.width < 640 ? page.locator('header p[title]').filter({ hasText: SCHOOL }) : page.getByTestId("scope-badge");
     await badge.waitFor({ timeout: 60_000 });
     assert.equal((await badge.textContent())?.replace(/\s+/g, " ").trim(), `${SCHOOL} · ${CAMPUS}`);
     assert.ok(await badge.isVisible(), `scope is visible at ${viewport.width}px`);
@@ -71,6 +75,7 @@ test("the teacher workspace names the school and campus on desktop and phone; co
     const text = await page.locator("body").innerText();
     assert.ok(!/\b1 students\b/u.test(text), "never “1 students”");
     assert.ok(text.includes("1 student in your classes"), "the register reads “1 student in your classes”");
+    await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
     await page.screenshot({ path: `${evidence}/${name}.png` });
     await page.close();
   }
@@ -88,9 +93,32 @@ test("zero and two students, and Arabic forms on a phone", async () => {
   await db.class.update({ where: { id: classId }, data: { classTeacherId: users.get("teacher-ar")!.id } });
   const page = await (await context("teacher-ar", { width: 360, height: 800 })).newPage();
   await page.goto(`${base}/teacher`);
-  await page.getByTestId("scope-badge").waitFor({ timeout: 60_000 });
+  await page.locator('header p[title]').filter({ hasText: SCHOOL }).waitFor({ timeout: 60_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
   await page.getByText("طالب واحد", { exact: false }).first().waitFor({ timeout: 30_000 });
-  await page.screenshot({ path: `${evidence}/teacher-phone-ar-360.png` });
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
+    await page.screenshot({ path: `${evidence}/teacher-phone-ar-360.png` });
   await page.close();
+});
+
+
+test("attendance lookup errors offer retry, not a false check-in action, using the school's day", async () => {
+  const ctx = await context("teacher", { width: 390, height: 844 });
+  const page = await ctx.newPage(); let fail = true; let requestedDay = "";
+  await page.route("**/api/teacher-attendance?*", async route => {
+    requestedDay = new URL(route.request().url()).searchParams.get("date") || "";
+    await route.fulfill({ status: fail ? 503 : 200, json: fail ? { success: false } : { success: true, data: [{ checkInTime: "08:15" }] } });
+  });
+  await page.goto(`${base}/teacher`);
+  const check = page.locator('[data-tour="teacher.today.checkin"]');
+  await check.getByText("Check-in status unavailable").waitFor();
+  assert.equal(await check.getByRole("button", { name: "Check in for today", exact: true }).count(), 0);
+  assert.match(requestedDay, /^\d{4}-\d{2}-\d{2}$/);
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
+  await page.screenshot({ path: `${evidence}/teacher-checkin-retry-390.png` });
+  fail = false;
+  await check.getByRole("button", { name: "Try again" }).click();
+  await check.getByText("Checked in", { exact: false }).waitFor();
+  assert.match(await check.innerText(), /08:15/);
+  await ctx.close();
 });
