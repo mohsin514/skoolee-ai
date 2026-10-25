@@ -9,6 +9,7 @@ import { getCampusSeats } from "@/lib/auth/seats";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { assertPermission as assertPermissionImpl, moduleFlags, type PermissionAction, type PermissionModule } from "@/lib/permissions";
 import { cookies } from "next/headers";
+import { ZodError } from "zod";
 
 export class ApiError extends Error {
   status: number;
@@ -96,6 +97,9 @@ export async function requirePlatformOwner(options: { allowSupportAccess?: boole
 }
 
 export function errorResponse(error: unknown, fallback = "Request failed") {
+  if (error instanceof ZodError) {
+    return Response.json({ error: "Please check the submitted values.", details: error.flatten().fieldErrors }, { status: 400 });
+  }
   // Checked before ApiError — ValidationError extends it, and the field map is
   // the whole point of the subclass.
   if (error instanceof ValidationError) {
