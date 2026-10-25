@@ -190,25 +190,26 @@ export function InstitutionSettingsPanel({
   }, [data, campusId]);
 
   // The screen's PageHeader asked for the edit / archive dialog.
-  const openEditor = () => {
+  const openEditor = useCallback(() => {
     if (!data) return;
     if (section === "school") { if (data.canEditSchool) setEditingSchool(true); return; }
     // A single school's merged card edits the school record first; its campus row keeps its own Edit.
     if (section === "school-and-campus" && data.canEditSchool) { setEditingSchool(true); return; }
     if (focusCampus && data.editableCampusIds.includes(focusCampus.id)) setEditingCampus(focusCampus);
-  };
+  }, [data, section, focusCampus]);
+  const handledEdit = useRef(0);
+  const handledArchive = useRef(0);
   useEffect(() => {
-    if (!requestEdit || !data) return;
+    if (!requestEdit || !data || requestEdit === handledEdit.current) return;
+    handledEdit.current = requestEdit;
     openEditor();
-    // Only a new request opens the dialog; data refreshes must not reopen it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestEdit]);
+  }, [requestEdit, data, openEditor]);
   usePanelCommand(command, { save: openEditor, edit: openEditor }, Boolean(data));
   useEffect(() => {
-    if (!requestArchive || !data || !focusCampus || !data.canArchiveCampuses) return;
+    if (!requestArchive || !data || !focusCampus || !data.canArchiveCampuses || requestArchive === handledArchive.current) return;
+    handledArchive.current = requestArchive;
     setArchiving(focusCampus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestArchive]);
+  }, [requestArchive, data, focusCampus]);
 
   if (section === "archived") {
     // A secondary list under the campus grid: nothing while loading, nothing when empty.
