@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, CheckCircle2, DoorOpen, Inbox, LogIn, Phone, Plus, ScanLine, ShieldAlert, Download } from "lucide-react";
 import { callbackDueByToday } from "@/lib/front-desk/callback-day";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
@@ -37,6 +37,9 @@ import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
  * retry (M88).
  */
 
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+import { usePrivateDashboardData } from "@/lib/auth/use-private-dashboard-data";
+
 type OpsData = Awaited<ReturnType<typeof getOperationsStaffDashboardData>>;
 
 const ADMISSION_TABS = [
@@ -61,18 +64,7 @@ function campusLine(data: OpsData) {
 export default function ReceptionistPage() {
   const tr = useUiText();
   const { view, tab, setView, setTab, retiredNotice } = useConsoleView("receptionist");
-  const [data, setData] = useState<OpsData | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  const load = useCallback(async () => {
-    setFailed(false);
-    try {
-      setData(await getOperationsStaffDashboardData());
-    } catch {
-      setFailed(true);
-    }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  const { data, error: failed, refetch: load } = usePrivateDashboardData(getOperationsStaffDashboardData);
 
   return (
     <RoleShell
@@ -255,17 +247,14 @@ function ReceptionToday({ summary, campusLabel, onNavigate }: { summary: FrontDe
 /* ─── The front desk's one queue (role-ux §4.5.8, P8-18) ─────────────────────────────────────────────────── */
 
 type QueueItem = { id: string; view: "pickup" | "phone-calls" | "visitors"; title: string; detail: string; tone: "warning" | "danger" | "info"; rank: number; at: number };
-type FrontDeskQueueState = { status: "loading" | "error" | "ready"; items: QueueItem[]; pickupsWaiting: number | null; reload: () => void };
+type FrontDeskQueueState = { status: "loading" | "error" | "ready"; items: QueueItem[]; pickupsWaiting: number | null; error: RequestFailure | null; reload: () => void };
 
 type GateCheck = { checkId: string; status: string; exceptionStatus: string | null; student: { name: string }; createdAt?: string };
 type CallRow = { id: string; name: string; callbacks: { id: string; status: string; dueAt: string; overdue: boolean }[] };
 type VisitorRow = { id: string; name: string; inTime: string; overdue: boolean };
 
 async function readJson(url: string) {
-  const response = await fetch(url, { cache: "no-store" });
-  const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error("load");
-  return json;
+  return checkedJson(await readRequest(url));
 }
 
 /**
@@ -278,26 +267,30 @@ function useFrontDeskQueue(): FrontDeskQueueState {
   const { timezone } = useLocale();
   const { dateTime } = useLocaleFormat();
   type Sources = { checks: GateCheck[]; calls: CallRow[]; visitors: VisitorRow[] };
-  const [state, setState] = useState<{ status: FrontDeskQueueState["status"]; sources: Sources | null }>({ status: "loading", sources: null });
+  const [state, setState] = useState<{ status: FrontDeskQueueState["status"]; sources: Sources | null; error: RequestFailure | null }>({ status: "loading", sources: null, error: null });
+  const sequence = useRef(0);
   // The loader only fetches: wording and dates are applied at render, so a language change never refetches.
   const load = useCallback(async () => {
-    setState((current) => ({ ...current, status: "loading" }));
+    const version = ++sequence.current;
+    setState({ status: "loading", sources: null, error: null });
     try {
       const [gate, calls, visitors] = await Promise.all([
         readJson("/api/pickup/gate"),
         readJson("/api/front-desk/phone-calls?view=open"),
         readJson("/api/front-desk/visitors?status=ON_SITE"),
       ]);
-      setState({ status: "ready", sources: {
+      if (version !== sequence.current) return;
+      if (!Array.isArray(gate.data?.checks) || !Array.isArray(calls.data) || !Array.isArray(visitors.data)) throw new RequestFailure("server");
+      setState({ status: "ready", error: null, sources: {
         checks: ((gate.data?.checks ?? []) as GateCheck[]).filter((check) => check.status === "OPEN" || check.status === "ESCALATED"),
         calls: (calls.data ?? []) as CallRow[],
         visitors: ((visitors.data ?? []) as VisitorRow[]).filter((row) => row.overdue),
       } });
-    } catch {
-      setState((current) => ({ ...current, status: "error" }));
+    } catch (error) {
+      if (version === sequence.current) setState({ status: "error", sources: null, error: requestFailure(error) });
     }
   }, []);
-  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); sequence.current++; }; }, [load]);
   const items = useMemo(() => {
     if (!state.sources) return [];
     const list: QueueItem[] = [];
@@ -316,7 +309,7 @@ function useFrontDeskQueue(): FrontDeskQueueState {
     }
     return list.sort((a, b) => a.rank - b.rank || a.at - b.at);
   }, [state.sources, tr, dateTime, timezone]);
-  return { status: state.status, items, pickupsWaiting: state.sources ? state.sources.checks.length : null, reload: () => void load() };
+  return { status: state.status, error: state.error, items, pickupsWaiting: state.sources ? state.sources.checks.length : null, reload: () => void load() };
 }
 
 const QUEUE_LIMIT = 6;
@@ -326,8 +319,8 @@ const VIEW_ACTION: Record<QueueItem["view"], string> = { pickup: "Open pickup", 
 function FrontDeskQueue({ state, onNavigate }: { state: FrontDeskQueueState; onNavigate: (view: string) => void }) {
   const tr = useUiText();
   const heading = <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Inbox className="size-4 text-primary" aria-hidden="true" />{tr("Waiting on you")}</h3>;
-  if (state.status === "error") return <section className="sk-panel space-y-3 p-5" data-front-desk-queue data-queue-state="error">{heading}<ErrorState title={tr("The queue could not be loaded")} description={tr("Check your connection and try again.")} onRetry={state.reload} retryLabel={tr("Try again")} className="py-6" /></section>;
-  if (state.status === "loading" && !state.items.length) return <section className="sk-panel space-y-3 p-5" data-front-desk-queue aria-busy="true">{heading}<SkeletonList rows={3} label={tr("Loading the queue…")} /></section>;
+  if (state.status === "error") return <section className="sk-panel space-y-3 p-5" data-front-desk-queue data-queue-state="error">{heading}<ErrorState error={state.error} title={tr("The queue could not be loaded")} description={tr("Check your connection and try again.")} onRetry={state.reload} retryLabel={tr("Try again")} className="py-6" /></section>;
+  if (state.status === "loading") return <section className="sk-panel space-y-3 p-5" data-front-desk-queue aria-busy="true">{heading}<SkeletonList rows={3} label={tr("Loading the queue…")} /></section>;
   if (!state.items.length) return <section className="sk-panel space-y-3 p-5" data-front-desk-queue data-queue-state="empty">{heading}<EmptyState size="sm" icon={CheckCircle2} title={tr("Nothing is waiting on you.")} description={tr("Pickups at the gate, callbacks due today and visitors still signed in appear here.")} /></section>;
   const shown = state.items.slice(0, QUEUE_LIMIT);
   const more = state.items.length - shown.length;

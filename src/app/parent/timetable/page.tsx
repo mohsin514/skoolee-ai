@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, Lock } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Clock } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
 import { ParentTimetableSkeleton } from "@/components/parent/parent-components";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,6 +12,8 @@ import { FamilyExamBrief } from "@/components/exams/family-exam-brief";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
 import { useParentData } from "../parent-data-context";
 import { useUiText } from "@/components/locale/LocaleProvider";
+
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +42,11 @@ export default function ParentTimetablePage() {
   // A failed load used to fall through to "No timetable published", which
   // told a guardian the school had not published one when it simply had not
   // arrived. "denied" is the portal permission, which a retry cannot change.
-  const [loadError, setLoadError] = useState<"failed" | "denied" | null>(null);
+  const [loadError, setLoadError] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
 
   const loadTimetable = useCallback(async () => {
+    const version = ++sequence.current;
     setLoading(true);
     setLoadError(null);
     try {
@@ -51,25 +55,19 @@ export default function ParentTimetablePage() {
       // showing the default child's schedule.
       if (selectedStudentId) params.set("studentId", selectedStudentId);
       const query = params.toString();
-      const res = await fetch(`/api/parent/timetable${query ? `?${query}` : ""}`);
-      const json = await res.json();
-      if (json.success) {
-        setTimetableData(json.data);
-        setWeekendDays(json.data?.weekends || []);
-      } else {
-        setLoadError(res.status === 403 ? "denied" : "failed");
-      }
-    } catch {
-      // Reported once, inline, by the ErrorState below (R4) — not also as a toast.
-      setLoadError("failed");
-    }
-    setLoading(false);
+      const json = await checkedJson(await readRequest(`/api/parent/timetable${query ? `?${query}` : ""}`));
+      if (version !== sequence.current) return;
+      if (json.data !== null && (!Array.isArray(json.data?.slots) || !Array.isArray(json.data?.weekends))) throw new RequestFailure("server");
+      setTimetableData(json.data); setWeekendDays(json.data?.weekends || []);
+    } catch (error) {
+      if (version === sequence.current) { setTimetableData(null); setWeekendDays([]); setLoadError(requestFailure(error)); }
+    } finally { if (version === sequence.current) setLoading(false); }
   }, [selectedStudentId]);
 
   // Only render the campus's working days so a 5-day calendar hides Saturday.
   const visibleDays = DAYS.filter((d) => !weekendDays.includes(d.num));
 
-  useEffect(() => { loadTimetable(); }, [loadTimetable]);
+  useEffect(() => { void loadTimetable(); return () => { sequence.current++; }; }, [loadTimetable]);
 
   const slots = timetableData?.slots || [];
 
@@ -114,11 +112,9 @@ export default function ParentTimetablePage() {
       <div className="space-y-3">
         {loading ? (
           <ParentTimetableSkeleton weekendDays={weekendDays} />
-        ) : loadError === "denied" ? (
-          <EmptyState size="sm" icon={Lock} title={tr("Timetable not shared")} description={tr("The school has not shared the timetable with this account. Contact the school office if you need it.")} />
         ) : loadError ? (
           <div className="sk-panel">
-            <ErrorState onRetry={loadTimetable} />
+            <ErrorState error={loadError} onRetry={loadTimetable} />
           </div>
         ) : hasTable ? (
           <div className="space-y-4">

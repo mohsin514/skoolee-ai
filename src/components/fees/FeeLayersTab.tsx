@@ -6,10 +6,11 @@ import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/loca
 import { getFinancialLocale } from "@/app/actions/locale";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { BookOpen, Check, Layers, MoreHorizontal, Pencil, Percent, Plus, Tag, Timer, Trash2, Users, Wallet } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState as SharedErrorState } from "@/components/ui/error-state";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -50,7 +51,8 @@ function TypesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
   const tr = useUiText();
   const [types, setTypes] = useState<FeeTypeRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeTypeRow | null>(null);
   const [name, setName] = useState("");
@@ -62,21 +64,24 @@ function TypesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
-      const res = await fetch(`${API}/types${qp}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/types${qp}`);
+      const json = await checkedJson(res);
+      if (loadVersion !== loadSequence.current) return;
       if (json.success) setTypes(json.data);
-      else setLoadFailed(true);
-    } catch {
-      setLoadFailed(true);
+      else throw new Error("Invalid result");
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const openModal = (row: FeeTypeRow | null) => {
     setEditing(row);
@@ -136,7 +141,7 @@ function TypesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
     return <SkeletonRows />;
   }
   if (loadFailed) {
-    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
+    return <SharedErrorState error={loadFailed} title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />;
   }
 
   return (
@@ -205,7 +210,8 @@ function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
   const tr = useUiText();
   const [groups, setGroups] = useState<FeeGroupRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeGroupRow | null>(null);
   const [name, setName] = useState("");
@@ -216,21 +222,24 @@ function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
-      const res = await fetch(`${API}/groups${qp}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/groups${qp}`);
+      const json = await checkedJson(res);
+      if (loadVersion !== loadSequence.current) return;
       if (json.success) setGroups(json.data);
-      else setLoadFailed(true);
-    } catch {
-      setLoadFailed(true);
+      else throw new Error("Invalid result");
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const openModal = (row: FeeGroupRow | null) => {
     setEditing(row);
@@ -289,7 +298,7 @@ function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
     return <SkeletonRows />;
   }
   if (loadFailed) {
-    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
+    return <SharedErrorState error={loadFailed} title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />;
   }
 
   return (
@@ -370,7 +379,8 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
   const [types, setTypes] = useState<FeeTypeRow[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<MasterLineRow | null>(null);
   const [feeTypeId, setFeeTypeId] = useState("");
@@ -382,22 +392,25 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
-      const [gRes, tRes] = await Promise.all([fetch(`${API}/groups${qp}`), fetch(`${API}/types${qp}`)]);
-      const [gJson, tJson] = await Promise.all([gRes.json(), tRes.json()]);
+      const [gRes, tRes] = await Promise.all([readRequest(`${API}/groups${qp}`), readRequest(`${API}/types${qp}`)]);
+      const [gJson, tJson] = await Promise.all([checkedJson(gRes), checkedJson(tRes)]);
+      if (loadVersion !== loadSequence.current) return;
       if (gJson.success) setGroups(gJson.data);
-      else setLoadFailed(true);
+      else throw new Error("Invalid result");
       if (tJson.success) setTypes(tJson.data);
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
 
@@ -471,7 +484,7 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
     return <SkeletonRows />;
   }
   if (loadFailed) {
-    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
+    return <SharedErrorState error={loadFailed} title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />;
   }
 
   return (
@@ -560,7 +573,8 @@ function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
   const [groups, setGroups] = useState<FeeGroupRow[]>([]);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [feeGroupId, setFeeGroupId] = useState("");
   const [classId, setClassId] = useState("");
@@ -571,26 +585,29 @@ function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
       const [aRes, gRes, cRes] = await Promise.all([
-        fetch(`${API}/assignments${qp}`),
-        fetch(`${API}/groups${qp}`),
-        fetch(`/api/classes${qp}`),
+        readRequest(`${API}/assignments${qp}`),
+        readRequest(`${API}/groups${qp}`),
+        readRequest(`/api/classes${qp}`),
       ]);
-      const [aJson, gJson, cJson] = await Promise.all([aRes.json(), gRes.json(), cRes.json()]);
+      const [aJson, gJson, cJson] = await Promise.all([checkedJson(aRes), checkedJson(gRes), checkedJson(cRes)]);
+      if (loadVersion !== loadSequence.current) return;
       if (aJson.success) setAssignments(aJson.data);
       if (gJson.success) setGroups(gJson.data);
       if (cJson.success) setClasses(cJson.data);
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const handleSave = async () => {
     if (!feeGroupId || !classId || !academicYear) {
@@ -650,7 +667,7 @@ function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
     return <SkeletonRows />;
   }
   if (loadFailed) {
-    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
+    return <SharedErrorState error={loadFailed} title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />;
   }
 
   return (
@@ -730,7 +747,8 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
   const [discounts, setDiscounts] = useState<FeeDiscountRow[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeDiscountRow | null>(null);
   const [name, setName] = useState("");
@@ -749,24 +767,27 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
       const [dRes, cRes] = await Promise.all([
-        fetch(`${API}/discounts${qp}`),
-        fetch(`/api/student-categories${qp}`),
+        readRequest(`${API}/discounts${qp}`),
+        readRequest(`/api/student-categories${qp}`),
       ]);
-      const [dJson, cJson] = await Promise.all([dRes.json(), cRes.json()]);
+      const [dJson, cJson] = await Promise.all([checkedJson(dRes), checkedJson(cRes)]);
+      if (loadVersion !== loadSequence.current) return;
       if (dJson.success) setDiscounts(dJson.data);
       if (cJson.success) setCategories(cJson.data);
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const openModal = (row: FeeDiscountRow | null) => {
     setEditing(row);
@@ -905,7 +926,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
     return <SkeletonRows />;
   }
   if (loadFailed) {
-    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
+    return <SharedErrorState error={loadFailed} title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />;
   }
 
   return (
@@ -1065,7 +1086,8 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
   const [forwards, setForwards] = useState<CarryForwardRow[]>([]);
   const [students, setStudents] = useState<StudentLite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [studentId, setStudentId] = useState("");
   const [fromYear, setFromYear] = useState(String(new Date().getFullYear()));
@@ -1078,24 +1100,27 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
       const [fRes, sRes] = await Promise.all([
-        fetch(`${API}/carry-forwards${qp}`),
-        fetch(`/api/students${qp ? `${qp}&` : "?"}pageSize=1000`),
+        readRequest(`${API}/carry-forwards${qp}`),
+        readRequest(`/api/students${qp ? `${qp}&` : "?"}pageSize=1000`),
       ]);
-      const [fJson, sJson] = await Promise.all([fRes.json(), sRes.json()]);
+      const [fJson, sJson] = await Promise.all([checkedJson(fRes), checkedJson(sRes)]);
+      if (loadVersion !== loadSequence.current) return;
       if (fJson.success) setForwards(fJson.data);
       if (sJson.success) setStudents(sJson.data);
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const handleSave = async () => {
     if (!studentId || !fromYear || !toYear || balance === "") {
@@ -1160,7 +1185,7 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
     return <SkeletonRows />;
   }
   if (loadFailed) {
-    return <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />;
+    return <SharedErrorState error={loadFailed} title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />;
   }
 
   return (
@@ -1252,7 +1277,8 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
   useEffect(() => { void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => {}); }, [campusId]);
   const [rules, setRules] = useState<FineRuleRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FineRuleRow | null>(null);
   const [name, setName] = useState("");
@@ -1267,21 +1293,24 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
-      const res = await fetch(`${API}/fine-rules${qp}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/fine-rules${qp}`);
+      const json = await checkedJson(res);
+      if (loadVersion !== loadSequence.current) return;
       if (json.success) setRules(json.data);
-      else setLoadFailed(true);
-    } catch {
-      setLoadFailed(true);
+      else throw new Error("Invalid result");
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const openModal = (row: FineRuleRow | null) => {
     setEditing(row);
@@ -1379,7 +1408,7 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
       {loading ? (
         <SkeletonRows />
       ) : loadFailed ? (
-        <SharedErrorState title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
+        <SharedErrorState error={loadFailed} title={tr("This fee setup could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />
       ) : rules.length === 0 ? (
         <EmptyState
           icon={Timer}

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { RequestFailure } from "@/lib/http/request-state";
 import { ownerPagination, boundedInteger } from "@/lib/owner/list-query";
 import { loadOwnerPages } from "@/lib/owner/load-pages";
 import { defaultPricingSchema, schoolPricingSchema } from "@/lib/owner/pricing";
@@ -34,7 +35,8 @@ test("a failed later page cannot produce a successful partial export", async () 
   let requests = 0;
   await assert.rejects(loadOwnerPages("/api/owner/users", undefined, async () => ++requests === 1
     ? Response.json({ success: true, data: [1], pagination: { pages: 2 } })
-    : Response.json({ error: "Unavailable" }, { status: 503 })), /Unavailable/);
+    : Response.json({ error: "Unavailable" }, { status: 503 })), (error: unknown) => error instanceof RequestFailure && error.kind === "provider" && error.status === 503);
+  assert.equal(requests, 2);
   await assert.rejects(loadOwnerPages("/api/owner/users", undefined, async () => Response.json({ success: true, data: [], pagination: { pages: 2 } })), /list changed/);
 });
 

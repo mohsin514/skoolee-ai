@@ -7,6 +7,23 @@ import { arabicRoleUxUi, urduRoleUxUi } from "./role-ux/index";
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
  */
 export const arabicReviewedUi: Record<string, string> = {
+  "The request timed out": "انتهت مهلة الطلب",
+  "Your work is kept. Try again when the service responds.": "تم الاحتفاظ بعملك. حاول مجدداً عندما تستجيب الخدمة.",
+  "This record has changed": "تغيّر هذا السجل",
+  "Your draft is kept. Review the latest record before saving again.": "تم الاحتفاظ بمسودتك. راجع أحدث سجل قبل الحفظ مجدداً.",
+  "Check the information": "تحقق من المعلومات",
+  "Your work is kept. Correct the highlighted fields and try again.": "تم الاحتفاظ بعملك. صحح الحقول المحددة وحاول مجدداً.",
+  "Too many requests": "طلبات كثيرة جداً",
+  "Your work is kept. Wait a moment before trying again.": "تم الاحتفاظ بعملك. انتظر قليلاً قبل المحاولة مجدداً.",
+  "A service is unavailable": "إحدى الخدمات غير متاحة",
+  "Your work is kept. Try again in a moment.": "تم الاحتفاظ بعملك. حاول مجدداً بعد قليل.",
+  "Sign in again": "سجّل الدخول مجدداً",
+  "Your session has ended. Sign in again to continue.": "انتهت جلستك. سجّل الدخول مجدداً للمتابعة.",
+  "Ask your school administrator for access or choose an available workspace.": "اطلب الوصول من مسؤول مدرستك أو اختر مساحة عمل متاحة.",
+  "No matching records": "لا توجد سجلات مطابقة",
+  "Change or clear your search to see more records.": "غيّر البحث أو امسحه لرؤية المزيد من السجلات.",
+  "Use the available add action to create your first record.": "استخدم إجراء الإضافة المتاح لإنشاء سجلك الأول.",
+
   ...arabicDesignSystemUi,
   "Uploading": "جارٍ الرفع",
   "Logo uploaded": "تم رفع الشعار",
@@ -383,6 +400,23 @@ export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicRe
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
+  "The request timed out": "درخواست کا وقت ختم ہو گیا",
+  "Your work is kept. Try again when the service responds.": "آپ کا کام محفوظ ہے۔ سروس جواب دے تو دوبارہ کوشش کریں۔",
+  "This record has changed": "یہ ریکارڈ تبدیل ہو گیا ہے",
+  "Your draft is kept. Review the latest record before saving again.": "آپ کا مسودہ محفوظ ہے۔ دوبارہ محفوظ کرنے سے پہلے تازہ ریکارڈ دیکھیں۔",
+  "Check the information": "معلومات چیک کریں",
+  "Your work is kept. Correct the highlighted fields and try again.": "آپ کا کام محفوظ ہے۔ نشان زدہ خانے درست کر کے دوبارہ کوشش کریں۔",
+  "Too many requests": "بہت زیادہ درخواستیں",
+  "Your work is kept. Wait a moment before trying again.": "آپ کا کام محفوظ ہے۔ دوبارہ کوشش کرنے سے پہلے کچھ دیر انتظار کریں۔",
+  "A service is unavailable": "ایک سروس دستیاب نہیں",
+  "Your work is kept. Try again in a moment.": "آپ کا کام محفوظ ہے۔ کچھ دیر بعد دوبارہ کوشش کریں۔",
+  "Sign in again": "دوبارہ سائن ان کریں",
+  "Your session has ended. Sign in again to continue.": "آپ کا سیشن ختم ہو گیا ہے۔ جاری رکھنے کے لیے دوبارہ سائن ان کریں۔",
+  "Ask your school administrator for access or choose an available workspace.": "رسائی کے لیے اسکول کے منتظم سے رابطہ کریں یا دستیاب ورک اسپیس منتخب کریں۔",
+  "No matching records": "کوئی مماثل ریکارڈ نہیں",
+  "Change or clear your search to see more records.": "مزید ریکارڈ دیکھنے کے لیے تلاش تبدیل یا صاف کریں۔",
+  "Use the available add action to create your first record.": "پہلا ریکارڈ بنانے کے لیے دستیاب شامل کرنے کا بٹن استعمال کریں۔",
+
   ...urduDesignSystemUi,
   "Uploading": "اپ لوڈ ہو رہا ہے",
   "Logo uploaded": "لوگو اپ لوڈ ہو گیا",

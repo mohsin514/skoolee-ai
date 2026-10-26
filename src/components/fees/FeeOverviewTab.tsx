@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat } from "@/components/locale/LocaleProvider";
 import { CurrencySelect } from "@/components/locale/CurrencySelect";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Banknote,
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/empty-state";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { StatCard } from "@/components/role-dashboard";
 import { CornerSparkles } from "@/components/CornerSparkles";
@@ -41,28 +42,24 @@ export function FeeOverviewTab({
   const [currency, setCurrency] = useState("");
   const [summary, setSummary] = useState<FeeSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
 
   const qp = `?${new URLSearchParams({ ...(campusId ? { campusId } : {}), ...(currency ? { currency } : {}) })}`;
 
   const loadSummary = useCallback(async () => {
-    setLoadFailed(false);
+    const version = ++sequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const res = await fetch(`${API}/campus/summary${qp}`);
-      const json = await res.json();
-      if (json.success) { setSummary(json.data); if (!currency) setCurrency(json.data.currency); }
-      else setLoadFailed(true);
-    } catch {
-      // Shown in place with a retry (role-ux R4).
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
+      const json = await checkedJson(await readRequest(`${API}/campus/summary${qp}`));
+      if (version !== sequence.current) return;
+      setSummary(json.data); if (!currency) setCurrency(json.data.currency);
+    } catch (error) {
+      if (version === sequence.current) { setSummary(null); setLoadFailed(requestFailure(error)); }
+    } finally { if (version === sequence.current) setLoading(false); }
   }, [qp, currency]);
 
-  useEffect(() => {
-    loadSummary();
-  }, [loadSummary]);
+  useEffect(() => { void loadSummary(); return () => { sequence.current++; }; }, [loadSummary]);
 
   if (loading) {
     return (
@@ -86,7 +83,7 @@ export function FeeOverviewTab({
   }
 
   if (loadFailed) {
-    return <ErrorState title={tr("The fee summary could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => { setLoading(true); void loadSummary(); }} />;
+    return <ErrorState error={loadFailed} title={tr("The fee summary could not be loaded")} description={tr("Check your connection and try again.")} onRetry={loadSummary} />;
   }
 
   return (

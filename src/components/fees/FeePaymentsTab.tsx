@@ -35,6 +35,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { downloadPdfFile } from "@/lib/download";
 import type { PanelCommand, PaymentRecord } from "./fee-types";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import {
   API,
@@ -79,7 +80,7 @@ export type PaymentsSection = "payments" | "bank-import" | "reconciliation";
  */
 export function FeePaymentsTab({ campusId, command, hideHeader = false, section }: { campusId?: string; command?: PanelCommand | null; hideHeader?: boolean; section?: PaymentsSection }) {
   const [reconciliationVersion, setReconciliationVersion] = useState(0);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const show = (part: PaymentsSection) => !section || section === part;
  const { date: formatDate, money: formatPKR } = useLocaleFormat();
   // Amounts before an invoice is chosen are in the campus currency (locale package, R7).
@@ -103,7 +104,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
   const loadPayments = useCallback(async () => {
     const version = ++requestVersion.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
       const params = new URLSearchParams();
       if (campusId) params.set("campusId", campusId);
@@ -114,8 +115,8 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
       params.set("page", String(page));
       params.set("pageSize", "20");
 
-      const res = await fetch(`${API}/payments?${params}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/payments?${params}`);
+      const json = await checkedJson(res);
       if (version !== requestVersion.current) return;
       if (res.ok && json.success) {
         setPayments(json.data);
@@ -123,12 +124,12 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         setTotalPages(json.totalPages);
         if (json.page !== page) setPage(json.page);
       } else {
-        setLoadFailed(true);
+        setLoadFailed(requestFailure(new Error()));
       }
-    } catch {
+    } catch (error) {
       if (version !== requestVersion.current) return;
       // Shown in place with a retry (role-ux R4), never a toast.
-      setLoadFailed(true);
+      setPayments([]); setTotal(0); setLoadFailed(requestFailure(error));
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
@@ -144,6 +145,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
   };
 
   const handleExportCSV = () => {
+    if (loading || loadFailed) return;
     if (payments.length === 0) { toast.info(tr("Nothing to export yet.")); return; }
     const rows = payments.map((p) => ({
       "Receipt #": p.receiptNo ?? "",
@@ -166,7 +168,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
     "record-payment": () => setShowPayment(true),
     "bank-import": () => setShowBankImport(true),
   });
-  usePanelCommand(command, { export: handleExportCSV }, !loading);
+  usePanelCommand(command, { export: handleExportCSV }, !loading && !loadFailed);
 
   return (
     <div className="space-y-5">
@@ -266,10 +268,10 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
           ))}
         </div>
       ) : loadFailed ? (
-        <ErrorState
+        <ErrorState error={loadFailed}
           title={tr("Payments could not be loaded")}
           description={tr("Check your connection and try again.")}
-          onRetry={() => void loadPayments()}
+          onRetry={loadPayments}
         />
       ) : payments.length === 0 ? (
         <EmptyState

@@ -1,4 +1,6 @@
 "use client";
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -86,24 +88,23 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
   const router = useRouter();
   const { date, dateTime, money } = useLocaleFormat();
   const { selectChild } = useParentData();
-  const [data, setData] = useState<Inbox | null>(null), [error, setError] = useState("");
+  const [data, setData] = useState<Inbox | null>(null), [error, setError] = useState<RequestFailure | null>(null);
   const [view, setView] = useState<View>("ACTION"), [child, setChild] = useState<string>("all");
   const requestVersion = useRef(0);
   const load = useCallback(async () => {
     const version = ++requestVersion.current;
-    setError("");
+    setError(null); setData(null);
     try {
-      const response = await fetch("/api/parent/inbox", { cache: "no-store" });
-      const json = await response.json().catch(() => ({}));
+      const json = await checkedJson(await readRequest("/api/parent/inbox"));
       if (version !== requestVersion.current) return;
-      if (!response.ok || !json.success) throw new Error(json.error || "Family requests could not be loaded.");
+      if (!Array.isArray(json.data?.items) || !Array.isArray(json.data?.children) || !Array.isArray(json.data?.unavailable)) throw new RequestFailure("server");
       setData(json.data);
     } catch (failure) {
       if (version !== requestVersion.current) return;
       setData(null);
-      setError(ui(failure instanceof Error ? failure.message : "Family requests could not be loaded."));
+      setError(requestFailure(failure));
     }
-  }, [ui]);
+  }, []);
   useEffect(() => { void load(); return () => { requestVersion.current++; }; }, [load]);
   useEffect(() => () => onTopAction?.(null), [onTopAction]);
   useEffect(() => { const refresh = () => { if (document.visibilityState === "visible") void load(); }; document.addEventListener("visibilitychange", refresh); return () => document.removeEventListener("visibilitychange", refresh); }, [load]);
@@ -134,7 +135,7 @@ export function FamilyInbox({ onTopAction }: { onTopAction?: (action: InboxTopAc
       <h2 id="family-inbox-heading" className="text-lg font-bold text-ink-strong">{ui("Family requests")}</h2>
       {data ? <p className="text-xs text-ink-muted" role="status">{data.counts.action ? ui("Requests that need your attention: {0}", [String(data.counts.action)]) : ui("You are up to date.")}</p> : null}
     </header>
-    {error ? <Alert tone="danger" compact actions={<Button size="sm" variant="outline" type="button" onClick={() => void load()}>{ui("Try again")}</Button>}>{error}</Alert> : null}
+    {error ? <ErrorState error={error} onRetry={load} /> : null}
     {data ? <>
       {data.unavailable.length ? <div data-inbox-partial><Alert tone="warning" compact live="off">{ui("Some requests could not be refreshed; the others are shown.")}</Alert></div> : null}
       <div className="flex flex-wrap gap-1" role="group" aria-label={ui("Request status")}>{views.map(v => <Button key={v.key} size="sm" variant="choice" aria-pressed={view === v.key} onClick={() => setView(v.key)} data-inbox-view={v.key}>{v.label}{v.count !== undefined ? <> · <bdi>{v.count}</bdi></> : null}</Button>)}</div>

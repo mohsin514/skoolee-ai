@@ -204,7 +204,7 @@ test("a role without record search sees an access notice on /search, never a Ret
   // P2 may send these roles home instead (§6.3); either way they never see a retry loop.
   if (new URL(page.url()).pathname === "/search") {
     await page.getByText("Record search is not part of your workspace.").first().waitFor({ timeout: 15_000 });
-    assert.equal(await page.getByRole("button", { name: "Retry" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: /^(Retry|Try again)$/ }).count(), 0);
   }
   assert.deepEqual(errors, []);
   await page.close();
@@ -386,10 +386,10 @@ test("SCRUM-306: offline recovery retains search and filters", async () => {
   await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
   await ctx.setOffline(true);
   await page.getByLabel("Search by name, roll number, admission number or reference").fill("N-701");
-  await page.getByRole("button", { name: "Retry", exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Try again", exact: true }).waitFor({ timeout: 20_000 });
   assert.equal(await page.getByLabel("Sort by", { exact: true }).inputValue(), "name-desc");
   await ctx.setOffline(false);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
   await page.locator(`[data-search-result="${pupils.ahmadA}"]`).waitFor();
   await page.close(); await ctx.close();
 });
