@@ -33,7 +33,7 @@ function latest<T extends { id: string; revisesId: string | null }>(rows: T[]) {
 
 export async function listClarifications(user: AuthUser, assignmentId: string) {
   return schoolAiTransaction(user, async tx => {
-    const { assignment, paper, student } = await scopedAssignment(user, assignmentId, tx);
+    const { assignment, paper, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
     const rows = await tx.schoolAiExamClarification.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { version: "asc" } });
     const number = (questionId: string | null) => questionId ? paper.questions.findIndex(question => question.id === questionId) + 1 || null : null;
     if (student) {
@@ -44,7 +44,7 @@ export async function listClarifications(user: AuthUser, assignmentId: string) {
       // SKO-502: the deadline travels with the notice poll, so an extension reaches an idle candidate's clock.
       return { pausedAt: attempt.pausedAt, deadlineAt: attempt.deadlineAt, notices: mine.map(row => ({ id: row.id, version: row.version, revised: !!row.revisesId, text: row.text, question: number(row.questionId), createdAt: row.createdAt, acknowledged: acks.has(row.id) })) };
     }
-    await staffExamAccess(user, assignment, "view", tx);
+    await staffExamAccess(user, assignment, "view", tx, "SUPERVISION");
     const attempts = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { id: true, status: true, studentId: true, pausedAt: true, deadlineAt: true } });
     const acks = await tx.schoolAiExamClarificationAck.findMany({ where: { schoolId: user.schoolId, clarificationId: { in: rows.map(row => row.id) } }, select: { clarificationId: true } });
     const people = new Map((await tx.user.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(row => row.issuedById) } }, select: { id: true, fullName: true } })).map(row => [row.id, row.fullName]));
@@ -66,10 +66,10 @@ export async function listClarifications(user: AuthUser, assignmentId: string) {
 export async function issueClarification(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = issueClarificationSchema.parse(raw);
   return schoolAiTransaction(user, async tx => {
-    const { assignment, paper, student } = await scopedAssignment(user, assignmentId, tx);
+    const { assignment, paper, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
     if (student) throw new ApiError("Only exam staff can issue a notice.", 403);
     // Issuing a notice changes no paper, key, timer or mark, so it needs the exam's "add" right, not "edit".
-    await staffExamAccess(user, assignment, "add", tx);
+    await staffExamAccess(user, assignment, "add", tx, "SUPERVISION");
     const live = await tx.schoolAiExamAttempt.findMany({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, status: "IN_PROGRESS" }, select: { id: true } });
     if (!live.length) throw new ApiError("No candidate is sitting this exam now. A notice reaches only an attempt in progress.", 409);
     if (input.audience.kind === "ATTEMPTS" && input.audience.attemptIds.some(attemptId => !live.some(row => row.id === attemptId))) throw new ApiError("Choose only candidates whose attempt is in progress.", 422);
@@ -228,9 +228,9 @@ export async function superviseAttempts(user: AuthUser, assignmentId: string, ra
   const input = pauseSchema.parse(raw);
   if (input.action === "pause" && !input.reason) throw new ApiError("Give the reason for the pause.", 422);
   return schoolAiTransaction(user, async tx => {
-    const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
+    const { assignment, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
     if (student) throw new ApiError("Only exam staff can pause an attempt.", 403);
-    await staffExamAccess(user, assignment, "add", tx);
+    await staffExamAccess(user, assignment, "add", tx, "SUPERVISION");
     const now = new Date();
     const outcomes: Array<{ attemptId: string; outcome: "PAUSED" | "RESUMED" | "NOT_IN_PROGRESS" | "ALREADY_PAUSED" | "NOT_PAUSED"; restoredMs?: number; deadlineAt?: Date }> = [];
     for (const attemptId of [...new Set(input.attemptIds)]) {

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 
 // SKO-408: the review desk and rehearsal for one saved paper version.
 type ItemState = "DRAFT" | "NEEDS_SOURCE" | "NEEDS_CORRECTION" | "READY_FOR_REVIEW" | "APPROVED" | "CHANGED_AFTER_APPROVAL";
-type Check = "KEY_MISSING" | "OPTIONS_TOO_FEW" | "PROJECTION_LEAK" | "SECTION_COUNT" | "REPORTED_DEFECT";
+type Check = keyof ReturnType<typeof examReleaseCopy>["checks"];
 /** The evidence drawer's view of one item (R4.7, R4.8). Keys arrive only for READ_PROTECTED_KEY holders. */
 export type ItemEvidence = {
   prompt: string; type: string; marks: number;
@@ -28,8 +28,9 @@ export type Readiness = {
   generation: { kind: "MANUAL" | "AI"; model: string | null; generatedAt: string | null }; canReadKey: boolean;
   notices: Array<{ scope: "ITEM" | "FORM"; questionId: string | null; artifact: string; change: string; at: string; name: string | null }>;
   preview: CandidatePaper; contentHashPrefix: string | null;
+  solverFindings: Array<{ severity: "BLOCKING" | "ADVISORY"; questionIds: string[]; detail: string }>;
   rehearsal: { id: string; paperVersion: number; results: Array<{ check: Check; severity: "BLOCKING" | "ADVISORY"; questionIds: string[]; detail: string }>; createdAt: string } | null;
-  blockers: Array<{ code: "ITEM_NOT_APPROVED" | "REHEARSAL_INVALID" | "REHEARSAL_BLOCKER" | "NOT_REHEARSED"; check?: Check; questionIds: string[] }>;
+  blockers: Array<{ code: "ITEM_NOT_APPROVED" | "REHEARSAL_INVALID" | "REHEARSAL_BLOCKER" | "NOT_REHEARSED" | "SOLVER_DISAGREEMENT"; check?: Check; questionIds: string[] }>;
 };
 type CompareItem = { prompt: string; marks: number; options: Array<{ id: string; text: string }>; modelAnswer: string; correctOptionId: string | null };
 async function call(path: string, body?: unknown) {
@@ -99,6 +100,12 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
     <details className="rounded-xl border p-3 text-sm"><summary className="cursor-pointer font-semibold">{t.preview}</summary>
       <ol className="mt-2 list-decimal space-y-2 ps-5">{view.preview.questions.map(question => <li key={question.id} dir="auto">{question.prompt}{question.options?.length ? <ul className="list-disc ps-5">{question.options.map(option => <li key={option.id}>{option.text}</li>)}</ul> : null}</li>)}</ol>
     </details>
+    {!!view.solverFindings?.length && <section className="space-y-2 rounded-xl border border-status-warning-border p-3 text-sm" aria-label={t.solverTitle} data-solver-findings>
+      <h4 className="font-semibold">{t.solverTitle}</h4><p>{t.solverRepair}</p>
+      <ul className="grid gap-2">{view.solverFindings.map((finding, index) => <li key={index} className={finding.severity === "BLOCKING" ? "text-status-error-text" : "text-ink-subtle"}>
+        {finding.severity === "BLOCKING" ? t.blocking : t.advisory} · {t.question} {finding.questionIds.map(number).join(", ")} · <span dir="auto">{finding.detail}</span>
+      </li>)}</ul>
+    </section>}
     <section aria-labelledby="rehearsal-title" className="space-y-3 rounded-xl border p-3">
       <h4 id="rehearsal-title" className="font-semibold">{t.rehearse} v{view.version}</h4>
       {!view.rehearsal ? <p className="text-sm text-ink-subtle">{t.noRehearsal}</p> : view.rehearsal.results.length === 0 ? <p className="flex items-center gap-2 text-sm"><CheckCircle2 aria-hidden="true" className="size-4 text-status-success-text" />{t.clean}</p>
@@ -112,7 +119,7 @@ export function ExamReleasePanel({ recordId, locale, canApprove, disabled, onCha
       {findings.length > 0 && <div className="text-sm"><p className="text-xs font-semibold">{t.findings}</p><ul className="list-disc ps-5">{findings.map((finding, index) => <li key={index}>{t.question} {number(finding.questionId)} · {finding.severity === "BLOCKING" ? t.blocking : t.advisory} · <span dir="auto">{finding.detail}</span></li>)}</ul></div>}
       {!disabled && <Button type="button" disabled={busy} onClick={() => void run(async () => { await call(`${api}/rehearsal`, { version: view.version, findings }); setFindings([]); })}>{t.record}</Button>}
     </section>
-    {view.workbench && (view.blockers.length ? <div role="alert" className="space-y-1 rounded-xl border border-status-warning-border p-3 text-sm"><p className="flex items-center gap-2 font-semibold"><ShieldAlert aria-hidden="true" className="size-4" />{t.blockers}</p><ul className="list-disc ps-5">{view.blockers.map((blocker, index) => <li key={index} data-blocker={blocker.code}>{blocker.code === "REHEARSAL_BLOCKER" && blocker.check ? `${t.blocking} · ${t.checks[blocker.check]}` : t.blockerText[blocker.code]}{blocker.questionIds.length ? ` · ${t.question} ${blocker.questionIds.map(number).join(", ")}` : ""}</li>)}</ul></div>
+    {(view.workbench || view.blockers.some(blocker => blocker.code === "SOLVER_DISAGREEMENT")) && (view.blockers.length ? <div role="alert" className="space-y-1 rounded-xl border border-status-warning-border p-3 text-sm"><p className="flex items-center gap-2 font-semibold"><ShieldAlert aria-hidden="true" className="size-4" />{t.blockers}</p><ul className="list-disc ps-5">{view.blockers.map((blocker, index) => <li key={index} data-blocker={blocker.code}>{blocker.code === "REHEARSAL_BLOCKER" && blocker.check ? `${t.blocking} · ${t.checks[blocker.check]}` : t.blockerText[blocker.code]}{blocker.questionIds.length ? ` · ${t.question} ${blocker.questionIds.map(number).join(", ")}` : ""}</li>)}</ul></div>
       : <p className="flex items-center gap-2 text-sm font-semibold"><CheckCircle2 aria-hidden="true" className="size-4 text-status-success-text" />{t.ready2}</p>)}
   </section>;
 }

@@ -27,6 +27,8 @@ import { overlayTeachingLine } from "./teaching-progress-service";
 import { schoolAiTransaction } from "./transaction";
 import { itemReviewTransition, itemStateFor } from "./item-review";
 import { writePaperVersion } from "./exam-release-service";
+import { assertWorkspacePermission, loadWorkspacePermissionSnapshot } from "./access";
+import { assertSolverAllowsRelease, paperSolverFindings } from "./semantic-release";
 
 const hashOf = (paper: PaperData) => { try { return contentHash(paper); } catch { return null; } };
 
@@ -73,6 +75,7 @@ export async function decideModeration(user: AuthUser, slotId: string, raw: unkn
   if (input.decision === "RETURNED" && !input.comments.length) throw new ApiError("Say what needs to change before returning the paper.", 422);
   const result = await schoolAiTransaction(user, async tx => {
     const { row, view, record, paper, hash } = await slotPaper(user, slotId, tx);
+    await assertWorkspacePermission(user, "exams", "edit", await loadWorkspacePermissionSnapshot(user, tx));
     if (row.moderatorUserId !== user.userId) throw new ApiError("Only this paper's moderator records the moderation decision.", 403);
     if (row.authorUserId === user.userId) throw new ApiError("Authors cannot moderate their own paper.", 403);
     if (row.cancelledAt || row.sealedAt) throw new ApiError("This paper request is closed for moderation.", 409);
@@ -83,6 +86,7 @@ export async function decideModeration(user: AuthUser, slotId: string, raw: unkn
     const curriculum = source ? await overlayTeachingLine(tx, user.schoolId, source.id, curriculumDataSchema.parse(source.data)) : null;
     const report = conformanceReport({ paper, request: { totalMarks: row.totalMarks, durationMinutes: row.durationMinutes, languages: view.languages }, curriculum });
     if (input.decision === "SIGNED" && conformanceBlocking(report).length) throw new ApiError("This paper fails a blocking check. Return it with comments instead.", 422);
+    if (input.decision === "SIGNED") assertSolverAllowsRelease(await paperSolverFindings(tx, user, record, paper));
     // The moderator's signature is the item approval in the exam chain: every ready item is approved at its
     // revision by the moderator. Review records sit outside the content hash, so the signature still binds.
     let signedVersion = record.version;
@@ -125,15 +129,19 @@ async function assertSealAuthority(user: AuthUser, tx: TxClient, campusId: strin
 export async function sealSlot(user: AuthUser, slotId: string, raw: unknown) {
   const input = sealInput.parse(raw ?? {});
   return schoolAiTransaction(user, async tx => {
-    const { row, record, hash } = await slotPaper(user, slotId, tx);
+    const { row, record, paper, hash } = await slotPaper(user, slotId, tx);
+    await assertWorkspacePermission(user, "exams", "edit", await loadWorkspacePermissionSnapshot(user, tx));
     const authority = await assertSealAuthority(user, tx, row.campusId, row.authorUserId);
     if (row.cancelledAt) throw new ApiError("This paper request is withdrawn.", 409);
     if (row.sealedAt) throw new ApiError("This paper is already sealed.", 409);
     if (record.version !== input.paperVersion) throw new ApiError("The paper changed meanwhile. Reload and seal the current version.", 409);
+    assertSolverAllowsRelease(await paperSolverFindings(tx, user, record, paper));
     const latest = await latestDecision(tx, user.schoolId, row.id);
     if (!signatureHolds(latest, hash)) throw new ApiError(latest?.decision === "SIGNED" ? "The paper changed after it was moderated. It needs moderating again before the Seal." : "The paper needs its moderator's signature before the Seal.", 409);
-    const rehearsal = await tx.schoolAiRehearsal.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, paperVersion: { gte: latest!.paperVersion }, blocking: 0 }, orderBy: { createdAt: "desc" }, select: { id: true } });
-    if (!rehearsal) throw new ApiError("Rehearse the moderated paper (with no blocking finding) before the Seal.", 409);
+    const rehearsal = await tx.schoolAiRehearsal.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, paperVersion: { gte: latest!.paperVersion, lte: record.version } }, orderBy: [{ paperVersion: "desc" }, { createdAt: "desc" }], select: { id: true, results: true } });
+    // Current solver evidence was checked above. Its historical severity may differ after an approved policy change.
+    const rehearsalResults = (rehearsal?.results ?? []) as Array<{ check: string; severity: string }>;
+    if (!rehearsal || rehearsalResults.some(result => result.check !== "SOLVER_DISAGREEMENT" && result.severity === "BLOCKING")) throw new ApiError("Rehearse the moderated paper (with no blocking finding) before the Seal.", 409);
     // Sealing approves the record when it is still in review; the content (and its hash) do not change.
     let version = record.version;
     if (record.status !== "APPROVED") version = (await updateWorkspaceRecordInTransaction(user, record.id, { version: record.version, action: "approve" }, tx)).version;
@@ -152,9 +160,10 @@ export async function printSealedSlot(user: AuthUser, slotId: string): Promise<s
   return schoolAiTransaction(user, async tx => {
     const { row, record, paper, hash } = await slotPaper(user, slotId, tx);
     await assertExamOffice(user, row.campusId, tx);
+    if (row.cancelledAt) throw new ApiError("This paper request is withdrawn.", 409);
     if (!row.sealedAt || !row.sealHash) throw new ApiError("Seal the paper before printing it.", 409);
     if (row.compromisedAt) throw new ApiError("This paper was reported compromised. Do not print it.", 409);
-    if (record.version !== row.paperVersion || hash !== row.sealHash) throw new ApiError("The paper changed after it was sealed. It cannot be printed under this seal.", 409);
+    if (record.status !== "APPROVED" || record.version !== row.paperVersion || hash !== row.sealHash) throw new ApiError("The paper changed after it was sealed. It cannot be printed under this seal.", 409);
     return buildCandidatePaperHtml(paper, record.version, contentHashPrefix(row.sealHash));
   });
 }

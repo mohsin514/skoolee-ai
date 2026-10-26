@@ -21,6 +21,8 @@ import { resolveScopeDeliveryPolicy } from "./repository";
 import { paperDataSchema } from "./assessment";
 import { contentHash } from "./release";
 import { itemStateFor } from "./item-review";
+import { paperSittingCompletion } from "./paper-sitting";
+import { assertWorkspacePermission, loadWorkspacePermissionSnapshot } from "./access";
 import { MARKS_DUE_WORKING_DAYS, defaultPaperDue, deriveSlotStatus, slotKey, slotOverdue, slotReadiness, workingDaysAfter, type PaperSlotStatus, type SlotFacts } from "./paper-slot-status";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -57,7 +59,10 @@ const minutesOf = (hhmm: string) => { const [h, m] = hhmm.split(":").map(Number)
 /** The exam office: exam scheduling access (add), or the campus's named exam coordinator. Never approval or release. */
 export async function assertExamOffice(user: AuthUser, campusId: string, tx: TxClient) {
   const campus = await tx.campus.findFirst({ where: { id: campusId, schoolId: user.schoolId }, select: { examCoordinatorUserId: true } });
-  if (campus?.examCoordinatorUserId && campus.examCoordinatorUserId === user.userId && (user.role === "SUPER_ADMIN" || user.campusId === campusId)) return { coordinator: true };
+  if (campus?.examCoordinatorUserId && campus.examCoordinatorUserId === user.userId && (user.role === "SUPER_ADMIN" || user.campusId === campusId)) {
+    await assertWorkspacePermission(user, "exams", "add", await loadWorkspacePermissionSnapshot(user, tx));
+    return { coordinator: true };
+  }
   await assertExamSchedulingAccess(user, campusId, "add", tx);
   return { coordinator: false };
 }
@@ -183,11 +188,20 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
   const moderations = rows.length ? await tx.examPaperModeration.findMany({ where: { schoolId: user.schoolId, slotId: { in: rows.map(row => row.id) } }, orderBy: { createdAt: "desc" }, select: { slotId: true, decision: true, contentHash: true, paperVersion: true, moderatorId: true, createdAt: true } }) : [];
   const latestModeration = new Map<string, (typeof moderations)[number]>();
   for (const row of moderations) if (!latestModeration.has(row.slotId)) latestModeration.set(row.slotId, row);
+  const scheduleIds = rows.flatMap(row => row.schedules.map(schedule => schedule.id));
+  const [pupils, attendance, scripts] = scheduleIds.length ? await Promise.all([
+    tx.student.findMany({ where: { schoolId: user.schoolId, classId: { in: [...new Set(rows.flatMap(row => row.schedules.map(schedule => schedule.exam.class.id)))] }, status: "active", archivedAt: null }, select: { id: true, classId: true } }),
+    tx.examAttendance.findMany({ where: { schoolId: user.schoolId, scheduleId: { in: scheduleIds } }, select: { scheduleId: true, studentId: true, status: true } }),
+    tx.examPaperScript.findMany({ where: { schoolId: user.schoolId, scheduleId: { in: scheduleIds } }, select: { scheduleId: true, studentId: true, markedAt: true, total: true } }),
+  ]) : [[], [], []];
+  const attendanceByPupil = new Map(attendance.map(row => [`${row.scheduleId}:${row.studentId}`, row.status]));
+  const markedPupils = new Set(scripts.filter(row => row.markedAt && row.total !== null).map(row => `${row.scheduleId}:${row.studentId}`));
   const hashOf = (data: unknown) => { const parsed = paperDataSchema.safeParse(data); if (!parsed.success) return null; try { return contentHash(parsed.data); } catch { return null; } };
   return rows.map(row => {
     const record = row.paperRecordId ? paperById.get(row.paperRecordId) : undefined;
     const parsed = record ? paperDataSchema.safeParse(record.data) : null;
     const dates = [...new Set(row.schedules.map(schedule => ymd(schedule.date)!))];
+    const completion = paperSittingCompletion(row.schedules.map(schedule => pupils.filter(pupil => pupil.classId === schedule.exam.class.id).map(pupil => ({ attendance: attendanceByPupil.get(`${schedule.id}:${pupil.id}`) ?? null, marked: markedPupils.has(`${schedule.id}:${pupil.id}`) }))));
     const facts: SlotFacts = {
       cancelledAt: row.cancelledAt?.toISOString() ?? null, dueOn: ymd(row.dueOn)!,
       paper: record ? { status: record.status as "DRAFT" | "IN_REVIEW" | "APPROVED" | "ARCHIVED", version: record.version, itemStates: parsed?.success ? parsed.data.questions.map(itemStateFor) : [] } : null,
@@ -198,7 +212,7 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
         return { decision: latest.decision as "SIGNED" | "RETURNED", paperVersion: current && current === latest.contentHash ? record.version : latest.paperVersion };
       })(),
       seal: row.sealedAt ? { paperVersion: row.paperVersion ?? 0, sittingDate: ymd(row.sealedSittingDate) } : null,
-      sittingDates: dates, printed: Boolean(row.printedAt), windowOpen: false, attendanceComplete: false, marksComplete: false,
+      sittingDates: dates, printed: Boolean(row.printedAt), windowOpen: false, ...completion,
       published: row.schedules.length > 0 && row.schedules.every(schedule => schedule.exam.status === "PUBLISHED"),
     };
     const status = deriveSlotStatus(facts);
@@ -264,6 +278,7 @@ export async function getSlot(user: AuthUser, slotId: string, tx: TxClient, toda
   const office = await assertExamOffice(user, row.campusId, tx).then(() => true, () => false);
   const heads = row.authorUserId ? (await headsOfAuthor(tx, user.schoolId, row.authorUserId)).includes(user.userId) : false;
   if (!office && !heads && row.authorUserId !== user.userId && row.moderatorUserId !== user.userId) throw new ApiError("Paper request not found in your campus.", 404);
+  await assertWorkspacePermission(user, "exams", "view", await loadWorkspacePermissionSnapshot(user, tx));
   return { row, view: (await viewSlots(user, tx, [row], today))[0], office };
 }
 
@@ -329,9 +344,13 @@ export async function nudgeSlot(user: AuthUser, slotId: string, now = new Date()
  * tells the moderator.
  */
 export async function linkPaperToSlot(user: AuthUser, paper: { id: string; version: number; status: string; campusId: string | null }, slotId: string, tx: TxClient, action: string) {
-  const slot = await tx.examPaperSlot.findFirst({ where: { id: slotId, schoolId: user.schoolId, campusId: paper.campusId ?? "" }, select: { id: true, authorUserId: true, moderatorUserId: true, paperRecordId: true, cancelledAt: true, sealedAt: true, subjectName: true, gradeName: true, examSession: { select: { title: true } }, schedules: { take: 1, select: { subject: { select: { name: true } }, exam: { select: { class: { select: { name: true } } } } } } } });
+  const slot = await tx.examPaperSlot.findFirst({ where: { id: slotId, schoolId: user.schoolId, campusId: paper.campusId ?? "" }, select: { id: true, authorUserId: true, moderatorUserId: true, paperRecordId: true, cancelledAt: true, sealedAt: true, subjectName: true, gradeName: true, examSession: { select: { title: true } }, schedules: { select: { subject: { select: { name: true } }, exam: { select: { class: { select: { id: true, name: true } } } } } } } });
   if (!slot) throw new ApiError("This paper names a request that is not in your campus.", 403);
   if (slot.authorUserId !== user.userId && !canManageAcademics(user)) throw new ApiError("Only the paper's author writes the requested paper.", 403);
+  if (slot.cancelledAt) throw new ApiError("This paper request is withdrawn.", 409);
+  const record = await tx.schoolAiRecord.findFirst({ where: { id: paper.id, schoolId: user.schoolId, campusId: paper.campusId, kind: "PAPER" }, select: { subjectId: true, classId: true } });
+  const subject = record?.subjectId ? await tx.subject.findFirst({ where: { id: record.subjectId, schoolId: user.schoolId, campusId: paper.campusId ?? "", classId: record.classId ?? "" }, select: { name: true, class: { select: { name: true } } } }) : null;
+  if (!record || !subject || !slot.schedules.some(row => row.exam.class.id === record.classId) || slotKey(subject.name, subject.class.name).subjectName !== slot.subjectName || slotKey(subject.name, subject.class.name).gradeName !== slot.gradeName) throw new ApiError("The paper must use the requested subject and one of the grade's scheduled classes.", 422);
   if (slot.paperRecordId && slot.paperRecordId !== paper.id) throw new ApiError("Another paper already answers this request.", 409);
   // A sealed slot keeps its sealed version, so a later edit reads CHANGED_AFTER_APPROVAL and cannot print.
   await tx.examPaperSlot.update({ where: { id: slot.id }, data: slot.sealedAt ? { paperRecordId: paper.id } : { paperRecordId: paper.id, paperVersion: paper.version } });

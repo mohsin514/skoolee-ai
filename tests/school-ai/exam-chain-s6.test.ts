@@ -33,6 +33,16 @@ test("an online sitting reads open, resume and submitted from the learner's own 
   assert.deepEqual(Object.fromEntries([...states.upcoming, ...states.past].map(entry => [entry.id, entry.state])), { "online:none": "OPEN", "online:IN_PROGRESS": "IN_PROGRESS", "online:SUBMITTED": "SUBMITTED" });
 });
 
+test("an extended or paused learner remains able to resume after the assignment window ends", () => {
+  const closed = new Date(now.getTime() - 60_000);
+  const extraTime = new Date(now.getTime() + 600_000);
+  const sitting = (id: string, deadlineAt: Date, pausedAt: Date | null = null) => ({ id, title: "Quiz", subject: null, startsAt: new Date(now.getTime() - 3_600_000), endsAt: closed, mode: "STANDARD", resultsReleasedAt: null, attempt: { status: "IN_PROGRESS", deadlineAt, pausedAt } });
+  const timeline = buildExamTimeline({ now, timeZone: "UTC", papers: [], seats: [], online: [sitting("extended", extraTime), sitting("paused", closed, new Date(now.getTime() - 120_000)), sitting("expired", closed)] });
+  assert.deepEqual(timeline.upcoming.map(entry => [entry.id, entry.state]), [["online:extended", "IN_PROGRESS"], ["online:paused", "IN_PROGRESS"]]);
+  assert.equal(timeline.upcoming[0].endsAt, extraTime.toISOString(), "show the learner's approved deadline");
+  assert.deepEqual(timeline.past.map(entry => [entry.id, entry.state]), [["online:expired", "SUBMITTED"]], "saved work awaiting expiry finalization is never labelled missed");
+});
+
 test("the family brief names only this class's added, removed, moved or re-roomed papers", () => {
   const p = (scheduleId: string, classId: string, subjectName: string, date: string): Paper => ({ scheduleId, examId: "e", examTitle: "Mid-term", classId, classLabel: classId, subjectId: subjectName, subjectName, totalMarks: 50, date, startTime: "08:00", endTime: "10:00", rooms: [], candidates: 0, seated: 0 });
   const before = [p("s1", "7a", "Maths", "2026-11-03"), p("s2", "7b", "Maths", "2026-11-03"), p("s3", "7a", "Art", "2026-11-06")];

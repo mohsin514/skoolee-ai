@@ -1,0 +1,41 @@
+import { z } from "zod";
+
+const optionalText = z.string().nullable().optional();
+
+/** The single-pupil edit contract. Unknown UI metadata is ignored; editable values are validated. */
+export const studentProfileUpdateSchema = z.object({
+  id: z.string().min(1, "Student id is required"),
+  campusId: optionalText,
+  classId: z.string().optional(),
+  fullName: z.string().min(1, "Student name is required").optional(),
+  rollNo: z.string().min(1, "Roll number is required").optional(),
+  nameUr: optionalText,
+  phone: optionalText,
+  guardianName: optionalText,
+  guardianNameUr: optionalText,
+  guardianPhone: optionalText,
+  guardianWhatsapp: optionalText,
+  guardianEmail: optionalText,
+  guardianRelationship: optionalText,
+  guardianOccupation: optionalText,
+  profileImageUrl: optionalText,
+  address: optionalText,
+  city: optionalText,
+  province: optionalText,
+  postalCode: optionalText,
+  medicalNotes: optionalText,
+  specialNeeds: optionalText,
+  allergies: optionalText,
+  medications: optionalText,
+  previousSchool: optionalText,
+  nationality: optionalText,
+  gender: z.union([z.enum(["MALE", "FEMALE", "OTHER"]), z.literal("")]).nullish(),
+  bloodType: optionalText,
+  status: optionalText,
+  dateOfBirth: optionalText,
+  categoryId: optionalText,
+  groupId: optionalText,
+  siblingStudentId: optionalText,
+  siblingGroupId: optionalText,
+  expectedValues: z.record(z.string(), z.string().nullable()).nullish(),
+});

@@ -45,14 +45,15 @@ export const OWED_SLOT_STATUSES: readonly PaperSlotStatus[] = ["REQUESTED", "DRA
 
 export function deriveSlotStatus(facts: SlotFacts): PaperSlotStatus {
   if (facts.cancelledAt) return "CANCELLED";
+  const paper = facts.paper && facts.paper.status !== "ARCHIVED" ? facts.paper : null;
+  // A completed room sheet or marks must never conceal an invalidated paper seal.
+  if (facts.seal && (!paper || paper.version !== facts.seal.paperVersion)) return "CHANGED_AFTER_APPROVAL";
+  if (facts.seal?.sittingDate && facts.sittingDates.some(date => date !== facts.seal!.sittingDate)) return "STALE";
   if (facts.published) return "PUBLISHED";
   if (facts.marksComplete) return "MARKED";
   if (facts.attendanceComplete) return "SAT";
   if (facts.windowOpen) return "GATE_OPEN";
-  const paper = facts.paper && facts.paper.status !== "ARCHIVED" ? facts.paper : null;
   if (facts.seal) {
-    if (paper && paper.version > facts.seal.paperVersion) return "CHANGED_AFTER_APPROVAL";
-    if (facts.seal.sittingDate && facts.sittingDates.some(date => date !== facts.seal!.sittingDate)) return "STALE";
     return facts.printed ? "PRINTED" : "SEALED";
   }
   if (!paper) return "REQUESTED";

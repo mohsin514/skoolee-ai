@@ -1,3 +1,4 @@
+import { captureEvidence } from "./screenshot-evidence";
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
@@ -43,26 +44,85 @@ test.beforeAll(async ({ browser }) => {
   const teacher = await browser.newContext(); await signIn(teacher, "demo-teacher@example.invalid");
   const office = await browser.newContext(); await signIn(office, "demo-principal@example.invalid");
   const paper = await db.schoolAiRecord.findFirstOrThrow({ where: { schoolId: DEMO_SCHOOL_ID, kind: "PAPER", status: "APPROVED" }, orderBy: { createdAt: "asc" } });
-  const teacherUser = await db.user.findFirstOrThrow({ where: { schoolId: DEMO_SCHOOL_ID, email: "demo-teacher@example.invalid" } });
   const ids: string[] = [];
   for (const title of ["Photosynthesis check · week 1", "Photosynthesis check · week 2"]) {
     const created = await office.request.post("/api/school-ai/exams", { headers, data: { idempotencyKey: randomUUID(), paperId: paper.id, title, startsAt: new Date(Date.now() - 120_000).toISOString(), endsAt: new Date(Date.now() + 3_600_000).toISOString(), studentIds: pupils.map(row => row.id), mode: "STANDARD" } });
     expect(created.status(), await created.text()).toBe(201);
     const id = (await created.json()).exam.id; ids.push(id);
-    // The sitting is over and every script is marked (the marking desk itself is covered by earlier suites).
+    // Seed only submitted responses; actual teacher requests perform every initial review.
     await db.schoolAiExamAssignment.update({ where: { id }, data: { endsAt: new Date(Date.now() - 60_000) } });
     for (const [index, pupil] of pupils.entries()) {
       const script = SCRIPTS[index], user = await db.student.findUniqueOrThrow({ where: { id: pupil.id } });
-      const review = { marks: [{ questionId: "q1", marks: script.marks[0], feedback: script.marks[0] ? "Correct gas." : "Plants take in carbon dioxide." }, { questionId: "q2", marks: script.marks[1], feedback: "Inputs named." }], note: "Marked against the rubric.", total: script.marks[0] + script.marks[1] };
-      const attempt = await db.schoolAiExamAttempt.create({ data: { schoolId: DEMO_SCHOOL_ID, campusId: pupil.campusId, assignmentId: id, studentId: pupil.id, userId: user.studentUserId!, startedAt: new Date(Date.now() - 110_000), deadlineAt: new Date(Date.now() - 60_000), submittedAt: new Date(Date.now() - 90_000), sequence: 2, status: "REVIEWED", responses: { q1: script.q1, q2: script.q2 }, review, reviewVersion: 1, reviewedById: teacherUser.id, reviewedAt: new Date(Date.now() - 30_000) } });
-      await db.schoolAiExamResultRevision.create({ data: { schoolId: DEMO_SCHOOL_ID, campusId: pupil.campusId, assignmentId: id, attemptId: attempt.id, version: 1, review, reason: "Initial marking", createdById: teacherUser.id } });
+      const review = { marks: [{ questionId: "q1", marks: script.marks[0], feedback: script.marks[0] ? "Correct gas." : "Plants take in carbon dioxide." }, { questionId: "q2", marks: script.marks[1], feedback: "Inputs named." }], note: "Marked against the rubric." };
+      const attempt = await db.schoolAiExamAttempt.create({ data: { schoolId: DEMO_SCHOOL_ID, campusId: pupil.campusId, assignmentId: id, studentId: pupil.id, userId: user.studentUserId!, startedAt: new Date(Date.now() - 110_000), deadlineAt: new Date(Date.now() - 60_000), submittedAt: new Date(Date.now() - 90_000), sequence: 2, status: "SUBMITTED", responses: { q1: script.q1, q2: script.q2 } } });
       if (index === 0 && ids.length === 2) student01AttemptId = attempt.id;
+      else {
+        const marked = await teacher.request.patch(`/api/school-ai/exams/${id}/attempts`, { headers, data: { attemptId: attempt.id, review } });
+        expect(marked.ok(), await marked.text()).toBeTruthy();
+      }
     }
-    const released = await office.request.post(`/api/school-ai/exams/${id}/results-release`, { headers });
-    expect(released.ok(), await released.text()).toBeTruthy();
+    if (ids.length === 1) {
+      const released = await office.request.post(`/api/school-ai/exams/${id}/results-release`, { headers });
+      expect(released.ok(), await released.text()).toBeTruthy();
+    }
   }
   [earlierId, examId] = ids;
   await teacher.close(); await office.close();
+});
+
+test("the subject teacher marks a submitted script; results wait for release and revoked teaching access closes", async ({ browser }) => {
+  const teacher = await browser.newContext(); await signIn(teacher, "demo-teacher@example.invalid");
+  const learner = await browser.newContext(); await signIn(learner, "demo-student@example.invalid");
+  const { improvement: before } = await (await learner.request.get(`/api/school-ai/exams/${examId}/improvement`)).json();
+  expect(before.released).toBe(false);
+  expect(before.feedback).toBeNull();
+  const marking = await (await teacher.request.get(`/api/school-ai/exams/${examId}/attempts`)).json();
+  expect(marking.capabilities).toEqual({ canMark: true, canManage: false, canRevise: false, canRelease: false, canApproveAccommodation: false, canSendGradebook: false });
+  const keyChange = await teacher.request.patch(`/api/school-ai/exams/${examId}/attempts`, { headers, data: { attemptId: student01AttemptId, review: { marks: [{ questionId: "q1", marks: 0, feedback: "Proposed different key." }, { questionId: "q2", marks: 2, feedback: "Two inputs." }], note: "Initial marking cannot authorize a key correction.", keyCorrections: [{ questionId: "q1", correctOptionId: "o2" }] } } });
+  expect(keyChange.status()).toBe(403);
+  expect((await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: student01AttemptId } })).reviewVersion).toBe(0);
+  const page = await teacher.newPage();
+  await page.goto(`/ai/exams/${examId}`);
+  await page.getByLabel("Students with an active login").selectOption(student01AttemptId);
+  await expect(page.getByRole("button", { name: "Release results to learners", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Extra time approvals", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Send moderated marks to gradebook", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Recording retention (days)")).toHaveCount(0);
+  const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Save moderated marks", exact: true }) });
+  await form.getByRole("spinbutton").nth(0).fill("2");
+  await form.getByRole("spinbutton").nth(1).fill("2");
+  await form.getByLabel("Reviewer feedback").nth(0).fill("Correct gas.");
+  await form.getByLabel("Reviewer feedback").nth(1).fill("Two inputs named; add carbon dioxide.");
+  await form.getByLabel("Moderation note").fill("Marked against the rubric.");
+  if (shots) await captureEvidence(page, { path: `${shots}/teacher-marking-rubric.png`, fullPage: true });
+  await form.getByRole("button", { name: "Save moderated marks", exact: true }).click();
+  await expect.poll(async () => (await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: student01AttemptId } })).status).toBe("REVIEWED");
+  const saved = await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: student01AttemptId } });
+  expect(saved.reviewVersion).toBe(1);
+  expect((saved.review as { total: number }).total).toBe(4);
+  expect(await db.schoolAiExamResultRevision.count({ where: { attemptId: saved.id, version: 1 } })).toBe(1);
+  await page.getByLabel("Students with an active login").selectOption(student01AttemptId);
+  if (shots) await captureEvidence(page, { path: `${shots}/teacher-marking-saved.png`, fullPage: true });
+  expect((await teacher.request.post(`/api/school-ai/exams/${examId}/results-release`, { headers })).status()).toBe(403);
+  const assignment = await db.schoolAiExamAssignment.findUniqueOrThrow({ where: { id: examId } });
+  const subjectId = (assignment.paperSnapshot as { subjectId: string }).subjectId;
+  const subject = await db.subject.findUniqueOrThrow({ where: { id: subjectId } });
+  // Even the sitting's author loses access when their subject allocation is revoked.
+  await db.schoolAiExamAssignment.update({ where: { id: examId }, data: { createdById: saved.reviewedById! } });
+  const ownMarking = await (await teacher.request.get(`/api/school-ai/exams/${examId}/attempts`)).json();
+  expect(ownMarking.capabilities.canSendGradebook, "teachers retain transfer for their own classroom assessment").toBe(true);
+  await db.subject.update({ where: { id: subjectId }, data: { teacherId: null } });
+  try { expect([403, 404]).toContain((await teacher.request.get(`/api/school-ai/exams/${examId}/attempts`)).status()); }
+  finally {
+    await db.subject.update({ where: { id: subjectId }, data: { teacherId: subject.teacherId } });
+    await db.schoolAiExamAssignment.update({ where: { id: examId }, data: { createdById: assignment.createdById } });
+  }
+  const office = await browser.newContext(); await signIn(office, "demo-principal@example.invalid");
+  const officeMarking = await (await office.request.get(`/api/school-ai/exams/${examId}/attempts`)).json();
+  expect(officeMarking.capabilities).toMatchObject({ canMark: true, canManage: true, canRevise: true, canRelease: true, canApproveAccommodation: true, canSendGradebook: true });
+  const released = await office.request.post(`/api/school-ai/exams/${examId}/results-release`, { headers });
+  expect(released.ok(), await released.text()).toBeTruthy();
+  await teacher.close(); await learner.close(); await office.close();
 });
 
 test("release → Mistake Map → tick the outcome → three proposals → confirmed practice → one Arabic sentence sent", async ({ browser }) => {
@@ -77,6 +137,7 @@ test("release → Mistake Map → tick the outcome → three proposals → confi
   const row = map.locator('[data-map-reading="MEASURED"]');
   await expect(row).toHaveCount(1);
   await expect(row.locator("td")).toHaveCount(4);
+  if (shots) await captureEvidence(map, { path: `${shots}/mistake-map.png` });
   await row.locator("[data-plan-outcome]").check();
   const plan = map.locator("[data-next-ten-minutes]");
   await expect(plan.locator("[data-proposal]")).toHaveCount(3);
@@ -85,7 +146,7 @@ test("release → Mistake Map → tick the outcome → three proposals → confi
   const practice = await db.schoolAiRecord.findFirstOrThrow({ where: { schoolId: DEMO_SCHOOL_ID, kind: "PRACTICE" }, orderBy: { createdAt: "desc" } });
   expect(((practice.data as { items: unknown[] }).items).length).toBe(3);
   expect(practice.status, "the teacher approves practice under the classroom tier").toBe("APPROVED");
-  if (shots) await page.screenshot({ path: `${shots}/mistake-map.png`, fullPage: true });
+  if (shots) await captureEvidence(plan, { path: `${shots}/next-lesson.png` });
 
   const desk = page.locator("[data-family-notes-desk]");
   await desk.locator("[data-draft-notes]").click();
@@ -96,7 +157,7 @@ test("release → Mistake Map → tick the outcome → three proposals → confi
   await expect(arabic.locator("textarea")).toHaveValue(/الخطوة التالية/);
   await arabic.locator("[data-send-note]").click();
   await expect(desk.locator('[data-family-note-row="SENT"]')).toHaveCount(1);
-  if (shots) await desk.screenshot({ path: `${shots}/family-notes.png` });
+  if (shots) await captureEvidence(desk, { path: `${shots}/family-notes.png` });
   await context.close();
 });
 
@@ -109,7 +170,7 @@ test("the Arabic guardian reads the note in Results", async ({ browser }) => {
   await expect(note).toBeVisible({ timeout: 30_000 });
   await expect(note).toContainText("الخطوة التالية");
   await expect(page.locator("[data-family-notes] h2")).toHaveText(/ملاحظات المعلمين/);
-  if (shots) await page.screenshot({ path: `${shots}/guardian-results-ar.png`, fullPage: true });
+  if (shots) await captureEvidence(page, { path: `${shots}/guardian-results-ar.png`, fullPage: true });
   await context.close();
 });
 
@@ -144,7 +205,7 @@ test("a sent mark is flagged when an upheld appeal's correction changes the resu
   await page.goto(`/ai/exams/${examId}`);
   const drift = page.locator('[data-drift-kind="RESULT_CORRECTED"]');
   await expect(drift).toHaveCount(1, { timeout: 30_000 });
-  if (shots) await page.locator("[data-gradebook-drift]").screenshot({ path: `${shots}/gradebook-drift.png` });
+  if (shots) await captureEvidence(page.locator("[data-gradebook-drift]"), { path: `${shots}/gradebook-drift.png` });
   await office.close(); await student.close(); await hod.close();
   void earlierId;
 });

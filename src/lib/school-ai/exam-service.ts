@@ -17,6 +17,9 @@ import { schoolAiTransaction, retryDatabaseTransaction } from "./transaction";
 import { PROCTOR_CONSENT_VERSION, proctorPolicy } from "./exam-proctor";
 import { sourceStorageAvailable } from "./source-storage";
 import { examIntegrityDisclosure } from "./exam-integrity";
+import { assertStudioAction } from "./studio-access";
+import type { ExamReviewCapabilities } from "./exam";
+import { finalizeExpiredAttempt } from "./exam-finalization";
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const selection = { id: true, title: true, startsAt: true, endsAt: true, paperVersion: true, mode: true, status: true, classId: true, campusId: true, contentHash: true } as const;
@@ -29,7 +32,9 @@ async function studentFor(user: AuthUser, db: TxClient = prisma) {
   return student;
 }
 
-export async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown; examScheduleId?: string | null }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma) {
+type ExamAccessPurpose = "MARKING" | "SUPERVISION";
+
+export async function staffExamAccess(user: AuthUser, assignment: { createdById: string; campusId: string; paperSnapshot: unknown; examScheduleId?: string | null }, action: "view" | "add" | "edit" = "view", db: TxClient = prisma, purpose: ExamAccessPurpose = "MARKING") {
   const actor = await db.user.findFirst({ where: { id: user.userId, schoolId: user.schoolId, role: user.role, campusId: user.campusId, isActive: true }, select: { id: true, accessVersion: true } });
   if (!actor || (user.accessVersion !== undefined && actor.accessVersion !== user.accessVersion)) throw new ApiError("Your exam access changed. Sign in again before continuing.", 403);
   const permissions = await loadWorkspacePermissionSnapshot(user, db);
@@ -39,14 +44,24 @@ export async function staffExamAccess(user: AuthUser, assignment: { createdById:
   if (user.role !== "SUPER_ADMIN" && assignment.campusId !== user.campusId) throw new ApiError("Exam unavailable.", 404);
   const paper = paperDataSchema.parse(assignment.paperSnapshot);
   if (user.role === "TEACHER" && assignment.createdById !== user.userId) {
-    // SKO-502: the on-duty invigilator of a room of this sitting's date-sheet row supervises it (view, notices,
-    // pause, bounded extension); any teacher of the paper's subject and class may also mark it.
-    const invigilates = assignment.examScheduleId && action !== "edit" ? await db.examInvigilation.count({ where: { schoolId: user.schoolId, campusId: assignment.campusId, teacherId: user.userId, examRoom: { examScheduleId: assignment.examScheduleId } } }) : 0;
+    // A room assignment grants supervision only. It must never unlock the marking desk, keys,
+    // responses, analytics or family notes merely because those endpoints also use "view"/"add".
+    const invigilates = purpose === "SUPERVISION" && assignment.examScheduleId && action !== "edit" ? await db.examInvigilation.count({ where: { schoolId: user.schoolId, campusId: assignment.campusId, teacherId: user.userId, examRoom: { examScheduleId: assignment.examScheduleId } } }) : 0;
     if (invigilates) return paper;
     try { await assertWorkspaceSubject(user, assignment.campusId, paper, db); } catch { throw new ApiError("Exam unavailable.", 404); }
     return paper;
   }
   await assertWorkspaceSubject(user, assignment.campusId, paper, db);
+  return paper;
+}
+
+/** Initial marking is teacher authoring, while still requiring the exam module's mark-edit grant.
+ * AI approval rights are reserved for corrections and release, not the first review of a script.
+ * staffExamAccess always rechecks the current subject assignment, including the sitting's author.
+ */
+export async function staffMarkingAccess(user: AuthUser, assignment: Parameters<typeof staffExamAccess>[1], db: TxClient = prisma) {
+  const paper = await staffExamAccess(user, assignment, user.role === "TEACHER" ? "add" : "edit", db);
+  await assertWorkspacePermission(user, "exams", "edit", await loadWorkspacePermissionSnapshot(user, db));
   return paper;
 }
 
@@ -74,7 +89,7 @@ export async function resultDecisionAccess(user: AuthUser, assignment: { created
   return paper;
 }
 
-export async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma) {
+export async function scopedAssignment(user: AuthUser, id: string, db: TxClient = prisma, purpose: ExamAccessPurpose = "MARKING") {
   const assignment = await db.schoolAiExamAssignment.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
   if (!assignment) throw new ApiError("Exam unavailable.", 404);
   if (!DELIVERED_EXAM_MODES.includes(assignment.mode)) throw new ApiError("This exam mode has not been configured for delivery.", 409);
@@ -83,7 +98,7 @@ export async function scopedAssignment(user: AuthUser, id: string, db: TxClient 
     if (assignment.status !== "ACTIVE" || assignment.classId !== student.classId || !Array.isArray(assignment.studentIds) || !assignment.studentIds.includes(student.id)) throw new ApiError("Exam unavailable.", 404);
     return { assignment, paper: paperDataSchema.parse(assignment.paperSnapshot), student };
   }
-  const paper = await staffExamAccess(user, assignment, "view", db);
+  const paper = await staffExamAccess(user, assignment, "view", db, purpose);
   return { assignment, paper, student: null };
 }
 
@@ -95,8 +110,10 @@ export async function listSchoolAiExams(user: AuthUser) {
   await assertSchoolAiAccess(user, "view"); await assertWorkspacePermission(user, "exams", "view");
   if (!isSchoolAiManager(user) && user.role !== "TEACHER") throw new ApiError("Exam access is restricted to teaching staff.", 403);
   const subjects = user.role === "TEACHER" ? await getAssignedWorkspaceSubjects(user) : [];
-  // SKO-504: a teacher lists every sitting of a subject they teach, as `staffExamAccess` lets them mark it.
-  return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}), ...(user.role === "TEACHER" ? { paper: { subjectId: { in: subjects.map((subject) => subject.id) } } } : {}) }, select: { ...selection, _count: { select: { attempts: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
+  const duties = user.role === "TEACHER" ? await prisma.examInvigilation.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: user.userId }, select: { examRoom: { select: { examScheduleId: true } } } }) : [];
+  // The Control room must also list the sittings an invigilator supervises. Endpoint access still
+  // distinguishes that duty from the separate right to inspect marking or learning evidence.
+  return prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}), ...(user.role === "TEACHER" ? { OR: [{ paper: { subjectId: { in: subjects.map((subject) => subject.id) } } }, { examScheduleId: { in: duties.map(duty => duty.examRoom.examScheduleId) } }] } : {}) }, select: { ...selection, _count: { select: { attempts: true } } }, orderBy: { createdAt: "desc" }, take: 100 });
 }
 
 export async function examRoster(user: AuthUser, paperId: string) {
@@ -160,7 +177,7 @@ export async function createSchoolAiExam(user: AuthUser, raw: unknown, now?: Dat
 }
 
 export async function getSchoolAiExam(user: AuthUser, id: string) {
-  const { assignment, paper, student } = await scopedAssignment(user, id);
+  const { assignment, paper, student } = await scopedAssignment(user, id, prisma, "SUPERVISION");
   const examApproval = student ? examAccommodationsSchema.parse(assignment.accommodations)[student.id] : undefined;
   const effective = effectiveSettings({ baseMinutes: paper.blueprint.durationMinutes, type: "EXAM", at: new Date(), examApproval: examApproval ?? null, plan: student && !examApproval ? await activePlanFor(prisma, user.schoolId, student.id) : null });
   const accommodation = { ...effective.capabilities, extraMinutes: effective.extraMinutes, breakMinutes: effective.breakMinutes };
@@ -294,7 +311,7 @@ export async function getSchoolAiAttempt(user: AuthUser, id: string, now = new D
   if (attempt.status === "IN_PROGRESS" && now < attempt.deadlineAt) await assertSecureAdmission(prisma, assignment, student.id);
   // SKO-408 R15.4: a paused attempt's clock is stopped, so it is never closed at the deadline while paused.
   if (attempt.status === "IN_PROGRESS" && !attempt.pausedAt && now >= attempt.deadlineAt) {
-    await prisma.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", pausedAt: null, sequence: attempt.sequence }, data: { status: "SUBMITTED", submittedAt: now, scoreProposal: json(scoreObjectiveResponses(paper, responsesSchema.parse(attempt.responses))) } });
+    await finalizeExpiredAttempt(prisma, attempt, paper, now);
     attempt = await prisma.schoolAiExamAttempt.findFirstOrThrow({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId } });
   }
   return receipt(attempt, paper, now);
@@ -323,8 +340,8 @@ export async function saveSchoolAiAttempt(user: AuthUser, id: string, raw: unkno
     const errors = validateResponses(paper, responses);
     if (errors.length) throw new ApiError(errors.join(" "));
     const submit = expired || input.submit;
-    const changed = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId, status: "IN_PROGRESS", pausedAt: null, sequence: attempt.sequence }, data: { responses: json(responses), sequence: expired ? attempt.sequence : input.sequence, ...(submit ? { status: "SUBMITTED", submittedAt: currentTime, scoreProposal: json(scoreObjectiveResponses(paper, responses)) } : {}) } });
-    if (changed.count !== 1) throw new ApiError("Another answer version was saved first. Reload the saved attempt.", 409);
+    const changed = expired ? await finalizeExpiredAttempt(tx, attempt, paper, currentTime) : await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId, status: "IN_PROGRESS", pausedAt: null, deadlineAt: attempt.deadlineAt, sequence: attempt.sequence }, data: { responses: json(responses), sequence: input.sequence, ...(submit ? { status: "SUBMITTED", submittedAt: currentTime, scoreProposal: json(scoreObjectiveResponses(paper, responses)) } : {}) } });
+    if (changed.count !== 1) throw new ApiError("Your answers or exam timing changed. Reload the saved attempt before continuing.", 409);
     // Autosaves are draft answers; the event marks the final hand-in (or deadline close).
     if (submit) await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: attempt.id, action: "UPDATE", campusId: student.campusId, before: { status: attempt.status, sequence: attempt.sequence }, after: { status: "SUBMITTED", sequence: expired ? attempt.sequence : input.sequence, deadlineExpired: expired } });
     const saved = await tx.schoolAiExamAttempt.findFirstOrThrow({ where: { id: attempt.id, schoolId: user.schoolId, userId: user.userId } });
@@ -338,18 +355,35 @@ export async function listSchoolAiAttempts(user: AuthUser, id: string, now = new
   const attempts = await prisma.schoolAiExamAttempt.findMany({ where: { assignmentId: id, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { startedAt: "asc" }, take: 500 });
   // Finalize only persisted answers when a staff member opens the marking desk.
   for (const attempt of attempts) if (attempt.status === "IN_PROGRESS" && !attempt.pausedAt && now >= attempt.deadlineAt) {
-    await prisma.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, status: "IN_PROGRESS", sequence: attempt.sequence }, data: { status: "SUBMITTED", submittedAt: now, scoreProposal: json(scoreObjectiveResponses(paper, responsesSchema.parse(attempt.responses))) } });
+    await finalizeExpiredAttempt(prisma, attempt, paper, now);
   }
   const results = await prisma.schoolAiExamAttempt.findMany({ where: { assignmentId: id, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { startedAt: "asc" }, take: 500 });
   const names = await prisma.student.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, id: { in: results.map((attempt) => attempt.studentId) } }, select: { id: true, fullName: true, rollNo: true } });
-  return { paper, attempts: results.map(({ userId: _userId, reviewedById: _reviewer, ...attempt }) => ({ ...attempt, student: names.find((student) => student.id === attempt.studentId) ?? null })) };
+  const permitted = async (check: () => Promise<unknown>) => {
+    try { await check(); return true; }
+    catch (error) { if (error instanceof Error && "status" in error && [403, 404].includes(Number(error.status))) return false; throw error; }
+  };
+  const [canMark, canManage, canRelease, canRevise] = await Promise.all([
+    permitted(() => staffMarkingAccess(user, assignment)),
+    permitted(() => staffExamAccess(user, assignment, "edit")),
+    permitted(() => assertStudioAction(user, "RELEASE_RESULT", { schoolId: user.schoolId, campusId: assignment.campusId, classId: assignment.classId, assignmentId: id })),
+    permitted(() => assignment.resultsReleasedAt ? resultDecisionAccess(user, assignment) : staffExamAccess(user, assignment, "edit")),
+  ]);
+  const permissions = await loadWorkspacePermissionSnapshot(user);
+  const capabilities: ExamReviewCapabilities = {
+    canMark, canManage, canRevise, canRelease: isSchoolAiManager(user) && canRelease,
+    canApproveAccommodation: isSchoolAiManager(user) && canManage,
+    canSendGradebook: user.role === "TEACHER" ? assignment.createdById === user.userId && !!permissions.get("ai")?.canAdd && !!permissions.get("exams")?.canEdit : canManage,
+  };
+  return { paper, capabilities, resultsReleasedAt: assignment.resultsReleasedAt, attempts: results.map(({ userId: _userId, reviewedById: _reviewer, ...attempt }) => ({ ...attempt, student: names.find((student) => student.id === attempt.studentId) ?? null })) };
 }
 
 export async function reviewSchoolAiAttempt(user: AuthUser, assignmentId: string, attemptId: string, raw: unknown, now = new Date()) {
   const review = examReviewSchema.parse(raw);
   return schoolAiTransaction(user, async tx => {
     const { assignment, paper } = await scopedAssignment(user, assignmentId, tx);
-    await staffExamAccess(user, assignment, "edit", tx);
+    await staffMarkingAccess(user, assignment, tx);
+    if (review.keyCorrections?.length) await staffExamAccess(user, assignment, "edit", tx);
     const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId } });
     if (!attempt || attempt.status !== "SUBMITTED") throw new ApiError("Only a submitted, unreviewed attempt can be moderated.", 409);
     const errors = validateExamReview(paper, responsesSchema.parse(attempt.responses), review);
