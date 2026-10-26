@@ -32,7 +32,7 @@ async function entries() {
 const exec = async (key: string) => (await entries()).find(item => item.key === key) as ExecEntry<any>;
 const handoff = async (key: string) => (await entries()).find(item => item.key === key) as HandoffEntry<any>;
 const KEY = () => `wf-test-${randomUUID()}`;
-const DESK_WRITES = ["library.desk_issue_copy", "library.desk_return_copy", "library.desk_renew_loan", "library.desk_reserve_title", "library.desk_add_copies", "library.desk_save_rules", "library.member_create", "library.book_update", "library.category_create", "library.book_create"];
+const DESK_WRITES = ["library.desk_issue_copy", "library.desk_return_copy", "library.desk_renew_loan", "library.desk_reserve_title", "library.desk_add_copies", "library.desk_save_rules", "library.member_create", "library.book_update", "library.category_create", "library.category_update", "library.book_create"];
 
 async function fixture(role: AuthUser["role"] = "LIBRARIAN") {
   const schoolId = `lib-${randomUUID()}`, campusId = randomUUID(), otherCampusId = randomUUID(), userId = randomUUID(); schools.push(schoolId);
@@ -83,7 +83,7 @@ test("library entries define with their static classes, roles, evidence and seat
     ["library.desk_issue_copy", "B", "CREATE"], ["library.desk_return_copy", "B", "UPDATE"], ["library.desk_renew_loan", "B", "UPDATE"],
     ["library.desk_reserve_title", "B", "CREATE"], ["library.desk_add_copies", "B", "CREATE"], ["library.desk_save_rules", "B", "UPDATE"],
     ["library.member_create", "B", "CREATE"], ["library.book_update", "B", "UPDATE"], ["purchasing.save_request", "B", "CREATE"],
-    ["library.category_create", "A", "CREATE"], ["library.book_create", "A", "CREATE"], ["read.library.overdue", "A", "READ"],
+    ["library.category_create", "A", "CREATE"], ["library.category_update", "B", "UPDATE"], ["library.book_create", "A", "CREATE"], ["read.library.overdue", "A", "READ"],
     ["library.desk_save_rules_money", "C", "FINANCIAL"], ["library.desk_mark_lost", "C", "FINANCIAL"], ["library.desk_decide_charge", "C", "FINANCIAL"],
   ]);
   for (const item of all) {
@@ -392,4 +392,29 @@ test("an operator with a librarian in post gets SEAT on every desk write", async
   });
   const librarian: AuthUser = { schoolId, campusId, userId: librarianId, role: "LIBRARIAN", email: `${librarianId}@example.invalid`, fullName: "Synthetic librarian", accessVersion: 0 };
   await within(librarian, async () => { for (const key of DESK_WRITES) assert.deepEqual(await runGates(await ctxFor(librarian, campusId), (await exec(key)).gates), { ok: true }, key); });
+});
+
+
+test("category rename preserves books, replays, rejects stale and foreign-campus updates", async () => {
+  const { user, schoolId, campusId, otherCampusId } = await fixture();
+  const original = await db.bookCategory.create({ data: { schoolId, campusId, name: "Fiction" } });
+  const other = await db.bookCategory.create({ data: { schoolId, campusId: otherCampusId, name: "Foreign" } });
+  const book = await db.book.create({ data: { schoolId, campusId, categoryId: original.id, title: "Story", copiesTotal: 1, copiesAvailable: 1 } });
+  await within(user, async () => {
+    const ctx = await ctxFor(user, campusId), entry = await exec("library.category_update");
+    const bound = await bind(ctx, entry.key, { category: "Fiction", name: "Stories" });
+    assert.equal((await entry.preview!(ctx, bound)).counts.updated, 1);
+    assert.equal((await entry.execute(ctx, bound, { idempotencyKey: KEY() })).counts.updated, 1);
+    assert.equal((await entry.execute(ctx, bound, { idempotencyKey: KEY() })).detail?.reconciled, true);
+    assert.equal((await db.book.findUniqueOrThrow({ where: { id: book.id } })).categoryId, original.id);
+    assert.equal(await code(entry.execute(ctx, { ...bound, categoryId: other.id }, { idempotencyKey: KEY() })), "SCOPE_DENIED");
+    const { renameCategory } = await import("../../src/lib/library/catalogue-command");
+    await assert.rejects(() => renameCategory(user, { id: other.id, name: "Stolen" }), { status: 404 });
+    await db.bookCategory.create({ data: { schoolId, campusId, name: "Reference" } });
+    await assert.rejects(() => renameCategory(user, { id: original.id, name: "reference" }), { status: 409 });
+    await db.bookCategory.update({ where: { id: original.id }, data: { name: "Literature" } });
+    assert.equal(await code(entry.preview!(ctx, bound)), "STALE_VERSION");
+    await assert.rejects(() => entry.execute(ctx, bound, { idempotencyKey: KEY() }));
+    assert.equal((await db.bookCategory.findUniqueOrThrow({ where: { id: original.id } })).name, "Literature");
+  });
 });

@@ -1,6 +1,6 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **864**; connected: **147**.
+Total capabilities: **864**; connected: **148**.
 
 Risk: ACCESS_GRANT 53 · APPROVAL_DECISION 71 · COMMUNICATION 37 · CREATE 227 · DESTRUCTIVE 79 · FINANCIAL 58 · PUBLISH 29 · READ 48 · UPDATE 262
 
@@ -14,12 +14,12 @@ Idempotent: no 253 · unknown 50 · versioned 1 · yes 560
 |---|---|---|
 | APP_OWNER | 60 | 14 |
 | SUPER_ADMIN | 659 | 18 |
-| ADMIN | 696 | 87 |
-| CAMPUS_ADMIN | 653 | 85 |
+| ADMIN | 696 | 88 |
+| CAMPUS_ADMIN | 653 | 86 |
 | PRINCIPAL | 386 | 22 |
 | TEACHER | 249 | 24 |
 | ACCOUNTANT | 140 | 27 |
-| LIBRARIAN | 104 | 19 |
+| LIBRARIAN | 104 | 20 |
 | RECEPTIONIST | 121 | 25 |
 | STUDENT | 59 | 14 |
 | PARENT | 53 | 16 |
@@ -34,7 +34,7 @@ Idempotent: no 253 · unknown 50 · versioned 1 · yes 560
 | C4 Teaching and assessment | 110 | 20 |
 | C5 Attendance, communication and engagement | 66 | 14 |
 | C6 Finance, payroll, purchasing and inventory | 120 | 26 |
-| C7 Campus operations | 112 | 23 |
+| C7 Campus operations | 112 | 24 |
 | C8 Platform, group governance and onboarding | 65 | 14 |
 | C8 Reviewed RAG knowledge | 4 | 1 |
 | C9a school-ai exams and Exam Studio | 94 | 1 |

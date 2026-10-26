@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { parseInventory, INVENTORY_JSON, type InventoryRow } from "./inventory-to-json";
 import { normaliseRoute, scanWriteHandlers } from "./scan-handlers";
 import { REGISTRY, coveredInventoryKeys } from "../../src/lib/ai-workflows/registry";
+import { coverageMarkdown, registryCoverage } from "./coverage-report";
 import { exclusionFor } from "../../src/lib/ai-workflows/registry/exclusions";
 import { NEVER_SAFE_PATTERNS, ALLOWED_SYNTHETIC_REQUEST_CALLEES } from "../../src/lib/ai-workflows/registry/never-safe";
 import { examStudioViolation } from "../../src/lib/ai-workflows/registry/exam-studio";
@@ -31,6 +32,9 @@ export function evaluate() {
   // The engine's own endpoints start and drive jobs; they are not capabilities a role holds.
   const ENGINE_ROUTES = ["/api/ai-workflows", "/api/automation"];
   const unmappedHandlers = scanWriteHandlers().filter(handler => !ENGINE_ROUTES.some(prefix => handler.route === prefix || handler.route.startsWith(`${prefix}/`))).map(handler => `${handler.method} ${handler.route}`).filter(id => !known.has(id));
+
+  const expectedCoverage = coverageMarkdown(inventory, registryCoverage([...REGISTRY.values()]));
+  if (readFileSync("src/lib/ai-workflows/generated/coverage.md", "utf8") !== expectedCoverage) errors.push("generated coverage.md is stale: run node --import ./tests/support/server-only.mjs --import tsx scripts/ai-workflows/coverage-report.ts");
 
   const covered = coveredInventoryKeys();
   const unconnectedKeys = inventory.filter(row => !covered.has(row.key) && !exclusionFor(row.key)).map(row => row.key).sort();

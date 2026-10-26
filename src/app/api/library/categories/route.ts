@@ -8,7 +8,7 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { createCategory } from "@/lib/library/catalogue-command";
+import { createCategory, renameCategory } from "@/lib/library/catalogue-command";
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,25 +49,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await req.json();
-    const { id, name } = body;
-    if (!id) throw new ApiError("id is required", 400);
-
-    const existing = await prisma.bookCategory.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!existing) throw new ApiError("Category not found", 404);
-
-    if (name && name !== existing.name) {
-      const dup = await prisma.bookCategory.findFirst({
-        where: { campusId: existing.campusId, name, id: { not: id } },
-      });
-      if (dup) throw new ApiError("Category with this name already exists", 409);
-    }
-
-    const data = await prisma.bookCategory.update({
-      where: { id },
-      data: { ...(name ? { name } : {}) },
-    });
+    const data = await renameCategory(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {
