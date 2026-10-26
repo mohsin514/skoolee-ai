@@ -1,3 +1,5 @@
+import { prisma } from "../lib/db/prisma";
+import { redis } from "../lib/queue/connection";
 import { sweepWorkflowJobs } from "../lib/ai-workflows/jobs/worker";
 import { sweepDocumentJobs } from "../lib/school-ai/document-jobs-service";
 import { sweepExamProctorRecordings } from "../lib/school-ai/exam-proctor-sweep";
@@ -100,6 +102,9 @@ async function shutdown() {
   await connection.quit();
   await producerConnection.quit();
   await db.$disconnect();
+  // Domain services share these clients separately from the worker transport.
+  await prisma.$disconnect();
+  redis.disconnect();
 }
 process.once("SIGTERM", () => void shutdown());
 process.once("SIGINT", () => void shutdown());
