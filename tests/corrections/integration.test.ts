@@ -118,9 +118,9 @@ test("five original currencies reverse partially allocated receipt and reconcile
         const original = await raw.invoice.findUniqueOrThrow({ where: { id: before.invoiceId } });
         const r = await request("ACCOUNTANT", "PAYMENT", id, { allocations: [{ invoiceId: original.id, minor: 30001 }], unappliedMinor: 10000 });
         assert.equal(r.status, 201, JSON.stringify(r.data));
-        assert.equal((await api("ACCOUNTANT", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash })).status, 403);
-        assert.equal((await api("PRINCIPAL", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash })).status, 403, "the principal approves no money");
-        const applied = await api("CAMPUS_ADMIN", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash });
+        assert.equal((await api("ACCOUNTANT", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash, reason: "Reviewed synthetic payment correction" })).status, 403);
+        assert.equal((await api("PRINCIPAL", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash, reason: "Reviewed synthetic payment correction" })).status, 403, "the principal approves no money");
+        const applied = await api("CAMPUS_ADMIN", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash, reason: "Reviewed synthetic payment correction" });
         assert.equal(applied.status, 200, JSON.stringify(applied.data));
         const reversal = await raw.payment.findUniqueOrThrow({ where: { id: applied.data.successorId } });
         assert.equal(reversal.amount, -40001);
@@ -171,7 +171,7 @@ test("one partially allocated payment reverses across both affected invoices ato
     await raw.feeCarryForward.create({ data: { schoolId, campusId, studentId, fromAcademicYear: 2035, toAcademicYear: 2036, balance: -20000, currency: "KWD" } });
     const r = await request("ACCOUNTANT", "PAYMENT", p.id, { allocations: invoices.map(i => ({ invoiceId: i.id, minor: 10000 })), unappliedMinor: 5000 });
     assert.equal(r.status, 201);
-    const applied = await api("CAMPUS_ADMIN", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash });
+    const applied = await api("CAMPUS_ADMIN", "PAYMENT", { action: "approve", id: r.data.id, reviewHash: r.data.previewHash, reason: "Reviewed synthetic payment correction" });
     assert.equal(applied.status, 200, JSON.stringify(applied.data));
     for (const i of invoices) {
         const next = await raw.invoice.findUniqueOrThrow({ where: { id: i.id } });

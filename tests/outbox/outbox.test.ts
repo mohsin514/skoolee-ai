@@ -276,7 +276,7 @@ test("production worker entry point dispatches a pending publication and emits t
   await subscriber.subscribe("notif:role-SUPER_ADMIN");
   const hints: unknown[] = [];
   subscriber.on("message", (_channel, message) => hints.push(JSON.parse(message)));
-  const worker = spawn(process.execPath, ["--import", "tsx", "src/workers/outbox-worker.ts"], {
+  const worker = spawn(process.execPath, ["--import", "./tests/support/server-only.mjs", "--import", "tsx", "src/workers/outbox-worker.ts"], {
     env: { NODE_ENV: "test", PATH: process.env.PATH, DATABASE_URL: process.env.DATABASE_URL, REDIS_URL: process.env.REDIS_URL },
     stdio: "ignore",
   });
@@ -285,9 +285,11 @@ test("production worker entry point dispatches a pending publication and emits t
     assert.equal((await job(ref)).state, "completed");
     assert.equal(hints.length, 1);
   } finally {
-    const exited = once(worker, "exit");
-    worker.kill("SIGTERM");
-    await exited;
+    if (worker.exitCode === null && worker.signalCode === null) {
+      const exited = once(worker, "exit");
+      worker.kill("SIGTERM");
+      await exited;
+    }
     await subscriber.quit();
   }
 });
