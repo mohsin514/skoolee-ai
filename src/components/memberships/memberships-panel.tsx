@@ -332,7 +332,7 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
           requireReason={{ label: t("Why this change?"), minLength: 10, placeholder: t("For example: moved to the head office team") }}
           busy={busy}
           onCancel={() => setConfirming(false)}
-          onConfirm={(reason?: string) => void saveAccess(reason)}
+          onConfirm={(reason?: string) => saveAccess(reason)}
         />
       ) : null}
     </div>

@@ -213,7 +213,7 @@ export function PayrollRunsPanel({ mode = "prepare", command, hideHeader = false
         cancelLabel={ui("Keep editing")}
         // A money decision: the typed reason is kept in the approval's audit row (role-ux R3, §4.5.5).
         requireReason={{ label: ui("Reason for approving this run"), minLength: 10, placeholder: ui("For example: checked against attendance, leave and salary records.") }}
-        onConfirm={(reason?: string) => { const run = confirmApprove; setConfirmApprove(null); if (run) void post({ action: "approve", id: run.id, reason }, "Run approved. The finance desk exports it to the provider next."); }}
+        onConfirm={async (reason?: string) => { const run = confirmApprove; if (run && await post({ action: "approve", id: run.id, reason }, "Run approved. The finance desk exports it to the provider next.")) setConfirmApprove(null); }}
         onCancel={() => setConfirmApprove(null)}
       />
       {hideHeader ? null : <h2 id="payroll-runs" className="text-lg font-bold">{ui("Payroll runs and provider export")}</h2>}

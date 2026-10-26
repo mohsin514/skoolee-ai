@@ -1014,7 +1014,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
           confirmLabel={tr("Post correction")}
           tone="warning"
           busy={acting}
-          onConfirm={() => void handleCorrect()}
+          onConfirm={() => handleCorrect()}
           onCancel={() => setCorrecting(null)}
         />
       )}
@@ -1027,7 +1027,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
           confirmLabel={tr("Delete")}
           tone="danger"
           busy={acting}
-          onConfirm={() => void handleDelete()}
+          onConfirm={() => handleDelete()}
           onCancel={() => setDeleting(null)}
         />
       )}

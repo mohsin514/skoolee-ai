@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -105,37 +106,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
-    await assertPermission(user, "transport", "delete");
-
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
-
-    const existing = await prisma.vehicle.findFirst({
-      where: { id, campusId },
-      include: { _count: { select: { routes: true } } },
-    });
-    if (!existing) throw new ApiError("Vehicle not found", 404);
-
-    if (existing._count.routes > 0) {
-      return Response.json(
-        {
-          error: `Cannot delete vehicle: it is assigned to ${existing._count.routes} route(s)`,
-          count: existing._count.routes,
-        },
-        { status: 409 }
-      );
-    }
-
-    await prisma.vehicle.delete({ where: { id } });
-
-    return Response.json({ success: true, data: { id } });
-  } catch (error) {
-    return errorResponse(error, "[transport-vehicles] DELETE failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "transport/vehicles");
 }

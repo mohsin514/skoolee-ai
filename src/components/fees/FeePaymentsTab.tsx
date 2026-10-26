@@ -844,7 +844,7 @@ function BankImportModal({
       confirmLabel={tr("Reverse batch")}
       cancelLabel={tr("Keep editing")}
       busy={busy}
-      onConfirm={() => void reverse()}
+      onConfirm={() => reverse()}
       onCancel={() => setConfirmReverse(false)}
     />
     <Modal title={tr("Import bank statement")} eyebrow={tr("Fees")}

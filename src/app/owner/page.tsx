@@ -2899,7 +2899,7 @@ function SchoolDetailModal({
           cancelLabel={t("Keep editing")}
           busy={changingPlan}
           onCancel={() => setPendingPlan(null)}
-          onConfirm={() => void confirmPlanChange()}
+          onConfirm={() => confirmPlanChange()}
         />
     </Modal>
   );

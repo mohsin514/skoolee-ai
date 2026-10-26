@@ -84,6 +84,7 @@ import { translateUi } from "@/lib/locale/ui-messages";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { OperationDelete } from "@/components/operations/confirmed-delete";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { RestoreStudentDialog } from "./restore-student-dialog";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
@@ -2414,17 +2415,7 @@ export function StudentAdmissionsPanel({
     }
   };
 
-  const deleteDocument = async (doc: any) => {
-    try {
-      const res = await fetch(`/api/students/documents?id=${encodeURIComponent(doc.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
-      toast.success(ui("Document deleted"));
-      onVersionBump();
-    } catch (error) {
-      toast.error(friendlyErrorMessage(error, ui("Could not delete the document. Please try again.")));
-    }
-  };
+
 
   const addNote = async () => {
     if (!noteDraft.trim()) return;
@@ -2619,13 +2610,7 @@ export function StudentAdmissionsPanel({
                       <Download className="h-3 w-3" />{ui("View")}
                     </a>
                   ) : null}
-                  <SystemButton variant="ghost"
-                    type="button"
-                    onClick={() => deleteDocument(doc)}
-                    className="flex items-center gap-1.5 px-3 justify-start"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </SystemButton>
+                  <OperationDelete endpoint="students/documents" record={{ id: doc.id, campusId: student.campusId }} label={doc.fileName} onDeleted={onVersionBump} />
                 </div>
               </div>
             ))}
@@ -2715,7 +2700,6 @@ export function TeacherDetailModal({
   const [deductions, setDeductions] = useState<{ name: string; amount: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadKind, setUploadKind] = useState("CV");
-  const [docBusy, setDocBusy] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const loadStaffRecords = useCallback(async () => {
@@ -2845,20 +2829,7 @@ export function TeacherDetailModal({
     }
   };
 
-  const deleteStaffDoc = async (doc: any) => {
-    setDocBusy(doc.id);
-    try {
-      const res = await fetch(`/api/staff/documents?id=${encodeURIComponent(doc.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
-      toast.success(ui("Document deleted"));
-      await loadStaffRecords();
-    } catch (error) {
-      toast.error(friendlyErrorMessage(error, ui("Could not delete the document. Please try again.")));
-    } finally {
-      setDocBusy(null);
-    }
-  };
+
 
   // R7: money and dates through the locale package (never "Rs." or a hard-coded en-PK).
   const rupee = (minor: number) => formatStaffMoney(minor, schoolCurrency);
@@ -3354,9 +3325,7 @@ export function TeacherDetailModal({
                       <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-card hover:text-primary">
                         <Download className="h-4 w-4" />
                       </a>
-                      <SystemButton variant="ghost" type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex items-center justify-center">
-                        {docBusy === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </SystemButton>
+                      <OperationDelete endpoint="staff/documents" record={{ id: doc.id, campusId: teacher.campusId }} label={doc.fileName} onDeleted={loadStaffRecords} />
                     </div>
                   ))
                 )}
@@ -6387,7 +6356,7 @@ export function LeaveManagementPanel({
         tone="danger"
         busy={deleteBusy}
         onCancel={() => setPendingDelete(null)}
-        onConfirm={() => void confirmDelete()}
+        onConfirm={() => confirmDelete()}
       />
 
       {loadError ? (

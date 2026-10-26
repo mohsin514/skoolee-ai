@@ -189,7 +189,7 @@ export function ResourceLibrary({ audience, adding: addingProp, onAddingChange, 
       cancelLabel={t.keep}
       busy={busy}
       onCancel={() => setRetiring(null)}
-      onConfirm={() => { const id = retiring; setRetiring(null); if (id) void run(() => call(`/api/resources/${id}`, { op: "retire" })); }}
+      onConfirm={async () => { const id = retiring; if (id && await run(() => call(`/api/resources/${id}`, { op: "retire" }))) setRetiring(null); }}
     />
   </div>;
 }

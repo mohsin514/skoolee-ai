@@ -7,6 +7,18 @@ import { arabicRoleUxUi, urduRoleUxUi } from "./role-ux/index";
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
  */
 export const arabicReviewedUi: Record<string, string> = {
+  "This document will be removed from the record. Other documents and unsaved work are kept.": "سيُزال هذا المستند من السجل. تبقى المستندات الأخرى والعمل غير المحفوظ.",
+  "This could not be completed. Your changes are kept. Please try again.": "تعذر إكمال الإجراء. تم الاحتفاظ بتغييراتك. حاول مرة أخرى.",
+  "Delete {0}?": "حذف {0}؟",
+  "One record will be permanently removed. Related history must be kept; records with dependencies cannot be deleted.": "سيُحذف سجل واحد نهائياً. يجب الاحتفاظ بالسجل المرتبط؛ لا يمكن حذف سجلات لها ارتباطات.",
+  "Checking current permissions and record…": "جارٍ التحقق من الصلاحيات الحالية والسجل…",
+  "Related records or history prevent deletion. Keep this record and review its dependencies.": "تمنع السجلات المرتبطة أو السجل السابق الحذف. احتفظ بهذا السجل وراجع ارتباطاته.",
+  "Your permission changed. Cancel and contact your administrator.": "تغيرت صلاحيتك. ألغِ الإجراء وتواصل مع المسؤول.",
+  "This record or its dependencies changed. Review it again before deleting.": "تغير هذا السجل أو ارتباطاته. راجعه مجدداً قبل الحذف.",
+  "This record is no longer available. Cancel and refresh the list.": "لم يعد هذا السجل متاحاً. ألغِ الإجراء وحدّث القائمة.",
+  "Deletion could not be confirmed. Your work is kept. Retry safely or cancel.": "تعذر تأكيد الحذف. تم الاحتفاظ بعملك. أعد المحاولة بأمان أو ألغِ الإجراء.",
+  "Review again": "مراجعة مجدداً",
+
   ...arabicDesignSystemUi,
   "Uploading": "جارٍ الرفع",
   "Logo uploaded": "تم رفع الشعار",
@@ -381,6 +393,18 @@ export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicRe
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
+  "This document will be removed from the record. Other documents and unsaved work are kept.": "یہ دستاویز ریکارڈ سے ہٹا دی جائے گی۔ دوسری دستاویزات اور غیر محفوظ کام برقرار رہیں گے۔",
+  "This could not be completed. Your changes are kept. Please try again.": "یہ کارروائی مکمل نہیں ہو سکی۔ آپ کی تبدیلیاں محفوظ ہیں۔ دوبارہ کوشش کریں۔",
+  "Delete {0}?": "کیا {0} کو حذف کریں؟",
+  "One record will be permanently removed. Related history must be kept; records with dependencies cannot be deleted.": "ایک ریکارڈ مستقل طور پر حذف ہوگا۔ متعلقہ تاریخ محفوظ رہنی چاہیے؛ منسلک ریکارڈ حذف نہیں کیے جا سکتے۔",
+  "Checking current permissions and record…": "موجودہ اجازتوں اور ریکارڈ کی جانچ جاری ہے…",
+  "Related records or history prevent deletion. Keep this record and review its dependencies.": "متعلقہ ریکارڈ یا تاریخ کی وجہ سے حذف نہیں ہو سکتا۔ یہ ریکارڈ رکھیں اور اس کے تعلقات کا جائزہ لیں۔",
+  "Your permission changed. Cancel and contact your administrator.": "آپ کی اجازت تبدیل ہو گئی ہے۔ منسوخ کریں اور منتظم سے رابطہ کریں۔",
+  "This record or its dependencies changed. Review it again before deleting.": "یہ ریکارڈ یا اس کے تعلقات تبدیل ہو گئے ہیں۔ حذف کرنے سے پہلے دوبارہ جائزہ لیں۔",
+  "This record is no longer available. Cancel and refresh the list.": "یہ ریکارڈ اب دستیاب نہیں ہے۔ منسوخ کریں اور فہرست تازہ کریں۔",
+  "Deletion could not be confirmed. Your work is kept. Retry safely or cancel.": "حذف کی تصدیق نہیں ہو سکی۔ آپ کا کام محفوظ ہے۔ محفوظ طریقے سے دوبارہ کوشش کریں یا منسوخ کریں۔",
+  "Review again": "دوبارہ جائزہ لیں",
+
   ...urduDesignSystemUi,
   "Uploading": "اپ لوڈ ہو رہا ہے",
   "Logo uploaded": "لوگو اپ لوڈ ہو گیا",

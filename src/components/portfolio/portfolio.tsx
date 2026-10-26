@@ -79,7 +79,7 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return false; } finally { setBusy(false); } };
   const openAdd = async () => { setAdding(true); try { setAttempts((await call(`/api/portfolio?view=evidence${q ? `&${q.slice(1)}` : ""}`)).attempts); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "Could not load evidence to add.")); } };
   const openAddRef = useRef(openAdd);
-  openAddRef.current = openAdd;
+  useEffect(() => { openAddRef.current = openAdd; });
   useEffect(() => { if (addRequest) void openAddRef.current(); }, [addRequest]);
 
   if (error) return <section data-portfolio><ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /></section>;
@@ -119,7 +119,7 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
       cancelLabel={ui("Keep entry")}
       busy={busy}
       onCancel={() => setConfirmRemove(null)}
-      onConfirm={() => { const entry = confirmRemove; setConfirmRemove(null); if (entry) void run(() => call("/api/portfolio", "POST", { action: "remove", entryId: entry.id }), "Removed from the portfolio. The original assignment is unchanged."); }}
+      onConfirm={async () => { const entry = confirmRemove; if (entry && await run(() => call("/api/portfolio", "POST", { action: "remove", entryId: entry.id }), "Removed from the portfolio. The original assignment is unchanged.")) setConfirmRemove(null); }}
     />
     <ConfirmAction
       open={Boolean(confirmRevoke)}
@@ -130,7 +130,7 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
       cancelLabel={ui("Keep sharing")}
       busy={busy}
       onCancel={() => setConfirmRevoke(null)}
-      onConfirm={() => { const shareId = confirmRevoke; setConfirmRevoke(null); if (shareId) void run(() => call("/api/portfolio", "POST", { action: "revoke", shareId }), "Share withdrawn. Old links no longer open."); }}
+      onConfirm={async () => { const shareId = confirmRevoke; if (shareId && await run(() => call("/api/portfolio", "POST", { action: "revoke", shareId }), "Share withdrawn. Old links no longer open.")) setConfirmRevoke(null); }}
     />
     {adding ? <Modal size="sm" title={ui("Add evidence")} eyebrow={data.student.name} onClose={() => setAdding(false)}>
       <div className="space-y-3" data-pf-add-dialog>

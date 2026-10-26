@@ -326,7 +326,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
         cancelLabel={ui("Keep editing")}
         busy={busy}
         onCancel={() => setDeleting(null)}
-        onConfirm={() => { if (deleting) void remove(deleting); }}
+        onConfirm={() => { if (deleting) return remove(deleting); }}
       />
     </div>
   );

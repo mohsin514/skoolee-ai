@@ -57,8 +57,8 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
   const act = async (body: Record<string, unknown>, done: string) => {
     if (!digest) return;
     setBusy(true);
-    try { const result = await call(`/api/digests/${digest.id}`, "PATCH", { ...body, knownVersion: digest.version }); toast.success(body.action === "send" ? ui("Sent to {0} guardians.", [String(result.delivered)]) : ui(done)); await refresh(digest.id); }
-    catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); if (digest) await refresh(digest.id); } finally { setBusy(false); }
+    try { const result = await call(`/api/digests/${digest.id}`, "PATCH", { ...body, knownVersion: digest.version }); toast.success(body.action === "send" ? ui("Sent to {0} guardians.", [String(result.delivered)]) : ui(done)); await refresh(digest.id); return true; }
+    catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); if (digest) await refresh(digest.id); return false; } finally { setBusy(false); }
   };
   const openEdit = (entry: Entry) => { setEditing(entry); setDraft({ texts: Object.fromEntries(entry.content.statements.map(s => [s.id, s.edited ? s.text : statementText(ui, s)])), removed: [], step: entry.content.nextStep ? { ...entry.content.nextStep, minutes: String(entry.content.nextStep.minutes) } : null, skipped: entry.skipped }); };
   const saveEdit = async () => {
@@ -101,7 +101,7 @@ export function FamilyDigestReview({ classes }: { classes: { id: string; label: 
       cancelLabel={ui("Keep editing")}
       busy={busy}
       onCancel={() => setConfirmSend(false)}
-      onConfirm={() => { setConfirmSend(false); void act({ action: "send" }, "Sent."); }}
+      onConfirm={async () => { if (await act({ action: "send" }, "Sent.")) setConfirmSend(false); }}
     />
     {editing ? <Modal size="lg" title={editing.studentName} eyebrow={ui("Weekly family update")} subtitle={ui("Each statement keeps its source. You can reword or remove it.")} onClose={() => setEditing(null)}>
       <div className="space-y-3" data-digest-editor>

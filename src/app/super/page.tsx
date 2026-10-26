@@ -248,7 +248,7 @@ export default function SuperAdminDashboard() {
         tone="danger"
         busy={confirmBusy}
         onCancel={() => setConfirm(null)}
-        onConfirm={() => void runConfirmed()}
+        onConfirm={() => runConfirmed()}
       />
     </RoleShell>
   );
@@ -1043,7 +1043,7 @@ function PromotePrincipalConfirm({ campus, onClose, onDone }: { campus: Campus; 
       requireReason={{ label: t("Why this change?"), minLength: 10 }}
       busy={busy}
       onCancel={onClose}
-      onConfirm={(reason?: string) => void confirm(reason)}
+      onConfirm={(reason?: string) => confirm(reason)}
     />
   );
 }
