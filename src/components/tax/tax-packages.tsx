@@ -111,7 +111,7 @@ export function TaxPackages({ mode = "draft", hideHeader = false, command }: { m
       confirmLabel={ui("Sign off")}
       cancelLabel={ui("Keep editing")}
       requireReason={signing && signing.preparedById === data.userId ? { label: ui("Why are you signing off your own draft?"), minLength: 10, placeholder: ui("For example: I am the only administrator who can sign this off.") } : undefined}
-      onConfirm={(reason?: string) => { const a = signing; setSigning(null); if (a) void run(() => call("/api/tax", "POST", { action: "approve", id: a.id, ...(reason ? { reason } : {}) }), "Reviewed package scheduled for the chosen effective date."); }}
+      onConfirm={(reason?: string) => { const a = signing; if (a) return run(() => call("/api/tax", "POST", { action: "approve", id: a.id, ...(reason ? { reason } : {}) }), "Reviewed package scheduled for the chosen effective date.").then(saved => { if (saved) setSigning(null); }); }}
       onCancel={() => setSigning(null)}
     />
     {hideHeader ? null : <header><h2 className="text-xl font-bold tracking-tight text-ink-strong">{ui("Invoice tax packages")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("New rules apply from the selected date. Earlier invoices remain unchanged.")}</p></header>}

@@ -154,10 +154,11 @@ function LegacyReportCardsPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${label} failed`);
-      if (data.jobId) { window.location.assign(`/jobs?id=${data.jobId}`); return; }
+      if (data.jobId) { window.location.assign(`/jobs?id=${data.jobId}`); return true; }
       toast.success(tr(label));
       await load();
       onChanged?.();
+      return true;
     } catch (e) {
       toast.error(tr(e instanceof Error ? e.message : tr("{0} failed", [label])));
     } finally {
@@ -617,7 +618,7 @@ function LegacyReportCardsPanel({
         tone="warning"
         busy={busy === "publish"}
         onCancel={() => setPendingStep(null)}
-        onConfirm={async () => { setPendingStep(null); await run("publish", "Report cards published"); }}
+        onConfirm={async () => { if (await run("publish", "Report cards published")) setPendingStep(null); }}
       />
       <ConfirmAction
         open={pendingStep === "send"}
@@ -628,7 +629,7 @@ function LegacyReportCardsPanel({
         tone="primary"
         busy={busy === "send"}
         onCancel={() => setPendingStep(null)}
-        onConfirm={async () => { setPendingStep(null); await run("send", "Report cards sent"); }}
+        onConfirm={async () => { if (await run("send", "Report cards sent")) setPendingStep(null); }}
       />
     </div>
   );

@@ -22,7 +22,7 @@ import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
-import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
 import { BrandButton } from "@/components/role-dashboard";
 import { ROOM_TYPES, floorLabel, roomCapacity } from "@/lib/academic/room-capacity";
 import { Field, Panel, StepEmpty, inputClass, selectClass } from "@/components/academic/exams/shared";
@@ -51,6 +51,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 
 interface Room {
   id: string;
+  campusId: string;
   roomNumber: string;
   capacity: number;
   note: string | null;
@@ -109,7 +110,6 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Room | "new" | null>(null);
   const [deleting, setDeleting] = useState<Room | null>(null);
-  const [busy, setBusy] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
@@ -172,21 +172,6 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
       }));
   }, [rooms, query, ui]);
 
-  const remove = async (room: Room) => {
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/academic/rooms?id=${room.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "");
-      toast.success(ui("Room {0} removed", [room.roomNumber]));
-      setDeleting(null);
-      await load();
-    } catch (e) {
-      toast.error(friendlyErrorMessage(e, ui("Could not remove the room")));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <div className="sk-rise space-y-4">
@@ -313,21 +298,9 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
         />
       ) : null}
 
-      {/* R2/R3: one confirmation dialog — the shared ConfirmAction. */}
-      <ConfirmAction
-        open={Boolean(deleting) && !readOnly}
-        tone="danger"
-        title={deleting ? ui("Remove room {0}?", [deleting.roomNumber]) : ""}
-        description={deleting && (deleting._count?.slots ?? 0) + (deleting._count?.examSchedules ?? 0) + (deleting._count?.examRooms ?? 0) > 0
-          ? ui("This room is still booked. Those bookings have to move elsewhere first — the removal will be refused until they do.")
-          : ui("Nothing is booked in this room, so it can go.")}
-        detail={deleting ? <p className="text-sm leading-relaxed text-ink-muted">{ui("{0} exam seats will leave the campus total.", [deleting.examCapacity])}</p> : undefined}
-        confirmLabel={ui("Remove room")}
-        cancelLabel={ui("Keep editing")}
-        busy={busy}
-        onCancel={() => setDeleting(null)}
-        onConfirm={() => { if (deleting) return remove(deleting); }}
-      />
+      {deleting && !readOnly ? <ReviewedDeleteDialog endpoint="academic/rooms" record={{ id: deleting.id, campusId: deleting.campusId ?? campusId }} label={deleting.roomNumber}
+        onCancel={() => setDeleting(null)} onDeleted={load}
+        detail={<p>{ui("{0} exam seats will leave the campus total.", [deleting.examCapacity])}</p>} /> : null}
     </div>
   );
 }

@@ -23,9 +23,10 @@ async function preview(user: AuthUser, kind: OperationDeleteKind, id: string) {
 }
 const remove = (user: AuthUser, kind: OperationDeleteKind, id: string, version: string | null) => operationDelete(user, kind, { id, campusId, preview: false, version });
 
-test("all eleven shared operations delete only the reviewed record and replay once", async () => {
+test("all twelve shared operations delete only the reviewed record and replay once", async () => {
   const type = await db.dormRoomType.create({ data: { ...scope, name: "Room fixture" } });
   const records: [OperationDeleteKind, string][] = [
+    ["academic/rooms", (await db.classRoom.create({ data: { ...scope, roomNumber: randomUUID(), capacity: 30 } })).id],
     ["transport/routes", (await db.transportRoute.create({ data: { ...scope, title: "Synthetic route", fare: 0 } })).id],
     ["transport/vehicles", (await db.vehicle.create({ data: { ...scope, number: randomUUID(), capacity: 1 } })).id],
     ["dormitory/rooms", (await db.dormRoom.create({ data: { ...scope, number: randomUUID(), roomTypeId: type.id, capacity: 1 } })).id],
@@ -109,4 +110,17 @@ test("a failed audit write rolls back deletion without partial business effects"
   await db.auditLog.delete({ where: { id } });
   await remove(librarian, "library/categories", row.id, p.version);
   assert.equal(await db.bookCategory.findUnique({ where: { id: row.id } }), null);
+});
+
+
+test("academic room capacity edits invalidate review and denied/cross-campus records stay intact", async () => {
+  const room = await db.classRoom.create({ data: { ...scope, roomNumber: randomUUID(), capacity: 30 } });
+  const p = await preview(lead, "academic/rooms", room.id);
+  await db.classRoom.update({ where: { id: room.id }, data: { capacity: 31 } });
+  await assert.rejects(() => remove(lead, "academic/rooms", room.id, p.version), { status: 409 });
+  await assert.rejects(() => preview(denied, "academic/rooms", room.id), { status: 403 });
+  const hidden = await db.classRoom.create({ data: { schoolId, campusId: campusB, roomNumber: randomUUID(), capacity: 30 } });
+  await assert.rejects(() => preview(lead, "academic/rooms", hidden.id), { status: 404 });
+  assert.equal((await db.classRoom.findUniqueOrThrow({ where: { id: room.id } })).capacity, 31);
+  assert.equal(await db.auditLog.count({ where: { schoolId, recordId: room.id } }), 0);
 });

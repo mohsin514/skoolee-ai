@@ -84,7 +84,7 @@ import { translateUi } from "@/lib/locale/ui-messages";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
-import { OperationDelete } from "@/components/operations/confirmed-delete";
+import { ReviewedDelete } from "@/components/ui/reviewed-delete";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { RestoreStudentDialog } from "./restore-student-dialog";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
@@ -2610,7 +2610,7 @@ export function StudentAdmissionsPanel({
                       <Download className="h-3 w-3" />{ui("View")}
                     </a>
                   ) : null}
-                  <OperationDelete endpoint="students/documents" record={{ id: doc.id, campusId: student.campusId }} label={doc.fileName} onDeleted={onVersionBump} />
+                  <ReviewedDelete endpoint="students/documents" record={{ id: doc.id, campusId: student.campusId }} label={doc.fileName} onDeleted={onVersionBump} />
                 </div>
               </div>
             ))}
@@ -3325,7 +3325,7 @@ export function TeacherDetailModal({
                       <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-card hover:text-primary">
                         <Download className="h-4 w-4" />
                       </a>
-                      <OperationDelete endpoint="staff/documents" record={{ id: doc.id, campusId: teacher.campusId }} label={doc.fileName} onDeleted={loadStaffRecords} />
+                      <ReviewedDelete endpoint="staff/documents" record={{ id: doc.id, campusId: teacher.campusId }} label={doc.fileName} onDeleted={loadStaffRecords} />
                     </div>
                   ))
                 )}

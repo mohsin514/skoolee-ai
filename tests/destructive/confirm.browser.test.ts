@@ -8,7 +8,7 @@ import { expect } from "@playwright/test";
 import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 
-// Synthetic local acceptance for SCRUM-308. Never run against a shared/production database.
+// Synthetic local acceptance for SCRUM-309. Never run against a shared/production database.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.DELETE_TEST_APP || "http://localhost:3110";
@@ -26,7 +26,7 @@ async function user(key: string, role: string, campus: string | null = campusA, 
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   const saved = sessions.get(key);
-  if (saved) { const ctx = await browser.newContext({ viewport, storageState: saved, reducedMotion: "reduce" }); ctx.setDefaultTimeout(30000); ctx.setDefaultTimeout(30000); ctx.setDefaultNavigationTimeout(120000); return ctx; }
+  if (saved) { const ctx = await browser.newContext({ viewport, storageState: saved, reducedMotion: "reduce" }); ctx.setDefaultTimeout(30000); ctx.setDefaultNavigationTimeout(120000); return ctx; }
   const ctx = await browser.newContext({ viewport, reducedMotion: "reduce" });
   const login = await ctx.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password, schoolId } });
   assert.equal(login.status(), 200, key + " login");
@@ -37,7 +37,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   const signedIn = await ctx.request.get(base + "/api/auth/session");
   assert.equal(signedIn.status(), 200, key + " authenticated session");
   sessions.set(key, await ctx.storageState());
-  ctx.setDefaultTimeout(30000); ctx.setDefaultTimeout(30000); ctx.setDefaultNavigationTimeout(120000); return ctx;
+  ctx.setDefaultTimeout(30000); ctx.setDefaultNavigationTimeout(120000); return ctx;
 }
 
 before(async () => {
@@ -59,7 +59,7 @@ async function ask(page: Page, title: string, ur = false) {
 
 test("cancel preserves URL, search and unsaved book draft; stale confirmation requires another review", async () => {
   const row = await book("Synthetic Review Atlas"), ctx = await context("librarian"), page = await ctx.newPage();
-  await page.goto(`${base}/librarian?view=catalogue&section=books`);
+  await page.goto(`${base}/librarian?view=catalogue&section=books&tab=books`);
   await page.getByRole("button", { name: "Add book", exact: true }).click();
   await page.getByRole("textbox", { name: "Title", exact: true }).fill("Unsaved title");
   const before = page.url();
@@ -86,14 +86,14 @@ test("cancel preserves URL, search and unsaved book draft; stale confirmation re
 
 test("offline retry retains review and successful deletion persists after reload without duplicate effects", async () => {
   const row = await book("Synthetic Retry Atlas"), ctx = await context("librarian"), page = await ctx.newPage();
-  await page.goto(`${base}/librarian?view=catalogue&section=books`);
+  await page.goto(`${base}/librarian?view=catalogue&section=books&tab=books`);
   const dialog = await ask(page, row.title), confirm = dialog.getByRole("button", { name: "Delete", exact: true });
   await expect(confirm).toBeEnabled();
   await ctx.setOffline(true); await confirm.click();
   await dialog.getByText("Deletion could not be confirmed. Your work is kept. Retry safely or cancel.").waitFor();
   await shot(page, "library-offline-retry-en");
   assert.ok(await db.book.findUnique({ where: { id: row.id } }));
-  await ctx.setOffline(false); await confirm.click(); await dialog.waitFor({ state: "hidden" });
+  await ctx.setOffline(false); await page.getByText("No internet connection", { exact: true }).waitFor({ state: "hidden" }); await confirm.click(); await dialog.waitFor({ state: "hidden" });
   assert.equal(await db.book.findUnique({ where: { id: row.id } }), null);
   await page.reload(); await page.getByRole("button", { name: "Add book", exact: true }).waitFor();
   assert.equal(await page.getByRole("row").filter({ hasText: row.title }).count(), 0);
@@ -118,7 +118,7 @@ test("permission revoked after review denies direct API confirmation and preserv
 
 test("Urdu mobile confirmation has localized consequences, safe focus and keyboard cancellation", async () => {
   const row = await book("Synthetic Urdu Atlas"), ctx = await context("librarian-ur", { width: 390, height: 844 }), page = await ctx.newPage();
-  await page.goto(`${base}/librarian?view=catalogue&section=books`);
+  await page.goto(`${base}/librarian?view=catalogue&section=books&tab=books`);
   const dialog = await ask(page, row.title, true);
   assert.equal(await page.locator("html").getAttribute("dir"), "rtl");
   assert.equal(await dialog.getByRole("button", { name: "ترمیم جاری رکھیں", exact: true }).evaluate(el => el === document.activeElement), true);

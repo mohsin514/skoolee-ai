@@ -9,9 +9,11 @@ import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { studentScope, campusScope } from "@/lib/auth/policy";
 import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
 import { deleteFile } from "@/lib/storage/s3";
+import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { deletionVersion } from "./version";
 
 export const operationDeleteModules = {
+  "academic/rooms": "timetable",
   "students/documents": "students",
   "staff/documents": "staff",
   "transport/routes": "transport",
@@ -33,6 +35,11 @@ export type OperationDeleteKind = keyof typeof operationDeleteModules;
 async function target(tx: TxClient, kind: OperationDeleteKind, id: string, campusId: string, schoolId: string, user: AuthUser) {
   const where = { id, campusId, schoolId };
   switch (kind) {
+    case "academic/rooms": {
+      const record = await tx.classRoom.findFirst({ where, include: { _count: { select: { slots: true, examSchedules: true, examRooms: true } } } });
+      if (!record) throw new ApiError("Record not found", 404);
+      return { record, label: record.roomNumber, blocked: record._count.slots + record._count.examSchedules + record._count.examRooms, remove: async () => { await tx.classRoom.delete({ where: { id } }); } };
+    }
     case "students/documents": {
       const record = await tx.studentDocument.findFirst({ where: { id, student: { ...studentScope(user), campusId } }, include: { student: { select: { campusId: true } } } });
       if (!record || !matchesDocumentKey(record.fileKey, "student-docs", campusId, record.studentId)) throw new ApiError("Record not found", 404);
@@ -148,6 +155,7 @@ export async function operationDelete(user: AuthUser, kind: OperationDeleteKind,
     if (!input.preview && await tx.auditLog.findFirst({ where: { id: receiptId, schoolId: user.schoolId, campusId: campus.id, userId: user.userId } })) {
       return { success: true, data: { id: input.id }, replayed: true };
     }
+    if (kind === "academic/rooms" && !input.preview) await lockTimetableCampus(tx, user.schoolId, campus.id, true);
     const selected = await target(tx, kind, input.id, campus.id, user.schoolId, user);
     const version = deletionVersion(selected.record);
     if (input.preview) return { success: true, preview: { id: input.id, label: selected.label, count: 1, version, blocked: selected.blocked > 0 } };

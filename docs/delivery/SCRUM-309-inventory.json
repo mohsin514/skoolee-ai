@@ -61,7 +61,12 @@
     "delete_handlers": [
       190
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/accounts/bank-accounts/route.ts",
@@ -149,7 +154,12 @@
     "delete_handlers": [
       108
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/dormitory/rooms/route.ts",
@@ -157,7 +167,12 @@
     "delete_handlers": [
       146
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/fees/assignments/route.ts",
@@ -277,7 +292,12 @@
     "delete_handlers": [
       90
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/inventory/items/route.ts",
@@ -285,7 +305,12 @@
     "delete_handlers": [
       104
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/inventory/stores/route.ts",
@@ -293,7 +318,12 @@
     "delete_handlers": [
       85
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/inventory/suppliers/route.ts",
@@ -301,7 +331,12 @@
     "delete_handlers": [
       88
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/leave/allocations/route.ts",
@@ -325,7 +360,12 @@
     "delete_handlers": [
       75
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/library/categories/route.ts",
@@ -333,7 +373,12 @@
     "delete_handlers": [
       60
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/library/members/route.ts",
@@ -341,7 +386,12 @@
     "delete_handlers": [
       49
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/owner/schools/[id]/route.ts",
@@ -397,7 +447,12 @@
     "delete_handlers": [
       101
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/staff/reporting-lines/route.ts",
@@ -437,7 +492,12 @@
     "delete_handlers": [
       125
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/students/route.ts",
@@ -485,7 +545,12 @@
     "delete_handlers": [
       107
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/api/transport/vehicles/route.ts",
@@ -493,7 +558,12 @@
     "delete_handlers": [
       108
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented",
+    "evidence": [
+      "tests/destructive/operations.database.test.ts",
+      "src/lib/destructive/operations.ts"
+    ],
+    "boundary": "Domain database coverage; browser and provider coverage are documented separately, not implied."
   },
   {
     "file": "src/app/corrections/view.tsx",
@@ -1207,5 +1277,13 @@
     ],
     "delete_handlers": [],
     "review": "pending"
+  },
+  {
+    "file": "src/components/ui/reviewed-delete.tsx",
+    "review": "shared-adapter-implemented",
+    "evidence": [
+      "tests/destructive/confirm.browser.test.ts"
+    ],
+    "boundary": "Real-app library path; other domain-specific UI paths remain pending."
   }
 ]

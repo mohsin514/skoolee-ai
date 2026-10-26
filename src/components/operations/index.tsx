@@ -67,7 +67,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { OperationDelete } from "./confirmed-delete";
+import { ReviewedDelete } from "@/components/ui/reviewed-delete";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -344,7 +344,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.fare != null ? campusMoney(r.fare) : "—"}</td>
                 <td className={tdCls}>{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</td>
-                <td className={tdCls}><OperationDelete endpoint="transport/routes" record={r} label={r.title} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="transport/routes" record={r} label={r.title} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -429,7 +429,7 @@ function VehiclesTab() {
                 <td className={tdCls}>{v.capacity ?? "—"}</td>
                 <td className={tdCls}>{v.driverName || "—"}</td>
                 <td className={tdCls}>{v.driverPhone || "—"}</td>
-                <td className={tdCls}><OperationDelete endpoint="transport/vehicles" record={v} label={v.number} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="transport/vehicles" record={v} label={v.number} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -540,7 +540,7 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.costPerTerm ? campusMoney(r.costPerTerm) : "—"}</td>
                 <td className={tdCls}>{r._count?.rooms ?? 0}</td>
-                <td className={tdCls}><OperationDelete endpoint="dormitory/room-types" record={r} label={r.name} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="dormitory/room-types" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -617,7 +617,7 @@ function DormRoomsTab() {
                 <td className={tdCls}>{r.capacity}</td>
                 <td className={tdCls}>{r.occupied ?? 0} / {r.capacity}{r.upcoming ? ` (+${r.upcoming})` : ""}</td>
                 <td className={tdCls}>{ui(r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available")}</td>
-                <td className={tdCls}><OperationDelete endpoint="dormitory/rooms" record={r} label={r.number} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="dormitory/rooms" record={r} label={r.number} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -731,7 +731,7 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r._count?.books ?? 0}</td>
-                <td className={tdCls}><OperationDelete endpoint="library/categories" record={r} label={r.name} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/categories" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -823,7 +823,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
                 <td className={tdCls}>{b.category?.name || "—"}</td>
                 <td className={tdCls}>{b.copiesTotal}</td>
                 <td className={tdCls}>{b.copiesAvailable}</td>
-                <td className={tdCls}><OperationDelete endpoint="library/books" record={b} label={b.title} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/books" record={b} label={b.title} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -967,7 +967,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
                 <td className={tdCls}>{m.user?.fullName || m.userId}</td>
                 <td className={tdCls}>{m.memberNo || "—"}</td>
                 <td className={tdCls}>{m._count?.issues ?? 0}</td>
-                <td className={tdCls}><OperationDelete endpoint="library/members" record={m} label={m.memberNo} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/members" record={m} label={m.memberNo} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1156,7 +1156,7 @@ function ItemCategoriesTab() {
             {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r._count?.items ?? 0}</td>
-                <td className={tdCls}><OperationDelete endpoint="inventory/categories" record={r} label={r.name} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/categories" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1209,7 +1209,7 @@ function StoresTab() {
             {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
-                <td className={tdCls}><OperationDelete endpoint="inventory/stores" record={r} label={r.name} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/stores" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1271,7 +1271,7 @@ function SuppliersTab() {
             {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.phone || "—"}</td><td className={tdCls}>{r.email || "—"}</td><td className={tdCls}>{r.address || "—"}</td>
-                <td className={tdCls}><OperationDelete endpoint="inventory/suppliers" record={r} label={r.name} onDeleted={load} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/suppliers" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1345,7 +1345,7 @@ function ItemsTab() {
               return (
                 <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                   <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.category?.name || "—"}</td><td className={tdCls}>{r.unit || "—"}</td><td className={tdCls}>{totalStock}</td>
-                  <td className={tdCls}><OperationDelete endpoint="inventory/items" record={r} label={r.name} onDeleted={load} /></td>
+                  <td className={tdCls}><ReviewedDelete endpoint="inventory/items" record={r} label={r.name} onDeleted={load} /></td>
                 </tr>
               );
             })}
