@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
+import type { AiWorkspaceRecord } from "./types";
 import { SchoolAiError, loadWorkspacePermissionSnapshot } from "./access";
 import { curriculumDataSchema } from "./assessment";
 import { sourceDataSchema, workspaceIdSchema } from "./schemas";
@@ -15,8 +16,10 @@ import { createWorkspaceRecord, getWorkspaceRecordInTransaction } from "./reposi
 import { schoolAiTransaction } from "./transaction";
 import { paperFromReading, readPaperText } from "./paper-upload";
 import { currentCurriculumFor } from "./teaching-progress-service";
+import { sourceStructureApprovalIssues } from "./intake";
 
 export const uploadedPaperInput = z.strictObject({
+  expectedSourceVersion: z.number().int().positive(),
   slotId: workspaceIdSchema.optional(),
   curriculumId: workspaceIdSchema.optional(),
   title: z.string().trim().min(1).max(180).optional(),
@@ -24,15 +27,30 @@ export const uploadedPaperInput = z.strictObject({
   language: z.enum(["en", "ar", "ur"]).optional(),
 });
 
+/** A reviewed extraction may seed a draft without a separate source-approval ceremony. */
+export function reviewedPaperSource(source: Pick<AiWorkspaceRecord, "kind" | "status" | "version" | "data">, expectedVersion: number) {
+  if (source.kind !== "SOURCE") throw new SchoolAiError("Choose an uploaded paper.", 400, "UPLOAD_NOT_A_SOURCE");
+  if (source.status === "ARCHIVED") throw new SchoolAiError("This uploaded paper is archived. Choose a current source.", 409, "UPLOAD_SOURCE_ARCHIVED");
+  if (source.version !== expectedVersion) throw new SchoolAiError("The source changed. Review its current text before creating the paper.", 409, "UPLOAD_SOURCE_STALE");
+  const data = sourceDataSchema.parse(source.data);
+  if (data.documentKind !== "paper") throw new SchoolAiError("This upload is not marked as a question paper.", 422, "UPLOAD_NOT_A_PAPER");
+  if (!data.extractedText.trim()) throw new SchoolAiError("The paper has no readable text yet. Check the text first.", 422, "UPLOAD_NO_TEXT");
+  const physicalOriginal = Boolean(data.storageKey && (data.mimeType.startsWith("image/") || data.mimeType === "application/pdf"));
+  if (physicalOriginal && (!data.sourcePages?.length || !data.structureReviewed) || !["manual", "extracted"].includes(data.extractionStatus ?? "") || data.uncertainties?.length || sourceStructureApprovalIssues(data).length) {
+    throw new SchoolAiError("Review the source text, every physical page and any uncertain regions before creating the paper.", 422, "UPLOAD_SOURCE_REVIEW_REQUIRED");
+  }
+  return data;
+}
+
 export async function createUploadedPaper(user: AuthUser, sourceId: string, raw: unknown) {
   const input = uploadedPaperInput.parse(raw ?? {});
-  const prepared = await schoolAiTransaction(user, async tx => {
+  return schoolAiTransaction(user, async tx => {
+    // Keep the reviewed source stable through paper creation and slot linkage.
+    // A concurrent source save waits, or the whole serializable transaction retries.
+    await tx.$queryRaw`SELECT id FROM school_ai_records WHERE id = ${sourceId} AND school_id = ${user.schoolId} FOR UPDATE`;
     const permissions = await loadWorkspacePermissionSnapshot(user, tx);
     const source = await getWorkspaceRecordInTransaction(user, sourceId, tx, permissions);
-    if (source.kind !== "SOURCE") throw new SchoolAiError("Choose an uploaded paper.", 400, "UPLOAD_NOT_A_SOURCE");
-    const data = sourceDataSchema.parse(source.data);
-    if (data.documentKind !== "paper") throw new SchoolAiError("This upload is not marked as a question paper.", 422, "UPLOAD_NOT_A_PAPER");
-    if (!data.extractedText.trim()) throw new SchoolAiError("The paper has no readable text yet. Check the text first.", 422, "UPLOAD_NO_TEXT");
+    const data = reviewedPaperSource(source, input.expectedSourceVersion);
     let curriculumId = input.curriculumId ?? null, durationMinutes = input.durationMinutes ?? 60, examType: "QUIZ" | "CLASS_TEST" | "MID_TERM" | "FINAL" = "CLASS_TEST", title = input.title ?? source.title;
     if (input.slotId) {
       const slot = await tx.examPaperSlot.findFirst({ where: { id: input.slotId, schoolId: user.schoolId, campusId: source.campusId ?? "" }, select: { authorUserId: true, durationMinutes: true, subjectName: true, examSession: { select: { examType: true, title: true } }, schedules: { select: { exam: { select: { classId: true } } } } } });
@@ -49,17 +67,17 @@ export async function createUploadedPaper(user: AuthUser, sourceId: string, raw:
     const curriculumRecord = await tx.schoolAiRecord.findFirst({ where: { id: curriculumId, schoolId: user.schoolId, kind: "CURRICULUM", status: "APPROVED" }, select: { id: true, version: true, campusId: true, data: true } });
     if (!curriculumRecord) throw new SchoolAiError("Approve the syllabus for this class and subject first.", 409, "UPLOAD_NO_SYLLABUS");
     const curriculum = curriculumDataSchema.parse(curriculumRecord.data);
-    return { source, text: data.extractedText, language: input.language ?? data.sourceLanguage ?? "en", curriculumRecord, curriculum, durationMinutes, examType, title };
+    const prepared = { source, text: data.extractedText, language: input.language ?? data.sourceLanguage ?? "en", curriculumRecord, curriculum, durationMinutes, examType, title };
+    const reading = readPaperText(prepared.text);
+    if (!reading.questions.length) throw new SchoolAiError("No numbered questions were found. Number each question (1., 2., …) and try again.", 422, "UPLOAD_NO_QUESTIONS");
+    const paper = paperFromReading(reading, {
+      curriculumId: prepared.curriculumRecord.id, curriculumVersion: prepared.curriculumRecord.version, subjectId: prepared.curriculum.subjectId, classId: prepared.curriculum.classId,
+      // The source's own time keeps the draft deterministic, so a repeated request replays the same record.
+      language: prepared.language, title: prepared.title.slice(0, 240), durationMinutes: prepared.durationMinutes, now: new Date(prepared.source.updatedAt).toISOString(),
+      ...(input.slotId ? { slotId: input.slotId } : {}), examType: prepared.examType,
+    });
+    const key = createHash("sha256").update(JSON.stringify([prepared.source.id, prepared.source.version, input.slotId ?? "", prepared.curriculumRecord.id])).digest("hex").slice(0, 64);
+    const record = await createWorkspaceRecord(user, { kind: "PAPER", title: prepared.title.slice(0, 180), campusId: prepared.source.campusId, idempotencyKey: `upload-${key}`.slice(0, 128), data: paper as unknown as Record<string, unknown> }, { transactionClient: tx });
+    return { record: { id: record.id, version: record.version }, questions: reading.questions.length, warnings: reading.warnings };
   });
-  const reading = readPaperText(prepared.text);
-  if (!reading.questions.length) throw new SchoolAiError("No numbered questions were found. Number each question (1., 2., …) and try again.", 422, "UPLOAD_NO_QUESTIONS");
-  const paper = paperFromReading(reading, {
-    curriculumId: prepared.curriculumRecord.id, curriculumVersion: prepared.curriculumRecord.version, subjectId: prepared.curriculum.subjectId, classId: prepared.curriculum.classId,
-    // The source's own time keeps the draft deterministic, so a repeated request replays the same record.
-    language: prepared.language, title: prepared.title.slice(0, 240), durationMinutes: prepared.durationMinutes, now: new Date(prepared.source.updatedAt).toISOString(),
-    ...(input.slotId ? { slotId: input.slotId } : {}), examType: prepared.examType,
-  });
-  const key = createHash("sha256").update(JSON.stringify([prepared.source.id, prepared.source.version, input.slotId ?? "", prepared.curriculumRecord.id])).digest("hex").slice(0, 64);
-  const record = await createWorkspaceRecord(user, { kind: "PAPER", title: prepared.title.slice(0, 180), campusId: prepared.source.campusId, idempotencyKey: `upload-${key}`.slice(0, 128), data: paper as unknown as Record<string, unknown> });
-  return { record: { id: record.id, version: record.version }, questions: reading.questions.length, warnings: reading.warnings };
 }

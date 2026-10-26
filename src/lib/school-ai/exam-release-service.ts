@@ -11,6 +11,7 @@ import { assertKeyFreeProjection, contentHash, contentHashPrefix, formLabelOf, r
 import { getWorkspaceRecordInTransaction, resolveScopeDeliveryPolicy } from "./repository";
 import { assertStudioAction, recordStudioAction } from "./studio-access";
 import { schoolAiTransaction } from "./transaction";
+import { assertSolverAllowsRelease, paperSolverFindings } from "./semantic-release";
 
 // SKO-408: the callers the Exam Studio domain was missing — item review, rehearsal of an exact
 // paper version, the sealed release gate used at assignment, and the explicit result release.
@@ -55,6 +56,7 @@ export async function reviewItem(user: AuthUser, recordId: string, raw: unknown)
     const role = await assertStudioAction(user, action, studioContext(record), permissions, tx);
     const found = paper.questions.find(item => item.id === input.questionId);
     if (!found) throw new SchoolAiError("That question is not in this paper version.", 404);
+    if (input.target === "APPROVED") assertSolverAllowsRelease(await paperSolverFindings(tx, user, record, paper), input.questionId);
     let question = found;
     if (input.confirmRechecked?.length) {
       const pending = [...new Set(found.review?.invalidated.map(entry => entry.artifact) ?? [])].sort();
@@ -72,7 +74,7 @@ export async function reviewItem(user: AuthUser, recordId: string, raw: unknown)
 }
 
 // ─── Rehearsal ────────────────────────────────────────────────────
-export const REHEARSAL_CHECKS = ["KEY_MISSING", "OPTIONS_TOO_FEW", "PROJECTION_LEAK", "SECTION_COUNT", "REPORTED_DEFECT", "MARKS_DO_NOT_ADD_UP", "OPTION_TEXT_EMPTY", "PRINT_LENGTH", "TAUGHT_AFTER_SITTING"] as const;
+export const REHEARSAL_CHECKS = ["KEY_MISSING", "OPTIONS_TOO_FEW", "PROJECTION_LEAK", "SECTION_COUNT", "REPORTED_DEFECT", "MARKS_DO_NOT_ADD_UP", "OPTION_TEXT_EMPTY", "PRINT_LENGTH", "TAUGHT_AFTER_SITTING", "SOLVER_DISAGREEMENT"] as const;
 /** SKO-501: printed characters per A4 page, for the print-length estimate (an estimate, advisory only). */
 export const PRINT_CHARACTERS_PER_PAGE = 2400;
 export const PRINT_PAGES_ADVISORY = 8;
@@ -145,7 +147,8 @@ export async function recordRehearsal(user: AuthUser, recordId: string, raw: unk
     const role = await assertStudioAction(user, "RUN_REHEARSAL", studioContext(record), permissions, tx);
     if (input.findings.some(finding => !paper.questions.some(question => question.id === finding.questionId))) throw new SchoolAiError("A finding names a question that is not in this version.", 400);
     const taughtLate = await taughtBySitting(tx, user.schoolId, paper);
-    const results: RehearsalResult[] = [...automatedRehearsal(paper), ...(taughtLate ? [taughtLate] : []), ...input.findings.map(finding => ({ check: "REPORTED_DEFECT" as const, severity: finding.severity, questionIds: [finding.questionId], detail: finding.detail }))];
+    const solver = await paperSolverFindings(tx, user, record, paper);
+    const results: RehearsalResult[] = [...automatedRehearsal(paper), ...(taughtLate ? [taughtLate] : []), ...solver.map(finding => ({ ...finding, detail: "The saved independent review requires attention. Review its evidence in Create & review." })), ...input.findings.map(finding => ({ check: "REPORTED_DEFECT" as const, severity: finding.severity, questionIds: [finding.questionId], detail: finding.detail }))];
     const row = await tx.schoolAiRehearsal.create({ data: { schoolId: user.schoolId, campusId: record.campusId!, recordId: record.id, paperVersion: record.version, results: json(results), blocking: results.filter(result => result.severity === "BLOCKING").length, actorId: user.userId } });
     await recordStudioAction(tx, user, { action: "RUN_REHEARSAL", role, targetId: record.id, targetVersion: record.version, campusId: record.campusId });
     return { id: row.id, paperVersion: row.paperVersion, results, blocking: row.blocking };
@@ -190,12 +193,15 @@ export async function releaseReadiness(user: AuthUser, recordId: string) {
     const { record, paper, permissions } = await paperRecord(tx, user, recordId);
     const rehearsals = await tx.schoolAiRehearsal.findMany({ where: { schoolId: user.schoolId, recordId: record.id }, orderBy: { createdAt: "desc" }, take: 20 });
     const current = rehearsals.find(row => row.paperVersion === record.version) ?? null;
-    const results = (current?.results ?? []) as RehearsalResult[];
+    // The solver policy and most recent check are live gates, even after a previously clean rehearsal.
+    const solver = await paperSolverFindings(tx, user, record, paper);
+    const results = ((current?.results ?? []) as RehearsalResult[]).filter(result => result.check !== "SOLVER_DISAGREEMENT");
     const workbench = paper.questions.some(question => question.review);
     const evidence = await itemEvidence(tx, user, record, paper, permissions);
     return {
       version: record.version, status: record.status, workbench,
       generation: paper.generation, notices: evidence.notices, canReadKey: evidence.canReadKey,
+      solverFindings: solver.map(finding => ({ ...finding, detail: evidence.canReadKey ? finding.detail : "The saved independent review requires attention." })),
       counts: itemStateCounts(paper), items: paper.questions.map(question => ({ id: question.id, state: itemStateFor(question), itemRevision: question.review?.itemRevision ?? 1, invalidated: [...new Set(question.review?.invalidated.map(entry => entry.artifact) ?? [])], sourceRefs: question.sourceRefs.map(ref => ({ page: ref.page, excerpt: ref.excerpt })), ...evidence.byItem.get(question.id)! })),
       preview: candidatePaper(paper),
       contentHashPrefix: (() => { try { return contentHashPrefix(contentHash(paper)); } catch { return null; } })(),
@@ -207,6 +213,7 @@ export async function releaseReadiness(user: AuthUser, recordId: string) {
       blockers: [
         ...releaseBlockers(current ? { ...paper, staleness: { rehearsalValid: true, rehearsalId: current.id } } : paper, []).map(blocker => ({ code: blocker.code, questionIds: blocker.questionIds })),
         ...results.filter(result => result.severity === "BLOCKING").map(result => ({ code: "REHEARSAL_BLOCKER", check: result.check, questionIds: result.questionIds })),
+        ...solver.filter(result => result.severity === "BLOCKING").map(result => ({ code: "SOLVER_DISAGREEMENT", questionIds: result.questionIds })),
         ...(current ? [] : [{ code: "NOT_REHEARSED", questionIds: [] }]),
       ] as Array<{ code: string; check?: RehearsalResult["check"]; questionIds: string[] }>,
     };
@@ -220,6 +227,7 @@ export async function releaseReadiness(user: AuthUser, recordId: string) {
  * its content hash and records that no rehearsal was relied on.
  */
 export async function sealRelease(tx: TxClient, user: AuthUser, record: { id: string; version: number; createdById: string; campusId: string | null }, paper: PaperData): Promise<{ contentHash: string | null; rehearsalId: string | null }> {
+  assertSolverAllowsRelease(await paperSolverFindings(tx, user, record, paper));
   // A paper approved before the item workbench existed is still sealed by its content hash (existing
   // schools' approved papers stay assignable). SKO-501: the Studio no longer reports such a paper as
   // "Ready" and does not offer its release; it must enter item review and rehearsal there.
@@ -230,7 +238,7 @@ export async function sealRelease(tx: TxClient, user: AuthUser, record: { id: st
   // SKO-501/502: a rehearsal is carried across a version bump that changed no content (an approval, or the
   // moderator's item approvals): the rehearsed revision must hash exactly like this version.
   if (!rehearsal) {
-    const earlier = await tx.schoolAiRehearsal.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, paperVersion: { lt: record.version }, blocking: 0 }, orderBy: [{ paperVersion: "desc" }, { createdAt: "desc" }] });
+    const earlier = await tx.schoolAiRehearsal.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, paperVersion: { lt: record.version } }, orderBy: [{ paperVersion: "desc" }, { createdAt: "desc" }] });
     if (earlier) {
       const revision = await tx.schoolAiRevision.findFirst({ where: { schoolId: user.schoolId, recordId: record.id, version: earlier.paperVersion }, select: { data: true } });
       const parsed = revision ? paperDataSchema.safeParse(revision.data) : null;
@@ -240,7 +248,8 @@ export async function sealRelease(tx: TxClient, user: AuthUser, record: { id: st
       if (same) rehearsal = { ...earlier, paperVersion: record.version };
     }
   }
-  const results = (rehearsal?.results ?? []) as RehearsalResult[];
+  // Solver findings were re-evaluated above under today's policy; stored rehearsal severity is historical.
+  const results = ((rehearsal?.results ?? []) as RehearsalResult[]).filter(result => result.check !== "SOLVER_DISAGREEMENT");
   // The rehearsal row is the authority for this exact version; the paper's own staleness record can only invalidate it.
   // Any content change creates a new version, so a rehearsal of this exact version post-dates every invalidation in it.
   const withRehearsal: PaperData = { ...paper, staleness: rehearsal ? { rehearsalValid: true, rehearsalId: rehearsal.id } : paper.staleness };
@@ -258,17 +267,20 @@ export async function sealRelease(tx: TxClient, user: AuthUser, record: { id: st
 
 // ─── Result release ───────────────────────────────────────────────
 /** Learners see moderated results only after an academic approver releases them. */
-export async function releaseResults(user: AuthUser, assignmentId: string) {
+export async function releaseResults(user: AuthUser, assignmentId: string, now = new Date()) {
   return schoolAiTransaction(user, async tx => {
     const assignment = await tx.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }) } });
     if (!assignment) throw new SchoolAiError("Exam not found.", 404);
     if (!isSchoolAiManager(user)) throw new SchoolAiError("Only an academic approver can release results.", 403, "STUDIO_ACTION_REFUSED");
     const role = await assertStudioAction(user, "RELEASE_RESULT", { schoolId: user.schoolId, campusId: assignment.campusId, classId: assignment.classId, assignmentId }, undefined, tx);
     if (assignment.resultsReleasedAt) return { resultsReleasedAt: assignment.resultsReleasedAt };
-    if (assignment.endsAt > new Date()) throw new SchoolAiError("Results can be released after the exam window closes.", 409);
+    if (assignment.endsAt > now) throw new SchoolAiError("Results can be released after the exam window closes.", 409);
+    // The nominal availability window can close while an extended or paused candidate is
+    // still writing. No result or key may be disclosed until every live attempt is finalized.
+    const writing = await tx.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId, status: "IN_PROGRESS" } });
+    if (writing) throw new SchoolAiError(`${writing} attempt${writing === 1 ? " is" : "s are"} still in progress. End or finalize every attempt before releasing results.`, 409, "RESULTS_ACTIVE_ATTEMPTS");
     const pending = await tx.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId, status: "SUBMITTED" } });
     if (pending) throw new SchoolAiError(`${pending} submitted attempt${pending === 1 ? " is" : "s are"} still awaiting moderation.`, 409, "RESULTS_AWAITING_MODERATION");
-    const now = new Date();
     await tx.schoolAiExamAssignment.update({ where: { id: assignmentId }, data: { resultsReleasedAt: now, resultsReleasedById: user.userId } });
     await recordStudioAction(tx, user, { action: "RELEASE_RESULT", role, targetId: assignmentId, targetVersion: assignment.version, campusId: assignment.campusId });
     return { resultsReleasedAt: now };

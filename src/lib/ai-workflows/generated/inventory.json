@@ -12896,6 +12896,24 @@
   "source": "appendix-a"
  },
  {
+  "key": "exams.paper.gradebook_send",
+  "cluster": "C9a school-ai exams and Exam Studio",
+  "method": "POST",
+  "route": "/api/academic/paper-slots/[id]/gradebook",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "CREATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "exams.practice.draft",
   "cluster": "C9a school-ai exams and Exam Studio",
   "method": "POST",

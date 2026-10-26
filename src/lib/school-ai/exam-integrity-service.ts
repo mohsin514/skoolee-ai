@@ -59,8 +59,8 @@ export async function getExamIntegrity(user: AuthUser, assignmentId: string, cur
   if (user.role === "STUDENT" || user.role === "PARENT") throw new ApiError("Observation review is available only to authorized exam staff.", 403);
   if ((cursor && eventId) || (cursor?.length ?? 0) > 100 || (eventId?.length ?? 0) > 100) throw new ApiError("Choose one observation or one page.", 400);
   return schoolAiTransaction(user, async db => {
-    const { assignment } = await scopedAssignment(user, assignmentId, db);
-    await staffExamAccess(user, assignment, "view", db);
+    const { assignment } = await scopedAssignment(user, assignmentId, db, "SUPERVISION");
+    await staffExamAccess(user, assignment, "view", db, "SUPERVISION");
     let canReview = false;
     try { await staffExamAccess(user, assignment, "edit", db); canReview = true; } catch (error) { const status = error instanceof Error && "status" in error ? error.status : null; if (status !== 403 && status !== 404) throw error; }
     const where = { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, retentionUntil: { gt: now } };

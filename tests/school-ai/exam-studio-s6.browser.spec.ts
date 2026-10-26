@@ -1,3 +1,4 @@
+import { captureEvidence } from "./screenshot-evidence";
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
@@ -77,7 +78,7 @@ test("a student sees one date sheet with paper and online entries and a countdow
   await expect(card.locator('[data-timeline-entry="ONLINE"]').first()).toBeVisible();
   await expect(card.locator("[data-countdown]")).toHaveText(/Starts in \d+ d \d+ h/);
   await expect(card.locator('[data-next-paper="ONLINE"]')).toContainText("Science");
-  if (shots) { await page.waitForLoadState("networkidle"); await page.screenshot({ path: `${shots}/my-next-paper-phone.png`, fullPage: true }); }
+  if (shots) { await page.waitForLoadState("networkidle"); await captureEvidence(page, { path: `${shots}/my-next-paper-phone.png`, fullPage: true }); }
   await context.close();
 });
 
@@ -94,14 +95,16 @@ test("the Arabic guardian is asked to acknowledge the move for the affected chil
   await expect(brief).toBeVisible({ timeout: 30_000 });
   await expect(brief.locator('[data-brief-item="MOVED"]')).toContainText("نُقل");
   await expect(brief.locator('[data-brief-item="MOVED"]')).toContainText("الخميس");
-  if (shots) { await page.waitForLoadState("networkidle"); await brief.screenshot({ path: `${shots}/family-brief-ar.png` }); }
+  if (shots) { await page.waitForLoadState("networkidle"); await captureEvidence(brief, { path: `${shots}/family-brief-ar.png` }); }
   await brief.locator("[data-acknowledge]").click();
   await expect(brief.locator('[data-brief-acknowledged="yes"]')).toHaveCount(1);
+  if (shots) await captureEvidence(brief, { path: `${shots}/family-acknowledged-ar.png` });
   expect(await db.examBriefReceipt.count({ where: { studentId: student01 } })).toBe(1);
   // Student 07's class did not change, so the sibling's timetable asks nothing.
   await page.goto(`/parent/timetable?student=${student07}`);
   await expect(page.locator("[data-my-next-paper]")).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("[data-family-exam-brief]")).toHaveCount(0);
+  if (shots) await captureEvidence(page, { path: `${shots}/sibling-no-change-ar.png`, fullPage: true });
   await context.close();
 });
 
@@ -115,6 +118,6 @@ test("a released online result opens for the parent", async ({ browser }) => {
   await result.locator("summary").click();
   await expect(result.locator("[data-outcome-feedback]")).toBeVisible();
   await expect(result).toContainText("name all three inputs");
-  if (shots) await page.screenshot({ path: `${shots}/parent-online-result-ar.png`, fullPage: true });
+  if (shots) await captureEvidence(page, { path: `${shots}/parent-online-result-ar.png`, fullPage: true });
   await context.close();
 });

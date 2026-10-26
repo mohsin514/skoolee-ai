@@ -23,17 +23,22 @@ export function PilotLedger() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
-    const response = await fetch("/api/school-ai/pilot-ledger", { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    if (response.ok) setLedger(payload.ledger); else setError(typeof payload.error === "string" ? payload.error : "");
-  }, []);
+    setError("");
+    try {
+      const response = await fetch("/api/school-ai/pilot-ledger", { cache: "no-store" });
+      const payload = await response.json();
+      if (response.ok && payload.ledger) setLedger(payload.ledger); else setError(typeof payload.error === "string" ? payload.error : t.loadError);
+    } catch { setError(t.loadError); }
+  }, [t.loadError]);
   useEffect(() => { void load(); }, [load]);
   const act = async (action: "opt-in" | "opt-out" | "compute") => {
     setBusy(true); setError("");
-    const response = await fetch("/api/school-ai/pilot-ledger", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
-    const payload = await response.json().catch(() => ({}));
-    setBusy(false);
-    if (response.ok) setLedger(payload.ledger); else setError(typeof payload.error === "string" ? payload.error : "");
+    try {
+      const response = await fetch("/api/school-ai/pilot-ledger", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      const payload = await response.json();
+      if (response.ok && payload.ledger) setLedger(payload.ledger); else setError(typeof payload.error === "string" ? payload.error : t.loadError);
+    } catch { setError(t.loadError); }
+    finally { setBusy(false); }
   };
   const n = (value: number) => new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value);
   const show = (metric: LedgerMetric) => metric.value === null ? t.ledgerNoData : metric.unit === "PERCENT" ? new Intl.NumberFormat(language, { style: "percent", maximumFractionDigits: 1 }).format(metric.value / 100) : metric.unit === "DAYS" ? fillStudioCopy(t.unitDAYS, [n(metric.value)]) : metric.unit === "POINTS" ? fillStudioCopy(t.unitPOINTS, [n(metric.value)]) : n(metric.value);
@@ -47,6 +52,7 @@ export function PilotLedger() {
     </header>
     <p className="text-sm text-ink-muted">{t.ledgerIntro}</p>
     {error && <p role="alert" className="text-sm text-status-error-text"><bdi dir="auto">{error}</bdi></p>}
+    {error && !ledger && <Button variant="outline" onClick={() => void load()}>{t.retry}</Button>}
     {ledger && !ledger.optedIn && <p className="text-sm text-ink-muted">{t.ledgerNotOptedIn}</p>}
     {ledger?.snapshot && <>
       <p className="text-xs text-ink-subtle" data-ledger-computed>{fillStudioCopy(t.ledgerComputed, [new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ledger.snapshot.computedAt))])}</p>

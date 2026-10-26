@@ -217,6 +217,10 @@ async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient
   if(record.kind==="POLICY")await validateKnowledgeReferences(user,record.id,record.campusId,data,db,permissions,true);
   if (record.kind === "PAPER") {
     const paper = paperDataSchema.parse(data);
+    if (action === "approve") {
+      const { assertSolverAllowsRelease, paperSolverFindings } = await import("./semantic-release");
+      assertSolverAllowsRelease(await paperSolverFindings(db, user, record, paper));
+    }
     const curriculum = await scopedRecord(user, paper.curriculumId, "read", db, permissions);
     if (curriculum.kind !== "CURRICULUM" || curriculum.status !== "APPROVED" || curriculum.version !== paper.curriculumVersion || curriculum.campusId !== record.campusId) issues.push("The curriculum changed or is not approved. Review the paper against the current approved curriculum version.");
     else {

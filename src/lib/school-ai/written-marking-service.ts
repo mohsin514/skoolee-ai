@@ -7,7 +7,7 @@ import { ApiError } from "@/lib/api/scope";
 import { generateAIDraft, consumeAICreditAndLog, ensureAICreditsAvailable } from "@/lib/ai/openai";
 import { assertSchoolAiTextProvider } from "./providers";
 import { schoolAiTransaction } from "./transaction";
-import { scopedAssignment, staffExamAccess } from "./exam-service";
+import { scopedAssignment, staffMarkingAccess } from "./exam-service";
 import { responsesSchema } from "./exam";
 import { parseModelJson } from "./intake";
 import { writtenMarkingRequestSchema, writtenMarkProposalSchema, validateWrittenProposal } from "./written-marking";
@@ -16,7 +16,7 @@ import { z } from "zod";
 export async function proposeWrittenMarks(user: AuthUser, assignmentId: string, raw: unknown) {
  const input = writtenMarkingRequestSchema.parse(raw);
  const load = () => schoolAiTransaction(user, async tx => {
-  const { assignment, paper } = await scopedAssignment(user, assignmentId, tx); await staffExamAccess(user, assignment, "edit", tx);
+  const { assignment, paper } = await scopedAssignment(user, assignmentId, tx); await staffMarkingAccess(user, assignment, tx);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: input.attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, reviewVersion: input.version, status: { in: ["SUBMITTED", "REVIEWED"] } } });
   const question = paper.questions.find(row => row.id === input.questionId);
   if (!attempt || !question || ["SINGLE_CHOICE", "MULTIPLE_CHOICE", "NUMERIC"].includes(question.type)) throw new ApiError("Choose a submitted written response in the current result version.", 409);
@@ -33,7 +33,7 @@ export async function proposeWrittenMarks(user: AuthUser, assignmentId: string, 
  let proposal;
  try { proposal = validateWrittenProposal(source.paper, source.responses, { ...(parseModelJson(result.text) as object), questionId: input.questionId }); } catch { throw new ApiError("The marking proposal did not pass evidence checks. Review this response manually or retry.", 422); }
  return schoolAiTransaction(user, async tx => {
-  const { assignment, paper } = await scopedAssignment(user, assignmentId, tx); await staffExamAccess(user, assignment, "edit", tx);
+  const { assignment, paper } = await scopedAssignment(user, assignmentId, tx); await staffMarkingAccess(user, assignment, tx);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: input.attemptId, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, reviewVersion: source.attempt.reviewVersion, sequence: source.attempt.sequence, status: source.attempt.status } });
   if (!attempt || JSON.stringify(attempt.responses) !== JSON.stringify(source.attempt.responses)) throw new ApiError("The response or result changed while the proposal was prepared. Refresh before retrying.", 409);
   validateWrittenProposal(paper, responsesSchema.parse(attempt.responses), proposal);

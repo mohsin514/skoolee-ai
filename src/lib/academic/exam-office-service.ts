@@ -4,7 +4,9 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/scope";
 import { schoolToday } from "@/lib/datetime";
 import { assertExamOffice, type Paper } from "@/lib/academic/datesheet-publication";
-import { dayReadiness, readinessDay, type ReadinessPaperInput } from "@/lib/academic/exam-readiness";
+import { dayReadiness, deliveryReady, readinessDay, type ReadinessPaperInput } from "@/lib/academic/exam-readiness";
+import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { lockTimetableCampus } from "@/lib/timetable/locking";
 
 /**
  * SKO-506 office depth: the control tower for one exam session and the exceptions desk. Exceptions are
@@ -20,7 +22,8 @@ async function sessionFor(user: AuthUser, sessionId: string) {
 
 /** What still keeps an exam's report cards from publication (empty when nothing does). */
 export async function openExamExceptions(db: TxClient, schoolId: string, examId: string) {
-  const sittings = await db.schoolAiExamAssignment.findMany({ where: { schoolId, gradebookPublication: { path: ["examId"], equals: examId } }, select: { id: true } });
+  const schedules = await db.examSchedule.findMany({ where: { schoolId, examId }, select: { id: true } });
+  const sittings = await db.schoolAiExamAssignment.findMany({ where: { schoolId, OR: [{ gradebookPublication: { path: ["examId"], equals: examId } }, { examScheduleId: { in: schedules.map(schedule => schedule.id) } }] }, select: { id: true } });
   const ids = sittings.map(row => row.id);
   const [exceptions, appeals, corrections] = await Promise.all([
     db.examException.count({ where: { schoolId, examId, status: "OPEN" } }),
@@ -37,17 +40,18 @@ export async function sessionReadiness(user: AuthUser, sessionId: string, reques
     include: {
       subject: { select: { name: true } }, periodDefinition: { select: { startTime: true, endTime: true } },
       exam: { select: { id: true, classId: true, class: { select: { name: true, section: true } } } },
-      paperSlot: { select: { id: true, sealedAt: true, deliveryKind: true } },
+      paperSlot: { select: { id: true, sealedAt: true, sealHash: true, compromisedAt: true, cancelledAt: true, deliveryKind: true } },
       rooms: { select: { invigilation: { select: { id: true } } } },
       seats: { select: { studentId: true } },
     },
   });
   const classIds = [...new Set(schedules.map(row => row.exam.classId))];
-  const [roster, latest, printed, online, today] = await Promise.all([
+  const [roster, latest, printed, scripts, online, today] = await Promise.all([
     prisma.student.findMany({ where: { schoolId: user.schoolId, classId: { in: classIds }, status: "active", archivedAt: null }, select: { id: true, classId: true } }),
     prisma.examDatesheetVersion.findFirst({ where: { schoolId: user.schoolId, sessionId }, orderBy: { version: "desc" }, select: { version: true, snapshot: true } }),
-    prisma.examPrintRun.findMany({ where: { schoolId: user.schoolId, scheduleId: { in: schedules.map(row => row.id) } }, select: { scheduleId: true } }),
-    prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, examScheduleId: { in: schedules.map(row => row.id) }, status: "ACTIVE" }, select: { examScheduleId: true } }),
+    prisma.examPrintRun.findMany({ where: { schoolId: user.schoolId, scheduleId: { in: schedules.map(row => row.id) } }, select: { scheduleId: true, sealPrefix: true, candidates: true, copies: true, createdAt: true } }),
+    prisma.examPaperScript.findMany({ where: { schoolId: user.schoolId, scheduleId: { in: schedules.map(row => row.id) } }, select: { scheduleId: true, studentId: true, sealPrefix: true } }),
+    prisma.schoolAiExamAssignment.findMany({ where: { schoolId: user.schoolId, examScheduleId: { in: schedules.map(row => row.id) }, status: "ACTIVE" }, select: { examScheduleId: true, contentHash: true, studentIds: true } }),
     schoolToday(user.schoolId, session.campusId),
   ]);
   const publishedRows = new Map(((latest?.snapshot as { papers?: Paper[] } | null)?.papers ?? []).map(paper => [paper.scheduleId, paper]));
@@ -55,12 +59,13 @@ export async function sessionReadiness(user: AuthUser, sessionId: string, reques
     // Archived or inactive pupils are not candidates; only the current roster must be seated.
     const candidates = new Set(roster.filter(pupil => pupil.classId === row.exam.classId).map(pupil => pupil.id));
     const published = publishedRows.get(row.id);
+    const delivered = deliveryReady(row.paperSlot, [...candidates], printed.filter(run => run.scheduleId === row.id), scripts.filter(script => script.scheduleId === row.id), online.filter(sitting => sitting.examScheduleId === row.id));
     return {
       scheduleId: row.id, label: `${[row.exam.class.name, row.exam.class.section].filter(Boolean).join(" ")} · ${row.subject.name}`,
       date: row.date.toISOString().slice(0, 10), startTime: row.periodDefinition?.startTime ?? null, endTime: row.periodDefinition?.endTime ?? null,
       published: published ? { date: published.date, startTime: published.startTime, endTime: published.endTime } : null,
-      slot: row.paperSlot ? { sealedAt: row.paperSlot.sealedAt, deliveryKind: row.paperSlot.deliveryKind } : null,
-      printed: printed.some(run => run.scheduleId === row.id), onlineSitting: online.some(sitting => sitting.examScheduleId === row.id),
+      slot: row.paperSlot,
+      printed: delivered, onlineSitting: delivered,
       rooms: row.rooms.map(room => ({ invigilated: Boolean(room.invigilation) })), candidates: candidates.size, seated: row.seats.filter(seat => candidates.has(seat.studentId)).length,
     };
   });
@@ -93,9 +98,12 @@ export async function createException(user: AuthUser, sessionId: string, raw: un
   const input = createSchema.parse(raw);
   const exam = await prisma.exam.findFirst({ where: { id: input.examId, schoolId: user.schoolId, campusId: session.campusId, sessionId }, select: { id: true, classId: true } });
   if (!exam) throw new ApiError("Choose an exam of this session.", 404);
-  const student = await prisma.student.findFirst({ where: { id: input.studentId, schoolId: user.schoolId, classId: exam.classId }, select: { id: true } });
+  const student = await prisma.student.findFirst({ where: { id: input.studentId, schoolId: user.schoolId, campusId: session.campusId, classId: exam.classId, status: "active", archivedAt: null }, select: { id: true } });
   if (!student) throw new ApiError("Choose a learner of this class.", 404);
-  return prisma.$transaction(async tx => {
+  if (input.subjectId && !await prisma.examSchedule.count({ where: { schoolId: user.schoolId, campusId: session.campusId, examId: exam.id, subjectId: input.subjectId } })) throw new ApiError("Choose a subject scheduled for this exam.", 404);
+  return schoolAiTransaction(user, async tx => {
+    // Fence publication on the same campus so a new open exception cannot slip past its guard.
+    await lockTimetableCampus(tx, user.schoolId, session.campusId);
     const row = await tx.examException.create({ data: { schoolId: user.schoolId, campusId: session.campusId, examId: exam.id, studentId: student.id, subjectId: input.subjectId ?? null, kind: input.kind, note: input.note, createdById: user.userId } });
     await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId: session.campusId, tableName: "exam_exceptions", recordId: row.id, userId: user.userId, newValue: { action: "CREATE", examId: exam.id, studentId: student.id, kind: input.kind } } });
     return row;
@@ -105,8 +113,10 @@ export async function createException(user: AuthUser, sessionId: string, raw: un
 export async function resolveException(user: AuthUser, sessionId: string, exceptionId: string, raw: unknown) {
   const session = await sessionFor(user, sessionId);
   const input = resolveSchema.parse(raw);
-  return prisma.$transaction(async tx => {
-    const row = await tx.examException.findFirst({ where: { id: exceptionId, schoolId: user.schoolId, campusId: session.campusId } });
+  return schoolAiTransaction(user, async tx => {
+    await lockTimetableCampus(tx, user.schoolId, session.campusId);
+    const exams = await tx.exam.findMany({ where: { schoolId: user.schoolId, campusId: session.campusId, sessionId }, select: { id: true } });
+    const row = await tx.examException.findFirst({ where: { id: exceptionId, schoolId: user.schoolId, campusId: session.campusId, examId: { in: exams.map(exam => exam.id) } } });
     if (!row) throw new ApiError("Exception not found.", 404);
     const done = await tx.examException.updateMany({ where: { id: row.id, version: input.version, status: "OPEN" }, data: { status: "RESOLVED", decision: input.decision, resolution: input.resolution, resolvedById: user.userId, resolvedAt: new Date(), version: { increment: 1 } } });
     if (done.count !== 1) throw new ApiError("This exception changed or was already resolved. Reload it.", 409);

@@ -13,6 +13,7 @@ import { contentHash, contentHashPrefix } from "../../src/lib/school-ai/release"
 import { buildCandidatePaperHtml } from "../../src/lib/school-ai/paper-print";
 import { paperDataSchema, type PaperData } from "../../src/lib/school-ai/assessment";
 import { assessmentFixture } from "./assessment-fixture";
+import { PLATFORM_DEFAULT_DELIVERY_POLICY } from "../../src/lib/school-ai/delivery-policy";
 
 // SKO-408 flagship release path against the isolated database: item review → rehearsal → repair → sealed release → explicit result release.
 const database = new URL(process.env.DATABASE_URL ?? "http://invalid");
@@ -127,4 +128,48 @@ test("a legacy paper outside the workbench is still sealed by its content hash, 
   const stored = await raw.schoolAiExamAssignment.findUniqueOrThrow({ where: { id: exam.id } });
   assert.equal(stored.contentHash, contentHash(paperDataSchema.parse(legacy.data)));
   assert.equal(stored.rehearsalId, null);
+});
+
+test("saved solver disagreements block item approval, whole-paper approval and rehearsal until the item is repaired", async () => {
+  const fixture = assessmentFixture(subjectId, classId);
+  let draft = await createWorkspaceRecord(author, { kind: "PAPER", campusId, title: "Synthetic solver gate", data: { ...fixture.paper, curriculumId, curriculumVersion }, idempotencyKey: randomUUID() });
+  const current = () => raw.schoolAiRecord.findUniqueOrThrow({ where: { id: draft.id } });
+  await reviewItem(author, draft.id, { version: draft.version, questionId: "q1", target: "READY_FOR_REVIEW", itemRevision: 1 });
+  const checked = await current();
+  await raw.aIUsageLog.create({ data: { schoolId, campusId, userId: author.userId, feature: "SCHOOL_AI_PAPER_SEMANTICS", action: "SYNTHETIC_TEST_EVIDENCE", output: { findings: [], checks: [{ questionId: "q1", independentAnswer: "Four", consistent: false, reason: "The item wording is ambiguous." }] }, metadata: { recordId: draft.id, recordVersion: checked.version } } });
+  // An unrelated item's review bumps the record version without changing the checked item.
+  await reviewItem(author, draft.id, { version: checked.version, questionId: "q2", target: "READY_FOR_REVIEW", itemRevision: 1 });
+  let row = await current();
+  await assert.rejects(() => reviewItem(lead, draft.id, { version: row.version, questionId: "q1", target: "APPROVED", itemRevision: 1 }), { status: 409, code: "SOLVER_DISAGREEMENT" });
+  await assert.rejects(() => updateWorkspaceRecord(lead, draft.id, { version: row.version, action: "approve" }), { status: 409, code: "SOLVER_DISAGREEMENT" });
+  const rehearsal = await recordRehearsal(author, draft.id, { version: row.version, findings: [] });
+  assert.equal(rehearsal.blocking, 1);
+  assert.equal((await releaseReadiness(lead, draft.id)).blockers.some(blocker => blocker.code === "SOLVER_DISAGREEMENT"), true);
+  const repaired = paperDataSchema.parse(row.data);
+  repaired.questions[0].prompt = "What is the sum of the whole numbers 2 and 2?";
+  draft = await updateWorkspaceRecord(author, draft.id, { version: row.version, data: repaired });
+  assert.equal((await releaseReadiness(lead, draft.id)).solverFindings.length, 0, "the old finding does not apply to the repaired wording");
+  row = await current();
+  const item = paperDataSchema.parse(row.data).questions[0];
+  assert.ok(item.review!.invalidated.length, "the human correction still requires review of invalidated checks");
+  await reviewItem(author, draft.id, { version: row.version, questionId: item.id, target: "READY_FOR_REVIEW", itemRevision: item.review!.itemRevision, confirmRechecked: [...new Set(item.review!.invalidated.map(entry => entry.artifact))] });
+  await reviewItem(lead, draft.id, { version: (await current()).version, questionId: item.id, target: "APPROVED", itemRevision: item.review!.itemRevision });
+});
+
+test("a review after approval blocks assignment; an approved advisory policy keeps the finding visible without blocking", async () => {
+  const fixture = assessmentFixture(subjectId, classId);
+  let draft = await createWorkspaceRecord(author, { kind: "PAPER", campusId, title: "Synthetic assignment solver gate", data: { ...fixture.paper, curriculumId, curriculumVersion }, idempotencyKey: randomUUID() });
+  draft = await updateWorkspaceRecord(lead, draft.id, { version: draft.version, action: "approve" });
+  await raw.aIUsageLog.create({ data: { schoolId, campusId, userId: author.userId, feature: "SCHOOL_AI_PAPER_SEMANTICS", action: "SYNTHETIC_TEST_EVIDENCE", output: { findings: [], checks: [{ questionId: "q1", independentAnswer: "Four", consistent: false, reason: "The answer needs review." }] }, metadata: { recordId: draft.id, recordVersion: draft.version } } });
+  const input = () => ({ idempotencyKey: randomUUID(), paperId: draft.id, title: "Synthetic solver release", startsAt: new Date(Date.now() - 60_000).toISOString(), endsAt: new Date(Date.now() + 3_600_000).toISOString(), studentIds: [learnerId], mode: "STANDARD" as const });
+  await assert.rejects(() => ctx(lead, () => createSchoolAiExam(lead, input())), { status: 409, code: "SOLVER_DISAGREEMENT" });
+  let policy = await createWorkspaceRecord(lead, { kind: "DELIVERY_POLICY", campusId, title: "Synthetic advisory policy", data: { ...PLATFORM_DEFAULT_DELIVERY_POLICY, chain: { solverFindings: "ADVISORY" } }, idempotencyKey: randomUUID() });
+  policy = await updateWorkspaceRecord(lead, policy.id, { version: policy.version, action: "approve" });
+  try {
+    const readiness = await releaseReadiness(lead, draft.id);
+    assert.equal(readiness.solverFindings[0].severity, "ADVISORY");
+    assert.equal(readiness.blockers.some(blocker => blocker.code === "SOLVER_DISAGREEMENT"), false);
+    assert.equal((await recordRehearsal(author, draft.id, { version: draft.version, findings: [] })).blocking, 0);
+    assert.ok((await ctx(lead, () => createSchoolAiExam(lead, input()))).id);
+  } finally { await raw.schoolAiRecord.delete({ where: { id: policy.id } }); }
 });

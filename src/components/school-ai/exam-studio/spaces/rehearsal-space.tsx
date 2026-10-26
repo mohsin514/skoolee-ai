@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TaskFeedback } from "@/components/ui/task-patterns";
 import { studioSpacesCopy } from "@/lib/school-ai/exam-studio-copy-spaces";
 import { ExamReleasePanel, type Readiness } from "../../exam-release-panel";
@@ -34,16 +36,16 @@ export default function RehearsalSpace({ language, scope, records, capabilities,
   if (!papers.length) return <TaskFeedback kind="empty" title={t.noPapers}><p>{t.rehearsalIntro}</p></TaskFeedback>;
   const paper = papers.find(entry => entry.id === open);
   const label = (state: Row["state"]) => state === "CLEAN" ? t.rehearsalClean : state === "BLOCKING" ? t.rehearsalBlocking : t.rehearsalNone;
-  return <div className="space-y-4" data-rehearsal-space>
+  return <div className="min-w-0 space-y-4" data-rehearsal-space>
     <p className="text-sm text-ink-subtle">{t.rehearsalIntro}</p>
-    <div className="sk-panel overflow-x-auto p-2"><table className="w-full min-w-[28rem] text-sm">
-      <thead><tr className="text-xs text-ink-subtle"><th className="p-2 text-start">{t.paperCol}</th><th className="p-2 text-start">{t.versionCol}</th><th className="p-2 text-start">{t.stateCol}</th><th className="p-2" /></tr></thead>
-      <tbody>{rows.map(row => <tr key={row.id} className="border-t" data-rehearsal-row={row.state}>
-        <td className="p-2"><bdi dir="auto">{row.title}</bdi></td><td className="p-2 tabular-nums">v{new Intl.NumberFormat(language).format(row.version)}</td>
-        <td className={`p-2 ${row.state === "BLOCKING" ? "font-semibold text-status-error-text" : row.state === "NONE" ? "text-ink-subtle" : ""}`}>{label(row.state)}</td>
-        <td className="p-2 text-end"><Button size="sm" variant={open === row.id ? "secondary" : "outline"} onClick={() => setOpen(row.id)}>{t.openPaper}</Button></td>
-      </tr>)}</tbody>
-    </table></div>
+    <Table className="min-w-[36rem]" containerClassName="max-w-full" aria-label={t.rehearsalIntro}>
+      <TableHeader><TableRow><TableHead>{t.paperCol}</TableHead><TableHead className="w-24 text-end">{t.versionCol}</TableHead><TableHead>{t.stateCol}</TableHead><TableHead className="text-end"><span className="sr-only">{t.openPaper}</span></TableHead></TableRow></TableHeader>
+      <TableBody>{rows.map(row => <TableRow key={row.id} data-rehearsal-row={row.state} data-state={open === row.id ? "selected" : undefined}>
+        <TableHead scope="row" className="min-w-48 max-w-md py-4 text-sm text-foreground"><bdi dir="auto">{row.title}</bdi></TableHead><TableCell className="text-end tabular-nums"><bdi>v{new Intl.NumberFormat(language).format(row.version)}</bdi></TableCell>
+        <TableCell><Badge variant={row.state === "BLOCKING" ? "danger" : row.state === "CLEAN" ? "success" : "neutral"} className="leading-relaxed">{label(row.state)}</Badge></TableCell>
+        <TableCell className="text-end"><Button size="sm" variant={open === row.id ? "secondary" : "outline"} onClick={() => setOpen(row.id)}>{t.openPaper}</Button></TableCell>
+      </TableRow>)}</TableBody>
+    </Table>
     {paper && <ExamReleasePanel key={`${paper.id}:${paper.version}`} recordId={paper.id} locale={language} canApprove={capabilities.canApprove} disabled={!capabilities.canCreate} onChanged={onChanged} onLoaded={onLoaded} />}
   </div>;
 }

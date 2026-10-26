@@ -1,6 +1,16 @@
 import { z } from "zod";
 import type { PaperData, Question } from "./assessment";
 
+/** Live server permissions for the marking desk; mutation endpoints still recheck every action. */
+export interface ExamReviewCapabilities {
+  canMark: boolean;
+  canManage: boolean;
+  canRevise: boolean;
+  canRelease: boolean;
+  canApproveAccommodation: boolean;
+  canSendGradebook: boolean;
+}
+
 const id = z.string().trim().min(1).max(120);
 export const examAssignmentSchema = z.object({
   idempotencyKey: z.string().uuid(),

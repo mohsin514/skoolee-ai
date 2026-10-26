@@ -121,6 +121,8 @@ test("slot status is derived from the linked records, every word", () => {
   assert.equal(deriveSlotStatus(facts({ ...sealed, printed: true })), "PRINTED");
   assert.equal(deriveSlotStatus(facts({ ...sealed, sittingDates: ["2026-11-16"] })), "STALE");
   assert.equal(deriveSlotStatus(facts({ ...sealed, paper: paper("APPROVED", ["APPROVED"], 5) })), "CHANGED_AFTER_APPROVAL");
+  assert.equal(deriveSlotStatus(facts({ ...sealed, paper: paper("APPROVED", ["APPROVED"], 5), marksComplete: true })), "CHANGED_AFTER_APPROVAL", "completed marks never hide an invalidated seal");
+  assert.equal(deriveSlotStatus(facts({ ...sealed, paper: null, published: true })), "CHANGED_AFTER_APPROVAL", "a missing sealed paper is not shown as published and valid");
   assert.equal(deriveSlotStatus(facts({ ...sealed, windowOpen: true })), "GATE_OPEN");
   assert.equal(deriveSlotStatus(facts({ ...sealed, attendanceComplete: true })), "SAT");
   assert.equal(deriveSlotStatus(facts({ ...sealed, marksComplete: true })), "MARKED");

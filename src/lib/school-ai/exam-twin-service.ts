@@ -24,19 +24,28 @@ export async function examTwin(user: AuthUser, assignmentId: string) {
 
 /** The Twin for one sitting, without an actor: also read by the Pilot Ledger. */
 export async function twinFor(tx: TxClient, schoolId: string, assignment: { id: string; campusId: string; classId: string; startsAt: Date; resultsReleasedAt: Date | null }, paper: PaperData) {
-  const earlier = await tx.schoolAiExamAssignment.findMany({ where: { schoolId, campusId: assignment.campusId, classId: assignment.classId, id: { not: assignment.id }, resultsReleasedAt: { not: null }, endsAt: { lte: assignment.startsAt } }, orderBy: { endsAt: "desc" }, take: 20, select: { id: true, paperSnapshot: true } });
+  const earlier = await tx.schoolAiExamAssignment.findMany({ where: { schoolId, campusId: assignment.campusId, classId: assignment.classId, id: { not: assignment.id }, resultsReleasedAt: { lte: assignment.startsAt }, endsAt: { lte: assignment.startsAt }, paperSnapshot: { path: ["subjectId"], equals: paper.subjectId } }, orderBy: [{ endsAt: "desc" }, { id: "asc" }], select: { id: true, paperSnapshot: true } });
   const evidence = [];
   for (const sitting of earlier) {
     const parsed = paperDataSchema.safeParse(sitting.paperSnapshot);
     if (!parsed.success || parsed.data.subjectId !== paper.subjectId) continue;
-    const attempts = await tx.schoolAiExamAttempt.findMany({ where: { schoolId, assignmentId: sitting.id, status: "REVIEWED" }, select: { review: true, responses: true } });
-    evidence.push({ paper: parsed.data, rows: attempts.filter(row => row.review).map(row => ({ review: reviewOf(row.review), responses: responsesSchema.parse(row.responses) })) });
+    const attempts = await tx.schoolAiExamAttempt.findMany({ where: { schoolId, assignmentId: sitting.id, status: "REVIEWED" }, select: { id: true, review: true, reviewVersion: true, reviewedAt: true, responses: true } });
+    // Later appeals and corrections must not rewrite what the Twin could have known at the start.
+    const revisions = await tx.schoolAiExamResultRevision.findMany({ where: { schoolId, assignmentId: sitting.id, createdAt: { lte: assignment.startsAt } }, orderBy: [{ version: "desc" }], select: { attemptId: true, review: true } });
+    const beforeStart = new Map<string, unknown>();
+    for (const revision of revisions) if (!beforeStart.has(revision.attemptId)) beforeStart.set(revision.attemptId, revision.review);
+    const rows = attempts.flatMap(row => {
+      // Legacy initial marks without a revision are usable only with a provable historical timestamp.
+      const review = beforeStart.get(row.id) ?? (row.reviewVersion === 1 && row.reviewedAt && row.reviewedAt <= assignment.startsAt ? row.review : null);
+      return review ? [{ review: reviewOf(review), responses: responsesSchema.parse(row.responses) }] : [];
+    });
+    evidence.push({ paper: parsed.data, rows });
   }
   const forecast = twinForecast(paper, evidence);
   const released = Boolean(assignment.resultsReleasedAt);
   const rows = released ? (await tx.schoolAiExamAttempt.findMany({ where: { schoolId, assignmentId: assignment.id, status: "REVIEWED" }, select: { review: true, responses: true } })).filter(row => row.review).map(row => ({ review: reviewOf(row.review), responses: responsesSchema.parse(row.responses) })) : [];
   return {
-    released, sittings: evidence.length,
+    released, sittings: evidence.length, evidenceCutoff: assignment.startsAt.toISOString(),
     forecast,
     comparison: released ? twinVersusClass(forecast, analyseItems(paper, rows)) : null,
     watch: released ? itemWatch(paper, rows) : null,

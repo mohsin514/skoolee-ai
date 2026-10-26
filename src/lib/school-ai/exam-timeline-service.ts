@@ -18,7 +18,7 @@ export async function examTimelineFor(schoolId: string, student: { id: string; c
     prisma.schoolAiExamAssignment.findMany({ where: { schoolId, campusId: student.campusId, classId: student.classId, status: "ACTIVE", mode: { in: DELIVERED_EXAM_MODES }, studentIds: { array_contains: [student.id] } }, select: { id: true, title: true, startsAt: true, endsAt: true, mode: true, resultsReleasedAt: true, paperSnapshot: true }, orderBy: { startsAt: "asc" }, take: 200 }),
     getSchoolTimeZone(schoolId, student.campusId),
   ]);
-  const attempts = sittings.length ? await prisma.schoolAiExamAttempt.findMany({ where: { schoolId, studentId: student.id, assignmentId: { in: sittings.map(row => row.id) } }, select: { assignmentId: true, status: true } }) : [];
+  const attempts = sittings.length ? await prisma.schoolAiExamAttempt.findMany({ where: { schoolId, studentId: student.id, assignmentId: { in: sittings.map(row => row.id) } }, select: { assignmentId: true, status: true, deadlineAt: true, pausedAt: true } }) : [];
   const subjectIds = [...new Set(sittings.map(row => (row.paperSnapshot as { subjectId?: string } | null)?.subjectId).filter((value): value is string => Boolean(value)))];
   const subjects = new Map((subjectIds.length ? await prisma.subject.findMany({ where: { schoolId, id: { in: subjectIds } }, select: { id: true, name: true } }) : []).map(row => [row.id, row.name]));
   return buildExamTimeline({

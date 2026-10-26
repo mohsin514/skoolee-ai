@@ -14,12 +14,12 @@ import { examIntegrityCopy } from "./exam-integrity-copy";
 import { ExamIntegrityPolicySettings } from "./exam-integrity-policy";
 import { examIntegrityPolicyCopy } from "./exam-integrity-policy-copy";
 
-export function ExamIntegrityDesk({ id, locale }: { id: string; locale: AssessmentLocale }) {
-  return <IntegrityDesk key={id} id={id} locale={locale} />;
+export function ExamIntegrityDesk({ id, locale, showPolicy }: { id: string; locale: AssessmentLocale; showPolicy: boolean }) {
+  return <IntegrityDesk key={id} id={id} locale={locale} showPolicy={showPolicy} />;
 }
 
 type Observation = ExamIntegrityView["events"][number];
-function IntegrityDesk({ id, locale }: { id: string; locale: AssessmentLocale }) {
+function IntegrityDesk({ id, locale, showPolicy }: { id: string; locale: AssessmentLocale; showPolicy: boolean }) {
   const t = examIntegrityCopy(locale);
   const [data, setData] = useState<ExamIntegrityView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,7 +102,7 @@ function IntegrityDesk({ id, locale }: { id: string; locale: AssessmentLocale })
     {error && <p role="alert" className="text-sm text-status-error-text">{error}</p>}
     {message && <p role="status" className="text-sm">{message}</p>}
     {!data && loading ? <Skeleton className="h-32 w-full" /> : data && <>
-      <ExamIntegrityPolicySettings key={data.policyVersion} id={id} data={data} locale={locale} onSaved={async () => { await load(); setMessage(examIntegrityPolicyCopy(locale).saved); }} />
+      {showPolicy && <ExamIntegrityPolicySettings key={data.policyVersion} id={id} data={data} locale={locale} onSaved={async () => { await load(); setMessage(examIntegrityPolicyCopy(locale).saved); }} />}
       <dl className="grid gap-3 sm:grid-cols-3">{([[t.pending, data.summary.pending], [t.followUp, data.summary.followUp], [t.total, data.summary.total]] as const).map(([label, count]) => <div key={label} className="rounded-xl border border-border p-4"><dt className="text-sm text-ink-subtle">{label}</dt><dd className="mt-1 text-2xl font-bold tabular-nums">{count.toLocaleString(locale)}</dd></div>)}</dl>
       <FormField name="integrity-filter" label={t.title}><Select value={filter} onChange={event => setFilter(event.target.value)}><option value="pending">{t.pendingOnly}</option><option value="all">{t.all}</option></Select></FormField>
       {data.nextCursor && <p className="text-sm text-ink-subtle">{t.truncated}</p>}

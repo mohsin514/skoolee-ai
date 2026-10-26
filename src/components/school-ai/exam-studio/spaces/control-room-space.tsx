@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +23,7 @@ import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
  */
 type Exam = { id: string; title: string; classId: string; campusId: string; startsAt: string; endsAt: string; status: string };
 type Notice = { id: string; version: number; revisesId: string | null; current: boolean; text: string; question: number | null; audience: { kind: "SITTING" } | { kind: "ATTEMPTS"; attemptIds: string[] }; audienceSize: number; acknowledged: number; issuedBy: string | null; createdAt: string };
-type Board = { questions: Array<{ id: string; number: number }>; attempts: Array<{ id: string; studentId: string; status: string; name: string | null; pausedAt: string | null; deadlineAt: string }>; notices: Notice[] };
+type Board = { assignmentId: string; questions: Array<{ id: string; number: number }>; attempts: Array<{ id: string; studentId: string; status: string; name: string | null; pausedAt: string | null; deadlineAt: string }>; notices: Notice[] };
 
 export default function ControlRoomSpace({ language, scope, capabilities }: StudioSpaceProps) {
   const t = examIncidentCopy(language);
@@ -37,6 +37,7 @@ export default function ControlRoomSpace({ language, scope, capabilities }: Stud
   const [revising, setRevising] = useState<Notice | null>(null);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const loadRequest = useRef(0);
   useEffect(() => {
     void fetch("/api/school-ai/exams", { cache: "no-store" }).then(response => response.json()).then(payload => {
       const now = Date.now();
@@ -47,11 +48,13 @@ export default function ControlRoomSpace({ language, scope, capabilities }: Stud
   const api = `/api/school-ai/exams/${encodeURIComponent(examId)}/clarifications`;
   const load = useCallback(async () => {
     if (!examId) return;
-    const response = await fetch(api, { cache: "no-store" });
-    const payload = await response.json().catch(() => ({}));
-    setState(response.ok ? { kind: "ready", data: payload as Board } : { kind: "error", reason: typeof payload.error === "string" ? payload.error : t.failed, retry: () => void load() });
+    const request = ++loadRequest.current;
+    const response = await fetch(api, { cache: "no-store" }).catch(() => null);
+    const payload = response ? await response.json().catch(() => ({})) : {};
+    if (request !== loadRequest.current) return;
+    setState(response?.ok ? { kind: "ready", data: { ...payload, assignmentId: examId } as Board } : { kind: "error", reason: typeof payload.error === "string" ? payload.error : t.failed, retry: () => void load() });
   }, [api, examId, t.failed]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadRequest.current += 1; }; }, [load]);
   if (exams && !exams.length) return <TaskFeedback kind="empty" title={t.noExams}><p>{t.composeHint}</p></TaskFeedback>;
   const send = async () => {
     setBusy(true); setNotice(null);
@@ -67,9 +70,9 @@ export default function ControlRoomSpace({ language, scope, capabilities }: Stud
       <label className="grid min-w-64 flex-1 gap-1 text-sm font-semibold">{t.exam}<Select aria-label={t.exam} value={examId} onChange={event => { setSelected(event.target.value); setRevising(null); }}>{exams.map(exam => <option key={exam.id} value={exam.id}>{exam.title}</option>)}</Select></label>
       {examId && <Link href={`/ai/exams/${encodeURIComponent(examId)}`} className={buttonVariants({ variant: "outline" })}>{t.openExam}</Link>}
     </div>}
-    <SpaceStateRegion state={state} language={language}>{board => {
+    <SpaceStateRegion state={state.kind === "ready" && state.data.assignmentId !== examId ? { kind: "loading" } : state} language={language}>{board => {
       const live = board.attempts.filter(attempt => attempt.status === "IN_PROGRESS");
-      return <div className="space-y-4"><RoomBoard language={language} examId={examId} /><PulsePanel language={language} examId={examId} onDraft={(questionId, number) => { setQuestion(questionId); setText(fillStudioCopy(studioHomeCopy(language).pulseDraftText, [String(number)]) + " "); document.getElementById("compose-title")?.scrollIntoView({ block: "center" }); }} /><Supervise examId={examId} board={board} language={language} canExtend={capabilities.canApprove} onChanged={() => void load()} /><div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+      return <div className="space-y-4"><RoomBoard key={examId} language={language} examId={examId} /><PulsePanel key={examId} language={language} examId={examId} onDraft={(questionId, number) => { setQuestion(questionId); setText(fillStudioCopy(studioHomeCopy(language).pulseDraftText, [String(number)]) + " "); document.getElementById("compose-title")?.scrollIntoView({ block: "center" }); }} /><Supervise key={examId} examId={examId} board={board} language={language} canExtend={capabilities.canApprove} onChanged={() => void load()} /><div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <section aria-labelledby="compose-title" className="sk-panel space-y-3 p-5">
           <h3 id="compose-title" className="font-semibold">{revising ? fill(t.revising, [number(revising.version)]) : t.composeTitle}</h3>
           <p className="text-sm text-ink-subtle">{t.composeHint}</p>
