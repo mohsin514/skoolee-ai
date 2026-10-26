@@ -1,10 +1,11 @@
 "use client";
 import { Button } from "@/components/ui/button";
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { localeTag } from "@/lib/locale/package";
 
 import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
 
-import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -152,25 +153,23 @@ export function AcademicCalendar({
   const qs = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   // R4: a load failure is an inline ErrorState with retry, never a toast.
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
   const load = useCallback(async () => {
-    setLoading(true);
-    setLoadFailed(false);
+    const request = ++sequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const res = await fetch(`/api/academic/calendar/unified${qs ? `${qs}&` : "?" }year=${viewYear}`, { cache: "no-store" });
-      const json = await res.json();
-      if (json.success) setFeed(json.data);
-      else setLoadFailed(true);
-    } catch {
-      setLoadFailed(true);
+      const json = await checkedJson(await readRequest(`/api/academic/calendar/unified${qs ? `${qs}&` : "?"}year=${viewYear}`));
+      if (![json.data?.weekends, json.data?.terms, json.data?.holidays, json.data?.exams].every(Array.isArray)) throw new RequestFailure("server");
+      if (request === sequence.current) setFeed(json.data);
+    } catch (failure) {
+      if (request === sequence.current) { setFeed(null); setLoadFailed(requestFailure(failure)); }
     } finally {
-      setLoading(false);
+      if (request === sequence.current) setLoading(false);
     }
   }, [qs, viewYear]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
 
   /**
    * Everything dated in the loaded year, flattened and sorted. Respects the
@@ -415,7 +414,7 @@ export function AcademicCalendar({
       </div>
 
       {loadFailed && !loading ? (
-        <ErrorState variant="panel" title={tr("The calendar could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
+        <ErrorState error={loadFailed} variant="panel" title={tr("The calendar could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
       ) : loading ? (
         <div className="space-y-3 p-5 animate-skeleton-in">
           <div className="grid grid-cols-7 gap-1.5">

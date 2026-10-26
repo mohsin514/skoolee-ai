@@ -1,4 +1,5 @@
 "use client";
+import { useFetch } from "@/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -268,8 +269,9 @@ export function TripsPlanner() {
 export function FamilyJourney({ studentId }: { studentId: string }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<{ journeys: { id: string; label: string; direction: string; vehicleNumber: string; stop: string | null; status: string; boardedAt: string | null; handedOverAt: string | null; receiverType: string | null }[] } | null>(null);
-  useEffect(() => { call(`/api/family/transport?studentId=${encodeURIComponent(studentId)}`).then(setData).catch(() => setData(null)); }, [studentId]);
+  const { data, failure, isLoading, refetch } = useFetch<{ journeys: { id: string; label: string; direction: string; vehicleNumber: string; stop: string | null; status: string; boardedAt: string | null; handedOverAt: string | null; receiverType: string | null }[] }>(`/api/family/transport?studentId=${encodeURIComponent(studentId)}`);
+  if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
+  if (failure) return <ErrorState error={failure} onRetry={refetch} />;
   if (!data?.journeys.length) return null;
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-family-journey>
     <h3 className="text-base font-bold">{ui("School transport today")}</h3>

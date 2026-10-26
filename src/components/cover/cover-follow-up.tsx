@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { CalendarCheck } from "lucide-react";
+
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 
 // SKO-442: after cover is approved — did each covered lesson get a handover, was it acknowledged, what
 // happened — and which lessons had no cover. A lesson without cover is recorded here so its teacher gets a
@@ -24,16 +26,26 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
   const ui = useUiText();
   const { date: formatDate } = useLocaleFormat();
   const scope = campusId ? `campusId=${encodeURIComponent(campusId)}&` : "";
-  const [day, setDay] = useState(todayText()), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [day, setDay] = useState(todayText()), [busy, setBusy] = useState(false), [error, setError] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{ covered: Covered[]; recoveries: Recovery[]; uncoveredRecorded: string[] } | null>(null), [uncovered, setUncovered] = useState<Uncovered[]>([]);
   const load = useCallback(async () => {
-    setError("");
-    const [a, b] = await Promise.all([fetch(`/api/cover/campus?${scope}date=${day}`, { cache: "no-store" }).catch(() => null), fetch(`/api/staff/cover?${scope}date=${day}`, { cache: "no-store" }).catch(() => null)]);
-    const ja = await a?.json().catch(() => ({})), jb = await b?.json().catch(() => ({}));
-    if (!a?.ok || !ja?.success) { setError(ui(ja?.error || "Cover follow-up could not be loaded.")); return; }
-    setData(ja.data); setUncovered(jb?.success ? jb.data.lessons : []);
-  }, [scope, day, ui]);
-  useEffect(() => { void load(); }, [load]);
+    const version = ++sequence.current;
+    setError(null); setLoading(true);
+    try {
+      const [ja, jb] = await Promise.all([
+        readRequest(`/api/cover/campus?${scope}date=${day}`).then(r => checkedJson(r)),
+        readRequest(`/api/staff/cover?${scope}date=${day}`).then(r => checkedJson(r)),
+      ]);
+      if (version !== sequence.current) return;
+      if (!Array.isArray(ja.data?.covered) || !Array.isArray(ja.data?.recoveries) || !Array.isArray(ja.data?.uncoveredRecorded) || !Array.isArray(jb.data?.lessons)) throw new RequestFailure("server");
+      setData(ja.data); setUncovered(jb.data.lessons);
+    } catch (failure) {
+      if (version === sequence.current) { setData(null); setUncovered([]); setError(requestFailure(failure)); }
+    } finally { if (version === sequence.current) setLoading(false); }
+  }, [scope, day]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
   const recordNoCover = async (slotId: string) => {
     setBusy(true);
     try {
@@ -49,7 +61,7 @@ export function CoverFollowUp({ campusId }: { campusId?: string }) {
   return <section className="sk-panel space-y-4 p-5" data-cover-follow-up>
     <header className="flex flex-wrap items-end justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong">{ui("Cover follow-up")}</h3><p className="text-xs leading-relaxed text-ink-muted">{ui("Covering a room is not the same as teaching the planned lesson.")}</p></div>
       <FormField name="cover-day" label={ui("Day")}><Input type="date" value={day} onChange={e => setDay(e.target.value)} /></FormField></header>
-    {error ? <ErrorState variant="panel" description={error} onRetry={() => void load()} /> : !data ? <SkeletonList rows={3} label={ui("Loading cover…")} /> : <>
+    {error ? <ErrorState variant="panel" error={error} onRetry={() => void load()} /> : loading || !data ? <SkeletonList rows={3} label={ui("Loading cover…")} /> : <>
       <div className="space-y-1" data-follow-covered><p className="sk-eyebrow">{ui("Covered lessons")}</p>
         {data.covered.length ? data.covered.map(c => <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-edge/40 px-3 py-2 text-sm" data-follow-duty={c.id}>
           <span><bdi>{c.startTime}–{c.endTime}</bdi> · <bdi>{c.className}</bdi> · <span dir="auto">{c.subjectName}</span> · {ui("Covered by {0}", [c.substitute])}</span>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useFetch } from "@/hooks";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { MessageSquareText } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 
@@ -12,15 +14,9 @@ type Note = { id: string; examTitle: string | null; language: string; sentence: 
  */
 export function FamilyResultNotes({ studentId }: { studentId: string | null }) {
   const ui = useUiText();
-  const [notes, setNotes] = useState<Note[] | null>(null);
-  useEffect(() => {
-    let live = true;
-    setNotes(null);
-    void fetch(`/api/parent/result-notes${studentId ? `?studentId=${encodeURIComponent(studentId)}` : ""}`, { cache: "no-store" })
-      .then(async response => { const payload = await response.json().catch(() => ({})); if (live) setNotes(response.ok && Array.isArray(payload.data) ? payload.data : []); })
-      .catch(() => { if (live) setNotes([]); });
-    return () => { live = false; };
-  }, [studentId]);
+  const { data: notes, failure, isLoading, refetch } = useFetch<Note[]>(`/api/parent/result-notes${studentId ? `?studentId=${encodeURIComponent(studentId)}` : ""}`, { collection: true });
+  if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
+  if (failure) return <ErrorState error={failure} onRetry={refetch} />;
   if (!notes?.length) return null;
   return <section aria-labelledby="family-result-notes" className="sk-panel space-y-3 p-4" data-family-notes>
     <h2 id="family-result-notes" className="flex items-center gap-2 text-base font-bold text-ink-strong"><MessageSquareText aria-hidden="true" className="size-4" />{ui("Notes from teachers")}</h2>

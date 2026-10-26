@@ -1,8 +1,13 @@
 /** Safe, transport-independent outcomes. Never retain response bodies or URLs in errors. */
 export type FailureKind = "denied" | "session" | "validation" | "conflict" | "offline" | "timeout" | "limited" | "provider" | "server";
+const failureMessages: Record<FailureKind, string> = {
+  denied: "Not available with your access", session: "Sign in again", validation: "Check the information",
+  conflict: "This record has changed", offline: "You're offline", timeout: "The request timed out",
+  limited: "Too many requests", provider: "A service is unavailable", server: "Something went wrong",
+};
 export class RequestFailure extends Error {
   constructor(public readonly kind: FailureKind, public readonly status?: number, public readonly digest?: string) {
-    super(kind); this.name = "RequestFailure";
+    super(failureMessages[kind]); this.name = "RequestFailure";
   }
 }
 export function failureForStatus(status: number): FailureKind {

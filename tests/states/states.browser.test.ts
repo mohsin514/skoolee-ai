@@ -5,6 +5,8 @@ import { mkdir } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium, webkit, type Browser, type BrowserContext, type Page } from "playwright";
 import bcrypt from "bcryptjs";
+import { ROLE_DASHBOARD_PATHS, USER_ROLES } from "../../src/lib/roles";
+import { TOURS } from "../../src/lib/onboarding/tours";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 
 // Synthetic local acceptance for SCRUM-308. Never run against a shared/production database.
@@ -16,24 +18,30 @@ const db = new PrismaClient(), password = "SyntheticStates308!";
 const schoolId = `states308-${randomUUID()}`, campusA = randomUUID(), campusB = randomUUID();
 const class7 = randomUUID(), classB = randomUUID(), classC = randomUUID(), campusC = randomUUID();
 const users = new Map<string, { id: string; email: string }>();
+const roleKeys: Record<string,string> = { CAMPUS_ADMIN:"ops", TEACHER:"teacher", PARENT:"parent", STUDENT:"learner", LIBRARIAN:"librarian" };
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
 const pupils: Record<string, string> = {};
 let browser: Browser;
 
 async function user(key: string, role: string, campus: string | null = campusA, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, joiningDate: new Date("2026-01-01T00:00:00Z"), preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: Object.fromEntries(Object.entries(TOURS).map(([id, tour]) => [id, {v: tour.version, s: "done", at: new Date().toISOString()}])), joiningDate: new Date("2026-01-01T00:00:00Z"), preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   const saved = sessions.get(key);
-  if (saved) { const ctx = await browser.newContext({ viewport, storageState: saved, reducedMotion: "reduce" }); ctx.setDefaultNavigationTimeout(120000); return ctx; }
+  if (saved) { const ctx = await browser.newContext({ viewport, storageState: saved, reducedMotion: "reduce" }); ctx.setDefaultTimeout(30000); ctx.setDefaultNavigationTimeout(120000); return ctx; }
   const ctx = await browser.newContext({ viewport, reducedMotion: "reduce" });
-  assert.equal((await ctx.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password } })).status(), 200);
+  const login = await ctx.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password, schoolId } });
+  assert.equal(login.status(), 200, key + " login");
+  const loginBody = await login.json();
+  assert.ok(loginBody.success || loginBody.mfaRequired, key + " login outcome");
   const { secret } = await (await ctx.request.post(base + "/api/auth/mfa", { data: { action: "setup" } })).json().catch(() => ({}));
   if (secret) { await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
+  const signedIn = await ctx.request.get(base + "/api/auth/session");
+  assert.equal(signedIn.status(), 200, key + " authenticated session");
   sessions.set(key, await ctx.storageState());
-  ctx.setDefaultNavigationTimeout(120000); return ctx;
+  ctx.setDefaultTimeout(30000); ctx.setDefaultNavigationTimeout(120000); return ctx;
 }
 
 const otherSchool = `states308-${randomUUID()}`;
@@ -51,6 +59,12 @@ before(async()=>{
   for(const [id,school,campus,cls,name] of [[randomUUID(),schoolId,campusA,class7,"Synthetic Ada"],[randomUUID(),otherSchool,campusB,classB,"Synthetic Private"]]) {
     pupils[name]=id; await db.student.create({data:{id,schoolId:school,campusId:campus,classId:cls,studentUserId:school===schoolId?learner:null,fullName:name,rollNo:"307",gender:"FEMALE",enrollmentDate:new Date("2024-02-29T00:00:00Z")}});
   }
+  for (const role of USER_ROLES) {
+    if (roleKeys[role]) continue;
+    roleKeys[role] = role.toLowerCase(); await user(roleKeys[role], role);
+  }
+  const relationship = await db.guardianRelationship.create({data:{schoolId,campusId:campusA,studentId:pupils["Synthetic Ada"],guardianUserId:users.get("parent")!.id,createdByUserId:users.get("ops")!.id,fullName:"Synthetic guardian",email:users.get("parent")!.email,relationship:"Parent",status:"ACTIVE",verifiedAt:new Date()}});
+  await db.guardianAccessVersion.create({data:{schoolId,relationshipId:relationship.id,createdByUserId:users.get("ops")!.id,reason:"Synthetic state verification",effectiveFrom:new Date(Date.now()-60000),permissions:{learningRecords:true,attendance:true,finances:true,communication:true,pickup:false}}});
   await db.admissionQuery.create({data:{schoolId,campusId:campusA,name:"Synthetic Enquiry",phone:"03000000307",source:"WALK_IN",nextFollowUp:new Date("2026-11-01T00:00:00Z")}});
   browser=await (process.env.STATES_BROWSER === "webkit" ? webkit : chromium).launch({headless:true});
 });
@@ -211,5 +225,154 @@ test("learner timetable distinguishes dependency failure, denied access and unpu
   await page.unroute("**/api/student/exam-timeline");
   await timeline.getByRole("button", {name:"Try again",exact:true}).click();
   await timeline.getByText("No exams on your date sheet yet.", {exact:true}).waitFor();
+  await ctx.close();
+});
+
+
+test("every application role loads its allowed dashboard without runtime failure", async () => {
+  for (const role of USER_ROLES) {
+    const key = roleKeys[role], ctx = await context(key), page = await ctx.newPage();
+    page.setDefaultTimeout(30000);
+    const failures: string[] = [];
+    page.on("pageerror", error => failures.push(error.message));
+    const response = await page.goto(base + ROLE_DASHBOARD_PATHS[role]);
+    assert.ok(response && response.status() < 400, role + " document response");
+    await page.locator("[data-boot-splash]").waitFor({state:"hidden"});
+    await page.locator("[data-role-shell]").waitFor();
+    await page.locator("main").waitFor();
+    assert.ok(new URL(page.url()).pathname.startsWith(ROLE_DASHBOARD_PATHS[role]), role + " allowed route");
+    assert.equal(await page.getByText(/Application error:|Couldn.t load your portal/).count(), 0, role);
+    assert.deepEqual(failures, [], role + " runtime errors");
+    await saveShot(page, `dashboard-${role.toLowerCase()}-en`);
+    await ctx.close();
+  }
+});
+
+test("family fee failures clear header claims and teacher calendar failure is explicit", async () => {
+  for (const key of ["parent", "learner"]) {
+    const ctx = await context(key), page = await ctx.newPage();
+    await page.route("**/api/fees/family-statement**", route => route.fulfill({status:403,json:{success:false}}));
+    await page.goto(`${base}/${key === "learner" ? "student" : "parent"}/fees`);
+    await page.locator('section[data-resource-state="denied"]').waitFor().catch(async error => { await page.screenshot({path:`${evidence}/${key}-fees-failed.png`,fullPage:true}); console.log(key, page.url(), await page.locator('main').innerText()); throw error; });
+    assert.equal(await page.getByText("All fees cleared", {exact:true}).count(), 0);
+    assert.equal(await page.locator("[data-family-statement]").count(), 0);
+    await saveShot(page, `${key}-fees-denied-en`);
+    await ctx.close();
+  }
+  const ctx = await context("teacher"), page = await ctx.newPage();
+  await page.route("**/api/academic/calendar", route => route.fulfill({status:503,body:"Unavailable"}));
+  await page.goto(`${base}/teacher/timetable`);
+  await page.locator('[data-failure-kind="provider"]').first().waitFor();
+  assert.equal(await page.getByText("No published timetable yet", {exact:true}).count(), 0);
+  await page.unroute("**/api/academic/calendar");
+  await page.getByRole("button",{name:"Try again",exact:true}).first().click();
+  await page.getByText("No published timetable yet", {exact:true}).waitFor();
+  await ctx.close();
+});
+
+test("front desk queue rejects a failed dependency instead of reporting an empty queue", async () => {
+  const ctx = await context("receptionist"), page = await ctx.newPage();
+  await page.route("**/api/front-desk/phone-calls?**", route => route.fulfill({status:503,body:"Unavailable"}));
+  await page.goto(`${base}/receptionist`);
+  const queue = page.locator("[data-front-desk-queue]");
+  await queue.locator('[data-failure-kind="provider"]').waitFor();
+  assert.equal(await queue.getByText("Nothing is waiting on you.", {exact:true}).count(),0);
+  await page.unroute("**/api/front-desk/phone-calls?**");
+  await queue.getByRole("button",{name:"Try again",exact:true}).click();
+  await queue.getByText("Nothing is waiting on you.", {exact:true}).waitFor();
+  await ctx.close();
+});
+
+test("notification failures never announce an unsaved seen action", async () => {
+  const ctx = await context("teacher"), page = await ctx.newPage();
+  const item = {id:"synthetic-notification-308",title:"Synthetic action",message:"Review synthetic work",link:"/teacher",isRead:false,createdAt:new Date().toISOString(),actorName:null,category:"ACTION",state:"open",overdue:false,dueAt:null,resolution:null,reminderCount:0};
+  let status = 503, patches = 0;
+  await page.route("**/api/notifications?**", route => route.fulfill({json:{success:true,notifications:[item],unreadCount:1,counts:{unread:1,mentionsUnread:0,openActions:1,overdueActions:0}}}));
+  await page.route("**/api/notifications", async route => {
+    if (route.request().method() !== "PATCH") return route.continue();
+    patches++; await new Promise(resolve => setTimeout(resolve,200));
+    await route.fulfill({status,json:{success:status === 200,readCount:status === 200 ? 1 : 0}});
+  });
+  await page.goto(`${base}/teacher`);
+  await page.locator('[data-tour="shell.header.notifications"]').click();
+  const center = page.locator("[data-notification-center]"), row = center.locator('[data-notification="synthetic-notification-308"]');
+  const seen = center.getByRole("button",{name:"Mark Synthetic action as seen",exact:true});
+  await seen.evaluate(button => { (button as HTMLButtonElement).click(); (button as HTMLButtonElement).click(); });
+  await row.getByText("A service is unavailable",{exact:true}).waitFor();
+  assert.equal(patches,1);
+  assert.equal(await row.getAttribute("data-read"),"false");
+  assert.equal(await row.getByText("Marked seen. The task is still waiting for you.",{exact:true}).count(),0);
+  await saveShot(page,"notification-save-failure-en");
+  status=200; await seen.click();
+  await row.getByText("Marked seen. The task is still waiting for you.",{exact:true}).waitFor();
+  assert.equal(await row.getAttribute("data-read"),"true");
+  assert.equal(patches,2);
+  await ctx.close();
+});
+
+test("calendar dependency errors recover and denied owner reports disable export", async () => {
+  const ctx = await context("teacher"), page = await ctx.newPage();
+  await page.route("**/api/academic/calendar/unified?**", route => route.fulfill({status:503,body:"Unavailable"}));
+  await page.goto(`${base}/teacher/calendar`);
+  await page.locator('[data-failure-kind="provider"]').waitFor();
+  await saveShot(page,"calendar-provider-en");
+  await page.unroute("**/api/academic/calendar/unified?**");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await page.locator('[data-failure-kind="provider"]').waitFor({state:"hidden"});
+  await ctx.close();
+  const owner = await context("app_owner"), report = await owner.newPage();
+  await report.route("**/api/owner/capacity",route => route.fulfill({status:403,json:{success:false}}));
+  await report.goto(`${base}/owner?view=capacity`);
+  await report.locator('section[data-resource-state="denied"]').waitFor();
+  assert.equal(await report.getByRole("button",{name:"Export",exact:true}).isDisabled(),true);
+  await saveShot(report,"owner-report-denied-en");
+  await owner.close();
+});
+
+test("family result-note reads show failure and retry instead of silently disappearing", async () => {
+  const ctx = await context("parent"), page = await ctx.newPage();
+  await page.route("**/api/parent/result-notes**", route => route.fulfill({status:503,body:"Unavailable"}));
+  await page.goto(`${base}/parent/results`);
+  await page.locator('[data-failure-kind="provider"]').waitFor();
+  await saveShot(page,"family-notes-provider-en");
+  await page.unroute("**/api/parent/result-notes**");
+  await page.getByRole("button",{name:"Try again",exact:true}).click();
+  await page.locator('[data-failure-kind="provider"]').waitFor({state:"hidden"});
+  assert.equal(await page.locator("[data-family-notes]").count(),0);
+  await ctx.close();
+});
+
+test("staff trip queue rejects permission failures and recovers to a true empty list", async () => {
+  const ctx = await context("ops"), page = await ctx.newPage();
+  await page.route("**/api/trips", route => route.fulfill({status:403,json:{success:false}}));
+  await page.goto(`${base}/admin?view=attendance&tab=trips`);
+  await page.locator('section[data-resource-state="denied"]').waitFor();
+  assert.equal(await page.getByText("No trips yet.",{exact:true}).count(),0);
+  await saveShot(page,"staff-trips-denied-en");
+  await page.unroute("**/api/trips"); await page.reload();
+  await page.getByText("No trips yet.",{exact:true}).waitFor();
+  await ctx.close();
+});
+
+test("integration delivery failures preserve filters and never report no deliveries", async () => {
+  const ctx = await context("super_admin"), page = await ctx.newPage();
+  let failed = true;
+  await page.route("**/api/integrations?**", route => {
+    const query = new URL(route.request().url()).searchParams;
+    if (query.get("view") === "connections") return route.fulfill({json:{success:true,data:{campuses:[],scopes:[],topics:[],contract:{version:"1",status:"CURRENT"},connections:[{id:"synthetic308",name:"Synthetic connection",campusIds:[],scopes:[],topics:[],contractVersion:"1",status:"ACTIVE",webhookHost:"example.invalid",rateLimitPerMinute:1,dailyQuota:1,signingRotating:false,keys:[],deliveries:{}}]}}});
+    return failed ? route.fulfill({status:503,body:"Unavailable"}) : route.fulfill({json:{success:true,data:[]}});
+  });
+  await page.goto(`${base}/super?view=settings&tab=integrations`);
+  await page.getByRole("button",{name:"Deliveries",exact:true}).click();
+  const deliveries = page.locator("[data-deliveries]");
+  await deliveries.locator('[data-failure-kind="provider"]').waitFor();
+  assert.equal(await deliveries.getByText("No deliveries yet.",{exact:true}).count(),0);
+  await deliveries.locator("select").selectOption("FAILED");
+  await deliveries.locator('[data-failure-kind="provider"]').waitFor();
+  assert.equal(await deliveries.locator("select").inputValue(),"FAILED");
+  await saveShot(page,"integration-delivery-provider-en");
+  failed=false; await deliveries.getByRole("button",{name:"Try again",exact:true}).click();
+  await deliveries.getByText("No deliveries yet.",{exact:true}).waitFor();
+  assert.equal(await deliveries.locator("select").inputValue(),"FAILED");
   await ctx.close();
 });

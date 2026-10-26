@@ -1,5 +1,7 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useFetch } from "@/hooks";
+import { checkedJson, readRequest } from "@/lib/http/request-state";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +27,7 @@ type Ui = ReturnType<typeof useUiText>;
 /** A refused or failed request, with its HTTP status: 401/403 is "no access", anything else is a load failure (R4). */
 class RequestError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
+  if (method === "GET") return (await checkedJson(await readRequest(url))).data;
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
   if (!response.ok || !json.success) throw new RequestError(json.error || "The change was not saved.", response.status);
@@ -62,32 +65,27 @@ export function Integrations({ hideSave = false, command, onDirtyChange }: {
 } = {}) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<Data | null>(null), [denied, setDenied] = useState(false), [busy, setBusy] = useState(false);
+  const { data, failure, isLoading, refetch: load } = useFetch<Data>("/api/integrations?view=connections");
+  const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: "", campusIds: [] as string[], scopes: ["roster.read"] as string[], topics: [] as string[], webhookUrl: "" }), [adding, setAdding] = useState(false);
   const [secrets, setSecrets] = useState<{ apiKey?: string; signingSecret?: string | null; previousValidUntil?: string | null } | null>(null);
-  const [open, setOpen] = useState<string | null>(null), [list, setList] = useState<Delivery[]>([]), [filter, setFilter] = useState(""), [detail, setDetail] = useState<Detail | null>(null), [confirmReplay, setConfirmReplay] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState<string | null>(null), [filter, setFilter] = useState(""), [detail, setDetail] = useState<Detail | null>(null), [confirmReplay, setConfirmReplay] = useState(false);
+  const deliveries = useFetch<Delivery[]>(`/api/integrations?view=deliveries&connectionId=${encodeURIComponent(open ?? "")}${filter ? `&status=${encodeURIComponent(filter)}` : ""}`, { immediate: !!open, collection:true });
+  const list = deliveries.data ?? [];
   // §8.1 R3: revoking a connection or a key stops a running system, so it is confirmed first.
   const [revoking, setRevoking] = useState<{ conn: Conn; keyId?: string } | null>(null);
-  const load = useCallback(async () => {
-    try { setData(await call("/api/integrations?view=connections")); setDenied(false); setFailed(false); }
-    catch (e) { if (e instanceof RequestError && (e.status === 401 || e.status === 403)) setDenied(true); else setFailed(true); }
-  }, []);
   // Shown when a console Save is pressed before the form is complete (its own button is disabled instead).
   const [formHint, setFormHint] = useState(false);
   const nameRef = useRef<HTMLInputElement | null>(null);
   // Set by the console's "add" command: the name field takes focus once the form has mounted.
   const focusName = useRef(false);
-  const loadDeliveries = useCallback(async (id: string, status: string) => setList(await call(`/api/integrations?view=deliveries&connectionId=${id}${status ? `&status=${status}` : ""}`)), []);
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { if (open) void loadDeliveries(open, filter).catch(() => setList([])); }, [open, filter, loadDeliveries]);
   const formReady = form.name.trim().length >= 3 && form.campusIds.length > 0;
   const formDirty = adding && (form.name.trim() !== "" || form.campusIds.length > 0 || form.topics.length > 0 || form.webhookUrl.trim() !== "");
   const reportDirty = useRef(onDirtyChange);
   useEffect(() => { reportDirty.current = onDirtyChange; });
   useEffect(() => { reportDirty.current?.(formDirty, busy); }, [formDirty, busy]);
   useEffect(() => () => reportDirty.current?.(false, false), []);
-  const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); if (open) await loadDeliveries(open, filter); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
+  const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); if (open) await deliveries.refetch(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   const createConnection = () => {
     if (busy) return;
     if (!formReady) { setFormHint(true); nameRef.current?.focus(); return; }
@@ -98,9 +96,8 @@ export function Integrations({ hideSave = false, command, onDirtyChange }: {
     save: () => { if (adding) createConnection(); },
     add: () => { if (adding) nameRef.current?.focus(); else { focusName.current = true; setAdding(true); } },
   }, Boolean(data));
-  if (denied) return <Alert tone="neutral" live="off" data-integrations-denied>{ui("Integration administration access is required.")}</Alert>;
-  if (failed && !data) return <div className="sk-panel"><ErrorState title={ui("Integrations could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => load()} /></div>;
-  if (!data) return <SkeletonList rows={3} label={ui("Loading delivery receipts and contract health.")} />;
+  if (failure) return <ErrorState error={failure} onRetry={load} />;
+  if (isLoading || !data) return <SkeletonList rows={3} label={ui("Loading delivery receipts and contract health.")} />;
   const toggle = (k: "campusIds" | "scopes" | "topics", v: string, on: boolean) => setForm({ ...form, [k]: on ? [...form[k], v] : form[k].filter(x => x !== v) });
   return <div className="min-w-0 space-y-5" data-integrations>
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-xl font-bold tracking-tight text-ink-strong">{ui("Integration connections")}</h2><p className="text-sm text-ink-muted">{ui("Public contract {0} · {1}", [data.contract.version, data.contract.status === "CURRENT" ? ui("Current") : ui("Deprecated")])} · <a className="sk-link" href="/api/public/v1/contract" target="_blank" rel="noreferrer" dir="ltr">/api/public/v1/contract</a></p></div><Button onClick={() => { setAdding(!adding); setFormHint(false); }} data-add-connection>{ui("Add connection")}</Button></header>
@@ -122,7 +119,7 @@ export function Integrations({ hideSave = false, command, onDirtyChange }: {
       {c.webhookHost ? <div><Button size="sm" variant="ghost" onClick={() => { setOpen(open === c.id ? null : c.id); setFilter(""); }} data-open-deliveries>{open === c.id ? ui("Hide deliveries") : ui("Deliveries")}</Button>
         {open === c.id ? <div className="mt-2 space-y-2" data-deliveries>
           <div className="flex flex-wrap items-center justify-between gap-2"><Select className="w-auto" value={filter} onChange={e => setFilter(e.target.value)} aria-label={ui("Status")} data-delivery-filter><option value="">{ui("All")}</option><option value="FAILED">{ui("Failed after retries")}</option><option value="BLOCKED">{ui("Blocked destination")}</option><option value="PENDING">{ui("Waiting to send")}</option><option value="DELIVERED">{ui("Accepted by destination")}</option></Select><p className="text-xs text-ink-muted">{ui("Delivered is different from processed: it means the destination accepted the request.")}</p></div>
-          {list.length ? <ul className="space-y-1">{list.map(d => <li key={d.id}><Button variant="ghost" className="sk-row-interactive h-auto w-full flex-wrap justify-between py-2 text-start" onClick={async () => { setConfirmReplay(false); setDetail(await call(`/api/integrations?view=delivery&id=${d.id}`)); }} data-delivery={d.eventId} data-delivery-status={d.status}><span><bdi dir="ltr">{d.topic}</bdi> · <bdi dir="ltr">{d.eventId.slice(0, 8)}</bdi> · <Badge size="sm" dot variant={d.status === "FAILED" || d.status === "BLOCKED" ? "danger" : d.status === "DELIVERED" ? "success" : "neutral"}>{statusLabel(ui, d.status)}</Badge></span><span className="text-xs text-ink-subtle tabular-nums">{ui("{0} attempts", [String(d.attempts)])}{d.replayCount ? <> · {ui("replayed {0}×", [String(d.replayCount)])}</> : null} · <bdi>{dateTime(d.occurredAt)}</bdi></span></Button></li>)}</ul> : <EmptyState size="sm" icon={Send} title={ui("No deliveries yet.")} description={ui("Deliveries appear here when an event is sent to this connection's webhook.")} />}
+          {deliveries.isLoading ? <SkeletonList rows={3} label={ui("Loading…")} /> : deliveries.failure ? <ErrorState error={deliveries.failure} onRetry={deliveries.refetch} /> : list.length ? <ul className="space-y-1">{list.map(d => <li key={d.id}><Button variant="ghost" className="sk-row-interactive h-auto w-full flex-wrap justify-between py-2 text-start" onClick={async () => { setConfirmReplay(false); try { setDetail(await call(`/api/integrations?view=delivery&id=${d.id}`)); } catch (failure) { setDetail(null); toast.error(failure); } }} data-delivery={d.eventId} data-delivery-status={d.status}><span><bdi dir="ltr">{d.topic}</bdi> · <bdi dir="ltr">{d.eventId.slice(0, 8)}</bdi> · <Badge size="sm" dot variant={d.status === "FAILED" || d.status === "BLOCKED" ? "danger" : d.status === "DELIVERED" ? "success" : "neutral"}>{statusLabel(ui, d.status)}</Badge></span><span className="text-xs text-ink-subtle tabular-nums">{ui("{0} attempts", [String(d.attempts)])}{d.replayCount ? <> · {ui("replayed {0}×", [String(d.replayCount)])}</> : null} · <bdi>{dateTime(d.occurredAt)}</bdi></span></Button></li>)}</ul> : <EmptyState size="sm" icon={Send} title={ui("No deliveries yet.")} description={ui("Deliveries appear here when an event is sent to this connection's webhook.")} />}
         </div> : null}
       </div> : null}
     </li>)}</ul> : <p className="sk-panel p-4 text-sm" data-integrations-empty>{ui("No external connections configured.")}</p>}

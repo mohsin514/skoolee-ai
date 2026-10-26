@@ -32,3 +32,15 @@ test("malformed successful collections are failures, never empty datasets", asyn
   assert.deepEqual((await checkedListJson(Response.json({success:true,data:[]}))).data,[]);
   await assert.rejects(checkedJson(Response.json(null),{envelope:false}),RequestFailure);
 });
+
+test("suppressed internal failures do not copy confidential diagnostics into logs", async () => {
+  const { userMessage } = await import("../../src/lib/errors");
+  const original = console.error, entries: unknown[][] = [];
+  console.error = (...args: unknown[]) => { entries.push(args); };
+  try {
+    assert.equal(userMessage(new Error("PrismaClient secret pupil private-db-host")), "Something went wrong. Please try again.");
+    assert.ok(!JSON.stringify(entries).includes("secret pupil"));
+    assert.ok(!JSON.stringify(entries).includes("private-db-host"));
+    assert.equal(new RequestFailure("provider").message, "A service is unavailable");
+  } finally { console.error = original; }
+});

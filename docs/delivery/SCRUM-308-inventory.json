@@ -41,8 +41,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Shared private dashboard loader; checked front-desk dependency reads clear protected results, distinguish failure and guard sequence. Browser dashboard and queue recovery verified."
   },
   {
     "file": "src/app/student/fees/page.tsx",
@@ -131,8 +131,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Checked scoped timetable read, typed denied state and latest-request guard. Broader child-switch browser acceptance remains."
   },
   {
     "file": "src/app/teacher-onboarding/page.tsx",
@@ -248,8 +248,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Checked timetable/calendar dependency reads, cleared failures and latest-request guard. Provider recovery verified in Chromium and WebKit."
   },
   {
     "file": "src/app/billing/page.tsx",
@@ -455,8 +455,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "FamilyJourney uses shared checked hook. Trip planner, riders and offline event queue remain audit candidates."
   },
   {
     "file": "src/components/owner/PilotEvidence.tsx",
@@ -473,8 +473,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Checked telemetry read and sequence guard; export disabled during loading/failure. Denied report/export verified in both engines. Policy mutations retain existing domain contract."
   },
   {
     "file": "src/components/owner/SubscriptionRequestReview.tsx",
@@ -518,8 +518,8 @@
     "shared_error": false,
     "access_notice": true,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "MessagesToMe and FamilyCareMessages use shared checked hook. Care pickers, queues and mutation acceptance remain audit candidates."
   },
   {
     "file": "src/components/chat/chat-provider.tsx",
@@ -626,8 +626,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Checked statement read and latest-request guard; clears parent summary on loading/failure. Guardian and learner denied claims verified in both engines."
   },
   {
     "file": "src/components/fees/FeeReportsTab.tsx",
@@ -716,8 +716,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Staff summary/family consent lists use shared checked hook, loading/error/retry. Detail mapping and export mutations require broader audit."
   },
   {
     "file": "src/components/providers/candidate-exam-guard.tsx",
@@ -761,8 +761,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Leave/trip lists and required class selector migrated to shared useFetch; roster failures surface safely. Trip denied/empty recovery verified in both engines."
   },
   {
     "file": "src/components/family/family-digest.tsx",
@@ -770,8 +770,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "GuardianDigest read migrated to shared useFetch; child switch resets digest index. Staff review mutations remain domain-owned, broader acceptance remains."
   },
   {
     "file": "src/components/family/family-requests.tsx",
@@ -932,8 +932,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Optional availability enrichment clears stale data on failed checked reads and guards sequence; existing inline failed indicator retained."
   },
   {
     "file": "src/components/shared-admin/subject-syllabus.tsx",
@@ -1067,8 +1067,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Checked unified calendar read, collection validation, cleared failure and sequence guard; browser provider retry verified."
   },
   {
     "file": "src/components/academic/DatesheetBuilder.tsx",
@@ -1292,8 +1292,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Connection and delivery reads use shared hook, typed failures and filter-preserving retry. Delivery failure/recovery verified in both engines. Worker replay contract unchanged."
   },
   {
     "file": "src/components/students/bulk-import-dialog.tsx",
@@ -1346,8 +1346,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Typed checked read and sequence guard; clear on refresh/failure; existing partial-success warning retained."
   },
   {
     "file": "src/components/parent/parent-components.tsx",
@@ -1364,8 +1364,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Migrated to corrected shared useFetch collection read; loading/error/retry now explicit. Provider recovery verified in both engines."
   },
   {
     "file": "src/components/readiness/ReadinessHome.tsx",
@@ -2273,8 +2273,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Checked reads and writes; no false seen success; same-tick mutation guard; denied clears list; browser rejected-save then recovery verified."
   },
   {
     "file": "src/components/billing/SubscriptionWorkspace.tsx",
@@ -2435,7 +2435,7 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "Both required dependencies checked and validated, failures cleared, sequence guarded. Broader workflow browser acceptance remains."
   }
 ]

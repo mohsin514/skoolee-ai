@@ -1,5 +1,9 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useFetch } from "@/hooks";
+import { checkedJson, readRequest } from "@/lib/http/request-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,9 +40,10 @@ async function send(url: string, method: string, body: Record<string, unknown>) 
 export function LearnerLeaveQueue() {
   const ui = useUiText();
   const { date } = useLocaleFormat();
-  const [rows, setRows] = useState<LeaveRow[] | null>(null), [deciding, setDeciding] = useState<{ row: LeaveRow; action: "approve" | "decline" | "clarify" } | null>(null), [note, setNote] = useState(""), [busy, setBusy] = useState(false);
-  const load = useCallback(async () => { const json = await fetch("/api/attendance/leave", { cache: "no-store" }).then(r => r.json()).catch(() => ({})); setRows(json.success ? json.data : []); }, []);
-  useEffect(() => { void load(); }, [load]);
+  const { data: rows, failure, isLoading, refetch: load } = useFetch<LeaveRow[]>("/api/attendance/leave", {collection:true});
+  const [deciding, setDeciding] = useState<{ row: LeaveRow; action: "approve" | "decline" | "clarify" } | null>(null), [note, setNote] = useState(""), [busy, setBusy] = useState(false);
+  if (isLoading) return <SkeletonList rows={3} label={ui("Loading…")} />;
+  if (failure) return <ErrorState error={failure} onRetry={load} />;
   if (!rows) return null;
   return <div className="sk-panel space-y-3 p-5" data-leave-queue>
     <h3 className="text-base font-bold text-ink-strong">{ui("Learner leave requests ({0})", [String(rows.length)])}</h3>
@@ -60,15 +65,18 @@ const emptyTerms = { title: "", destination: "", departAt: "", returnAt: "", res
 export function TripsDesk() {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [trips, setTrips] = useState<TripRow[] | null>(null), [roster, setRoster] = useState<Roster | null>(null), [editing, setEditing] = useState<{ mode: "create" | "revise"; tripId?: string; knownVersion?: number } | null>(null);
+  const { data: trips, failure, isLoading, refetch: load } = useFetch<TripRow[]>("/api/trips", {collection:true});
+  const classList = useFetch<{ id: string; name: string; section: string | null }[]>("/api/classes", {collection:true});
+  const classes = classList.data ?? [];
+  const [roster, setRoster] = useState<Roster | null>(null), [editing, setEditing] = useState<{ mode: "create" | "revise"; tripId?: string; knownVersion?: number } | null>(null);
   // A new notice starts in the school's own currency, never a hard-coded one (R7).
   const { currency: schoolCurrency } = useLocale();
   const blankTerms: typeof emptyTerms = { ...emptyTerms, costCurrency: schoolCurrency };
-  const [form, setForm] = useState(blankTerms), [classId, setClassId] = useState(""), [classes, setClasses] = useState<{ id: string; name: string; section: string | null }[]>([]), [material, setMaterial] = useState(true), [changeNote, setChangeNote] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const load = useCallback(async () => { const json = await fetch("/api/trips", { cache: "no-store" }).then(r => r.json()).catch(() => ({})); setTrips(json.success ? json.data : []); }, []);
-  const openRoster = async (id: string) => { const json = await fetch(`/api/trips?id=${id}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({})); if (json.success) setRoster(json.data); };
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void fetch("/api/classes", { cache: "no-store" }).then(r => r.json()).then(json => { if (json.success && Array.isArray(json.data)) setClasses(json.data); }).catch(() => undefined); }, []);
+  const [form, setForm] = useState(blankTerms), [classId, setClassId] = useState(""), [material, setMaterial] = useState(true), [changeNote, setChangeNote] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const openRoster = async (id: string) => {
+    try { const json = await checkedJson(await readRequest(`/api/trips?id=${encodeURIComponent(id)}`)); setRoster(json.data); }
+    catch (failure) { setRoster(null); toast.error(failure); }
+  };
   const set = (k: keyof typeof emptyTerms) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   const save = async () => {
     setBusy(true); setError("");
@@ -79,6 +87,8 @@ export function TripsDesk() {
       toast.success(ui("Trip notice published")); setEditing(null); void load(); if (editing?.tripId) void openRoster(editing.tripId);
     } catch (e) { setError(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); }
   };
+  if (isLoading || classList.isLoading) return <SkeletonList rows={3} label={ui("Loading…")} />;
+  if (failure || classList.failure) return <ErrorState error={failure ?? classList.failure} onRetry={() => Promise.all([load(), classList.refetch()])} />;
   if (!trips) return null;
   return <div className="sk-panel space-y-3 p-5" data-trips-desk>
     <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Trips and permission")}</h3><Button size="sm" variant="outline" onClick={() => { setForm(blankTerms); setEditing({ mode: "create" }); }} data-new-trip>{ui("New trip notice")}</Button></div>

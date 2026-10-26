@@ -1,66 +1,47 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { ApiResponse } from "@/types";
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { ONLINE_RESTORED_EVENT } from "@/lib/network/connection";
 
 interface UseFetchOptions {
   immediate?: boolean;
+  collection?: boolean;
 }
 
 /**
  * Generic fetch hook with loading/error state management.
  */
 export function useFetch<T>(url: string, options?: UseFetchOptions) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<{ url: string; data: T | null; failure: RequestFailure | null; loading: boolean }>({ url, data: null, failure: null, loading: options?.immediate !== false });
   const abortRef = useRef<AbortController | null>(null);
-
+  const sequence = useRef(0);
+  const collection = options?.collection === true;
   const fetchData = useCallback(async () => {
+    const request = ++sequence.current;
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
-
-    setIsLoading(true);
-    setError(null);
-
+    const controller = new AbortController(); abortRef.current = controller;
+    setResult({ url, data: null, failure: null, loading: true });
     try {
-      const res = await fetch(url, {
-        signal: abortRef.current.signal,
-      });
-      const json: ApiResponse<T> = await res.json();
-
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || `Request failed (${res.status})`);
-      }
-
-      setData(json.data ?? null);
-    } catch (err) {
-      if (err instanceof Error && err.name !== "AbortError") {
-        setError(err.message);
-      }
-    } finally {
-      setIsLoading(false);
+      const json = await checkedJson(await readRequest(url, controller.signal));
+      if (collection && !Array.isArray(json.data)) throw new RequestFailure("server");
+      if (request === sequence.current) setResult({ url, data: json.data ?? null, failure: null, loading: false });
+    } catch (error) {
+      if (request === sequence.current && !controller.signal.aborted) setResult({ url, data: null, failure: requestFailure(error), loading: false });
     }
-  }, [url]);
-
+  }, [url, collection]);
   useEffect(() => {
-    if (options?.immediate !== false) {
-      fetchData();
-    }
-    return () => abortRef.current?.abort();
+    if (options?.immediate !== false) void fetchData();
+    return () => { sequence.current++; abortRef.current?.abort(); };
   }, [fetchData, options?.immediate]);
-
-  // Anything that failed while the connection was down gets one free
-  // retry the moment it returns, so the screen heals itself instead of
-  // stranding the user on a stale error.
   useEffect(() => {
-    const onRestored = () => fetchData();
+    if (options?.immediate === false) return;
+    const onRestored = () => void fetchData();
     window.addEventListener(ONLINE_RESTORED_EVENT, onRestored);
     return () => window.removeEventListener(ONLINE_RESTORED_EVENT, onRestored);
-  }, [fetchData]);
-
-  return { data, error, isLoading, refetch: fetchData };
+  }, [fetchData, options?.immediate]);
+  const current = result.url === url ? result : { data: null, failure: null, loading: options?.immediate !== false };
+  return { data: current.data, error: current.failure?.message ?? null, failure: current.failure, isLoading: current.loading, refetch: fetchData };
 }
 
 /**

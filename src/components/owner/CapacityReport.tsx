@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,13 +98,25 @@ function PolicyForm({ data, onDone }: { data: Report; onDone: () => void }) {
 export function CapacityReport() {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [data, setData] = useState<Report | null>(null), [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<Report | null>(null), [error, setError] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<string | null>(null), [failingOnly, setFailingOnly] = useState(false), [changing, setChanging] = useState(false), [reverting, setReverting] = useState<Policy | null>(null), [revertBusy, setRevertBusy] = useState(false);
-  const load = useCallback(async () => { try { setData(await call("/api/owner/capacity")); setError(null); } catch (e) { setError(e instanceof Error ? e.message : "Unavailable"); } }, []);
-  useEffect(() => { void load(); }, [load]);
+  const load = useCallback(async () => {
+    const version = ++sequence.current;
+    setLoading(true); setError(null);
+    try {
+      const json = await checkedJson(await readRequest("/api/owner/capacity"));
+      if (version !== sequence.current) return;
+      if (!Array.isArray(json.data?.runs) || !Array.isArray(json.data?.requests?.classes) || !Array.isArray(json.data?.policy?.active)) throw new RequestFailure("server");
+      setData(json.data);
+    } catch (failure) { if (version === sequence.current) { setData(null); setError(requestFailure(failure)); } }
+    finally { if (version === sequence.current) setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
   // §4.4b: a monitoring screen — no primary action; Export and Refresh are its secondaries.
   const exportReport = () => {
-    if (!data) return;
+    if (!data || loading || error) return;
     const cell = (value: unknown) => { const raw = value == null ? "" : String(value); const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw; return /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe; };
     const rows = [["section", "name", "detail", "passed_or_state", "measured_at"],
       ...data.runs.map(r => ["release run", r.runId, `${r.profile} · ${r.release} · ${r.environment}`, r.passed ? "passed" : "failed", r.finishedAt]),
@@ -114,11 +127,11 @@ export function CapacityReport() {
   };
   const header = <PageHeader eyebrow="Platform operations" title="Capacity" icon={Gauge}
     description="Capacity and tenant fairness: synthetic benchmarks and live measurements. Values here are not capacity claims."
-    secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: exportReport, disabled: !data }, { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void load() }]} />;
+    secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: exportReport, disabled: !data || loading || !!error }, { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void load() }]} />;
   // The scrolling body of the shell's one page card (addendum 2026-10-22).
   const body = cn("custom-scrollbar min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY);
-  if (error) return <div className={body} data-capacity-error>{header}<div className="sk-panel"><ErrorState title={ui("Telemetry is unavailable; do not infer healthy service.")} description={ui(error)} onRetry={() => load()} /></div></div>;
-  if (!data) return <div className={body}>{header}<SkeletonCards count={3} label={ui("Loading measured telemetry…")} /></div>;
+  if (error) return <div className={body} data-capacity-error>{header}<div className="sk-panel"><ErrorState title={ui("Telemetry is unavailable; do not infer healthy service.")} error={error} onRetry={() => load()} /></div></div>;
+  if (loading || !data) return <div className={body}>{header}<SkeletonCards count={3} label={ui("Loading measured telemetry…")} /></div>;
   // §8.1 R3: reverting a policy is confirmed with a typed reason (it changes what every school may run).
   const revert = async (reason?: string) => {
     if (!reverting || !reason) return;

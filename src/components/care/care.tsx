@@ -1,4 +1,6 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+import { useFetch } from "@/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -478,9 +480,10 @@ function CareSettings() {
 function MessagesToMe({ family = false }: { family?: boolean }) {
   const ui = useUiText();
   const { dateTime } = useLocaleFormat();
-  const [rows, setRows] = useState<{ id: string; purpose: string; content: string; releasedAt: string }[]>([]);
-  useEffect(() => { call(family ? "/api/family/care-messages" : "/api/care?view=messages").then(setRows).catch(() => setRows([])); }, [family]);
-  if (!rows.length) return null;
+  const { data: rows, failure, isLoading, refetch } = useFetch<{ id: string; purpose: string; content: string; releasedAt: string }[]>(family ? "/api/family/care-messages" : "/api/care?view=messages", {collection:true});
+  if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
+  if (failure) return <ErrorState error={failure} onRetry={refetch} />;
+  if (!rows?.length) return null;
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-care-messages>
     <h2 className="text-base font-bold text-ink-strong">{ui("Messages from the school")}</h2>
     <ul className="space-y-2">{rows.map(r => <li key={r.id} className="rounded-xl border px-3 py-2 text-sm" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
