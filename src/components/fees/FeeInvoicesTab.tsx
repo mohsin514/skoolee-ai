@@ -28,6 +28,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { downloadPdfFile } from "@/lib/download";
@@ -93,9 +94,9 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
   const [loadingDetail, setLoadingDetail] = useState(false);
   // The invoice the drawer is showing; a failed load stays in the drawer with a retry (R4: never a toast).
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [detailFailed, setDetailFailed] = useState(false);
+  const [detailFailed, setDetailFailed] = useState<RequestFailure | null>(null);
   const [showGenerate, setShowGenerate] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
 
   const qp = campusId ? `campusId=${encodeURIComponent(campusId)}` : "";
 
@@ -103,7 +104,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
   const loadInvoices = useCallback(async () => {
     const version = ++requestVersion.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
       const params = new URLSearchParams();
       if (campusId) params.set("campusId", campusId);
@@ -114,20 +115,20 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
       params.set("page", String(page));
       params.set("pageSize", "20");
 
-      const res = await fetch(`${API}/invoices?${params}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/invoices?${params}`);
+      const json = await checkedJson(res);
       if (version !== requestVersion.current) return;
       if (res.ok && json.success) {
         setInvoices(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
       } else {
-        setLoadFailed(true);
+        setLoadFailed(requestFailure(new Error()));
       }
-    } catch {
+    } catch (error) {
       if (version !== requestVersion.current) return;
       // Load failures are shown in place with a retry (role-ux R4), never as a toast.
-      setLoadFailed(true);
+      setInvoices([]); setTotal(0); setLoadFailed(requestFailure(error));
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
@@ -155,7 +156,6 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("invoice");
     if (id) void viewDetail(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = () => {
@@ -168,17 +168,17 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
     const version = ++detailVersion.current;
     setDetailInvoice(null);
     setDetailId(id);
-    setDetailFailed(false);
+    setDetailFailed(null);
     setShowDetail(true);
     setLoadingDetail(true);
     try {
-      const res = await fetch(`${API}/invoices/${id}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/invoices/${id}`);
+      const json = await checkedJson(res);
       if (version !== detailVersion.current) return;
       if (res.ok && json.success) setDetailInvoice(json.data);
-      else setDetailFailed(true);
-    } catch {
-      if (version === detailVersion.current) setDetailFailed(true);
+      else setDetailFailed(requestFailure(new Error()));
+    } catch (error) {
+      if (version === detailVersion.current) setDetailFailed(requestFailure(error));
     } finally {
       if (version === detailVersion.current) setLoadingDetail(false);
     }
@@ -301,6 +301,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
         <SkeletonTable rows={6} columns={7} label={tr("Loading invoices…")} />
       ) : loadFailed ? (
         <ErrorState
+          error={loadFailed}
           title={tr("Invoices could not be loaded")}
           description={tr("Check your connection and try again.")}
           onRetry={() => void loadInvoices()}
@@ -388,7 +389,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
           loading={loadingDetail}
           failed={detailFailed}
           onRetry={() => { if (detailId) void viewDetail(detailId); }}
-          onClose={() => { setShowDetail(false); setDetailInvoice(null); setDetailFailed(false); }}
+          onClose={() => { setShowDetail(false); setDetailInvoice(null); setDetailFailed(null); }}
           onStatusChange={handleStatusChange}
         />
       )}
@@ -409,7 +410,7 @@ function InvoiceDetailModal({
   invoice: inv,
   readOnly = false,
   loading,
-  failed = false,
+  failed = null,
   onRetry,
   onClose,
   onStatusChange,
@@ -417,7 +418,7 @@ function InvoiceDetailModal({
   invoice: any;
   readOnly?: boolean;
   loading: boolean;
-  failed?: boolean;
+  failed?: RequestFailure | null;
   onRetry?: () => void;
   onClose: () => void;
   onStatusChange: (id: string, status: "OVERDUE" | "CANCELLED") => void;
@@ -474,6 +475,7 @@ function InvoiceDetailModal({
 
         {failed && !loading ? (
           <ErrorState
+            error={failed}
             title={tr("This invoice could not be loaded")}
             description={tr("Check your connection and try again.")}
             onRetry={onRetry}

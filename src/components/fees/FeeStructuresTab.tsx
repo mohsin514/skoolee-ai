@@ -8,7 +8,7 @@ import { getFinancialLocale } from "@/app/actions/locale";
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   Archive,
   BookOpen,
@@ -25,6 +25,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal } from "@/components/ui/modal";
 import { Menu } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SectionPicker, UiSentence } from "@/components/operations/console-page";
 import { TypesPanel, GroupsPanel, MasterPanel, AssignPanel, DiscountsPanel, CarryPanel, FineRulesPanel } from "./FeeLayersTab";
@@ -110,27 +111,31 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeStructure | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const loadData = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
       const [sRes, cRes] = await Promise.all([
-        fetch(`${API}/structure${qp}`),
-        fetch(`/api/classes${qp}`),
+        readRequest(`${API}/structure${qp}`),
+        readRequest(`/api/classes${qp}`),
       ]);
-      const sJson = await sRes.json();
-      const cJson = await cRes.json();
+      const sJson = await checkedJson(sRes);
+      const cJson = await checkedJson(cRes);
+      if (loadVersion !== loadSequence.current) return;
       if (sJson.success) setStructures(sJson.data);
-      else setLoadFailed(true);
+      else throw new Error("Invalid result");
       if (cJson.success) setClasses(cJson.data);
-    } catch {
-      setLoadFailed(true);
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
@@ -194,7 +199,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
   }
 
   if (loadFailed) {
-    return <ErrorState title={tr("Fee structures could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void loadData()} />;
+    return <ErrorState error={loadFailed} title={tr("Fee structures could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void loadData()} />;
   }
 
   return (

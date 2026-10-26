@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { CalendarOff } from "lucide-react";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 
@@ -39,14 +40,18 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
   const [rows, setRows] = useState<Leave[] | null>(null), [open, setOpen] = useState(false), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ fromDate: "", toDate: "", reason: "" }), [reply, setReply] = useState<Record<string, string>>({});
   const [cancelling, setCancelling] = useState<Leave | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
   // R4: a failed read is an inline error with retry — never shown as "no leave requested".
   const load = useCallback(async () => {
-    setLoadFailed(false);
-    const json = await fetch(`/api/family/leave?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({}));
-    if (json.success) setRows(json.data); else setLoadFailed(true);
+    const version = ++sequence.current;
+    setLoadFailed(null);
+    try {
+      const json = await checkedJson(await readRequest(`/api/family/leave?studentId=${encodeURIComponent(studentId)}`));
+      if (version === sequence.current) setRows(json.data);
+    } catch (failure) { if (version === sequence.current) { setRows(null); setLoadFailed(requestFailure(failure)); } }
   }, [studentId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
   // G6: open only for a press made while this panel is mounted. The page keeps its counter across a child switch
   // (which remounts this panel), so the value present at mount is treated as already handled.
   const handledSignal = useRef(requestSignal);
@@ -66,7 +71,7 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
   };
   if (!rows) return <section className="sk-panel space-y-3 p-5" data-guardian-leave aria-busy={!loadFailed}>
     <h3 className="text-base font-bold text-ink-strong">{ui("Leave requests")}</h3>
-    {loadFailed ? <ErrorState title={ui("Leave requests could not be loaded.")} onRetry={load} retryLabel={ui("Try again")} /> : <SkeletonList rows={2} label={ui("Loading leave requests…")} />}
+    {loadFailed ? <ErrorState error={loadFailed} title={ui("Leave requests could not be loaded.")} onRetry={load} retryLabel={ui("Try again")} /> : <SkeletonList rows={2} label={ui("Loading leave requests…")} />}
   </section>;
   return <section className="sk-panel space-y-3 p-5" data-guardian-leave>
     <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Leave requests")}</h3>{!hideRequestButton ? <Button size="sm" variant="outline" onClick={() => { setOpen(true); setError(""); }} data-request-leave>{ui("Request leave")}</Button> : null}</div>
@@ -108,8 +113,17 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
   const { dateTime } = useLocaleFormat();
   const { language } = useLocale();
   const [rows, setRows] = useState<Trip[] | null>(null), [review, setReview] = useState<{ trip: Trip; choice: "GRANTED" | "DECLINED" | "WITHDRAWN"; key: string } | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false), [receipt, setReceipt] = useState<string | null>(null);
-  const load = useCallback(async () => { const json = await fetch(`/api/family/trips?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" }).then(r => r.json()).catch(() => ({})); setRows(json.success ? json.data : []); }, [studentId]);
-  useEffect(() => { void load(); }, [load]);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
+  const load = useCallback(async () => {
+    const version = ++sequence.current;
+    setLoadFailed(null);
+    try {
+      const json = await checkedJson(await readRequest(`/api/family/trips?studentId=${encodeURIComponent(studentId)}`));
+      if (version === sequence.current) setRows(json.data);
+    } catch (failure) { if (version === sequence.current) { setRows(null); setLoadFailed(requestFailure(failure)); } }
+  }, [studentId]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
   const money = (amount: number, currency: string) => new Intl.NumberFormat(language === "ar" ? "ar" : language === "ur" ? "ur" : "en", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
   const confirm = async () => {
     if (!review) return;
@@ -121,7 +135,10 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
       setReceipt(json.data.receiptCode); setReview(null); void load();
     } finally { setBusy(false); }
   };
-  if (!rows || !rows.length) return null;
+  if (loadFailed) return <section className="sk-panel p-5" data-guardian-trips><ErrorState error={loadFailed} onRetry={load} /></section>;
+  if (!rows) return <SkeletonList rows={2} label={ui("Loading…")} />;
+  if (!rows.length) return null; // No current trip notices is an intentional compact-dashboard omission.
+
   return <section className="sk-panel space-y-3 p-5" data-guardian-trips>
     <h3 className="text-base font-bold text-ink-strong">{ui("Trips and permissions")}</h3>
     {receipt ? <Alert tone="success" compact live="polite" data-trip-receipt={receipt}>{ui("Your answer is recorded. Receipt {0}.", [receipt])}</Alert> : null}

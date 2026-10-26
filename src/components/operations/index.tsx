@@ -2,7 +2,7 @@
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Bus,
   Building2,
@@ -70,6 +70,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
@@ -95,7 +96,7 @@ const TXN_KIND_LABEL: Record<string, string> = { RECEIVE: "Received", SELL: "Sol
 const TXN_KIND_OPTION: Record<string, string> = { RECEIVE: "Receive", SELL: "Sell", ISSUE: "Issue", RETURN: "Return" };
 const VEHICLE_MODEL_LABEL: Record<string, string> = { BUS: "Bus", VAN: "Van", CAR: "Car", OTHER: "Other" };
 
-function EmptyRow({ cols, text, hint, state, onRetry }: { cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
+function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false }: { filtered?: boolean; failure?: RequestFailure | null; cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
   const ui = useUiText();
   return (
     <tr>
@@ -104,12 +105,13 @@ function EmptyRow({ cols, text, hint, state, onRetry }: { cols: number; text?: s
           <SkeletonTable rows={3} columns={Math.min(cols, 5)} />
         ) : state === "error" ? (
           <ErrorState
+            error={failure}
             title={ui("These records could not be loaded")}
             description={ui("Check your connection, then try again.")}
             onRetry={onRetry}
           />
         ) : (
-          <EmptyState size="sm" title={ui(text ?? "Nothing here yet")} description={hint ? ui(hint) : undefined} />
+          <div data-resource-state={filtered ? "no-match" : "no-data"}><EmptyState size="sm" title={ui(filtered ? "No matching records" : text ?? "Nothing here yet")} description={filtered ? ui("Change or clear your search to see more records.") : hint ? ui(hint) : ui("Use the available add action to create your first record.")} /></div>
         )}
       </td>
     </tr>
@@ -305,19 +307,21 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
   const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const r = await fetch("/api/transport/routes");
-      const j = await r.json();
-      if (j.success) setRows(j.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+      const r = await readRequest("/api/transport/routes");
+      const j = await checkedJson(r);
+      if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Field names match TransportRoute exactly, and the schema converts the
   // rupees typed here into the paisa the column stores.
@@ -373,7 +377,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.title}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
@@ -393,19 +397,21 @@ function VehiclesTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const r = await fetch("/api/transport/vehicles");
-      const j = await r.json();
-      if (j.success) setRows(j.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+      const r = await readRequest("/api/transport/vehicles");
+      const j = await checkedJson(r);
+      if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The column is `model`. This form posted `type`, which the route never read,
   // so the bus/van choice was discarded on save and the Type column below
@@ -467,7 +473,7 @@ function VehiclesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
               <tr key={v.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{v.number}</td>
                 <td className={tdCls}>{v.model ? ui(VEHICLE_MODEL_LABEL[v.model] ?? v.model) : "—"}</td>
@@ -532,15 +538,17 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
-    try { const r = await fetch("/api/dormitory/room-types"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/dormitory/room-types"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // costPerTerm reaches the API in paisa, matching invoices, fees and transport
   // fares — the schema applies the conversion so no call site can double it.
@@ -584,7 +592,7 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
@@ -605,20 +613,22 @@ function DormRoomsTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [rr, tr] = await Promise.all([fetch("/api/dormitory/rooms"), fetch("/api/dormitory/room-types")]);
-      const [rj, tj] = await Promise.all([rr.json(), tr.json()]);
-      if (rj.success) setRows(rj.data || []);
+      const [rr, tr] = await Promise.all([readRequest("/api/dormitory/rooms"), readRequest("/api/dormitory/room-types")]);
+      const [rj, tj] = await Promise.all([checkedJson(rr), checkedJson(tr)]);
+      if (version !== loadSequence.current) return; if (rj.success) setRows(rj.data || []);
       if (tj.success) setTypes(tj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The column is `number`; this form posted `roomNumber`, so every save was
   // rejected with "number is required" and the table below read a field that
@@ -665,7 +675,7 @@ function DormRoomsTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.number}</td>
                 <td className={tdCls}>{r.roomType?.name || "—"}</td>
@@ -741,16 +751,18 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   usePanelCommand(command, { "add-category": () => setShowAdd(true) });
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
-    try { const r = await fetch("/api/library/categories"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/library/categories"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // BookCategory has only a name. The old `description` lived in state, had no
   // input bound to it, and was rendered in a table column that could never be
@@ -787,7 +799,7 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Titles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r._count?.books ?? 0}</td>
@@ -805,23 +817,25 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
       const q = search ? `?search=${encodeURIComponent(search)}` : "";
-      const [br, cr] = await Promise.all([fetch(`/api/library/books${q}`), fetch("/api/library/categories")]);
-      const [bj, cj] = await Promise.all([br.json(), cr.json()]);
-      if (bj.success) setRows(bj.data || []);
+      const [br, cr] = await Promise.all([readRequest(`/api/library/books${q}`), readRequest("/api/library/categories")]);
+      const [bj, cj] = await Promise.all([checkedJson(br), checkedJson(cr)]);
+      if (version !== loadSequence.current) return; if (bj.success) setRows(bj.data || []);
       if (cj.success) setCats(cj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, [search]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The column is `copiesTotal`. This form sent `totalCopies`, so the route
   // read `undefined`, failed its own `Number.isFinite` check, and rejected
@@ -880,7 +894,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} text="No books yet" /> : rows.map((b: any) => (
+            {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} filtered={Boolean(search)} text="No books yet" /> : rows.map((b: any) => (
               <tr key={b.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{b.title}</td>
                 <td className={tdCls}>{b.author || "—"}</td>
@@ -983,16 +997,18 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   usePanelCommand(command, { "add-member": () => setShowAdd(true) });
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
-    try { const r = await fetch("/api/library/members"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/library/members"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // LibraryMember is (userId, memberNo). The old form posted `membershipType`,
   // which is not a column, and never posted `memberNo`, which the route
@@ -1032,7 +1048,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
+            {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
               <tr key={m.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{m.user?.fullName || m.userId}</td>
                 <td className={tdCls}>{m.memberNo || "—"}</td>
@@ -1051,22 +1067,24 @@ function IssuesTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [ir, br, mr] = await Promise.all([fetch("/api/library/issues"), fetch("/api/library/books"), fetch("/api/library/members")]);
-      const [ij, bj, mj] = await Promise.all([ir.json(), br.json(), mr.json()]);
-      if (ij.success) setRows(ij.data || []);
+      const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), readRequest("/api/library/books"), readRequest("/api/library/members")]);
+      const [ij, bj, mj] = await Promise.all([checkedJson(ir), checkedJson(br), checkedJson(mr)]);
+      if (version !== loadSequence.current) return; if (ij.success) setRows(ij.data || []);
       if (bj.success) setBooks(bj.data || []);
       if (mj.success) setMembers(mj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The route reads `dueAt`; this form sent `dueDate`, so the librarian's
   // chosen return date was dropped and every loan silently took the default.
@@ -1120,7 +1138,7 @@ function IssuesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
               <tr key={i.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{i.book?.title || i.bookId}</td>
                 <td className={tdCls}>{i.member?.user?.fullName || i.memberId}</td>
@@ -1187,12 +1205,14 @@ function ItemCategoriesTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); setLoadFailed(false); try { const r = await fetch("/api/inventory/categories"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/categories"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemCategory holds only a name. The old `description` had no input bound
   // to it and no column behind the table cell that rendered it.
@@ -1225,7 +1245,7 @@ function ItemCategoriesTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r._count?.items ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
@@ -1242,12 +1262,14 @@ function StoresTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); setLoadFailed(false); try { const r = await fetch("/api/inventory/stores"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/stores"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemStore has no `location` column — whatever was typed into that input
   // was discarded on save, and the table column could never fill in.
@@ -1280,7 +1302,7 @@ function StoresTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
@@ -1297,12 +1319,14 @@ function SuppliersTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); setLoadFailed(false); try { const r = await fetch("/api/inventory/suppliers"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/suppliers"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Supplier has no `contactName` column, so that input never persisted.
   // `address` does exist and now has an input rather than only living in state.
@@ -1344,7 +1368,7 @@ function SuppliersTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.phone || "—"}</td><td className={tdCls}>{r.email || "—"}</td><td className={tdCls}>{r.address || "—"}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
@@ -1361,23 +1385,25 @@ function ItemsTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
       const q = search ? `?search=${encodeURIComponent(search)}` : "";
-      const [ir, cr] = await Promise.all([fetch(`/api/inventory/items${q}`), fetch("/api/inventory/categories")]);
-      const [ij, cj] = await Promise.all([ir.json(), cr.json()]);
-      if (ij.success) setRows(ij.data || []);
+      const [ir, cr] = await Promise.all([readRequest(`/api/inventory/items${q}`), readRequest("/api/inventory/categories")]);
+      const [ij, cj] = await Promise.all([checkedJson(ir), checkedJson(cr)]);
+      if (version !== loadSequence.current) return; if (ij.success) setRows(ij.data || []);
       if (cj.success) setCats(cj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, [search]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Item is (name, unit, categoryId). `description` had no input and no column.
   const form = useValidatedForm({
@@ -1418,7 +1444,7 @@ function ItemsTab() {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No items" /> : rows.map((r: any) => {
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} filtered={Boolean(search)} text="No items" /> : rows.map((r: any) => {
               const totalStock = (r.stock || []).reduce((s: number, st: any) => s + (st.quantity || 0), 0);
               return (
                 <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -1439,24 +1465,26 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
   const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [tr, ir, sr, spr] = await Promise.all([fetch("/api/inventory/transactions"), fetch("/api/inventory/items"), fetch("/api/inventory/stores"), fetch("/api/inventory/suppliers")]);
-      const [tj, ij, sj, spj] = await Promise.all([tr.json(), ir.json(), sr.json(), spr.json()]);
-      if (tj.success) setRows(tj.data || []);
+      const [tr, ir, sr, spr] = await Promise.all([readRequest("/api/inventory/transactions"), readRequest("/api/inventory/items"), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
+      const [tj, ij, sj, spj] = await Promise.all([checkedJson(tr), checkedJson(ir), checkedJson(sr), checkedJson(spr)]);
+      if (version !== loadSequence.current) return; if (tj.success) setRows(tj.data || []);
       if (ij.success) setItems(ij.data || []);
       if (sj.success) setStores(sj.data || []);
       if (spj.success) setSuppliers(spj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const form = useValidatedForm({
     schema: itemTransactionFormSchema,
@@ -1507,7 +1535,7 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
+            {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
               <tr key={t.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
                 <td className={tdCls}><Badge size="sm" dot variant={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{ui(TXN_KIND_LABEL[t.kind] ?? t.kind)}</Badge></td>
