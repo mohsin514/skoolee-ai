@@ -209,7 +209,7 @@ async function viewSlots(user: AuthUser, tx: TxClient, rows: SlotRow[], today: s
         const latest = latestModeration.get(row.id);
         if (!latest || !record) return null;
         const current = hashOf(record.data);
-        return { decision: latest.decision as "SIGNED" | "RETURNED", paperVersion: current && current === latest.contentHash ? record.version : latest.paperVersion };
+        return { decision: latest.decision as "SIGNED" | "RETURNED", paperVersion: latest.decision === "SIGNED" && current && current === latest.contentHash ? record.version : latest.paperVersion };
       })(),
       seal: row.sealedAt ? { paperVersion: row.paperVersion ?? 0, sittingDate: ymd(row.sealedSittingDate) } : null,
       sittingDates: dates, printed: Boolean(row.printedAt), windowOpen: false, ...completion,

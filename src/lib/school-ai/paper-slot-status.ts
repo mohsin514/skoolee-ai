@@ -58,7 +58,11 @@ export function deriveSlotStatus(facts: SlotFacts): PaperSlotStatus {
   }
   if (!paper) return "REQUESTED";
   if (facts.moderation) {
-    if (paper.version > facts.moderation.paperVersion) return "CHANGED_AFTER_APPROVAL";
+    if (paper.version > facts.moderation.paperVersion) {
+      const rechecked = paper.itemStates.length > 0 && paper.itemStates.every(state => state === "READY_FOR_REVIEW" || state === "APPROVED");
+      if (paper.status === "IN_REVIEW" && rechecked) return "READY_FOR_REVIEW";
+      return facts.moderation.decision === "RETURNED" ? "NEEDS_CORRECTION" : "CHANGED_AFTER_APPROVAL";
+    }
     if (facts.moderation.decision === "RETURNED") return "NEEDS_CORRECTION";
     return paper.status === "APPROVED" ? "APPROVED" : "MODERATED";
   }

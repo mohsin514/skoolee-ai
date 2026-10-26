@@ -23,7 +23,7 @@ export async function studioNextStep(user: AuthUser, now = new Date()): Promise<
     // syllabus drafts that cite an uploaded file (the classroom tier lets them approve those).
     const approvals = await tx.schoolAiRecord.findMany({
       where: manager ? { schoolId: user.schoolId, ...campus, kind: { in: ["CURRICULUM", "PAPER"] }, status: "IN_REVIEW" }
-        : members.length ? { schoolId: user.schoolId, ...campus, kind: "CURRICULUM", status: "IN_REVIEW", createdById: { in: members } }
+        : members.length ? { schoolId: user.schoolId, ...campus, kind: { in: ["SOURCE", "CURRICULUM"] }, status: "IN_REVIEW", createdById: { in: members } }
         : { schoolId: user.schoolId, ...campus, kind: "CURRICULUM", status: "DRAFT", createdById: user.userId, data: { path: ["approvalBundle"], not: { equals: null } } },
       select: { id: true, kind: true, title: true }, orderBy: { updatedAt: "asc" }, take: 20,
     });
@@ -39,16 +39,18 @@ export async function studioNextStep(user: AuthUser, now = new Date()): Promise<
       const subjects = await getAssignedWorkspaceSubjects(user, tx);
       hasApprovedCurriculum = subjects.length > 0 && Boolean(await tx.schoolAiRecord.findFirst({ where: { schoolId: user.schoolId, ...campus, kind: "CURRICULUM", status: "APPROVED", subjectId: { in: subjects.map(subject => subject.id) } }, select: { id: true } }));
     } else hasApprovedCurriculum = Boolean(await tx.schoolAiRecord.findFirst({ where: { schoolId: user.schoolId, ...campus, kind: "CURRICULUM", status: "APPROVED" }, select: { id: true } }));
-    return { approvals, itemsToReview, sittings, hasApprovedCurriculum };
+    return { approvals, itemsToReview, sittings, hasApprovedCurriculum, departmentApprovals: members.length > 0 };
   });
   const input: NextStepInput = {
     today, saveFailed: false, blockingRehearsals: [],
     mySlots: slots.slots.filter(slot => slot.authorUserId === user.userId).map(slot => ({ id: slot.id, title: label(slot), status: slot.status, dueOn: slot.dueOn })),
     toModerate: slots.slots.filter(slot => slot.moderatorUserId === user.userId && slot.status === "READY_FOR_REVIEW").map(slot => ({ id: slot.id, title: label(slot), dueOn: slot.dueOn })),
-    toApprove: facts.approvals.map(row => ({ id: row.id, kind: row.kind as "CURRICULUM" | "PAPER", title: row.title })),
+    toApprove: facts.approvals.map(row => ({ id: row.id, kind: row.kind as "SOURCE" | "CURRICULUM" | "PAPER", title: row.title })),
     itemsToReview: facts.itemsToReview, openSittings: facts.sittings, releasedWithoutNextLesson: [],
     hasApprovedCurriculum: facts.hasApprovedCurriculum,
   };
   const step = nextStudioStep(input);
-  return { step, href: nextStepHref(step), facts: { slotsOwed: input.mySlots.length, toApprove: input.toApprove.length, toModerate: input.toModerate.length } };
+  const href = user.role === "TEACHER" && step.kind === "MODERATE" ? "/teacher#moderation-queue"
+    : facts.departmentApprovals && step.kind === "APPROVE" ? "/teacher#department-queue" : nextStepHref(step);
+  return { step, href, facts: { slotsOwed: input.mySlots.length, toApprove: input.toApprove.length, toModerate: input.toModerate.length } };
 }

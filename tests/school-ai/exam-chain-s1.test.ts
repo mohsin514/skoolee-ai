@@ -116,6 +116,10 @@ test("slot status is derived from the linked records, every word", () => {
   assert.equal(deriveSlotStatus(facts({ paper: paper("DRAFT", ["APPROVED"]), moderation: { decision: "SIGNED", paperVersion: 3 } })), "MODERATED");
   assert.equal(deriveSlotStatus(facts({ paper: paper("DRAFT", ["APPROVED"], 4), moderation: { decision: "SIGNED", paperVersion: 3 } })), "CHANGED_AFTER_APPROVAL");
   assert.equal(deriveSlotStatus(facts({ paper: paper("DRAFT", ["APPROVED"]), moderation: { decision: "RETURNED", paperVersion: 3 } })), "NEEDS_CORRECTION");
+  assert.equal(deriveSlotStatus(facts({ paper: paper("DRAFT", ["READY_FOR_REVIEW"], 4), moderation: { decision: "RETURNED", paperVersion: 3 } })), "NEEDS_CORRECTION", "rechecks alone do not resubmit a returned paper");
+  assert.equal(deriveSlotStatus(facts({ paper: paper("IN_REVIEW", ["READY_FOR_REVIEW"], 4), moderation: { decision: "RETURNED", paperVersion: 3 } })), "READY_FOR_REVIEW", "a corrected and resubmitted paper reaches its moderator again");
+  assert.equal(deriveSlotStatus(facts({ paper: paper("IN_REVIEW", ["NEEDS_CORRECTION"], 4), moderation: { decision: "RETURNED", paperVersion: 3 } })), "NEEDS_CORRECTION", "unresolved item checks cannot re-enter moderation");
+  assert.equal(deriveSlotStatus(facts({ paper: paper("IN_REVIEW", ["READY_FOR_REVIEW"], 4), moderation: { decision: "SIGNED", paperVersion: 3 } })), "READY_FOR_REVIEW", "an edited signed paper must be moderated again after resubmission");
   const sealed = { paper: paper("APPROVED", ["APPROVED"]), seal: { paperVersion: 3, sittingDate: "2026-11-15" } };
   assert.equal(deriveSlotStatus(facts(sealed)), "SEALED");
   assert.equal(deriveSlotStatus(facts({ ...sealed, printed: true })), "PRINTED");

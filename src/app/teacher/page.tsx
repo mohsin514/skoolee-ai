@@ -1,4 +1,5 @@
 "use client";
+import { DepartmentAppeals } from "@/components/school-ai/exam-studio/department-appeals";
 
 import { schoolClock } from "@/lib/timetable/school-clock";
 import { Badge } from "@/components/ui/badge";
@@ -200,6 +201,7 @@ export default function TeacherToday() {
         <DepartmentQueue />
         {/* SKO-501: papers waiting for this person's moderation. */}
         <ModerationQueue />
+        <DepartmentAppeals />
         {/* SKO-500: papers the exam office asked this teacher to write (renders nothing when none are owed). */}
         <PapersOwed />
         {/* ── What needs you, before anything else (the one queue) ── */}

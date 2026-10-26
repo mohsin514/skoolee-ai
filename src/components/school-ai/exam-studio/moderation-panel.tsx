@@ -23,7 +23,7 @@ import { Isolated } from "./space-state";
  */
 type View = {
   slot: { subjectName: string; gradeName: string };
-  paperVersion: number; contentHashPrefix: string | null; canDecide: boolean;
+  paperVersion: number; contentHashPrefix: string | null; canDecide: boolean; canSeal: boolean; sealedAt: string | null;
   report: ConformanceCheck[]; blocking: string[];
   items: Array<{ id: string; number: number; type: string; marks: number; prompt: string; options: Array<{ id: string; text: string }>; correctOptionId: string | null; correctOptionIds: string[] | null; modelAnswer: string | null; state: string; outcomes: string[] }>;
   history: Array<{ id: string; decision: string; comments: Array<{ questionId?: string; text: string }>; createdAt: string; current: boolean }>;
@@ -61,10 +61,22 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
     await load(); onDone?.();
   };
 
+  const seal = async () => {
+    if (!view) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/academic/paper-slots/${encodeURIComponent(slotId)}/seal`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paperVersion: view.paperVersion }) });
+      const payload = await response.json();
+      if (!response.ok) { setError(typeof payload.error === "string" ? payload.error : t.failed); return; }
+      await load(); onDone?.();
+    } catch { setError(t.failed); } finally { setBusy(false); }
+  };
+
   if (error && !view) return <Alert tone="danger" compact>{error}</Alert>;
   if (!view) return <TaskLoading label={t.moderate} />;
   const latest = view.history[0];
   return <div className="space-y-4" data-moderation-panel>
+    {view.sealedAt ? <Alert tone="success" compact>{fillStudioCopy(t.sealedOn, [date(view.sealedAt)])}</Alert> : null}
     {notice ? <Alert tone="success" compact live="polite">{notice}</Alert> : null}
     {error ? <Alert tone="danger" compact live="polite">{error}</Alert> : null}
     <section aria-labelledby="conformance-title" className="space-y-2">
@@ -103,6 +115,10 @@ export function ModerationPanel({ slotId, onDone }: { slotId: string; onDone?: (
     {view.history.length ? <section aria-labelledby="mod-history" className="space-y-1 text-xs text-ink-muted">
       <h3 id="mod-history" className="font-bold">{t.historyTitle}</h3>
       <ul className="space-y-0.5">{view.history.map(entry => <li key={entry.id}>{words[`decision${entry.decision}`]} · <bdi>{date(entry.createdAt)}</bdi>{entry.current ? null : <> · {t.decisionStale}</>}</li>)}</ul>
+    </section> : null}
+    {view.canSeal ? <section className="space-y-2 rounded-xl border border-border-subtle p-3" data-delegated-seal>
+      <p className="text-sm">{t.sealIntro}</p>
+      <Button type="button" loading={busy} disabled={busy} onClick={() => void seal()}>{t.sealConfirm}</Button>
     </section> : null}
   </div>;
 }
