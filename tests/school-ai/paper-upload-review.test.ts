@@ -54,7 +54,7 @@ test("manual fallback for a stored scan still requires physical page review", ()
   for (const mimeType of ["image/png", "application/pdf"]) {
     const scan = source({ mimeType, storageKey: "school-ai/school/original", origin: "upload", extractionStatus: "extracted" });
     assert.throws(() => reviewedPaperSource(scan, 4), { code: "UPLOAD_SOURCE_REVIEW_REQUIRED" });
-    scan.data = { ...scan.data, expectedPageCount: 1, sourcePages: [{ page: 1, text: scan.data.extractedText, reviewed: true }], missingPages: [], structureReviewed: true };
+    scan.data = { ...scan.data, expectedPageCount: 1, sourcePages: [{ page: 1, text: "1. Name a plant. [1]", reviewed: true }], missingPages: [], structureReviewed: true };
     assert.doesNotThrow(() => reviewedPaperSource(scan, 4));
   }
 });
