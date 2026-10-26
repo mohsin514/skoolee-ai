@@ -10,6 +10,7 @@ import { proposeCorrectionIn } from "./exam-moderation-service";
 import { schoolAiTransaction } from "./transaction";
 import { resultDecisionAccess, scopedAssignment, staffExamAccess } from "./exam-service";
 import { examReviewSchema, responsesSchema, validateExamReview, examKeyCorrectionSchema, correctedExamPaper, scoreObjectiveResponses } from "./exam";
+import { membersHeadedBy, headsAuthorDepartment } from "./department-heads";
 
 const id = z.string().trim().min(1).max(120);
 export const regradeAttemptSchema = z.object({ attemptId: id, version: z.number().int().min(1), reason: z.string().trim().min(1).max(4000), review: examReviewSchema }).strict();
@@ -19,24 +20,51 @@ export const appealResultSchema = z.object({ version: z.number().int().positive(
 export const resolveAppealSchema = z.object({ appealId: id, version: z.number().int().positive(), status: z.enum(["UPHELD", "DISMISSED"]), resolution: z.string().trim().min(1).max(4000), review: examReviewSchema.optional() }).strict();
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
-/** Result snapshots omit the private key, rubric, source material and other students. */
-export async function getExamResults(user: AuthUser, assignmentId: string, attemptId?: string) {
+/** Learner result snapshots omit the private key, rubric, source material and other students. */
+export async function getExamResults(user: AuthUser, assignmentId: string, attemptId?: string, departmentReview = false) {
  return schoolAiTransaction(user, async tx => {
-  const { assignment, student, paper } = await scopedAssignment(user, assignmentId, tx);
-  if (!student) await staffExamAccess(user, assignment, "view", tx);
+  const { assignment, student, paper } = departmentReview ? await departmentResultScope(user, assignmentId, attemptId, tx) : await scopedAssignment(user, assignmentId, tx);
+  if (!student && !departmentReview) await staffExamAccess(user, assignment, "view", tx);
   const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { assignmentId, schoolId: user.schoolId, campusId: assignment.campusId, ...(student ? { studentId: student.id, userId: user.userId } : { id: attemptId ?? "" }) } });
   // SKO-408: learners see moderated results only after an explicit release, never automatically.
   if (!attempt || (student && (!assignment.resultsReleasedAt || new Date() < assignment.endsAt))) return { attempt: null, revisions: [], appeals: [], released: !!assignment.resultsReleasedAt };
   const revisions = await tx.schoolAiExamResultRevision.findMany({ where: { attemptId: attempt.id, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { version: "desc" }, take: 100 });
   const appeals = await tx.schoolAiExamAppeal.findMany({ where: { attemptId: attempt.id, assignmentId, schoolId: user.schoolId, campusId: assignment.campusId }, orderBy: { createdAt: "desc" }, take: 100 });
   // Criterion IDs and teacher evidence are authoring data. Students receive reviewed feedback only.
-  const candidateReview = (value: unknown) => { const stored = value as { marks: unknown; note: unknown }; const parsed = examReviewSchema.parse({ marks: stored.marks, note: stored.note }); return { note: parsed.note, marks: parsed.marks.map(({ questionId, marks, feedback }) => ({ questionId, number: paper.questions.findIndex(question => question.id === questionId) + 1, marks, feedback })), total: parsed.marks.reduce((sum, item) => sum + item.marks, 0) }; };
+  const staffReview = (value: unknown) => { const stored = value as Record<string, unknown>; const parsed = examReviewSchema.parse({ marks: stored.marks, note: stored.note, ...(stored.keyCorrections ? { keyCorrections: stored.keyCorrections } : {}) }); return { ...parsed, total: parsed.marks.reduce((sum, item) => sum + item.marks, 0) }; };
+  const candidateReview = (value: unknown) => { const parsed = staffReview(value); return { note: parsed.note, marks: parsed.marks.map(({ questionId, marks, feedback }) => ({ questionId, number: paper.questions.findIndex(question => question.id === questionId) + 1, marks, feedback })), total: parsed.total }; };
   return {
    released: !!assignment.resultsReleasedAt, resultsReleasedAt: assignment.resultsReleasedAt,
-   attempt: { id: attempt.id, status: attempt.status, reviewVersion: attempt.reviewVersion, review: attempt.review ? candidateReview(attempt.review) : null },
+   attempt: { id: attempt.id, status: attempt.status, reviewVersion: attempt.reviewVersion, review: attempt.review ? (student ? candidateReview(attempt.review) : staffReview(attempt.review)) : null },
    revisions: revisions.map(row => ({ id: row.id, version: row.version, reason: row.reason, review: student ? candidateReview(row.review) : row.review, createdAt: row.createdAt })),
    appeals: appeals.map(row => ({ id: row.id, resultVersion: row.resultVersion, version: row.version, status: row.status, reason: row.reason, disputedQuestionIds: row.disputedQuestionIds, requestedOutcome: row.requestedOutcome, resolution: row.resolution, createdAt: row.createdAt, resolvedAt: row.resolvedAt })),
   };
+ });
+}
+
+async function departmentResultScope(user: AuthUser, assignmentId: string, attemptId: string | undefined, tx: TxClient) {
+ const assignment = user.role === "TEACHER" && attemptId ? await tx.schoolAiExamAssignment.findFirst({ where: { id: assignmentId, schoolId: user.schoolId, campusId: user.campusId ?? "", resultsReleasedAt: { not: null }, endsAt: { lte: new Date() } } }) : null;
+ if (!assignment) throw new ApiError("Review request unavailable.", 404);
+ const paper = await resultDecisionAccess(user, assignment, tx);
+ const subject = await tx.subject.findFirst({ where: { id: paper.subjectId, schoolId: user.schoolId, campusId: assignment.campusId }, select: { teacherId: true } });
+ const heads = await headsAuthorDepartment(tx, user.schoolId, user.userId, assignment.createdById) || Boolean(subject?.teacherId && await headsAuthorDepartment(tx, user.schoolId, user.userId, subject.teacherId));
+ const appeal = heads && await tx.schoolAiExamAppeal.findFirst({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId, attemptId }, select: { id: true } });
+ if (!appeal) throw new ApiError("Review request unavailable.", 404);
+ return { assignment, paper, student: null };
+}
+
+/** Only released results with a review request, scoped to the head's current department. */
+export async function listDepartmentAppeals(user: AuthUser) {
+ return schoolAiTransaction(user, async tx => {
+  if (user.role !== "TEACHER") return [];
+  const members = await membersHeadedBy(tx, user.schoolId, user.userId);
+  if (!members.length) return [];
+  const subjects = await tx.subject.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", teacherId: { in: members } }, select: { id: true } });
+  const rows = await tx.schoolAiExamAppeal.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", status: { in: ["OPEN", "UPHELD"] }, attempt: { assignment: { resultsReleasedAt: { not: null }, endsAt: { lte: new Date() }, OR: [{ createdById: { in: members } }, { paper: { subjectId: { in: subjects.map(subject => subject.id) } } }] } } }, orderBy: { createdAt: "asc" }, take: 50, select: { id: true, assignmentId: true, attemptId: true, studentId: true, status: true, attempt: { select: { assignment: { select: { title: true } } } } } });
+  for (const row of rows) await departmentResultScope(user, row.assignmentId, row.attemptId, tx);
+  const students = await tx.student.findMany({ where: { schoolId: user.schoolId, campusId: user.campusId ?? "", id: { in: rows.map(row => row.studentId) } }, select: { id: true, fullName: true, rollNo: true } });
+  const names = new Map(students.map(student => [student.id, student]));
+  return rows.map(row => ({ id: row.id, assignmentId: row.assignmentId, attemptId: row.attemptId, status: row.status, title: row.attempt.assignment.title, studentName: names.get(row.studentId)?.fullName ?? "", rollNo: names.get(row.studentId)?.rollNo ?? "" }));
  });
 }
 

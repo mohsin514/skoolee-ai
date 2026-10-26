@@ -85,7 +85,7 @@ export function LaunchGuide({ context, onFinish, onDismiss }: { context: LaunchC
     if (await finish()) window.dispatchEvent(new CustomEvent(START_TOUR_EVENT, { detail: {} }));
   };
   const chapters = [c.welcome, c.prepare, c.choose];
-  return <ModalSurface fullscreen ariaLabel={showcase ? c.showcase : c.guide} initialFocusRef={heading} onClose={showcase ? () => setShowcase(false) : onDismiss} dismissible={!busy} disableBackdropClose dir={context.language === "en" ? "ltr" : "rtl"} lang={context.language}>
+  return <ModalSurface key={showcase ? "showcase" : "guide"} fullscreen ariaLabel={showcase ? c.showcase : c.guide} initialFocusRef={heading} onClose={showcase ? () => setShowcase(false) : onDismiss} dismissible={!busy} disableBackdropClose dir={context.language === "en" ? "ltr" : "rtl"} lang={context.language}>
     {showcase ? <GuideShowcase language={context.language} role={stageRole} flagships={flagships} onReturn={() => setShowcase(false)} onContinue={() => { setChapter(2); setShowcase(false); }} /> : <section className={styles.surface} data-launch-guide data-role={context.role} data-chapter={chapter} data-paused={paused || undefined}>
       <header className={styles.topbar}>
         <SkooleeLogo size="1.8rem" weight="heavy" />

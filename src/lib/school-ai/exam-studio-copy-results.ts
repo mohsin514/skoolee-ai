@@ -4,6 +4,8 @@ import type { StudioCopyArea } from "./exam-studio-copy";
 // SKO-504: Mistake Map, Next Ten Minutes, Family Note, appeal correction and gradebook drift copy.
 // Placeholders are {0}, {1}…; each value is a whole phrase in its own language.
 const en = {
+  departmentTitle: "Department result reviews",
+  departmentIntro: "Review learner appeals. A changed mark still needs an independent second approver.",
   mapTitle: "Mistake Map",
   mapIntro: "Each row is a learning outcome and each column a learner, read from moderated marks only. Items under question stay out of the map.",
   mapEmpty: "No moderated scripts yet.",
@@ -58,6 +60,8 @@ const en = {
 type Copy = typeof en;
 
 const ar: Copy = {
+  departmentTitle: "مراجعات نتائج القسم",
+  departmentIntro: "راجع اعتراضات المتعلمين. تغيير الدرجة يتطلب موافقة مراجع ثانٍ مستقل.",
   mapTitle: "خريطة الأخطاء",
   mapIntro: "كل صف ناتج تعلم وكل عمود متعلم، والقراءة من الدرجات المعتمدة فقط. الأسئلة المشكوك فيها تبقى خارج الخريطة.",
   mapEmpty: "لا توجد أوراق معتمدة بعد.",
@@ -111,6 +115,8 @@ const ar: Copy = {
 };
 
 const ur: Copy = {
+  departmentTitle: "شعبے کے نتائج پر نظر ثانی",
+  departmentIntro: "طلبہ کی اپیلوں کا جائزہ لیں۔ نمبر کی تبدیلی کے لیے ایک دوسرے آزاد جائزہ کار کی منظوری ضروری ہے۔",
   mapTitle: "غلطیوں کا نقشہ",
   mapIntro: "ہر قطار ایک تعلیمی ہدف اور ہر کالم ایک طالب علم ہے، صرف منظور شدہ نمبروں سے۔ مشکوک سوالات نقشے سے باہر رہتے ہیں۔",
   mapEmpty: "ابھی کوئی منظور شدہ پرچہ نہیں۔",
