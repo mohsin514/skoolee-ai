@@ -70,7 +70,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
+import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
@@ -111,7 +111,7 @@ function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false 
             onRetry={onRetry}
           />
         ) : (
-          <div data-resource-state={filtered ? "no-match" : "no-data"}><EmptyState size="sm" title={ui(filtered ? "No matching records" : text ?? "Nothing here yet")} description={filtered ? ui("Change or clear your search to see more records.") : hint ? ui(hint) : ui("Use the available add action to create your first record.")} /></div>
+          <div role="status" aria-live="polite" data-resource-state={filtered ? "no-match" : "no-data"}><EmptyState size="sm" title={ui(filtered ? "No matching records" : text ?? "Nothing here yet")} description={filtered ? ui("Change or clear your search to see more records.") : hint ? ui(hint) : ui("Use the available add action to create your first record.")} /></div>
         )}
       </td>
     </tr>
@@ -317,7 +317,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
     setLoading(true); setLoadFailed(null);
     try {
       const r = await readRequest("/api/transport/routes");
-      const j = await checkedJson(r);
+      const j = await checkedListJson(r);
       if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
     } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
@@ -407,7 +407,7 @@ function VehiclesTab() {
     setLoading(true); setLoadFailed(null);
     try {
       const r = await readRequest("/api/transport/vehicles");
-      const j = await checkedJson(r);
+      const j = await checkedListJson(r);
       if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
     } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
@@ -546,7 +546,7 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
-    try { const r = await readRequest("/api/dormitory/room-types"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+    try { const r = await readRequest("/api/dormitory/room-types"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
@@ -623,7 +623,7 @@ function DormRoomsTab() {
     setLoading(true); setLoadFailed(null);
     try {
       const [rr, tr] = await Promise.all([readRequest("/api/dormitory/rooms"), readRequest("/api/dormitory/room-types")]);
-      const [rj, tj] = await Promise.all([checkedJson(rr), checkedJson(tr)]);
+      const [rj, tj] = await Promise.all([checkedListJson(rr), checkedListJson(tr)]);
       if (version !== loadSequence.current) return; if (rj.success) setRows(rj.data || []);
       if (tj.success) setTypes(tj.data || []);
     } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
@@ -760,7 +760,7 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
-    try { const r = await readRequest("/api/library/categories"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+    try { const r = await readRequest("/api/library/categories"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
@@ -830,7 +830,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
     try {
       const q = search ? `?search=${encodeURIComponent(search)}` : "";
       const [br, cr] = await Promise.all([readRequest(`/api/library/books${q}`), readRequest("/api/library/categories")]);
-      const [bj, cj] = await Promise.all([checkedJson(br), checkedJson(cr)]);
+      const [bj, cj] = await Promise.all([checkedListJson(br), checkedListJson(cr)]);
       if (version !== loadSequence.current) return; if (bj.success) setRows(bj.data || []);
       if (cj.success) setCats(cj.data || []);
     } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
@@ -1006,7 +1006,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
-    try { const r = await readRequest("/api/library/members"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
+    try { const r = await readRequest("/api/library/members"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
@@ -1078,7 +1078,7 @@ function IssuesTab() {
     setLoading(true); setLoadFailed(null);
     try {
       const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), readRequest("/api/library/books"), readRequest("/api/library/members")]);
-      const [ij, bj, mj] = await Promise.all([checkedJson(ir), checkedJson(br), checkedJson(mr)]);
+      const [ij, bj, mj] = await Promise.all([checkedListJson(ir), checkedListJson(br), checkedListJson(mr)]);
       if (version !== loadSequence.current) return; if (ij.success) setRows(ij.data || []);
       if (bj.success) setBooks(bj.data || []);
       if (mj.success) setMembers(mj.data || []);
@@ -1211,7 +1211,7 @@ function ItemCategoriesTab() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => { const version = ++loadSequence.current;
-    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/categories"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/categories"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemCategory holds only a name. The old `description` had no input bound
@@ -1268,7 +1268,7 @@ function StoresTab() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => { const version = ++loadSequence.current;
-    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/stores"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/stores"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemStore has no `location` column — whatever was typed into that input
@@ -1325,7 +1325,7 @@ function SuppliersTab() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => { const version = ++loadSequence.current;
-    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/suppliers"); const j = await checkedJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/suppliers"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
   useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Supplier has no `contactName` column, so that input never persisted.
@@ -1398,7 +1398,7 @@ function ItemsTab() {
     try {
       const q = search ? `?search=${encodeURIComponent(search)}` : "";
       const [ir, cr] = await Promise.all([readRequest(`/api/inventory/items${q}`), readRequest("/api/inventory/categories")]);
-      const [ij, cj] = await Promise.all([checkedJson(ir), checkedJson(cr)]);
+      const [ij, cj] = await Promise.all([checkedListJson(ir), checkedListJson(cr)]);
       if (version !== loadSequence.current) return; if (ij.success) setRows(ij.data || []);
       if (cj.success) setCats(cj.data || []);
     } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
@@ -1477,7 +1477,7 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
     setLoading(true); setLoadFailed(null);
     try {
       const [tr, ir, sr, spr] = await Promise.all([readRequest("/api/inventory/transactions"), readRequest("/api/inventory/items"), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
-      const [tj, ij, sj, spj] = await Promise.all([checkedJson(tr), checkedJson(ir), checkedJson(sr), checkedJson(spr)]);
+      const [tj, ij, sj, spj] = await Promise.all([checkedListJson(tr), checkedListJson(ir), checkedListJson(sr), checkedListJson(spr)]);
       if (version !== loadSequence.current) return; if (tj.success) setRows(tj.data || []);
       if (ij.success) setItems(ij.data || []);
       if (sj.success) setStores(sj.data || []);

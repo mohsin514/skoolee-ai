@@ -19,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
-import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
+import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -118,7 +118,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
     const version = ++sequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const json = await checkedJson(await readRequest(`/api/academic/rooms${campusId ? `?campusId=${campusId}` : ""}`));
+      const json = await checkedListJson(await readRequest(`/api/academic/rooms${campusId ? `?campusId=${campusId}` : ""}`));
       if (version !== sequence.current) return;
       setRooms(json.data);
     } catch (failure) { if (version === sequence.current) { setRooms([]); setLoadFailed(requestFailure(failure)); } }

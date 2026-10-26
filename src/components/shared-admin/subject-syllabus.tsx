@@ -4,7 +4,7 @@ import { Button as SystemButton } from "@/components/ui/button";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { BookMarked, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
-import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
+import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
@@ -57,7 +57,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
     const version = ++sequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const json = await checkedJson(await readRequest(`/api/subjects/${subjectId}/syllabus`));
+      const json = await checkedListJson(await readRequest(`/api/subjects/${subjectId}/syllabus`));
       if (version !== sequence.current) return;
       setTopics(json.data || []);
     } catch (failure) { if (version === sequence.current) { setTopics([]); setLoadFailed(requestFailure(failure)); } }

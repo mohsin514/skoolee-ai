@@ -5,7 +5,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/pupils/[id]/page.tsx",
@@ -13,7 +14,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/safepay/page.tsx",
@@ -21,7 +23,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/owner/page.tsx",
@@ -29,7 +32,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/receptionist/page.tsx",
@@ -37,7 +41,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/student/fees/page.tsx",
@@ -45,7 +50,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/student/timetable/page.tsx",
@@ -53,7 +59,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/admin/page.tsx",
@@ -61,7 +68,8 @@
     "shared_error": true,
     "access_notice": true,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/super/page.tsx",
@@ -69,7 +77,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/super/super-data-context.tsx",
@@ -77,7 +86,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/ai/error.tsx",
@@ -85,7 +95,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/ai/studio-intro/studio-intro-probe.tsx",
@@ -93,7 +104,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/parent/parent-data-context.tsx",
@@ -101,7 +113,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/parent/page.tsx",
@@ -109,7 +122,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/parent/timetable/page.tsx",
@@ -117,7 +131,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/teacher-onboarding/page.tsx",
@@ -125,7 +140,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/jobs/page.tsx",
@@ -133,7 +149,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/(auth)/apply/[token]/page.tsx",
@@ -141,7 +158,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/(auth)/register/page.tsx",
@@ -149,7 +167,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/(auth)/accept-invite/page.tsx",
@@ -157,7 +176,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/(auth)/first-login/page.tsx",
@@ -165,7 +185,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/(auth)/login/page.tsx",
@@ -173,7 +194,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/403/sign-out-link.tsx",
@@ -181,7 +203,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/teacher/page.tsx",
@@ -189,7 +212,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/teacher/attendance/page.tsx",
@@ -197,7 +221,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/teacher/marks/page.tsx",
@@ -205,7 +230,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/teacher/reports/page.tsx",
@@ -213,7 +239,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/teacher/timetable/page.tsx",
@@ -221,7 +248,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/billing/page.tsx",
@@ -229,7 +257,8 @@
     "shared_error": false,
     "access_notice": true,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/onboarding/_wizard/wizard-states.tsx",
@@ -237,7 +266,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/onboarding/package/test-checkout/page.tsx",
@@ -245,7 +275,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/onboarding/package/status/page.tsx",
@@ -253,7 +284,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/app/corrections/view.tsx",
@@ -261,7 +293,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ParentInvitations.tsx",
@@ -269,7 +302,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/GuardianAccessManager.tsx",
@@ -277,7 +311,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/SplashScreen.tsx",
@@ -285,7 +320,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/attendance/attendance-overview.tsx",
@@ -293,7 +329,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/attendance/unified-attendance-panel.tsx",
@@ -301,7 +338,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/attendance/class-register.tsx",
@@ -309,7 +347,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/principal/action-queue.tsx",
@@ -317,7 +356,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ui/error-state.tsx",
@@ -325,7 +365,8 @@
     "shared_error": true,
     "access_notice": true,
     "shared_empty": false,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/ui/route-error.tsx",
@@ -333,7 +374,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/settings/DataLifecyclePanel.tsx",
@@ -341,7 +383,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/settings/ProfileSettingsSection.tsx",
@@ -349,7 +392,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/settings/InstitutionSettingsPanel.tsx",
@@ -357,7 +401,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/settings/ChangePasswordDialog.tsx",
@@ -365,7 +410,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/study/study-assistant.tsx",
@@ -373,7 +419,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/assignments/shared.tsx",
@@ -381,7 +428,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/assignments/AssignmentWorkspace.tsx",
@@ -389,7 +437,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/assignments/LearnerAssignments.tsx",
@@ -397,7 +446,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/transport/transport.tsx",
@@ -405,7 +455,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/owner/PilotEvidence.tsx",
@@ -413,7 +464,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/owner/CapacityReport.tsx",
@@ -421,7 +473,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/owner/SubscriptionRequestReview.tsx",
@@ -429,7 +482,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/owner/provisioning-modals.tsx",
@@ -437,7 +491,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/identity/identity-admin.tsx",
@@ -445,7 +500,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/identity/sso.tsx",
@@ -453,7 +509,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/care/care.tsx",
@@ -461,7 +518,8 @@
     "shared_error": false,
     "access_notice": true,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/chat/chat-provider.tsx",
@@ -469,7 +527,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/chat/chat-settings-dialog.tsx",
@@ -477,7 +536,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/chat/composer.tsx",
@@ -485,7 +545,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/fees/FeePaymentsTab.tsx",
@@ -493,7 +554,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/fees/adjustments-panel.tsx",
@@ -501,7 +563,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/fees/online-payment.tsx",
@@ -509,7 +572,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/fees/FeeStructuresTab.tsx",
@@ -517,7 +581,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/fees/AccountsTab.tsx",
@@ -525,7 +590,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/fees/FeeLayersTab.tsx",
@@ -533,7 +599,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/fees/reconciliations-panel.tsx",
@@ -541,7 +608,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/fees/installment-plan-panel.tsx",
@@ -549,7 +617,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/fees/family-fee-statement.tsx",
@@ -557,7 +626,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/fees/FeeReportsTab.tsx",
@@ -565,7 +635,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/fees/FeeOverviewTab.tsx",
@@ -573,7 +644,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/fees/FeeInvoicesTab.tsx",
@@ -581,7 +653,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/marks/mark-scan-panel.tsx",
@@ -589,7 +662,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/purchasing/purchasing-panel.tsx",
@@ -597,7 +671,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/campus-packages/campus-packages.tsx",
@@ -605,7 +680,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/curriculum/ObjectiveMap.tsx",
@@ -613,7 +689,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/group-policy/group-policy.tsx",
@@ -621,7 +698,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/learning/learning-actions.tsx",
@@ -629,7 +707,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/learning/learning-transfer.tsx",
@@ -637,7 +716,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/providers/candidate-exam-guard.tsx",
@@ -645,7 +725,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/resources/ResourceLibrary.tsx",
@@ -653,7 +734,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/student/student-components.tsx",
@@ -661,7 +743,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/student/student-today.tsx",
@@ -669,7 +752,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/family/staff-requests.tsx",
@@ -677,7 +761,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/family/family-digest.tsx",
@@ -685,7 +770,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/family/family-requests.tsx",
@@ -693,7 +779,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/planning/scenario-planner.tsx",
@@ -701,7 +788,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/accommodations/AccessPlans.tsx",
@@ -709,7 +797,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/role-dashboard/ScopeBadge.tsx",
@@ -717,7 +806,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/role-dashboard/RoleShell.tsx",
@@ -725,7 +815,8 @@
     "shared_error": false,
     "access_notice": true,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/role-dashboard/RoleHeader.tsx",
@@ -733,7 +824,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/role-dashboard/AiActionPanel.tsx",
@@ -741,7 +833,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/tax/tax-packages.tsx",
@@ -749,7 +842,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/account-security/SecuritySettingsPanel.tsx",
@@ -757,7 +851,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/library/lending-desk.tsx",
@@ -765,7 +860,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/index.tsx",
@@ -773,7 +869,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/create-class-wizard.tsx",
@@ -781,7 +878,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/students-panel.tsx",
@@ -789,7 +887,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/archived-classes-panel.tsx",
@@ -797,7 +896,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/quick-create-class.tsx",
@@ -805,7 +905,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/role-permissions-panel.tsx",
@@ -813,7 +914,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/class-manager.tsx",
@@ -821,7 +923,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/teacher-picker.tsx",
@@ -829,7 +932,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/shared-admin/subject-syllabus.tsx",
@@ -837,7 +941,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/shared-admin/restore-student-dialog.tsx",
@@ -845,7 +950,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/pickup/pickup.tsx",
@@ -853,7 +959,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/rag/knowledge-library.tsx",
@@ -861,7 +968,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/policies/policy-assistant.tsx",
@@ -869,7 +977,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/policies/policy-manager.tsx",
@@ -877,7 +986,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/operations/index.tsx",
@@ -885,7 +995,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/operations/postal-register.tsx",
@@ -893,7 +1004,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/operations/dormitory-allocations.tsx",
@@ -901,7 +1013,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/operations/visitor-register.tsx",
@@ -909,7 +1022,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/operations/console-page.tsx",
@@ -917,7 +1031,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/operations/certificates-desk.tsx",
@@ -925,7 +1040,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/operations/complaints-desk.tsx",
@@ -933,7 +1049,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/operations/phone-call-log.tsx",
@@ -941,7 +1058,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/AcademicCalendar.tsx",
@@ -949,7 +1067,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/DatesheetBuilder.tsx",
@@ -957,7 +1076,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/ReportCardPipeline.tsx",
@@ -965,7 +1085,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/YearEndPanel.tsx",
@@ -973,7 +1094,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/rollover-review.tsx",
@@ -981,7 +1103,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/GradingRulesPanel.tsx",
@@ -989,7 +1112,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/AcademicModelPanel.tsx",
@@ -997,7 +1121,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/YearClosureChecklist.tsx",
@@ -1005,7 +1130,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/RoomsManager.tsx",
@@ -1013,7 +1139,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/academic/YearSetupWizard.tsx",
@@ -1021,7 +1148,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/ExamCycleManager.tsx",
@@ -1029,7 +1157,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/AcademicHub.tsx",
@@ -1037,7 +1166,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/MasterDatesheet.tsx",
@@ -1045,7 +1175,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/ReportCardsPanel.tsx",
@@ -1053,7 +1184,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/DatesheetPublication.tsx",
@@ -1061,7 +1193,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/ControlTower.tsx",
@@ -1069,7 +1202,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/ExceptionsDesk.tsx",
@@ -1077,7 +1211,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/ExamsWorkspace.tsx",
@@ -1085,7 +1220,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/SessionWizard.tsx",
@@ -1093,7 +1229,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/PapersStep.tsx",
@@ -1101,7 +1238,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/PaperSittingPanel.tsx",
@@ -1109,7 +1247,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/SeatingPlanner.tsx",
@@ -1117,7 +1256,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/ExamDetailDialog.tsx",
@@ -1125,7 +1265,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic/exams/PaperGradebookPanel.tsx",
@@ -1133,7 +1274,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/search/search-workspace.tsx",
@@ -1141,7 +1283,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/integrations/integrations.tsx",
@@ -1149,7 +1292,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/students/bulk-import-dialog.tsx",
@@ -1157,7 +1301,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/students/admission-form.tsx",
@@ -1165,7 +1310,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/institution/support-approvals.tsx",
@@ -1173,7 +1319,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/audit/audit-history-panel.tsx",
@@ -1181,7 +1328,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/profile/editable-profile-card.tsx",
@@ -1189,7 +1337,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/parent/family-inbox.tsx",
@@ -1197,7 +1346,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/parent/parent-components.tsx",
@@ -1205,7 +1355,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/parent/family-result-notes.tsx",
@@ -1213,7 +1364,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/readiness/ReadinessHome.tsx",
@@ -1221,7 +1373,8 @@
     "shared_error": true,
     "access_notice": true,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/memberships/memberships-panel.tsx",
@@ -1229,7 +1382,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/admissions/admissions-desk.tsx",
@@ -1237,7 +1391,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/improvement/improvement-workspace.tsx",
@@ -1245,7 +1400,8 @@
     "shared_error": true,
     "access_notice": true,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic-year/TeacherPerformancePanel.tsx",
@@ -1253,7 +1409,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic-year/CycleGate.tsx",
@@ -1261,7 +1418,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic-year/CycleManagementPanel.tsx",
@@ -1269,7 +1427,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic-year/CycleBadge.tsx",
@@ -1277,7 +1436,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/academic-year/AcademicYearPanel.tsx",
@@ -1285,7 +1445,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/tour/TourProvider.tsx",
@@ -1293,7 +1454,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/portfolio/portfolio.tsx",
@@ -1301,7 +1463,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/activities/activities.tsx",
@@ -1309,7 +1472,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/exams/family-exam-brief.tsx",
@@ -1317,7 +1481,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/exams/my-next-paper.tsx",
@@ -1325,7 +1490,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/exams/family-exam-results.tsx",
@@ -1333,7 +1499,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/staff/department-manager.tsx",
@@ -1341,7 +1508,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/staff/designation-ladder.tsx",
@@ -1349,7 +1517,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/staff/position-fields.tsx",
@@ -1357,7 +1526,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/staff/hierarchy-panel.tsx",
@@ -1365,7 +1535,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/staff/workload-cover.tsx",
@@ -1373,7 +1544,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/staff/position-dialog.tsx",
@@ -1381,7 +1553,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/meetings/family-meetings.tsx",
@@ -1389,7 +1562,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/meetings/meeting-desk.tsx",
@@ -1397,7 +1571,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/nav/ViewGate.tsx",
@@ -1405,7 +1580,8 @@
     "shared_error": false,
     "access_notice": true,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/nav/NavigationAccess.tsx",
@@ -1413,7 +1589,8 @@
     "shared_error": true,
     "access_notice": true,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/question-network/question-network.tsx",
@@ -1421,7 +1598,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/payroll/payroll-runs-panel.tsx",
@@ -1429,7 +1607,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ai-workflows/ask-recent.tsx",
@@ -1437,7 +1616,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ai-workflows/handoff-inbox.tsx",
@@ -1445,7 +1625,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ai-workflows/role-setup.tsx",
@@ -1453,7 +1634,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ai-workflows/ask-workspace.tsx",
@@ -1461,7 +1643,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ai-workflows/inbox-count-chip.tsx",
@@ -1469,7 +1652,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ai-workflows/questionnaire-run.tsx",
@@ -1477,7 +1661,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/ai-workflows/setup-prompt.tsx",
@@ -1485,7 +1670,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-proctor-capture.tsx",
@@ -1493,7 +1679,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/item-evidence-panel.tsx",
@@ -1501,7 +1688,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-gradebook.tsx",
@@ -1509,7 +1697,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/scan-composer.tsx",
@@ -1517,7 +1706,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-preflight.tsx",
@@ -1525,7 +1715,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/lesson-plan-actions.tsx",
@@ -1533,7 +1724,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/written-marking.tsx",
@@ -1541,7 +1733,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-review.tsx",
@@ -1549,7 +1742,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/source-image-preview.tsx",
@@ -1557,7 +1751,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/secure-browser.tsx",
@@ -1565,7 +1760,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-proctor-console.tsx",
@@ -1573,7 +1769,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-workspace.tsx",
@@ -1581,7 +1778,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-accommodations.tsx",
@@ -1589,7 +1787,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/announcement-panel.tsx",
@@ -1597,7 +1796,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/multimodal-composer.tsx",
@@ -1605,7 +1805,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/roster-import.tsx",
@@ -1613,7 +1814,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-integrity-policy.tsx",
@@ -1621,7 +1823,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/pilot-ledger.tsx",
@@ -1629,7 +1832,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/voice-conversation.tsx",
@@ -1637,7 +1841,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/assessment-repair-panel.tsx",
@@ -1645,7 +1850,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/question-bank.tsx",
@@ -1653,7 +1859,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-release-panel.tsx",
@@ -1661,7 +1868,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/school-operations-duties.tsx",
@@ -1669,7 +1877,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/private-assistant.tsx",
@@ -1677,7 +1886,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/paper-figure-editor.tsx",
@@ -1685,7 +1895,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-integrity-desk.tsx",
@@ -1693,7 +1904,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-results.tsx",
@@ -1701,7 +1913,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-scripts.tsx",
@@ -1709,7 +1922,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/script-response-proposal.tsx",
@@ -1717,7 +1931,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/practice-session-panel.tsx",
@@ -1725,7 +1940,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-key-correction.tsx",
@@ -1733,7 +1949,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-notices.tsx",
@@ -1741,7 +1958,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/assessment-studio.tsx",
@@ -1749,7 +1967,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/paper-semantic-review.tsx",
@@ -1757,7 +1976,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-remedy-panel.tsx",
@@ -1765,7 +1985,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/workspace-insights.tsx",
@@ -1773,7 +1994,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-proctor-sessions.tsx",
@@ -1781,7 +2003,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/outcome-feedback.tsx",
@@ -1789,7 +2012,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/learning-plans.tsx",
@@ -1797,7 +2021,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-moderation-panel.tsx",
@@ -1805,7 +2030,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/practice-progress-panel.tsx",
@@ -1813,7 +2039,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-player.tsx",
@@ -1821,7 +2048,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/paper-dna-strip.tsx",
@@ -1829,7 +2057,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/exam-studio-shell.tsx",
@@ -1837,7 +2066,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/evidence-pack-panel.tsx",
@@ -1845,7 +2075,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/department-appeals.tsx",
@@ -1853,7 +2084,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/upload-paper.tsx",
@@ -1861,7 +2093,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/room-board.tsx",
@@ -1869,7 +2102,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/mistake-map-panel.tsx",
@@ -1877,7 +2111,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/moderation-queue.tsx",
@@ -1885,7 +2120,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/papers-owed.tsx",
@@ -1893,7 +2129,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/syllabus-drop.tsx",
@@ -1901,7 +2138,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/twin-panel.tsx",
@@ -1909,7 +2147,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/moderation-panel.tsx",
@@ -1917,7 +2156,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/syllabus-map.tsx",
@@ -1925,7 +2165,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/teaching-line-prompt.tsx",
@@ -1933,7 +2174,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/pulse-panel.tsx",
@@ -1941,7 +2183,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/department-queue.tsx",
@@ -1949,7 +2192,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/spaces/improve-space.tsx",
@@ -1957,7 +2201,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/spaces/exam-room-space.tsx",
@@ -1965,7 +2210,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/spaces/rehearsal-space.tsx",
@@ -1973,7 +2219,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/spaces/control-room-space.tsx",
@@ -1981,7 +2228,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/spaces/brief-space.tsx",
@@ -1989,7 +2237,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/school-ai/exam-studio/spaces/blueprint-space.tsx",
@@ -1997,7 +2246,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/teacher/teacher-components.tsx",
@@ -2005,7 +2255,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/design-system/FoundationReference.tsx",
@@ -2013,7 +2264,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/notifications/notification-center.tsx",
@@ -2021,7 +2273,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/billing/SubscriptionWorkspace.tsx",
@@ -2029,7 +2282,8 @@
     "shared_error": true,
     "access_notice": true,
     "shared_empty": true,
-    "classified_requests": true
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/service-desk/service-desk.tsx",
@@ -2037,7 +2291,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/onboarding/PublicShowcase.tsx",
@@ -2045,7 +2300,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/onboarding/PackageChooser.tsx",
@@ -2053,7 +2309,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/onboarding/FirstRunGuide.tsx",
@@ -2061,7 +2318,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/leave/my-leave.tsx",
@@ -2069,7 +2327,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
   },
   {
     "file": "src/components/pathways/pathway-panel.tsx",
@@ -2077,7 +2336,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/communications/engagement-panel.tsx",
@@ -2085,7 +2345,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/offline/offline-register.tsx",
@@ -2093,7 +2354,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/analytics/analytics-charts.tsx",
@@ -2101,7 +2363,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/timetable/AddPeriodDialog.tsx",
@@ -2109,7 +2372,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/timetable/ConflictPanel.tsx",
@@ -2117,7 +2381,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/timetable/ExamDateSheet.tsx",
@@ -2125,7 +2390,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/timetable/TimetableStudio.tsx",
@@ -2133,7 +2399,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/timetable/PublicationReview.tsx",
@@ -2141,7 +2408,8 @@
     "shared_error": false,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/timetable/TimetablePanel.tsx",
@@ -2149,7 +2417,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/cover/my-cover.tsx",
@@ -2157,7 +2426,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   },
   {
     "file": "src/components/cover/cover-follow-up.tsx",
@@ -2165,6 +2435,7 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
   }
 ]

@@ -27,6 +27,7 @@ export async function checkedJson<T = any>(response: Response, options: { envelo
   // Check status before parsing: proxies and permission denials need not send JSON.
   if (!response.ok) throw new RequestFailure(failureForStatus(response.status), response.status, digest);
   const body = await response.json().catch(() => { throw new RequestFailure("server", response.status, digest); });
+  if (!body || typeof body !== "object") throw new RequestFailure("server", response.status, digest);
   if (body?.success === false || (options.envelope !== false && body?.success !== true)) throw new RequestFailure("server", response.status, digest);
   return body as T;
 }
@@ -39,4 +40,11 @@ export function resourceState(input: { loading: boolean; failure?: RequestFailur
   if (input.loading) return "loading";
   if (input.failure) return input.failure.kind === "denied" || input.failure.kind === "session" ? "denied" : "failure";
   return input.count > 0 ? "success" : input.filtered ? "no-match" : "no-data";
+}
+
+/** Collection endpoints must not turn a malformed success into an empty collection or render crash. */
+export async function checkedListJson(response: Response) {
+  const body = await checkedJson(response);
+  if (!Array.isArray(body.data)) throw new RequestFailure("server", response.status);
+  return body;
 }

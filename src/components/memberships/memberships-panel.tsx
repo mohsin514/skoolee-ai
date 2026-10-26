@@ -101,6 +101,7 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
     setLoadFailed(null);
     try {
       const result = await checkedJson(await readRequest("/api/memberships"), { envelope: false });
+      if (!Array.isArray(result.members) || !Array.isArray(result.campuses)) throw new Error("Invalid membership response");
       if (version === sequence.current) setData(result);
     } catch (failure) { if (version === sequence.current) { setData(null); setLoadFailed(requestFailure(failure)); } }
   }, []);

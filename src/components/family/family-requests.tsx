@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { CalendarOff } from "lucide-react";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
+import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 
@@ -47,7 +47,7 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
     const version = ++sequence.current;
     setLoadFailed(null);
     try {
-      const json = await checkedJson(await readRequest(`/api/family/leave?studentId=${encodeURIComponent(studentId)}`));
+      const json = await checkedListJson(await readRequest(`/api/family/leave?studentId=${encodeURIComponent(studentId)}`));
       if (version === sequence.current) setRows(json.data);
     } catch (failure) { if (version === sequence.current) { setRows(null); setLoadFailed(requestFailure(failure)); } }
   }, [studentId]);
@@ -119,7 +119,7 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
     const version = ++sequence.current;
     setLoadFailed(null);
     try {
-      const json = await checkedJson(await readRequest(`/api/family/trips?studentId=${encodeURIComponent(studentId)}`));
+      const json = await checkedListJson(await readRequest(`/api/family/trips?studentId=${encodeURIComponent(studentId)}`));
       if (version === sequence.current) setRows(json.data);
     } catch (failure) { if (version === sequence.current) { setRows(null); setLoadFailed(requestFailure(failure)); } }
   }, [studentId]);

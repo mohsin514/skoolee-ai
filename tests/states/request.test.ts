@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkedJson, failureForStatus, RequestFailure, requestFailure, resourceState } from "../../src/lib/http/request-state";
+import { checkedJson, checkedListJson, failureForStatus, RequestFailure, requestFailure, resourceState } from "../../src/lib/http/request-state";
 
 test("HTTP outcomes precede parsing and never disclose server bodies", async () => {
   for (const [status, kind] of [[401,"session"],[403,"denied"],[404,"denied"],[400,"validation"],[422,"validation"],[409,"conflict"],[412,"conflict"],[408,"timeout"],[504,"timeout"],[429,"limited"],[502,"provider"],[503,"provider"],[500,"server"]] as const) {
@@ -25,4 +25,10 @@ test("states are exclusive with loading then denial/failure before emptiness", (
   assert.equal(resourceState({loading:false,count:0,filtered:true}),"no-match");
   assert.equal(resourceState({loading:false,count:1,filtered:true}),"success");
   assert.equal(requestFailure(new DOMException("time", "TimeoutError")).kind,"timeout");
+});
+
+test("malformed successful collections are failures, never empty datasets", async()=>{
+  for(const data of [null,{},"invalid",42]) await assert.rejects(checkedListJson(Response.json({success:true,data})),RequestFailure);
+  assert.deepEqual((await checkedListJson(Response.json({success:true,data:[]}))).data,[]);
+  await assert.rejects(checkedJson(Response.json(null),{envelope:false}),RequestFailure);
 });
