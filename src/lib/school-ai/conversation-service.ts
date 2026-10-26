@@ -157,7 +157,7 @@ export async function deletePrivateConversation(user: AuthUser, id: string, inpu
 export async function exportPrivateConversation(user: AuthUser, id: string) {
   const pages: PrivateConversationPage[] = [];
   let before: number | undefined;
-  for (let guard = 0; guard < 100; guard++) {
+  while (true) {
     const page = await getPrivateConversation(user, id, before);
     pages.unshift(page);
     if (!page.nextVersion) break;
@@ -182,8 +182,16 @@ export async function sweepConversationRetention(db: TxClient, now: Date, days: 
   const cutoff = new Date(now.getTime() - days * 86_400_000);
   const stale = await db.schoolAiConversation.findMany({ where: { updatedAt: { lt: cutoff }, requests: { none: { status: "PENDING" } } }, select: { id: true, schoolId: true, actorId: true }, take: 500 });
   if (!stale.length) return { deleted: 0 };
-  await db.schoolAiConversation.deleteMany({ where: { id: { in: stale.map(row => row.id) }, updatedAt: { lt: cutoff } } });
-  // One content-free row per deleted conversation, attributed to its owner.
-  await db.auditLog.createMany({ data: stale.map(row => ({ schoolId: row.schoolId, userId: row.actorId, tableName: "school_ai_conversations", recordId: row.id, newValue: { action: "conversation.retention_deleted", retentionDays: days, at: now.toISOString() } })) });
-  return { deleted: stale.length };
+  const deleted: typeof stale = [];
+  for (const row of stale) {
+    // Recheck activity at deletion, not only when the batch was selected.
+    const result = await db.schoolAiConversation.deleteMany({ where: {
+      id: row.id, schoolId: row.schoolId, updatedAt: { lt: cutoff },
+      requests: { none: { status: "PENDING" } },
+    } });
+    if (result.count) deleted.push(row);
+  }
+  // Audit only rows actually removed; the caller commits deletion and audit together.
+  if (deleted.length) await db.auditLog.createMany({ data: deleted.map(row => ({ schoolId: row.schoolId, userId: row.actorId, tableName: "school_ai_conversations", recordId: row.id, newValue: { action: "conversation.retention_deleted", retentionDays: days, at: now.toISOString() } })) });
+  return { deleted: deleted.length };
 }

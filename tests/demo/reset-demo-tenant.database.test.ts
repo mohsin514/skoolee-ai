@@ -28,7 +28,7 @@ test("two resets give the same labelled state and leave other tenants alone", as
   const first = await resetDemoTenant(raw, password);
   const second = await resetDemoTenant(raw, password);
   assert.equal(first.fingerprint, second.fingerprint, "a reset restores a known state");
-  assert.deepEqual(second.counts, { users: 3, classes: 2, students: 12, guardianLinks: 2, exams: 1, approvedRecords: 2, familyActions: 1 });
+  assert.deepEqual(second.counts, { users: 5, classes: 2, students: 12, guardianLinks: 2, exams: 3, approvedRecords: 2, familyActions: 1 });
   const school = await raw.school.findUniqueOrThrow({ where: { id: DEMO_SCHOOL_ID } });
   assert.ok(school.name.startsWith(DEMO_LABEL));
   const people = [...await raw.student.findMany({ where: { schoolId: DEMO_SCHOOL_ID }, select: { fullName: true } }), ...await raw.user.findMany({ where: { schoolId: DEMO_SCHOOL_ID }, select: { fullName: true } })];

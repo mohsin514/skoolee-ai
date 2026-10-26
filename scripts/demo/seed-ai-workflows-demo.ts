@@ -314,7 +314,7 @@ async function recordRuns(db: Db) {
     const run = s.toRunView(await s.getJob(teacher, registerJob));
     const step = run.steps.find(item => item.state === "awaiting_confirm");
     const action = step?.preview?.actions?.find(item => item.id === "rest-present");
-    if (!step?.preview || !action) throw new Error(`demo seed: the register did not offer "Mark the other … present" (${run.status})`);
+    if (!step?.preview || !action) throw new Error(`demo seed: the register did not offer "Mark the other … present" (${await describe(s, teacher, registerJob)})`);
     await s.runCommand(teacher, registerJob, { type: "amend", jobVersion: run.version, stepId: step.id, previewVersion: step.preview.version, actionId: action.id, expect: action.expect }, null);
   }
   await confirmWaiting(s, teacher, registerJob, teacherPlan);
