@@ -138,15 +138,19 @@ export function useWorkspacePrefs(
     return () => window.removeEventListener("popstate", restore);
   }, [scope, base.view]);
   const patch = useCallback((next: Partial<WorkspacePrefs>) => {
-    if (next.view && next.view !== prefs.view && validWorkspaceView(next.view)) {
+    if (next.view && validWorkspaceView(next.view)) {
       const url = new URL(window.location.href);
-      // Capture the previous view too, so Back restores the view before the first switch.
-      if (!url.searchParams.has(`view.${scope}`)) {
+      // Pass null so Next synchronizes its URL state. Copying history.state also
+      // copies Next's internal marker and bypasses its public History API integration.
+      // Capture the previous view so Back restores it after the first switch.
+      if (next.view !== prefs.view && !url.searchParams.has(`view.${scope}`)) {
         url.searchParams.set(`view.${scope}`, prefs.view);
-        window.history.replaceState(window.history.state, "", url);
+        window.history.replaceState(null, "", url);
       }
-      url.searchParams.set(`view.${scope}`, next.view);
-      window.history.pushState(window.history.state, "", url);
+      if (url.searchParams.get(`view.${scope}`) !== next.view) {
+        url.searchParams.set(`view.${scope}`, next.view);
+        window.history.pushState(null, "", url);
+      }
     }
     setPrefs((p) => ({ ...p, ...next }));
   }, [scope, prefs.view]);

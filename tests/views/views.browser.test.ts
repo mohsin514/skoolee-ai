@@ -97,8 +97,11 @@ test("faculty and enquiries use calendar and grid without losing their records",
     await page.goto(`${base}/admin?view=${route}`);
     await page.getByRole("button",{name:"Calendar",exact:true}).click();
     await page.getByRole("button",{name:new RegExp(`Open ${name}`)}).waitFor();
-    assert.equal(new URL(page.url()).searchParams.get(`view.${scope}`),"calendar");
+    assert.equal(new URL(page.url()).searchParams.get(`view.${scope}`),"calendar", `${scope}: ${page.url()}`);
     await saveShot(page,`${scope}-calendar-en`);
+    await page.reload();
+    await page.getByRole("button",{name:new RegExp(`Open ${name}`)}).waitFor();
+    assert.equal(await page.getByRole("button",{name:"Calendar",exact:true}).getAttribute("aria-pressed"),"true");
     await page.getByRole("button",{name:"Grid",exact:true}).click();
     await page.getByRole("button",{name:new RegExp(`Open ${name}`)}).click();
     await page.getByRole("dialog").waitFor();
