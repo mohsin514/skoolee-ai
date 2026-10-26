@@ -41,7 +41,7 @@ async function main(){
    await db.user.update({where:{id:`identity-${role}`},data:{preferredLanguage:language}});
    await page.goto(`${base}/pupils/${pupil}`,{waitUntil:"networkidle",timeout:120000});
    await page.getByRole("heading",{name:enrollmentLabels[language].history,exact:true}).waitFor();
-   assert.equal(await page.locator("main").getAttribute("dir"),language==="en"?"ltr":"rtl");
+   assert.equal(await page.getByRole("heading",{name:enrollmentLabels[language].history,exact:true}).evaluate(el=>el.closest("[dir]")?.getAttribute("dir")),language==="en"?"ltr":"rtl");
    assert.equal(await page.getByRole("heading",{name:enrollmentLabels[language].change,exact:true}).count(),canManage?1:0);
    for(const width of [1440,768,390]){
     await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`${role}/${language}/${width} overflow`);
