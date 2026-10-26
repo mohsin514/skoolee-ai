@@ -16,6 +16,8 @@ import React, {
   type ReactNode,
 } from "react";
 import {
+  CalendarDays,
+  Grid2X2,
   ArrowDownWideNarrow,
   ArrowUpDown,
   ArrowUpWideNarrow,
@@ -27,6 +29,8 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { validWorkspaceView, type WorkspaceView, type CalendarDate, groupCalendarRows } from "@/lib/ui/workspace-views";
+import { formatDateOnly, localeTag } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
 import type { ModuleTone } from "@/lib/ui/module-tones";
 import { Input as SystemInput } from "@/components/ui/input";
@@ -52,7 +56,7 @@ import { PageHeader, type PageAction } from "@/components/ui/page-header";
 
 /* ────────────────────────── Preferences ────────────────────────── */
 
-export type WorkspaceView = "cards" | "table" | "board";
+export type { WorkspaceView } from "@/lib/ui/workspace-views";
 export type SortDir = "asc" | "desc";
 
 export interface WorkspacePrefs {
@@ -100,11 +104,19 @@ export function useWorkspacePrefs(
     let stored: Partial<WorkspacePrefs> = {};
     try {
       const raw = window.localStorage.getItem(storageKey(scope));
-      if (raw) stored = JSON.parse(raw) as Partial<WorkspacePrefs>;
+      if (raw) { const parsed: unknown = JSON.parse(raw); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Partial<WorkspacePrefs>; }
     } catch {
       /* a blocked or full storage must never break the screen */
     }
-    setPrefs({ ...base, ...stored });
+    const safe = { ...base };
+    if (validWorkspaceView(stored.view)) safe.view = stored.view;
+    if (stored.density === "compact" || stored.density === "comfortable") safe.density = stored.density;
+    if (typeof stored.sortKey === "string") safe.sortKey = stored.sortKey;
+    if (stored.sortDir === "asc" || stored.sortDir === "desc") safe.sortDir = stored.sortDir;
+    if (Number.isInteger(stored.perPage) && stored.perPage! > 0 && stored.perPage! <= 200) safe.perPage = stored.perPage!;
+    const viewFromUrl = new URL(window.location.href).searchParams.get(`view.${scope}`);
+    if (validWorkspaceView(viewFromUrl)) safe.view = viewFromUrl;
+    setPrefs(safe);
     setLoadedFor(scope);
   }, [scope, base]);
 
@@ -117,9 +129,31 @@ export function useWorkspacePrefs(
     }
   }, [prefs, loadedFor, scope]);
 
+  useEffect(() => {
+    const restore = () => {
+      const value = new URL(window.location.href).searchParams.get(`view.${scope}`);
+      setPrefs(p => ({ ...p, view: validWorkspaceView(value) ? value : base.view }));
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [scope, base.view]);
   const patch = useCallback((next: Partial<WorkspacePrefs>) => {
+    if (next.view && validWorkspaceView(next.view)) {
+      const url = new URL(window.location.href);
+      // Pass null so Next synchronizes its URL state. Copying history.state also
+      // copies Next's internal marker and bypasses its public History API integration.
+      // Capture the previous view so Back restores it after the first switch.
+      if (next.view !== prefs.view && !url.searchParams.has(`view.${scope}`)) {
+        url.searchParams.set(`view.${scope}`, prefs.view);
+        window.history.replaceState(null, "", url);
+      }
+      if (url.searchParams.get(`view.${scope}`) !== next.view) {
+        url.searchParams.set(`view.${scope}`, next.view);
+        window.history.pushState(null, "", url);
+      }
+    }
     setPrefs((p) => ({ ...p, ...next }));
-  }, []);
+  }, [scope, prefs.view]);
 
   return [prefs, patch];
 }
@@ -304,7 +338,7 @@ export function WorkspaceToolbar({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="sk-toolbar sticky top-0 z-20 flex flex-wrap items-center backdrop-blur-xl">
+    <div className="sk-toolbar md:sticky md:top-0 z-20 flex flex-wrap items-center backdrop-blur-xl">
       {children}
       {trailing ? <div className="ms-auto flex flex-wrap items-center gap-2">{trailing}</div> : null}
     </div>
@@ -448,6 +482,11 @@ export function ToolbarToggle({
     </Button>
   );
 }
+
+export const additionalWorkspaceViews = [
+  { value: "grid" as const, label: "Grid", icon: Grid2X2 },
+  { value: "calendar" as const, label: "Calendar", icon: CalendarDays },
+];
 
 export function ViewSwitch({
   value,
@@ -638,6 +677,9 @@ export function DataTable<T>({
   caption,
   getRowLabel,
   selectAllLabel,
+  view = "table",
+  getCalendarDate,
+  calendarLabel,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -657,8 +699,12 @@ export function DataTable<T>({
   getRowLabel?: (row: T) => string;
   /** Describe the existing callback scope if it differs from the displayed rows. */
   selectAllLabel?: string;
+  view?: WorkspaceView;
+  getCalendarDate?: (row: T) => CalendarDate;
+  calendarLabel?: string;
 }) {
-  const copy = tableCopy[useLocale().language];
+  const locale = useLocale();
+  const copy = tableCopy[locale.language];
   const ui = useUiText();
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectable = Boolean(onToggleSelect);
@@ -667,8 +713,51 @@ export function DataTable<T>({
   const partiallySelected = selectable && !allSelected && rows.some(r => selected?.has(rowKey(r)));
   useEffect(() => {
     if (selectAllRef.current) selectAllRef.current.indeterminate = partiallySelected;
-  }, [partiallySelected, selectable]);
+  }, [partiallySelected, selectable, view]);
   const pad = density === "compact" ? "px-3 py-2" : "px-4 py-3";
+
+  if (view === "grid" || view === "calendar") {
+    const labels = {
+      en: { undated: "No valid date", records: "Displayed records", calendar: "Calendar", grid: "Grid", scope: "Dates for the displayed records; filters and pagination still apply." },
+      ur: { undated: "درست تاریخ موجود نہیں", records: "دکھائے گئے ریکارڈ", calendar: "کیلنڈر", grid: "گرڈ", scope: "دکھائے گئے ریکارڈ کی تاریخیں؛ فلٹر اور صفحات بدستور لاگو ہیں۔" },
+      ar: { undated: "لا يوجد تاريخ صالح", records: "السجلات المعروضة", calendar: "التقويم", grid: "الشبكة", scope: "تواريخ السجلات المعروضة؛ لا تزال عوامل التصفية والصفحات سارية." },
+    }[locale.language];
+    const renderRecord = (row: T) => {
+      const id = rowKey(row);
+      const cells = columns.map(column => column.render(row));
+      const label = getRowLabel?.(row).trim() || cellText(cells[0]).trim() || id;
+      return <li key={id} data-record-id={id} data-state={selected?.has(id) ? "selected" : undefined}
+        className={cn("sk-panel min-w-0 space-y-3 p-4", rowClassName?.(row))}>
+        {selectable ? <SystemCheckbox checked={Boolean(selected?.has(id))}
+          onChange={() => onToggleSelect?.(id)} aria-label={`${selected?.has(id) ? copy.deselect : copy.select} ${label}`} /> : null}
+        <dl className="space-y-3">
+          {columns.map((column, i) => <div key={column.key} className="min-w-0 break-words">
+            <dt className={column.label ? "text-xs font-semibold text-ink-muted" : "sr-only"}>{ui(column.label || "Actions")}</dt>
+            <dd className="min-w-0">{cells[i]}</dd>
+          </div>)}
+        </dl>
+        {onRowClick && columns[0]?.rowAction !== "provided" && !hasCellControl(cells[0]) ? <SystemButton type="button" variant="outline"
+          aria-label={`${copy.open} ${label}`} onClick={() => onRowClick(row)}>{copy.open}</SystemButton> : null}
+      </li>;
+    };
+    const grouped = groupCalendarRows(rows, row => getCalendarDate?.(row), locale.timezone);
+    const recordList = (items: T[]) => <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{items.map(renderRecord)}</ul>;
+    return <section aria-label={typeof caption === "string" ? caption : labels.records} className="space-y-3">
+      <p role="status" className="text-sm text-ink-muted">{view === "calendar" ? labels.calendar : labels.grid} · {new Intl.NumberFormat(localeTag(locale)).format(rows.length)}</p>
+      {selectable ? <SystemCheckbox ref={selectAllRef} checked={allSelected} aria-checked={partiallySelected ? "mixed" : allSelected}
+        disabled={!onToggleAll || !rows.length} onChange={onToggleAll} aria-label={selectAllLabel ?? copy.all} /> : null}
+      {rows.length === 0 ? (empty == null || typeof empty === "string" ? <EmptyState size="sm" icon={Inbox} title={ui(empty ?? "Nothing to show.")} /> : empty) :
+        view === "grid" ? recordList(rows) : <>
+          <p className="text-sm text-ink-muted">{ui(calendarLabel ?? "Date")} · <bdi>{locale.timezone}</bdi></p>
+          <p className="text-xs text-ink-muted">{labels.scope}</p>
+          {grouped.days.map(([day, items]) => <section key={day} aria-label={formatDateOnly(day, locale)} className="space-y-2">
+            <h3 className="text-base font-semibold"><time dateTime={day}>{formatDateOnly(day, locale)}</time></h3>
+            {recordList(items)}
+          </section>)}
+          {grouped.undated.length ? <section aria-label={labels.undated} className="space-y-2"><h3 className="font-semibold">{labels.undated}</h3>{recordList(grouped.undated)}</section> : null}
+        </>}
+    </section>;
+  }
 
   return (
     <div className="sk-panel overflow-x-auto custom-scrollbar">

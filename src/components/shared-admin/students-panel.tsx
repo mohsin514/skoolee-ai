@@ -44,6 +44,7 @@ import {
   ToolbarSelect,
   ToolbarToggle,
   ViewSwitch,
+  additionalWorkspaceViews,
   WorkspaceHeader,
   WorkspaceToolbar,
   useWorkspacePrefs,
@@ -738,6 +739,7 @@ export function StudentsPanel({
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
                 { value: "table", label: "List", icon: Table2 },
+                ...additionalWorkspaceViews,
               ]}
             />
           </>
@@ -822,8 +824,11 @@ export function StudentsPanel({
         busy={busy}
       />
 
-      {prefs.view === "table" ? (
+      {prefs.view !== "cards" ? (
         <DataTable
+          view={prefs.view}
+          calendarLabel="Enrollment date"
+          getCalendarDate={(row) => ({ value: row.enrollmentDate, kind: "date" })}
           rows={paged.rows}
           columns={readOnly ? columns.filter(column => column.key !== "login") : columns}
           rowKey={(s) => s.id}
