@@ -102,6 +102,14 @@ test("faculty and enquiries use calendar and grid without losing their records",
     await page.getByRole("button",{name:"Grid",exact:true}).click();
     await page.getByRole("button",{name:new RegExp(`Open ${name}`)}).click();
     await page.getByRole("dialog").waitFor();
+    if(scope === "enquiries") {
+      const draft=page.getByRole("textbox",{name:"Log a follow-up",exact:true});
+      await draft.fill("Synthetic unsaved follow-up");
+      await page.goBack();
+      assert.equal(new URL(page.url()).searchParams.get("view.enquiries"),"calendar");
+      assert.equal(await draft.inputValue(),"Synthetic unsaved follow-up");
+      assert.equal(await db.admissionQueryFollowUp.count({where:{query:{schoolId}}}),0);
+    }
   }
 });
 test("Urdu mobile calendar fits and preserves roster selection",async()=>{
