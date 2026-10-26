@@ -7,9 +7,8 @@ import { ApiError } from "@/lib/api/scope";
 import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
 import { protectSecret, revealSecret } from "@/lib/auth/mfa-crypto";
 import { CONTRACTS, V1 } from "./contract";
-import { checkDestination, validateShape } from "./destination";
-import { Agent } from "undici";
-import { isIP } from "node:net";
+import { checkDestination, pinnedDestinationLookup, validateShape } from "./destination";
+import { Agent, fetch } from "undici";
 
 // SKO-445: scoped service connections, the public v1 contract and signed outbound webhooks.
 // - A connection names its campuses and scopes; its key never carries the creator's own privileges. Keys are
@@ -241,7 +240,7 @@ async function attempt(id: string) {
     // Pin the connection to the address validated above while retaining the
     // original hostname for TLS SNI and the HTTP Host header. This closes the
     // DNS check/use gap without weakening certificate verification.
-    const dispatcher = new Agent({ connect: { lookup: (_hostname, _options, callback) => callback(null, check.address, isIP(check.address) as 4 | 6) } });
+    const dispatcher = new Agent({ connect: { lookup: pinnedDestinationLookup(check.address) } });
     try {
       const response = await fetch(check.url, { dispatcher, method: "POST", redirect: "manual", signal: AbortSignal.timeout(Number(process.env.INTEGRATION_TIMEOUT_MS ?? 5000)), headers: { "Content-Type": "application/json", "User-Agent": "Skoolee-Webhooks/1", "Skoolee-Event-Id": d.event.id, "Skoolee-Topic": d.event.topic, "Skoolee-Delivery-Attempt": String(n), "Skoolee-Signature": signature }, body });
       if (response.status >= 300 && response.status < 400) return finish("REDIRECT_REFUSED", { status: "BLOCKED", lastStatusCode: response.status, lastError: "The destination redirected; redirects are not followed. Update the webhook URL." }, { statusCode: response.status, error: "Redirect refused.", durationMs: Date.now() - started, address: check.address, signedWith: secrets.length });

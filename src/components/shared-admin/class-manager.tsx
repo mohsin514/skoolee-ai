@@ -115,7 +115,7 @@ interface ClassManagerProps {
   onUpdateClass: (
     classId: string,
     updates: { name?: string; section?: string; academicYear?: number },
-  ) => Promise<void>;
+  ) => Promise<boolean | void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (
     classId: string,
@@ -321,11 +321,12 @@ function SettingsDrawer({
   }, [section.id]);
 
   const save = async () => {
-    await onUpdateClass(section.id, {
+    const saved = await onUpdateClass(section.id, {
       name: editName,
       section: editSection,
       academicYear: Number(editYear) || new Date().getFullYear(),
     });
+    if (saved === false) return;
     toast.success(ui("Class details updated"));
     onClose();
   };

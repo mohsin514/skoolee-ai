@@ -42,7 +42,9 @@ test("AI suggestions are kept only when the excerpt is on the cited page", () =>
 test("batches respect the character budget and the page list falls back to the whole text", () => {
   const big = [{ page: 1, text: "a".repeat(8000) }, { page: 2, text: "b".repeat(8000) }, { page: 3, text: "c".repeat(100) }];
   assert.deepEqual(outlineBatches(big, 12000).map(batch => batch.map(page => page.page)), [[1], [2, 3]]);
-  assert.deepEqual(outlinePagesOf({ extractedText: "Unit 1\n- x y z" }), [{ page: 1, text: "Unit 1\n- x y z" }]);
+  assert.deepEqual(outlinePagesOf({ extractedText: "Unit 1\n- x y z" }), [{ page: "text", text: "Unit 1\n- x y z" }]);
+  assert.equal(outlineFromPages(outlinePagesOf({ extractedText: "Unit 1\n- x y z" }))[0].page, "text", "pasted text never invents a physical page");
+  assert.equal(pageRangeOf([{ page: "text" }]), undefined);
   assert.deepEqual(outlinePagesOf({ extractedText: "  " }), []);
   assert.equal(pageRangeOf([{ page: "3" }, { page: "7" }, { page: "4" }]), "3–7");
   assert.equal(outlineId("a", 1), outlineId("a", 1));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { BookOpenCheck, GripHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ export function SyllabusMap({ language, subjectId, classId, subjectLabel, onChan
   if (state.kind !== "ready") return <SpaceStateRegion state={state} language={language}>{() => null}</SpaceStateRegion>;
   // SKO-500: no approved syllabus yet. A teacher (or manager) adds one here; a reader sees the empty state.
   if (!view!.curriculum) return view!.canMove
-    ? <SyllabusDrop language={language} subjectId={subjectId} classId={classId} subjectLabel={subjectLabel} onApproved={() => { void load(); onChanged?.(); }} />
+    ? <SyllabusDrop key={`${subjectId}:${classId}`} language={language} subjectId={subjectId} classId={classId} subjectLabel={subjectLabel} onApproved={() => { void load(); onChanged?.(); }} />
     : <TaskFeedback kind="empty" title={t.noCurriculum}><p>{fillStudioCopy(t.noCurriculumHint, [subjectLabel])}</p></TaskFeedback>;
   const lineData = view!;
   const position = index >= 0 ? flat[index] : null;
@@ -146,7 +146,7 @@ export function SyllabusMap({ language, subjectId, classId, subjectLabel, onChan
             <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full", above ? "bg-primary" : "bg-border-subtle")} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium"><Isolated>{row.title}</Isolated></p>
-              <p className="text-2xs text-ink-subtle">{row.page ? fillStudioCopy(t.page, [row.page]) : null}{row.page ? " · " : ""}{row.taught && row.taughtOn && rowIndex <= savedIndex ? fillStudioCopy(t.taughtOn, [date(row.taughtOn)]) : above ? t.taughtUndated : t.notYet}</p>
+              <p className="text-2xs text-ink-subtle">{row.page === "text" ? t.unpaginatedText : row.page ? fillStudioCopy(t.page, [row.page]) : null}{row.page ? " · " : ""}{row.taught && row.taughtOn && rowIndex <= savedIndex ? fillStudioCopy(t.taughtOn, [date(row.taughtOn)]) : above ? t.taughtUndated : t.notYet}</p>
             </div>
             {lineData.canMove && rowIndex !== index && <Button type="button" size="sm" variant="ghost" onClick={() => move(rowIndex)} aria-label={`${t.upToHere}: ${row.title}`}>{t.upToHere}</Button>}
           </div>
@@ -169,11 +169,12 @@ export function SyllabusMap({ language, subjectId, classId, subjectLabel, onChan
 }
 
 function LineHandle({ label, hint, position, canMove, index, max, onKey, onDragStart }: { label: string; hint: string; position: string; canMove: boolean; index: number; max: number; onKey: (event: KeyboardEvent<HTMLDivElement>) => void; onDragStart: () => void }) {
+  const hintId = useId();
   return <div
     role="slider"
     tabIndex={canMove ? 0 : -1}
     aria-label={label}
-    aria-description={hint}
+    aria-describedby={hintId}
     aria-valuemin={-1}
     aria-valuemax={max}
     aria-valuenow={index}
@@ -184,6 +185,7 @@ function LineHandle({ label, hint, position, canMove, index, max, onKey, onDragS
     className={cn("my-1 flex touch-none select-none items-center gap-2 rounded-full", canMove ? "cursor-grab" : "cursor-default")}
     data-teaching-line
   >
+    <span id={hintId} className="sr-only">{hint}</span>
     <span aria-hidden="true" className="h-0.5 flex-1 rounded-full bg-primary" />
     <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-2xs font-semibold text-primary-foreground"><GripHorizontal aria-hidden="true" className="size-3" />{label}</span>
     <span aria-hidden="true" className="h-0.5 flex-1 rounded-full bg-primary" />

@@ -12,6 +12,7 @@ import { fill } from "../../exam-incident-copy";
 import type { StudioSpaceProps } from "../studio-space-registry";
 import { SpaceStateRegion, type SpaceState } from "../space-state";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 /**
  * SKO-408 Blueprint space, parallel forms (R10). The comparison is structural and says so: forms are
@@ -65,7 +66,7 @@ export default function BlueprintSpace({ language, scope, records, capabilities,
     if (!response.ok) { setNotice({ tone: "error", text: typeof payload.error === "string" ? payload.error : t.failed }); return null; }
     return payload;
   };
-  return <div className="space-y-4" data-forms-space>
+  return <div className="min-w-0 space-y-4" data-forms-space>
     <p className="text-sm text-ink-subtle">{t.intro}</p>
     <p className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm text-status-warning-text" data-difficulty-claim="NOT_MEASURED">{t.noClaim}</p>
     <div className="flex flex-wrap items-end gap-3">
@@ -93,19 +94,25 @@ function FormSetView({ report, language, busy, canCreate, canApprove, onReviewed
   const sealed = report.status === "SEALED";
   const formBlockers = report.blockers.filter(blocker => blocker.label);
   const setBlockers = report.blockers.filter(blocker => !blocker.label);
-  return <div className="space-y-4">
-    <section aria-labelledby="forms-table" className="sk-panel space-y-3 p-4">
-      <h3 id="forms-table" className="font-semibold">{t.structure}</h3>
-      <div className="overflow-x-auto"><table className="w-full min-w-[44rem] text-sm">
-        <thead><tr className="text-xs text-ink-subtle">{[t.formCol, t.language, t.record, t.status, t.items, t.marks, t.outcomes, t.structure, t.rehearsal, t.exposure].map(heading => <th key={heading} className="p-2 text-start">{heading}</th>)}</tr></thead>
-        <tbody>{report.forms.map(form => <tr key={form.recordId} className="border-t" data-form={form.original ? form.label : `${form.label}-${form.language}`} data-form-parity={form.parity}>
-          <td className="p-2 font-semibold">{fill(t.form, [form.label])}</td><td className="p-2">{t[LANG_COPY[form.language]]}{form.original ? <span className="ms-1 text-xs text-ink-subtle">({t.originalTag})</span> : null}</td><td className="p-2"><bdi dir="auto">{form.title}</bdi> · v{number(form.version)}</td><td className="p-2">{status(form.status)}</td>
-          <td className="p-2 tabular-nums">{number(form.items)}</td><td className="p-2 tabular-nums">{number(form.marks)}</td><td className="p-2 tabular-nums">{number(form.outcomes)}</td>
-          <td className={`p-2 ${form.parity ? "" : "font-semibold text-status-error-text"}`}>{form.parity ? t.matches : t.differs}</td>
-          <td className="p-2">{form.rehearsed === "CLEAN" ? t.clean : form.rehearsed === "BLOCKING" ? t.blocking : t.notRehearsed}</td><td className="p-2 tabular-nums">{number(form.priorExposure)}</td>
-        </tr>)}</tbody>
-      </table></div>
-      <p className="text-sm">{fill(t.sharedCount, [number(report.shared)])} · {fill(t.differingCount, [number(report.differing)])}</p>
+  return <div className="min-w-0 space-y-4">
+    <section aria-labelledby="forms-table" className="sk-panel min-w-0 space-y-4 p-4 sm:p-5">
+      <h3 id="forms-table" className="text-base font-semibold">{t.structure}</h3>
+      <Table className="min-w-[64rem]" containerClassName="max-w-full" aria-labelledby="forms-table">
+        <TableHeader><TableRow>
+          <TableHead className="sticky start-0 z-10 w-28 bg-surface-subtle">{t.formCol}</TableHead><TableHead>{t.language}</TableHead><TableHead>{t.record}</TableHead><TableHead>{t.status}</TableHead>
+          <TableHead className="text-end">{t.items}</TableHead><TableHead className="text-end">{t.marks}</TableHead><TableHead className="text-end">{t.outcomes}</TableHead><TableHead>{t.structure}</TableHead><TableHead>{t.rehearsal}</TableHead><TableHead className="text-end">{t.exposure}</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>{report.forms.map(form => <TableRow key={form.recordId} className="group" data-form={form.original ? form.label : `${form.label}-${form.language}`} data-form-parity={form.parity}>
+          <TableHead scope="row" className="sticky start-0 z-10 bg-white py-4 text-sm text-foreground group-hover:bg-surface-hover">{fill(t.form, [form.label])}</TableHead>
+          <TableCell className="min-w-28">{t[LANG_COPY[form.language]]}{form.original ? <span className="mt-1 block text-xs text-ink-muted">{t.originalTag}</span> : null}</TableCell>
+          <TableCell className="min-w-48 max-w-xs"><bdi dir="auto" className="block font-medium">{form.title}</bdi><span className="mt-1 block text-xs tabular-nums text-ink-muted"><bdi>v{number(form.version)}</bdi></span></TableCell>
+          <TableCell><Badge variant={form.status === "APPROVED" ? "success" : form.status === "IN_REVIEW" ? "info" : "neutral"} className="leading-relaxed">{status(form.status)}</Badge></TableCell>
+          <TableCell className="text-end tabular-nums">{number(form.items)}</TableCell><TableCell className="text-end font-semibold tabular-nums">{number(form.marks)}</TableCell><TableCell className="text-end tabular-nums">{number(form.outcomes)}</TableCell>
+          <TableCell><Badge variant={form.parity ? "neutral" : "danger"} className="leading-relaxed">{form.parity ? t.matches : t.differs}</Badge></TableCell>
+          <TableCell><Badge variant={form.rehearsed === "CLEAN" ? "success" : form.rehearsed === "BLOCKING" ? "danger" : "neutral"} className="leading-relaxed">{form.rehearsed === "CLEAN" ? t.clean : form.rehearsed === "BLOCKING" ? t.blocking : t.notRehearsed}</Badge></TableCell><TableCell className="text-end tabular-nums">{number(form.priorExposure)}</TableCell>
+        </TableRow>)}</TableBody>
+      </Table>
+      <div className="flex flex-wrap gap-2 text-sm text-ink-muted"><p className="rounded-lg bg-surface-subtle px-3 py-2">{fill(t.sharedCount, [number(report.shared)])}</p><p className="rounded-lg bg-surface-subtle px-3 py-2">{fill(t.differingCount, [number(report.differing)])}</p></div>
       {report.identical.length > 0 && <ul className="grid gap-1 text-sm text-status-warning-text" data-identical-items>{report.identical.map((row, index) => <li key={index}>{fill(t.identical, [row.label, number(row.number), number(row.referenceNumber)])}</li>)}</ul>}
       {!sealed && canCreate && <div className="flex flex-wrap items-end gap-2">
         {new Set(report.forms.map(form => form.label)).size < report.maxForms && <Button size="sm" variant="outline" disabled={busy} onClick={() => onAdd()}>{t.add}</Button>}
@@ -177,9 +184,9 @@ function LanguageCompare({ version, language, formSetId, canCreate, canApprove, 
     <p className="text-sm text-ink-subtle">{t.compareHint}</p>
     <p className="text-sm">{fill(t.agreed, [number(version.agreed), number(version.items.length)])}</p>
     <ModelReview version={version} language={language} formSetId={formSetId} canCreate={canCreate} canApprove={canApprove} onReviewed={onReviewed} />
-    <ol className="grid gap-2">{version.items.map(item => <li key={item.number} className="rounded-xl border p-3 text-sm" data-language-item={item.number} data-language-codes={item.codes.join(" ")}>
-      <p className="mb-2 text-xs font-semibold">{fill(t.form, [version.label])} · #{number(item.number)}{item.codes.map(code => <Badge key={code} variant="danger" size="sm" className="ms-2">{t[MISMATCH_COPY[code] ?? "mismatchKey"]}</Badge>)}{item.untranslated ? <Badge variant="warning" size="sm" className="ms-2">{t.untranslated}</Badge> : null}</p>
-      <div className="grid gap-3 md:grid-cols-2"><div><p className="text-xs font-semibold text-ink-subtle">{t.original}</p>{side(item.original, version.originalLanguage)}</div><div><p className="text-xs font-semibold text-ink-subtle">{t.translated}</p>{side(item.translated, version.language)}</div></div>
+    <ol className="grid gap-3">{version.items.map(item => <li key={item.number} className="space-y-3 rounded-xl border border-border-subtle p-4 text-sm leading-relaxed" data-language-item={item.number} data-language-codes={item.codes.join(" ")}>
+      <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{fill(t.form, [version.label])} · #{number(item.number)}</p>{item.codes.map(code => <Badge key={code} variant="danger" className="leading-relaxed">{t[MISMATCH_COPY[code] ?? "mismatchKey"]}</Badge>)}{item.untranslated ? <Badge variant="warning" className="leading-relaxed">{t.untranslated}</Badge> : null}</div>
+      <div className="grid gap-3 md:grid-cols-2"><div className="min-w-0 space-y-2 rounded-lg bg-surface-subtle p-3"><p className="text-xs font-semibold text-ink-muted">{t.original}</p>{side(item.original, version.originalLanguage)}</div><div className="min-w-0 space-y-2 rounded-lg bg-surface-subtle p-3"><p className="text-xs font-semibold text-ink-muted">{t.translated}</p>{side(item.translated, version.language)}</div></div>
     </li>)}</ol>
   </section>;
 }

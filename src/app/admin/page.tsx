@@ -794,7 +794,7 @@ export default function CampusConsolePage() {
     });
   };
 
-  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
+  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }): Promise<boolean> => {
     setSavingClassUpdate(true);
     const failed = ui("Could not save the class changes. Please try again.");
     try {

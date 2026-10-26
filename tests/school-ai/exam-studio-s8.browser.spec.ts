@@ -1,3 +1,4 @@
+import { captureEvidence } from "./screenshot-evidence";
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
@@ -53,12 +54,13 @@ for (const language of ["en", "ar"] as const) for (const run of [1, 2]) {
     let page = await open(office, "/principal?view=exam-cycles", language);
     await page.locator('[data-exam-step="papers"]').click();
     await expect(page.locator('[data-slot-status="REQUESTED"]').first()).toBeVisible({ timeout: 30_000 });
-    if (shots) await page.screenshot({ path: `${shots}/${language}-${run}-0000-ledger.png` });
+    if (shots) await captureEvidence(page, { path: `${shots}/${language}-${run}-0000-ledger.png` });
     await page.close();
 
     beat("LIVE", "0:20", "the teacher's Exam Studio already knows the job");
     page = await open(teacher, "/ai/studio", language);
     await expect(page.locator("[data-next-step]")).toBeVisible({ timeout: 30_000 });
+    if (shots) await captureEvidence(page, { path: `${shots}/${language}-${run}-0020-next-step.png`, fullPage: true });
     await page.close();
 
     beat("PLANNED", "0:40", "Syllabus Drop from a photographed syllabus (camera and AI provider; not rehearsed here)");
@@ -75,12 +77,19 @@ for (const language of ["en", "ar"] as const) for (const run of [1, 2]) {
     beat("LIVE", "2:45", "the head of department signs the paper against the pattern");
     expect((await hod.request.post(`/api/academic/paper-slots/${slot.id}/moderation`, { headers, data: { paperVersion: (await paperOf(paperId)).version, decision: "SIGNED" } })).ok()).toBeTruthy();
     expect((await teacher.request.post(`/api/school-ai/workspace/${paperId}/rehearsal`, { headers, data: { version: (await paperOf(paperId)).version, findings: [] } })).ok()).toBeTruthy();
+    page = await open(teacher, "/ai/studio#space=rehearsal", language);
+    await page.getByRole("combobox", { name: language === "ar" ? "المادة الدراسية" : "Teaching subject", exact: true }).selectOption((source.data as { subjectId: string }).subjectId);
+    const rehearsal = page.locator("[data-rehearsal-space]");
+    await expect(rehearsal.locator('[data-rehearsal-row="CLEAN"]').filter({ hasText: "Science Grade 7 mid-term" })).toBeVisible({ timeout: 30_000 });
+    if (shots) await captureEvidence(rehearsal, { path: `${shots}/${language}-${run}-0245-rehearsal-table.png` });
+    await page.close();
 
     beat("LIVE", "2:55", "one seal; the ledger reads SEALED");
     expect((await office.request.post(`/api/academic/paper-slots/${slot.id}/seal`, { headers, data: { paperVersion: (await paperOf(paperId)).version } })).ok()).toBeTruthy();
     page = await open(office, "/principal?view=exam-cycles", language);
     await page.locator('[data-exam-step="papers"]').click();
     await expect(page.locator('[data-slot-status="SEALED"]').first()).toBeVisible({ timeout: 30_000 });
+    if (shots) await captureEvidence(page, { path: `${shots}/${language}-${run}-0255-sealed.png`, fullPage: true });
     await page.close();
 
     beat("LIVE", "2:15", "the Exam Twin's estimate for the sitting, from this class's earlier released sittings");
@@ -96,12 +105,13 @@ for (const language of ["en", "ar"] as const) for (const run of [1, 2]) {
     await expect(select).toBeVisible({ timeout: 30_000 });
     await select.selectOption({ label: "Science mid-term (online)" });
     await expect(page.locator('[data-exam-twin] [data-twin-row="estimate"]').first()).toBeVisible();
-    if (shots) await page.locator("[data-exam-twin]").screenshot({ path: `${shots}/${language}-${run}-0215-twin.png` });
+    if (shots) await captureEvidence(page.locator("[data-exam-twin]"), { path: `${shots}/${language}-${run}-0215-twin.png` });
     await page.close();
 
     beat("LIVE", "3:20", "the control room board for the sitting");
     page = await open(office, "/ai/studio#space=control-room", language);
     await expect(page.locator("[data-room-board]")).toBeVisible({ timeout: 30_000 });
+    if (shots) await captureEvidence(page, { path: `${shots}/${language}-${run}-0320-control-room.png`, fullPage: true });
     await page.close();
     beat("PLANNED", "3:20", "cable pull and reconnect on the candidate laptop (manual on stage)");
     beat("PLANNED", "4:00", "Script Stream of a photographed marked pile (camera and reader; not rehearsed here)");
@@ -128,11 +138,24 @@ for (const language of ["en", "ar"] as const) for (const run of [1, 2]) {
     await desk.locator("[data-draft-notes]").click();
     await expect(desk.locator("[data-family-note-row]").first()).toBeVisible();
     await expect(desk.locator(`textarea[lang="${language}"]`).first()).toBeVisible();
-    if (shots) await page.screenshot({ path: `${shots}/${language}-${run}-0430-next-lesson.png`, fullPage: true });
+    if (shots) await captureEvidence(page, { path: `${shots}/${language}-${run}-0430-next-lesson.png`, fullPage: true });
+    // The app has an inner scroll panel: fullPage alone cannot show the evidence above the family notes.
+    const itemEvidence = page.locator('section[aria-labelledby="improve-items"]');
+    await expect(itemEvidence.locator("[data-item-reading]").first()).toBeVisible();
+    if (shots) {
+      await captureEvidence(itemEvidence, { path: `${shots}/${language}-${run}-0430-item-evidence.png` });
+      await captureEvidence(page.locator("[data-exam-twin]"), { path: `${shots}/${language}-${run}-0430-twin-comparison.png` });
+    }
 
     beat("LIVE", "4:30", "Item Watch on last term's Gases check names the seeded ambiguous item");
     await page.locator("[data-improve-space] select").first().selectOption({ index: (await page.locator("[data-improve-space] select").first().locator("option").allTextContents()).findIndex(text => text.includes("Gases check")) });
     await expect(page.locator('[data-item-watch] [data-watch-item*="TOP_QUARTILE_DISTRACTOR"]')).toHaveCount(1);
+    if (shots) await captureEvidence(page.locator("[data-item-watch]"), { path: `${shots}/${language}-${run}-0430-item-watch.png` });
+    // Viewing a later sitting reads existing released evidence; it creates no practice or new results.
+    const comparison = page.locator("[data-compare]");
+    await comparison.locator("select").selectOption({ label: "Science mid-term (online)" });
+    await expect(comparison.locator("[data-compare-row]").first()).toBeVisible();
+    if (shots) await captureEvidence(comparison, { path: `${shots}/${language}-${run}-0430-results-comparison.png` });
     await page.close();
 
     beat("LIVE", "4:50", "Pilot Ledger: the school joins, the product computes six footnoted tiles");
@@ -141,7 +164,16 @@ for (const language of ["en", "ar"] as const) for (const run of [1, 2]) {
     await page.locator("[data-ledger-compute]").click();
     await expect(page.locator("[data-ledger-tile]")).toHaveCount(6);
     await expect(page.locator('[data-ledger-tile="PL-6"] [data-ledger-value]')).not.toHaveText("");
-    if (shots) await page.screenshot({ path: `${shots}/${language}-${run}-0450-ledger.png`, fullPage: true });
+    if (shots) await captureEvidence(page, { path: `${shots}/${language}-${run}-0450-ledger.png`, fullPage: true });
+    // Opt-out and a concurrently running computation must finish with no retained snapshot.
+    const [computed, optedOut] = await Promise.all([
+      office.request.post("/api/school-ai/pilot-ledger", { headers, data: { action: "compute" } }),
+      office.request.post("/api/school-ai/pilot-ledger", { headers, data: { action: "opt-out" } }),
+    ]);
+    expect([200, 409]).toContain(computed.status());
+    expect(optedOut.ok(), await optedOut.text()).toBeTruthy();
+    expect((await db.pilotLedgerSetting.findUniqueOrThrow({ where: { schoolId: DEMO_SCHOOL_ID } })).optedIn).toBe(false);
+    expect(await db.pilotLedgerSnapshot.count({ where: { schoolId: DEMO_SCHOOL_ID } })).toBe(0);
     await office.close(); await teacher.close(); await hod.close();
   });
 }

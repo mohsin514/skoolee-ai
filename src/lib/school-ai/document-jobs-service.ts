@@ -3,7 +3,7 @@ import { Prisma, type PrismaClient, type SchoolAiDocumentJob } from "@prisma/cli
 import type { AuthUser } from "@/lib/auth";
 import type { TxClient } from "@/lib/db/prisma";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
-import { ensureAICreditsAvailable,consumeAICreditAndLog } from "@/lib/ai/openai";
+import { AIProviderQuotaError,ensureAICreditsAvailable,consumeAICreditAndLog,isOpenAIQuotaExhausted } from "@/lib/ai/openai";
 import { assertApprovalRole,assertSchoolAiAccess,loadWorkspacePermissionSnapshot,resolveWorkerPrincipal,SchoolAiError } from "./access";
 import { getWorkspaceRecordInTransaction,updateWorkspaceRecordInTransaction,assertSourceOriginalAccess } from "./repository";
 import { sourceDataSchema } from "./schemas";
@@ -102,7 +102,7 @@ export async function processDocumentJob(user:AuthUser,id:string,adapters={extra
    if(result){await source(user,job.recordId,db,"EXTRACT",[job.recordVersion]);if(!native)await consumeAICreditAndLog({schoolId:user.schoolId,campusId:job.campusId,userId:user.userId,feature:"SCHOOL_AI_DOCUMENT",action:"EXTRACT",model:result.model,tokensUsed:result.tokensUsed,metadata:{sourceId:job.recordId,jobId:id}},undefined,db);}
    const saved=await db.schoolAiDocumentJob.update({where:{id},data:{status:result?"READY":"COMPLETED",result:result?json(result):Prisma.DbNull,completedAt:new Date(),leaseToken:null,leaseUntil:null,version:{increment:1}}});await audit(user,saved,result?"EXTRACTION_READY":"ORIGINAL_DELETED",db);return dto(saved);
   });
- }catch(error){await schoolAiTransaction(user,async db=>{const row=await db.schoolAiDocumentJob.findFirst({where:{id,schoolId:user.schoolId,status:"PROCESSING",leaseToken:token}});if(row){const failed=await db.schoolAiDocumentJob.update({where:{id},data:{status:"FAILED",leaseToken:null,leaseUntil:null,version:{increment:1},errorCode:error instanceof SchoolAiError?error.code??"PROCESSING_FAILED":"PROCESSING_FAILED"}});await audit(user,failed,"FAILED",db);}});throw error;}
+ }catch(error){await schoolAiTransaction(user,async db=>{const row=await db.schoolAiDocumentJob.findFirst({where:{id,schoolId:user.schoolId,status:"PROCESSING",leaseToken:token}});if(row){const failed=await db.schoolAiDocumentJob.update({where:{id},data:{status:"FAILED",leaseToken:null,leaseUntil:null,version:{increment:1},errorCode:error instanceof AIProviderQuotaError||isOpenAIQuotaExhausted(error)?"AI_QUOTA_EXHAUSTED":error instanceof SchoolAiError?error.code??"PROCESSING_FAILED":"PROCESSING_FAILED"}});await audit(user,failed,"FAILED",db);}});throw error;}
 }
 export async function sweepDocumentJobs(db:PrismaClient,limit=4){
  await db.schoolAiDocumentJob.updateMany({where:{status:"PROCESSING",leaseUntil:{lt:new Date()},kind:"EXTRACT"},data:{status:"FAILED",errorCode:"OUTCOME_UNCERTAIN",leaseToken:null,leaseUntil:null,version:{increment:1}}});

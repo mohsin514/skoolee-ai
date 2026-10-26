@@ -64,9 +64,12 @@ async function seed(db: PrismaClient) {
       const script = scripts(index);
       const review = { marks: Object.entries(script.marks).map(([questionId, marks]) => ({ questionId, marks, feedback: marks ? "Credit given against the rubric." : "Not yet: see the model answer." })), note: "Marked against the rubric.", total: Object.values(script.marks).reduce((sum, value) => sum + value, 0) };
       const attempt = await db.schoolAiExamAttempt.create({ data: { schoolId, campusId: learner.campusId, assignmentId: exam.id, studentId: learner.id, userId: learner.studentUserId!, startedAt: startsAt, deadlineAt: endsAt, submittedAt: new Date(startsAt.getTime() + 30 * 60_000), sequence: 2, status: "REVIEWED", responses: script.responses, review, reviewVersion: 1, reviewedById: principalRow.id, reviewedAt: new Date(endsAt.getTime() + day) } });
-      await db.schoolAiExamResultRevision.create({ data: { schoolId, campusId: learner.campusId, assignmentId: exam.id, attemptId: attempt.id, version: 1, review, reason: "Initial marking", createdById: principalRow.id } });
+      await db.schoolAiExamResultRevision.create({ data: { schoolId, campusId: learner.campusId, assignmentId: exam.id, attemptId: attempt.id, version: 1, review, reason: "Initial marking", createdById: principalRow.id, createdAt: new Date(endsAt.getTime() + day) } });
     }
-    await releaseResults(principal, exam.id);
+    // This fixture represents a historical released sitting. Its release and revision timestamps
+    // must also be historical. Supply the clock for the initial authorized release; never rewrite
+    // its immutable timestamp after publication.
+    await releaseResults(principal, exam.id, new Date(endsAt.getTime() + day));
     return exam.id;
   };
   // Gases check: the three strongest learners choose "Air" on the ambiguous item.

@@ -60,6 +60,7 @@ export function ExceptionsDesk({ sessionId, onChanged }: { sessionId: string; on
         <p dir="auto" className="text-sm text-ink-muted">{row.note}</p>
         {row.status === "RESOLVED" ? <p className="text-sm"><span className="font-semibold">{decision(row.decision ?? "")}</span>{row.resolution ? <> · <bdi dir="auto">{row.resolution}</bdi></> : null}</p>
           : <div className="grid gap-2 md:grid-cols-3">
+            <p className="text-xs text-ink-subtle md:col-span-3" data-exception-action-note>{t.exceptionActionNote}</p>
             <FormField name={`decision-${row.id}`} label={t.exceptionDecision}><Select value={draft.decision} onChange={event => setResolving(previous => ({ ...previous, [row.id]: { ...draft, decision: event.target.value } }))}>{DECISIONS.map(value => <option key={value} value={value}>{decision(value)}</option>)}</Select></FormField>
             <FormField name={`resolution-${row.id}`} label={t.exceptionResolution}><Textarea rows={1} maxLength={2000} value={draft.resolution} onChange={event => setResolving(previous => ({ ...previous, [row.id]: { ...draft, resolution: event.target.value } }))} data-exception-resolution /></FormField>
             <div className="flex items-end"><Button type="button" variant="outline" disabled={busy || draft.resolution.trim().length < 3} onClick={() => void send(`${url}/${encodeURIComponent(row.id)}`, "PATCH", { version: row.version, ...draft })} data-exception-resolve>{t.exceptionResolve}</Button></div>

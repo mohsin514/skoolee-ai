@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select } from "@/components/ui/select";
 import { TaskFeedback } from "@/components/ui/task-patterns";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
@@ -58,7 +60,7 @@ export default function ImproveSpace({ language, scope, capabilities, records, r
   if (exams && exams.length === 0) return <TaskFeedback kind="empty" title={t.noExams}><p>{t.improveIntro}</p></TaskFeedback>;
   const number = (value: number) => new Intl.NumberFormat(language).format(value);
   const percent = (value: number | null) => value === null ? "—" : new Intl.NumberFormat(language, { style: "percent", maximumFractionDigits: 1 }).format(value / 100);
-  return <div className="space-y-4" data-improve-space>
+  return <div className="min-w-0 space-y-4" data-improve-space>
     <p className="text-sm text-ink-subtle">{t.improveIntro}</p>
     {exams && <label className="grid max-w-xl gap-1 text-sm font-semibold">{t.exam}<Select aria-label={t.exam} value={examId} onChange={event => setSelected(event.target.value)}>{exams.map(exam => <option key={exam.id} value={exam.id}>{exam.title}</option>)}</Select></label>}
     <SpaceStateRegion state={state} language={language}>{data => <>
@@ -66,21 +68,21 @@ export default function ImproveSpace({ language, scope, capabilities, records, r
         <p>{data.exam.resultsReleasedAt ? fillStudioCopy(t.releasedOn, [new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(data.exam.resultsReleasedAt))]) : t.notReleased}</p>
         <Link href={`/ai/exams/${encodeURIComponent(data.exam.id)}`} className={buttonVariants({ variant: "outline", size: "sm" })}>{t.openDesk}</Link>
       </div>
-      <section aria-labelledby="improve-base" className="sk-panel space-y-2 p-4"><h3 id="improve-base" className="font-semibold">{t.evidenceBase}</h3>
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">{([["assigned", data.counts.assigned], ["moderated", data.counts.reviewed], ["unmarked", data.counts.unmarked], ["inProgress", data.counts.inProgress], ["absent", data.counts.absent]] as const).map(([key, value]) =>
-          <div key={key} className="rounded-xl border p-2"><dt className="text-xs text-ink-subtle">{t[key]}</dt><dd className="text-lg font-bold tabular-nums">{number(value)}</dd></div>)}</dl>
+      <section aria-labelledby="improve-base" className="sk-panel space-y-4 p-4 sm:p-5"><h3 id="improve-base" className="text-base font-semibold">{t.evidenceBase}</h3>
+        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">{([["assigned", data.counts.assigned], ["moderated", data.counts.reviewed], ["unmarked", data.counts.unmarked], ["inProgress", data.counts.inProgress], ["absent", data.counts.absent]] as const).map(([key, value]) =>
+          <div key={key} className="space-y-2 rounded-xl bg-surface-subtle p-3"><dt className="text-xs leading-relaxed text-ink-muted">{t[key]}</dt><dd className="text-2xl font-semibold tabular-nums">{number(value)}</dd></div>)}</dl>
       </section>
-      <section aria-labelledby="improve-items" className="sk-panel space-y-2 p-4"><h3 id="improve-items" className="font-semibold">{t.items}</h3>
-        <div className="overflow-x-auto"><table className="w-full min-w-[40rem] text-sm">
-          <thead><tr className="text-start text-xs text-ink-subtle"><th className="p-2 text-start">{fillStudioCopy(t.question, ["#"])}</th><th className="p-2 text-start">{t.answered}</th><th className="p-2 text-start">{t.blank}</th><th className="p-2 text-start">{t.average}</th><th className="p-2 text-start">{t.fullMarks}</th><th className="p-2 text-start">{t.evidenceBase}</th></tr></thead>
-          <tbody>{data.items.map(item => <tr key={item.questionId} className="border-t align-top" data-item-reading={item.reading}>
-            <td className="p-2"><p className="font-semibold">{fillStudioCopy(t.question, [number(item.number)])}</p><p dir="auto" className="line-clamp-2 text-xs text-ink-subtle">{item.prompt}</p></td>
-            <td className="p-2 tabular-nums">{number(item.answered)}</td><td className="p-2 tabular-nums">{number(item.unanswered)}</td>
-            <td className="p-2 tabular-nums">{percent(item.percentage)}</td><td className="p-2 tabular-nums">{percent(item.fullCreditPercentage)}</td>
-            <td className="p-2"><p className={item.reading === "CHECK_ITEM" ? "font-semibold text-status-warning-text" : ""}>{t[READING[item.reading]]}</p>
-              {item.reasons.length > 0 && <p className="text-xs text-ink-subtle">{item.reasons.map(reason => reason === "FEW_RESPONSES" ? fillStudioCopy(t.reasonFew, [number(MINIMUM_ITEM_RESPONSES)]) : reason === "NOBODY_FULL_CREDIT" ? t.reasonNobody : t.reasonDistractor).join(" · ")}</p>}</td>
-          </tr>)}</tbody>
-        </table></div>
+      <section aria-labelledby="improve-items" className="sk-panel min-w-0 space-y-4 p-4 sm:p-5"><h3 id="improve-items" className="text-base font-semibold">{t.items}</h3>
+        <Table className="min-w-[48rem]" containerClassName="max-w-full" aria-labelledby="improve-items">
+          <TableHeader><TableRow><TableHead>{fillStudioCopy(t.question, ["#"])}</TableHead><TableHead className="text-end">{t.answered}</TableHead><TableHead className="text-end">{t.blank}</TableHead><TableHead className="text-end">{t.average}</TableHead><TableHead className="text-end">{t.fullMarks}</TableHead><TableHead>{t.evidenceBase}</TableHead></TableRow></TableHeader>
+          <TableBody>{data.items.map(item => <TableRow key={item.questionId} data-item-reading={item.reading}>
+            <TableHead scope="row" className="min-w-56 max-w-sm py-4 align-top text-sm text-foreground"><p>{fillStudioCopy(t.question, [number(item.number)])}</p><p dir="auto" className="mt-1 line-clamp-2 text-xs font-normal leading-relaxed text-ink-muted">{item.prompt}</p></TableHead>
+            <TableCell className="align-top text-end tabular-nums">{number(item.answered)}</TableCell><TableCell className="align-top text-end tabular-nums">{number(item.unanswered)}</TableCell>
+            <TableCell className="align-top text-end font-semibold tabular-nums">{percent(item.percentage)}</TableCell><TableCell className="align-top text-end tabular-nums">{percent(item.fullCreditPercentage)}</TableCell>
+            <TableCell className="min-w-56 align-top"><Badge variant={item.reading === "CHECK_ITEM" ? "warning" : item.reading === "LEARNING_EVIDENCE" ? "info" : "neutral"} className="leading-relaxed">{t[READING[item.reading]]}</Badge>
+              {item.reasons.length > 0 && <p className="mt-2 max-w-xs text-xs leading-relaxed text-ink-muted">{item.reasons.map(reason => reason === "FEW_RESPONSES" ? fillStudioCopy(t.reasonFew, [number(MINIMUM_ITEM_RESPONSES)]) : reason === "NOBODY_FULL_CREDIT" ? t.reasonNobody : t.reasonDistractor).join(" · ")}</p>}</TableCell>
+          </TableRow>)}</TableBody>
+        </Table>
       </section>
       <TwinPanel examId={data.exam.id} language={language} />
       {data.exam.resultsReleasedAt && <MistakeMapPanel examId={data.exam.id} map={data.map} language={language} canCreate={capabilities.canCreate} onPractice={reload} />}
@@ -140,7 +142,8 @@ function PracticeFollowUp({ examId, exams, language, records, canApprove, canCre
   };
   const sample = (value: { percentage: number; items: number; candidates: number } | null) => value ? fillStudioCopy(t.sample, [new Intl.NumberFormat(language, { maximumFractionDigits: 1 }).format(value.percentage), new Intl.NumberFormat(language).format(value.items), new Intl.NumberFormat(language).format(value.candidates)]) : "—";
   if (!released) return null;
-  return <section aria-labelledby="improve-practice" className="sk-panel space-y-3 p-4" data-practice>
+  const shownComparison = comparison ?? formative;
+  return <section aria-labelledby="improve-practice" className="sk-panel min-w-0 space-y-4 p-4 sm:p-5" data-practice>
     <h3 id="improve-practice" className="font-semibold">{t.practiceTitle}</h3>
     <p className="text-sm text-ink-subtle">{t.practiceHint}</p>
     {practice.length > 0 && <ul className="grid gap-2">{practice.map(record => <li key={record.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm" data-practice-status={record.status}>
@@ -159,8 +162,8 @@ function PracticeFollowUp({ examId, exams, language, records, canApprove, canCre
       <p className="text-xs text-ink-subtle">{t.compareHint}</p>
       {!laterExams.length ? <p className="text-sm text-ink-subtle">{t.noLater}</p> : <label className="grid max-w-md gap-1 text-sm font-semibold">{t.laterExam}<Select aria-label={t.laterExam} value={later} onChange={event => setLater(event.target.value)}><option value="">—</option>{laterExams.map(exam => <option key={exam.id} value={exam.id}>{exam.title}</option>)}</Select></label>}
       {!comparison && formative && <p className="text-sm" data-formative-compared>{fillStudioCopy(t.formativeCompared, [formative.earlier.title])}</p>}
-      {(comparison ?? formative) && <div className="overflow-x-auto"><table className="w-full min-w-[34rem] text-sm"><thead><tr className="text-xs text-ink-subtle"><th className="p-2 text-start">{t.outcomeCol}</th><th className="p-2 text-start">{t.earlierCol}</th><th className="p-2 text-start">{t.laterCol}</th></tr></thead>
-        <tbody>{(comparison ?? formative)!.outcomes.map(row => <tr key={row.outcomeId} className="border-t" data-compare-row><td className="p-2"><bdi dir="auto">{row.title ?? row.outcomeId}</bdi></td><td className="p-2 tabular-nums">{sample(row.earlier)}</td><td className="p-2 tabular-nums">{sample(row.later)}</td></tr>)}</tbody></table></div>}
+      {shownComparison && <Table className="min-w-[40rem]" containerClassName="max-w-full" aria-label={t.compareTitle}><TableHeader><TableRow><TableHead className="w-1/3">{t.outcomeCol}</TableHead><TableHead className="w-1/3 py-3 text-end">{t.earlierCol}<bdi dir="auto" className="mt-1 block font-normal leading-relaxed">{shownComparison.earlier.title}</bdi></TableHead><TableHead className="w-1/3 py-3 text-end">{t.laterCol}<bdi dir="auto" className="mt-1 block font-normal leading-relaxed">{shownComparison.later.title}</bdi></TableHead></TableRow></TableHeader>
+        <TableBody>{shownComparison.outcomes.map(row => <TableRow key={row.outcomeId} data-compare-row><TableHead scope="row" className="py-4 text-sm text-foreground"><bdi dir="auto">{row.title ?? row.outcomeId}</bdi></TableHead><TableCell className="text-end leading-relaxed tabular-nums">{sample(row.earlier)}</TableCell><TableCell className="text-end leading-relaxed tabular-nums">{sample(row.later)}</TableCell></TableRow>)}</TableBody></Table>}
     </div>
   </section>;
 }
