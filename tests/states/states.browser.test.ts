@@ -203,5 +203,13 @@ test("learner timetable distinguishes dependency failure, denied access and unpu
   status = 200;
   await page.reload();
   await page.getByText("No timetable published", {exact:true}).waitFor();
+  await page.route("**/api/student/exam-timeline", route => route.fulfill({status:503,body:"Unavailable"}));
+  await page.reload();
+  const timeline = page.locator("[data-my-next-paper]");
+  await timeline.locator('[data-failure-kind="provider"]').waitFor();
+  await saveShot(page, "learner-exam-timeline-provider-en");
+  await page.unroute("**/api/student/exam-timeline");
+  await timeline.getByRole("button", {name:"Try again",exact:true}).click();
+  await timeline.getByText("No exams on your date sheet yet.", {exact:true}).waitFor();
   await ctx.close();
 });

@@ -1487,11 +1487,11 @@
   {
     "file": "src/components/exams/my-next-paper.tsx",
     "fetch_calls": 1,
-    "shared_error": false,
+    "shared_error": true,
     "access_notice": false,
     "shared_empty": false,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "bare timeline contract preserved; explicit loading/failure and retry; Chromium/WebKit learner provider-to-empty recovery verified"
   },
   {
     "file": "src/components/exams/family-exam-results.tsx",

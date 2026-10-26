@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { CalendarClock, MonitorCheck, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
@@ -23,23 +26,25 @@ export function MyNextPaper({ source, examHref }: { source: string; examHref?: (
   const ui = useUiText();
   const { language } = useLocale();
   const [timeline, setTimeline] = useState<Timeline | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<RequestFailure | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [offset, setOffset] = useState(0);
   const [tick, setTick] = useState(() => Date.now());
   useEffect(() => {
     let live = true;
-    setTimeline(null); setFailed(false);
-    void fetch(source, { cache: "no-store" }).then(async response => {
-      const payload = await response.json().catch(() => ({}));
+    setTimeline(null); setFailed(null);
+    void readRequest(source).then(async response => {
+      const payload = await checkedJson(response, { envelope: false });
       if (!live) return;
-      if (!response.ok || !payload.timeline) { setFailed(true); return; }
+      if (!payload.timeline || !Array.isArray(payload.timeline.upcoming) || !Array.isArray(payload.timeline.past) || !Number.isFinite(Date.parse(payload.timeline.now))) throw new RequestFailure("server");
       setOffset(new Date(payload.timeline.now).getTime() - Date.now());
       setTimeline(payload.timeline);
-    }).catch(() => { if (live) setFailed(true); });
+    }).catch(error => { if (live) setFailed(requestFailure(error)); });
     return () => { live = false; };
-  }, [source]);
+  }, [source, attempt]);
   useEffect(() => { const id = window.setInterval(() => setTick(Date.now()), 30_000); return () => window.clearInterval(id); }, []);
-  if (failed || !timeline) return null;
+  if (failed) return <section className="sk-panel" data-my-next-paper><ErrorState error={failed} onRetry={() => setAttempt(value => value + 1)} /></section>;
+  if (!timeline) return <section className="sk-panel p-4" data-my-next-paper><SkeletonList rows={2} label={ui("My next paper")} /></section>;
   const zone = timeline.timeZone;
   const day = (entry: TimelineEntry) => new Intl.DateTimeFormat(language, { weekday: "short", day: "numeric", month: "short", timeZone: entry.startsAt ? zone : "UTC" }).format(new Date(entry.startsAt ?? `${entry.date}T00:00:00Z`));
   const time = (iso: string | null) => iso ? new Intl.DateTimeFormat(language, { hour: "2-digit", minute: "2-digit", timeZone: zone }).format(new Date(iso)) : null;
