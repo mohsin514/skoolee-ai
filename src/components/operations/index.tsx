@@ -329,6 +329,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
     schema: transportRouteFormSchema,
     initialValues: { title: "", description: "", fare: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/transport/routes", values, form))) return;
       toast.success(ui("Route added."));
       setShowAdd(false);
@@ -368,7 +369,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
           <OpField label="Fare" error={form.errors.fare}>
             <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("fare")} placeholder="0" />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
           {/* Opened from the PageHeader, the row needs its own way out (the in-panel toggle is hidden). */}
           {hideAdd ? <Button variant="ghost" onClick={() => { setShowAdd(false); form.reset(); }}>{ui("Cancel")}</Button> : null}
         </div>
@@ -420,6 +421,7 @@ function VehiclesTab() {
     schema: vehicleFormSchema,
     initialValues: { number: "", model: "BUS", capacity: "40", driverName: "", driverPhone: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/transport/vehicles", values, form))) return;
       toast.success(ui("Vehicle added."));
       setShowAdd(false);
@@ -466,7 +468,7 @@ function VehiclesTab() {
           <OpField label="Driver Phone" error={form.errors.driverPhone}>
             <SystemInput className={`${inputCls} w-32`} inputMode="tel" {...form.field("driverPhone")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -556,6 +558,7 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
     schema: dormRoomTypeFormSchema,
     initialValues: { name: "", description: "", costPerTerm: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/dormitory/room-types", values, form))) return;
       toast.success(ui("Room type added."));
       setShowAdd(false);
@@ -585,7 +588,7 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
           <OpField label="Description" error={form.errors.description} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder={ui("Occupancy, facilities…")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -638,6 +641,7 @@ function DormRoomsTab() {
     schema: dormRoomFormSchema,
     initialValues: { number: "", roomTypeId: "", capacity: "4" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/dormitory/rooms", values, form))) return;
       toast.success(ui("Room added."));
       setShowAdd(false);
@@ -668,7 +672,7 @@ function DormRoomsTab() {
           <OpField label="Capacity" error={form.errors.capacity}>
             <SystemInput className={`${inputCls} w-20`} type="number" min={1} max={50} {...form.field("capacity")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -771,6 +775,7 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
     schema: bookCategorySchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/categories", values, form))) return;
       toast.success(ui("Category added."));
       setShowAdd(false);
@@ -792,7 +797,7 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
           <OpField label="Name" error={form.errors.name}>
             <SystemInput className={`${inputCls} w-40`} {...form.field("name")} placeholder={ui("Fiction")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -844,6 +849,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
     schema: bookFormSchema,
     initialValues: { title: "", author: "", isbn: "", categoryId: "", copiesTotal: "1" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/books", values, form))) return;
       toast.success(ui("Book added."));
       setShowAdd(false);
@@ -887,7 +893,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
           <OpField label="Copies" error={form.errors.copiesTotal}>
             <SystemInput className={`${inputCls} w-20`} type="number" min={0} {...form.field("copiesTotal")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -1017,6 +1023,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
     schema: libraryMemberSchema,
     initialValues: { userId: "", memberNo: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/members", values, form))) return;
       toast.success(ui("Member added."));
       setShowAdd(false);
@@ -1041,7 +1048,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
           <OpField label="Member No" error={form.errors.memberNo}>
             <SystemInput className={`${inputCls} w-32`} {...form.field("memberNo")} placeholder="LM-001" />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -1092,6 +1099,7 @@ function IssuesTab() {
     schema: bookIssueSchema,
     initialValues: { bookId: "", memberId: "", dueAt: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/issues", values, form))) return;
       toast.success(ui("Book issued."));
       setShowAdd(false);
@@ -1131,7 +1139,7 @@ function IssuesTab() {
           <OpField label="Due Date" error={form.errors.dueAt}>
             <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Issuing…") : ui("Issue")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Issuing…") : ui("Issue")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -1220,6 +1228,7 @@ function ItemCategoriesTab() {
     schema: itemCategorySchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/categories", values, form))) return;
       toast.success(ui("Category added."));
       setShowAdd(false);
@@ -1238,7 +1247,7 @@ function ItemCategoriesTab() {
           <OpField label="Name" error={form.errors.name}>
             <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -1277,6 +1286,7 @@ function StoresTab() {
     schema: itemStoreSchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/stores", values, form))) return;
       toast.success(ui("Store added."));
       setShowAdd(false);
@@ -1295,7 +1305,7 @@ function StoresTab() {
           <OpField label="Name" error={form.errors.name} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("name")} placeholder={ui("Main store")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -1334,6 +1344,7 @@ function SuppliersTab() {
     schema: supplierSchema,
     initialValues: { name: "", phone: "", email: "", address: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/suppliers", values, form))) return;
       toast.success(ui("Supplier added."));
       setShowAdd(false);
@@ -1361,7 +1372,7 @@ function SuppliersTab() {
           <OpField label="Address" error={form.errors.address} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("address")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -1410,6 +1421,7 @@ function ItemsTab() {
     schema: itemSchema,
     initialValues: { name: "", categoryId: "", unit: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/items", values, form))) return;
       toast.success(ui("Item added."));
       setShowAdd(false);
@@ -1437,7 +1449,7 @@ function ItemsTab() {
           <OpField label="Unit" error={form.errors.unit}>
             <SystemInput className={`${inputCls} w-24`} {...form.field("unit")} placeholder={ui("pcs")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
@@ -1490,6 +1502,7 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
     schema: itemTransactionFormSchema,
     initialValues: { itemId: "", storeId: "", supplierId: "", kind: "RECEIVE", quantity: "1", unitPrice: "", note: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/transactions", values, form))) return;
       toast.success(ui("Transaction recorded."));
       setShowAdd(false);
@@ -1528,7 +1541,7 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
           <OpField label="Note" error={form.errors.note} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">

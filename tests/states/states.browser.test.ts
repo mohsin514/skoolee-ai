@@ -14,7 +14,7 @@ const base = process.env.STATES_TEST_APP || "http://localhost:3109";
 const evidence = process.env.STATES_EVIDENCE_DIR || "/tmp/scrum308/evidence";
 const db = new PrismaClient(), password = "SyntheticStates308!";
 const schoolId = `states308-${randomUUID()}`, campusA = randomUUID(), campusB = randomUUID();
-const class7 = randomUUID(), classB = randomUUID(), campusC = randomUUID();
+const class7 = randomUUID(), classB = randomUUID(), classC = randomUUID(), campusC = randomUUID();
 const users = new Map<string, { id: string; email: string }>();
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
 const pupils: Record<string, string> = {};
@@ -43,11 +43,13 @@ before(async()=>{
   for(const [id,school,name] of [[campusA,schoolId,"North"],[campusB,otherSchool,"South"]]) await db.campus.create({data:{id,schoolId:school,name,regId:id,city:"Lahore"}});
   await db.campus.create({data:{id:campusC,schoolId,name:"Other campus",regId:campusC,city:"Lahore"}});
   await db.academicCycle.create({data:{schoolId,campusId:campusA,label:"2026",academicYear:2026,status:"ACTIVE"}});
+  const learner = await user("learner", "STUDENT");
   await user("librarian","LIBRARIAN"); await user("ops","CAMPUS_ADMIN"); await user("parent","PARENT"); await user("ops-ur","CAMPUS_ADMIN",campusA,"ur"); const teacher=await user("teacher","TEACHER");
   await db.class.create({data:{id:class7,schoolId,campusId:campusA,name:"Grade 7",section:"A",academicYear:2026,classTeacherId:teacher}});
   await db.class.create({data:{id:classB,schoolId:otherSchool,campusId:campusB,name:"Grade 7",section:"B",academicYear:2026}});
+  await db.class.create({data:{id:classC,schoolId,campusId:campusC,name:"Other campus class",section:"C",academicYear:2026}});
   for(const [id,school,campus,cls,name] of [[randomUUID(),schoolId,campusA,class7,"Synthetic Ada"],[randomUUID(),otherSchool,campusB,classB,"Synthetic Private"]]) {
-    pupils[name]=id; await db.student.create({data:{id,schoolId:school,campusId:campus,classId:cls,fullName:name,rollNo:"307",gender:"FEMALE",enrollmentDate:new Date("2024-02-29T00:00:00Z")}});
+    pupils[name]=id; await db.student.create({data:{id,schoolId:school,campusId:campus,classId:cls,studentUserId:school===schoolId?learner:null,fullName:name,rollNo:"307",gender:"FEMALE",enrollmentDate:new Date("2024-02-29T00:00:00Z")}});
   }
   await db.admissionQuery.create({data:{schoolId,campusId:campusA,name:"Synthetic Enquiry",phone:"03000000307",source:"WALK_IN",nextFollowUp:new Date("2026-11-01T00:00:00Z")}});
   browser=await (process.env.STATES_BROWSER === "webkit" ? webkit : chromium).launch({headless:true});
@@ -100,7 +102,14 @@ test("library permission denial never renders an empty catalogue and keeps the o
   await page.getByPlaceholder(/Search/i).first().fill("denied");
   await page.locator('section[data-resource-state="denied"]').waitFor();
   assert.equal(await title.inputValue(),"Unsaved draft 308");
-  await saveShot(page,"library-denied-draft-en"); await ctx.close();
+  assert.equal(await page.getByRole("button", { name: "Save", exact: true }).isDisabled(), true);
+  await saveShot(page,"library-denied-draft-en");
+  await page.unroute("**/api/library/books?**");
+  await page.getByPlaceholder(/Search/i).first().fill("recovered");
+  await page.locator('section[data-resource-state="denied"]').waitFor({state:"hidden"});
+  await page.waitForFunction(() => Array.from(document.querySelectorAll("button")).some(button => button.textContent === "Save" && !button.disabled));
+  assert.equal(await title.inputValue(),"Unsaved draft 308");
+  await ctx.close();
 });
 test("direct APIs deny families and cross-tenant/campus scope without leaking records",async()=>{
   const ops=await context("ops"),parent=await context("parent"),librarian=await context("librarian");
@@ -108,6 +117,12 @@ test("direct APIs deny families and cross-tenant/campus scope without leaking re
   for(const path of ["/api/library/books","/api/inventory/items"]){
     for(const campusId of [campusB,campusC]) assert.ok([403,404].includes((await librarian.request.get(`${base}${path}?campusId=${campusId}`)).status()));
   }
+  for (const classId of [classB, classC]) {
+    const denied = await ops.request.get(`${base}/api/timetable/class?classId=${classId}`);
+    assert.equal(denied.status(), 404);
+    assert.ok(!(await denied.text()).includes("Other campus class"));
+  }
+  assert.equal((await ops.request.get(`${base}/api/timetable/class?classId=${class7}`)).status(), 200);
   const response=await ops.request.get(`${base}/api/search?q=Synthetic`);assert.equal(response.status(),200);assert.ok(!(await response.text()).includes("Synthetic Private"));
 });
 
@@ -169,4 +184,24 @@ test("staff leave and academic room loaders distinguish denied responses from em
   await rooms.goto(`${base}/admin?view=settings&tab=rooms`); await rooms.locator('section[data-resource-state="denied"]').waitFor();
   assert.equal(await rooms.getByText("No rooms yet",{exact:true}).count(),0);
   await saveShot(rooms,"academic-rooms-denied-en");await ops.close();
+});
+
+
+test("learner timetable distinguishes dependency failure, denied access and unpublished data", async () => {
+  const ctx = await context("learner"), page = await ctx.newPage();
+  let status = 503;
+  await page.route("**/api/timetable/class", route => route.fulfill({status: status === 403 ? 403 : 200, json: status === 403 ? {success:false} : {success:true,data:null}}));
+  await page.route("**/api/academic/calendar", route => status === 503 ? route.fulfill({status:503,body:"Unavailable"}) : route.continue());
+  await page.goto(`${base}/student/timetable`);
+  await page.locator('[data-failure-kind="provider"]').waitFor();
+  assert.equal(await page.getByText("No timetable published", {exact:true}).count(), 0);
+  status = 403;
+  await page.getByRole("button", {name:"Try again",exact:true}).click();
+  await page.locator('section[data-resource-state="denied"]').waitFor();
+  assert.equal(await page.getByText("No timetable published", {exact:true}).count(), 0);
+  await saveShot(page, "learner-timetable-denied-en");
+  status = 200;
+  await page.reload();
+  await page.getByText("No timetable published", {exact:true}).waitFor();
+  await ctx.close();
 });

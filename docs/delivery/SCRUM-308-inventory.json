@@ -6,7 +6,7 @@
     "access_notice": false,
     "shared_empty": true,
     "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "audit_status": "read state provided by usePrivateDashboardData; scoped provider clears on failure and guards sequence; mutation/denial classification audit remains"
   },
   {
     "file": "src/app/pupils/[id]/page.tsx",
@@ -59,8 +59,8 @@
     "shared_error": true,
     "access_notice": false,
     "shared_empty": true,
-    "classified_requests": false,
-    "audit_status": "inventory candidate; independent flow audit incomplete"
+    "classified_requests": true,
+    "audit_status": "classified timetable/calendar reads and latest-request guard; browser provider/denial/unpublished recovery verified"
   },
   {
     "file": "src/app/admin/page.tsx",
@@ -735,7 +735,7 @@
     "access_notice": false,
     "shared_empty": true,
     "classified_requests": true,
-    "audit_status": "changed consumer; targeted verification varies by route"
+    "audit_status": "checked reads; mounted draft subtree hidden and inert on error; dedicated recovery browser evidence pending"
   },
   {
     "file": "src/components/student/student-components.tsx",
@@ -996,7 +996,7 @@
     "access_notice": false,
     "shared_empty": true,
     "classified_requests": true,
-    "audit_status": "changed consumer; targeted verification varies by route"
+    "audit_status": "13 collection loaders migrated; browser library loading/empty/denial/conflict/draft recovery verified; independent transport planners remain separate audit work"
   },
   {
     "file": "src/components/operations/postal-register.tsx",
@@ -1140,7 +1140,7 @@
     "access_notice": false,
     "shared_empty": false,
     "classified_requests": true,
-    "audit_status": "changed consumer; targeted verification varies by route"
+    "audit_status": "checked collection reads; browser denial verified"
   },
   {
     "file": "src/components/academic/YearSetupWizard.tsx",
@@ -1284,7 +1284,7 @@
     "access_notice": false,
     "shared_empty": true,
     "classified_requests": true,
-    "audit_status": "changed consumer; targeted verification varies by route"
+    "audit_status": "classified reads and context recovery verified by Chromium/WebKit provider, timeout, denial, offline, RTL and refresh cases"
   },
   {
     "file": "src/components/integrations/integrations.tsx",
@@ -1383,7 +1383,7 @@
     "access_notice": false,
     "shared_empty": true,
     "classified_requests": true,
-    "audit_status": "changed consumer; targeted verification varies by route"
+    "audit_status": "bare-object contract preserved; classified failed refresh clears members; application typecheck verified; dedicated browser evidence pending"
   },
   {
     "file": "src/components/admissions/admissions-desk.tsx",
@@ -2328,7 +2328,7 @@
     "access_notice": false,
     "shared_empty": true,
     "classified_requests": true,
-    "audit_status": "changed consumer; targeted verification varies by route"
+    "audit_status": "checked reads; teacher browser denial verified across shared staff component"
   },
   {
     "file": "src/components/pathways/pathway-panel.tsx",
