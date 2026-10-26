@@ -1,3 +1,5 @@
+import { assertListBudget } from "@/lib/lists/access";
+import { listPagination } from "@/lib/lists/query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -11,6 +13,7 @@ import { Prisma } from "@prisma/client";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertListBudget(user, "fees/payments");
     await assertFeesRead(user);
     const { searchParams } = new URL(req.url);
 
@@ -24,8 +27,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
-    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-    const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get("pageSize") ?? "20", 10)));
+    const { page, limit: pageSize } = listPagination(searchParams, 20, 50, "pageSize");
 
     const where: Prisma.PaymentWhereInput = {
       campus: { schoolId: user.schoolId },
@@ -72,7 +74,7 @@ export async function GET(req: NextRequest) {
             },
           },
         },
-        orderBy: { paymentDate: "desc" },
+        orderBy: [{ paymentDate: "desc" }, { id: "asc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

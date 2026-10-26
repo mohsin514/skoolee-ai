@@ -1,4 +1,6 @@
 "use client";
+import { useListPage } from "@/hooks/use-list-page";
+import { useListField } from "@/hooks/use-list-field";
 import { fillNodes } from "@/lib/auth/fill-nodes";
 import { AiWorkflowsHome } from "@/components/ai-workflows/AiWorkflowsHome";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -752,9 +754,9 @@ export function FacultyPanel({
   canInvite?: boolean;
 }) {
   const ui = useUiText();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [facultyFilter, setFacultyFilter] = useState<"all" | "unassigned" | "classTeachers" | "onboarding">("all");
-  const [sortKey, setSortKey] = useState<"name" | "subjects" | "classes">("name");
+  const [searchQuery, setSearchQuery] = useListField<string>("teachers.search", "", "teachers.page");
+  const [facultyFilter, setFacultyFilter] = useListField<"all" | "unassigned" | "classTeachers" | "onboarding">("teachers.filter", "all", "teachers.page");
+  const [sortKey, setSortKey] = useListField<"name" | "subjects" | "classes">("teachers.sort", "name", "teachers.page");
   // Rows read well for eight teachers and badly for sixty, where the question
   // is usually "who is carrying what?" — which is a table question.
   const [facultyPrefs, patchFacultyPrefs] = useWorkspacePrefs("faculty", { view: "cards" });
@@ -774,11 +776,12 @@ export function FacultyPanel({
       return matches(t.fullName) || matches(t.email) || Boolean(t.phone?.includes(q));
     });
     return result.sort((a, b) => {
-      if (sortKey === "subjects") return subjectCount(b) - subjectCount(a);
-      if (sortKey === "classes") return classCount(b) - classCount(a);
-      return (a.fullName || "").localeCompare(b.fullName || "");
+      if (sortKey === "subjects") return subjectCount(b) - subjectCount(a) || a.id.localeCompare(b.id);
+      if (sortKey === "classes") return classCount(b) - classCount(a) || a.id.localeCompare(b.id);
+      return (a.fullName || "").localeCompare(b.fullName || "") || a.id.localeCompare(b.id);
     });
   }, [teachers, q, facultyFilter, sortKey]);
+  const teacherPage = useListPage(filtered, "teachers");
 
   /*
    * Pending invites used to disappear the moment you typed anything, so an
@@ -906,10 +909,11 @@ export function FacultyPanel({
           </div>
         </div>
 
+        <Pagination {...teacherPage.controls} />
         {facultyPrefs.view === "table" && filtered.length > 0 ? (
           <div className="mb-4">
             <DataTable
-              rows={filtered}
+              rows={teacherPage.rows}
               rowKey={(t: any) => t.id}
               minWidth={780}
               onRowClick={(t: any) => onViewTeacher(t, filtered)}
@@ -997,7 +1001,7 @@ export function FacultyPanel({
         <div className="space-y-4">
           {facultyPrefs.view === "table"
             ? null
-            : filtered.map((teacher: any) => (
+            : teacherPage.rows.map((teacher: any) => (
                 <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={canInvite ? () => onRemove(teacher.id) : undefined} />
               ))}
 
@@ -4776,16 +4780,16 @@ export function AdmissionQueriesPanel({
   const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [sourceFilter, setSourceFilter] = useState("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showOverdue, setShowOverdue] = useState(false);
+  const [statusFilter, setStatusFilter] = useListField<string>("enquiries.status", "ALL", "enquiries.page");
+  const [sourceFilter, setSourceFilter] = useListField<string>("enquiries.source", "ALL", "enquiries.page");
+  const [searchQuery, setSearchQuery] = useListField<string>("enquiries.search", "", "enquiries.page");
+  const [showOverdue, setShowOverdue] = useListField<boolean>("enquiries.overdue", false, "enquiries.page");
   const [showNewModal, setShowNewModal] = useState(false);
   const [selected, setSelected] = useState<any>(null);
   const [now, setNow] = useState(0);
   // A follow-up desk works off "who is furthest past due", which the old
   // fixed order could not answer.
-  const [querySort, setQuerySort] = useState<"overdue" | "next" | "newest" | "name">("overdue");
+  const [querySort, setQuerySort] = useListField<"overdue" | "next" | "newest" | "name">("enquiries.sort", "overdue", "enquiries.page");
   const [queryPrefs, patchQueryPrefs] = useWorkspacePrefs("enquiries", { view: "cards" });
 
   useEffect(() => {
@@ -4879,6 +4883,7 @@ export function AdmissionQueriesPanel({
       }
     });
   }, [queries, statusFilter, sourceFilter, searchQuery, showOverdue, now, querySort]);
+  const enquiryPage = useListPage(filtered, "enquiries");
 
   const exportQueries = () => {
     if (!filtered.length) {
@@ -5090,6 +5095,7 @@ export function AdmissionQueriesPanel({
         </div>
       </div>
 
+      <Pagination {...enquiryPage.controls} />
       {loading && !queries.length ? (
         <SkeletonList rows={4} label={ui("Loading enquiries…")} />
       ) : loadFailed && !queries.length ? (
@@ -5110,7 +5116,7 @@ export function AdmissionQueriesPanel({
         <EmptyInline text={ui("No enquiries match these filters. Try clearing them.")} />
       ) : queryPrefs.view === "table" ? (
         <DataTable
-          rows={filtered}
+          rows={enquiryPage.rows}
           rowKey={(q: any) => q.id}
           minWidth={860}
           caption={ui("Admission enquiries")}
@@ -5170,7 +5176,7 @@ export function AdmissionQueriesPanel({
         />
       ) : (
         <ul className="space-y-3" aria-label={ui("Admission enquiries")}>
-          {filtered.map((q) => {
+          {enquiryPage.rows.map((q) => {
             const overdue = isOverdueEnquiry(q, now);
             const SourceIcon = querySourceIcon(q.source);
             return (
@@ -5685,8 +5691,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   const ui = useUiText();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useListField<string>("archive.search", "", "archive.page");
+  const [statusFilter, setStatusFilter] = useListField<string>("archive.status", "all", "archive.page");
   const [busyId, setBusyId] = useState<string | null>(null);
   // Restoring one student at a time is fine for a mistake; it is not fine after
   // a bulk archive, which the roster can now do in a single action.

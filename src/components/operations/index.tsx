@@ -1,4 +1,5 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -806,7 +807,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useListField<string>("library.search", "", "library.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -1362,7 +1363,7 @@ function ItemsTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useListField<string>("inventory.search", "", "inventory.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);

@@ -1,4 +1,5 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
 import { ReconciliationsPanel } from "./reconciliations-panel";
 import { AdjustmentsQueue } from "./adjustments-panel";
@@ -87,13 +88,14 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useListField<number>("pay.page", 1, "pay.page");
   const [totalPages, setTotalPages] = useState(1);
-  const [methodFilter, setMethodFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [methodFilter, setMethodFilter] = useListField<string>("pay.methodFilter", "", "pay.page");
+  const [dateFrom, setDateFrom] = useListField<string>("pay.dateFrom", "", "pay.page");
+  const [dateTo, setDateTo] = useListField<string>("pay.dateTo", "", "pay.page");
+  const [searchQuery, setSearchQuery] = useListField<string>("pay.searchQuery", "", "pay.page");
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  useEffect(() => { setSearchInput(searchQuery); }, [searchQuery]);
   const [showPayment, setShowPayment] = useState(false);
   const [showBankImport, setShowBankImport] = useState(false);
 
@@ -318,7 +320,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((pg) => Math.max(1, pg - 1))}
-                disabled={page <= 1}
+                disabled={loading || page <= 1}
                 className="justify-start flex items-center gap-1 px-3"
               >
                 <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
@@ -327,7 +329,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((pg) => Math.min(totalPages, pg + 1))}
-                disabled={page >= totalPages}
+                disabled={loading || page >= totalPages}
                 className="justify-start flex items-center gap-1 px-3"
               ><UiText>{"Next"}</UiText><ChevronRight className="w-3 h-3" />
               </Button>

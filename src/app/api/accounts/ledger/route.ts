@@ -1,3 +1,5 @@
+import { assertListBudget } from "@/lib/lists/access";
+import { listPagination } from "@/lib/lists/query";
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -26,6 +28,7 @@ const EXPORT_LIMIT = 10_000;
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertListBudget(user, "accounts/ledger");
     await assertModuleRead(user, "accounts");
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
@@ -61,11 +64,10 @@ export async function GET(req: NextRequest) {
       return new Response("﻿" + lines.join("\r\n") + "\r\n", { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="ledger-${currency}-${filters.from || "start"}-${filters.to || "today"}.csv"`, "Cache-Control": "no-store" } });
     }
 
-    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
-    const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get("pageSize") ?? "50", 10) || 50));
+    const { page, limit: pageSize } = listPagination(searchParams, 50, 200, "pageSize");
     const [totals, entries] = await Promise.all([
       ledgerTotals(prisma, where),
-      prisma.ledgerEntry.findMany({ where, include, orderBy: [{ date: "desc" }, { createdAt: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.ledgerEntry.findMany({ where, include, orderBy: [{ date: "desc" }, { createdAt: "desc" }, { id: "asc" }], skip: (page - 1) * pageSize, take: pageSize }),
     ]);
     return Response.json({
       success: true,

@@ -1,4 +1,5 @@
 "use client";
+import { boundedInteger, patchListQuery } from "@/lib/lists/query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -43,21 +44,38 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
   const [denied, setDenied] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const sequence = useRef(0);
+  const inputDirty = useRef(false);
+  const lastQuery = useRef(params.get("q") ?? "");
   const listRef = useRef<HTMLDivElement>(null);
-  const state = useMemo(() => ({ q: params.get("q") ?? "", types: (params.get("types") ?? "").split(",").filter(Boolean), status: params.get("status") ?? "active", year: params.get("year") ?? "", cls: params.get("class") ?? "", campus: params.get("campus") ?? "", page: Number(params.get("page") ?? "1") || 1 }), [params]);
+  const state = useMemo(() => ({ q: params.get("q") ?? "", types: (params.get("types") ?? "").split(",").filter(Boolean), status: params.get("status") ?? "active", year: params.get("year") ?? "", cls: params.get("class") ?? "", campus: params.get("campus") ?? "", sort: ["name", "name-desc"].includes(params.get("sort") ?? "") ? params.get("sort")! : "default", page: boundedInteger(params.get("page"), 1, 400) }), [params]);
 
   /** Replace one or more URL parameters; a changed filter returns to page one. */
   const update = useCallback((patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(params.toString());
-    for (const [key, value] of Object.entries(patch)) { if (value === null || value === "") next.delete(key); else next.set(key, value); }
-    if (!("page" in patch)) next.delete("page");
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    const next = patchListQuery(params.toString(), patch);
+    if (next.toString() !== params.toString()) router.push(`${pathname}?${next.toString()}`, { scroll: false });
   }, [params, pathname, router]);
 
   useEffect(() => { void fetch("/api/search?options=1", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(json => json?.success && setOptions(json.data)).catch(() => undefined); }, []);
-  useEffect(() => { const timer = setTimeout(() => { if (input !== state.q) update({ q: input.trim() || null }); }, 300); return () => clearTimeout(timer); }, [input, state.q, update]);
+  useEffect(() => {
+    if (lastQuery.current !== state.q) {
+      lastQuery.current = state.q;
+      inputDirty.current = false;
+      setInput(state.q);
+    }
+  }, [state.q]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputDirty.current && input.trim() !== state.q) {
+        inputDirty.current = false;
+        update({ q: input.trim() || null });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [input, state.q, update]);
   useEffect(() => {
     const id = ++sequence.current, controller = new AbortController();
+    let timedOut = false;
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
     const timer = setTimeout(async () => {
       setLoading(true); setError("");
       try {
@@ -71,11 +89,12 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
         setDenied(null);
         setData(json.data);
       } catch (failure) {
-        if (controller.signal.aborted || id !== sequence.current) return;
+        if (id !== sequence.current || (controller.signal.aborted && !timedOut)) return;
+        if (timedOut) { setError(ui("The connection failed. Your search is kept; try again.")); return; }
         setError(failure instanceof TypeError ? ui("The connection failed. Your search is kept; try again.") : ui(failure instanceof Error ? failure.message : "Search failed."));
-      } finally { if (id === sequence.current) setLoading(false); }
+      } finally { clearTimeout(timeout); if (id === sequence.current) setLoading(false); }
     }, 0);
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => { clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
   }, [params, ui, language, attempt]);
 
   const chips = [
@@ -110,9 +129,10 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
       {header}
       <p className="text-xs text-ink-muted" data-search-scope>{data ? (data.scope.allCampuses ? ui("Searching {0} · all campuses", [data.scope.school]) : ui("Searching {0} · {1}", [data.scope.school, data.scope.campus ?? ""])) : ui("Searching your school")}</p>
       <FormField name="search-q" label={ui("Search by name, roll number, admission number or reference")}>
-        <div className="relative"><Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" /><Input type="search" value={input} autoFocus autoComplete="off" className="ps-9" onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === "Enter") update({ q: input.trim() || null }); }} /></div>
+        <div className="relative"><Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" /><Input type="search" value={input} autoFocus autoComplete="off" className="ps-9" onChange={event => { inputDirty.current = true; setInput(event.target.value); }} onKeyDown={event => { if (event.key === "Enter") update({ q: input.trim() || null }); }} /></div>
       </FormField>
       <div className="grid gap-3 sm:grid-cols-4">
+        <FormField name="search-sort" label={ui("Sort by")}><Select value={state.sort} onChange={event => update({ sort: event.target.value === "default" ? null : event.target.value })}><option value="default">{ui("Default")}</option><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></Select></FormField>
         <FormField name="search-type" label={ui("Record type")}><Select value={state.types.length === 1 ? state.types[0] : ""} onChange={event => update({ types: event.target.value || null })}><option value="">{ui("All types")}</option>{(options?.allowedTypes ?? data?.allowedTypes ?? []).map(type => <option key={type} value={type}>{typeLabel(ui, type)}</option>)}</Select></FormField>
         <FormField name="search-status" label={ui("Status")}><Select value={state.status} onChange={event => update({ status: event.target.value === "active" ? null : event.target.value })}><option value="active">{statusLabel(ui, "active")}</option><option value="archived">{statusLabel(ui, "archived")}</option><option value="all">{statusLabel(ui, "all")}</option></Select></FormField>
         <FormField name="search-year" label={ui("Academic year")}><Select value={state.year} onChange={event => update({ year: event.target.value || null })}><option value="">{ui("Any year")}</option>{(options?.years ?? []).map(year => <option key={year} value={year}>{year}</option>)}</Select></FormField>
@@ -124,7 +144,7 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
         {chips.map(chip => <Button key={chip.key} size="sm" variant="secondary" onClick={chip.clear} aria-label={ui("Remove filter {0}", [chip.text])}><bdi>{chip.text}</bdi><X className="size-3" aria-hidden="true" /></Button>)}
         <Button size="sm" variant="ghost" onClick={() => update({ types: null, status: null, year: null, class: null, campus: null })} data-search-clear>{ui("Clear filters")}</Button>
       </div> : null}
-      {data?.partial ? <div data-search-partial><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="ghost" onClick={() => router.refresh()}>{ui("Retry")}</Button>}>{ui("Results are partial: {0} could not be searched just now.", [Object.entries(data.sources).filter(([, state]) => state === "failed").map(([type]) => typeLabel(ui, type)).join(", ")])}</Alert></div> : null}
+      {data?.partial ? <div data-search-partial><Alert tone="warning" compact live="polite" actions={<Button size="sm" variant="ghost" onClick={() => setAttempt(n => n + 1)}>{ui("Retry")}</Button>}>{ui("Results are partial: {0} could not be searched just now.", [Object.entries(data.sources).filter(([, state]) => state === "failed").map(([type]) => typeLabel(ui, type)).join(", ")])}</Alert></div> : null}
       {/* Load failure (R4): inline, with a retry that really runs the search again; earlier results stay visible. */}
       {error && data ? <Alert tone="danger" compact actions={<Button size="sm" variant="secondary" onClick={() => setAttempt(n => n + 1)}>{ui("Retry")}</Button>}>{error}</Alert> : null}
       {error && !data ? <ErrorState title={ui("Search failed.")} description={error} onRetry={() => setAttempt(n => n + 1)} /> : null}
@@ -144,9 +164,9 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
         </section>)}
       </div>
       {single && single.total > (data?.pageSize ?? 25) ? <nav className="flex items-center justify-between gap-2" aria-label={ui("Pages")}>
-        <Button variant="secondary" size="sm" disabled={state.page <= 1} onClick={() => update({ page: String(state.page - 1) })}>{ui("Previous")}</Button>
-        <span className="text-xs" data-search-page-number>{ui("Page {0} of {1}", [state.page, Math.ceil(single.total / (data?.pageSize ?? 25))])}</span>
-        <Button variant="secondary" size="sm" disabled={state.page >= Math.ceil(single.total / (data?.pageSize ?? 25))} onClick={() => update({ page: String(state.page + 1) })}>{ui("Next")}</Button>
+        <Button variant="secondary" size="sm" disabled={loading || (data?.page ?? state.page) <= 1} onClick={() => update({ page: String((data?.page ?? state.page) - 1) })}>{ui("Previous")}</Button>
+        <span className="text-xs" data-search-page-number>{ui("Page {0} of {1}", [data?.page ?? state.page, Math.ceil(single.total / (data?.pageSize ?? 25))])}</span>
+        <Button variant="secondary" size="sm" disabled={loading || (data?.page ?? state.page) >= Math.ceil(single.total / (data?.pageSize ?? 25))} onClick={() => update({ page: String((data?.page ?? state.page) + 1) })}>{ui("Next")}</Button>
       </nav> : null}
   </div>;
 }

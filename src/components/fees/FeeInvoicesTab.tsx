@@ -1,4 +1,5 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
 import { UiSentence } from "@/components/operations/console-page";
 
@@ -70,11 +71,11 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useListField<number>("inv.page", 1, "inv.page");
   const [totalPages, setTotalPages] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [classFilter, setClassFilter] = useState("");
-  const [monthFilter, setMonthFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useListField<string>("inv.statusFilter", "", "inv.page");
+  const [classFilter, setClassFilter] = useListField<string>("inv.classFilter", "", "inv.page");
+  const [monthFilter, setMonthFilter] = useListField<string>("inv.monthFilter", "", "inv.page");
   const { language } = useLocale();
   // The last two years plus the next three months, newest first, named in the reader's language.
   const monthOptions = useMemo(() => {
@@ -86,8 +87,9 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
     });
   }, [language]);
   const formatCount = (n: number) => new Intl.NumberFormat(language === "en" ? "en" : `${language}-u-nu-latn`).format(n);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useListField<string>("inv.searchQuery", "", "inv.page");
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  useEffect(() => { setSearchInput(searchQuery); }, [searchQuery]);
   const [detailInvoice, setDetailInvoice] = useState<any>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -364,7 +366,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
+                disabled={loading || page <= 1}
                 className="justify-start flex items-center gap-1 px-3"
               >
                 <ChevronLeft className="w-3 h-3 rtl:rotate-180" aria-hidden="true" /><UiText>{"Prev"}</UiText></Button>
@@ -372,7 +374,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
+                disabled={loading || page >= totalPages}
                 className="justify-start flex items-center gap-1 px-3"
               ><UiText>{"Next"}</UiText><ChevronRight className="w-3 h-3 rtl:rotate-180" aria-hidden="true" />
               </Button>

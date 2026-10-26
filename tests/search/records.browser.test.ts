@@ -20,15 +20,16 @@ const base = process.env.SEARCH_TEST_APP || "http://localhost:3107";
 const evidence = process.env.SEARCH_EVIDENCE_DIR || "/tmp/sko401-evidence";
 const db = new PrismaClient(), password = "SyntheticSearch401!";
 const schoolId = `search401-${randomUUID()}`, campusA = randomUUID(), campusB = randomUUID();
+const otherSchool = `search306-${randomUUID()}`, otherCampus = randomUUID(), otherClass = randomUUID();
 const class7 = randomUUID(), class8 = randomUUID(), class7old = randomUUID(), classB = randomUUID();
 const users = new Map<string, { id: string; email: string }>();
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
 const pupils: Record<string, string> = {};
 let browser: Browser;
 
-async function user(key: string, role: string, campus: string | null = campusA, language = "en") {
+async function user(key: string, role: string, campus: string | null = campusA, language = "en", tenant = schoolId) {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId: tenant, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -52,6 +53,12 @@ const shot = async (page: Page, name: string) => { await page.evaluate("Promise.
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Cypress Search School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusA, "Cypress North"], [campusB, "Cypress South"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Lahore" } });
+  await db.school.create({ data: { id: otherSchool, name: "Synthetic Other Tenant", slug: otherSchool, regId: otherSchool, contactEmail: `${otherSchool}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
+  await db.campus.create({ data: { id: otherCampus, schoolId: otherSchool, name: "Other Tenant North", regId: otherCampus, city: "Lahore" } });
+  await db.class.create({ data: { id: otherClass, schoolId: otherSchool, campusId: otherCampus, name: "Grade 7", section: "B", academicYear: 2026 } });
+  await db.student.create({ data: { schoolId: otherSchool, campusId: otherCampus, classId: otherClass, fullName: "Synthetic Ahmad Raza", rollNo: "N-701", gender: "MALE", enrollmentDate: new Date("2025-04-01Z") } });
+  await user("other-lead", "PRINCIPAL", otherCampus, "en", otherSchool);
+  await user("lead-ur", "PRINCIPAL", campusA, "ur");
   await user("lead", "PRINCIPAL"); await user("leadB", "PRINCIPAL", campusB); await user("owner", "SUPER_ADMIN", null); const teacher = await user("teacher", "TEACHER");
   await user("desk", "RECEPTIONIST"); await user("parent", "PARENT"); await user("lead-ar", "PRINCIPAL", campusA, "ar");
   await user("ops", "CAMPUS_ADMIN"); await user("accountant", "ACCOUNTANT"); await user("librarian", "LIBRARIAN");
@@ -71,7 +78,7 @@ before(async () => {
   await mkdir(evidence, { recursive: true });
   browser = await chromium.launch({ headless: true });
 });
-after(async () => { await browser?.close(); await db.student.updateMany({ where: { schoolId }, data: { consolidatedIntoId: null } }).catch(() => undefined); await db.school.delete({ where: { id: schoolId } }).catch(() => undefined); await db.$disconnect(); });
+after(async () => { await browser?.close(); await db.student.updateMany({ where: { schoolId }, data: { consolidatedIntoId: null } }).catch(() => undefined); await db.school.delete({ where: { id: schoolId } }).catch(() => undefined); await db.school.delete({ where: { id: otherSchool } }).catch(() => undefined); await db.$disconnect(); });
 
 test("same-name pupils stay in their campus; an exact identifier ranks first and survives a name change", async () => {
   const lead = await context("lead"), leadB = await context("leadB");
@@ -226,5 +233,88 @@ test("the student directory keeps its filters in the URL and both roll tiles cha
   await page.waitForFunction(() => !location.search.includes("sq="));
   await shot(page, "students-directory-en-1440");
   assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("SCRUM-306: stable sorting, stale pages and denied options", async () => {
+  const ctx = await context("lead");
+  const first = students((await search(ctx, { q: "Bulk Pupil", types: "student", sort: "name-desc" })).data);
+  const last = students((await search(ctx, { q: "Bulk Pupil", types: "student", sort: "name-desc", page: "2" })).data);
+  assert.equal(first.rows[0].title, "Synthetic Bulk Pupil 29");
+  assert.equal(new Set([...first.rows, ...last.rows].map(row => row.id)).size, 30);
+  const stale = (await search(ctx, { q: "Bulk Pupil", types: "student", page: "400" })).data as Data & { page: number };
+  assert.equal(stale.page, 2);
+  assert.equal(students(stale).rows.length, 5);
+  assert.equal((await (await context("teacher")).request.get(`${base}/api/search?options=1`)).status(), 403);
+});
+
+test("SCRUM-306: Back restores search input, sort and results without reverting the URL", async () => {
+  const page = await (await context("lead")).newPage();
+  await page.goto(`${base}/search?q=Bulk%20Pupil&types=student`);
+  const input = page.getByLabel("Search by name, roll number, admission number or reference");
+  await page.locator("[data-search-result]").first().waitFor();
+  await page.getByLabel("Sort by", { exact: true }).selectOption("name-desc");
+  await page.waitForURL(url => url.searchParams.get("sort") === "name-desc");
+  await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
+  await shot(page, "scrum306-search-sorted-en-1440");
+  await input.fill("N-701");
+  await page.waitForURL(url => url.searchParams.get("q") === "N-701");
+  await page.locator(`[data-search-result="${pupils.ahmadA}"]`).waitFor();
+  await page.goBack();
+  await page.waitForURL(url => url.searchParams.get("q") === "Bulk Pupil");
+  await page.waitForFunction(() => (document.querySelector('input[type="search"]') as HTMLInputElement)?.value === "Bulk Pupil");
+  await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
+  await page.reload();
+  await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
+  assert.equal(await input.inputValue(), "Bulk Pupil");
+  await page.close();
+});
+
+
+test("SCRUM-306: tenant isolation applies to rows, counts, options and direct roster requests", async () => {
+  const own = await context("lead"), other = await context("other-lead");
+  const a = students((await search(own, { q: "N-701", types: "student" })).data);
+  const b = students((await search(other, { q: "N-701", types: "student" })).data);
+  assert.equal(a.total, 1); assert.equal(b.total, 1);
+  assert.notEqual(a.rows[0].id, b.rows[0].id);
+  assert.equal(students((await search(own, { q: "N-701", types: "student", class: otherClass })).data).total, 0);
+  const options = await (await own.request.get(`${base}/api/search?options=1`)).json();
+  assert.ok(!options.data.classes.some((cls: { id: string }) => cls.id === otherClass));
+  const roster = await (await own.request.get(`${base}/api/students?classId=${otherClass}`)).json();
+  assert.equal(roster.pagination.total, 0);
+  const denied = await (await context("parent")).request.get(`${base}/api/students`);
+  assert.equal(denied.status(), 403);
+  const audit = await db.auditLog.findMany({ where: { schoolId, tableName: "record_search" } });
+  assert.ok(audit.length > 0);
+  assert.ok(audit.every(row => !JSON.stringify(row.newValue).includes("N-701")));
+});
+
+test("SCRUM-306: Urdu mobile sorting is labelled, RTL and has no horizontal overflow", async () => {
+  const page = await (await context("lead-ur", { width: 390, height: 844 })).newPage();
+  await page.goto(`${base}/search?q=Bulk%20Pupil&types=student&sort=name-desc`);
+  await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
+  assert.equal(await page.evaluate(() => document.documentElement.dir), "rtl");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await page.getByLabel("ترتیب بلحاظ", { exact: true }).inputValue(), "name-desc");
+  await shot(page, "scrum306-search-ur-390");
+  await page.close();
+});
+
+test("SCRUM-306: invoice query and status survive refresh and Back without changing dashboard scope", async () => {
+  const page = await (await context("accountant")).newPage();
+  await page.goto(`${base}/accountant?view=invoices&inv.searchQuery=Synthetic&inv.statusFilter=PENDING&inv.page=99`);
+  const input = page.getByPlaceholder("Search student or invoice #...");
+  await input.waitFor({ timeout: 60_000 });
+  await page.waitForFunction(() => (document.querySelector('input[placeholder="Search student or invoice #..."]') as HTMLInputElement)?.value === "Synthetic");
+  await page.getByRole("button", { name: "Paid", exact: true }).click();
+  await page.waitForURL(url => url.searchParams.get("inv.statusFilter") === "PAID" && !url.searchParams.has("inv.page"));
+  assert.equal(new URL(page.url()).searchParams.get("view"), "invoices");
+  await page.reload();
+  await input.waitFor();
+  await page.waitForFunction(() => (document.querySelector('input[placeholder="Search student or invoice #..."]') as HTMLInputElement)?.value === "Synthetic");
+  assert.equal(await page.getByRole("button", { name: "Paid", exact: true }).getAttribute("aria-pressed"), "true");
+  await page.goBack();
+  await page.waitForURL(url => url.searchParams.get("inv.statusFilter") === "PENDING");
+  await shot(page, "scrum306-invoice-state-en-1440");
   await page.close();
 });

@@ -1,4 +1,6 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
+import { pageWindow } from "@/lib/lists/query";
 
 import { Button as SystemButton } from "@/components/ui/button";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -44,7 +46,6 @@ import {
   ViewSwitch,
   WorkspaceHeader,
   WorkspaceToolbar,
-  usePaged,
   useWorkspacePrefs,
   type BulkAction,
   type DataColumn,
@@ -167,26 +168,36 @@ export function StudentsPanel({
   headingLevel?: 1 | 2;
 }) {
   const ui = useUiText();
-  const [prefs, patchPrefs] = useWorkspacePrefs("students", {
+  const [storedPrefs, patchStoredPrefs] = useWorkspacePrefs("students", {
     view: "cards",
     sortKey: "name",
     perPage: 12,
   });
 
-  // SKO-401: the directory's filters, search and page live in the URL, so Back, refresh and a link from
-  // record search land on the same view. Read once on mount; written back on every change.
-  const initial = useMemo(() => {
-    const params = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
-    return { q: params.get("sq") ?? "", cls: params.get("sclass") ?? "all", section: params.get("class") ?? params.get("ssection") ?? "all", category: params.get("scat") ?? "all", group: params.get("sgroup") ?? "all", missing: params.get("smissing") === "1", nologin: params.get("snologin") === "1", page: Number(params.get("spage") ?? "1") || 1 };
-  }, []);
-  const [classFilter, setClassFilter] = useState(initial.cls);
-  const [sectionFilter, setSectionFilter] = useState(initial.section);
-  const [categoryFilter, setCategoryFilter] = useState(initial.category);
-  const [groupFilter, setGroupFilter] = useState(initial.group);
-  const [searchQuery, setSearchQuery] = useState(initial.q);
-  const [onlyMissingGuardian, setOnlyMissingGuardian] = useState(initial.missing);
-  const [onlyNoLogin, setOnlyNoLogin] = useState(initial.nologin);
-  const pendingPage = useRef(initial.page > 1 ? initial.page : 0);
+  const [sortKey, setSortKey] = useListField<string>("ssort", "name", "spage");
+  const [sortDir, setSortDir] = useListField<string>("sdir", "asc", "spage");
+  const [perPage, setPerPage] = useListField<number>("ssize", 12, "spage");
+  const prefs = { ...storedPrefs, sortKey, sortDir: sortDir === "desc" ? "desc" as const : "asc" as const, perPage: Math.min(perPage, 200) };
+  const patchPrefs = (patch: Partial<typeof prefs>) => {
+    patchStoredPrefs(patch);
+    if (patch.sortKey !== undefined) setSortKey(patch.sortKey);
+    if (patch.sortDir !== undefined) setSortDir(patch.sortDir);
+    if (patch.perPage !== undefined) setPerPage(patch.perPage);
+  };
+
+  const [classFilter, setClassFilter] = useListField<string>("sclass", "all", "spage");
+  const [sectionFilter, setSectionFilter] = useListField<string>("ssection", "all", "spage");
+  const [categoryFilter, setCategoryFilter] = useListField<string>("scat", "all", "spage");
+  const [groupFilter, setGroupFilter] = useListField<string>("sgroup", "all", "spage");
+  const [searchQuery, setSearchQuery] = useListField<string>("sq", "", "spage");
+  const [onlyMissingGuardian, setOnlyMissingGuardian] = useListField<boolean>("smissing", false, "spage");
+  const [onlyNoLogin, setOnlyNoLogin] = useListField<boolean>("snologin", false, "spage");
+  const [requestedPage, setPage] = useListField<number>("spage", 1, "spage");
+  // Preserve legacy record-search links that use ?class=<id>.
+  useEffect(() => {
+    const legacy = new URLSearchParams(window.location.search).get("class");
+    if (legacy && !new URLSearchParams(window.location.search).has("ssection")) setSectionFilter(legacy);
+  }, [setSectionFilter]);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -275,7 +286,7 @@ export function StudentsPanel({
     });
     const compare = (SORTS[prefs.sortKey] ?? SORTS.name).compare;
     const dir = prefs.sortDir === "desc" ? -1 : 1;
-    return result.sort((a, b) => compare(a, b) * dir);
+    return result.sort((a, b) => compare(a, b) * dir || a.id.localeCompare(b.id));
   }, [
     students,
     classFilter,
@@ -289,22 +300,12 @@ export function StudentsPanel({
     prefs.sortDir,
   ]);
 
-  const paged = usePaged(filtered, prefs.perPage);
-  // The page from the URL is applied once the roster has loaded (paging resets when the row count changes).
-  useEffect(() => {
-    if (pendingPage.current && students.length && paged.totalPages >= pendingPage.current) { paged.setPage(pendingPage.current); pendingPage.current = 0; }
-  }, [students.length, paged]);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const set = (key: string, value: string | null) => { if (value) params.set(key, value); else params.delete(key); };
-    set("sq", searchQuery.trim() || null); set("sclass", classFilter !== "all" ? classFilter : null); set("ssection", sectionFilter !== "all" ? sectionFilter : null);
-    set("scat", categoryFilter !== "all" ? categoryFilter : null); set("sgroup", groupFilter !== "all" ? groupFilter : null);
-    set("smissing", onlyMissingGuardian ? "1" : null); set("snologin", onlyNoLogin ? "1" : null); set("spage", paged.page > 1 && !pendingPage.current ? String(paged.page) : pendingPage.current ? String(pendingPage.current) : null);
-    params.delete("class");
-    const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
-    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
-  }, [searchQuery, classFilter, sectionFilter, categoryFilter, groupFilter, onlyMissingGuardian, onlyNoLogin, paged.page]);
+  const paging = pageWindow(filtered.length, requestedPage, prefs.perPage);
+  const paged = {
+    page: paging.page, setPage, totalPages: paging.pages,
+    firstShown: paging.first, lastShown: paging.last,
+    rows: filtered.slice(paging.skip, paging.skip + paging.size),
+  };
 
   // Arriving from "show me the 12 students on Scholarship" should land on those
   // twelve, with the rest of the filters cleared so the count adds up.
