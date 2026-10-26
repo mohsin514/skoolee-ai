@@ -372,7 +372,9 @@ test("integration delivery failures preserve filters and never report no deliver
   assert.equal(await deliveries.locator("select").inputValue(),"FAILED");
   await saveShot(page,"integration-delivery-provider-en");
   failed=false; await deliveries.getByRole("button",{name:"Try again",exact:true}).click();
-  await deliveries.getByText("No deliveries yet.",{exact:true}).waitFor();
+  await deliveries.locator('[data-resource-state="no-match"]').waitFor();
   assert.equal(await deliveries.locator("select").inputValue(),"FAILED");
+  await deliveries.getByRole("button",{name:"Clear filters",exact:true}).click();
+  await deliveries.locator('[data-resource-state="no-data"]').waitFor();
   await ctx.close();
 });
