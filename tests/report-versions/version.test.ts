@@ -1,3 +1,7 @@
+import { redis } from "../../src/lib/queue/connection";
+import { after as disconnectRedisAfterTests } from "node:test";
+// Notification services open a shared Redis socket; close it after this test process finishes.
+disconnectRedisAfterTests(() => redis.disconnect());
 import { hashSessionToken } from "../../src/lib/auth/session-cookie";
 import { defaultLocale } from "../../src/lib/locale/package";
 import { consume } from "../../src/lib/queue/outbox";

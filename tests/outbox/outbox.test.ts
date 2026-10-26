@@ -1,3 +1,7 @@
+import { redis } from "../../src/lib/queue/connection";
+import { after as disconnectRedisAfterTests } from "node:test";
+// Notification services open a shared Redis socket; close it after this test process finishes.
+disconnectRedisAfterTests(() => redis.disconnect());
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { spawn, execFileSync } from "node:child_process";

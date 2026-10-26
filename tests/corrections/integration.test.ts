@@ -1,3 +1,7 @@
+import { redis } from "../../src/lib/queue/connection";
+import { after as disconnectRedisAfterTests } from "node:test";
+// Notification services open a shared Redis socket; close it after this test process finishes.
+disconnectRedisAfterTests(() => redis.disconnect());
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { immutablePaymentPdf } from "../../src/lib/fees/receipt";

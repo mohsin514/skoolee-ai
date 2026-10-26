@@ -1,3 +1,7 @@
+import { redis } from "../../src/lib/queue/connection";
+import { after as disconnectRedisAfterTests } from "node:test";
+// Notification services open a shared Redis socket; close it after this test process finishes.
+disconnectRedisAfterTests(() => redis.disconnect());
 import { tmpdir } from "node:os";
 import { hashSessionToken } from "../../src/lib/auth/session-cookie";
 import { SignJWT } from "jose";
