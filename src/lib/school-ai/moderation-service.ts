@@ -54,9 +54,15 @@ export async function getModeration(user: AuthUser, slotId: string) {
     const report = conformanceReport({ paper, request: { totalMarks: row.totalMarks, durationMinutes: row.durationMinutes, languages: view.languages }, curriculum });
     const history = await tx.examPaperModeration.findMany({ where: { schoolId: user.schoolId, slotId }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, decision: true, comments: true, paperVersion: true, contentHash: true, moderatorId: true, createdAt: true } });
     const titles = new Map((curriculum?.outcomes ?? []).map(outcome => [outcome.id, outcome.title]));
+    let canSeal = false;
+    if (!row.sealedAt && !row.cancelledAt && signatureHolds(history[0], hash)) {
+      try { await assertSealAuthority(user, tx, row.campusId, row.authorUserId); canSeal = true; }
+      catch (error) { if (!(error instanceof ApiError) || error.status !== 403) throw error; }
+    }
     return {
       slot: view, paperVersion: record.version, paperStatus: record.status, contentHashPrefix: hash ? contentHashPrefix(hash) : null,
-      canDecide: row.moderatorUserId === user.userId && row.authorUserId !== user.userId,
+      canSeal, sealedAt: row.sealedAt?.toISOString() ?? null,
+      canDecide: !row.sealedAt && !row.cancelledAt && view.status === "READY_FOR_REVIEW" && row.moderatorUserId === user.userId && row.authorUserId !== user.userId,
       report, blocking: conformanceBlocking(report).map(check => check.code),
       items: paper.questions.map((question, index) => ({ id: question.id, number: index + 1, type: question.type, marks: question.marks, prompt: question.prompt, options: question.options ?? [], correctOptionId: question.correctOptionId ?? null, correctOptionIds: question.correctOptionIds ?? null, modelAnswer: question.modelAnswer ?? null, state: itemStateFor(question), outcomes: question.outcomeIds.map(id => titles.get(id) ?? id) })),
       history: history.map(entry => ({ ...entry, createdAt: entry.createdAt.toISOString(), current: Boolean(hash && entry.contentHash === hash) })),
@@ -80,6 +86,7 @@ export async function decideModeration(user: AuthUser, slotId: string, raw: unkn
     if (row.authorUserId === user.userId) throw new ApiError("Authors cannot moderate their own paper.", 403);
     if (row.cancelledAt || row.sealedAt) throw new ApiError("This paper request is closed for moderation.", 409);
     if (record.version !== input.paperVersion) throw new ApiError("The paper changed meanwhile. Reload and review the current version.", 409);
+    if (view.status !== "READY_FOR_REVIEW") throw new ApiError("The author must submit the current paper for moderation.", 409);
     if (!hash) throw new ApiError("The paper carries a protected value in its candidate view. Return it to the author.", 409);
     if (!["IN_REVIEW", "APPROVED"].includes(record.status)) throw new ApiError("The author has not sent this paper for review yet.", 409);
     const source = await tx.schoolAiRecord.findFirst({ where: { id: paper.curriculumId, schoolId: user.schoolId, kind: "CURRICULUM" }, select: { id: true, data: true } });
@@ -144,7 +151,7 @@ export async function sealSlot(user: AuthUser, slotId: string, raw: unknown) {
     if (!rehearsal || rehearsalResults.some(result => result.check !== "SOLVER_DISAGREEMENT" && result.severity === "BLOCKING")) throw new ApiError("Rehearse the moderated paper (with no blocking finding) before the Seal.", 409);
     // Sealing approves the record when it is still in review; the content (and its hash) do not change.
     let version = record.version;
-    if (record.status !== "APPROVED") version = (await updateWorkspaceRecordInTransaction(user, record.id, { version: record.version, action: "approve" }, tx)).version;
+    if (record.status !== "APPROVED") version = (await updateWorkspaceRecordInTransaction(user, record.id, { version: record.version, action: "approve" }, tx, undefined, { asDelegatedSealer: authority === "HEAD_OF_DEPARTMENT" })).version;
     const sitting = row.schedules?.[0]?.date ?? (await tx.examSchedule.findFirst({ where: { schoolId: user.schoolId, paperSlotId: row.id }, orderBy: { date: "asc" }, select: { date: true } }))?.date ?? null;
     const moderator = await tx.user.findFirst({ where: { id: latest!.moderatorId, schoolId: user.schoolId }, select: { fullName: true } });
     const reason = input.reason || `Moderated by ${moderator?.fullName ?? "the moderator"}`;

@@ -380,12 +380,12 @@ export async function createWorkspaceRecord(user: AuthUser, rawInput: WorkspaceC
 }
 
 /** Reuses the same version/approval boundary inside a larger atomic domain transaction. */
-export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput, tx: TxClient, snapshot?: WorkspacePermissionSnapshot, options: { asDepartmentHead?: boolean } = {}): Promise<AiWorkspaceRecord> {
+export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput, tx: TxClient, snapshot?: WorkspacePermissionSnapshot, options: { asDepartmentHead?: boolean; asDelegatedSealer?: boolean } = {}): Promise<AiWorkspaceRecord> {
   const permissions = snapshot ?? await loadWorkspacePermissionSnapshot(user, tx);
   await assertSchoolAiAccess(user, "view", permissions);
   const input = updateWorkspaceSchema.parse(rawInput);
   // SKO-500: a head of department approves a member's syllabus without owning or teaching it.
-  const current = options.asDepartmentHead ? await departmentHeadRecord(user, id, input, tx) : await scopedRecord(user, id, "write", tx, permissions);
+  const current = options.asDepartmentHead || options.asDelegatedSealer ? await departmentHeadRecord(user, id, input, tx, options.asDelegatedSealer) : await scopedRecord(user, id, "write", tx, permissions);
   const status = nextWorkspaceStatus({ version: current.version, status: current.status as WorkspaceStatus }, input);
   const action = input.action;
   let authority: ApprovalAuthority | null = null;
@@ -405,10 +405,21 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   const parsed = parseWorkspaceData(current.kind as WorkspaceKind, prepared);
   const data = current.kind === "PAPER" && input.data ? preparePaperWrite(user, parsed, dataOf(current)) : parsed;
   await assertWorkspaceDomainPermission(user, current.kind as WorkspaceKind, data, "edit", permissions);
-  const subject = options.asDepartmentHead ? { subjectId: current.subjectId, classId: current.classId } : await assertWorkspaceSubject(user, current.campusId, data, tx);
-  await validateReferences(user, current.kind as WorkspaceKind, current.campusId, data, tx, permissions);
+  // A delegated seal approves the existing content; its references must still be accessible to
+  // the active author. This does not grant the sealer that author's workspace or editing rights.
+  let referenceUser = user;
+  let referencePermissions = permissions;
+  if (options.asDelegatedSealer) {
+    if (input.data || input.title) throw new SchoolAiError("Sealing cannot edit the paper.", 403);
+    const author = await tx.user.findFirst({ where: { id: current.createdById, schoolId: user.schoolId, campusId: current.campusId, isActive: true }, select: { id: true, email: true, role: true, schoolId: true, campusId: true, accessVersion: true } });
+    if (!author) throw new SchoolAiError("The paper's author is no longer active.", 409);
+    referenceUser = { userId: author.id, email: author.email, role: author.role, schoolId: author.schoolId!, campusId: author.campusId, accessVersion: author.accessVersion };
+    referencePermissions = await loadWorkspacePermissionSnapshot(referenceUser, tx);
+  }
+  const subject = options.asDepartmentHead ? { subjectId: current.subjectId, classId: current.classId } : await assertWorkspaceSubject(referenceUser, current.campusId, data, tx);
+  await validateReferences(referenceUser, current.kind as WorkspaceKind, current.campusId, data, tx, referencePermissions);
   if (action === "approve" || action === "review") {
-    const issues = await approvalIssues(user, current, tx, permissions, action === "review" ? "review" : "approve");
+    const issues = await approvalIssues(referenceUser, current, tx, referencePermissions, action === "review" ? "review" : "approve");
     if (issues.length) throw new SchoolAiError(issues.slice(0, 15).join(" "), 422);
   }
   const updated = await tx.schoolAiRecord.updateMany({
@@ -418,7 +429,7 @@ export async function updateWorkspaceRecordInTransaction(user: AuthUser, id: str
   if (updated.count !== 1) throw new SchoolAiError("This item changed during review. Reload and review the current version.", 409);
   const record = await tx.schoolAiRecord.findFirstOrThrow({ where: { id, schoolId: user.schoolId } });
   await revision(tx, record, user, action.toUpperCase() as WorkspaceRevision["action"]);
-  if (!options.asDepartmentHead) await linkSlotIfNamed(user, record, tx, action);
+  if (!options.asDepartmentHead && !options.asDelegatedSealer) await linkSlotIfNamed(user, record, tx, action);
   if (action === "approve" && current.kind === "CURRICULUM") await approveBundledSource(user, data, current.campusId, tx, permissions, options);
   return publicRecord(record);
 }
@@ -479,11 +490,24 @@ async function assertMayApprove(user: AuthUser, current: StoredRecord, policy: R
 }
 
 /** The record a head of department may approve: a member's syllabus or syllabus source, in the head's campus. */
-async function departmentHeadRecord(user: AuthUser, id: string, input: { action?: string }, tx: TxClient): Promise<StoredRecord> {
+async function departmentHeadRecord(user: AuthUser, id: string, input: { action?: string }, tx: TxClient, delegatedSeal = false): Promise<StoredRecord> {
   workspaceIdSchema.parse(id);
   const record = await tx.schoolAiRecord.findFirst({ where: { id, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) } });
-  if (!record || input.action !== "approve" || !["SOURCE", "CURRICULUM"].includes(record.kind) || !(await headsAuthorDepartment(tx, user.schoolId, user.userId, record.createdById))) throw new SchoolAiError("Workspace item not found or no longer accessible.", 404);
+  if (!record || input.action !== "approve" || !(delegatedSeal ? ["PAPER"] : ["SOURCE", "CURRICULUM"]).includes(record.kind) || !(await headsAuthorDepartment(tx, user.schoolId, user.userId, record.createdById))) throw new SchoolAiError("Workspace item not found or no longer accessible.", 404);
   return record;
+}
+
+export async function previewDepartmentApproval(user: AuthUser, id: string) {
+  return transaction(user, async tx => {
+    const permissions = await loadWorkspacePermissionSnapshot(user, tx);
+    await assertSchoolAiAccess(user, "view", permissions);
+    const record = await departmentHeadRecord(user, id, { action: "approve" }, tx);
+    if (record.status !== "IN_REVIEW") throw new SchoolAiError("This item is no longer waiting for review.", 409);
+    await assertWorkspaceDomainPermission(user, record.kind as WorkspaceKind, dataOf(record), "view", permissions);
+    await assertKnowledgeEvidenceRead(user, record.kind, record.campusId, dataOf(record), tx, permissions);
+    const data = dataOf(record);
+    return { id: record.id, title: record.title, version: record.version, text: record.kind === "SOURCE" ? String(data.extractedText ?? "") : null, outcomes: record.kind === "CURRICULUM" ? curriculumDataSchema.parse(data).outcomes.map(({ id, title, unit }) => ({ id, title, unit })) : [] };
+  });
 }
 
 export async function updateWorkspaceRecord(user: AuthUser, id: string, rawInput: WorkspaceUpdateInput): Promise<AiWorkspaceRecord> {
