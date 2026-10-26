@@ -8,6 +8,7 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Alert } from "@/components/ui/alert";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -86,7 +87,8 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
   const [loading, setLoading] = useState(true);
   // A failed load used to toast and then render the empty page — "no balances, no requests" —
   // which reads as fact rather than as an outage.
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [types, setTypes] = useState<LeaveType[]>([]);
@@ -101,28 +103,19 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
   const [statusFilter, setStatusFilter] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setLoadFailed(false);
+    const version = ++sequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const res = await fetch("/api/leave?mode=my", { cache: "no-store" });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        setRequests(json.data.requests || []);
-        setBalances(json.data.balances || []);
-        setTypes(json.data.types || []);
-        setAcademicYear(json.data.academicYear ?? null);
-      } else {
-        setLoadFailed(true);
-      }
-    } catch {
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
+      const json = await checkedJson(await readRequest("/api/leave?mode=my"));
+      if (version !== sequence.current) return;
+      setRequests(json.data.requests || []); setBalances(json.data.balances || []); setTypes(json.data.types || []); setAcademicYear(json.data.academicYear ?? null);
+    } catch (failure) { if (version === sequence.current) { setRequests([]); setBalances([]); setTypes([]); setLoadFailed(requestFailure(failure)); } }
+    finally { if (version === sequence.current) setLoading(false); }
   }, []);
 
   useEffect(() => {
     void load();
+    return () => { sequence.current++; };
   }, [load]);
 
   /* A backwards range is prevented by the picker and stated in the form, never discovered from a
@@ -281,7 +274,7 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
         <SkeletonList rows={4} label={ui("Loading your leave")} />
       ) : loadFailed ? (
         <div className="sk-panel">
-          <ErrorState
+          <ErrorState error={loadFailed}
             title={ui("Couldn't load your leave")}
             description={ui("Your balances and requests could not be loaded. Check your connection and try again. No request has been changed.")}
             onRetry={load}

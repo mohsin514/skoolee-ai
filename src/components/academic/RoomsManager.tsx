@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   AlertTriangle,
   ArmchairIcon,
@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { cn } from "@/lib/utils";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -110,27 +111,23 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
   const [editing, setEditing] = useState<Room | "new" | null>(null);
   const [deleting, setDeleting] = useState<Room | null>(null);
   const [busy, setBusy] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++sequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const res = await fetch(
-        `/api/academic/rooms${campusId ? `?campusId=${campusId}` : ""}`,
-      ).then((r) => r.json());
-      if (!res.success) throw new Error(res.error || "");
-      setRooms(res.data as Room[]);
-      setLoadFailed(false);
-    } catch {
-      // R4: a load failure is an inline ErrorState with retry, never only a toast.
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
+      const json = await checkedJson(await readRequest(`/api/academic/rooms${campusId ? `?campusId=${campusId}` : ""}`));
+      if (version !== sequence.current) return;
+      setRooms(json.data);
+    } catch (failure) { if (version === sequence.current) { setRooms([]); setLoadFailed(requestFailure(failure)); } }
+    finally { if (version === sequence.current) setLoading(false); }
   }, [campusId]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => { sequence.current++; };
   }, [load]);
 
   const totals = useMemo(() => {
@@ -260,7 +257,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
           ))}
         </div>
       ) : loadFailed ? (
-        <ErrorState title={ui("Rooms could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />
+        <ErrorState error={loadFailed} title={ui("Rooms could not be loaded")} description={ui("Check your connection and try again.")} onRetry={load} />
       ) : rooms.length === 0 ? (
         <StepEmpty
           icon={DoorOpen}

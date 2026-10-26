@@ -16,6 +16,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -87,7 +88,8 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
   const access = useConsoleAccess();
   const mfaReady = !access.ready || access.has("mfaVerified");
   const [data, setData] = useState<Data | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
   const [editing, setEditing] = useState<Member | null>(null);
   const [inviting, setInviting] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -95,16 +97,14 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    setLoadFailed(false);
+    const version = ++sequence.current;
+    setLoadFailed(null);
     try {
-      const response = await fetch("/api/memberships", { cache: "no-store" });
-      if (response.status === 401) { await signOutInvalidSession(); return; }
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
-      setData(result);
-    } catch { setLoadFailed(true); }
+      const result = await checkedJson(await readRequest("/api/memberships"), { envelope: false });
+      if (version === sequence.current) setData(result);
+    } catch (failure) { if (version === sequence.current) { setData(null); setLoadFailed(requestFailure(failure)); } }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
 
   // The kind of school decides the names and which delegations exist (§1.5): the server says it; the console
   // capability is the fallback while an older response is cached.
@@ -198,7 +198,7 @@ export function MembershipsPanel({ exportRequest }: { exportRequest?: number } =
   const validEdit = (flagOnly || Boolean(draft.campusId)) && changes.length > 0;
   const family = draft.role === "PARENT" || draft.role === "STUDENT";
 
-  if (loadFailed && !data) return <div className="sk-panel"><ErrorState title={t("Members could not be loaded.")} description={t("Check your connection and try again.")} onRetry={() => load()} /></div>;
+  if (loadFailed && !data) return <div className="sk-panel"><ErrorState error={loadFailed} title={t("Members could not be loaded.")} description={t("Check your connection and try again.")} onRetry={() => load()} /></div>;
   if (!data) return <SkeletonList rows={4} label={t("Loading members")} />;
 
   const revoking = changes.includes("revoke");

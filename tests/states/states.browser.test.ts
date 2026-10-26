@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, webkit, type Browser, type BrowserContext, type Page } from "playwright";
 import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
 
@@ -12,7 +12,7 @@ const url = new URL(process.env.DATABASE_URL || "http://invalid");
 if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.STATES_TEST_APP || "http://localhost:3109";
 const evidence = process.env.STATES_EVIDENCE_DIR || "/tmp/scrum308/evidence";
-const db = new PrismaClient(), password = "SyntheticViews307!";
+const db = new PrismaClient(), password = "SyntheticStates308!";
 const schoolId = `states308-${randomUUID()}`, campusA = randomUUID(), campusB = randomUUID();
 const class7 = randomUUID(), classB = randomUUID(), campusC = randomUUID();
 const users = new Map<string, { id: string; email: string }>();
@@ -39,7 +39,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
 const otherSchool = `states308-${randomUUID()}`;
 before(async()=>{
   await mkdir(evidence,{recursive:true});
-  for(const id of [schoolId,otherSchool]) await db.school.create({data:{id,name:"Synthetic Views School",slug:id,regId:id,contactEmail:`${id}@example.invalid`,city:"Lahore",status:"ACTIVE",plan:"PRO"}});
+  for(const id of [schoolId,otherSchool]) await db.school.create({data:{id,name:"Synthetic States School",slug:id,regId:id,contactEmail:`${id}@example.invalid`,city:"Lahore",status:"ACTIVE",plan:"PRO"}});
   for(const [id,school,name] of [[campusA,schoolId,"North"],[campusB,otherSchool,"South"]]) await db.campus.create({data:{id,schoolId:school,name,regId:id,city:"Lahore"}});
   await db.campus.create({data:{id:campusC,schoolId,name:"Other campus",regId:campusC,city:"Lahore"}});
   await db.academicCycle.create({data:{schoolId,campusId:campusA,label:"2026",academicYear:2026,status:"ACTIVE"}});
@@ -50,7 +50,7 @@ before(async()=>{
     pupils[name]=id; await db.student.create({data:{id,schoolId:school,campusId:campus,classId:cls,fullName:name,rollNo:"307",gender:"FEMALE",enrollmentDate:new Date("2024-02-29T00:00:00Z")}});
   }
   await db.admissionQuery.create({data:{schoolId,campusId:campusA,name:"Synthetic Enquiry",phone:"03000000307",source:"WALK_IN",nextFollowUp:new Date("2026-11-01T00:00:00Z")}});
-  browser=await chromium.launch({headless:true});
+  browser=await (process.env.STATES_BROWSER === "webkit" ? webkit : chromium).launch({headless:true});
 });
 after(async()=>{await browser?.close(); await db.$disconnect();});
 const saveShot=async(page:Page,name:string)=>{await page.locator("[data-boot-splash]").waitFor({state:"hidden"}); await page.screenshot({path:`${evidence}/${name}.png`,fullPage:true});};
@@ -156,4 +156,17 @@ test("library shows loading then no-data and a distinct no-match with useful nex
   await page.getByPlaceholder(/Search/i).first().fill("NoMatch308");
   await page.locator('[data-resource-state="no-match"]').waitFor();
   await saveShot(page,"library-no-match-en");await ctx.close();
+});
+
+test("staff leave and academic room loaders distinguish denied responses from empty results",async()=>{
+  const teacher=await context("teacher"),leave=await teacher.newPage();
+  await leave.route("**/api/leave?mode=my",route=>route.fulfill({status:403,json:{error:"denied"}}));
+  await leave.goto(`${base}/teacher/leave`); await leave.locator('section[data-resource-state="denied"]').waitFor();
+  assert.equal(await leave.getByRole("button",{name:"Apply for leave",exact:true}).isEnabled(),false);
+  await saveShot(leave,"teacher-leave-denied-en"); await teacher.close();
+  const ops=await context("ops"),rooms=await ops.newPage();
+  await rooms.route("**/api/academic/rooms**",route=>route.fulfill({status:403,json:{error:"denied"}}));
+  await rooms.goto(`${base}/admin?view=settings&tab=rooms`); await rooms.locator('section[data-resource-state="denied"]').waitFor();
+  assert.equal(await rooms.getByText("No rooms yet",{exact:true}).count(),0);
+  await saveShot(rooms,"academic-rooms-denied-en");await ops.close();
 });

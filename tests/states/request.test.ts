@@ -11,6 +11,8 @@ test("HTTP outcomes precede parsing and never disclose server bodies", async () 
 });
 test("success envelope, invalid JSON, legacy failure and unsafe references", async () => {
   assert.deepEqual(await checkedJson(Response.json({success:true,data:[]})), {success:true,data:[]});
+  assert.deepEqual(await checkedJson(Response.json({members:[]}), {envelope:false}), {members:[]});
+  await assert.rejects(checkedJson(Response.json({members:[]})), RequestFailure);
   await assert.rejects(checkedJson(Response.json({success:false,error:"private"})), RequestFailure);
   await assert.rejects(checkedJson(new Response("not json")), RequestFailure);
   await assert.rejects(checkedJson(new Response("", {status:403,headers:{"x-request-id":"private@example.com"}})), (e:unknown) => e instanceof RequestFailure && e.digest === undefined);

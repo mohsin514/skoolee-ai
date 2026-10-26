@@ -21,13 +21,13 @@ export function requestFailure(error: unknown): RequestFailure {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return new RequestFailure("offline");
   return new RequestFailure(error instanceof TypeError ? "offline" : "server");
 }
-export async function checkedJson<T = any>(response: Response): Promise<T> {
+export async function checkedJson<T = any>(response: Response, options: { envelope?: boolean } = {}): Promise<T> {
   const reference = response.headers.get("x-request-id");
   const digest = reference && /^[a-zA-Z0-9_-]{1,80}$/.test(reference) ? reference : undefined;
   // Check status before parsing: proxies and permission denials need not send JSON.
   if (!response.ok) throw new RequestFailure(failureForStatus(response.status), response.status, digest);
   const body = await response.json().catch(() => { throw new RequestFailure("server", response.status, digest); });
-  if (body?.success !== true) throw new RequestFailure("server", response.status, digest);
+  if (body?.success === false || (options.envelope !== false && body?.success !== true)) throw new RequestFailure("server", response.status, digest);
   return body as T;
 }
 /** Reads only: no automatic replay of mutations with uncertain outcomes. */
