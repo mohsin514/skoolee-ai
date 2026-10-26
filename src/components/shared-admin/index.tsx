@@ -118,6 +118,7 @@ import {
   WorkspaceToolbar,
   usePaged,
   ViewSwitch,
+  additionalWorkspaceViews,
   useWorkspacePrefs,
 } from "@/components/shared-admin/workspace";
 
@@ -901,14 +902,18 @@ export function FacultyPanel({
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
                 { value: "table", label: "List", icon: ClipboardList },
+                ...additionalWorkspaceViews,
               ]}
             />
           </div>
         </div>
 
-        {facultyPrefs.view === "table" && filtered.length > 0 ? (
+        {facultyPrefs.view !== "cards" && filtered.length > 0 ? (
           <div className="mb-4">
             <DataTable
+              view={facultyPrefs.view}
+              calendarLabel="Joining date"
+              getCalendarDate={(row) => ({ value: row.joiningDate, kind: "date" })}
               rows={filtered}
               rowKey={(t: any) => t.id}
               minWidth={780}
@@ -995,7 +1000,7 @@ export function FacultyPanel({
         ) : null}
 
         <div className="space-y-4">
-          {facultyPrefs.view === "table"
+          {facultyPrefs.view !== "cards"
             ? null
             : filtered.map((teacher: any) => (
                 <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={canInvite ? () => onRemove(teacher.id) : undefined} />
@@ -5085,6 +5090,7 @@ export function AdmissionQueriesPanel({
             options={[
               { value: "cards", label: "Cards", icon: LayoutGrid },
               { value: "table", label: "List", icon: ClipboardList },
+                ...additionalWorkspaceViews,
             ]}
           />
         </div>
@@ -5108,8 +5114,11 @@ export function AdmissionQueriesPanel({
         />
       ) : filtered.length === 0 ? (
         <EmptyInline text={ui("No enquiries match these filters. Try clearing them.")} />
-      ) : queryPrefs.view === "table" ? (
+      ) : queryPrefs.view !== "cards" ? (
         <DataTable
+          view={queryPrefs.view}
+          calendarLabel="Next follow-up"
+          getCalendarDate={(row) => ({ value: row.nextFollowUp, kind: "date" })}
           rows={filtered}
           rowKey={(q: any) => q.id}
           minWidth={860}

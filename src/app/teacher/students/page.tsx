@@ -23,6 +23,7 @@ import {
   SortDirButton,
   ToolbarSelect,
   ViewSwitch,
+  additionalWorkspaceViews,
   WorkspaceToolbar,
   useWorkspacePrefs,
 } from "@/components/shared-admin/workspace";
@@ -50,12 +51,14 @@ export default function TeacherStudentsPage() {
   // Arriving from a class card should show that class, not everyone; the
   // command palette additionally carries the name it was searching for, so the
   // roster opens already narrowed to the one person the teacher asked for.
+  const requestedClass = searchParams.get("classId");
+  const requestedQuery = searchParams.get("q");
   useEffect(() => {
-    const requested = searchParams.get("classId");
+    const requested = requestedClass;
     if (requested) setClassFilter(requested);
-    const q = searchParams.get("q");
+    const q = requestedQuery;
     if (q) setSearch(q);
-  }, [searchParams]);
+  }, [requestedClass, requestedQuery]);
 
   const classHubs = data?.classHubs || [];
   const allStudents: any[] = data?.students || [];
@@ -139,6 +142,7 @@ export default function TeacherStudentsPage() {
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
                 { value: "table", label: "List", icon: Table2 },
+                ...additionalWorkspaceViews,
               ]}
             />
           }
@@ -210,8 +214,11 @@ export default function TeacherStudentsPage() {
 
         {/* A class of forty is a scanning job, not a browsing one — the table
             puts roll number, grade and attendance in comparable columns. */}
-        {filtered.length > 0 && prefs.view === "table" ? (
+        {filtered.length > 0 && prefs.view !== "cards" ? (
           <DataTable
+          view={prefs.view}
+          calendarLabel="Enrollment date"
+          getCalendarDate={(row) => ({ value: row.enrollmentDate, kind: "date" })}
             rows={filtered}
             rowKey={(st: any) => st.id}
             minWidth={720}
