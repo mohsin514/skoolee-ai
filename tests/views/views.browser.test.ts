@@ -69,6 +69,7 @@ test("API denies families and foreign campus; view parameter cannot widen access
 });
 test("admin roster preserves filters, selection, record actions, URL and refresh across views",async()=>{
   const page=await (await context("ops")).newPage();
+  await page.addInitScript(() => localStorage.setItem("skoolee.workspace.students", "null"));
   await page.goto(`${base}/admin?view=students&sq=Synthetic%20Ada`);
   await page.getByRole("button",{name:"List",exact:true}).click();
   await page.getByRole("checkbox",{name:/Select Synthetic Ada/}).check();
@@ -80,6 +81,9 @@ test("admin roster preserves filters, selection, record actions, URL and refresh
     assert.equal(await page.getByText("Synthetic Private",{exact:true}).count(),0);
     await saveShot(page,`roster-${view.toLowerCase()}-en`);
   }
+  await page.getByRole("button",{name:"Cards",exact:true}).click();
+  assert.equal(await page.getByRole("checkbox",{name:"Select Synthetic Ada",exact:true}).isChecked(),true);
+  await page.goBack();
   await page.goBack(); await page.getByRole("button",{name:"Grid",exact:true}).waitFor();
   assert.equal(await page.getByRole("button",{name:"Grid",exact:true}).getAttribute("aria-pressed"),"true");
   await page.reload(); await page.getByRole("button",{name:"Grid",exact:true}).waitFor();

@@ -18,6 +18,7 @@ jobs:
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55438/postgres
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:55438/postgres
       AUTH_SECRET: scrum307-ci-synthetic-secret-only-2026
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
