@@ -203,7 +203,7 @@ export async function searchRecords(user: AuthUser, filters: Filters) {
   const { campusIds } = await scope(user, filters.campusId);
   const single = types.length === 1;
   const limit = single ? PAGE : 8;
-  let page = boundedInteger(String(filters.page), 1, 400);
+  let page = boundedInteger(String(filters.page), 1, 100_000);
   const offset = single ? (page - 1) * PAGE : 0;
   const sources: Record<string, "ok" | "failed"> = {};
   const groups = await Promise.all(types.map(async type => {
@@ -232,7 +232,7 @@ export function parseFilters(params: URLSearchParams): Filters {
   const types = [...new Set((params.get("types") ?? "").split(",").filter((type): type is SearchType => (TYPES as readonly string[]).includes(type)))];
   const status = params.get("status");
   const year = Number(params.get("year"));
-  const page = boundedInteger(params.get("page"), 1, 400);
+  const page = boundedInteger(params.get("page"), 1, 100_000);
   const lang = params.get("lang");
   return {
     q: (params.get("q") ?? "").slice(0, 100), types, campusId: params.get("campus") || null,

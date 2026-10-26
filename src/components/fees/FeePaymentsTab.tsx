@@ -121,6 +121,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         setPayments(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
+        if (json.page !== page) setPage(json.page);
       } else {
         setLoadFailed(true);
       }
@@ -139,7 +140,6 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
   }, [loadPayments]);
 
   const handleSearch = () => {
-    setPage(1);
     setSearchQuery(searchInput);
   };
 
@@ -197,7 +197,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         <SystemSelect
           aria-label={tr("Payment method")}
           value={methodFilter}
-          onChange={(e) => { setMethodFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setMethodFilter(e.target.value); }}
           className=""
         >
           {METHODS.map((m) => (
@@ -211,7 +211,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
           type="date"
           aria-label={tr("From")}
           value={dateFrom}
-          onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+          onChange={(e) => { setDateFrom(e.target.value); }}
           className=""
           placeholder={tr("From")}
         />
@@ -222,7 +222,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
           type="date"
           aria-label={tr("To")}
           value={dateTo}
-          onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+          onChange={(e) => { setDateTo(e.target.value); }}
           className=""
           placeholder={tr("To")}
         />
@@ -231,6 +231,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
           <SystemInput
             type="text"
+            aria-label={tr("Search by name, receipt #...")}
             placeholder={tr("Search by name, receipt #...")}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}

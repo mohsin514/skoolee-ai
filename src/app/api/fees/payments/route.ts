@@ -1,5 +1,5 @@
 import { assertListBudget } from "@/lib/lists/access";
-import { listPagination } from "@/lib/lists/query";
+import { listPagination, pageWindow } from "@/lib/lists/query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
-    const { page, limit: pageSize } = listPagination(searchParams, 20, 50, "pageSize");
+    const { page: requestedPage, limit: pageSize } = listPagination(searchParams, 20, 50, "pageSize");
 
     const where: Prisma.PaymentWhereInput = {
       campus: { schoolId: user.schoolId },
@@ -52,9 +52,9 @@ export async function GET(req: NextRequest) {
         : {}),
     };
 
-    const [total, payments] = await Promise.all([
-      prisma.payment.count({ where }),
-      prisma.payment.findMany({
+    const total = await prisma.payment.count({ where });
+    const { page } = pageWindow(total, requestedPage, pageSize);
+    const payments = await prisma.payment.findMany({
         where,
         include: {
           student: {
@@ -77,8 +77,7 @@ export async function GET(req: NextRequest) {
         orderBy: [{ paymentDate: "desc" }, { id: "asc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
-      }),
-    ]);
+      });
 
     return Response.json({
       success: true,
@@ -86,7 +85,7 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
-      totalPages: Math.ceil(total / pageSize),
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
     });
   } catch (error) {
     return errorResponse(error, "[fees/payments] GET failed");

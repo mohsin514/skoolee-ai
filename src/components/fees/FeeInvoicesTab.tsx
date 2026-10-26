@@ -123,6 +123,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
         setInvoices(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
+        if (json.page !== page) setPage(json.page);
       } else {
         setLoadFailed(true);
       }
@@ -157,11 +158,9 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("invoice");
     if (id) void viewDetail(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = () => {
-    setPage(1);
     setSearchQuery(searchInput);
   };
 
@@ -247,7 +246,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
             <Button aria-pressed={statusFilter === s.value} variant="choice"
               key={s.value}
               type="button"
-              onClick={() => { setStatusFilter(s.value); setPage(1); }}
+              onClick={() => { setStatusFilter(s.value); }}
               className={`px-3 py-1.5 ${
                 ""
               } `}
@@ -260,7 +259,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
         <SystemSelect
           aria-label={tr("Class")}
           value={classFilter}
-          onChange={(e) => { setClassFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setClassFilter(e.target.value); }}
           className=""
         >
           <option value=""><UiText>{"All classes"}</UiText></option>
@@ -273,7 +272,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
           aria-label={tr("Month")}
           title={tr("Month")}
           value={monthFilter}
-          onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setMonthFilter(e.target.value); }}
           className=""
         >
           <option value="">{tr("Any month")}</option>
@@ -285,6 +284,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
           <SystemInput
             type="text"
+            aria-label={tr("Search student or invoice #...")}
             placeholder={tr("Search student or invoice #...")}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}

@@ -31,3 +31,13 @@ test("empty, deleted last page and invalid persisted page sizes remain bounded",
   assert.equal(pageWindow(50, -2, 0).page, 1);
   assert.equal(pageWindow(50, 2, Infinity).size, 25);
 });
+
+test("large authorized collections page without duplicating or omitting records", () => {
+  const rows = Array.from({ length: 50_003 }, (_, id) => id);
+  const seen: number[] = [];
+  for (let requested = 1; requested <= Math.ceil(rows.length / 96); requested++) {
+    const window = pageWindow(rows.length, requested, 96);
+    seen.push(...rows.slice(window.skip, window.skip + window.size));
+  }
+  assert.deepEqual(seen, rows);
+});

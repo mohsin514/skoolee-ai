@@ -26,7 +26,7 @@ export function useListField<T extends string | number | boolean>(key: string, f
     const encoded = value === fallback ? null : typeof value === "boolean" ? (value ? "1" : "0") : String(value);
     const query = patchListQuery(current, { [key]: encoded }, pageKey);
     if (query.toString() === new URLSearchParams(current).toString()) return;
-    window.history.pushState(window.history.state, "", `${window.location.pathname}${query.size ? `?${query}` : ""}${window.location.hash}`);
+    window.history.pushState(null, "", `${window.location.pathname}${query.size ? `?${query}` : ""}${window.location.hash}`);
     window.dispatchEvent(new Event(eventName));
   }, [key, fallback, pageKey, parse]);
   return [parse(search), set];

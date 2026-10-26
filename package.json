@@ -23,7 +23,7 @@
     "audit:ui": "node --import tsx scripts/ui-adoption-inventory.ts",
     "worker:outbox": "tsx src/workers/outbox-worker.ts",
     "test:outbox": "node --import tsx --test tests/outbox/outbox.test.ts",
-    "test:outbox:api": "node --import tsx --test tests/outbox/api.test.ts",
+    "test:outbox:api": "node --import ./tests/support/server-only.mjs --import tsx --test tests/outbox/api.test.ts",
     "test:logout": "node --import tsx --test \"tests/logout/*.test.ts\"",
     "test:logout:remote": "TEST_TARGET=remote node --import tsx --test \"tests/logout/*.test.ts\"",
     "test:e2e": "playwright test",

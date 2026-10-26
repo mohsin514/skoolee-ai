@@ -1,3 +1,5 @@
+import { listPagination, pageWindow } from "@/lib/lists/query";
+import { assertListBudget } from "@/lib/lists/access";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -15,28 +17,22 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     await assertModuleRead(user, "inventory");
-    const campusId = await resolveCampusId(user, req.nextUrl.searchParams.get("campusId"));
-
-    const search = req.nextUrl.searchParams.get("search");
-
-    const where: any = { campusId };
-    if (search) where.name = { contains: search, mode: "insensitive" };
-
-    const items = await prisma.item.findMany({
-      where,
-      include: {
-        category: true,
-        stock: {
-          include: { store: { select: { id: true, name: true } } },
-        },
-      },
-      orderBy: { name: "asc" },
+    await assertListBudget(user, "inventory/items");
+    const params = req.nextUrl.searchParams;
+    const campusId = await resolveCampusId(user, params.get("campusId"));
+    const search = (params.get("search") ?? "").trim().slice(0, 100);
+    const categoryId = params.get("categoryId");
+    const { page: requestedPage, limit } = listPagination(params, 24, 100);
+    const where = { schoolId: user.schoolId, campusId, ...(categoryId ? { categoryId } : {}), ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}) };
+    const total = await prisma.item.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const data = await prisma.item.findMany({
+      where, include: { category: true, stock: { include: { store: { select: { id: true, name: true } } } } },
+      orderBy: [{ name: params.get("sort") === "name-desc" ? "desc" : "asc" }, { id: "asc" }],
+      skip, take: limit,
     });
-
-    return Response.json({ success: true, data: items });
-  } catch (error) {
-    return errorResponse(error, "[inventory/items] GET failed");
-  }
+    return Response.json({ success: true, data, pagination: { page, limit, total, pages } }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) { return errorResponse(error, "[inventory/items] GET failed"); }
 }
 
 export async function POST(req: NextRequest) {

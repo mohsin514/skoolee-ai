@@ -1,4 +1,5 @@
 "use client";
+import { loadListPages } from "@/lib/lists/load-pages";
 import { useListPage } from "@/hooks/use-list-page";
 import { useListField } from "@/hooks/use-list-field";
 import { fillNodes } from "@/lib/auth/fill-nodes";
@@ -4802,18 +4803,15 @@ export function AdmissionQueriesPanel({
    * Status, source and overdue are applied client-side (see `filtered`), so
    * sending them to the API as well made every count on this screen wrong the
    * moment a chip was pressed. Only `search` still goes to the server, because
-   * the endpoint caps at 200 rows and searching is the one case that
-   * legitimately needs to reach past them.
+   * the complete bounded-page reader retrieves every matching row, so counts and exports
+   * remain complete beyond the old 200-row cap.
    */
   const loadQueries = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      const res = await fetch(`/api/admission-queries?${params.toString()}`, { cache: "no-store" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || "Enquiries could not be loaded.");
-      setQueries(json.data || []);
+      setQueries(await loadListPages("/api/admission-queries", params));
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
@@ -4871,13 +4869,13 @@ export function AdmissionQueriesPanel({
           // rather than pretending to be urgent.
           const da = due(a);
           const db = due(b);
-          if (da === db) return a.name.localeCompare(b.name);
+          if (da === db) return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
           return da - db;
         }
         case "next":
-          return due(b) - due(a);
+          return due(b) - due(a) || a.id.localeCompare(b.id);
         case "newest":
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime() || a.id.localeCompare(b.id);
         default:
           return a.name.localeCompare(b.name);
       }
@@ -5691,6 +5689,7 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   const ui = useUiText();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [searchQuery, setSearchQuery] = useListField<string>("archive.search", "", "archive.page");
   const [statusFilter, setStatusFilter] = useListField<string>("archive.status", "all", "archive.page");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -5703,10 +5702,10 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/students?status=archived&limit=200");
-      const json = await res.json();
-      if (json.success) setStudents(json.data || []);
+      setStudents(await loadListPages("/api/students", new URLSearchParams({ status: "archived" })));
+      setLoadFailed(false);
     } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -5732,6 +5731,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
       s.guardianName?.toLowerCase().includes(q)
     );
   });
+
+  const archivePage = useListPage(filtered, "archive");
 
   const runBulkStatus = async (status: string, verb: string) => {
     setBulkBusy(true);
@@ -5883,13 +5884,14 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         ]}
       />
 
+      <Pagination {...archivePage.controls} />
       {loading ? (
         <SkeletonList rows={4} label={ui("Loading archived students")} />
-      ) : filtered.length === 0 ? (
+      ) : loadFailed ? <ErrorState onRetry={load} /> : filtered.length === 0 ? (
         <EmptyInline text={ui("No archived or inactive students — archived profiles appear here")} />
       ) : (
         <div className="space-y-3">
-          {filtered.map((s, i) => (
+          {archivePage.rows.map((s, i) => (
             <div
               key={s.id}
               className="sk-rise sk-panel flex flex-wrap items-center gap-4 p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-lg"

@@ -2,7 +2,7 @@
 import { boundedInteger, patchListQuery } from "@/lib/lists/query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -36,7 +36,7 @@ const statusLabel = (ui: Ui, status: string) => ({ active: ui("Current only"), a
 export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
   const ui = useUiText();
   const { language } = useLocale();
-  const router = useRouter(), pathname = usePathname(), params = useSearchParams();
+  const pathname = usePathname(), params = useSearchParams();
   const [input, setInput] = useState(params.get("q") ?? "");
   const [data, setData] = useState<Response | null>(null), [options, setOptions] = useState<Options | null>(null);
   const [loading, setLoading] = useState(false), [error, setError] = useState("");
@@ -47,13 +47,13 @@ export function SearchWorkspace(_props: { dashboardHref?: string } = {}) {
   const inputDirty = useRef(false);
   const lastQuery = useRef(params.get("q") ?? "");
   const listRef = useRef<HTMLDivElement>(null);
-  const state = useMemo(() => ({ q: params.get("q") ?? "", types: (params.get("types") ?? "").split(",").filter(Boolean), status: params.get("status") ?? "active", year: params.get("year") ?? "", cls: params.get("class") ?? "", campus: params.get("campus") ?? "", sort: ["name", "name-desc"].includes(params.get("sort") ?? "") ? params.get("sort")! : "default", page: boundedInteger(params.get("page"), 1, 400) }), [params]);
+  const state = useMemo(() => ({ q: params.get("q") ?? "", types: (params.get("types") ?? "").split(",").filter(Boolean), status: params.get("status") ?? "active", year: params.get("year") ?? "", cls: params.get("class") ?? "", campus: params.get("campus") ?? "", sort: ["name", "name-desc"].includes(params.get("sort") ?? "") ? params.get("sort")! : "default", page: boundedInteger(params.get("page"), 1, 100_000) }), [params]);
 
   /** Replace one or more URL parameters; a changed filter returns to page one. */
   const update = useCallback((patch: Record<string, string | null>) => {
     const next = patchListQuery(params.toString(), patch);
-    if (next.toString() !== params.toString()) router.push(`${pathname}?${next.toString()}`, { scroll: false });
-  }, [params, pathname, router]);
+    if (next.toString() !== params.toString()) window.history.pushState(null, "", `${pathname}?${next.toString()}${window.location.hash}`);
+  }, [params, pathname]);
 
   useEffect(() => { void fetch("/api/search?options=1", { cache: "no-store" }).then(r => (r.ok ? r.json() : null)).then(json => json?.success && setOptions(json.data)).catch(() => undefined); }, []);
   useEffect(() => {

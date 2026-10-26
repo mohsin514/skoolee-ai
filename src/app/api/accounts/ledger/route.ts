@@ -1,5 +1,5 @@
 import { assertListBudget } from "@/lib/lists/access";
-import { listPagination } from "@/lib/lists/query";
+import { listPagination, pageWindow } from "@/lib/lists/query";
 import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -64,11 +64,10 @@ export async function GET(req: NextRequest) {
       return new Response("﻿" + lines.join("\r\n") + "\r\n", { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="ledger-${currency}-${filters.from || "start"}-${filters.to || "today"}.csv"`, "Cache-Control": "no-store" } });
     }
 
-    const { page, limit: pageSize } = listPagination(searchParams, 50, 200, "pageSize");
-    const [totals, entries] = await Promise.all([
-      ledgerTotals(prisma, where),
-      prisma.ledgerEntry.findMany({ where, include, orderBy: [{ date: "desc" }, { createdAt: "desc" }, { id: "asc" }], skip: (page - 1) * pageSize, take: pageSize }),
-    ]);
+    const { page: requestedPage, limit: pageSize } = listPagination(searchParams, 50, 200, "pageSize");
+    const totals = await ledgerTotals(prisma, where);
+    const { page, skip } = pageWindow(totals.count, requestedPage, pageSize);
+    const entries = await prisma.ledgerEntry.findMany({ where, include, orderBy: [{ date: "desc" }, { createdAt: "desc" }, { id: "asc" }], skip, take: pageSize });
     return Response.json({
       success: true,
       data: entries.map(entry => ({ ...entry, source: ledgerSource(entry), requestHash: undefined, idempotencyKey: undefined })),

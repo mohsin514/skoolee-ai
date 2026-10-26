@@ -318,3 +318,113 @@ test("SCRUM-306: invoice query and status survive refresh and Back without chang
   await shot(page, "scrum306-invoice-state-en-1440");
   await page.close();
 });
+
+test("SCRUM-306: transient and partial failures retry the same query and retain controls", async () => {
+  const page = await (await context("lead")).newPage();
+  let fail = true;
+  await page.route("**/api/search?*", async route => {
+    if (!route.request().url().includes("options=") && fail) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ success: false, error: "Search temporarily unavailable. Retry." }) });
+    } else await route.continue();
+  });
+  await page.goto(`${base}/search?q=Bulk%20Pupil&types=student&sort=name-desc`);
+  await page.getByRole("button", { name: "Try again", exact: true }).waitFor();
+  fail = false;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
+  assert.equal(await page.getByLabel("Sort by", { exact: true }).inputValue(), "name-desc");
+  assert.equal(await page.getByLabel("Search by name, roll number, admission number or reference").inputValue(), "Bulk Pupil");
+  let partial = true;
+  await page.unroute("**/api/search?*");
+  await page.route("**/api/search?*", async route => {
+    if (!route.request().url().includes("options=") && partial) {
+      const response = await route.fetch(); const json = await response.json();
+      json.data.partial = true; json.data.sources.student = "failed";
+      await route.fulfill({ response, json });
+    } else await route.continue();
+  });
+  await page.reload();
+  await page.locator("[data-search-partial]").waitFor();
+  partial = false;
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.locator("[data-search-partial]").waitFor({ state: "hidden" });
+  await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
+  await page.close();
+});
+
+test("SCRUM-306: operations APIs bound reads, preserve complete selector/export traversal and scope counts", async () => {
+  const ctx = await context("ops");
+  await db.book.createMany({ data: Array.from({ length: 55 }, (_, index) => ({ schoolId, campusId: campusA, title: `Synthetic Book ${String(index).padStart(2, "0")}` })) });
+  await db.book.create({ data: { schoolId: otherSchool, campusId: otherCampus, title: "Synthetic Book Other" } });
+  const ids = new Set<string>();
+  for (let page = 1; page <= 3; page++) {
+    const response = await ctx.request.get(`${base}/api/library/books?search=Synthetic%20Book&page=${page}&limit=24&sort=name-desc`);
+    assert.equal(response.status(), 200);
+    const json = await response.json();
+    assert.equal(json.pagination.total, 55);
+    assert.equal(json.pagination.pages, 3);
+    assert.ok(json.data.length <= 24);
+    for (const row of json.data) { assert.ok(!ids.has(row.id)); ids.add(row.id); }
+  }
+  assert.equal(ids.size, 55);
+  const clamped = await (await ctx.request.get(`${base}/api/library/books?page=999999999&limit=999999999`)).json();
+  assert.equal(clamped.pagination.limit, 100); assert.equal(clamped.pagination.page, 1);
+  assert.equal((await (await context("parent")).request.get(`${base}/api/library/books`)).status(), 403);
+  const page = await (await context("librarian")).newPage();
+  await page.goto(`${base}/librarian?view=catalogue&tab=books&library.search=Synthetic%20Book&library.sort=name-desc`);
+  await page.getByText("Synthetic Book 54", { exact: true }).waitFor({ timeout: 60_000 });
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await page.waitForURL(url => url.searchParams.get("library.page") === "2");
+  await page.getByText("Synthetic Book 30", { exact: true }).waitFor();
+  await shot(page, "scrum306-library-page2-en-1440");
+  await page.close();
+});
+
+test("SCRUM-306: offline recovery retains search and filters", async () => {
+  const ctx = await context("lead"), page = await ctx.newPage();
+  await page.goto(`${base}/search?q=Bulk%20Pupil&types=student&sort=name-desc`);
+  await page.getByText("Synthetic Bulk Pupil 29", { exact: true }).waitFor();
+  await ctx.setOffline(true);
+  await page.getByLabel("Search by name, roll number, admission number or reference").fill("N-701");
+  await page.getByRole("button", { name: "Retry", exact: true }).waitFor({ timeout: 20_000 });
+  assert.equal(await page.getByLabel("Sort by", { exact: true }).inputValue(), "name-desc");
+  await ctx.setOffline(false);
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.locator(`[data-search-result="${pupils.ahmadA}"]`).waitFor();
+  await page.close(); await ctx.close();
+});
+
+test("SCRUM-306: authenticated enumeration budget returns actionable 429", async () => {
+  await user("budget", "PRINCIPAL");
+  const ctx = await context("budget");
+  let allowed = 0, denied = false;
+  // Permit one minute boundary during the run; a complete bucket must still be bounded.
+  for (let request = 0; request < 241; request++) {
+    const response = await ctx.request.get(`${base}/api/search?options=1`);
+    if (response.status() === 429) {
+      assert.match((await response.json()).error, /Wait a minute and retry/);
+      denied = true; break;
+    }
+    assert.equal(response.status(), 200); allowed++;
+  }
+  assert.ok(allowed >= 120); assert.equal(denied, true);
+  await ctx.close();
+});
+
+test("SCRUM-306: stalled search times out and retries without losing the query", async () => {
+  const page = await (await context("lead")).newPage();
+  let stall = true;
+  await page.route("**/api/search?*", async route => {
+    if (!route.request().url().includes("options=") && stall) {
+      await new Promise(resolve => setTimeout(resolve, 16000));
+      await route.abort().catch(() => undefined);
+    } else await route.continue();
+  });
+  await page.goto(`${base}/search?q=Bulk%20Pupil&types=student`);
+  await page.getByRole("button", { name: "Try again", exact: true }).waitFor({ timeout: 25000 });
+  stall = false;
+  assert.equal(await page.getByLabel("Search by name, roll number, admission number or reference").inputValue(), "Bulk Pupil");
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await page.getByText("Synthetic Bulk Pupil 00", { exact: true }).waitFor();
+  await page.close();
+});
