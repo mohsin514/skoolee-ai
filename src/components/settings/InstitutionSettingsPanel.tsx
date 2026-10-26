@@ -202,13 +202,13 @@ export function InstitutionSettingsPanel({
     openEditor();
     // Only a new request opens the dialog; data refreshes must not reopen it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestEdit]);
+  }, [requestEdit, data]);
   usePanelCommand(command, { save: openEditor, edit: openEditor }, Boolean(data));
   useEffect(() => {
     if (!requestArchive || !data || !focusCampus || !data.canArchiveCampuses) return;
     setArchiving(focusCampus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestArchive]);
+  }, [requestArchive, data, focusCampus]);
 
   if (section === "archived") {
     // A secondary list under the campus grid: nothing while loading, nothing when empty.

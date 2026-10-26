@@ -13,7 +13,7 @@ export interface TimelineEntry {
 }
 export interface PublishedPaperRow { scheduleId: string; examTitle: string; subjectName: string; date: string; startTime: string | null; endTime: string | null; classId: string }
 export interface SeatRow { scheduleId: string; room: string; seat: string; invigilator: string | null }
-export interface OnlineRow { id: string; title: string; subject: string | null; startsAt: Date; endsAt: Date; mode: string; resultsReleasedAt: Date | null; attempt: { status: string } | null }
+export interface OnlineRow { id: string; title: string; subject: string | null; startsAt: Date; endsAt: Date; mode: string; resultsReleasedAt: Date | null; attempt: { status: string; deadlineAt?: Date; pausedAt?: Date | null } | null }
 
 const ACTIVE: readonly TimelineState[] = ["UPCOMING", "OPEN", "IN_PROGRESS"];
 
@@ -31,12 +31,18 @@ export function buildExamTimeline(input: { papers: readonly PublishedPaperRow[];
   });
   const online = input.online.map((sitting): TimelineEntry => {
     const status = sitting.attempt?.status ?? null;
+    // Availability controls when a learner may start. Once started, their own clock controls
+    // when they finish, including approved extensions and supervised pauses.
+    const deadline = sitting.attempt?.deadlineAt ?? sitting.endsAt;
+    const inProgress = status === "IN_PROGRESS" && (!!sitting.attempt?.pausedAt || now < deadline);
     const state: TimelineState = sitting.resultsReleasedAt && now >= sitting.endsAt && status === "REVIEWED" ? "RESULT_RELEASED"
       : status === "SUBMITTED" || status === "REVIEWED" ? "SUBMITTED"
+      : inProgress ? "IN_PROGRESS"
+      : status === "IN_PROGRESS" ? "SUBMITTED"
       : now < sitting.startsAt ? "UPCOMING"
-      : now < sitting.endsAt ? (status === "IN_PROGRESS" ? "IN_PROGRESS" : "OPEN")
+      : now < sitting.endsAt ? "OPEN"
       : "MISSED";
-    return { id: `online:${sitting.id}`, kind: "ONLINE", title: sitting.title, subject: sitting.subject, date: localDate(sitting.startsAt), startsAt: sitting.startsAt.toISOString(), endsAt: sitting.endsAt.toISOString(), room: null, seat: null, invigilator: null, mode: sitting.mode, state };
+    return { id: `online:${sitting.id}`, kind: "ONLINE", title: sitting.title, subject: sitting.subject, date: localDate(sitting.startsAt), startsAt: sitting.startsAt.toISOString(), endsAt: (sitting.attempt ? deadline : sitting.endsAt).toISOString(), room: null, seat: null, invigilator: null, mode: sitting.mode, state };
   });
   const order = (a: TimelineEntry, b: TimelineEntry) => (a.startsAt ?? `${a.date}T23:59`).localeCompare(b.startsAt ?? `${b.date}T23:59`) || a.id.localeCompare(b.id);
   const all = [...papers, ...online].sort(order);

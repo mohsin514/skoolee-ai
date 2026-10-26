@@ -163,7 +163,7 @@ export function classPerformance(classes: any[], studentsByClass?: Map<string, a
     const roster: any[] = studentsByClass?.get(klass.id) ?? klass.students ?? [];
     const percentages = roster
       .map((s: any) => s?.reportCards?.[0]?.percentage)
-      .filter((p: any) => typeof p === "number" && p > 0);
+      .filter((p: any) => typeof p === "number" && Number.isFinite(p) && p >= 0);
     const rates = roster.map(studentAttendanceRate).filter((r): r is number => r !== null);
 
     return {
@@ -271,6 +271,7 @@ export interface FeeBucket {
   label: string;
   count: number;
   amount: number;
+  collected: number;
   color: string;
 }
 
@@ -302,6 +303,7 @@ export function feeBuckets(byStatus: any[], currency: string = defaultLocale.cur
         label: FEE_LABEL[status] ?? status,
         count,
         amount: (row._sum?.totalAmount ?? 0) / 10 ** minorUnits(currency),
+        collected: (row._sum?.totalAmountPaid ?? (status === "PAID" ? row._sum?.totalAmount : 0) ?? 0) / 10 ** minorUnits(currency),
         color: FEE_COLOR[status] ?? STATUS.neutral,
       };
     })
@@ -311,7 +313,7 @@ export function feeBuckets(byStatus: any[], currency: string = defaultLocale.cur
 
 export function collectionRate(buckets: FeeBucket[]): { collected: number; billed: number; rate: number } {
   const billed = buckets.filter((b) => b.status !== "CANCELLED").reduce((sum, b) => sum + b.amount, 0);
-  const collected = buckets.filter((b) => b.status === "PAID" || b.status === "PARTIAL").reduce((sum, b) => sum + b.amount, 0);
+  const collected = buckets.filter((b) => b.status !== "CANCELLED").reduce((sum, b) => sum + b.collected, 0);
   return { collected, billed, rate: billed > 0 ? Math.round((collected / billed) * 100) : 0 };
 }
 
@@ -394,12 +396,12 @@ export function campusRows(campuses: any[]): CampusRow[] {
         .reduce((sum, [, v]: [string, any]) => sum + (v?.amount ?? 0), 0), campus.currency ?? defaultLocale.currency,
     );
     const collected = fromMinor(
-      ["PAID", "PARTIAL"].reduce((sum, key) => sum + (invoice[key]?.amount ?? 0), 0), campus.currency ?? defaultLocale.currency,
+      Object.entries(invoice).filter(([status]) => status !== "CANCELLED").reduce((sum, [status, value]: [string, any]) => sum + (value?.collected ?? (status === "PAID" ? value?.amount ?? 0 : 0)), 0), campus.currency ?? defaultLocale.currency,
     );
 
     const percentages = (campus.students ?? [])
       .map((s: any) => s?.reportCards?.[0]?.percentage)
-      .filter((p: any) => typeof p === "number" && p > 0);
+      .filter((p: any) => typeof p === "number" && Number.isFinite(p) && p >= 0);
 
     const active = (status: any) => status === "Active";
 

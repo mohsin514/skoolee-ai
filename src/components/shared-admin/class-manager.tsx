@@ -12,6 +12,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { ModalSurface, useDialogBehaviour } from "@/components/ui/modal";
 import { parseSections } from "@/lib/class-sections";
 import {
@@ -114,7 +115,7 @@ interface ClassManagerProps {
   onUpdateClass: (
     classId: string,
     updates: { name?: string; section?: string; academicYear?: number },
-  ) => Promise<void>;
+  ) => Promise<boolean | void>;
   onDeleteSubject: (subject: any) => void;
   onUpdateSubject: (
     classId: string,
@@ -320,11 +321,12 @@ function SettingsDrawer({
   }, [section.id]);
 
   const save = async () => {
-    await onUpdateClass(section.id, {
+    const saved = await onUpdateClass(section.id, {
       name: editName,
       section: editSection,
       academicYear: Number(editYear) || new Date().getFullYear(),
     });
+    if (saved === false) return;
     toast.success(ui("Class details updated"));
     onClose();
   };
@@ -333,9 +335,9 @@ function SettingsDrawer({
      but it had no focus trap, no scroll lock and a hand-picked `z-[150]`. */
   const drawerRef = useRef<HTMLDivElement>(null);
   const requestClose = () => { if (!classUpdateBusy) onClose(); };
-  const { z } = useDialogBehaviour(drawerRef, { onClose: requestClose });
+  const { z, mounted } = useDialogBehaviour(drawerRef, { onClose: requestClose });
 
-  return (
+  return mounted ? createPortal((
     <div
       className="fixed inset-0 flex justify-end"
       style={{ zIndex: z }}
@@ -430,7 +432,7 @@ function SettingsDrawer({
         </div>
       </div>
     </div>
-  );
+  ), document.body) : null;
 }
 
 /* ------------------------------------------------------------------ */

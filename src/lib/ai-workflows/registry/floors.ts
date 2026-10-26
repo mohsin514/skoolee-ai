@@ -34,7 +34,9 @@ export const CLASS_A_ALLOWLIST: Readonly<Record<string, string>> = {
 };
 
 /** Reviewed exceptions that keep an entry below its risk floor (e.g. a computed, non-chosen fine). */
-export const FLOOR_OVERRIDES: Readonly<Record<string, { class: ConfirmationClass; reason: string }>> = {};
+export const FLOOR_OVERRIDES: Readonly<Record<string, { class: ConfirmationClass; reason: string }>> = {
+  "platform.set_default_plan_pricing": { class: "B", reason: "Owner explicitly confirms default catalogue prices in chat; no payment, invoice, or existing subscription is changed. Atomic audit, stale-price check and idempotent receipt required." },
+};
 
 const ORDER: Record<ConfirmationClass, number> = { A: 0, B: 1, C: 2 };
 

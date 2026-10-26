@@ -43,7 +43,7 @@ test("a provider outage pauses the job with backoff, charges nothing, and the wo
   await sweepWorkflowJobs(db, new Date(Date.now() - 1000));
   assert.equal((await db.aiWorkflowJob.findUniqueOrThrow({ where: { id: job.id } })).status, "PAUSED", "not before its backoff");
   await db.aiWorkflowJob.update({ where: { id: job.id }, data: { nextWakeAt: new Date(Date.now() - 1000) } });
-  const result = await sweepWorkflowJobs(db);
+  const result = await sweepWorkflowJobs(db, new Date(), down);
   assert.ok(result.woke >= 1);
   // Woken, it planned again; with no provider in this test it pauses again on the next attempt.
   const again = await db.aiWorkflowJob.findUniqueOrThrow({ where: { id: job.id } });

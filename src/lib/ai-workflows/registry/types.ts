@@ -94,6 +94,10 @@ interface BaseEntry<I> {
   input: z.ZodType<I>;
   /** JSON pointers whose values must be quoted from the user's own words (status, amounts, dates, reasons). */
   evidence: readonly string[];
+  /** Class-C form text that may cite an exact user-supplied literal when the model omits its quote. */
+  literalEvidence?: readonly string[];
+  /** Server-controlled collection of explicitly declared scalar form fields; never model replanned. */
+  dialogueFields?: readonly import("../planner/form-dialogue").DialogueField[];
   gates: readonly Gate[];
   scope: ScopeRule;
   limits?: { maxItems?: number; autoRunMax?: number };
@@ -120,6 +124,8 @@ export interface ExecEntry<I = unknown> extends BaseEntry<I> {
   classOverride?: string;
   escalatesUnder?: ReadonlyArray<"separationOfDuties" | "correctionSeparateApprover" | "batchOverAutoRun">;
   idempotency: IdempotencyMode;
+  /** Rebind server-owned snapshot fields when a stale preview is regenerated; still requires another confirmation. */
+  refreshOnReconfirm?: boolean;
   preview?(ctx: CapabilityContext, input: I): Promise<PreviewModel>;
   execute(ctx: CapabilityContext, input: I, opts: { idempotencyKey: string }): Promise<Receipt>;
 }

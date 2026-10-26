@@ -74,10 +74,11 @@ export interface CatalogExplorerProps {
   enabled: boolean;
   practice: boolean;
   demo: boolean;
+  embedded?: boolean;
 }
 
 /** The searchable, filterable "What AI can do" catalogue. Search and filter live in state only, never the URL. */
-export function CatalogExplorer({ items, connected, total, language, enabled, practice, demo }: CatalogExplorerProps) {
+export function CatalogExplorer({ items, connected, total, language, enabled, practice, demo, embedded = false }: CatalogExplorerProps) {
   const format = useWorkflowFormat();
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState<FilterId>("all");
@@ -151,9 +152,9 @@ export function CatalogExplorer({ items, connected, total, language, enabled, pr
   const nothingConnected = connected === 0 && items.every(item => item.cls !== "X");
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8 px-1 py-2 sm:p-6" dir={language === "en" ? "ltr" : "rtl"} data-ai-catalog>
+    <div className={cn("w-full space-y-6", !embedded && "mx-auto max-w-6xl px-1 py-2 sm:p-6")} dir={language === "en" ? "ltr" : "rtl"} data-ai-catalog>
       <header className="space-y-3">
-        <Link href="/ai" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ms-2")}>
+        {!embedded && <><Link href="/ai" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ms-2")}>
           <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />
           <span>{WORDS.back[language]}</span>
         </Link>
@@ -161,7 +162,8 @@ export function CatalogExplorer({ items, connected, total, language, enabled, pr
           <FlagshipChip />
           <span>{WORDS.eyebrow[language]}</span>
         </p>
-        <InkHeading as="h1" text={t(UI, "canDoTitle", language)} className="text-2xl sm:text-3xl" />
+        </>}
+        <InkHeading as={embedded ? "h2" : "h1"} text={t(UI, "canDoTitle", language)} className="text-2xl sm:text-3xl" />
         <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">{WORDS.lead[language]}</p>
         <div className="flex flex-wrap items-center gap-2">
           {practice ? (
@@ -180,7 +182,7 @@ export function CatalogExplorer({ items, connected, total, language, enabled, pr
         <EmptyState icon={Sparkles} title={WORDS.emptyTitle[language]} description={WORDS.emptyBody[language]} />
       ) : (
         <>
-          <CatalogCoverage connected={connected} total={total} legend={legend} active={filter} onPick={pick} language={language} />
+          {!embedded && <CatalogCoverage connected={connected} total={total} legend={legend} active={filter} onPick={pick} language={language} />}
 
           <div className="max-sm:sticky max-sm:top-2 max-sm:z-10 max-sm:rounded-2xl max-sm:bg-card/90 max-sm:p-2 max-sm:ring-1 max-sm:ring-border-subtle max-sm:backdrop-blur space-y-3">
             <div className="relative">

@@ -9,6 +9,29 @@
  * subscription = الاشتراك / سبسکرپشن, two-step sign-in = التحقق بخطوتين / دو مرحلہ سائن اِن.
  */
 const ROWS: ReadonlyArray<readonly [string, string, string]> = [
+  ["Ask a school's admin for temporary access. Everything you view or change is logged.", "اطلب وصولًا مؤقتًا من مدير المدرسة. يُسجّل كل ما تعرضه أو تغيّره.", "عارضی رسائی کے لیے اسکول کے منتظم سے درخواست کریں۔ آپ جو کچھ دیکھیں یا تبدیل کریں اس کا ریکارڈ رکھا جاتا ہے۔"],
+  ["What you can see", "ما يمكنك الاطلاع عليه", "آپ کیا دیکھ سکتے ہیں"],
+  ["Could not open the prepared school request. Open it again from AI Workflows.", "تعذّر فتح طلب المدرسة المُعدّ. افتحه مجددًا من مهام الذكاء الاصطناعي.", "تیار شدہ اسکول درخواست نہیں کھل سکی۔ اسے AI ورک فلوز سے دوبارہ کھولیں۔"],
+  ["Filter by school", "تصفية حسب المدرسة", "اسکول کے لحاظ سے فلٹر کریں"],
+  ["School status updated.", "تم تحديث حالة المدرسة.", "اسکول کی حیثیت تبدیل کر دی گئی۔"],
+  ["The school could not be updated. Try again.", "تعذّر تحديث المدرسة. حاول مجددًا.", "اسکول کو اپ ڈیٹ نہیں کیا جا سکا۔ دوبارہ کوشش کریں۔"],
+  ["School access", "الوصول إلى المدرسة", "اسکول کی رسائی"],
+  ["Suspension pauses school access while retaining its records. Restoring access clears the suspension and expired payment grace period.", "يوقف التعليق وصول المدرسة مع الاحتفاظ بسجلاتها. تزيل استعادة الوصول التعليق وفترة السماح المنتهية للدفع.", "معطلی سے اسکول کی رسائی رک جاتی ہے مگر ریکارڈ محفوظ رہتے ہیں۔ رسائی بحال کرنے سے معطلی اور ادائیگی کی ختم شدہ مہلت ہٹ جاتی ہے۔"],
+  ["This change is logged and signs the person out on every device. Share the temporary password securely; they must replace it at their next sign-in.", "يُسجَّل هذا التغيير ويُخرج المستخدم من جميع الأجهزة. شارك كلمة المرور المؤقتة بأمان؛ ويجب تغييرها عند تسجيل الدخول التالي.", "اس تبدیلی کا ریکارڈ رکھا جاتا ہے اور صارف ہر آلے سے سائن آؤٹ ہو جاتا ہے۔ عارضی پاس ورڈ محفوظ طریقے سے دیں؛ اگلے سائن اِن پر اسے تبدیل کرنا ضروری ہے۔"],
+
+  ["Load the saved prices before making changes.", "حمّل الأسعار المحفوظة قبل إجراء تغييرات.", "تبدیلیاں کرنے سے پہلے محفوظ قیمتیں لوڈ کریں۔"],
+  ["Reload saved prices", "إعادة تحميل الأسعار المحفوظة", "محفوظ قیمتیں دوبارہ لوڈ کریں"],
+  ["Loading saved prices", "جارٍ تحميل الأسعار المحفوظة", "محفوظ قیمتیں لوڈ ہو رہی ہیں"],
+  ["The school list did not load", "تعذّر تحميل قائمة المدارس", "اسکولوں کی فہرست لوڈ نہیں ہو سکی"],
+  ["Retry to filter by school or add a user. The account list is still available.", "أعد المحاولة للتصفية حسب المدرسة أو إضافة مستخدم. قائمة الحسابات ما زالت متاحة.", "اسکول کے لحاظ سے فلٹر کرنے یا صارف شامل کرنے کے لیے دوبارہ کوشش کریں۔ اکاؤنٹس کی فہرست دستیاب ہے۔"],
+  ["Use at least 8 characters. They must change it at their first sign-in.", "استخدم 8 أحرف على الأقل. يجب تغييرها عند أول تسجيل دخول.", "کم از کم 8 حروف استعمال کریں۔ پہلے سائن اِن پر اسے تبدیل کرنا ضروری ہے۔"],
+  ["Loading pilot details", "جارٍ تحميل تفاصيل التجربة", "آزمائش کی تفصیلات لوڈ ہو رہی ہیں"],
+  ["Pilot details did not load", "تعذّر تحميل تفاصيل التجربة", "آزمائش کی تفصیلات لوڈ نہیں ہو سکیں"],
+  ["Enter a whole number from 0 to 1000.", "أدخل عددًا صحيحًا من 0 إلى 1000.", "0 سے 1000 تک مکمل عدد درج کریں۔"],
+  ["Choose a future expiry for this change.", "اختر وقت انتهاء مستقبلي لهذا التغيير.", "اس تبدیلی کی میعاد ختم ہونے کا آئندہ وقت منتخب کریں۔"],
+  ["No failing workloads in the recorded runs.", "لا توجد أحمال عمل فاشلة في التشغيلات المسجّلة.", "ریکارڈ شدہ اجرا میں کوئی ناکام کام نہیں۔"],
+  ["Prices changed. Review the latest prices before saving.", "تغيّرت الأسعار. راجع أحدث الأسعار قبل الحفظ.", "قیمتیں تبدیل ہو گئی ہیں۔ محفوظ کرنے سے پہلے تازہ قیمتوں کا جائزہ لیں۔"],
+
   ["1 · Kind of institution", "1 · نوع المؤسسة", "1 · ادارے کی قسم"],
   ["2 · Institution", "2 · المؤسسة", "2 · ادارہ"],
   ["3 · First campus", "3 · الفرع الأول", "3 · پہلا کیمپس"],
@@ -651,6 +674,20 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Loading history…", "جارٍ تحميل السجل…", "تاریخ لوڈ ہو رہی ہے…"],
   ["Record type", "نوع السجل", "ریکارڈ کی قسم"],
   ["Reviewed version", "الإصدار المُراجَع", "جائزہ شدہ ورژن"],
+  ["Search campuses", "البحث عن الفروع", "کیمپس تلاش کریں"],
+  ["Campus name or city", "اسم الفرع أو المدينة", "کیمپس کا نام یا شہر"],
+  ["Needs a campus admin", "يحتاج إلى مسؤول فرع", "کیمپس منتظم درکار ہے"],
+  ["Needs a principal", "يحتاج إلى مدير", "پرنسپل درکار ہے"],
+  ["Showing {0} of {1} campuses", "عرض {0} من {1} فروع", "{1} میں سے {0} کیمپس دکھائے جا رہے ہیں"],
+  ["No matching campuses", "لا توجد فروع مطابقة", "کوئی کیمپس نہیں ملا"],
+  ["Try another name, city or leadership filter.", "جرّب اسماً أو مدينة أو مرشح قيادة آخر.", "دوسرا نام، شہر یا قیادت کا فلٹر آزمائیں۔"],
+  ["Campus created", "تم إنشاء الفرع", "کیمپس بن گیا"],
+  ["The campus was created, but its admin invitation needs attention. Open the campus to appoint the admin or resend the saved invitation.", "تم إنشاء الفرع، لكن دعوة المسؤول تحتاج إلى متابعة. افتح الفرع لتعيين المسؤول أو إعادة إرسال الدعوة المحفوظة.", "کیمپس بن گیا ہے لیکن منتظم کی دعوت پر توجہ درکار ہے۔ کیمپس کھول کر منتظم مقرر کریں یا محفوظ دعوت دوبارہ بھیجیں۔"],
+  ["The campus is ready. Appoint its leaders and review campus readiness next.", "الفرع جاهز. عيّن قيادته وراجع جاهزيته بعد ذلك.", "کیمپس تیار ہے۔ اب اس کے منتظمین مقرر کریں اور تیاری کا جائزہ لیں۔"],
+  ["Share this invitation link with the campus admin if the email does not arrive.", "شارك رابط الدعوة مع مسؤول الفرع إذا لم تصله الرسالة.", "ای میل نہ ملنے پر یہ دعوتی لنک کیمپس منتظم کو دیں۔"],
+  ["Approval counts could not be loaded. Refresh to check pending decisions.", "تعذر تحميل أعداد الموافقات. حدّث للتحقق من القرارات المعلقة.", "منظوریوں کی تعداد لوڈ نہیں ہو سکی۔ زیر التوا فیصلے دیکھنے کے لیے تازہ کریں۔"],
+  ["Checking pending decisions…", "جارٍ التحقق من القرارات المعلقة…", "زیر التوا فیصلے دیکھے جا رہے ہیں…"],
+  ["Invitation saved, but email was not delivered. Share the link or resend the invitation from the campus.", "حُفظت الدعوة لكن لم تصل الرسالة. شارك الرابط أو أعد إرسال الدعوة من الفرع.", "دعوت محفوظ ہے مگر ای میل نہیں پہنچی۔ لنک شیئر کریں یا کیمپس سے دعوت دوبارہ بھیجیں۔"],
 ];
 
 export const arabicP4Ui: Record<string, string> = Object.fromEntries(ROWS.map(([en, ar]) => [en, ar]));

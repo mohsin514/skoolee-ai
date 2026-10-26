@@ -13,7 +13,7 @@
  */
 import type { CurriculumData } from "./assessment";
 
-export interface OutlinePage { page: number; text: string }
+export interface OutlinePage { page: number | "text"; text: string }
 export interface OutlineSuggestion { id: string; unit: string; title: string; code?: string; page: string; excerpt: string }
 export interface RawOutlineSuggestion { unit?: unknown; title?: unknown; code?: unknown; page?: unknown; excerpt?: unknown }
 
@@ -40,7 +40,7 @@ export function outlineFromPages(pages: readonly OutlinePage[]): OutlineSuggesti
   const out: OutlineSuggestion[] = [];
   const seen = new Set<string>();
   let unit = "";
-  for (const page of [...pages].sort((a, b) => a.page - b.page)) {
+  for (const page of [...pages].sort((a, b) => Number(a.page) - Number(b.page))) {
     const lines = page.text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     lines.forEach((line, index) => {
       const heading = UNIT_HEADING.exec(line);
@@ -94,10 +94,10 @@ export function outlineBatches(pages: readonly OutlinePage[], maxChars = 12_000)
   return batches;
 }
 
-/** Pages to read: the reviewed page list when present, else the whole text as page 1. */
+/** Preserve physical pages only when supplied; unpaginated text has an explicit text locator. */
 export function outlinePagesOf(source: { extractedText: string; sourcePages?: ReadonlyArray<{ page: number; text: string }> }): OutlinePage[] {
   const pages = (source.sourcePages ?? []).filter(page => page.text.trim());
-  return pages.length ? pages.map(page => ({ page: page.page, text: page.text })) : source.extractedText.trim() ? [{ page: 1, text: source.extractedText }] : [];
+  return pages.length ? pages.map(page => ({ page: page.page, text: page.text })) : source.extractedText.trim() ? [{ page: "text", text: source.extractedText }] : [];
 }
 
 export interface AcceptedOutlineRow { suggestionId: string; title: string; unit: string; page: string; code?: string }

@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/db/prisma";
 import { USER_ROLES } from "@/lib/roles";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { SCHOOL_AI_STAFF_ROLES } from "@/lib/school-ai/access";
@@ -42,6 +43,22 @@ const STAFF = SCHOOL_AI_STAFF_ROLES;
 
 export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
   defineCapability({
+    key: "assistant.app_knowledge", version: 1, cluster: "PERSONAL", inventoryKeys: ["assistant.app_knowledge"], risk: "READ", roles: ALL, class: "A",
+    input: z.strictObject({ query: z.string().trim().max(1000).default("") }), evidence: [], gates: [roles(ALL)], scope: { kind: "self" },
+    copy: c(["Explain app features", "Explain how to use Skoolee, what your role can do, available workflows, approval requirements, published school policies, handbooks and documents. Retrieves permission-filtered knowledge with sources, not live school data.", "What can you do for my role?"], ["شرح ميزات التطبيق", "إرشادات موثقة عن استخدام سكولي وإجراءات دورك ومتطلبات الموافقة، وليست بيانات المدرسة الحالية.", "ماذا يمكنك أن تفعل لدوري؟"], ["ایپ کی خصوصیات سمجھائیں", "سکولی کے استعمال، آپ کے کردار کے کاموں اور منظوری کی تصدیق شدہ رہنمائی؛ اسکول کے موجودہ ریکارڈ نہیں۔", "آپ میرے کردار کے لیے کیا کر سکتے ہیں؟"]),
+    idempotency: { mode: "convergent" }, source: { service: "src/lib/ai-workflows/planner/app-knowledge.ts:retrieveAppKnowledge", reuse: "direct" },
+    execute: async (ctx, input) => {
+      const { answerKnowledge } = await import("@/lib/rag/answer");
+      const knowledge = input.query.length >= 3 ? await answerKnowledge(ctx.user, input.query, ctx.locale) : null;
+      if (knowledge && (knowledge.sources.length || /\b(policy|policies|handbook|document|manual|rules|procedure)\b|پالیسی|دستاویز|سياسة|وثيقة/i.test(input.query) || knowledge.mode === "REFUSED" || knowledge.generation === "STALE")) {
+        return { kind: "read", capability: "assistant.app_knowledge", entities: [], counts: { sources: knowledge.sources.length }, link: "/ai/knowledge", replayed: false, detail: knowledge };
+      }
+      const { retrieveAppKnowledge } = await import("../../planner/app-knowledge");
+      const result = await retrieveAppKnowledge(ctx, input.query);
+      return { kind: "read", capability: "assistant.app_knowledge", entities: [], counts: { sources: result.sources.length }, link: "/ai/can-do", replayed: false, detail: result };
+    },
+  }),
+  defineCapability({
     key: "profile.update", version: 1, cluster: "PERSONAL", inventoryKeys: ["profile.update", "profile.update_own"], risk: "UPDATE", roles: ALL, class: "A",
     classOverride: "Own profile only.", input: profileActionSchema, evidence: [], gates: [roles(ALL)], scope: { kind: "self" },
     copy: c(["Update my profile", "Change your own name, language, city or (teachers) teaching details.", "Set my language to Urdu"], ["تحديث ملفي", "تغيير اسمك أو لغتك أو مدينتك.", "اجعل لغتي العربية"], ["میری پروفائل اپ ڈیٹ کریں", "اپنا نام، زبان، شہر یا تدریسی تفصیل بدلیں۔", "میری زبان اردو کر دیں"]),
@@ -75,9 +92,16 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
   defineCapability({
     key: "platform.inspect", version: 1, cluster: "C8", inventoryKeys: ["platform.inspect"], risk: "READ", roles: ["APP_OWNER"], class: "A",
     input: platformInspectSchema, evidence: [], gates: [roles(["APP_OWNER"])], scope: { kind: "platform", unscopedReason: "authorized automatic platform administration" },
-    copy: c(["Look up institutions", "Search the institutions on the platform.", "Show schools named Al-Noor"], ["البحث عن المؤسسات", "البحث في مؤسسات المنصة.", "اعرض المدارس باسم النور"], ["ادارے تلاش کریں", "پلیٹ فارم کے ادارے تلاش کریں۔", "النور نام کے اسکول دکھائیں"]),
+    copy: c(["Look up institutions", "Search institutions by name, or list schools missing a city using missingCity=true without a name search.", "List schools missing a city"], ["البحث عن المؤسسات", "البحث في مؤسسات المنصة.", "اعرض المدارس باسم النور"], ["ادارے تلاش کریں", "پلیٹ فارم کے ادارے تلاش کریں۔", "النور نام کے اسکول دکھائیں"]),
     idempotency: { mode: "convergent" }, source: { service: "src/lib/ai-workflows/adapters/platform.ts:executePlatformAction", reuse: "automation-tool" },
-    execute: async (ctx, input, { idempotencyKey }) => ({ ...(await legacy(ctx, "platform.inspect", "Look up institutions", input, idempotencyKey, "/owner?view=schools")), kind: "read" }),
+    execute: async (ctx, input, { idempotencyKey }) => {
+      const receipt = await legacy(ctx, "platform.inspect", "Look up institutions", input, idempotencyKey, "/owner?view=schools");
+      const detail = receipt.detail as { schools: Array<{ id: string; name: string; city: string }>; truncated: boolean };
+      const empty = { en: "No schools match this filter.", ar: "لا توجد مدارس تطابق هذا المرشح.", ur: "اس فلٹر سے کوئی اسکول نہیں ملا۔" };
+      const more = { en: "Showing the first 50 matches. Narrow the search for more specific results.", ar: "عرض أول 50 نتيجة. حدّد البحث للحصول على نتائج أدق.", ur: "پہلے 50 نتائج دکھائے گئے ہیں۔ مزید مخصوص نتائج کے لیے تلاش محدود کریں۔" };
+      const text = detail.schools.length ? detail.schools.map(school => `${school.name}${school.city ? ` — ${school.city}` : ""}`).join("\n") : empty[ctx.locale];
+      return { ...receipt, kind: "read", entities: detail.schools.map(school => ({ model: "school", id: school.id })), counts: { schools: detail.schools.length }, detail: { ...detail, text: detail.truncated ? `${text}\n${more[ctx.locale]}` : text } };
+    },
   }),
   defineCapability({
     key: "platform.update_institution", version: 1, cluster: "C8", inventoryKeys: ["platform.update_institution"], risk: "UPDATE", roles: ["APP_OWNER"], class: "B",
@@ -89,10 +113,14 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
   }),
   defineCapability({
     key: "school.inspect", version: 1, cluster: "C9", inventoryKeys: ["school.inspect"], risk: "READ", roles: ["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT"], class: "A",
-    input: assistantCatalogQuerySchema, evidence: [], gates: [roles(["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT"]), ownCampus()], scope: { kind: "own-campus" },
-    copy: c(["Look up current school records", "Read the current classes, teachers, rooms or other records an operation needs.", "Which classes have no timetable yet?"], ["الاطلاع على السجلات", "قراءة الفصول والمعلمين والقاعات الحالية.", "أي الفصول بلا جدول؟"], ["موجودہ ریکارڈ دیکھیں", "موجودہ کلاسیں، اساتذہ، کمرے وغیرہ پڑھیں۔", "کن کلاسوں کا ٹائم ٹیبل ابھی نہیں بنا؟"]),
+    input: z.union([assistantCatalogQuerySchema, z.strictObject({ entity: z.literal("classes") })]), evidence: [], gates: [roles(["ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "ACCOUNTANT"]), ownCampus()], scope: { kind: "own-campus" },
+    copy: c(["Look up current school records", "For a campus class count use entity: classes. Otherwise read the current classes, teachers, rooms or other records an operation needs.", "Which classes have no timetable yet?"], ["الاطلاع على السجلات", "قراءة الفصول والمعلمين والقاعات الحالية.", "أي الفصول بلا جدول؟"], ["موجودہ ریکارڈ دیکھیں", "موجودہ کلاسیں، اساتذہ، کمرے وغیرہ پڑھیں۔", "کن کلاسوں کا ٹائم ٹیبل ابھی نہیں بنا؟"]),
     idempotency: { mode: "convergent" }, source: { service: "src/lib/school-ai/assistant-catalog-service.ts:getAssistantCatalog", reuse: "direct" },
-    execute: async (ctx, input) => {
+    execute: async (ctx, input): Promise<Receipt> => {
+      if ("entity" in input) {
+        const classes = await prisma.class.count({ where: { schoolId: ctx.user.schoolId, campusId: ctx.campusId!, archivedAt: null, status: "ACTIVE" } });
+        return { kind: "read", capability: "school.inspect", entities: [], counts: { classes }, link: null, replayed: false, detail: { totalClasses: classes } };
+      }
       const catalog = await getAssistantCatalog(ctx.user, ctx.campusId, input);
       return { kind: "read", capability: "school.inspect", entities: [], counts: { entities: catalog.entities.length }, link: null, replayed: false, detail: { operation: "school.inspect", ...catalog } };
     },
@@ -106,6 +134,13 @@ export const TOOL_ENTRIES: readonly CapabilityEntry[] = [
       const record = await createWorkspaceRecord(ctx.user, { kind: "WORKFLOW", title: input.goal.slice(0, 180), campusId: ctx.campusId, idempotencyKey, data: input });
       return { kind: "draft", capability: "work.save", entities: [{ model: "schoolAiRecord", id: record.id }], counts: {}, link: "/ai?workflow=work", replayed: false };
     },
+  }),
+  defineCapability({
+    key: "assistant.conversation", version: 1, cluster: "PERSONAL", inventoryKeys: ["assistant.answer"], risk: "READ", roles: ALL, class: "A",
+    input: z.strictObject({ text: z.string().trim().min(1).max(1200) }), evidence: [], gates: [roles(ALL)], scope: { kind: "self" },
+    copy: c(["Conversation", "Talk with Skoolee about your goals. Conversation does not read or change records.", "I want to talk with you"], ["محادثة", "تحدث مع سكولي عن أهدافك دون تغيير السجلات.", "أريد التحدث معك"], ["گفتگو", "سکولی سے اپنے مقاصد پر بات کریں، ریکارڈ تبدیل نہیں ہوتا۔", "میں آپ سے بات کرنا چاہتا ہوں"]),
+    idempotency: { mode: "convergent" }, source: { service: "bounded conversation", reuse: "automation-tool" },
+    execute: async (_ctx, input) => ({ kind: "read", capability: "assistant.conversation", entities: [], counts: {}, link: null, replayed: false, detail: { text: input.text, conversational: true } }),
   }),
   defineCapability({
     key: "assistant.answer", version: 1, cluster: "PERSONAL", inventoryKeys: ["assistant.answer"], risk: "READ", roles: ALL, class: "A",

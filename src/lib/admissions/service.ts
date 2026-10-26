@@ -25,6 +25,14 @@ const FAMILY_EDITABLE = ["DRAFT", "INFO_REQUESTED"];
 const DOCUMENT_TYPES = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_DOCUMENT = 5 * 1024 * 1024;
 const sha256 = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
+function validDocumentBytes(type: string, name: string, bytes: Uint8Array) {
+  const extension = name.toLowerCase().split(".").pop();
+  const expectedExtension = type === "application/pdf" ? "pdf" : type === "image/jpeg" ? "jpg" : "png";
+  if (extension !== expectedExtension && !(type === "image/jpeg" && extension === "jpeg")) return false;
+  if (type === "application/pdf") return new TextDecoder().decode(bytes.slice(0, 5)) === "%PDF-";
+  if (type === "image/jpeg") return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  return bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+}
 const text = (value: unknown, label: string, min: number, max: number) => {
   const out = String(value ?? "").trim();
   if (out.length < min) throw new ApiError(min > 1 ? `${label} needs at least ${min} characters.` : `${label} is required.`, 400);
@@ -179,6 +187,7 @@ async function storeDocument(application: { id: string; schoolId: string; formVe
   if (file.size <= 0 || file.size > MAX_DOCUMENT) throw new ApiError("Files must be smaller than 5 MB.", 400);
   if ((await prisma.admissionDocument.count({ where: { applicationId: application.id } })) >= 40) throw new ApiError("This application already has the maximum number of files.", 409);
   const bytes = new Uint8Array(await file.arrayBuffer());
+  if (!validDocumentBytes(file.type, String(file.name || key), bytes)) throw new ApiError("The file contents do not match the declared document type and extension.", 400);
   const created = await prisma.admissionDocument.create({ data: { schoolId: application.schoolId, applicationId: application.id, key, fileName: String(file.name || key).slice(0, 160), contentType: file.type, sizeBytes: bytes.byteLength, sha256: sha256(bytes), data: bytes, uploadedBy } });
   return { id: created.id, key: created.key, fileName: created.fileName, sizeBytes: created.sizeBytes, uploadedAt: created.uploadedAt };
 }
@@ -407,15 +416,20 @@ export async function staffStart(user: AuthUser, campusId: string, body: Record<
 
 export async function staffSaveAnswers(user: AuthUser, campusId: string, body: Record<string, unknown>) {
   await canEdit(user);
-  const application = await prisma.admissionApplication.findFirst({ where: { id: String(body.id ?? ""), campusId, schoolId: user.schoolId }, include: { formVersion: true } });
-  if (!application) throw new ApiError("Application not found", 404);
-  if (application.channel !== "STAFF" || !FAMILY_EDITABLE.includes(application.status)) throw new ApiError("Only a draft entered by staff can be edited here. A family's own answers stay as they sent them.", 409);
-  const definition = asDefinition(application.formVersion.definition);
-  const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
-  const problems = answerProblems(definition, answers, [], false);
-  if (problems.length) throw problemsError(problems);
-  const { resumeKeyHash: _key, ...data } = await prisma.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: { increment: 1 } } });
-  return data;
+  return schoolAiTransaction(user, async db => {
+    const application = await db.admissionApplication.findFirst({ where: { id: String(body.id ?? ""), campusId, schoolId: user.schoolId }, include: { formVersion: true } });
+    if (!application) throw new ApiError("Application not found", 404);
+    if (application.channel !== "STAFF" || !FAMILY_EDITABLE.includes(application.status)) throw new ApiError("Only a draft entered by staff can be edited here. A family's own answers stay as they sent them.", 409);
+    const definition = asDefinition(application.formVersion.definition);
+    const answers = keepVisible(definition, (body.answers ?? {}) as Answers);
+    const problems = answerProblems(definition, answers, [], false);
+    if (problems.length) throw problemsError(problems);
+    const nextVersion = application.version + 1;
+    const updated = await db.admissionApplication.update({ where: { id: application.id }, data: { answers: answers as Prisma.InputJsonValue, childName: String(identityValues(definition, answers).childName ?? ""), version: nextVersion } });
+    await db.admissionApplicationEvent.create({ data: { schoolId: user.schoolId, applicationId: application.id, kind: "ANSWERS_UPDATED", actorId: user.userId, detail: { fromVersion: application.version, toVersion: nextVersion } } });
+    const { resumeKeyHash: _key, ...data } = updated;
+    return data;
+  });
 }
 
 export async function staffUpload(user: AuthUser, campusId: string, id: string, key: string, file: File) {

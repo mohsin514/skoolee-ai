@@ -13,6 +13,7 @@
  *   ConfirmAction; a failed load is an inline ErrorState with retry, never a toast (R4).
  */
 
+import { loadOwnerPages } from "@/lib/owner/load-pages";
 import { useConsoleView } from "@/components/nav/useConsoleView";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { Menu } from "@/components/ui/menu";
@@ -82,7 +83,7 @@ import {
 } from "lucide-react";
 import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { PlatformOverview } from "@/components/insights";
-import { AddUserModal } from "@/components/owner/provisioning-modals";
+import { AddUserModal, ProvisionSchoolModal, type SchoolProvisionPrefill } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { formatPlanLimit, getPlanLimits } from "@/config/plans";
 import {
@@ -527,6 +528,7 @@ function SupportSessionBanner() {
       const response = await fetch(`/api/owner/support/grants/${session.id}`, { method: "DELETE" });
       if (!response.ok) { toast.error(t("Could not end support access")); return; }
       setSession(null); toast.success(t("Support access ended"));
+      window.dispatchEvent(new Event("skoolee:support-session-change"));
     } catch {
       toast.error(t("Could not end support access"));
     } finally {
@@ -573,7 +575,7 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   const [actions, setActions] = useState<string[]>(["read"]);
   const [emergency, setEmergency] = useState(false);
   const [closureEvidence, setClosureEvidence] = useState<Record<string, string>>({});
-  const [actionType, setActionType] = useState("read");
+  const [actionType, setActionType] = useState("write");
   const [writeField, setWriteField] = useState("phone");
   const [writeValue, setWriteValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -599,16 +601,21 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   }, [t]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    const refresh = () => { void load(); };
+    window.addEventListener("skoolee:support-session-change", refresh);
+    return () => window.removeEventListener("skoolee:support-session-change", refresh);
+  }, [load]);
+  useEffect(() => {
     if (!supportSession) return;
     const poll = window.setInterval(() => {
       void fetch("/api/owner/support/session", { cache: "no-store" }).then(async (response) => {
-        if (!response.ok) { setSupportSession(null); setPreview(null); return; }
+        if (!response.ok) { void load(); return; }
         const json = await response.json();
         if (!json.success || json.data.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
       }).catch(() => { setSupportSession(null); setPreview(null); });
     }, 10_000);
     return () => window.clearInterval(poll);
-  }, [supportSession]);
+  }, [supportSession, load]);
 
   const track = async (key: string, failure: string, task: () => Promise<void>) => {
     setPendingKey(key);
@@ -661,7 +668,7 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   });
   const queueAction = async () => {
     if (!supportSession) return;
-    const chosenAction = supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export") || "";
+    const chosenAction = selectedAction;
     if (!chosenAction) return;
     const payload = chosenAction === "write" ? { field: writeField, value: writeValue } : undefined;
     await track("queue", t("Could not queue support action"), async () => {
@@ -682,13 +689,14 @@ function SupportAccessView({ schools }: { schools: { id: string; name: string }[
   const toggle = (items: string[], setter: (value: string[]) => void, value: string) => setter(items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
   const domainLabels: Record<string, string> = { school_profile: "School profile", operations: "Operations", users: "Staff directory", finance: "Finance", learning: "Learning records" };
   const selectedAction = supportSession
-    ? (supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export"))
+    ? ((actionType === "write" || actionType === "export") && supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export"))
     : undefined;
   const canSubmit = Boolean(schoolId)
     && purpose.trim().length >= 12
     && impact.trim().length >= 8
     && scope.length > 0
     && actions.length > 0
+    && Number.isInteger(durationMinutes) && durationMinutes >= 5 && durationMinutes <= (emergency ? 60 : 480)
     && !(emergency && emergencyReason.trim().length < 20);
 
   // §4.4b: "Request access" is the screen's one primary action; it brings the request form into view.
@@ -960,11 +968,29 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
+  const [showProvisionSchool, setShowProvisionSchool] = useState(false);
+  const [preparedSchool, setPreparedSchool] = useState<{ id: string; prefill: SchoolProvisionPrefill } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1") return;
+    const id = params.get("workflowHandoffId");
+    if (!id) { setShowProvisionSchool(true); return; }
+    let active = true;
+    void fetch(`/api/ai-workflows/handoffs/${encodeURIComponent(id)}`, { method: "POST" })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || body.handoff?.targetRoute !== `/owner?view=schools&new=1&workflowHandoffId=${id}`) throw new Error("Prepared request is unavailable");
+        if (active) { setPreparedSchool({ id, prefill: body.handoff.prefill }); setShowProvisionSchool(true); }
+      }).catch(() => { if (active) toast.error(t("Could not open the prepared school request. Open it again from AI Workflows.")); });
+    return () => { active = false; };
+  }, [t]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailSchool, setDetailSchool] = useState<SchoolRow | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  const loadSchoolsVersion = useRef(0);
   const loadSchools = useCallback(async (page = 1) => {
+    const version = ++loadSchoolsVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -975,6 +1001,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
 
       const res = await fetch(`/api/owner/schools?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadSchoolsVersion.current) return;
       if (json.success) {
         setSchools(json.data);
         setPagination(json.pagination);
@@ -982,9 +1009,9 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadSchoolsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadSchoolsVersion.current) setLoading(false);
     }
   }, [search, statusFilter, planFilter]);
 
@@ -1016,18 +1043,11 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
   const exportSchools = async () => {
     setExporting(true);
     try {
-      const rows: SchoolRow[] = [];
-      for (let page = 1; page <= 50; page += 1) {
-        const qp = new URLSearchParams({ page: String(page), limit: "100" });
-        if (search) qp.set("search", search);
-        if (statusFilter) qp.set("status", statusFilter);
-        if (planFilter) qp.set("plan", planFilter);
-        const res = await fetch(`/api/owner/schools?${qp}`, { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error);
-        rows.push(...json.data);
-        if (page >= (json.pagination?.pages ?? 1)) break;
-      }
+      const qp = new URLSearchParams();
+      if (search) qp.set("search", search);
+      if (statusFilter) qp.set("status", statusFilter);
+      if (planFilter) qp.set("plan", planFilter);
+      const rows = await loadOwnerPages<SchoolRow>("/api/owner/schools", qp);
       downloadCsv("schools", ["name", "slug", "plan", "status", "city", "contact_email", "campuses", "students", "staff", "classes", "ai_credits_used", "ai_credits_limit", "created"],
         rows.map((row) => [row.name, row.slug, row.plan, row.status, row.city, row.contactEmail, row.campusCount, row.totalStudents, row.totalStaff, row.totalClasses, row.aiCreditsUsed, row.aiCreditsLimit, row.createdAt.slice(0, 10)]));
       toast.success(t("Export downloaded."));
@@ -1043,8 +1063,8 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
       <ViewHeader
         title="Schools"
         description="Every school on the platform, with its plan, status and size."
-        primaryAction={pendingRequests > 0 ? { id: "review-requests", label: t("Review requests ({0})", [dates.number(pendingRequests)]), icon: CreditCard, onClick: onOpenRequests } : undefined}
-        secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: () => void exportSchools(), loading: exporting, disabled: loading || pagination.total === 0 }]}
+        primaryAction={{ id: "provision", label: "Provision a school", icon: Building2, onClick: () => { setPreparedSchool(null); setShowProvisionSchool(true); } }}
+        secondaryActions={[...(pendingRequests > 0 ? [{ id: "review-requests", label: t("Review requests ({0})", [dates.number(pendingRequests)]), icon: CreditCard, onClick: onOpenRequests }] : []), { id: "export", label: "Export", icon: Download, onClick: () => void exportSchools(), loading: exporting, disabled: loading || pagination.total === 0 }]}
       />
 
       {stats ? (
@@ -1227,9 +1247,12 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
         )}
       </section>
 
+      {showProvisionSchool && <ProvisionSchoolModal prefill={preparedSchool?.prefill} workflowHandoffId={preparedSchool?.id} onClose={() => setShowProvisionSchool(false)} onCreated={() => { void loadSchools(); onRefreshStats(); }} />}
+
       {detailSchool && (
         <SchoolDetailModal
           school={detailSchool}
+          onStatusChange={() => { setDetailSchool(null); void loadSchools(pagination.page); onRefreshStats(); }}
           onClose={() => setDetailSchool(null)}
           onPlanChange={async (schoolId, newPlan) => {
             const ok = await changeSchoolPlan(schoolId, newPlan);
@@ -1275,6 +1298,7 @@ function UsersView() {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [search, setSearch] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
@@ -1284,43 +1308,48 @@ function UsersView() {
   const [schoolOptions, setSchoolOptions] = useState<
     { id: string; name: string; plan?: string; campuses?: { id: string; name: string }[] }[]
   >([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(true);
+  const [schoolsFailed, setSchoolsFailed] = useState(false);
 
   // The Add User modal needs every school with its campuses. Fetched once
   // on demand rather than with the paginated user list.
   const loadSchoolOptions = useCallback(async () => {
     if (schoolOptions.length) return;
+    setSchoolsLoading(true);
+    setSchoolsFailed(false);
     try {
-      const res = await fetch("/api/owner/schools?limit=100");
-      const json = await res.json();
-      if (json.success) {
-        setSchoolOptions(
-          json.data.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            plan: s.plan,
-            campuses: s.campuses?.map((c: any) => ({ id: c.id, name: c.name })) ?? [],
-          }))
-        );
-      }
+      const schools = await loadOwnerPages<SchoolRow>("/api/owner/schools");
+      setSchoolOptions(schools.map((school) => ({
+        id: school.id, name: school.name, plan: school.plan,
+        campuses: school.campuses.map((campus) => ({ id: campus.id, name: campus.name })),
+      })));
     } catch {
-      toast.error(t("Could not load the school list for the new user. Close the form and try again."));
+      setSchoolsFailed(true);
+    } finally {
+      setSchoolsLoading(false);
     }
   }, [schoolOptions.length, t]);
 
+  useEffect(() => { void loadSchoolOptions(); }, [loadSchoolOptions]);
+
   const filters = useCallback((qp: URLSearchParams) => {
     if (search) qp.set("search", search);
+    if (schoolFilter) qp.set("schoolId", schoolFilter);
     if (roleFilter) qp.set("role", roleFilter);
     if (statusFilter) qp.set("status", statusFilter);
     return qp;
-  }, [search, roleFilter, statusFilter]);
+  }, [search, roleFilter, statusFilter, schoolFilter]);
 
+  const loadUsersVersion = useRef(0);
   const loadUsers = useCallback(async (page = 1) => {
+    const version = ++loadUsersVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
       const qp = filters(new URLSearchParams({ page: String(page), limit: "25" }));
       const res = await fetch(`/api/owner/users?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadUsersVersion.current) return;
       if (json.success) {
         setUsers(json.data);
         setPagination(json.pagination);
@@ -1328,30 +1357,22 @@ function UsersView() {
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadUsersVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadUsersVersion.current) setLoading(false);
     }
   }, [filters]);
 
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
-  const hasFilters = Boolean(search || roleFilter || statusFilter);
-  const clearFilters = () => { setSearch(""); setRoleFilter(""); setStatusFilter(""); };
+  const hasFilters = Boolean(search || roleFilter || statusFilter || schoolFilter);
+  const clearFilters = () => { setSchoolFilter(""); setSearch(""); setRoleFilter(""); setStatusFilter(""); };
   const openAddUser = () => { void loadSchoolOptions(); setShowAddUser(true); };
 
   const exportUsers = async () => {
     setExporting(true);
     try {
-      const rows: UserRow[] = [];
-      for (let page = 1; page <= 50; page += 1) {
-        const qp = filters(new URLSearchParams({ page: String(page), limit: "100" }));
-        const res = await fetch(`/api/owner/users?${qp}`, { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error);
-        rows.push(...json.data);
-        if (page >= (json.pagination?.pages ?? 1)) break;
-      }
+      const rows = await loadOwnerPages<UserRow>("/api/owner/users", filters(new URLSearchParams()));
       downloadCsv("tenant-users", ["name", "email", "role", "school", "campus", "status", "last_sign_in", "created"],
         rows.map((row) => [row.fullName, row.email, row.role, row.school?.name, row.campus?.name, row.isActive ? "active" : "inactive", row.lastLogin?.slice(0, 10) ?? "", row.createdAt.slice(0, 10)]));
       toast.success(t("Export downloaded."));
@@ -1369,13 +1390,15 @@ function UsersView() {
         description={t("{0} accounts across every school. Changing a school's people is the school's own job; use these tools only for support.", [dates.number(pagination.total)])}
         secondaryActions={[
           { id: "export", label: "Export", icon: Download, onClick: () => void exportUsers(), loading: exporting, disabled: loading || pagination.total === 0 },
-          { id: "add-user", label: "Add user", icon: UserPlus, onClick: openAddUser },
+          { id: "add-user", label: "Add user", icon: UserPlus, onClick: openAddUser, disabled: schoolsLoading || schoolsFailed || !schoolOptions.length },
         ]}
       />
 
+      {schoolsFailed ? <Alert tone="warning" title={t("The school list did not load")} actions={<Button variant="outline" onClick={() => void loadSchoolOptions()}>{t("Try again")}</Button>}>{t("Retry to filter by school or add a user. The account list is still available.")}</Alert> : null}
       {showAddUser && (
         <AddUserModal
           schools={schoolOptions}
+          initialSchoolId={schoolFilter}
           onClose={() => setShowAddUser(false)}
           onCreated={() => void loadUsers(pagination.page)}
         />
@@ -1394,6 +1417,10 @@ function UsersView() {
               className={"w-full"}
             />
           </InputGroup>
+          <SystemSelect value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} aria-label={t("Filter by school")} className={FILTER_SELECT}>
+            <option value="">{t("All schools")}</option>
+            {schoolOptions.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+          </SystemSelect>
           <SystemSelect
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -1440,7 +1467,26 @@ function UsersView() {
           />
         ) : (
           <>
-              <Table containerClassName="overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
+              <div className="grid gap-3 sm:grid-cols-2 xl:hidden" data-owner-user-cards>
+                {users.map((u) => <article key={u.id} className="rounded-2xl border border-border-subtle bg-card p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold text-ink-strong"><bdi>{u.fullName}</bdi></p>
+                      <p className="mt-1 break-all text-xs text-ink-muted"><bdi dir="ltr">{u.email}</bdi></p>
+                    </div>
+                    <Menu label="More actions" align="end"
+                      trigger={<IconButton label={t("More actions for {0}", [u.fullName])} variant="outline"><MoreHorizontal aria-hidden="true" /></IconButton>}
+                      items={[{ id: "reset-password", label: t("Reset password"), icon: KeyRound, onSelect: () => { setSelectedUser(u); setShowPasswordModal(true); } }]} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2"><RoleBadge role={u.role} /><Badge size="sm" variant={u.isActive ? "success" : "neutral"} dot>{t(u.isActive ? "Active" : "Inactive")}</Badge></div>
+                  <dl className="mt-3 space-y-2 text-xs">
+                    <div><dt className="text-ink-subtle">{t("School")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.school?.name || "—"}</bdi></dd></div>
+                    <div><dt className="text-ink-subtle">{t("Campus")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.campus?.name || "—"}</bdi></dd></div>
+                    <div><dt className="text-ink-subtle">{t("Last sign-in")}</dt><dd className="mt-0.5 text-ink"><bdi>{dates.when(u.lastLogin)}</bdi></dd></div>
+                  </dl>
+                </article>)}
+              </div>
+              <Table containerClassName="hidden xl:block overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
                 <TableHeader>
                   <TableRow className="text-ink-subtle">
                     <TableHead className="px-4 py-3">{t("User")}</TableHead>
@@ -1516,7 +1562,7 @@ function UsersView() {
   );
 }
 
-const AUDIT_ACTIONS = ["login", "login_failed", "logout", "password_change", "school_suspended", "school_activated", "session_terminated", "ai_workflows_live_on", "ai_workflows_live_off"] as const;
+const AUDIT_ACTIONS = ["login", "login_failed", "logout", "password_change", "school_suspended", "school_activated", "session_terminated", "school_provisioned", "user_provisioned", "plan_changed", "plan_pricing_updated", "default_plan_pricing_updated", "payment_bank_details_updated", "delete_school", "ai_workflows_live_on", "ai_workflows_live_off"] as const;
 
 function AuditLogView() {
   const t = useUiText();
@@ -1533,7 +1579,9 @@ function AuditLogView() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  const loadLogsVersion = useRef(0);
   const loadLogs = useCallback(async (p = 1) => {
+    const version = ++loadLogsVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -1542,6 +1590,7 @@ function AuditLogView() {
 
       const res = await fetch(`/api/owner/audit-logs?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadLogsVersion.current) return;
       if (json.success) {
         setLogs(json.data);
         setTotalPages(json.pagination.pages);
@@ -1551,9 +1600,9 @@ function AuditLogView() {
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadLogsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadLogsVersion.current) setLoading(false);
     }
   }, [actionFilter, daysFilter]);
 
@@ -1562,16 +1611,9 @@ function AuditLogView() {
   const exportLogs = async () => {
     setExporting(true);
     try {
-      const rows: AuditEntry[] = [];
-      for (let p = 1; p <= 50; p += 1) {
-        const qp = new URLSearchParams({ page: String(p), limit: "100", days: daysFilter });
-        if (actionFilter) qp.set("action", actionFilter);
-        const res = await fetch(`/api/owner/audit-logs?${qp}`, { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok || !json.success) throw new Error(json.error);
-        rows.push(...json.data);
-        if (p >= (json.pagination?.pages ?? 1)) break;
-      }
+      const qp = new URLSearchParams({ days: daysFilter });
+      if (actionFilter) qp.set("action", actionFilter);
+      const rows = await loadOwnerPages<AuditEntry>("/api/owner/audit-logs", qp);
       downloadCsv("platform-audit-log", ["time", "action", "status", "actor", "actor_role", "target_type", "target", "ip_address"],
         rows.map((row) => [row.createdAt, row.action, row.status, row.user?.fullName ?? "", row.user?.role ?? "", row.targetType ?? "", row.targetName ?? "", row.ipAddress ?? ""]));
       toast.success(t("Export downloaded."));
@@ -1748,7 +1790,9 @@ function SessionsView() {
   const [terminatingId, setTerminatingId] = useState<string | null>(null);
   const [confirmSession, setConfirmSession] = useState<SessionEntry | null>(null);
 
+  const loadSessionsVersion = useRef(0);
   const loadSessions = useCallback(async (page = 1) => {
+    const version = ++loadSessionsVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -1757,6 +1801,7 @@ function SessionsView() {
 
       const res = await fetch(`/api/owner/sessions?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadSessionsVersion.current) return;
       if (json.success) {
         setSessions(json.data);
         setPagination(json.pagination);
@@ -1764,9 +1809,9 @@ function SessionsView() {
         setLoadFailed(true);
       }
     } catch {
-      setLoadFailed(true);
+      if (version === loadSessionsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadSessionsVersion.current) setLoading(false);
     }
   }, [showActiveOnly]);
 
@@ -2048,11 +2093,12 @@ function BillingView({ stats, loading, onRetry }: { stats: Stats | null; loading
 }
 
 /** One plan's monthly catalogue price, in the platform catalogue currency. Blank keeps the meaning the section describes. */
-function PlanPriceField({ scope, plan, value, placeholder, onChange }: {
+function PlanPriceField({ scope, plan, value, placeholder, disabled, onChange }: {
   scope: string;
   plan: string;
   value: string;
   placeholder: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -2062,6 +2108,8 @@ function PlanPriceField({ scope, plan, value, placeholder, onChange }: {
         <SystemInput
           type="number"
           min="0"
+          step="any"
+          disabled={disabled}
           dir="ltr"
           placeholder={placeholder}
           value={value}
@@ -2074,11 +2122,16 @@ function PlanPriceField({ scope, plan, value, placeholder, onChange }: {
 }
 
 const DEFAULT_PRICE_FIELDS = { FREE: { price: "0" }, BASIC: { price: "4000" }, PRO: { price: "7000" }, ENTERPRISE: { price: "" } };
+const EMPTY_PRICE_FIELDS = { FREE: { price: "" }, BASIC: { price: "" }, PRO: { price: "" }, ENTERPRISE: { price: "" } };
+type SavedPrices = Record<string, { price?: number | null }>;
+const priceFields = (prices: SavedPrices | null | undefined) => Object.fromEntries(
+  PLAN_CHOICES.map(plan => [plan, { price: prices?.[plan]?.price == null ? "" : String(prices[plan].price) }]),
+);
 
 function PricingView({ stats }: { stats: Stats | null }) {
   const t = useUiText();
   const [pricingSchoolId, setPricingSchoolId] = useState("");
-  const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>(DEFAULT_PRICE_FIELDS);
+  const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>(EMPTY_PRICE_FIELDS);
   const [savingPricing, setSavingPricing] = useState(false);
   const [pricingSaved, setPricingSaved] = useState(false);
   const [loadingPricing, setLoadingPricing] = useState(false);
@@ -2087,34 +2140,35 @@ function PricingView({ stats }: { stats: Stats | null }) {
   const [defaultPricing, setDefaultPricing] = useState<Record<string, { price: string }>>(DEFAULT_PRICE_FIELDS);
   const [savingDefaults, setSavingDefaults] = useState(false);
   const [defaultsFailed, setDefaultsFailed] = useState(false);
+  const [loadingDefaults, setLoadingDefaults] = useState(true);
+  const [savedDefaults, setSavedDefaults] = useState<SavedPrices | null>(null);
+  const pricingVersion = useRef(0);
 
   const loadDefaultPricing = async () => {
+    setLoadingDefaults(true);
     setDefaultsFailed(false);
     try {
       const res = await fetch("/api/owner/platform-config", { cache: "no-store" });
       const json = await res.json();
-      if (json.success && json.data) {
-        const d = json.data as Record<string, { price?: number | null }>;
-        setDefaultPricing({
-          FREE: { price: String(d.FREE?.price ?? 0) },
-          BASIC: { price: String(d.BASIC?.price ?? 4000) },
-          PRO: { price: String(d.PRO?.price ?? 7000) },
-          ENTERPRISE: { price: d.ENTERPRISE?.price != null ? String(d.ENTERPRISE.price) : "" },
-        });
+      if (res.ok && json.success && json.data) {
+        setSavedDefaults(json.data);
+        setDefaultPricing(priceFields(json.data));
       } else {
         setDefaultsFailed(true);
       }
     } catch {
-      // The form keeps its built-in values; the notice below says so.
       setDefaultsFailed(true);
+    } finally {
+      setLoadingDefaults(false);
     }
   };
 
   const saveDefaultPricing = async () => {
+    if (loadingDefaults || defaultsFailed || !savedDefaults || savingDefaults) return;
     const pricing: Record<string, { price?: number | null }> = {};
     for (const [plan, vals] of Object.entries(defaultPricing)) {
       const num = vals.price === "" ? null : Number(vals.price);
-      if (num !== null && (isNaN(num) || num < 0)) {
+      if (num !== null && (!Number.isFinite(num) || num < 0)) {
         toast.error(t("Enter a price of 0 or more for {0}.", [planLabel(plan)]));
         return;
       }
@@ -2125,10 +2179,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
       const res = await fetch("/api/owner/platform-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pricing }),
+        body: JSON.stringify({ pricing, expected: savedDefaults }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error);
+      setSavedDefaults(json.data);
       toast.success(t("Default prices saved. Schools see the new catalogue prices from their next renewal."));
       setDefaultsFailed(false);
     } catch (err) {
@@ -2141,38 +2196,30 @@ function PricingView({ stats }: { stats: Stats | null }) {
   useEffect(() => { void loadDefaultPricing(); }, []);
 
   const loadPricing = async (schoolId: string) => {
+    const version = ++pricingVersion.current;
     setLoadingPricing(true);
     setPricingLoadFailed(false);
     try {
       const res = await fetch(`/api/owner/schools/${schoolId}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== pricingVersion.current) return;
       if (!res.ok) throw new Error(json.error);
-      if (json.data?.planPricing) {
-        const p = json.data.planPricing as Record<string, { price?: number }>;
-        setPricingValues({
-          FREE: { price: String(p.FREE?.price ?? 0) },
-          BASIC: { price: String(p.BASIC?.price ?? 4000) },
-          PRO: { price: String(p.PRO?.price ?? 7000) },
-          ENTERPRISE: { price: p.ENTERPRISE?.price != null ? String(p.ENTERPRISE.price) : "" },
-        });
-      } else {
-        setPricingValues(DEFAULT_PRICE_FIELDS);
-      }
+      setPricingValues(priceFields(json.data?.planPricing));
       setPricingSaved(false);
     } catch {
       // R4: shown inline under the school picker, with a retry.
-      setPricingLoadFailed(true);
+      if (version === pricingVersion.current) setPricingLoadFailed(true);
     } finally {
-      setLoadingPricing(false);
+      if (version === pricingVersion.current) setLoadingPricing(false);
     }
   };
 
   const savePricing = async () => {
-    if (!pricingSchoolId) return;
+    if (!pricingSchoolId || loadingPricing || pricingLoadFailed || savingPricing) return;
     const pricing: Record<string, { price?: number }> = {};
     for (const [plan, vals] of Object.entries(pricingValues)) {
       const num = vals.price === "" ? undefined : Number(vals.price);
-      if (num !== undefined && (isNaN(num) || num < 0)) {
+      if (num !== undefined && (!Number.isFinite(num) || num < 0)) {
         toast.error(t("Enter a price of 0 or more for {0}.", [planLabel(plan)]));
         return;
       }
@@ -2202,7 +2249,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
       <ViewHeader
         title="Pricing"
         description={t("Default monthly catalogue prices for every school, and per-school overrides. Prices are in {0}.", [COMMERCIAL_CONTRACT.currency])}
-        primaryAction={{ id: "save-prices", label: "Save prices", icon: Save, onClick: () => void saveDefaultPricing(), loading: savingDefaults }}
+        primaryAction={{ id: "save-prices", label: "Save prices", icon: Save, onClick: () => void saveDefaultPricing(), loading: savingDefaults, disabled: loadingDefaults || defaultsFailed || !savedDefaults }}
       />
 
       <section aria-labelledby="pricing-defaults-heading" className="sk-panel p-4 sm:p-6">
@@ -2219,10 +2266,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
             title={t("The saved default prices did not load")}
             actions={<Button variant="outline" size="sm" type="button" onClick={() => void loadDefaultPricing()}><RefreshCw aria-hidden="true" />{t("Try again")}</Button>}
           >
-            {t("The fields show the built-in prices, not what is saved. Check them before you save.")}
+            {t("Load the saved prices before making changes.")}
           </Alert>
         ) : null}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Button variant="ghost" size="sm" type="button" disabled={loadingDefaults || savingDefaults} onClick={() => void loadDefaultPricing()} className="mb-3"><RefreshCw aria-hidden="true" />{t("Reload saved prices")}</Button>
+        {loadingDefaults ? <SkeletonList rows={2} label={t("Loading saved prices")} /> : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Object.entries(defaultPricing).map(([plan, vals]) => (
             <PlanPriceField
               key={plan}
@@ -2230,10 +2278,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
               plan={plan}
               value={vals.price}
               placeholder={t("Not set")}
+              disabled={defaultsFailed || savingDefaults}
               onChange={(value) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: value } }))}
             />
           ))}
-        </div>
+        </div>}
       </section>
 
       <section aria-labelledby="pricing-override-heading" className="sk-panel p-4 sm:p-6">
@@ -2251,8 +2300,11 @@ function PricingView({ stats }: { stats: Stats | null }) {
         >
           <SystemSelect
             value={pricingSchoolId}
+            disabled={savingPricing}
             onChange={(e) => {
+              ++pricingVersion.current;
               setPricingSchoolId(e.target.value);
+              setPricingValues(EMPTY_PRICE_FIELDS);
               if (e.target.value) void loadPricing(e.target.value);
               setPricingSaved(false);
             }}
@@ -2279,6 +2331,7 @@ function PricingView({ stats }: { stats: Stats | null }) {
                     plan={plan}
                     value={vals.price}
                     placeholder={t("Use default")}
+                    disabled={savingPricing}
                     onChange={(value) => { setPricingSaved(false); setPricingValues(prev => ({ ...prev, [plan]: { price: value } })); }}
                   />
                 ))}
@@ -2359,7 +2412,6 @@ function PaymentSettingsView() {
     const query = params.toString();
     window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
     // Runs once per mount: the parameter is gone after this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const retryLoad = () => { setLoading(true); setLoadFailed(false); void loadSettings(); };
@@ -2420,7 +2472,7 @@ function PaymentSettingsView() {
     );
   }
 
-  if (loadFailed && !settings) {
+  if (loadFailed) {
     return (
       <div className={VIEW_BODY}>
         {header}
@@ -2637,8 +2689,10 @@ function SchoolDetailModal({
   onClose,
   onPlanChange,
   onAiWorkflowsLiveChange,
+  onStatusChange,
 }: {
   school: SchoolRow;
+  onStatusChange: () => void;
   onClose: () => void;
   onPlanChange: (schoolId: string, newPlan: string) => Promise<void>;
   onAiWorkflowsLiveChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void;
@@ -2649,6 +2703,23 @@ function SchoolDetailModal({
   // A plan change rewrites the school's limits and AI allowance, so it is confirmed first.
   const [pendingPlan, setPendingPlan] = useState<string | null>(null);
   const [changingPlan, setChangingPlan] = useState(false);
+  const [statusAction, setStatusAction] = useState<"ACTIVE" | "SUSPENDED" | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const changeStatus = async () => {
+    if (!statusAction) return;
+    setChangingStatus(true);
+    try {
+      const response = await fetch(`/api/owner/schools/${school.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: statusAction }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error);
+      toast.success(t("School status updated."));
+      onStatusChange();
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The school could not be updated. Try again.")));
+    } finally { setChangingStatus(false); setStatusAction(null); }
+  };
 
   const confirmPlanChange = async () => {
     if (!pendingPlan) return;
@@ -2752,6 +2823,12 @@ function SchoolDetailModal({
               >
                 {t("Use the Subscription tab to move this school to another plan.")}
               </Alert>
+              <Alert tone={school.status === "ACTIVE" || school.status === "TRIAL" ? "warning" : "info"} title={t("School access")} live="off"
+                actions={<Button type="button" variant="outline" size="sm" onClick={() => setStatusAction(school.status === "ACTIVE" || school.status === "TRIAL" ? "SUSPENDED" : "ACTIVE")}>
+                  {t(school.status === "ACTIVE" || school.status === "TRIAL" ? "Suspend school" : "Restore school")}
+                </Button>}>
+                {t("Suspension pauses school access while retaining its records. Restoring access clears the suspension and expired payment grace period.")}
+              </Alert>
             </div>
           )}
 
@@ -2808,6 +2885,10 @@ function SchoolDetailModal({
           )}
         </div>
 
+        <ConfirmAction open={Boolean(statusAction)} title={t(statusAction === "SUSPENDED" ? "Suspend school" : "Restore school")}
+          description={t(statusAction === "SUSPENDED" ? "Pause access for this school? Its records will be retained." : "Restore access for this school and clear its expired payment grace period?")}
+          detail={<bdi>{school.name}</bdi>} busy={changingStatus} tone={statusAction === "SUSPENDED" ? "warning" : "success"}
+          onConfirm={changeStatus} onCancel={() => setStatusAction(null)} />
         <ConfirmAction
           open={Boolean(pendingPlan)}
           tone="warning"
@@ -2901,7 +2982,7 @@ function ChangePasswordModal({
       }
     >
         <Alert tone="warning" live="off" className="mb-6" title={t("Use this only for support")}>
-          {t("The school's own administrator normally resets passwords. This change is logged, and the person needs the new password at their next sign-in.")}
+          {t("This change is logged and signs the person out on every device. Share the temporary password securely; they must replace it at their next sign-in.")}
         </Alert>
 
         <div className="mb-6 flex items-center gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">

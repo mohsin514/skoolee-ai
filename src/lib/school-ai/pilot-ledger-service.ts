@@ -21,14 +21,14 @@ const round = (value: number) => Math.round(value * 10) / 10;
 export async function computeLedgerMetrics(db: TxClient, schoolId: string, now = new Date()): Promise<LedgerMetric[]> {
   const since = new Date(now.getTime() - LEDGER_WINDOW_DAYS * 86_400_000);
   const [sealed, corrections, notes, receipts, sittings] = await Promise.all([
-    db.examPaperSlot.findMany({ where: { schoolId, sealedAt: { gte: since } }, select: { requestedAt: true, sealedAt: true, dueOn: true } }),
-    db.schoolAiResultCorrection.findMany({ where: { schoolId, createdAt: { gte: since } }, select: { status: true } }),
-    db.familyResultNote.findMany({ where: { schoolId, createdAt: { gte: since } }, select: { status: true } }),
-    db.examBriefReceipt.count({ where: { schoolId, acknowledgedAt: { gte: since } } }),
-    db.schoolAiExamAssignment.findMany({ where: { schoolId, resultsReleasedAt: { gte: since } }, select: { id: true, campusId: true, classId: true, startsAt: true, resultsReleasedAt: true, paperSnapshot: true }, take: 50 }),
+    db.examPaperSlot.findMany({ where: { schoolId, sealedAt: { gte: since, lte: now } }, select: { requestedAt: true, sealedAt: true, dueOn: true } }),
+    db.schoolAiResultCorrection.findMany({ where: { schoolId, status: { in: ["APPROVED", "REJECTED"] }, decidedAt: { gte: since, lte: now } }, select: { status: true, proposedById: true, decidedById: true } }),
+    db.familyResultNote.findMany({ where: { schoolId, status: "SENT", sentAt: { gte: since, lte: now } }, select: { status: true } }),
+    db.examBriefReceipt.count({ where: { schoolId, acknowledgedAt: { gte: since, lte: now } } }),
+    db.schoolAiExamAssignment.findMany({ where: { schoolId, resultsReleasedAt: { gte: since, lte: now } }, orderBy: [{ resultsReleasedAt: "asc" }, { id: "asc" }], select: { id: true, campusId: true, classId: true, startsAt: true, resultsReleasedAt: true, paperSnapshot: true } }),
   ]);
-  const onTime = sealed.filter(slot => slot.sealedAt! <= new Date(slot.dueOn.getTime() + 86_400_000));
-  const decided = corrections.filter(row => row.status === "APPROVED" || row.status === "REJECTED");
+  const onTime = sealed.filter(slot => slot.sealedAt! < new Date(slot.dueOn.getTime() + 86_400_000));
+  const decided = corrections.filter(row => row.decidedById && row.decidedById !== row.proposedById);
   const differences: number[] = [];
   for (const sitting of sittings) {
     const paper = paperDataSchema.safeParse(sitting.paperSnapshot);
@@ -53,6 +53,12 @@ function assertLedgerReader(user: AuthUser) {
 export async function pilotLedger(user: AuthUser) {
   assertLedgerReader(user);
   if (user.role !== "PRINCIPAL" && user.role !== "SUPER_ADMIN" && !(await canLeadAcademics(user).catch(() => false))) throw new ApiError("The Pilot Ledger is for the school's academic lead.", 403);
+  // Snapshots and consent are school-wide. A campus appointment must not grant visibility or
+  // deletion rights over another campus's evidence. Group-wide access belongs to SUPER_ADMIN.
+  if (user.role !== "SUPER_ADMIN") {
+    const campuses = await prisma.campus.findMany({ where: { schoolId: user.schoolId }, select: { id: true } });
+    if (campuses.length !== 1 || campuses[0].id !== user.campusId) throw new ApiError("This ledger contains evidence for the whole school. In a school with multiple campuses, open it with the group administrator account.", 403);
+  }
   const [setting, latest] = await Promise.all([
     prisma.pilotLedgerSetting.findUnique({ where: { schoolId: user.schoolId } }),
     prisma.pilotLedgerSnapshot.findFirst({ where: { schoolId: user.schoolId }, orderBy: { computedAt: "desc" } }),
@@ -66,10 +72,12 @@ export async function updatePilotLedger(user: AuthUser, raw: unknown) {
   const { action } = actionSchema.parse(raw);
   await pilotLedger(user);
   if (action !== "compute") {
-    await prisma.pilotLedgerSetting.upsert({ where: { schoolId: user.schoolId }, update: { optedIn: action === "opt-in", changedById: user.userId, changedAt: new Date() }, create: { schoolId: user.schoolId, optedIn: action === "opt-in", changedById: user.userId } });
-    // Opting out removes what was kept, not only what will be computed.
-    if (action === "opt-out") await prisma.pilotLedgerSnapshot.deleteMany({ where: { schoolId: user.schoolId } });
-    await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "pilot_ledger_settings", recordId: user.schoolId, userId: user.userId, newValue: { action } } });
+    await prisma.$transaction(async tx => {
+      // The setting row is also locked by computation, so opt-out cannot race a late snapshot insert.
+      await tx.pilotLedgerSetting.upsert({ where: { schoolId: user.schoolId }, update: { optedIn: action === "opt-in", changedById: user.userId, changedAt: new Date() }, create: { schoolId: user.schoolId, optedIn: action === "opt-in", changedById: user.userId } });
+      if (action === "opt-out") await tx.pilotLedgerSnapshot.deleteMany({ where: { schoolId: user.schoolId } });
+      await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "pilot_ledger_settings", recordId: user.schoolId, userId: user.userId, newValue: { action } } });
+    }, { timeout: 60_000 });
   } else await snapshotSchool(user.schoolId);
   return pilotLedger(user);
 }
@@ -77,9 +85,12 @@ export async function updatePilotLedger(user: AuthUser, raw: unknown) {
 /** Compute and keep one snapshot for an opted-in school (the nightly job and "compute now"). */
 export async function snapshotSchool(schoolId: string, now = new Date()) {
   return runWithTenantContext({ schoolId }, async () => {
-    const setting = await prisma.pilotLedgerSetting.findUnique({ where: { schoolId } });
-    if (!setting?.optedIn) throw new ApiError("Opt in to the Pilot Ledger before anything is computed.", 409);
-    const metrics = await prisma.$transaction(tx => computeLedgerMetrics(tx, schoolId, now), { timeout: 60_000 });
-    return prisma.pilotLedgerSnapshot.create({ data: { schoolId, computedAt: now, metrics: metrics as never } });
+    return prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT school_id FROM pilot_ledger_settings WHERE school_id = ${schoolId} FOR UPDATE`;
+      const setting = await tx.pilotLedgerSetting.findUnique({ where: { schoolId } });
+      if (!setting?.optedIn) throw new ApiError("Opt in to the Pilot Ledger before anything is computed.", 409);
+      const metrics = await computeLedgerMetrics(tx, schoolId, now);
+      return tx.pilotLedgerSnapshot.create({ data: { schoolId, computedAt: now, metrics: metrics as never } });
+    }, { timeout: 60_000 });
   });
 }

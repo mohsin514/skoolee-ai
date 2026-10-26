@@ -26,7 +26,7 @@ const local = (offsetMinutes: number) => new Date(Date.now() + offsetMinutes * 6
 
 async function user(key: string, role: string, campus: string | null = campusId, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { receptionist: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -44,12 +44,13 @@ const logCall = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.requ
 const act = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.request.patch(api, { data: body });
 const callback = (callId: string) => db.phoneCallback.findFirstOrThrow({ where: { callId }, orderBy: { createdAt: "asc" } });
 const liveActions = (key: string, sourceId: string) => db.notification.findMany({ where: { userId: users.get(key)!.id, sourceType: "callback", sourceId } });
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Palm Call School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Dubai", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Palm Creek"], [otherCampusId, "Palm Marina"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Dubai" } });
-  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40 await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G40
+  await user("desk", "RECEPTIONIST"); await user("desk2", "RECEPTIONIST"); await user("desk3", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER");
   await db.localePolicy.create({ data: { schoolId, scopeKey: "school", settings: { timezone: "Asia/Dubai", currency: "AED" }, effectiveAt: new Date("2026-01-01T00:00:00Z"), createdBy: lead, financeReviewedBy: lead } });
   await db.authAttempt.deleteMany({});
@@ -183,7 +184,7 @@ test("reception logs a call in the UI, keeps the draft when the save fails and r
 test("Arabic reception at phone width reads the callback queue right-to-left without overflow", async () => {
   const ctx = await context("desk-ar", { width: 390, height: 844 }), page = await ctx.newPage();
   await page.goto(`${base}/receptionist?view=phone-calls`);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   if (!page.url().includes("view=phone-calls")) await page.goto(`${base}/receptionist?view=phone-calls`);
   await page.locator("[data-callback]").first().waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");
@@ -191,4 +192,24 @@ test("Arabic reception at phone width reads the callback queue right-to-left wit
   assert.equal(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
   await shot(page, "phone-calls-queue-ar-390");
   await page.close();
+});
+
+
+test("Today callbacks follow the school day when the receptionist's device is abroad", async () => {
+  const signedIn = await context("desk");
+  const ctx = await browser.newContext({ storageState: await signedIn.storageState(), viewport: { width: 390, height: 844 }, timezoneId: "America/Los_Angeles", reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  await page.clock.install({ time: new Date("2026-10-25T20:30:00Z") });
+  await page.route("**/api/pickup/gate", route => route.fulfill({ json: { success: true, data: { checks: [] } } }));
+  await page.route("**/api/front-desk/visitors?status=ON_SITE", route => route.fulfill({ json: { success: true, data: [] } }));
+  await page.route("**/api/front-desk/phone-calls?view=open", route => route.fulfill({ json: { success: true, data: [
+    { id: "today", name: "School day callback", callbacks: [{ id: "today", status: "OPEN", dueAt: "2026-10-26T10:00:00Z", overdue: false }] },
+    { id: "tomorrow", name: "Tomorrow callback", callbacks: [{ id: "tomorrow", status: "OPEN", dueAt: "2026-10-26T21:00:00Z", overdue: false }] },
+  ] } }));
+  await page.goto(`${base}/receptionist`);
+  await page.getByText("Call back School day callback", { exact: true }).waitFor();
+  assert.equal(await page.getByText("Call back Tomorrow callback", { exact: true }).count(), 0);
+  await page.getByText("Call back School day callback", { exact: true }).scrollIntoViewIfNeeded();
+  await shot(page, "callback-school-day-390");
+  await ctx.close(); await signedIn.close();
 });

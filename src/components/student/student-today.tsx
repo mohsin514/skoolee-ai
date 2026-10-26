@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -11,7 +11,7 @@ import { ChevronRight, MonitorCheck } from "lucide-react";
 // SKO-418: Today. One next action, then a short list. Times are the school's (its timezone is named), the
 // day switch moves in school days, and a closed day shows upcoming work calmly instead of an attendance
 // warning. States come from each source: a card links to its workflow and nothing here marks it done.
-// The last good view is kept on this device and, when a refresh fails, shown with its refresh time; it
+// The last good view stays in this mounted, identity-scoped page and, on network failure, shows its refresh time; it
 // never claims a submission it did not see.
 
 type Ui = ReturnType<typeof useUiText>;
@@ -26,7 +26,7 @@ type Today = {
   catchUp?: { id: string; subject: string; lessonDate: string; title: string; instructions: string | null; dueDate: string | null; done: boolean }[];
 };
 const KEY = "skoolee.student.today";
-const store = { get: () => { try { return window.localStorage.getItem(KEY); } catch { return null; } }, set: (v: string) => { try { window.localStorage.setItem(KEY, v); } catch { /* no storage: still works online */ } } };
+
 const shift = (day: string, n: number) => new Date(new Date(`${day}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
 
 const stateLabel = (ui: Ui, state: string) => ({ OPEN: ui("Not started"), DRAFT: ui("Draft saved"), REOPENED: ui("Revision open"), SUBMITTED: ui("Submitted"), RETURNED: ui("Feedback returned"), CLOSED: ui("Closed") } as Record<string, string>)[state] ?? state;
@@ -45,25 +45,39 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
   const [day, setDay] = useState<string | null>(null);
   const [examUrl, setExamUrl] = useState<string | null>(null);
   const [data, setData] = useState<Today | null>(null), [stale, setStale] = useState(false), [error, setError] = useState(""), [loading, setLoading] = useState(true);
+  const cachedToday = useRef<Today | null>(null);
+  const requestVersion = useRef(0);
+  useEffect(() => {
+    // Older versions stored a shared-device copy without an identity. Never read it.
+    try { window.localStorage.removeItem(KEY); } catch { /* Storage can be unavailable. */ }
+  }, []);
   const load = useCallback(async (requested: string | null) => {
+    const version = ++requestVersion.current;
+    let mayUseCache = true;
     setLoading(true); setError("");
     try {
       const response = await fetch(`/api/student/today${requested ? `?day=${requested}` : ""}`, { cache: "no-store" });
       const json = await response.json().catch(() => ({}));
-      // The exam boundary answers for Today while an attempt runs: offer only the way back into it.
-      if (response.status === 409 && json.code === "EXAM_SESSION_ACTIVE" && typeof json.examUrl === "string") { setExamUrl(json.examUrl); setData(null); setStale(false); return; }
+      if (version !== requestVersion.current) return;
+      if (response.status === 409 && json.code === "EXAM_SESSION_ACTIVE" && typeof json.examUrl === "string") {
+        cachedToday.current = null; setExamUrl(json.examUrl); setData(null); setStale(false); return;
+      }
+      mayUseCache = response.status >= 500;
       if (!response.ok || !json.success) throw new Error(json.error || "Today could not be refreshed.");
-      setExamUrl(null);
-      setData(json.data); setStale(false);
-      if (!requested) store.set(JSON.stringify(json.data));
+      setExamUrl(null); setData(json.data); setStale(false);
+      if (!requested) cachedToday.current = json.data;
     } catch (failure) {
-      const saved = !requested ? store.get() : null;
-      if (saved) { try { setData(JSON.parse(saved)); setStale(true); } catch { /* ignore a corrupt copy */ } }
+      if (version !== requestVersion.current) return;
+      if (!mayUseCache) cachedToday.current = null;
+      const saved = !requested && mayUseCache ? cachedToday.current : null;
+      setData(saved); setStale(Boolean(saved)); setExamUrl(null);
       setError(ui(failure instanceof Error ? failure.message : "Today could not be refreshed."));
-    } finally { setLoading(false); }
+    } finally { if (version === requestVersion.current) setLoading(false); }
   }, [ui]);
-  useEffect(() => { void load(day); }, [load, day]);
+  useEffect(() => { void load(day); return () => { requestVersion.current++; }; }, [load, day]);
   useEffect(() => { const refresh = () => { if (document.visibilityState === "visible") void load(day); }; window.addEventListener("online", refresh); document.addEventListener("visibilitychange", refresh); return () => { window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); }; }, [load, day]);
+
+  useEffect(() => () => onNextAction?.(null), [onNextAction]);
 
   const isToday = data ? data.day === data.today : true;
   useEffect(() => {
@@ -142,8 +156,8 @@ export function StudentToday({ onNextAction }: { onNextAction?: (action: Student
           <h3 id="today-work" className="text-sm font-bold text-ink-strong">{ui("Work")}</h3>
           {data.work.length === 0 ? <p className="mt-2 text-sm text-ink-muted">{ui("Nothing open.")}</p> : <ul className="mt-2 space-y-1">{data.work.slice(0, 6).map(item => <li key={item.id} data-work={item.id} data-work-state={item.state}>
             <Link href={item.href} className="flex flex-wrap items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-muted">
-              <span className="min-w-0 flex-1 font-bold [overflow-wrap:anywhere]" dir="auto">{item.title}</span>
-              <span className="text-xs text-ink-muted">{stateLabel(ui, item.state)} · <bdi>{dateTime(item.dueAt)}</bdi>{item.extended ? <> · {ui("Extended for you")}</> : null}</span>
+              <span className="min-w-0 basis-full font-bold [overflow-wrap:anywhere] sm:flex-1" dir="auto">{item.title}</span>
+              <span className="w-full text-xs text-ink-muted sm:w-auto">{stateLabel(ui, item.state)} · <bdi>{dateTime(item.dueAt)}</bdi>{item.extended ? <> · {ui("Extended for you")}</> : null}</span>
               {item.overdue ? <span className="text-xs font-semibold text-status-error-text">{item.canSubmit ? ui("Past due") : ui("Closed for submission")}</span> : null}
             </Link>
           </li>)}</ul>}

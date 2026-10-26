@@ -245,7 +245,7 @@ const entries: ReadonlyArray<readonly [string, string, string]> = [
 
   // ── Flagships (addendum 2026-10-22) ──────────────────────────────────────
   // Registry rows directly after Today and their PageHeader descriptions; "Your role" lines in Help.
-  ["AI Workflows", "مسارات الذكاء الاصطناعي", "اے آئی ورک فلوز"],
+  ["AI Workflows", "مهام الذكاء الاصطناعي", "AI ورک فلوز"],
   ["Exam Studio", "استوديو الاختبارات", "ایگزام اسٹوڈیو"],
   ["Answer a few questions and AI drafts your school's setup and routine work; nothing applies until you approve it.", "أجب عن بضعة أسئلة فيُعدّ الذكاء الاصطناعي مسودة إعداد مدرستك وأعمالها الروتينية؛ ولا يُطبَّق شيء قبل موافقتك.", "چند سوالوں کے جواب دیں، اے آئی آپ کے اسکول کے سیٹ اپ اور روزمرہ کام کا مسودہ بنا دیتا ہے؛ آپ کی منظوری سے پہلے کچھ لاگو نہیں ہوتا۔"],
   ["Build assessments with AI, deliver them securely, mark them and plan learning recovery.", "أنشئ التقييمات بالذكاء الاصطناعي، وقدّمها بأمان، وصحّحها، وخطّط لتعويض الفاقد التعليمي.", "اے آئی سے جائزے بنائیں، انہیں محفوظ طریقے سے منعقد کریں، جانچیں اور سیکھنے کی بحالی کی منصوبہ بندی کریں۔"],

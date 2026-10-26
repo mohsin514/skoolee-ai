@@ -148,6 +148,8 @@ const PARENT_FOR_STUDENT_PAGE: Record<string, string> = {
 };
 /** The platform operator works in /owner; school module pages are not theirs. */
 const PLATFORM_OWNER_PAGES = ["/owner", "/account", "/403", "/first-login"];
+/** Platform workflows share /ai with school assessment pages; admit only the owner workspace pages. */
+export const PLATFORM_OWNER_AI_PAGES: readonly string[] = ["/ai", "/ai/setup", "/ai/can-do", "/ai/waiting", "/ai/knowledge"];
 
 /**
  * The proxy's role decision for a signed-in request, as a pure function (G44, G45; tested in
@@ -163,6 +165,7 @@ export function roleGuardRedirect(role: UserRole, pathname: string): string | nu
   if (within(pathname, "/api")) return null;
   const home = dashboardPathForRole(role);
   if (role === "PARENT" || role === "STUDENT") {
+    if (["/ai", "/ai/can-do", "/ai/waiting", "/ai/knowledge"].includes(pathname.replace(/\/$/, "")) || /^\/ai\/knowledge\/[a-zA-Z0-9-]+\/?$/.test(pathname)) return null;
     if (role === "PARENT" && within(pathname, "/student")) return PARENT_FOR_STUDENT_PAGE[pathname.split("/")[2] ?? ""] ?? "/parent";
     if (role === "PARENT" && within(pathname, "/parent")) return null;
     if (role === "STUDENT" && (within(pathname, "/student") || within(pathname, "/ai/exams"))) return null;
@@ -175,6 +178,6 @@ export function roleGuardRedirect(role: UserRole, pathname: string): string | nu
     if (within(pathname, "/settings/locale")) return `${home}?${new URLSearchParams({ settings: "language" })}`;
     return within(pathname, home) ? null : home;
   }
-  if (role === "APP_OWNER") return PLATFORM_OWNER_PAGES.some((page) => within(pathname, page)) ? null : "/owner";
+  if (role === "APP_OWNER") return PLATFORM_OWNER_AI_PAGES.includes(pathname.replace(/\/$/, "")) || /^\/ai\/knowledge\/[a-zA-Z0-9-]+\/?$/.test(pathname) || PLATFORM_OWNER_PAGES.some((page) => within(pathname, page)) ? null : "/owner";
   return canAccessRoleDashboard(role, pathname) ? null : "/403";
 }

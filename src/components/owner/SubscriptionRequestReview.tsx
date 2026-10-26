@@ -53,10 +53,13 @@ export function SubscriptionRequestReview() {
   const when = useInstant();
   const [requests, setRequests] = useState<RequestRow[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<{ row: RequestRow; decision: Decision } | null>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
     setLoadFailed(false);
     try {
       const response = await fetch("/api/owner/subscription-requests", { cache: "no-store" });
@@ -65,7 +68,7 @@ export function SubscriptionRequestReview() {
       setRequests(data.requests ?? []);
     } catch {
       setLoadFailed(true);
-    }
+    } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -92,9 +95,9 @@ export function SubscriptionRequestReview() {
       eyebrow="Platform operations"
       title="Subscription requests"
       description="Plan changes, cancellations, refunds and recovery requests from schools. A refund review never submits a provider refund."
-      secondaryActions={[{ id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void load() }]}
+      secondaryActions={[{ id: "refresh", label: "Refresh", icon: RefreshCw, loading, onClick: () => { void load(); setRefreshVersion(value => value + 1); } }]}
     />
-    {loadFailed && !requests ? (
+    {loadFailed ? (
       <div className="sk-panel"><ErrorState title={t("Subscription requests did not load")} description={t("Check your connection and try again.")} onRetry={() => void load()} /></div>
     ) : requests === null ? (
       <SkeletonList rows={3} label={t("Loading subscription requests")} />
@@ -126,7 +129,7 @@ export function SubscriptionRequestReview() {
         </li>)}
       </ul>
     )}
-    <ProviderEventQueue />
+    <ProviderEventQueue refreshVersion={refreshVersion} />
     <ConfirmAction
       open={Boolean(deciding)}
       tone={deciding?.decision === "DECLINE_REQUEST" ? "danger" : "primary"}
@@ -147,7 +150,7 @@ export function SubscriptionRequestReview() {
 type ProviderEvent = { eventId: string; provider: string; eventType: string; state: string; error: string | null; schoolId: string | null; attemptCount: number; receivedAt: string };
 
 /** SKO-373: verified provider events that failed or could not be applied automatically. */
-function ProviderEventQueue() {
+function ProviderEventQueue({ refreshVersion }: { refreshVersion: number }) {
   const t = useUiText();
   const when = useInstant();
   const [events, setEvents] = useState<ProviderEvent[] | null>(null);
@@ -165,7 +168,7 @@ function ProviderEventQueue() {
       setLoadFailed(true);
     }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load, refreshVersion]);
   const resolve = async (row: ProviderEvent) => {
     setBusy(row.eventId);
     try {
@@ -182,7 +185,7 @@ function ProviderEventQueue() {
       <h2 id="provider-events-title" className="text-lg font-bold text-ink-strong">{t("Payment provider events needing review")}</h2>
       <p className="mt-1 text-sm text-ink-muted">{t("Verified events the system did not apply automatically. Marking one handled records your note only; correct any billing state through a reviewed request or the provider.")}</p>
     </div>
-    {loadFailed && !events ? <div className="sk-panel"><ErrorState title={t("Provider events did not load")} description={t("Check your connection and try again.")} onRetry={() => void load()} /></div>
+    {loadFailed ? <div className="sk-panel"><ErrorState title={t("Provider events did not load")} description={t("Check your connection and try again.")} onRetry={() => void load()} /></div>
       : events === null ? <SkeletonList rows={3} label={t("Loading events")} />
       : events.length === 0 ? <div className="sk-panel"><EmptyState size="sm" icon={Inbox} title={t("No provider events need review")} description={t("Verified provider events that could not be applied automatically appear here.")} /></div>
       : <ul className="space-y-3">

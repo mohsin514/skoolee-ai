@@ -23,7 +23,7 @@ let browser: Browser, firstBilal = "", secondBilal = "", oldVisit = "", lateVisi
 
 async function user(key: string, role: string, campus: string | null = campusId, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { receptionist: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -39,7 +39,7 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
 const api = `${base}/api/front-desk/visitors`;
 const checkIn = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.request.post(api, { data: { action: "check-in", name: "Synthetic Bilal Ahmed", purpose: "Synthetic parent meeting", toMeet: "Ms Synthetic Noor", ...body } });
 const patch = (ctx: BrowserContext, body: Record<string, unknown>) => ctx.request.patch(api, { data: body });
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Juniper Front Desk School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Riyadh", status: "ACTIVE", plan: "PRO" } });
@@ -179,7 +179,7 @@ test("reception sees on-site visitors first, is warned about a namesake and chec
 test("Arabic reception at phone width works right-to-left without overflow", async () => {
   const ctx = await context("desk-ar", { width: 390, height: 844 }), page = await ctx.newPage();
   await page.goto(`${base}/receptionist?view=visitors`);
-  await page.waitForLoadState("networkidle");
+  await page.waitForLoadState("domcontentloaded");
   if (!page.url().includes("view=visitors")) await page.goto(`${base}/receptionist?view=visitors`);
   await page.locator("[data-visit]").first().waitFor({ timeout: 30_000 });
   assert.equal(await page.evaluate("document.documentElement.dir"), "rtl");

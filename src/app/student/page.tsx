@@ -44,7 +44,7 @@ export default function StudentTodayPage() {
       ) : (
         <>
           <SetupPrompt />
-          <StudentToday onNextAction={onNextAction} />
+          <StudentToday key={data.user?.id} onNextAction={onNextAction} />
         </>
       )}
     </StudentPage>

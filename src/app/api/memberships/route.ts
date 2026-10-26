@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { requireAuthUser, errorResponse, ApiError } from "@/lib/api/scope";
+import { requireAuthUser, errorResponse, ApiError, readJsonObject } from "@/lib/api/scope";
 import { INVITABLE_ROLES, membershipAuthority, membershipChangeDecision } from "@/lib/membership-access";
 import { authorityRoleFor, kindFor } from "@/lib/auth/institution";
 import { z } from "zod";
@@ -37,7 +37,7 @@ export async function PUT(req: Request) {
   try {
     const actor = await requireAuthUser();
     if (!membershipAuthority(actor).canManage) throw new ApiError("Membership management is not delegated", 403);
-    const parsed = changeSchema.safeParse(await req.json());
+    const parsed = changeSchema.safeParse(await readJsonObject(req));
     if (!parsed.success) throw new ApiError("Review the role, campus and access change before confirming", 400);
     const input = parsed.data;
     const target = await prisma.user.findFirst({ where: { id: input.userId, schoolId: actor.schoolId } });

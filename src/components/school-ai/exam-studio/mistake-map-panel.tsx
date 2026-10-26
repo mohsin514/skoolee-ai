@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TaskFeedback } from "@/components/ui/task-patterns";
 import type { Language } from "@/lib/locale/package";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioResultsCopy } from "@/lib/school-ai/exam-studio-copy-results";
@@ -19,7 +21,7 @@ const CELL: Record<string, { tone: string; key: "cellAddressed" | "cellPartial" 
   ADDRESSED: { tone: "bg-status-success-surface text-status-success-text", key: "cellAddressed", mark: "✓" },
   PARTIAL: { tone: "bg-status-warning-surface text-status-warning-text", key: "cellPartial", mark: "◐" },
   MISSED: { tone: "bg-status-error-surface text-status-error-text", key: "cellMissed", mark: "✕" },
-  NOT_ANSWERED: { tone: "bg-surface-muted text-ink-subtle", key: "cellBlank", mark: "·" },
+  NOT_ANSWERED: { tone: "bg-surface-subtle text-ink-subtle", key: "cellBlank", mark: "·" },
 };
 
 type Proposal = { sourceAssignmentId: string; questionId: string; number: number; sittingTitle: string; prompt: string; percentage: number | null };
@@ -60,32 +62,36 @@ export function MistakeMapPanel({ examId, map, language, canCreate, onPractice }
     finally { setBusy(false); }
   };
   const label = (outcome: { title: string | null; outcomeId: string }) => outcome.title ?? outcome.outcomeId;
-  return <section aria-labelledby="mistake-map" className="sk-panel space-y-3 p-4" data-mistake-map>
-    <h3 id="mistake-map" className="font-semibold">{t.mapTitle}</h3>
-    <p className="text-sm text-ink-subtle">{t.mapIntro}</p>
-    {!map.learners.length ? <p className="text-sm text-ink-subtle">{t.mapEmpty}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[32rem] border-separate border-spacing-1 text-sm">
-      <thead><tr><th scope="col" className="p-2 text-start text-xs text-ink-subtle">{t.mapOutcome}</th>{map.learners.map(learner => <th key={learner.attemptId} scope="col" className="max-w-24 p-1 text-start text-xs font-semibold"><Isolated className="line-clamp-2">{learner.name ?? "—"}</Isolated></th>)}</tr></thead>
-      <tbody>{map.outcomes.map(outcome => <tr key={outcome.outcomeId} data-map-outcome={outcome.outcomeId} data-map-reading={outcome.reading}>
-        <th scope="row" className="min-w-48 p-2 text-start align-top font-normal">
-          <p className="font-semibold"><bdi dir="auto">{label(outcome)}</bdi></p>
-          <p className="text-xs text-ink-subtle">{outcome.reading === "MEASURED" ? fillStudioCopy(t.mapEvidence, [number(outcome.learners), number(outcome.lost), number(outcome.possible)]) : fillStudioCopy(t.mapNotMeasured, [number(MAP_MINIMUM_LEARNERS)])}</p>
-          {canCreate && outcome.reading === "MEASURED" && outcome.lost > 0 && <label className="mt-1 inline-flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold"><input type="radio" name="map-outcome" className="size-4" checked={ticked === outcome.outcomeId} disabled={busy} onChange={() => void tick(outcome)} data-plan-outcome />{t.planOutcome}</label>}
-        </th>
-        {map.learners.map(learner => { const cell = outcome.cells.find(entry => entry.attemptId === learner.attemptId); const style = CELL[cell?.status ?? "NOT_ANSWERED"];
-          return <td key={learner.attemptId} className={`rounded-lg p-1 text-center align-middle ${outcome.reading === "MEASURED" ? style.tone : "bg-surface-muted text-ink-subtle"}`} title={t[style.key]}><span aria-hidden="true">{outcome.reading === "MEASURED" ? style.mark : "—"}</span><span className="sr-only">{outcome.reading === "MEASURED" ? t[style.key] : t.mapNotMeasured.replace("{0}", String(MAP_MINIMUM_LEARNERS))}</span>{cell && cell.status !== "NOT_ANSWERED" && <span className="block text-xs tabular-nums">{number(cell.awarded)}/{number(cell.possible)}</span>}</td>; })}
-      </tr>)}</tbody>
-    </table></div>}
-    <ul className="flex flex-wrap gap-3 text-xs text-ink-subtle" aria-hidden="true">{(["ADDRESSED", "PARTIAL", "MISSED", "NOT_ANSWERED"] as const).map(key => <li key={key} className="flex items-center gap-1"><span className={`inline-flex size-5 items-center justify-center rounded ${CELL[key].tone}`}>{CELL[key].mark}</span>{t[CELL[key].key]}</li>)}</ul>
-    {map.excluded.length > 0 && <div className="space-y-1" data-map-excluded><h4 className="text-sm font-semibold">{t.excludedTitle}</h4><ul className="list-inside list-disc text-sm">{map.excluded.map(item => <li key={item.questionId}>{fillStudioCopy(t.excludedItem, [number(item.number)])}</li>)}</ul></div>}
-    {map.distractors.length > 0 && <div className="space-y-1" data-map-distractors><h4 className="text-sm font-semibold">{t.distractorTitle}</h4><ul className="list-inside list-disc text-sm">{map.distractors.map(row => <li key={`${row.questionId}:${row.option}`}>{fillStudioCopy(t.distractorRow, [number(row.number), number(row.count), number(row.answered), `⁨${row.option}⁩`])}</li>)}</ul></div>}
+  return <section aria-labelledby="mistake-map" className="sk-panel min-w-0 space-y-4 p-4 sm:p-5" data-mistake-map>
+    <h3 id="mistake-map" className="text-base font-bold text-ink-strong">{t.mapTitle}</h3>
+    <p className="max-w-3xl text-sm leading-relaxed text-ink-muted">{t.mapIntro}</p>
+    <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-ink-muted">{(["ADDRESSED", "PARTIAL", "MISSED", "NOT_ANSWERED"] as const).map(key => <li key={key} className="flex items-center gap-2"><span aria-hidden="true" className={`inline-flex size-6 items-center justify-center rounded-md font-semibold ${CELL[key].tone}`}>{CELL[key].mark}</span>{t[CELL[key].key]}</li>)}</ul>
+    {!map.learners.length ? <TaskFeedback kind="empty" title={t.mapEmpty} /> : <Table className="min-w-[32rem]" containerClassName="max-h-[32rem] max-w-full custom-scrollbar">
+      <caption className="sr-only">{t.mapTitle}</caption>
+      <TableHeader className="sticky top-0 z-20"><TableRow>
+        <TableHead className="sticky start-0 z-10 w-44 min-w-44 max-w-44 bg-surface-subtle sm:w-64 sm:min-w-64 sm:max-w-64">{t.mapOutcome}</TableHead>
+        {map.learners.map(learner => <TableHead key={learner.attemptId} className="min-w-28 py-3"><Isolated className="mx-auto block max-w-32 break-words text-center leading-relaxed">{learner.name ?? "—"}</Isolated></TableHead>)}
+      </TableRow></TableHeader>
+      <TableBody>{map.outcomes.map(outcome => <TableRow key={outcome.outcomeId} className="group" data-map-outcome={outcome.outcomeId} data-map-reading={outcome.reading}>
+        <TableHead scope="row" className="sticky start-0 z-10 w-44 min-w-44 max-w-44 bg-white py-4 align-top group-hover:bg-surface-hover group-focus-within:bg-surface-hover sm:w-64 sm:min-w-64 sm:max-w-64">
+          <p className="break-words text-sm font-semibold leading-relaxed text-ink-strong"><bdi dir="auto">{label(outcome)}</bdi></p>
+          <p className="mt-1.5 text-xs font-normal leading-relaxed text-ink-muted">{outcome.reading === "MEASURED" ? fillStudioCopy(t.mapEvidence, [number(outcome.learners), number(outcome.lost), number(outcome.possible)]) : fillStudioCopy(t.mapNotMeasured, [number(MAP_MINIMUM_LEARNERS)])}</p>
+          {canCreate && outcome.reading === "MEASURED" && outcome.lost > 0 && <label className="mt-2 inline-flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold leading-relaxed text-primary"><input type="radio" name="map-outcome" className="size-4 shrink-0" checked={ticked === outcome.outcomeId} disabled={busy} onChange={() => void tick(outcome)} data-plan-outcome />{t.planOutcome}</label>}
+        </TableHead>
+        {map.learners.map(learner => { const cell = outcome.cells.find(entry => entry.attemptId === learner.attemptId); const style = CELL[cell?.status ?? "NOT_ANSWERED"]; const measured = outcome.reading === "MEASURED"; const description = measured ? t[style.key] : fillStudioCopy(t.mapNotMeasured, [number(MAP_MINIMUM_LEARNERS)]);
+          return <TableCell key={learner.attemptId} className="px-2 py-3 text-center"><div className={`flex min-h-20 min-w-20 flex-col items-center justify-center gap-1 rounded-xl px-3 py-2 ${measured ? style.tone : "bg-surface-subtle text-ink-subtle"}`} title={description}><span aria-hidden="true" className="text-lg font-semibold">{measured ? style.mark : "—"}</span><span className="sr-only">{description}</span>{cell && cell.status !== "NOT_ANSWERED" && <bdi dir="ltr" className="block text-xs font-semibold tabular-nums">{number(cell.awarded)} / {number(cell.possible)}</bdi>}</div></TableCell>; })}
+      </TableRow>)}</TableBody>
+    </Table>}
+    {map.excluded.length > 0 && <div className="space-y-2 rounded-2xl border border-status-warning-border bg-status-warning-surface p-4" data-map-excluded><h4 className="text-sm font-semibold">{t.excludedTitle}</h4><ul className="list-inside list-disc text-sm">{map.excluded.map(item => <li key={item.questionId}>{fillStudioCopy(t.excludedItem, [number(item.number)])}</li>)}</ul></div>}
+    {map.distractors.length > 0 && <div className="space-y-2 rounded-2xl border border-border-subtle bg-surface-subtle p-4" data-map-distractors><h4 className="text-sm font-semibold">{t.distractorTitle}</h4><ul className="list-inside list-disc text-sm">{map.distractors.map(row => <li key={`${row.questionId}:${row.option}`}>{fillStudioCopy(t.distractorRow, [number(row.number), number(row.count), number(row.answered), `⁨${row.option}⁩`])}</li>)}</ul></div>}
     {error && <p role="alert" className="text-sm text-status-error-text"><bdi dir="auto">{error}</bdi></p>}
-    {plan && <div className="space-y-3 rounded-xl border border-border p-3" data-next-ten-minutes>
+    {plan && <div className="space-y-4 rounded-2xl border border-border-subtle bg-surface-subtle p-4 sm:p-5" data-next-ten-minutes>
       <h4 className="font-semibold">{t.tenTitle} · <bdi dir="auto">{label(plan)}</bdi></h4>
       <ol className="list-inside list-decimal space-y-1 text-sm">{plan.plan.map(step => <li key={step.step}>{step.step === "RETEACH" ? fillStudioCopy(t.tenReteach, [`⁨${label(plan)}⁩`, number(step.minutes)]) : step.step === "PRACTISE" ? fillStudioCopy(t.tenPractise, [number(step.minutes)]) : fillStudioCopy(t.tenCheck, [number(step.minutes)])}</li>)}</ol>
       <h5 className="text-sm font-semibold">{t.proposalsTitle}</h5>
       {!plan.proposals.length ? <p className="text-sm text-ink-subtle">{t.proposalNone}</p> : <>
         {plan.proposals.length < 3 && <p className="text-sm text-ink-subtle">{fillStudioCopy(t.proposalFew, [number(plan.proposals.length)])}</p>}
-        <ul className="grid gap-2">{plan.proposals.map(item => <li key={`${item.sourceAssignmentId}:${item.questionId}`} className="rounded-lg border border-border p-2 text-sm" data-proposal><p className="text-xs font-semibold text-ink-subtle">{fillStudioCopy(t.proposalItem, [number(item.number), `⁨${item.sittingTitle}⁩`])}</p><p dir="auto" className="line-clamp-3">{item.prompt}</p></li>)}</ul>
+        <ul className="grid gap-2">{plan.proposals.map(item => <li key={`${item.sourceAssignmentId}:${item.questionId}`} className="space-y-2 rounded-xl border border-border-subtle bg-white p-4 text-sm" data-proposal><p className="text-xs font-semibold text-ink-subtle">{fillStudioCopy(t.proposalItem, [number(item.number), `⁨${item.sittingTitle}⁩`])}</p><p dir="auto" className="line-clamp-3">{item.prompt}</p></li>)}</ul>
         <Button disabled={busy} onClick={() => void confirm()} data-confirm-plan>{t.confirmPlan}</Button>
       </>}
     </div>}

@@ -1,4 +1,4 @@
-import { dashboardPathForRole, normalizeUserRole, type UserRole } from "@/lib/roles";
+import { dashboardPathForRole, normalizeUserRole, PLATFORM_OWNER_AI_PAGES, type UserRole } from "@/lib/roles";
 
 // SKO-457: after sign-in, return to the page that asked for it — but only to an internal page the signed-in
 // role can open: its own console, or one of the framed module routes that role uses (§7.7 G46). Anything else
@@ -48,6 +48,8 @@ export function safeReturnPath(raw: unknown, role: unknown): string | null {
   let parsed: URL;
   try { parsed = new URL(raw, "https://return.invalid"); } catch { return null; }
   if (parsed.origin !== "https://return.invalid") return null;
+  if (parsed.pathname === "/ai/knowledge" || /^\/ai\/knowledge\/[a-zA-Z0-9-]+\/?$/.test(parsed.pathname)) return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  if (normalized === "APP_OWNER" && PLATFORM_OWNER_AI_PAGES.includes(parsed.pathname.replace(/\/$/, ""))) return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   const roots = [dashboardPathForRole(normalized), ...FRAMED_AREAS[normalized]];
   if (!roots.some(root => within(parsed.pathname, root))) return null;
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;

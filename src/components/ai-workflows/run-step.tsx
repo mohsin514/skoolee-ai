@@ -96,7 +96,7 @@ function RunStep({ step, run, language, busy, pendingKey, ordinal, onConfirm, on
         <RunPreview step={{ ...step, preview: step.preview }} language={language} busy={busy} pendingKey={pendingKey} onConfirm={onConfirm} onAmend={onAmend} />
       ) : null}
 
-      {step.state === "handed_off" && step.handoff ? <RunHandoff handoff={step.handoff} language={language} /> : null}
+      {step.state === "handed_off" && step.handoff ? <RunHandoff handoff={step.handoff} language={language} capability={step.capabilityKey} /> : null}
 
       {step.receipt ? (
         step.receipt.kind === "read" && step.receipt.text

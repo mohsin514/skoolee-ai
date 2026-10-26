@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useId, useState } from "react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { Alert } from "@/components/ui/alert";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
-import { roleLabel, roleLabelFor, type UserRole } from "@/lib/roles";
+import { roleLabelFor, type UserRole } from "@/lib/roles";
 import { localeTag } from "@/lib/locale/package";
 import {
   Check, Copy, RefreshCw, Building2, UserPlus, Sparkles,
@@ -43,6 +43,10 @@ import { FormField } from "@/components/ui/form-field";
 
 const ROLE_OPTIONS: { value: UserRole; hint: string }[] = [
   { value: "SUPER_ADMIN", hint: "A school group's admin: every campus and the subscription" },
+  { value: "ADMIN", hint: "Runs a single school" },
+  { value: "ACCOUNTANT", hint: "Manages campus fees and accounts" },
+  { value: "LIBRARIAN", hint: "Manages campus books and lending" },
+  { value: "RECEPTIONIST", hint: "Manages the campus front desk" },
   { value: "CAMPUS_ADMIN", hint: "Runs operations on one campus" },
   { value: "PRINCIPAL", hint: "Leads academics on one campus" },
   { value: "TEACHER", hint: "Assigned classes only · uses a seat" },
@@ -68,10 +72,10 @@ function makePassword(len = 14) {
  * another dialog unlocked the page underneath both of them.
  */
 function Shell({
-  title, subtitle, icon: Icon, onClose, children, wide,
+  title, subtitle, icon: Icon, onClose, children, wide, footer,
 }: {
   title: string; subtitle: string; icon: LucideIcon; onClose: () => void;
-  children: React.ReactNode; wide?: boolean;
+  children: React.ReactNode; wide?: boolean; footer?: React.ReactNode;
 }) {
   const t = useUiText();
   return (
@@ -82,6 +86,7 @@ function Shell({
       eyebrow={t("Provisioning")}
       size={wide ? "md" : "sm"}
       onClose={onClose}
+      footer={footer}
       bodyClassName="px-0 py-0 sm:px-0"
     >
       {children}
@@ -119,14 +124,17 @@ interface Handoff {
 function CredentialHandoff({ data, onDone }: { data: Handoff; onDone: () => void }) {
   const t = useUiText();
   const [copied, setCopied] = useState<string | null>(null);
-  const [reveal, setReveal] = useState(true);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [reveal, setReveal] = useState(false);
 
-  const copy = useCallback((text: string, key: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+  const copy = useCallback(async (text: string, key: string) => {
+    setCopyFailed(false);
+    try {
+      await navigator.clipboard.writeText(text);
       setCopied(key);
       toast.success(t("Copied"));
       setTimeout(() => setCopied(null), 1800);
-    }, () => toast.error(t("Could not copy. Select the text and copy it manually.")));
+    } catch { setCopyFailed(true); }
   }, [t]);
 
   const bundle = `${t("SkooleeAI sign-in")}
@@ -185,6 +193,7 @@ ${t("You will be asked to set your own password on first sign-in.")}`;
         </Button>
       </div>
 
+      {copyFailed ? <Alert tone="danger" compact className="mt-3">{t("Could not copy. Select the text and copy it manually.")}</Alert> : null}
       <p className="mt-4 flex items-start gap-2 px-1 text-2xs font-semibold leading-relaxed text-ink-muted">
         <ShieldCheck aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         {t("This password is not stored anywhere in readable form and cannot be shown again. The user must replace it the first time they sign in.")}
@@ -205,17 +214,21 @@ const KIND_CHOICES: { value: InstitutionKindChoice; title: string; hint: string 
   { value: "STANDALONE", title: "Single school", hint: "One campus. The owner is the school admin: daily running and the subscription." },
 ];
 
-export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export interface SchoolProvisionPrefill {
+  schoolName?: string; city?: string; ownerName?: string; ownerEmail?: string; contactEmail?: string;
+  campusName?: string; kind?: "GROUP" | "STANDALONE"; plan?: PlanType;
+}
+export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHandoffId }: { onClose: () => void; onCreated: () => void; prefill?: SchoolProvisionPrefill; workflowHandoffId?: string }) {
   const t = useUiText();
   const locale = useLocale();
   const [form, setForm] = useState({
-    schoolName: "", city: "", contactEmail: "",
-    ownerName: "", ownerEmail: "", phone: "",
-    campusName: "", campusCity: "", board: "", address: "",
-    plan: "FREE" as PlanType, status: "TRIAL",
+    schoolName: prefill?.schoolName ?? "", city: prefill?.city ?? "", contactEmail: prefill?.contactEmail ?? "",
+    ownerName: prefill?.ownerName ?? "", ownerEmail: prefill?.ownerEmail ?? "", phone: "",
+    campusName: prefill?.campusName ?? "", campusCity: "", board: "", address: "",
+    plan: prefill?.plan && prefill.plan in PLANS ? prefill.plan : "FREE" as PlanType, status: "TRIAL",
   });
   // G22: no default — the operator states whether this is a school group or a single school.
-  const [kind, setKind] = useState<InstitutionKindChoice | null>(null);
+  const [kind, setKind] = useState<InstitutionKindChoice | null>(prefill?.kind === "GROUP" || prefill?.kind === "STANDALONE" ? prefill.kind : null);
   const [password, setPassword] = useState(makePassword());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -227,7 +240,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
   const number = (value: number) => (value < 0 ? "∞" : new Intl.NumberFormat(localeTag(locale)).format(value));
 
   const valid = Boolean(kind) && form.schoolName.trim() && form.city.trim() && form.ownerName.trim()
-    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.ownerEmail.trim());
+    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.ownerEmail.trim()) && password.trim().length >= 8;
 
   const submit = async () => {
     if (!valid || busy || !kind) return;
@@ -236,7 +249,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
       const res = await fetch("/api/owner/schools", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, kind, password }),
+        body: JSON.stringify({ ...form, kind, password, ...(workflowHandoffId ? { workflowHandoffId } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof json.error === "string" ? json.error : "");
@@ -278,10 +291,25 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
       title="Provision a school"
       subtitle="Creates the school, its first campus and the owner account in one step."
       icon={Building2}
-      onClose={onClose}
+      onClose={() => { if (!busy) onClose(); }}
+      footer={<div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-2xs font-semibold text-ink-subtle">
+          {valid ? t("Ready to provision") : t("Fill in the required fields")}
+        </p>
+        <div className="flex gap-2.5">
+          <Button variant="outline" type="button" disabled={busy} onClick={onClose}>
+            {t("Cancel")}
+          </Button>
+          <Button type="button" onClick={() => void submit()} disabled={!valid || busy} loading={busy}
+            className="flex items-center gap-2">
+            {busy ? null : <Sparkles className="h-4 w-4" aria-hidden="true" />}
+            {t("Provision school")}
+          </Button>
+        </div>
+      </div>}
       wide
     >
-      <div className="max-h-[calc(100vh-16rem)] space-y-6 overflow-y-auto p-6">
+      <div className="space-y-6 p-6">
         {error && <ErrorBanner message={error} />}
 
         <fieldset className="space-y-3">
@@ -355,7 +383,7 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
                 onChange={(e) => set("ownerEmail", e.target.value)} />
             </Field>
           </div>
-          <Field label="Temporary password" hint="They must change it at their first sign-in.">
+          <Field label="Temporary password" hint="Use at least 8 characters. They must change it at their first sign-in." error={password.trim().length < 8 ? "Password must be at least 8 characters" : undefined}>
             <div className="flex gap-2">
               <SystemInput className={inputCls} dir="ltr" value={password}
                 onChange={(e) => setPassword(e.target.value)} />
@@ -427,21 +455,6 @@ export function ProvisionSchoolModal({ onClose, onCreated }: { onClose: () => vo
         </section>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle p-5">
-        <p className="text-2xs font-semibold text-ink-subtle">
-          {valid ? t("Ready to provision") : t("Fill in the required fields")}
-        </p>
-        <div className="flex gap-2.5">
-          <Button variant="outline" type="button" onClick={onClose}>
-            {t("Keep editing")}
-          </Button>
-          <Button type="button" onClick={() => void submit()} disabled={!valid || busy} loading={busy}
-            className="flex items-center gap-2">
-            {busy ? null : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-            {t("Provision school")}
-          </Button>
-        </div>
-      </div>
     </Shell>
   );
 }
@@ -456,14 +469,15 @@ interface SchoolLite {
 }
 
 export function AddUserModal({
-  schools, onClose, onCreated,
+  schools, onClose, onCreated, initialSchoolId = "",
 }: {
   schools: SchoolLite[]; onClose: () => void; onCreated: () => void;
+  initialSchoolId?: string;
 }) {
   const t = useUiText();
   const { language } = useLocale();
   const [form, setForm] = useState({
-    schoolId: "", campusId: "", fullName: "", email: "", phone: "", role: "TEACHER" as UserRole,
+    schoolId: initialSchoolId, campusId: "", fullName: "", email: "", phone: "", role: "TEACHER" as UserRole,
   });
   const [password, setPassword] = useState(makePassword());
   const [busy, setBusy] = useState(false);
@@ -473,15 +487,15 @@ export function AddUserModal({
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const school = useMemo(() => schools.find((s) => s.id === form.schoolId), [schools, form.schoolId]);
-  const campuses = school?.campuses ?? [];
+  const campuses = useMemo(() => school?.campuses ?? [], [school]);
   const needsCampus = form.role !== "SUPER_ADMIN";
 
   // Reset campus whenever the school changes so a stale id can't submit.
-  useEffect(() => { set("campusId", ""); }, [form.schoolId]);
+  useEffect(() => { set("campusId", campuses.length === 1 ? campuses[0].id : ""); }, [form.schoolId, campuses]);
 
   const valid = form.schoolId && form.fullName.trim()
     && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())
-    && (!needsCampus || form.campusId);
+    && (!needsCampus || form.campusId) && password.trim().length >= 8;
 
   const submit = async () => {
     if (!valid || busy) return;
@@ -502,7 +516,7 @@ export function AddUserModal({
         password: d.tempPassword,
         lines: [
           { label: t("Name"), value: d.fullName },
-          { label: t("Role"), value: roleLabel(d.role, language) },
+          { label: t("Role"), value: roleLabelFor({ role: d.role, institutionKind: d.role === "ADMIN" ? "STANDALONE" : "GROUP" }, language) },
           { label: t("School"), value: d.school?.name || "—" },
           { label: t("Campus"), value: d.campus?.name || t("Every campus") },
         ],
@@ -528,9 +542,24 @@ export function AddUserModal({
       title="Add a user"
       subtitle="Creates an account inside an existing school. The plan comes from that school."
       icon={UserPlus}
-      onClose={onClose}
+      onClose={() => { if (!busy) onClose(); }}
+      footer={<div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-2xs font-semibold text-ink-subtle">
+          {valid ? t("Ready to create") : t("Fill in the required fields")}
+        </p>
+        <div className="flex gap-2.5">
+          <Button variant="outline" type="button" disabled={busy} onClick={onClose}>
+            {t("Cancel")}
+          </Button>
+          <Button type="button" onClick={() => void submit()} disabled={!valid || busy} loading={busy}
+            className="flex items-center gap-2">
+            {busy ? null : <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />}
+            {t("Create user")}
+          </Button>
+        </div>
+      </div>}
     >
-      <div className="max-h-[calc(100vh-16rem)] space-y-5 overflow-y-auto p-6">
+      <div className="space-y-5 p-6">
         {/* D10: a platform-side account is a support action; the school normally invites its own people. */}
         <Alert tone="warning" live="off" compact title={t("Use this only for support")}>
           {t("Schools invite their own people from People & access. Add an account here only when the school asks SkooleeAI support to; the school's administrator sees it in their member list.")}
@@ -555,7 +584,7 @@ export function AddUserModal({
                 <Button role="radio" aria-checked={on} variant="choice" key={r.value} type="button" onClick={() => set("role", r.value)}
                   className="block h-auto text-start">
                   <span className="flex items-center justify-between">
-                    <span className={`text-xs font-bold ${on ? "text-primary" : "text-ink-strong"}`}>{roleLabel(r.value, language)}</span>
+                    <span className={`text-xs font-bold ${on ? "text-primary" : "text-ink-strong"}`}>{roleLabelFor({ role: r.value, institutionKind: r.value === "ADMIN" ? "STANDALONE" : "GROUP" }, language)}</span>
                     {on && <Check aria-hidden="true" className="h-3.5 w-3.5 text-primary" strokeWidth={3} />}
                   </span>
                   <span className="mt-0.5 block text-2xs font-semibold leading-snug text-ink-subtle">{t(r.hint)}</span>
@@ -603,7 +632,7 @@ export function AddUserModal({
             onChange={(e) => set("email", e.target.value)} />
         </Field>
 
-        <Field label="Temporary password" hint="They must change it at their first sign-in.">
+        <Field label="Temporary password" hint="Use at least 8 characters. They must change it at their first sign-in." error={password.trim().length < 8 ? "Password must be at least 8 characters" : undefined}>
           <div className="flex gap-2">
             <SystemInput className={inputCls} dir="ltr" value={password}
               onChange={(e) => setPassword(e.target.value)} />
@@ -622,21 +651,6 @@ export function AddUserModal({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle p-5">
-        <p className="text-2xs font-semibold text-ink-subtle">
-          {valid ? t("Ready to create") : t("Fill in the required fields")}
-        </p>
-        <div className="flex gap-2.5">
-          <Button variant="outline" type="button" onClick={onClose}>
-            {t("Keep editing")}
-          </Button>
-          <Button type="button" onClick={() => void submit()} disabled={!valid || busy} loading={busy}
-            className="flex items-center gap-2">
-            {busy ? null : <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />}
-            {t("Create user")}
-          </Button>
-        </div>
-      </div>
     </Shell>
   );
 }

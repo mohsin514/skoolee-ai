@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkCompatibility, conforms, V1, type Contract } from "../../src/lib/integrations/contract";
-import { isPrivateAddress, validateShape } from "../../src/lib/integrations/destination";
+import { isPrivateAddress, pinnedDestinationLookup, validateShape } from "../../src/lib/integrations/destination";
 
 // SKO-445: the contract gate that runs before a version is published, and destination address rules.
 const clone = (c: Contract) => JSON.parse(JSON.stringify(c)) as Contract;
@@ -32,9 +32,25 @@ test("serialized values must match the frozen shape exactly", () => {
 });
 
 test("destinations: internal, loopback, link-local, metadata and private ranges are refused; HTTPS required", () => {
-  for (const ip of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.10", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1"]) assert.equal(isPrivateAddress(ip), true, ip);
+  for (const ip of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.10", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:127.0.0.1", "::ffff:10.1.2.3", "::ffff:169.254.169.254", "::ffff:192.168.1.10"]) assert.equal(isPrivateAddress(ip), true, ip);
   for (const ip of ["8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"]) assert.equal(isPrivateAddress(ip), false, ip);
   assert.equal(validateShape("http://example.org/hook").ok, false);
   assert.equal(validateShape("https://user:pass@example.org/hook").ok, false);
   assert.equal(validateShape("https://example.org/hook").ok, true);
+});
+
+test("connection DNS stays pinned to the validated IP in single and all-address modes", () => {
+  for (const [address, family] of [["8.8.8.8", 4], ["2606:4700:4700::1111", 6]] as const) {
+    const resolve = pinnedDestinationLookup(address);
+    resolve("a-host-that-must-not-be-resolved.invalid", {}, (error, resolved, resolvedFamily) => {
+      assert.equal(error, null);
+      assert.equal(resolved, address);
+      assert.equal(resolvedFamily, family);
+    });
+    resolve("a-host-that-must-not-be-resolved.invalid", { all: true }, (error, resolved) => {
+      assert.equal(error, null);
+      assert.deepEqual(resolved, [{ address, family }]);
+    });
+  }
+  assert.throws(() => pinnedDestinationLookup("hostname.invalid"), /must be an IP address/);
 });

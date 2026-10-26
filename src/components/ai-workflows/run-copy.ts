@@ -34,6 +34,7 @@ export const ERROR_WORDS: Partial<Record<WorkflowErrorCode | "PRACTICE_MODE", T>
   LEASED: { en: "Still working on the last step. Try again in a moment.", ar: "ما زال العمل جارياً. حاول بعد لحظة.", ur: "پچھلا مرحلہ جاری ہے۔ ذرا دیر میں کوشش کریں۔" },
   CONFIRM_REQUIRED: { en: "Use the save button on the card; typing yes does not save.", ar: "استخدم زر الحفظ؛ كتابة نعم لا تحفظ.", ur: "کارڈ کا بٹن دبائیں؛ جی لکھنے سے محفوظ نہیں ہوتا۔" },
   BUDGET_EXHAUSTED: { en: "This request reached its AI limit. Start a new request to continue.", ar: "بلغ الطلب حده. ابدأ طلباً جديداً.", ur: "اس درخواست کی حد پوری ہو گئی۔ نئی درخواست شروع کریں۔" },
+  RATE_LIMITED: { en: "You're sending messages too quickly. Wait a moment and try again; your AI credits have not run out.", ar: "ترسل الرسائل بسرعة كبيرة. انتظر قليلاً ثم حاول مجدداً؛ لم تنفد أرصدة الذكاء الاصطناعي.", ur: "آپ بہت تیزی سے پیغامات بھیج رہے ہیں۔ کچھ دیر بعد دوبارہ کوشش کریں؛ آپ کے AI کریڈٹس ختم نہیں ہوئے۔" },
   CREDITS_EXHAUSTED: { en: "Your school has no AI credits left this month.", ar: "لا رصيد ذكاء اصطناعي متبقٍ هذا الشهر.", ur: "اس مہینے اسکول کے اے آئی کریڈٹ ختم ہو گئے۔" },
   PROVIDER_UNAVAILABLE: { en: "AI is busy or not reachable right now. Nothing was changed and nothing was charged; it tries again by itself shortly, or press Continue.", ar: "الذكاء الاصطناعي مشغول أو غير متاح. لم يتغير شيء ولم يُخصم شيء؛ سيحاول مجدداً قريباً، أو اضغط «متابعة».", ur: "اے آئی ابھی مصروف یا دستیاب نہیں۔ کچھ نہیں بدلا اور کوئی کریڈٹ نہیں کٹا؛ یہ خود جلد دوبارہ کوشش کرے گا، یا «جاری رکھیں» دبائیں۔" },
   DEADLINE: { en: "That took too long. Nothing new was saved; try again.", ar: "استغرق وقتاً طويلاً. لم يُحفظ شيء جديد.", ur: "بہت وقت لگا۔ کچھ نیا محفوظ نہیں ہوا؛ دوبارہ کوشش کریں۔" },
@@ -111,6 +112,11 @@ export function t(table: Record<string, T>, key: string, language: Lang, ...valu
 
 /** Questions a resolver asks (promptKey); `{0}` is the field pointer. */
 export const QUESTION_WORDS: Record<string, T> = {
+  FORM_EMAIL_INVALID: { en: "That email is not valid. Enter an address such as owner@example.com. Your other details are saved.", ar: "البريد غير صالح. أدخل عنواناً مثل owner@example.com. التفاصيل الأخرى محفوظة.", ur: "یہ ای میل درست نہیں۔ owner@example.com جیسا پتہ دیں۔ باقی تفصیلات محفوظ ہیں۔" },
+  "platform.pricing_plan": { en: "Which package’s default monthly price should change: Basic, Pro, Enterprise or Custom?", ar: "أي باقة تريد تغيير سعرها الشهري الافتراضي: Basic أو Pro أو Enterprise أو Custom؟", ur: "کس پیکیج کی طے شدہ ماہانہ قیمت بدلنی ہے: Basic، Pro، Enterprise یا Custom؟" },
+  "platform.pricing_amount": { en: "What should the new default monthly price be in PKR? For example: Pro 4500. Existing subscriptions will not change.", ar: "ما السعر الشهري الافتراضي الجديد بالروبية الباكستانية؟ مثال: Pro 4500. لن تتغير الاشتراكات الحالية.", ur: "نئی طے شدہ ماہانہ قیمت پاکستانی روپے میں کیا ہو؟ مثلاً Pro 4500۔ موجودہ سبسکرپشن تبدیل نہیں ہوگی۔" },
+  FIELD_INVALID: { en: "That value is not valid for {0}. Please enter a corrected value.", ar: "هذه القيمة غير صالحة للحقل {0}. أدخل قيمة صحيحة.", ur: "{0} کی قدر درست نہیں۔ براہ کرم درست قدر دیں۔" },
+  "platform.owner_email_taken": { en: "That email is already used by a school. What different owner email should I use?", ar: "هذا البريد مستخدم لدى مدرسة. ما البريد الآخر للمالك؟", ur: "یہ ای میل پہلے سے کسی اسکول میں استعمال ہو رہی ہے۔ مالک کی دوسری ای میل بتائیں۔" },
   PUPIL_AMBIGUOUS: { en: "More than one pupil matches. Which one did you mean?", ar: "أكثر من طالب يطابق الاسم. من تقصد؟", ur: "ایک سے زیادہ طالب علم ملتے ہیں۔ آپ کس کی بات کر رہے ہیں؟" },
   PUPIL_NOT_FOUND: { en: "No pupil in this class matches that name. Give the full name or roll number.", ar: "لا يوجد طالب بهذا الاسم في الفصل. اكتب الاسم الكامل أو رقم القيد.", ur: "اس کلاس میں اس نام کا کوئی طالب علم نہیں۔ پورا نام یا رول نمبر لکھیں۔" },
   PUPIL_TWICE: { en: "The same pupil is named twice. Which status is right?", ar: "ذُكر الطالب نفسه مرتين. أي حالة صحيحة؟", ur: "ایک ہی طالب علم دو بار لکھا گیا ہے۔ کون سی حالت درست ہے؟" },
@@ -334,6 +340,11 @@ export const RECEIPT_KIND_WORDS: Record<"write" | "draft" | "handoff" | "read", 
 
 /** Field names for question pointers; never show a slash path. */
 export const FIELD_WORDS: Record<string, T> = {
+  schoolName: { en: "school name", ar: "اسم المدرسة", ur: "اسکول کا نام" },
+  ownerName: { en: "owner name", ar: "اسم المالك", ur: "مالک کا نام" },
+  ownerEmail: { en: "owner email", ar: "بريد المالك الإلكتروني", ur: "مالک کا ای میل" },
+  city: { en: "city", ar: "المدينة", ur: "شہر" },
+  kind: { en: "type", ar: "النوع", ur: "قسم" },
   date: { en: "date", ar: "التاريخ", ur: "تاریخ" },
   title: { en: "title", ar: "العنوان", ur: "عنوان" },
   class: { en: "class", ar: "الفصل", ur: "کلاس" },
@@ -367,6 +378,11 @@ export function humanisePointer(pointer: string | null | undefined, language: La
 
 /** Ask workspace + Run Sheet surface copy (UI pass). Shared keys live in UI above. */
 export const RUN_UI: Record<string, T> = {
+  savedAnswers: { en: "Details saved so far", ar: "التفاصيل المحفوظة", ur: "اب تک محفوظ تفصیلات" },
+  finishCurrent: { en: "Use the review or confirmation button above to finish this request. Choose New request to start something different.", ar: "استخدم زر المراجعة أو التأكيد أعلاه لإكمال هذا الطلب. اختر طلباً جديداً لبدء عمل آخر.", ur: "اس درخواست کو مکمل کرنے کے لیے اوپر جائزے یا تصدیق کا بٹن دبائیں۔ دوسرے کام کے لیے نئی درخواست منتخب کریں۔" },
+  readyForReview: { en: "Ready for your review", ar: "جاهز لمراجعتك", ur: "آپ کے جائزے کے لیے تیار" },
+  provisionReady: { en: "Your school details are ready. Review the filled form and select Provision school to create it.", ar: "بيانات المدرسة جاهزة. راجع النموذج المعبأ ثم اختر تجهيز المدرسة لإنشائها.", ur: "اسکول کی تفصیلات تیار ہیں۔ بھرا ہوا فارم دیکھیں اور اسکول بنانے کے لیے پروویژن اسکول دبائیں۔" },
+  reviewCreateSchool: { en: "Review and create school", ar: "مراجعة وإنشاء المدرسة", ur: "جائزہ لیں اور اسکول بنائیں" },
   yourRequest: { en: "Your request", ar: "طلبك", ur: "آپ کی درخواست" },
   asked: { en: "Asked", ar: "طُلب", ur: "پوچھا گیا" },
   youAsked: { en: "You asked", ar: "طلبت", ur: "آپ نے کہا" },

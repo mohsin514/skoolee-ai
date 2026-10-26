@@ -11,14 +11,50 @@ let script: string, styles: string;
 test.beforeAll(async () => {
   const root = process.cwd();
   const result = await build({ entryPoints: [path.join(root, "tests/design-system/remaining-routes.fixture.tsx")], bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic", define: { "process.env.NODE_ENV": '"test"' }, plugins: [{ name: "synthetic-route-boundaries", setup(builder: { onResolve: (options: { filter: RegExp }, callback: (args: { path: string }) => unknown) => void; onLoad: (options: { filter: RegExp; namespace: string }, callback: (args: { path: string }) => unknown) => void }) {
+    // The correction route is a client fixture, but its server action graph contains
+    // Node-only helpers. Keep those dependencies out of the browser bundle without
+    // weakening the rendered/request contract assertions below.
+    builder.onResolve({ filter: /^(node:|crypto$|path$|stream$|net$|tls$|fs$|assert$|util$|url$|dns$|buffer$|child_process$)/ }, args => ({ path: `node-stub:${args.path}`, namespace: "node-stub" }));
+    builder.onLoad({ filter: /.*/, namespace: "node-stub" }, () => ({ loader: "js", contents: `
+      export const randomUUID = () => "fixture-uuid";
+      export const createHash = () => ({ update() { return this; }, digest() { return "fixture-hash"; } });
+      export const createHmac = createHash;
+      export const createCipheriv = () => ({ update: () => new Uint8Array(), final: () => new Uint8Array() });
+      export const createDecipheriv = createCipheriv;
+      export const randomBytes = () => new Uint8Array(32);
+      export const timingSafeEqual = () => true;
+      export const isDeepStrictEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+      export const setTimeout = (fn) => Promise.resolve().then(fn);
+      export const mkdir = async () => undefined;
+      export const readFile = async () => new Uint8Array();
+      export const writeFile = async () => undefined;
+      export const unlink = async () => undefined;
+      export const accessSync = () => undefined;
+      export const lstatSync = () => ({ isFile: () => true });
+      export const realpathSync = (value) => value;
+      export const statSync = lstatSync;
+      export const constants = {};
+      export const Buffer = { from: () => new Uint8Array(), isBuffer: () => false };
+      export const promisify = (fn) => fn;
+      export const resolve = (...parts) => parts.join("/");
+      export const join = (...parts) => parts.join("/");
+      export const normalize = (value) => value;
+      export const isAbsolute = (value) => String(value).startsWith("/");
+      export const sep = "/";
+      export const dirname = () => ".";
+      export const basename = (value) => String(value).split("/").pop();
+      export const strict = { equal() {}, ok() {}, deepEqual() {} };
+      export class AsyncLocalStorage { run(_store, fn) { return fn(); } getStore() { return undefined; } }
+      export default {};
+    ` }));
     builder.onResolve({ filter: /^(next\/(navigation|link)|@\/components\/locale\/LocaleProvider)$/ }, args => ({ path: args.path, namespace: "route-stub" }));
     // CSS modules (e.g. the mascot's logo) resolve to class-name proxies; the real CSS is not needed for these contracts.
     builder.onResolve({ filter: /\.module\.css$/ }, args => ({ path: args.path, namespace: "css-module-stub" }));
     builder.onLoad({ filter: /.*/, namespace: "css-module-stub" }, () => ({ loader: "js", contents: "export default new Proxy({}, { get: (_, key) => String(key) });" }));
     builder.onLoad({ filter: /.*/, namespace: "route-stub" }, args => ({ loader: "jsx", resolveDir: root, contents: args.path === "next/navigation"
-      ? 'const router={push:p=>window.__routeNavigation.push(p),replace:p=>window.__routeNavigation.push(p)};export const useRouter=()=>router;export const useSearchParams=()=>new URLSearchParams(location.search);'
+      ? 'const router={push:p=>window.__routeNavigation.push(p),replace:p=>window.__routeNavigation.push(p)};export const useRouter=()=>router;export const useSearchParams=()=>new URLSearchParams(location.search);export const usePathname=()=>location.pathname;'
       : args.path === "next/link" ? 'import React from "react";export default function Link({children,...props}){return <a {...props}>{children}</a>}'
-        : 'export const useLocale=()=>({language:window.__routeFixture.language||"en",timezone:"UTC",weekStartsOn:1});export const useUiText=()=> (text,args=[])=>text.replace(/\\{(\\d+)\\}/g,(_,i)=>String(args[Number(i)]));',
+        : 'export const useLocale=()=>({language:window.__routeFixture.language||"en",timezone:"UTC",weekStartsOn:1});export const useLocaleFormat=()=>({number:(value)=>String(value),dateTime:(value)=>String(value)});export const useUiText=()=> (text,args=[])=>text.replace(/\\{(\\d+)\\}/g,(_,i)=>String(args[Number(i)]));',
     }));
   } }] });
   script = result.outputFiles[0].text;

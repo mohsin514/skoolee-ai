@@ -1,3 +1,4 @@
+import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
@@ -12,12 +13,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId") || "";
     const activeOnly = searchParams.get("active") === "true";
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10), 1), 200);
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
+    const { page, limit } = ownerPagination(searchParams, 50, 200);
 
     const where: any = {};
     if (userId) where.userId = userId;
-    if (activeOnly) where.isActive = true;
+    if (activeOnly) { where.isActive = true; where.expiresAt = { gt: new Date() }; }
 
     const [sessions, total] = await Promise.all([
       prisma.loginSession.findMany({
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         include: {
           user: { select: { id: true, fullName: true, email: true, role: true, school: { select: { id: true, name: true } } } },
         },
-        orderBy: { loginAt: "desc" },
+        orderBy: [{ loginAt: "desc" }, { id: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
       }),

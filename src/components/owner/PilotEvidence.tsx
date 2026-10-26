@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ClipboardPlus, Download, FlaskConical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -59,7 +59,17 @@ export function PilotEvidence() {
   const [owners, setOwners] = useState<{ id: string; fullName: string }[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailFailed, setDetailFailed] = useState(false);
+  const detailVersion = useRef(0);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.scrollIntoView({ block: "nearest" });
+      errorRef.current?.focus({ preventScroll: true });
+    }
+  }, [error]);
   const [loadFailed, setLoadFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   // §4.4b: "Add evidence" opens one dialog for an observation or a measure on the selected pilot.
@@ -72,13 +82,28 @@ export function PilotEvidence() {
     catch { setLoadFailed(true); }
   }, []);
   const loadDetail = useCallback(async (id: string) => {
-    try { setDetail(await call(`/api/owner/pilots/${id}`)); setError(null); } catch (e) { setError(ui((e as Error).message)); }
-  }, [ui]);
+    const version = ++detailVersion.current;
+    setDetailLoading(true); setDetailFailed(false); setDetail(null);
+    try {
+      const next = await call(`/api/owner/pilots/${id}`);
+      if (version === detailVersion.current) { setDetail(next); setError(null); }
+    } catch {
+      if (version === detailVersion.current) setDetailFailed(true);
+    } finally {
+      if (version === detailVersion.current) setDetailLoading(false);
+    }
+  }, []);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { if (selected) void loadDetail(selected); else setDetail(null); }, [selected, loadDetail]);
+  useEffect(() => {
+    if (selected) void loadDetail(selected);
+    else { setDetail(null); setDetailLoading(false); setDetailFailed(false); }
+    return () => { ++detailVersion.current; };
+  }, [selected, loadDetail]);
+  const currentDetail = detail?.pilot.id === selected ? detail : null;
 
   const act = async (action: string, data: Record<string, unknown>, success: string) => {
     if (!selected) return false;
+    setError(null);
     try {
       await call(`/api/owner/pilots/${selected}`, { method: "POST", body: JSON.stringify({ action, data }) });
       // R4: the result of the operator's own action is one translated toast; a refusal stays inline.
@@ -94,7 +119,7 @@ export function PilotEvidence() {
     finally { setExporting(false); }
   };
 
-  const newPilot = { id: "new-pilot", label: "New pilot", icon: Plus, onClick: () => setCreating(true) };
+  const newPilot = { id: "new-pilot", label: "New pilot", icon: Plus, onClick: () => { setError(null); setCreating(true); }, disabled: pilots === null || loadFailed };
   const exportAction = { id: "export-claims", label: "Export approved claims", icon: Download, onClick: () => void exportClaims(), loading: exporting };
   return (
     // The scrolling body of the shell's one page card (addendum 2026-10-22).
@@ -104,18 +129,20 @@ export function PilotEvidence() {
         title="Pilot evidence"
         description="Measured pilot results only. Targets, self-reports and synthetic demos are labelled and never counted as results."
         // One primary: "Add evidence" for the pilot in view (§4.4b); with no pilot open, starting one is the first job.
-        primaryAction={detail ? { id: "add-evidence", label: "Add evidence", icon: ClipboardPlus, onClick: () => setAdding("observation") } : newPilot}
-        secondaryActions={detail ? [newPilot, exportAction] : [exportAction]}
+        primaryAction={currentDetail ? { id: "add-evidence", label: "Add evidence", icon: ClipboardPlus, onClick: () => { setError(null); setAdding("observation"); } } : newPilot}
+        secondaryActions={currentDetail ? [newPilot, exportAction] : [exportAction]}
       />
-      {error ? <Alert tone="danger" compact onDismiss={() => setError(null)}>{error}</Alert> : null}
+      {error && !creating && !adding ? <Alert ref={errorRef} tabIndex={-1} tone="danger" compact onDismiss={() => setError(null)}>{error}</Alert> : null}
       {creating ? (
         <Modal title={ui("New pilot")} subtitle={ui("Record the charter first, then a baseline, before reporting any impact.")} icon={FlaskConical} size="lg" onClose={() => setCreating(false)}>
+          {error ? <Alert ref={errorRef} tabIndex={-1} tone="danger" compact>{error}</Alert> : null}
           <PilotForm owners={owners} onCreated={async (id) => { setCreating(false); toast.success(ui("Pilot charter saved.")); await load(); setSelected(id); }} onError={(m) => setError(ui(m))} />
         </Modal>
       ) : null}
       {adding && detail ? (
         <Modal title={ui("Add evidence")} subtitle={<bdi>{detail.pilot.name}</bdi>} icon={ClipboardPlus} size="lg" onClose={() => setAdding(null)}>
           <div className="space-y-4">
+            {error ? <Alert ref={errorRef} tabIndex={-1} tone="danger" compact>{error}</Alert> : null}
             <div role="group" aria-label={ui("Kind of evidence")} className="flex flex-wrap gap-2">
               <Button type="button" variant="choice" size="sm" aria-pressed={adding === "observation"} onClick={() => setAdding("observation")}>{ui("Observation")}</Button>
               <Button type="button" variant="choice" size="sm" aria-pressed={adding === "measure"} onClick={() => setAdding("measure")}>{ui("Measure")}</Button>
@@ -153,7 +180,7 @@ export function PilotEvidence() {
           </ul>
         )}
 
-      {detail ? <PilotDetail detail={detail} owners={owners} act={act} /> : null}
+      {detailLoading ? <SkeletonList rows={3} label={ui("Loading pilot details")} /> : detailFailed && selected ? <ErrorState title={ui("Pilot details did not load")} onRetry={() => void loadDetail(selected)} /> : currentDetail ? <PilotDetail key={currentDetail.pilot.id} detail={currentDetail} owners={owners} act={act} /> : null}
     </div>
   );
 }
@@ -388,10 +415,10 @@ function MeasureForm({ pilot, onSubmit }: { pilot: Pilot; onSubmit: (data: Recor
       <FormField name="pilot-f30" label={ui("Period end")} required><Input type="date" value={f.periodEnd} onChange={(e) => set("periodEnd", e.target.value)} /></FormField>
       <FormField name="pilot-f31" label={ui("Evidence state")} required><Select value={f.state} onChange={(e) => set("state", e.target.value)}>{Object.entries(STATE_LABEL).map(([k, v]) => <option key={k} value={k}>{ui(v)}</option>)}</Select></FormField>
       <FormField name="pilot-f32" label={ui("Unit")} required><Input value={f.unit} onChange={(e) => set("unit", e.target.value)} /></FormField>
-      <FormField name="pilot-f33" label={ui("Value")}><Input inputMode="decimal" dir="ltr" disabled={f.state === "UNKNOWN"} value={f.value} onChange={(e) => set("value", e.target.value)} /></FormField>
-      <FormField name="pilot-f34" label={ui("Denominator")} hint={ui("Sample size, eligible users or respondents.")}><Input inputMode="decimal" dir="ltr" value={f.denominator} onChange={(e) => set("denominator", e.target.value)} /></FormField>
+      <FormField name="pilot-f33" label={ui("Value")} required={f.state !== "UNKNOWN"}><Input type="number" min={0} step="any" inputMode="decimal" dir="ltr" disabled={f.state === "UNKNOWN"} value={f.value} onChange={(e) => set("value", e.target.value)} /></FormField>
+      <FormField name="pilot-f34" label={ui("Denominator")} required={f.kind.startsWith("CORRECTNESS")} hint={ui("Sample size, eligible users or respondents.")}><Input type="number" min={0} step="any" inputMode="decimal" dir="ltr" value={f.denominator} onChange={(e) => set("denominator", e.target.value)} /></FormField>
       <FormField name="pilot-f35" label={ui("Method")} required><Textarea value={f.method} onChange={(e) => set("method", e.target.value)} /></FormField>
-      <FormField name="pilot-f36" label={ui("Reference")} hint={ui("Human-reviewed reference, invoice or source record.")}><Input value={f.reference} onChange={(e) => set("reference", e.target.value)} /></FormField>
+      <FormField name="pilot-f36" label={ui("Reference")} required={f.kind.startsWith("CORRECTNESS")} hint={ui("Human-reviewed reference, invoice or source record.")}><Input value={f.reference} onChange={(e) => set("reference", e.target.value)} /></FormField>
       {f.kind === "SERVING_COST" ? <label className="flex items-center gap-2 text-sm sm:col-span-2"><Checkbox checked={f.includesFailedCalls} onChange={(e) => set("includesFailedCalls", e.target.checked)} /> {ui("Includes failed, retried and abandoned provider calls")}</label> : null}
       <div className="flex justify-end sm:col-span-2"><Button type="submit" loading={busy} disabled={busy} className="w-full sm:w-auto">{ui("Record measure")}</Button></div>
     </form>

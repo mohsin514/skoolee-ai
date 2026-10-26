@@ -25,7 +25,7 @@ export async function buildPlannerContext(ctx: CapabilityContext): Promise<Plann
     visible[kind].push({ handle, label, ...(facts ? { facts } : {}) });
     ids.set(handle, id);
   };
-  if (!ctx.campusId || ctx.user.role === "STUDENT" || ctx.user.role === "PARENT") return { visible, ids };
+  if (!ctx.campusId || ctx.user.role === "APP_OWNER" || ctx.user.role === "STUDENT" || ctx.user.role === "PARENT") return { visible, ids };
   const scope = { schoolId: ctx.user.schoolId, campusId: ctx.campusId };
   const [classes, subjects, rooms, periods, cycles, teachers, holidays] = await Promise.all([
     // A teacher's handles cover only their own classes and subjects, so a foreign class cannot even be named.

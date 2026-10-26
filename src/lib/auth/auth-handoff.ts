@@ -45,9 +45,9 @@ export function takeAuthEmail(): string | null {
   }
 }
 
-export type RegisterDraft = { type: "school_group" | "single_campus"; name?: string; email?: string; phone?: string; schoolName?: string; country?: string; regIdMode?: "auto" | "manual"; regId?: string /* manual only */ };
+export type RegisterDraft = { type: "school_group" | "single_campus"; name?: string; email?: string; phone?: string; schoolName?: string; country?: string; countryIso?: string; regIdMode?: "auto" | "manual"; regId?: string /* manual only */ };
 
-const TEXT_KEYS = ["name", "email", "phone", "schoolName", "country"] as const;
+const TEXT_KEYS = ["name", "email", "phone", "schoolName", "country", "countryIso"] as const;
 
 /** Keeps only the known, non-secret keys; anything else (passwords included) is dropped. */
 function sanitize(input: unknown): RegisterDraft | null {

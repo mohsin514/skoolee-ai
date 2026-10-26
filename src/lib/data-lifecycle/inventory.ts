@@ -58,15 +58,21 @@ export function buildProcessingInventory(env: Env, verifications: readonly Servi
     : env.S3_BUCKET_NAME ? (env.S3_REGION || "us-east-1") : null;
   const aiOrder = (env.AI_PROVIDER?.trim() || env.AI_PROVIDER_ORDER || "openai").split(",").map(item => item.trim().toLowerCase()).filter(Boolean);
   const ollamaLocal = aiOrder.length === 1 && aiOrder[0] === "ollama" && LOCAL_HOSTS.has(host(env.OLLAMA_BASE_URL || "http://127.0.0.1:11434") || "");
+  const documentMediaRemote = env.SCHOOL_AI_MEDIA_EGRESS_APPROVED === "true" && Boolean(env.OPENAI_API_KEY && env.SCHOOL_AI_DOCUMENT_MODEL);
+  const voiceMediaRemote = env.SCHOOL_AI_MEDIA_EGRESS_APPROVED === "true" && Boolean(env.OPENAI_API_KEY && env.SCHOOL_AI_TRANSCRIPTION_MODEL);
+  const mediaNote = documentMediaRemote || voiceMediaRemote
+    ? `Raw media is sent to OpenAI for ${[documentMediaRemote ? "document" : "", voiceMediaRemote ? "voice" : ""].filter(Boolean).join(" and ")} processing; this is separate from text processing and is not local.`
+    : null;
+  const aiProvider = ollamaLocal && mediaNote ? "Ollama (loopback) + OpenAI media" : ollamaLocal ? "Ollama (loopback)" : aiOrder.join(", ") || "none";
 
   const inventory: Record<DataService, ServicePlacement> = {
     database: placed("database", "PostgreSQL", db, db ? "Read from the database connection host." : "The database host does not identify its region.", verifications, now),
     backups: placed("backups", "Database provider backups", db === "local" ? "local" : db, "Provider backups follow the database project region; backup expiry follows the provider retention window.", verifications, now),
     files: placed("files", storageHost?.endsWith(".r2.cloudflarestorage.com") ? "Cloudflare R2" : "S3-compatible storage", files,
       storageHost?.endsWith(".r2.cloudflarestorage.com") ? "R2 automatic placement does not pin a region." : files ? "Read from the storage endpoint and region." : "File storage is not configured.", verifications, now),
-    ai: ollamaLocal
-      ? placed("ai", "Ollama (loopback)", "local", "Requests stay on this host.", verifications, now)
-      : placed("ai", aiOrder.join(", ") || "none", null, "Processing location is decided by the AI provider; only pseudonymized text is sent (SKO-383).", verifications, now),
+    ai: ollamaLocal && !mediaNote
+      ? placed("ai", aiProvider, "local", "Text requests stay on this host.", verifications, now)
+      : placed("ai", aiProvider, null, mediaNote ?? "Processing location is decided by the AI provider; only pseudonymized text is sent (SKO-383).", verifications, now),
     email: placed("email", env.SMTP_HOST ? "SMTP relay" : "Not configured", null, env.SMTP_HOST ? "The mail provider decides processing location." : "Outbound email is not configured.", verifications, now),
     whatsapp: placed("whatsapp", env.WHATSAPP_ACCESS_TOKEN ? "WhatsApp Cloud API" : "Not configured", null, "Meta decides processing location.", verifications, now),
     sms: placed("sms", env.TWILIO_ACCOUNT_SID ? "Twilio" : "Not configured", null, "The SMS provider decides processing location.", verifications, now),

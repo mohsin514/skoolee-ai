@@ -29,7 +29,7 @@ const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 
 async function user(key: string, role: string, campus: string | null = campusId, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { receptionist: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -48,14 +48,15 @@ const decide = (ctx: BrowserContext, data: Record<string, unknown>) => ctx.reque
 const issueRow = (serial: string) => db.certificateIssue.findFirstOrThrow({ where: { schoolId, serial } });
 const download = async (ctx: BrowserContext, id: string) => { const response = await ctx.request.get(`${api}?download=${id}`); return { status: response.status(), body: await response.body(), hash: response.headers()["x-artifact-hash"], pdfSha: response.headers()["x-pdf-sha256"], state: response.headers()["x-document-state"] }; };
 const verify = async (token: string) => { const anonymous = await playwrightRequest.newContext(); const response = await anonymous.get(`${base}/api/public/certificates/verify?token=${token}`); const json = await response.json(); await anonymous.dispose(); return { status: response.status(), json }; };
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" }); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Jasmine Certificate School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusId, "Jasmine Gulberg"], [otherCampusId, "Jasmine DHA"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Lahore" } });
   await db.class.create({ data: { id: classId, schoolId, campusId, name: "Grade 7", section: "B", academicYear: 2026 } });
   await db.class.create({ data: { id: otherClassId, schoolId, campusId: otherCampusId, name: "Grade 7", section: "A", academicYear: 2026 } });
-  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G38a: templates and approvals are the campus admin's await user("desk", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
+  const lead = await user("lead", "CAMPUS_ADMIN"); // role-ux G38a: templates and approvals are the campus admin's
+  await user("desk", "RECEPTIONIST"); await user("desk-ar", "RECEPTIONIST", campusId, "ar");
   await user("other", "RECEPTIONIST", otherCampusId); await user("teacher", "TEACHER");
   const pupil = (id: string, fullName: string, rollNo: string, extra: Record<string, unknown> = {}, campus = campusId, cls = classId) => db.student.create({ data: { id, schoolId, campusId: campus, classId: cls, fullName, rollNo, gender: "MALE", enrollmentDate: new Date("2025-04-01Z"), ...extra } });
   await pupil(pupils.complete, LONG_NAME, "J-701", { dateOfBirth: new Date("2013-05-09Z"), guardianName: "Synthetic Guardian Khalid", admissionNo: "ADM-2025-0042" });
@@ -242,11 +243,11 @@ test("reception previews and requests a document in the UI; the Arabic queue rea
 
   const ar = await context("desk-ar", { width: 390, height: 844 }), arPage = await ar.newPage();
   await arPage.goto(`${base}/receptionist?view=certificates`);
-  await arPage.waitForLoadState("networkidle");
+  await arPage.waitForLoadState("domcontentloaded");
   if (!arPage.url().includes("view=certificates")) await arPage.goto(`${base}/receptionist?view=certificates`);
   await arPage.locator("[data-issue]").first().waitFor({ timeout: 30_000 });
   assert.equal(await arPage.evaluate("document.documentElement.dir"), "rtl");
-  assert.match(await arPage.locator("[data-certificates-desk]").innerText(), /الشهادات وبطاقات الهوية/);
+  assert.match(await arPage.locator("[data-certificates-desk]").innerText(), /بانتظار الاعتماد/);
   assert.equal(await arPage.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true, "long names and serials do not overflow");
   await shot(arPage, "certificates-queue-ar-390");
   await arPage.close();

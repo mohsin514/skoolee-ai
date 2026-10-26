@@ -7,7 +7,7 @@ import { InvoiceAdjustmentsPanel } from "./adjustments-panel";
 import { Button } from "@/components/ui/button";
 import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -99,7 +99,9 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
 
   const qp = campusId ? `campusId=${encodeURIComponent(campusId)}` : "";
 
+  const requestVersion = useRef(0);
   const loadInvoices = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
@@ -114,7 +116,8 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
 
       const res = await fetch(`${API}/invoices?${params}`);
       const json = await res.json();
-      if (json.success) {
+      if (version !== requestVersion.current) return;
+      if (res.ok && json.success) {
         setInvoices(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
@@ -122,10 +125,11 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
         setLoadFailed(true);
       }
     } catch {
+      if (version !== requestVersion.current) return;
       // Load failures are shown in place with a retry (role-ux R4), never as a toast.
       setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [campusId, statusFilter, classFilter, monthFilter, searchQuery, page]);
 
@@ -143,7 +147,8 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
   }, [loadClasses]);
 
   useEffect(() => {
-    loadInvoices();
+    void loadInvoices();
+    return () => { requestVersion.current++; };
   }, [loadInvoices]);
 
   // Deep link from the approvals queue: ?invoice=<id> opens that invoice's drawer once.
@@ -158,7 +163,9 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
     setSearchQuery(searchInput);
   };
 
+  const detailVersion = useRef(0);
   const viewDetail = async (id: string) => {
+    const version = ++detailVersion.current;
     setDetailInvoice(null);
     setDetailId(id);
     setDetailFailed(false);
@@ -167,12 +174,13 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
     try {
       const res = await fetch(`${API}/invoices/${id}`);
       const json = await res.json();
-      if (json.success) setDetailInvoice(json.data);
+      if (version !== detailVersion.current) return;
+      if (res.ok && json.success) setDetailInvoice(json.data);
       else setDetailFailed(true);
     } catch {
-      setDetailFailed(true);
+      if (version === detailVersion.current) setDetailFailed(true);
     } finally {
-      setLoadingDetail(false);
+      if (version === detailVersion.current) setLoadingDetail(false);
     }
   };
 

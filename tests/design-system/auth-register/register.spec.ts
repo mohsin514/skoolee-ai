@@ -208,9 +208,9 @@ for (const institution of ["school_group", "single_campus"] as const) {
     await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
     expect(requests).toHaveLength(2);
     expect(requests[0].data).toEqual({ email: "registration-fixture@example.test", registrationType: institution });
-    expect(requests[1].data).toEqual({ email: "registration-fixture@example.test", fullName: "Synthetic Administrator", phone: "+92 300 0000000", schoolName: "Synthetic Fixture School", country: "AE", language: "en", regId });
+    expect(requests[1].data).toEqual({ email: "registration-fixture@example.test", fullName: "Synthetic Administrator", phone: "+92 300 0000000", schoolName: "Synthetic Fixture School", country: "AE", countryIso: "AE", language: "en", regId });
     expect(requests[1].passwordMatches).toBe(true);
-    expect(requests[1].fields).toEqual(["country", "email", "fullName", "language", "password", "phone", "regId", "schoolName"]);
+    expect(requests[1].fields).toEqual(["country", "countryIso", "email", "fullName", "language", "password", "phone", "regId", "schoolName"]);
     await expect(page.getByRole("link", { name: "Go to Login" })).toHaveAttribute("href", "/login");
     await expect(page.getByText("registration-fixture@example.test", { exact: true })).toBeVisible();
   });

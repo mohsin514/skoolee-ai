@@ -5,6 +5,8 @@ import { mkdir } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { chromium, type APIRequestContext, type Browser, type BrowserContext, type Page } from "playwright";
 import bcrypt from "bcryptjs";
+import { translateUi } from "../../src/lib/locale/ui-messages";
+const control = (page: Page, label: string) => page.getByRole("button", { name: new RegExp(`^(?:${["en", "ar", "ur"].map(lang => translateUi(label, lang as "en" | "ar" | "ur")).join("|")})$`) });
 import { totp } from "../../src/lib/auth/mfa-crypto";
 
 // SKO-462: class, section, subject and teaching-assignment administration through the real routes and console.
@@ -20,7 +22,7 @@ let browser: Browser, api: APIRequestContext, occupiedId = "", examSubjectId = "
 
 async function person(key: string, role: string, campus = campusId, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { "admin-campus": { v: 1, s: "done", at: new Date().toISOString() }, teacher: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: language } });
   people.set(key, { id, email });
   return id;
 }
@@ -113,20 +115,21 @@ test("removals show their impact and refuse what would strand records", async ()
 
 /** The delete control of the subject row named `name` (rows share one container type). */
 async function deleteSubjectButton(page: Page, name: string) {
-  const index = await page.locator('button[title="Delete subject"]').evaluateAll((buttons, target) => buttons.findIndex(button => {
+  const index = await control(page, "Delete subject").evaluateAll((buttons, target) => buttons.findIndex(button => {
     let node: HTMLElement | null = button as HTMLElement;
-    for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) if (node.querySelectorAll('button[title="Delete subject"]').length === 1 && node.textContent?.includes(target as string)) return true;
+    for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) if (buttons.filter(other => node!.contains(other)).length === 1 && node.textContent?.includes(target as string)) return true;
     return false;
   }), name);
   assert.ok(index >= 0, `no delete control for ${name}`);
-  return page.locator('button[title="Delete subject"]').nth(index);
+  return control(page, "Delete subject").nth(index);
 }
 async function openClasses(page: Page) {
   await page.goto(`${base}/admin?view=classes`);
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden=true]').waitFor({ state: "hidden" });
   await page.getByText("Grade 7", { exact: true }).first().click();
   // "Manage" opens the class manager on this section, where its subjects and settings live.
   await page.getByRole("button", { name: /Manage|إدارة/ }).first().click();
-  await page.locator('button[title="Delete subject"]').first().waitFor();
+  await control(page, "Delete subject").first().waitFor();
 }
 
 test("the console shows the real impact before deleting a subject or archiving an occupied class", async () => {
@@ -138,7 +141,7 @@ test("the console shows the real impact before deleting a subject or archiving a
   await dialog.waitFor();
   await shot(page, "classes-subject-impact-en-1440");
   await page.keyboard.press("Escape");
-  await page.locator('button[title="Section settings"]').first().click();
+  await control(page, "Section settings").first().click();
   await page.getByRole("button", { name: "Archive Class" }).click();
   await page.getByText(/Move its 1 enrolled student/).waitFor();
   assert.equal(await page.getByRole("button", { name: "Archive Class", exact: true }).count(), 1, "only the drawer control remains; the dialog offers Close");
@@ -182,6 +185,8 @@ test("an occupied section moves all its pupils or none, keeps their history, arc
   assert.deepEqual([preview.preview.students, preview.preview.ready, preview.preview.blocked.length], [3, 3, 0]);
   assert.equal(await db.student.count({ where: { classId: toId } }), 0, "a preview changes nothing");
   const [first, second] = await Promise.all([0, 1].map(() => api.post(`${base}/api/classes/transfer`, { data: { fromClassId: fromId, toClassId: toId, effectiveDate: "2026-10-01", action: "apply", archiveAfter: true } })));
+  assert.equal(first.status(), 200, await first.text());
+  assert.equal(second.status(), 200, await second.text());
   const bodies = await Promise.all([first.json(), second.json()]);
   const moved = bodies.filter(body => body.success).reduce((sum, body) => sum + body.moved, 0);
   assert.equal(moved, 3, `two concurrent applies move each pupil once: ${JSON.stringify(bodies)}`);
@@ -202,18 +207,21 @@ test("the section settings drawer previews and performs the move, then archives 
   const ctx = await context("admin"), page = await ctx.newPage(), errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/admin?view=classes`);
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden=true]').waitFor({ state: "hidden" });
   await page.getByText("Grade 6", { exact: true }).first().click();
   await page.getByRole("button", { name: /Manage/ }).first().click();
   await page.getByText("Section A", { exact: true }).first().waitFor();
-  await page.locator('button[title="Section settings"]').first().click();
+  await control(page, "Section settings").first().click();
   const transfer = page.getByTestId("section-transfer");
   await transfer.waitFor();
   await transfer.getByLabel("Effective from").first().fill("2026-10-01");
   await transfer.getByRole("button", { name: "Preview move" }).click();
   await transfer.getByRole("status").filter({ hasText: "2 student(s) move to Grade 6 B" }).waitFor();
   await shot(page, "classes-transfer-preview-en-1440");
+  const applied = page.waitForResponse(r => new URL(r.url()).pathname === "/api/classes/transfer" && r.request().method() === "POST");
   await transfer.getByRole("button", { name: "Move 2 student(s) and archive" }).click();
-  await page.getByText(/Moved 2 student\(s\) to Grade 6 B/).first().waitFor();
+  assert.equal((await applied).status(), 200);
+  await transfer.waitFor({ state: "hidden" });
   assert.equal(await db.student.count({ where: { classId: toId } }), 2);
   assert.ok((await db.class.findUniqueOrThrow({ where: { id: fromId } })).archivedAt);
   assert.deepEqual(errors, []); await ctx.close();
@@ -227,6 +235,7 @@ test("a teacher change can take effect from an earlier date, and the history say
   const ctx = await context("admin"), page = await ctx.newPage(), bodies: unknown[] = [];
   page.on("request", request => { if (request.method() === "PATCH" && request.url().endsWith("/api/subjects")) bodies.push(request.postDataJSON()); });
   await page.goto(`${base}/admin?view=classes`);
+  await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden=true]').waitFor({ state: "hidden" });
   await page.getByText("Grade 3", { exact: true }).first().click();
   await page.getByRole("button", { name: /Manage/ }).first().click();
   const date = page.getByTestId("assignment-effective-date").first();
@@ -253,19 +262,21 @@ test("class screens fit 320, 390, 768 and 1440 in EN/AR/UR, including the dashbo
       page.on("pageerror", error => errors.push(error.message));
       // /dashboard/classes is only a redirect to this view now (§6.1); measuring it again added nothing.
       for (const path of ["/admin?view=classes"]) {
-        await page.goto(`${base}${path}`, { waitUntil: "networkidle" });
+        await page.goto(`${base}${path}`, { waitUntil: "domcontentloaded" });
+        await page.getByText("Grade 7", { exact: true }).first().waitFor();
         const state = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - window.innerWidth, dir: document.documentElement.getAttribute("dir") || document.body.getAttribute("dir"), text: document.body.innerText }));
         if (state.overflow > 1) failures.push(`${language} ${path} @${viewport.width}: ${state.overflow}px overflow`);
         if ((language === "en" ? "ltr" : "rtl") !== state.dir) failures.push(`${language} ${path} @${viewport.width}: dir=${state.dir}`);
         if (!state.text.includes("Grade 7")) failures.push(`${language} ${path} @${viewport.width}: class list missing`);
       }
-      if (language === "ur" && viewport.width === 390) { await page.goto(`${base}/admin?view=classes`, { waitUntil: "networkidle" }); await shot(page, "classes-console-ur-390"); }
+      if (language === "ur" && viewport.width === 390) { await page.goto(`${base}/admin?view=classes`, { waitUntil: "domcontentloaded" }); await shot(page, "classes-console-ur-390"); }
       if (errors.length) failures.push(`${language} @${viewport.width}: ${errors.join("; ")}`);
       await ctx.close();
     }
   }
   const teacherCtx = await context("teacher-a", { width: 390, height: 844 }), teacherPage = await teacherCtx.newPage();
-  await teacherPage.goto(`${base}/teacher/classes`, { waitUntil: "networkidle" });
+  await teacherPage.goto(`${base}/teacher/classes`, { waitUntil: "domcontentloaded" });
+  await teacherPage.getByText(/Grade 7/).first().waitFor();
   const teacherState = await teacherPage.evaluate(() => ({ overflow: document.documentElement.scrollWidth - window.innerWidth, text: document.body.innerText }));
   if (teacherState.overflow > 1) failures.push(`/teacher/classes @390: ${teacherState.overflow}px overflow`);
   if (!/Grade 7/.test(teacherState.text)) failures.push("/teacher/classes: the teacher's own class is missing");
@@ -276,9 +287,9 @@ test("class screens fit 320, 390, 768 and 1440 in EN/AR/UR, including the dashbo
 
 test("the class console works from the keyboard: open a class, its settings, and close back to where focus was", async () => {
   const ctx = await context("admin"), page = await ctx.newPage();
-  await page.goto(`${base}/admin?view=classes`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/admin?view=classes`, { waitUntil: "domcontentloaded" });
   // Start at the panel's first control ("Add Class") and Tab onward to the class row.
-  await page.getByRole("button", { name: "Add Class" }).first().focus();
+  await page.getByRole("button", { name: "Add class" }).first().focus();
   let reached = "";
   for (let i = 0; i < 30; i++) {
     await page.keyboard.press("Tab");
@@ -291,7 +302,7 @@ test("the class console works from the keyboard: open a class, its settings, and
   await manage.waitFor();
   await manage.focus();
   await page.keyboard.press("Enter");
-  const settings = page.locator('button[title="Section settings"]').first();
+  const settings = control(page, "Section settings").first();
   await settings.waitFor();
   await settings.focus();
   await page.keyboard.press("Enter");
@@ -300,7 +311,32 @@ test("the class console works from the keyboard: open a class, its settings, and
   await page.waitForFunction(() => !!document.activeElement?.closest('[role="dialog"][aria-label$="settings"]'), undefined, { timeout: 5000 });
   await page.keyboard.press("Escape");
   await drawer.waitFor({ state: "detached" });
-  assert.equal(await page.locator('button[title="Section settings"]').count() > 0, true, "one Escape closes only the drawer; the class manager stays open");
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("title")), "Section settings", "focus returns to the control that opened it");
+  assert.equal(await control(page, "Section settings").count() > 0, true, "one Escape closes only the drawer; the class manager stays open");
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Section settings", "focus returns to the control that opened it");
+  await ctx.close();
+});
+
+test("a failed class edit keeps the drawer and typed values, then retry saves once", async () => {
+  const ctx = await context("admin"), page = await ctx.newPage();
+  await openClasses(page);
+  await control(page, "Section settings").first().click();
+  const drawer = page.getByRole("dialog", { name: /settings/i });
+  await drawer.getByLabel("Section", { exact: true }).fill("Recovery QA");
+  const previous = await db.class.findUniqueOrThrow({ where: { id: occupiedId } });
+  await page.route("**/api/classes", route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "Synthetic temporary save failure" } }) : route.continue());
+  const failed = page.waitForResponse(r => new URL(r.url()).pathname === "/api/classes" && r.request().method() === "PATCH");
+  await drawer.getByRole("button", { name: "Save Changes", exact: true }).click();
+  assert.equal((await failed).status(), 503);
+  await page.getByText("Synthetic temporary save failure", { exact: false }).first().waitFor();
+  assert.equal(await drawer.isVisible(), true);
+  assert.equal(await drawer.getByLabel("Section", { exact: true }).inputValue(), "Recovery QA");
+  assert.equal((await db.class.findUniqueOrThrow({ where: { id: occupiedId } })).section, previous.section);
+  await shot(page, "class-save-retry-keeps-draft");
+  await page.unroute("**/api/classes");
+  const saved = page.waitForResponse(r => new URL(r.url()).pathname === "/api/classes" && r.request().method() === "PATCH");
+  await drawer.getByRole("button", { name: "Save Changes", exact: true }).click();
+  assert.equal((await saved).status(), 200);
+  await drawer.waitFor({ state: "hidden" });
+  assert.equal((await db.class.findUniqueOrThrow({ where: { id: occupiedId } })).section, "Recovery QA");
   await ctx.close();
 });

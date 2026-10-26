@@ -37,7 +37,17 @@ export function useWorkflowRun(initial: RunView | null) {
     return next;
   }, []);
 
-  const poll = useCallback((id: string) => refresh(id).then(() => setFailures(0), () => setFailures(count => count + 1)), [refresh]);
+  const poll = useCallback(async (id: string) => {
+    try {
+      const next = await refresh(id);
+      if (MOVING.has(next.status)) {
+        // Active user requests recover interrupted work; server leases prevent duplicate execution.
+        const result = await request<{ run: RunView }>(`/api/ai-workflows/${id}/commands`, { method: "POST", body: JSON.stringify({ type: "advance", jobVersion: next.version }) });
+        setRun(result.run);
+      }
+      setFailures(0);
+    } catch { setFailures(count => count + 1); }
+  }, [refresh]);
 
   useEffect(() => {
     if (!run || !MOVING.has(run.status)) return;
@@ -55,7 +65,7 @@ export function useWorkflowRun(initial: RunView | null) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [run, poll]);
 
-  /** One explicit read ("Check now", "Check for updates"); never sends a command. */
+  /** One explicit read ("Check now", "Check for updates"); also recovers an interrupted active run. */
   const checkNow = useCallback(() => { if (run) void poll(run.id); }, [run, poll]);
 
   const send = useCallback(async (body: Record<string, unknown>, clickKey?: string) => {
@@ -67,11 +77,13 @@ export function useWorkflowRun(initial: RunView | null) {
       const { run: next } = await request<{ run: RunView }>(`/api/ai-workflows/${run.id}/commands`, { method: "POST", body: JSON.stringify({ ...body, jobVersion: run.version, ...(clientCommandId ? { clientCommandId } : {}) }) });
       if (clickKey) commandIds.current.delete(clickKey);
       setRun(next);
+      return true;
     } catch (thrown) {
       const code = thrown instanceof WorkflowRequestError ? thrown.code : "INTERNAL";
       setError(code);
       // A stale version means the server moved on: show the current state instead of the old card.
       if (code === "STALE_VERSION" || code === "SUPERSEDED") await refresh(run.id).catch(() => undefined);
+      return false;
     } finally { setBusy(false); }
   }, [run, refresh]);
 
@@ -79,6 +91,6 @@ export function useWorkflowRun(initial: RunView | null) {
   return { run, setRun, busy, error, setError, refresh, send, connection, checkNow };
 }
 
-export async function startWorkflow(message: string, language: "en" | "ar" | "ur", idempotencyKey: string, campusId: string | null) {
-  return request<{ run: RunView }>("/api/ai-workflows", { method: "POST", body: JSON.stringify({ message, language, idempotencyKey, ...(campusId ? { campusId } : {}) }) });
+export async function startWorkflow(message: string, language: "en" | "ar" | "ur", idempotencyKey: string, campusId: string | null, parentJobId?: string) {
+  return request<{ run: RunView }>("/api/ai-workflows", { method: "POST", body: JSON.stringify({ message, language, idempotencyKey, ...(campusId ? { campusId } : {}), ...(parentJobId ? { parentJobId } : {}) }) });
 }

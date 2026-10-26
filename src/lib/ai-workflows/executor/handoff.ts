@@ -77,7 +77,7 @@ export async function claimHandoff(user: AuthUser, id: string) {
   if (!handoff || (user.role !== "SUPER_ADMIN" && handoff.campusId !== user.campusId)) throw new WorkflowError("NOT_FOUND");
   const now = new Date();
   const claimed = await prisma.aiWorkflowHandoff.updateMany({
-    where: { id, status: { in: ["OPEN", "CLAIMED"] }, OR: [{ claimedById: null }, { claimedById: user.userId }, { claimExpiresAt: { lte: now } }] },
+    where: { id, expiresAt: { gt: now }, status: { in: ["OPEN", "CLAIMED"] }, OR: [{ claimedById: null }, { claimedById: user.userId }, { claimExpiresAt: { lte: now } }] },
     data: { status: "CLAIMED", claimedById: user.userId, claimedAt: now, claimExpiresAt: new Date(now.getTime() + 30 * 60_000) },
   });
   if (!claimed.count) throw new WorkflowError("LEASED");

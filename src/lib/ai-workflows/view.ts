@@ -33,18 +33,20 @@ export interface StepView {
   id: string; key: string; capabilityKey: string; cls: ConfirmationClass; state: StepUiState;
   title: string; dependsOn: string[]; missingFields: string[];
   preview: (PreviewModel & { code: string; version: number; hash: string; inputHash: string }) | null;
-  receipt: Pick<Receipt, "kind" | "counts" | "link" | "replayed"> & { entities: number; decidedBy?: string; text?: string } | null;
+  receipt: Pick<Receipt, "kind" | "counts" | "link" | "replayed"> & { entities: number; decidedBy?: string; text?: string; conversational?: boolean; citations?: Array<{ number: number; title: string; version: number; href: string }> } | null;
   handoff: { id: string; kind: string; status: string; link: string; roles: string[] } | null;
+  formValues?: Array<{ pointer: string; value: string }>;
   errorCode: string | null;
 }
 export interface RunView {
+  requestText?: string; conversation?: Array<{ id: string; question: string; text: string }>;
   id: string; version: number; language: Locale; status: string; outcome: string | null; errorCode: string | null;
   createdAt: string; updatedAt: string; eventSeq: number;
   steps: StepView[]; questions: Array<{ id: string; promptKey: string; text: string | null; pointer: string | null; capabilityTitle: string | null; params: Record<string, string | number>; options: Array<{ value: string; label: string }> }>;
   credits: { used: number };
 }
 
-type JobWithParts = AiWorkflowJob & { steps: AiWorkflowStep[]; handoffs: AiWorkflowHandoff[]; questions: AiWorkflowQuestion[] };
+type JobWithParts = AiWorkflowJob & { requestText?: string; conversation?: RunView["conversation"]; steps: AiWorkflowStep[]; handoffs: AiWorkflowHandoff[]; questions: AiWorkflowQuestion[] };
 
 export function toRunView(job: JobWithParts): RunView {
   const language = job.language as Locale;
@@ -58,8 +60,12 @@ export function toRunView(job: JobWithParts): RunView {
       state: uiState(step.status as StepStatus, receipt, step.errorCode), title: entry?.copy.title[language] ?? step.capabilityKey,
       dependsOn: step.dependsOn, missingFields: step.missingFields,
       preview: preview && step.previewHash && step.inputHash ? { ...preview, code: step.previewHash.slice(0, 4).toUpperCase(), version: step.previewVersion, hash: step.previewHash, inputHash: step.inputHash } : null,
-      receipt: receipt ? { kind: receipt.kind, counts: receipt.counts, link: receipt.link, replayed: receipt.replayed, entities: receipt.entities.length, decidedBy: (receipt.detail as { decidedBy?: string } | undefined)?.decidedBy, text: receipt.kind === "read" ? (receipt.detail as { text?: string } | undefined)?.text : undefined } : null,
+      receipt: receipt ? { conversational: step.capabilityKey === "assistant.conversation", kind: receipt.kind, counts: receipt.counts, link: receipt.link, replayed: receipt.replayed, entities: receipt.entities.length, decidedBy: (receipt.detail as { decidedBy?: string } | undefined)?.decidedBy, text: receipt.kind === "read" ? (receipt.detail as { text?: string } | undefined)?.text : undefined, citations: receipt.kind === "read" && Array.isArray(receipt.detail?.citations) ? (receipt.detail.citations as Array<{ number: number; title: string; version: number; href: string }>).filter(cite => /^\/ai\/knowledge\/[a-zA-Z0-9-]+\?version=\d+$/.test(cite.href)).map(({ number, title, version, href }) => ({ number, title, version, href })) : undefined } : null,
       handoff: handoff ? { id: handoff.id, kind: handoff.kind, status: handoff.status, link: handoff.targetRoute, roles: handoff.targetRoles } : null,
+      ...(entry?.dialogueFields ? { formValues: entry.dialogueFields.flatMap(field => {
+        const value = (step.modelInput as Record<string, unknown> | null)?.[field.key];
+        return typeof value === "string" && !step.missingFields.includes(`/${field.key}`) ? [{ pointer: `/${field.key}`, value }] : [];
+      }) } : {}),
       errorCode: step.errorCode,
     };
   });
@@ -69,6 +75,7 @@ export function toRunView(job: JobWithParts): RunView {
     return { id: question.id, promptKey: question.promptKey, text: text ?? null, pointer: question.pointer, capabilityTitle: capabilityKey ? capability(capabilityKey)?.copy.title[language] ?? null : null, params: rest, options: Array.isArray(question.options) ? question.options as Array<{ value: string; label: string }> : [] };
   });
   return {
+    requestText: job.requestText, conversation: job.conversation,
     id: job.id, version: job.version, language, status: job.status, outcome: job.outcome, errorCode: job.errorCode,
     createdAt: job.createdAt.toISOString(), updatedAt: job.updatedAt.toISOString(), eventSeq: job.eventSeq,
     steps, questions, credits: { used: job.creditsCharged },

@@ -1,7 +1,7 @@
 import { createStudentRecords } from "@/lib/students/create";
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma, type Student } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { applyEnrollment } from "@/lib/students/enrollment";
 import {
@@ -14,8 +14,10 @@ import {
   requireAuthUser,
   resolveCampusId,
   scopedCampusWhere,
+  readJsonObject,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
 
 function asDate(value: string | null) {
   if (!value) return null;
@@ -93,8 +95,16 @@ export async function GET(req: NextRequest) {
     const flag = (key: string) => ["1", "true"].includes(searchParams.get(key) ?? "");
     const missingGuardian = flag("missingGuardian");
     const noLogin = flag("noLogin");
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50", 10), 1), 200);
+    const parsePageParam = (name: string, fallback: number, max: number) => {
+      const raw = searchParams.get(name);
+      if (raw === null || raw === "") return fallback;
+      if (!/^\d+$/.test(raw)) throw new ApiError(`${name} must be a positive integer`, 400);
+      const value = Number(raw);
+      if (!Number.isSafeInteger(value) || value < 1) throw new ApiError(`${name} must be a positive integer`, 400);
+      return Math.min(value, max);
+    };
+    const page = parsePageParam("page", 1, Number.MAX_SAFE_INTEGER);
+    const limit = parsePageParam("limit", 50, 200);
     const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
       ? null
       : await resolveCampusId(user, requestedCampusId);
@@ -186,7 +196,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "students", "edit");
 
-    const body = await req.json();
+    const body = await readJsonObject(req);
 
     if (body?.action === "restore") {
       const id = typeof body.id === "string" ? body.id : "";
@@ -310,15 +320,14 @@ export async function PATCH(req: NextRequest) {
       return Response.json({ success: true, updated: result.count, unchanged: outcomes.filter((o) => o.outcome === "unchanged").length, outcomes, status });
     }
 
-    const { id, ...updates } = body;
-    if (!id) throw new ApiError("Student id is required", 400);
+    const { id, ...updates } = studentProfileUpdateSchema.parse(body);
 
     const existing = await prisma.student.findFirst({
       where: {
         id,
         ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? updates.campusId : user.campusId),
       },
-      select: { id: true, campusId: true, classId: true },
+      select: { id: true, campusId: true, classId: true, status: true },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
@@ -328,11 +337,11 @@ export async function PATCH(req: NextRequest) {
         throw new ApiError("Placement and roll changes require review in the pupil enrollment history", 409);
       }
     }
-    const data: any = {};
+    const data: Partial<Student> = {};
+    if (updates.fullName !== undefined) data.fullName = updates.fullName;
+    if (updates.rollNo !== undefined) data.rollNo = updates.rollNo;
     for (const key of [
-      "fullName",
       "nameUr",
-      "rollNo",
       "phone",
       "guardianName",
       "guardianNameUr",
@@ -352,12 +361,12 @@ export async function PATCH(req: NextRequest) {
       "medications",
       "previousSchool",
       "nationality",
-    ]) {
+    ] as const) {
       if (updates[key] !== undefined) data[key] = updates[key] || null;
     }
-    if (["MALE", "FEMALE", "OTHER"].includes(updates.gender)) data.gender = updates.gender;
-    if (["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
-    if (STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
+    if (updates.gender) data.gender = updates.gender;
+    if (updates.bloodType && ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
+    if (updates.status && STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
     if (updates.dateOfBirth !== undefined) data.dateOfBirth = asDate(updates.dateOfBirth);
     let previousClassName = "";
     if (updates.classId && updates.classId !== existing.classId) {
@@ -500,7 +509,7 @@ export async function PATCH(req: NextRequest) {
       });
     }
 
-    if (data.status && data.status !== (existing as any).status && data.status !== "active") {
+    if (data.status && data.status !== existing.status && data.status !== "active") {
       await prisma.studentTimelineEvent.create({
         data: {
           studentId: id,

@@ -794,7 +794,7 @@ export default function CampusConsolePage() {
     });
   };
 
-  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
+  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }): Promise<boolean> => {
     setSavingClassUpdate(true);
     const failed = ui("Could not save the class changes. Please try again.");
     try {
@@ -804,8 +804,10 @@ export default function CampusConsolePage() {
       toast.success(ui("Class updated"));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
+      return true;
     } catch (error) {
       toast.error(friendlyErrorMessage(error, failed));
+      return false;
     } finally {
       setSavingClassUpdate(false);
     }
@@ -1134,7 +1136,7 @@ interface AdminCtx {
   requestGuardianAdd: () => void;
   handleChangeClassTeacher: (classId: string, teacherId: string) => Promise<void>;
   handleDeleteClass: (cls: any) => Promise<void>;
-  handleUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<void>;
+  handleUpdateClass: (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => Promise<boolean>;
   handleDeleteSubject: (subject: any) => Promise<void>;
   handleUpdateSubject: (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => Promise<void>;
   handleAddSection: (name: string, section: string, academicYear: number, convertClassId?: string) => Promise<void>;

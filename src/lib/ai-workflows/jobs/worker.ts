@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { appendEvent } from "./events";
 import { resolveJobActor } from "./actor";
+import type { Generate } from "../planner/plan";
 import { advanceJob } from "./job-service";
 
 const OWNER_ROLE = "APP_OWNER";
@@ -14,7 +15,7 @@ export const PER_SCHOOL = 2;
  * RT9: APP_OWNER jobs are never claimed here. Platform work leaves the tenant guard, so it advances only
  * inside the owner's own request, after requirePlatformOwner (session, MFA and support-grant fence).
  */
-export async function sweepWorkflowJobs(db: PrismaClient, now = new Date()) {
+export async function sweepWorkflowJobs(db: PrismaClient, now = new Date(), generate?: Generate) {
   // Wake jobs paused by a provider outage once their backoff has passed: they plan again from PLANNING.
   const woke = await db.aiWorkflowJob.updateMany({ where: { status: "PAUSED", errorCode: "PROVIDER_UNAVAILABLE", actorRole: { not: OWNER_ROLE }, nextWakeAt: { lte: now } }, data: { status: "PLANNING", nextWakeAt: null, version: { increment: 1 } } });
   // Hand-offs nobody took within 14 days expire; the step says so instead of waiting forever.
@@ -41,7 +42,7 @@ export async function sweepWorkflowJobs(db: PrismaClient, now = new Date()) {
       }).catch(() => undefined);
       continue;
     }
-    try { await advanceJob(actor, row.id, "worker"); advanced++; }
+    try { await advanceJob(actor, row.id, "worker", generate); advanced++; }
     catch { /* Another worker or the browser holds the lease, or the step recorded its own failure. */ }
   }
   return { considered: rows.length, advanced, woke: woke.count, expired };

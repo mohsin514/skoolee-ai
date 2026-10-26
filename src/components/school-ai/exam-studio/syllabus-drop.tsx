@@ -13,6 +13,14 @@ import type { Language } from "@/lib/locale/package";
 import { fillStudioCopy } from "@/lib/school-ai/exam-studio-copy";
 import { studioSyllabusCopy } from "@/lib/school-ai/exam-studio-copy-syllabus";
 import { Isolated } from "./space-state";
+import { DocumentJobsPanel } from "../document-jobs-panel";
+import { SourceImagePreview } from "../source-image-preview";
+import { SourceStructureReview, type SourceStructureChange } from "../source-structure-review";
+import { sourceStructureApprovalIssues, type ExtractedPage, type DocumentStructure } from "@/lib/school-ai/intake";
+import type { AiWorkspaceRecord, SourceData as WorkspaceSourceData } from "@/lib/school-ai/types";
+import type { DocumentJob } from "@/lib/school-ai/document-jobs";
+import { SOURCE_POLL_DEADLINE_MS, SOURCE_POLL_LIMIT, sourceExtractionState } from "@/lib/school-ai/source-extraction-state";
+import { syllabusSourceIssue } from "@/lib/school-ai/syllabus-source";
 
 /**
  * SKO-500: the Syllabus Drop. Shown in place of the Syllabus Map while a class has no approved
@@ -20,24 +28,25 @@ import { Isolated } from "./space-state";
  * upload or paste → check the text → find units and outcomes → keep the right rows → approve
  * (classroom tier) or send to the head of department. Approving the syllabus also approves the file.
  */
-type Page = { page: number; text: string; reviewed?: boolean; regions?: Array<Record<string, unknown>> };
-type SourceData = { extractedText: string; documentKind: string; subjectId?: string; classId?: string; sourcePages?: Page[]; expectedPageCount?: number | null; missingPages?: number[]; structureReviewed?: boolean; extractionStatus?: string; uncertainties?: string[]; outlineProposal?: Proposal } & Record<string, unknown>;
+type Page = ExtractedPage;
+type SourceData = WorkspaceSourceData & Record<string, unknown>;
 type Suggestion = { id: string; unit: string; title: string; code?: string; page: string; excerpt: string };
 type Proposal = { model: string; suggestions: Suggestion[] };
-type Rec<T> = { id: string; kind: string; title: string; status: string; version: number; data: T; updatedAt: string };
+type Rec<T> = Omit<AiWorkspaceRecord, "data"> & { data: T };
 type CurriculumData = { subjectId: string; classId: string; outcomes: Array<{ id: string; unit?: string }>; sources: Array<{ sourceRecordId?: string }> };
 type Step =
   | { kind: "loading" }
   | { kind: "drop" }
   | { kind: "busy"; label: string }
   | { kind: "reading"; source: Rec<SourceData> }
+  | { kind: "extraction"; source: Rec<SourceData> }
   | { kind: "check"; source: Rec<SourceData> }
   | { kind: "review"; source: Rec<SourceData>; proposal: Proposal; dropped: number }
   | { kind: "draft"; curriculum: Rec<CurriculumData>; canApprove: boolean };
 
 const RULES_MODEL = "skoolee-outline-rules-v1";
 const academicYearNow = () => { const now = new Date(); const start = now.getMonth() >= 2 ? now.getFullYear() : now.getFullYear() - 1; return `${start}-${String((start + 1) % 100).padStart(2, "0")}`; };
-const needsCheck = (data: SourceData) => data.extractionStatus === "needs_review" || Boolean(data.uncertainties?.length) || (Boolean(data.sourcePages?.length) && data.structureReviewed !== true && (data.expectedPageCount !== undefined || data.sourcePages!.some(page => page.reviewed !== undefined)));
+
 const key = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`).replace(/[^a-zA-Z0-9_-]/g, "");
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
@@ -49,77 +58,110 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApproved }: { language: Language; subjectId: string; classId: string; subjectLabel: string; onApproved: () => void }) {
   const t = studioSyllabusCopy(language);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const number = useCallback((value: number) => new Intl.NumberFormat(language).format(value), [language]);
   const [step, setStep] = useState<Step>({ kind: "loading" });
   const [error, setError] = useState<string | null>(null);
+  const [extractionBusy, setExtractionBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pasted, setPasted] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [text, setText] = useState("");
+  const [structure, setStructure] = useState<DocumentStructure>({});
   const [rows, setRows] = useState<Record<string, { keep: boolean; title: string }>>({});
   const [year, setYear] = useState(academicYearNow);
   const [board, setBoard] = useState("");
-  const poll = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (poll.current) clearTimeout(poll.current); }, []);
   const fail = useCallback((reason: unknown) => setError(reason instanceof Error && reason.message ? reason.message : t.failedStep), [t.failedStep]);
 
   const toDraft = useCallback(async (curriculum: Rec<CurriculumData>) => {
-    if (curriculum.status === "APPROVED") { onApproved(); return; }
+    if (curriculum.status === "APPROVED") { if (mounted.current) onApproved(); return; }
     const summary = await call<{ historyAccess?: { canApprove?: boolean } }>(`/api/school-ai/workspace/${encodeURIComponent(curriculum.id)}?history=summary`).catch(() => ({ historyAccess: { canApprove: false } }));
+    if (!mounted.current) return;
     setStep({ kind: "draft", curriculum, canApprove: Boolean(summary.historyAccess?.canApprove) });
   }, [onApproved]);
 
-  const toSource = useCallback((source: Rec<SourceData>, processing = false) => {
-    if (processing || (!source.data.extractedText.trim() && !source.data.sourcePages?.some(page => page.text.trim()))) {
-      setStep({ kind: "reading", source });
-      if (poll.current) clearTimeout(poll.current);
-      let tries = 0;
-      const tick = async () => {
-        tries += 1;
-        try {
-          const { record } = await call<{ record: Rec<SourceData> }>(`/api/school-ai/workspace/${encodeURIComponent(source.id)}`);
-          if (record.data.extractedText.trim() || record.data.sourcePages?.some(page => page.text.trim()) || tries > 45) { toSource(record); return; }
-        } catch { /* keep polling; the source is saved */ }
-        poll.current = setTimeout(tick, 4000);
-      };
-      poll.current = setTimeout(tick, 3000);
-      return;
-    }
-    if (source.data.outlineProposal) { openReview(source, source.data.outlineProposal, 0); return; }
-    if (needsCheck(source.data)) { setPages(source.data.sourcePages?.map(page => ({ ...page })) ?? []); setText(source.data.extractedText); setStep({ kind: "check", source }); return; }
-    void propose(source);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const openCheck = useCallback((source: Rec<SourceData>) => {
+    setPages(source.data.sourcePages?.map(page => ({ ...page })) ?? []);
+    setText(source.data.extractedText);
+    const scanned = source.data.mimeType.startsWith("image/") || source.data.mimeType === "application/pdf";
+    setStructure({ expectedPageCount: source.data.expectedPageCount ?? (scanned ? (source.data.mimeType.startsWith("image/") ? 1 : null) : undefined), missingPages: source.data.missingPages, structureReviewed: source.data.structureReviewed ?? (scanned ? false : undefined) });
+    setStep({ kind: "check", source });
   }, []);
 
-  const openReview = (source: Rec<SourceData>, proposal: Proposal, dropped: number) => {
+  const openReview = useCallback((source: Rec<SourceData>, proposal: Proposal, dropped: number) => {
     setRows(Object.fromEntries(proposal.suggestions.map(row => [row.id, { keep: true, title: row.title }])));
     setStep({ kind: "review", source, proposal, dropped });
-  };
+  }, []);
 
-  const propose = async (source: Rec<SourceData>) => {
+  const propose = useCallback(async (source: Rec<SourceData>) => {
     setError(null); setStep({ kind: "busy", label: t.proposing });
     try {
       const result = await call<{ proposal: Proposal; dropped: number }>(`/api/school-ai/workspace/${encodeURIComponent(source.id)}/outcomes/propose`, { method: "POST", body: JSON.stringify({ idempotencyKey: key() }) });
       openReview(source, result.proposal, result.dropped);
-    } catch (reason) { fail(reason); setPages(source.data.sourcePages ?? []); setText(source.data.extractedText); setStep({ kind: "check", source }); }
-  };
+    } catch (reason) { fail(reason); openCheck(source); }
+  }, [fail, openCheck, openReview, t.proposing]);
 
-  const resume = useCallback(async () => {
+  const toSource = useCallback((source: Rec<SourceData>, processing = false) => {
+    const hasText = Boolean(source.data.extractedText.trim() || source.data.sourcePages?.some(page => page.text.trim()));
+    if (processing || !hasText) {
+      // Duplicate intakes omit processing: saved original + empty text still needs its job checked.
+      if (source.data.storageKey) setStep({ kind: "reading", source });
+      else openCheck(source);
+      return;
+    }
+    if (syllabusSourceIssue(source.data)) { openCheck(source); return; }
+    // The server verifies the proposal's source-version hash before replaying it.
+    void propose(source);
+  }, [openCheck, propose]);
+
+  const readingSource = step.kind === "reading" ? step.source : null;
+  useEffect(() => {
+    if (!readingSource) return;
+    const source = readingSource;
+    let active = true, polls = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    const deadline = Date.now() + SOURCE_POLL_DEADLINE_MS;
+    const tick = async () => {
+      polls += 1;
+      controller = new AbortController();
+      const timeout = setTimeout(() => controller?.abort(), Math.min(15_000, Math.max(1, deadline - Date.now())));
+      try {
+        const [{ record }, { jobs }] = await Promise.all([
+          call<{ record: Rec<SourceData> }>(`/api/school-ai/workspace/${encodeURIComponent(source.id)}`, { signal: controller.signal }),
+          call<{ jobs: DocumentJob[] }>(`/api/school-ai/sources/${encodeURIComponent(source.id)}/jobs`, { signal: controller.signal }),
+        ]);
+        if (!active) return;
+        if (record.data.extractedText.trim() || record.data.sourcePages?.some(page => page.text.trim())) { openCheck(record); return; }
+        if (sourceExtractionState(record.version, jobs, polls) !== "waiting" || Date.now() >= deadline) { setStep({ kind: "extraction", source: record }); return; }
+      } catch {
+        if (!active) return;
+        if (polls >= SOURCE_POLL_LIMIT || Date.now() >= deadline) { setStep({ kind: "extraction", source }); return; }
+      } finally { clearTimeout(timeout); }
+      if (active) timer = setTimeout(() => void tick(), 4000);
+    };
+    void tick();
+    return () => { active = false; clearTimeout(timer); controller?.abort(); };
+  }, [readingSource, openCheck]);
+
+  const resume = useCallback(async (isActive: () => boolean) => {
     setError(null);
     try {
       const [curricula, sources] = await Promise.all([
         call<{ records: Rec<CurriculumData>[] }>("/api/school-ai/workspace?kind=CURRICULUM&activeOnly=1&limit=100"),
         call<{ records: Rec<SourceData>[] }>("/api/school-ai/workspace?kind=SOURCE&activeOnly=1&limit=100"),
       ]);
+      if (!isActive()) return;
       const draft = curricula.records.filter(row => row.data.subjectId === subjectId && row.data.classId === classId && row.status !== "APPROVED" && row.data.sources?.some(source => source.sourceRecordId)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
       if (draft) { await toDraft(draft); return; }
       const source = sources.records.filter(row => row.data.documentKind === "syllabus" && row.data.subjectId === subjectId && row.data.classId === classId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
       if (source) { toSource(source); return; }
       setStep({ kind: "drop" });
-    } catch { setStep({ kind: "drop" }); }
+    } catch { if (isActive()) setStep({ kind: "drop" }); }
   }, [classId, subjectId, toDraft, toSource]);
-  useEffect(() => { void resume(); }, [resume]);
+  useEffect(() => { let active = true; void resume(() => active); return () => { active = false; }; }, [resume]);
 
   const upload = async () => {
     if (!file) return;
@@ -133,7 +175,7 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
     } catch (reason) { fail(reason); setStep({ kind: "drop" }); }
   };
 
-  const usePasted = async () => {
+  const savePastedSource = async () => {
     if (!pasted.trim()) return;
     setError(null); setStep({ kind: "busy", label: t.uploading });
     try {
@@ -144,11 +186,13 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
 
   const confirmText = async (source: Rec<SourceData>) => {
     setError(null); setStep({ kind: "busy", label: t.proposing });
-    const structured = Boolean(source.data.sourcePages?.length);
-    const reviewedPages = pages.map((page, index) => ({ ...page, page: index + 1, reviewed: true, ...(page.regions ? { regions: page.regions.map(region => ({ ...region, reviewed: true, needsReview: false })) } : {}) }));
-    const data: SourceData = structured
-      ? { ...source.data, sourcePages: reviewedPages, expectedPageCount: reviewedPages.length, missingPages: [], structureReviewed: true, extractedText: reviewedPages.map(page => page.text).join("\n\n"), extractionStatus: "extracted", uncertainties: [] }
-      : { ...source.data, extractedText: text, extractionStatus: "extracted", uncertainties: [] };
+    const structured = Boolean(pages.length || structure.expectedPageCount !== undefined || structure.structureReviewed !== undefined);
+    const data: SourceData = {
+      ...source.data,
+      ...(structured ? { ...structure, sourcePages: pages } : {}),
+      extractedText: text, extractionStatus: "extracted", uncertainties: [],
+    };
+    if (sourceStructureApprovalIssues(data).length) { setError(t.structureRequired); setStep({ kind: "check", source }); return; }
     try {
       const { record } = await call<{ record: Rec<SourceData> }>(`/api/school-ai/workspace/${encodeURIComponent(source.id)}`, { method: "PATCH", body: JSON.stringify({ version: source.version, action: "save", data }) });
       await propose(record);
@@ -169,6 +213,7 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
     setError(null); setStep({ kind: "busy", label: action === "approve" ? t.approve : t.sendForReview });
     try {
       const { record } = await call<{ record: Rec<CurriculumData> }>(`/api/school-ai/workspace/${encodeURIComponent(curriculum.id)}`, { method: "PATCH", body: JSON.stringify({ version: curriculum.version, action }) });
+      if (!mounted.current) return;
       if (record.status === "APPROVED") { setNotice(t.approved); onApproved(); return; }
       await toDraft(record);
     } catch (reason) { fail(reason); await toDraft(curriculum); }
@@ -194,7 +239,18 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
     {notice ? <Alert tone="success" compact live="polite">{notice}</Alert> : null}
     {step.kind === "loading" ? <TaskLoading label={t.mapTitle} /> : null}
     {step.kind === "busy" ? <TaskLoading label={step.label} /> : null}
-    {step.kind === "reading" ? <TaskLoading label={t.reading} /> : null}
+    {step.kind === "reading" ? <>
+      <TaskLoading label={t.reading} />
+      <Button type="button" variant="outline" onClick={() => setStep({ kind: "extraction", source: step.source })}>{t.reviewExtraction}</Button>
+    </> : null}
+    {step.kind === "extraction" ? <>
+      {header(<ScanText aria-hidden="true" className="size-5 text-primary" />, t.extractionTitle, t.extractionIntro)}
+      <DocumentJobsPanel language={language} record={step.source} canCreate canDelete={false} onBusyChange={setExtractionBusy} onRecord={record => openCheck(record as AiWorkspaceRecord<"SOURCE">)} />
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" data-drop-action="manual-review" disabled={extractionBusy} onClick={() => openCheck(step.source)}>{t.manualReview}</Button>
+        <Button type="button" variant="ghost" disabled={extractionBusy} onClick={() => setStep({ kind: "drop" })}>{t.startOver}</Button>
+      </div>
+    </> : null}
 
     {step.kind === "drop" ? <>
       {header(<FileUp aria-hidden="true" className="size-5 text-primary" />, t.dropTitle, fillStudioCopy(t.dropIntro, [subjectLabel]))}
@@ -209,7 +265,7 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
           <FormField name="syllabusText" label={t.pasteLabel} hint={t.pasteHint}>
             <Textarea rows={6} dir="auto" value={pasted} maxLength={80000} onChange={event => setPasted(event.currentTarget.value)} />
           </FormField>
-          <Button type="button" variant="outline" onClick={() => void usePasted()} disabled={!pasted.trim()} data-drop-action="paste">{t.usePasted}</Button>
+          <Button type="button" variant="outline" onClick={() => void savePastedSource()} disabled={!pasted.trim()} data-drop-action="paste">{t.usePasted}</Button>
         </div>
       </div>
     </> : null}
@@ -217,13 +273,18 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
     {step.kind === "check" ? <>
       {header(<ScanText aria-hidden="true" className="size-5 text-primary" />, t.checkTitle, t.checkIntro)}
       {step.source.data.uncertainties?.length ? <Alert tone="warning"><p className="font-semibold">{t.uncertain}</p><ul className="list-disc ps-5">{step.source.data.uncertainties.map(item => <li key={item}><Isolated>{item}</Isolated></li>)}</ul></Alert> : null}
-      {pages.length ? pages.map((page, index) => <FormField key={page.page} name={`page-${page.page}`} label={fillStudioCopy(t.page, [number(page.page)])}>
-        <Textarea rows={6} dir="auto" value={page.text} maxLength={20000} onChange={event => { const value = event.currentTarget.value; setPages(current => current.map((row, at) => at === index ? { ...row, text: value } : row)); }} />
-      </FormField>) : <FormField name="syllabusCheck" label={t.textLabel}>
+      {step.source.data.storageKey && step.source.data.mimeType.startsWith("image/") ? <SourceImagePreview recordId={step.source.id} mimeType={step.source.data.mimeType} language={language} /> : null}
+      {step.source.data.storageKey ? <a href={`/api/school-ai/sources/${encodeURIComponent(step.source.id)}/file`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-sm font-semibold text-primary underline">{t.openOriginal}</a> : null}
+      {pages.length || structure.expectedPageCount !== undefined || structure.structureReviewed !== undefined ? <SourceStructureReview language={language} pages={pages} {...structure} onChange={(changes: SourceStructureChange) => {
+        if (changes.sourcePages) setPages(changes.sourcePages);
+        if (changes.extractedText !== undefined) setText(changes.extractedText);
+        setStructure(current => ({ ...current, ...Object.fromEntries(Object.entries(changes).filter(([name]) => name !== "sourcePages" && name !== "extractedText")) }));
+      }} /> : null}
+      <FormField name="syllabusCheck" label={t.textLabel}>
         <Textarea rows={10} dir="auto" value={text} maxLength={80000} onChange={event => setText(event.currentTarget.value)} />
-      </FormField>}
+      </FormField>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" data-drop-action="confirm" onClick={() => void confirmText(step.source)} disabled={pages.length ? !pages.some(page => page.text.trim()) : !text.trim()}>{t.textLooksRight}</Button>
+        <Button type="button" data-drop-action="confirm" onClick={() => void confirmText(step.source)} disabled={!text.trim() || sourceStructureApprovalIssues({ ...structure, sourcePages: pages, extractedText: text }).length > 0}>{t.textLooksRight}</Button>
         <Button type="button" variant="ghost" onClick={() => setStep({ kind: "drop" })}>{t.startOver}</Button>
       </div>
     </> : null}
@@ -240,7 +301,7 @@ export function SyllabusDrop({ language, subjectId, classId, subjectLabel, onApp
               <Checkbox className="mt-3" checked={rows[row.id]?.keep ?? false} aria-label={row.title} onChange={event => { const keep = event.currentTarget.checked; setRows(current => ({ ...current, [row.id]: { ...current[row.id], keep } })); }} />
               <div className="min-w-0 flex-1 space-y-1">
                 <Input dir="auto" aria-label={t.titleLabel} value={rows[row.id]?.title ?? row.title} maxLength={1200} disabled={!rows[row.id]?.keep} onChange={event => { const title = event.currentTarget.value; setRows(current => ({ ...current, [row.id]: { ...current[row.id], title } })); }} />
-                <p className="text-xs text-ink-subtle">{row.code ? <><Isolated>{row.code}</Isolated> · </> : null}{fillStudioCopy(t.page, [row.page])}</p>
+                <p className="text-xs text-ink-subtle">{row.code ? <><Isolated>{row.code}</Isolated> · </> : null}{row.page === "text" ? t.unpaginatedText : fillStudioCopy(t.page, [row.page])}</p>
               </div>
             </li>)}
           </ul>

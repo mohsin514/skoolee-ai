@@ -421,7 +421,7 @@ async function completeChat({
   );
 }
 
-function isOpenAIQuotaExhausted(error: unknown) {
+export function isOpenAIQuotaExhausted(error: unknown) {
   if (!error || typeof error !== "object") return false;
   const value = error as { status?: unknown; code?: unknown; type?: unknown; error?: { code?: unknown; type?: unknown } };
   const status = value.status;

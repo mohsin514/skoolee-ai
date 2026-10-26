@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import type { AuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { checkCapabilityAccess } from "../registry/gates";
 import { WorkflowError } from "../errors";
 import { sha256 } from "../executor/canonical";
 import { entryFor, runExecStep } from "../executor/step-runner";
@@ -22,6 +23,7 @@ import type { Generate } from "../planner/plan";
 const hex = z.string().regex(/^[a-f0-9]{64}$/);
 const commandId = z.string().min(8).max(128).regex(/^[\w-]+$/);
 export const commandSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("advance"), jobVersion: z.number().int().positive() }),
   z.strictObject({ type: z.literal("confirm"), jobVersion: z.number().int().positive(), clientCommandId: commandId,
     steps: z.array(z.strictObject({ stepId: z.string().min(1).max(128), previewVersion: z.number().int().positive(), previewHash: hex, inputHash: hex })).min(1).max(10) }),
   z.strictObject({ type: z.literal("answer"), jobVersion: z.number().int().positive(), clientCommandId: commandId, text: z.string().trim().min(1).max(4000) }),
@@ -40,8 +42,10 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
     const job = await prisma.aiWorkflowJob.findFirst({ where: { id: jobId, schoolId: user.schoolId, actorId: user.userId } });
     if (!job) throw new WorkflowError("NOT_FOUND");
 
+    if (command.type === "advance") return advanceJob(user, jobId, "request", generate);
+
     if (command.type === "confirm") {
-      const previous = await prisma.aiWorkflowConfirmation.findFirst({ where: { schoolId: user.schoolId, confirmedById: user.userId, clientCommandId: `${command.clientCommandId}:0` } });
+      const previous = await prisma.aiWorkflowConfirmation.findFirst({ where: { schoolId: user.schoolId, confirmedById: user.userId, jobId, clientCommandId: `${command.clientCommandId}:0` } });
       if (previous) return advanceJob(user, jobId, "request", generate); // a repeated click replays, it never runs twice
       if (job.version !== command.jobVersion) throw new WorkflowError("STALE_VERSION");
       await assertQuestionnaireCurrent(user, job);
@@ -54,11 +58,15 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
           if (step.previewVersion !== item.previewVersion || step.previewHash !== item.previewHash || step.inputHash !== item.inputHash) throw new WorkflowError("STALE_VERSION");
           const entry = entryFor(step);
           if (entry.class === "C") throw new WorkflowError("CONFIRM_REQUIRED");
+          const access = await checkCapabilityAccess(ctx, entry);
+          if (!access.ok) throw new WorkflowError("ROLE_NOT_ALLOWED");
           // Re-read what the user saw: if the records behind the preview changed, they confirm again.
           const input = entry.input.parse(step.boundInput);
-          const fresh = entry.preview ? await entry.preview(ctx, input) : null;
+          let fresh = entry.preview ? await entry.preview(ctx, input) : null;
           if (fresh && sha256(fresh) !== step.previewHash) {
-            await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { preview: fresh as unknown as Prisma.InputJsonValue, previewHash: sha256(fresh), previewVersion: { increment: 1 }, version: { increment: 1 } } });
+            const rebound = entry.refreshOnReconfirm && entry.resolve ? entry.input.parse(await entry.resolve(ctx, input)) : input;
+            if (entry.refreshOnReconfirm && entry.preview) fresh = await entry.preview(ctx, rebound);
+            await prisma.aiWorkflowStep.update({ where: { id: step.id }, data: { boundInput: rebound as Prisma.InputJsonValue, inputHash: sha256({ capability: entry.key, version: entry.version, input: rebound }), preview: fresh as unknown as Prisma.InputJsonValue, previewHash: sha256(fresh), previewVersion: { increment: 1 }, version: { increment: 1 } } });
             throw new WorkflowError("STALE_VERSION");
           }
           await prisma.aiWorkflowConfirmation.create({ data: { schoolId: user.schoolId, jobId, stepId: step.id, previewVersion: step.previewVersion, previewHash: step.previewHash!, inputHash: step.inputHash!, jobVersion: job.version, batchId: command.steps.length > 1 ? command.clientCommandId : null, setHash, confirmedById: user.userId, sessionTokenHash, clientCommandId: `${command.clientCommandId}:${index}`, expiresAt: new Date(Date.now() + CONFIRMATION_TTL_MS) } });
@@ -72,16 +80,23 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
 
     if (command.type === "answer") {
       if (mentionsCare(command.text)) throw new WorkflowError("CARE_REFERRAL");
+      const answerHash = sha256(normalizeText(command.text));
+      const previous = await prisma.aiWorkflowQuestion.findFirst({ where: { jobId, schoolId: user.schoolId, answeredById: user.userId, answer: { path: ["clientCommandId"], equals: command.clientCommandId } } });
+      if (previous) {
+        if ((previous.answer as { hash?: string }).hash !== answerHash) throw new WorkflowError("KEY_CONFLICT");
+        return advanceJob(user, jobId, "request", generate);
+      }
       if (job.status !== "NEEDS_INPUT") throw new WorkflowError("SUPERSEDED");
       if (job.version !== command.jobVersion) throw new WorkflowError("STALE_VERSION");
       await prisma.$transaction(async tx => {
+        const claimed = await tx.aiWorkflowJob.updateMany({ where: { id: jobId, schoolId: user.schoolId, actorId: user.userId, status: "NEEDS_INPUT", version: command.jobVersion }, data: { status: "PLANNING", version: { increment: 1 } } });
+        if (claimed.count !== 1) throw new WorkflowError("STALE_VERSION");
         const last = await tx.aiWorkflowSegment.findFirst({ where: { jobId, schoolId: user.schoolId }, orderBy: { ordinal: "desc" }, select: { ordinal: true } });
         if ((last?.ordinal ?? 0) >= 30) throw new WorkflowError("BUDGET_EXHAUSTED", { cap: 30 });
         // The answer joins the user's own words; the next plan replays anything already committed.
         await tx.aiWorkflowSegment.create({ data: { schoolId: user.schoolId, jobId, ordinal: (last?.ordinal ?? 0) + 1, kind: "ANSWER", text: command.text, normalized: normalizeText(command.text) } });
-        await tx.aiWorkflowQuestion.updateMany({ where: { jobId, schoolId: user.schoolId, status: "OPEN" }, data: { status: "ANSWERED", answer: { segment: (last?.ordinal ?? 0) + 1 }, answeredById: user.userId, answeredAt: new Date() } });
+        await tx.aiWorkflowQuestion.updateMany({ where: { jobId, schoolId: user.schoolId, status: "OPEN" }, data: { status: "ANSWERED", answer: { segment: (last?.ordinal ?? 0) + 1, clientCommandId: command.clientCommandId, hash: answerHash }, answeredById: user.userId, answeredAt: new Date() } });
         await tx.aiWorkflowStep.updateMany({ where: { jobId, schoolId: user.schoolId, planVersion: job.planVersion, status: { in: ["PENDING", "NEEDS_INPUT", "READY", "WAITING_CONFIRM"] } }, data: { status: "CANCELLED", finishedAt: new Date() } });
-        await tx.aiWorkflowJob.update({ where: { id: jobId }, data: { status: "PLANNING", version: { increment: 1 } } });
         await appendEvent(tx, job, "QUESTION_ANSWERED");
       });
       return advanceJob(user, jobId, "request", generate);
@@ -101,6 +116,8 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
         if (!offered || offered.expect !== command.expect || Object.keys(offered.patch).some(key => !entry.humanFields?.includes(key))) throw new WorkflowError("INVALID_INPUT");
         if (entry.class === "C" || !entry.preview) throw new WorkflowError("INVALID_INPUT");
         const ctx = await capabilityContext(user, job.campusId, job.language as "en" | "ar" | "ur");
+        const access = await checkCapabilityAccess(ctx, entry);
+        if (!access.ok) throw new WorkflowError("ROLE_NOT_ALLOWED");
         // The count the person saw must still hold against today's records (a pupil joined, a mark arrived).
         const current = await entry.preview(ctx, entry.input.parse(step.boundInput));
         if (current.actions?.find(action => action.id === command.actionId)?.expect !== command.expect) throw new WorkflowError("STALE_VERSION");
@@ -122,7 +139,10 @@ export function runCommand(user: AuthUser, jobId: string, raw: unknown, sessionT
       return prisma.$transaction(async tx => { const updated = await tx.aiWorkflowJob.update({ where: { id: jobId }, data: { status: "PAUSED", version: { increment: 1 } } }); await appendEvent(tx, job, "JOB_PAUSED"); return updated; });
     }
     if (job.status !== "PAUSED" && job.status !== "FAILED") return job;
-    await prisma.$transaction(async tx => { await tx.aiWorkflowJob.update({ where: { id: jobId }, data: { status: job.planVersion ? "RUNNING" : "PLANNING", errorCode: null, version: { increment: 1 } } }); await appendEvent(tx, job, "JOB_RESUMED"); });
+    // An answered plan has cancelled steps; a provider failure must re-plan, not complete them.
+    const remaining = await prisma.aiWorkflowStep.count({ where: { jobId, schoolId: user.schoolId, planVersion: job.planVersion, status: { not: "CANCELLED" } } });
+    const cancelled = await prisma.aiWorkflowStep.count({ where: { jobId, schoolId: user.schoolId, planVersion: job.planVersion, status: "CANCELLED" } });
+    await prisma.$transaction(async tx => { await tx.aiWorkflowJob.update({ where: { id: jobId }, data: { status: job.planVersion && remaining > 0 && cancelled === 0 ? "RUNNING" : "PLANNING", errorCode: null, version: { increment: 1 } } }); await appendEvent(tx, job, "JOB_RESUMED"); });
     return advanceJob(user, jobId, "request", generate);
   });
 }

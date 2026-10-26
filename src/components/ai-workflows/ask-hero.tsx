@@ -7,13 +7,13 @@ import { runText } from "./run-links";
 
 /**
  * The personal /ai cover (parents, students, the app owner): ink cover, eyebrow, the one h1 and a
- * sub-line. The Ask card overlaps its lower edge. `badge` holds the demo-school badge when it applies.
+ * sub-line. The role workflow catalogue follows it; chat is docked at the bottom.
  */
 export function AskHero({ headingId, badge }: { headingId: string; badge?: React.ReactNode }) {
   const { language } = useLocale();
   const lang: Lang = language === "ar" || language === "ur" ? language : "en";
   return (
-    <header data-ai-ask-hero className="sk-ink-cover sk-enter space-y-3 px-5 pb-14 pt-6 sm:px-8 sm:pb-16 sm:pt-8" dir={lang === "en" ? "ltr" : "rtl"}>
+    <header data-ai-ask-hero className="sk-ink-cover sk-enter space-y-3 px-5 py-6 sm:px-8 sm:py-8" dir={lang === "en" ? "ltr" : "rtl"}>
       <span className="sk-quiz-orb" data-tone="brand" aria-hidden="true" />
       <span className="sk-quiz-orb" data-tone="berry" aria-hidden="true" />
       <div className="flex flex-wrap items-center gap-2">

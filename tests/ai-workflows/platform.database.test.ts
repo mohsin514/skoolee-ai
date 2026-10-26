@@ -66,7 +66,7 @@ test("every platform entry is APP_OWNER-only, platform-scoped with a stated reas
     assert.deepEqual([...entry.roles], ["APP_OWNER"], entry.key);
     assert.equal(entry.scope.kind, "platform", entry.key);
     assert.ok(entry.scope.kind === "platform" && entry.scope.unscopedReason.trim().length > 10, `${entry.key} states its unscopedReason`);
-    assert.equal(entry.class, entry.key === "platform.pilot_create" ? "B" : "C", entry.key);
+    assert.equal(entry.class, ["platform.pilot_create", "platform.set_default_plan_pricing"].includes(entry.key) ? "B" : "C", entry.key);
   }
   assert.equal(handoff("platform.payment_connect_onboarding").handoff.kind, "DEEP_LINK");
   const { home, owner } = await fixture();
@@ -154,7 +154,6 @@ test("every C entry prepares the owner's own screen with step-up and writes noth
     ["platform.subscription_request_review", { school: targetName, decision: "APPROVE_REQUEST", reason: "Paid by bank transfer on Monday" }, "/owner?view=subscription-requests"],
     ["platform.provision_school", { schoolName: `Synthetic Crescent ${tag}`, kind: "STANDALONE", city: "Karachi", plan: "BASIC", ownerName: "Sara Khan", ownerEmail: `sara-${tag}@example.invalid` }, "/owner?view=schools"],
     ["platform.update_school_plan_status", { school: targetName, plan: "ENTERPRISE" }, "/owner?view=schools"],
-    ["platform.set_default_plan_pricing", { prices: { BASIC: 4567.5 } }, "/owner?view=pricing"],
     ["platform.payment_connect_onboarding", {}, "/owner?view=payments"],
     ["platform.session_terminate", { account: `bursar-${tag}@example.invalid` }, "/owner?view=sessions"],
   ];
@@ -208,4 +207,83 @@ test("RT9: the worker sweep never claims an APP_OWNER job", async () => {
   assert.equal(after.leaseToken, null);
   assert.equal(after.leaseExpiresAt, null);
   assert.equal(await db.aiWorkflowEvent.count({ where: { jobId: job.id } }), 0, "nothing is claimed");
+});
+
+test("expired platform handoffs cannot be claimed", async () => {
+  const { owner } = await fixture();
+  const { startJob, savePlan, advanceJob } = await import("../../src/lib/ai-workflows/jobs/job-service");
+  const { claimHandoff } = await import("../../src/lib/ai-workflows/executor/handoff");
+  const { inTenant } = await import("../../src/lib/ai-workflows/jobs/actor");
+  const job = await startJob(owner, { message: "Prepare a school", language: "en", idempotencyKey: KEY() });
+  await savePlan(owner, job.id, [{ stepKey: "s1", capabilityKey: "platform.provision_school", input: { schoolName: "Synthetic Expiry School", kind: "STANDALONE", city: "Test", ownerName: "Synthetic Owner", ownerEmail: `${randomUUID()}@example.invalid` } }]);
+  await advanceJob(owner, job.id);
+  const row = await db.aiWorkflowHandoff.findFirstOrThrow({ where: { jobId: job.id } });
+  await db.aiWorkflowHandoff.update({ where: { id: row.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+  await assert.rejects(inTenant(owner, () => claimHandoff(owner, row.id)), { code: "LEASED" });
+  assert.equal((await db.aiWorkflowHandoff.findUniqueOrThrow({ where: { id: row.id } })).status, "OPEN");
+});
+
+test("Ask institution lookup filters missing cities and exposes the actual results to the UI", async () => {
+  const { owner, targetName } = await fixture();
+  const blankName = `Synthetic filter ${randomUUID()}`;
+  const blank = await school(blankName, "");
+  const { startJob, savePlan, advanceJob, getJob } = await import("../../src/lib/ai-workflows/jobs/job-service");
+  const { toRunView } = await import("../../src/lib/ai-workflows/view");
+  const run = async (input: unknown) => {
+    const job = await startJob(owner, { message: "List schools missing a city", language: "en", idempotencyKey: KEY() });
+    await savePlan(owner, job.id, [{ stepKey: "s1", capabilityKey: "platform.inspect", input }]);
+    await advanceJob(owner, job.id);
+    return toRunView(await getJob(owner, job.id));
+  };
+  const found = await run({ missingCity: true, search: blankName });
+  assert.equal(found.outcome, "ANSWERED");
+  assert.equal(found.steps[0].receipt?.text, blankName);
+  assert.deepEqual(found.steps[0].receipt?.counts, { schools: 1 });
+  const excluded = await run({ missingCity: true, search: targetName });
+  assert.deepEqual(excluded.steps[0].receipt?.counts, { schools: 0 });
+  assert.equal(excluded.steps[0].receipt?.text, "No schools match this filter.");
+  assert.equal((await db.school.findUniqueOrThrow({ where: { id: blank } })).city, "", "lookup changes nothing");
+});
+
+test("default package pricing previews in chat, saves and audits once, rejects stale state and non-owners", async () => {
+  const { owner, home } = await fixture();
+  const ctx = await inTenant(owner, () => ctxFor(owner));
+  const entry = exec("platform.set_default_plan_pricing");
+  const original = await db.platformConfig.findUnique({ where: { key: "default_plan_pricing" } });
+  try {
+    const input = await inTenant(owner, () => bind(ctx, entry.key, { prices: { BASIC: 4567.5 } }));
+    const before = await db.superAdminAuditLog.count({ where: { userId: owner.userId } });
+    const preview = await inTenant(owner, () => entry.preview!(ctx, input));
+    assert.equal(preview.lines[0].label, "Pro");
+    assert.equal(preview.confirmLabel, "Save package prices");
+    assert.equal(await db.superAdminAuditLog.count({ where: { userId: owner.userId } }), before);
+    const key = KEY();
+    const receipt = await inTenant(owner, () => entry.execute(ctx, input, { idempotencyKey: key }));
+    assert.equal(receipt.kind, "write");
+    assert.equal((await db.platformConfig.findUniqueOrThrow({ where: { key: "default_plan_pricing" } })).value && ((await db.platformConfig.findUniqueOrThrow({ where: { key: "default_plan_pricing" } })).value as any).BASIC.price, 4567.5);
+    await inTenant(owner, () => entry.execute(ctx, input, { idempotencyKey: key }));
+    assert.equal(await db.superAdminAuditLog.count({ where: { userId: owner.userId } }), before + 1);
+    await assert.rejects(inTenant(owner, () => entry.execute(ctx, { ...input, prices: { BASIC: 4999 }, expected: {} }, { idempotencyKey: KEY() })), /Prices changed/);
+    const student = await user(home, "STUDENT");
+    const studentCtx = await inTenant(student, () => ctxFor(student));
+    await assert.rejects(inTenant(student, () => entry.execute(studentCtx, input, { idempotencyKey: KEY() })), /application owner/);
+  } finally {
+    if (original) await db.platformConfig.update({ where: { key: original.key }, data: { value: original.value as any, updatedBy: original.updatedBy } });
+    else await db.platformConfig.deleteMany({ where: { key: "default_plan_pricing" } });
+  }
+});
+
+test("role plans enumerate only registered role actions and distinguish chat confirmation from handoffs", async () => {
+  const { buildRolePlan } = await import("../../src/lib/ai-workflows/planner/role-plan");
+  const { capability } = await import("../../src/lib/ai-workflows/registry");
+  const { owner, home } = await fixture();
+  for (const role of ["APP_OWNER", "SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "STUDENT", "PARENT", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] as const) {
+    const actor = role === "APP_OWNER" ? owner : await user(home, role);
+    const plan = await inTenant(actor, async () => buildRolePlan(await ctxFor(actor)));
+    assert.equal(plan.role, role);
+    for (const action of plan.actions) assert.ok(capability(action.key)!.roles.includes(role));
+    if (role !== "APP_OWNER") assert.ok(plan.actions.every(action => !action.key.startsWith("platform.")));
+    else assert.equal(plan.actions.find(action => action.key === "platform.set_default_plan_pricing")?.execution, "confirm_in_chat");
+    if (role === "STUDENT" || role === "PARENT") assert.ok(plan.actions.every(action => action.key !== "attendance.mark"));
+  }
 });

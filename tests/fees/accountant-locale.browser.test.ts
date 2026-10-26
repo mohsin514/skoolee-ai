@@ -25,9 +25,9 @@ const TABS = ["Fee types", "Fee groups", "Amounts", "Class groups", "Discounts",
 before(async () => {
   await db.school.create({ data: { id: schoolId, name: SCHOOL, slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } as never });
   await db.campus.create({ data: { id: campusId, schoolId, name: "Cedar campus", regId: campusId, city: "Lahore" } });
-  for (const lang of ["ar", "ur"]) {
+  for (const lang of ["ar", "ur", "en"]) {
     const email = `${randomUUID()}@example.invalid`;
-    await db.user.create({ data: { email, password: await bcrypt.hash(password, 10), fullName: `Synthetic accountant ${lang}`, role: "ACCOUNTANT", schoolId, campusId, isActive: true, onboardingComplete: true, preferredLanguage: lang } });
+    await db.user.create({ data: { email, password: await bcrypt.hash(password, 10), fullName: `Synthetic accountant ${lang}`, role: "ACCOUNTANT", schoolId, campusId, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { accountant: { v: 1, s: "done", at: new Date().toISOString() } }, preferredLanguage: lang } });
     users.set(lang, email);
   }
   await db.authAttempt.deleteMany({});
@@ -64,7 +64,51 @@ for (const lang of ["ar", "ur"] as const) {
     assert.ok(text.includes(translateUi("Finance desk", lang)));
     for (const english of ["Integrations", "Identity and roster", "Improvement evidence", "Group policy"]) assert.ok(!text.includes(english), `sidebar has no untranslated "${english}"`);
     assert.ok(text.includes(SCHOOL), "the school's own name is shown verbatim");
+    await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
     await page.screenshot({ path: `${evidence}/${lang}-fee-structures.png` });
     await ctx.close();
   });
 }
+
+
+test("stale invoice/payment failures cannot overwrite a newer filter result; current errors retry", async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
+  assert.equal((await ctx.request.post(base + "/api/auth/login", { data: { email: users.get("en")!, password } })).status(), 200);
+  const { secret } = await (await ctx.request.post(base + "/api/auth/mfa", { data: { action: "setup" } })).json();
+  if (secret) { await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret) } }); await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
+  const page = await ctx.newPage();
+  for (const kind of ["invoices", "payments"] as const) {
+    let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
+    let started!: () => void; const pending = new Promise<void>(resolve => { started = resolve; });
+    let failCurrent = false;
+    await page.route(`**/api/fees/${kind}?*`, async route => {
+      const query = new URL(route.request().url()).searchParams;
+      const slow = kind === "invoices" ? query.get("status") === "PENDING" : query.get("method") === "cash";
+      if (slow) { started(); await held; }
+      await route.fulfill({ status: slow || failCurrent ? 503 : 200, json: slow || failCurrent ? { success: false } : { success: true, data: [], total: 0, totalPages: 1 } });
+    });
+    await page.goto(`${base}/accountant?view=${kind}`);
+    await page.locator('div.pointer-events-none.fixed.inset-0[aria-hidden="true"]').waitFor({ state: "hidden" });
+    if (kind === "invoices") await page.getByRole("button", { name: "Pending", exact: true }).click();
+    else await page.getByRole("combobox", { name: "Payment method" }).selectOption("cash");
+    await pending;
+    const fresh = page.waitForResponse(response => response.url().includes(`/api/fees/${kind}?`) && response.status() === 200);
+    if (kind === "invoices") await page.getByRole("button", { name: "Paid", exact: true }).click();
+    else await page.getByRole("combobox", { name: "Payment method" }).selectOption("card");
+    await fresh;
+    const stale = page.waitForResponse(response => response.url().includes(`/api/fees/${kind}?`) && response.status() === 503);
+    release(); await stale;
+    await page.waitForTimeout(100);
+    assert.equal(await page.getByRole("button", { name: /Try again|Retry/ }).count(), 0, "old failure is ignored");
+    failCurrent = true;
+    if (kind === "invoices") await page.getByRole("button", { name: "Overdue", exact: true }).click();
+    else await page.getByRole("combobox", { name: "Payment method" }).selectOption("cheque");
+    const retry = page.getByRole("button", { name: /Try again|Retry/ });
+    await retry.waitFor();
+    await page.screenshot({ path: `${evidence}/${kind}-retry-390.png` });
+    failCurrent = false; await retry.click(); await retry.waitFor({ state: "hidden" });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.unroute(`**/api/fees/${kind}?*`);
+  }
+  await ctx.close();
+});

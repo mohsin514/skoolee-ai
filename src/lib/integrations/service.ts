@@ -7,7 +7,8 @@ import { ApiError } from "@/lib/api/scope";
 import { isCampusOperator, isInstitutionAuthority } from "@/lib/auth/institution";
 import { protectSecret, revealSecret } from "@/lib/auth/mfa-crypto";
 import { CONTRACTS, V1 } from "./contract";
-import { checkDestination, validateShape } from "./destination";
+import { checkDestination, pinnedDestinationLookup, validateShape } from "./destination";
+import { Agent, fetch } from "undici";
 
 // SKO-445: scoped service connections, the public v1 contract and signed outbound webhooks.
 // - A connection names its campuses and scopes; its key never carries the creator's own privileges. Keys are
@@ -236,11 +237,17 @@ async function attempt(id: string) {
     ? finish(outcome, { status: "FAILED", lastStatusCode: statusCode, lastError: `${error} Delivery failed after ${n} attempts. Review the destination before replaying.` }, { statusCode, error, durationMs: Date.now() - started, address: check.address, signedWith: secrets.length })
     : finish(outcome, { status: "PENDING", lastStatusCode: statusCode, lastError: error, nextAttemptAt: new Date(Date.now() + Math.max(retryAfterMs ?? 0, backoff(n))) }, { statusCode, error, durationMs: Date.now() - started, address: check.address, signedWith: secrets.length });
   try {
-    const response = await fetch(check.url, { method: "POST", redirect: "manual", signal: AbortSignal.timeout(Number(process.env.INTEGRATION_TIMEOUT_MS ?? 5000)), headers: { "Content-Type": "application/json", "User-Agent": "Skoolee-Webhooks/1", "Skoolee-Event-Id": d.event.id, "Skoolee-Topic": d.event.topic, "Skoolee-Delivery-Attempt": String(n), "Skoolee-Signature": signature }, body });
-    if (response.status >= 300 && response.status < 400) return finish("REDIRECT_REFUSED", { status: "BLOCKED", lastStatusCode: response.status, lastError: "The destination redirected; redirects are not followed. Update the webhook URL." }, { statusCode: response.status, error: "Redirect refused.", durationMs: Date.now() - started, address: check.address, signedWith: secrets.length });
-    if (response.ok) return finish("DELIVERED", { status: "DELIVERED", deliveredAt: new Date(), lastStatusCode: response.status, lastError: null }, { statusCode: response.status, durationMs: Date.now() - started, address: check.address, signedWith: secrets.length });
-    if (response.status === 429) { const ra = Number(response.headers.get("retry-after")); return retryOrFail(429, "The destination asked us to slow down.", "RATE_LIMITED", Number.isFinite(ra) ? ra * 1000 : undefined); }
-    return retryOrFail(response.status, `The destination answered ${response.status}.`, "HTTP_ERROR");
+    // Pin the connection to the address validated above while retaining the
+    // original hostname for TLS SNI and the HTTP Host header. This closes the
+    // DNS check/use gap without weakening certificate verification.
+    const dispatcher = new Agent({ connect: { lookup: pinnedDestinationLookup(check.address) } });
+    try {
+      const response = await fetch(check.url, { dispatcher, method: "POST", redirect: "manual", signal: AbortSignal.timeout(Number(process.env.INTEGRATION_TIMEOUT_MS ?? 5000)), headers: { "Content-Type": "application/json", "User-Agent": "Skoolee-Webhooks/1", "Skoolee-Event-Id": d.event.id, "Skoolee-Topic": d.event.topic, "Skoolee-Delivery-Attempt": String(n), "Skoolee-Signature": signature }, body });
+      if (response.status >= 300 && response.status < 400) return finish("REDIRECT_REFUSED", { status: "BLOCKED", lastStatusCode: response.status, lastError: "The destination redirected; redirects are not followed. Update the webhook URL." }, { statusCode: response.status, error: "Redirect refused.", durationMs: Date.now() - started, address: check.address, signedWith: secrets.length });
+      if (response.ok) return finish("DELIVERED", { status: "DELIVERED", deliveredAt: new Date(), lastStatusCode: response.status, lastError: null }, { statusCode: response.status, durationMs: Date.now() - started, address: check.address, signedWith: secrets.length });
+      if (response.status === 429) { const ra = Number(response.headers.get("retry-after")); return retryOrFail(429, "The destination asked us to slow down.", "RATE_LIMITED", Number.isFinite(ra) ? ra * 1000 : undefined); }
+      return retryOrFail(response.status, `The destination answered ${response.status}.`, "HTTP_ERROR");
+    } finally { await dispatcher.close(); }
   } catch (error) {
     const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     return retryOrFail(null, timeout ? "No response before the timeout." : "The destination could not be reached.", timeout ? "TIMEOUT" : "NETWORK_ERROR");

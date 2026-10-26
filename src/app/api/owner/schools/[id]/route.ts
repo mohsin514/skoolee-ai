@@ -26,7 +26,7 @@ export async function GET(
           },
         },
         users: {
-          where: { role: "SUPER_ADMIN" },
+          where: { OR: [{ role: "SUPER_ADMIN" }, { isInstitutionOwner: true }] },
           select: { id: true, fullName: true, email: true, phone: true, isActive: true, lastLogin: true },
         },
         _count: { select: { users: true, campuses: true } },
@@ -102,7 +102,7 @@ export async function PATCH(
     if (changedFields.length > 0) {
       await logSuperAdminAction({
         userId: user.userId,
-        action: "plan_changed",
+        action: status && status !== school.status ? (status === "SUSPENDED" ? "school_suspended" : "school_activated") : "plan_changed",
         targetType: "school",
         targetId: id,
         targetName: school.name,

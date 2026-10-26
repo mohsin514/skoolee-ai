@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { PLAN_ORDER } from "@/config/plans";
+import { PLAN_ORDER, PLANS } from "@/config/plans";
 import {
-  PLATFORM_UNSCOPED_REASON, activeSessionsForEmail, createPilotDraft, defaultPlanPricing, findSchools, paymentGatewayState,
+  updateDefaultPlanPrices, PLATFORM_UNSCOPED_REASON, activeSessionsForEmail, createPilotDraft, defaultPlanPricing, findSchools, paymentGatewayState,
   pendingSubscriptionRequests, schoolContactTaken, schoolCountry, waitingProviderEvents, type PlatformSchool,
 } from "../../../adapters/platform";
 import { InputRequired, WorkflowError, type RequiredField } from "../../../errors";
@@ -14,9 +14,10 @@ import type { CapabilityContext, CapabilityEntry, EntryCopy, HandoffPrepared, L1
  * `{kind:"platform", unscopedReason}` and every cross-tenant read or write goes through
  * adapters/platform.ts under that stated reason (the only file allowed to leave the tenant guard).
  *
- * - One B write: `platform.pilot_create` records a pilot charter as a draft (status PLANNED, no consent;
+ * - Default catalogue pricing executes after an explicit in-chat confirmation.
+ * - Another B write: `platform.pilot_create` records a pilot charter as a draft (status PLANNED, no consent;
  *   ACTIVE needs the school's consent reference on the Pilot evidence screen).
- * - Billing, capacity, pricing, provisioning, plan/status, gateway and session changes are class C. Each
+ * - Billing, capacity, provisioning, plan/status, gateway and session changes are class C. Each
  *   one binds what the owner named, checks what the domain would refuse, and opens the owner's own screen
  *   with a prefill and `stepUp: true`. Nothing here writes; the screen's route applies it under
  *   requirePlatformOwner. Owner jobs never run in the background worker (jobs/worker.ts).
@@ -80,8 +81,8 @@ const PILOT_CREATE = defineCapability<PilotInput>({
   key: "platform.pilot_create", version: 1, cluster: "C8", inventoryKeys: ["platform.pilot_create"], risk: "CREATE", roles: OWNER, class: "B",
   input: pilotInput, evidence: ["/school", "/startsOn", "/championName"], gates: GATES, scope: SCOPE,
   copy: c(
-    ["Draft a pilot charter", "Record a LEAP pilot with a school as a draft: its start, the workflows to measure and the school's champion. It goes live only after the school's consent is recorded.", "Create a LEAP pilot for Al-Noor from 1 November measuring marks entry and attendance; the champion is Ms Hina"],
-    ["مسودة ميثاق تجربة", "تسجيل تجربة LEAP مع مدرسة كمسودة: موعد البدء وسير العمل المراد قياسه ومنسق المدرسة. لا تبدأ إلا بعد تسجيل موافقة المدرسة.", "أنشئ تجربة LEAP لمدرسة النور من ١ نوفمبر لقياس إدخال الدرجات والحضور؛ المنسقة الأستاذة هند"],
+    ["Draft a pilot charter", "Record a LEAP pilot with a school as a draft: its start, the workflows to measure and the school's champion. It goes live only after the school's consent is recorded. Use this for starting a school pilot/trial, including a new school; missing school details are questions, not a request to provision an account.", "Create a LEAP pilot for Al-Noor from 1 November measuring marks entry and attendance; the champion is Ms Hina"],
+    ["مسودة ميثاق تجربة", "تسجيل تجربة LEAP مع مدرسة كمسودة: موعد البدء وسير العمل المراد قياسه ومنسق المدرسة. لا تبدأ إلا بعد تسجيل موافقة المدرسة. طلب بدء تجربة لمدرسة جديدة يعني إعداد ميثاق التجربة، وليس إنشاء حساب مدرسة أو مالك؛ اسأل عن التفاصيل الناقصة.", "أنشئ تجربة LEAP لمدرسة النور من ١ نوفمبر لقياس إدخال الدرجات والحضور؛ المنسقة الأستاذة هند"],
     ["پائلٹ چارٹر کا مسودہ", "کسی اسکول کے ساتھ LEAP پائلٹ مسودے کے طور پر درج کریں: آغاز کی تاریخ، ناپے جانے والے کام اور اسکول کا نمائندہ۔ اسکول کی رضامندی درج ہونے کے بعد ہی شروع ہوگا۔", "النور اسکول کے لیے یکم نومبر سے LEAP پائلٹ بنا دیں، مارکس انٹری اور حاضری ناپنی ہے، نمائندہ مس حنا ہیں"],
   ),
   idempotency: { mode: "natural" }, source: { route: "POST /api/owner/pilots", service: "src/lib/pilots/service.ts:createPilot (via adapters/platform.ts:createPilotDraft)", reuse: "direct" },
@@ -259,7 +260,15 @@ type ProvisionInput = z.infer<typeof provisionInput>;
 
 const PROVISION_SCHOOL = defineCapability<ProvisionInput>({
   key: "platform.provision_school", version: 1, cluster: "C8", inventoryKeys: ["platform.provision_school"], risk: "ACCESS_GRANT", roles: OWNER, class: "C",
-  input: provisionInput, evidence: ["/schoolName", "/city", "/ownerName", "/ownerEmail"], gates: GATES, scope: SCOPE,
+  dialogueFields: [
+    { key: "schoolName", labels: ["school name", "school's name", "name of school", "اسکول کا نام", "اسم المدرسة"] },
+    { key: "city", labels: ["city", "شہر", "المدينة"] },
+    { key: "ownerName", labels: ["owner name", "owner's name", "owner full name", "مالک کا نام", "اسم المالك"] },
+    { key: "ownerEmail", labels: ["owner email", "owner's email", "email", "ای میل", "البريد الإلكتروني"] },
+    { key: "kind", labels: ["type", "kind", "institution type"], choices: { STANDALONE: ["single", "single school", "standalone", "Single school (STANDALONE)"], GROUP: ["group", "school group", "School group (GROUP)"] } },
+    { key: "plan", labels: ["plan"], choices: { FREE: ["free"], BASIC: ["basic"], PRO: ["pro"], ENTERPRISE: ["enterprise"] } },
+  ],
+  input: provisionInput, evidence: ["/schoolName", "/city", "/ownerName", "/ownerEmail"], literalEvidence: ["/schoolName", "/city", "/ownerName", "/ownerEmail"], gates: GATES, scope: SCOPE,
   copy: c(
     ["Prepare a new school", "Fill the New school form with the school, its plan and its owner; you press Provision on the Schools screen, where the sign-in is shown once.", "Onboard Crescent Grammar in Karachi as a single school on BASIC; the owner is Sara Khan, sara@crescent.edu.pk"],
     ["تجهيز مدرسة جديدة", "تعبئة نموذج المدرسة الجديدة بالمدرسة وباقتها ومالكها؛ تضغط «تجهيز» من شاشة المدارس حيث تظهر بيانات الدخول مرة واحدة.", "أضف مدرسة كريسنت في جدة كمدرسة واحدة على باقة BASIC؛ المالكة سارة خان sara@crescent.edu.pk"],
@@ -270,7 +279,7 @@ const PROVISION_SCHOOL = defineCapability<ProvisionInput>({
     kind: "DOMAIN_SCREEN",
     async prepare(ctx, input) {
       const contact = input.contactEmail ?? input.ownerEmail;
-      if (await schoolContactTaken(ctx.user, REASON, input.ownerEmail) || (contact !== input.ownerEmail && await schoolContactTaken(ctx.user, REASON, contact))) throw new WorkflowError("DOMAIN_REFUSED", { reason: "EMAIL_IN_USE" });
+      if (await schoolContactTaken(ctx.user, REASON, input.ownerEmail) || (contact !== input.ownerEmail && await schoolContactTaken(ctx.user, REASON, contact))) throw new InputRequired([{ pointer: "/ownerEmail", promptKey: "platform.owner_email_taken" }]);
       const plan = input.plan ?? "FREE";
       return prepared("DOMAIN_SCREEN", ownerScreen("schools", { new: "1" }),
         { schoolName: input.schoolName, kind: input.kind, city: input.city, plan, ownerName: input.ownerName, ownerEmail: input.ownerEmail, ...(input.contactEmail ? { contactEmail: input.contactEmail } : {}), ...(input.campusName ? { campusName: input.campusName } : {}) },
@@ -311,29 +320,37 @@ const UPDATE_PLAN_STATUS = defineCapability<PlanStatusInput>({
 
 // ─── C: default plan pricing ────────────────────────────────────────────────
 const PRICE = z.number().min(0).max(100_000_000).nullable();
-const pricingInput = z.strictObject({ prices: z.strictObject({ FREE: PRICE.optional(), BASIC: PRICE.optional(), PRO: PRICE.optional(), ENTERPRISE: PRICE.optional() }) });
+const pricingInput = z.strictObject({ prices: z.strictObject({ FREE: PRICE.optional(), BASIC: PRICE.optional(), PRO: PRICE.optional(), ENTERPRISE: PRICE.optional() }), selectedPlan: z.enum(["FREE", "BASIC", "PRO", "ENTERPRISE"]).optional(), expected: z.unknown().optional() });
 type PricingInput = z.infer<typeof pricingInput>;
 
 const SET_DEFAULT_PRICING = defineCapability<PricingInput>({
-  key: "platform.set_default_plan_pricing", version: 1, cluster: "C8", inventoryKeys: ["platform.set_default_plan_pricing"], risk: "FINANCIAL", roles: OWNER, class: "C",
+  key: "platform.set_default_plan_pricing", version: 2, cluster: "C8", inventoryKeys: ["platform.set_default_plan_pricing"], risk: "FINANCIAL", roles: OWNER, class: "B",
   input: pricingInput, evidence: ["/prices"], gates: GATES, scope: SCOPE,
   copy: c(
-    ["Prepare default plan prices", "Prepare new default monthly prices for new schools; you confirm them on the Pricing screen, where the change is audited.", "Set the default BASIC price to 4500 and PRO to 8000"],
+    ["Update default package prices", "Update default monthly package prices for new schools after confirming the exact change in chat. Existing subscriptions are unchanged.", "Set the Pro package price to 4500"],
     ["تجهيز الأسعار الافتراضية للباقات", "تجهيز أسعار شهرية افتراضية جديدة للمدارس الجديدة؛ تؤكدها من شاشة الأسعار حيث يُسجَّل التغيير.", "اجعل السعر الافتراضي لباقة BASIC ٤٥٠٠ وPRO ٨٠٠٠"],
     ["پلان کی طے شدہ قیمتیں تیار کریں", "نئے اسکولوں کے لیے نئی ماہانہ طے شدہ قیمتیں تیار کریں؛ آپ انہیں پرائسنگ اسکرین پر کنفرم کریں گے، جہاں تبدیلی آڈٹ ہوتی ہے۔", "بیسک کی طے شدہ قیمت 4500 اور پرو کی 8000 کر دیں"],
   ),
-  source: handoffSource("PUT /api/owner/platform-config", "DOMAIN_SCREEN; the route writes a superAdminAuditLog row with the change"),
-  handoff: {
-    kind: "DOMAIN_SCREEN",
-    async prepare(ctx, input) {
-      const changes = Object.entries(input.prices).filter(([, price]) => price !== undefined) as Array<[string, number | null]>;
-      if (!changes.length) throw new InputRequired([{ pointer: "/prices", promptKey: "platform.pricing_which_plan", options: PLAN_ORDER.map(plan => ({ value: plan, label: plan })) }]);
-      const current = await defaultPlanPricing(ctx.user, REASON);
-      const pricing = { ...current, ...Object.fromEntries(changes.map(([plan, price]) => [plan, { ...(current[plan] ?? {}), price }])) };
-      if (changes.every(([plan, price]) => (current[plan]?.price ?? null) === price)) throw new WorkflowError("DOMAIN_REFUSED", { reason: "NO_CHANGE" });
-      return prepared("DOMAIN_SCREEN", ownerScreen("pricing"), { pricing },
-        { changes: changes.map(([plan, price]) => ({ plan, from: current[plan]?.price ?? null, to: price })), audited: true });
-    },
+  humanFields: ["expected"],
+  refreshOnReconfirm: true,
+  source: { route: "PUT /api/owner/platform-config", service: "src/lib/owner/default-pricing-service.ts:saveDefaultPlanPrices", reuse: "extracted" },
+  idempotency: { mode: "native" },
+  async resolve(ctx, input) {
+    if (!Object.keys(input.prices).length) throw new InputRequired([{ pointer: "/prices", promptKey: "platform.pricing_amount" }]);
+    return { ...input, expected: await defaultPlanPricing(ctx.user, REASON) };
+  },
+  async preview(ctx, input) {
+    const current = await defaultPlanPricing(ctx.user, REASON);
+    return {
+      title: t(ctx, { en: "Review monthly package prices", ar: "مراجعة أسعار الباقات الشهرية", ur: "ماہانہ پیکیج قیمتوں کا جائزہ" }),
+      lines: Object.entries(input.prices).map(([plan, price]) => ({ label: PLANS[plan as keyof typeof PLANS].name, value: `PKR ${current[plan]?.price ?? "Custom"} → ${price === null ? "Custom" : `PKR ${price}`} / month` })),
+      counts: {}, basis: current,
+      confirmLabel: t(ctx, { en: "Save package prices", ar: "حفظ أسعار الباقات", ur: "پیکیج قیمتیں محفوظ کریں" }),
+    };
+  },
+  async execute(ctx, input, opts) {
+    const pricing = await updateDefaultPlanPrices(ctx.user, input.prices, input.expected, opts.idempotencyKey);
+    return { kind: "write", capability: "platform.set_default_plan_pricing", entities: [{ model: "PlatformConfig", id: "default_plan_pricing" }], counts: { updated: Object.keys(input.prices).length }, link: ownerScreen("pricing"), replayed: false, detail: { pricing } };
   },
 });
 

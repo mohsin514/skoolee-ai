@@ -13,7 +13,7 @@ export const maxDuration = 60;
 export async function GET() {
   try {
     const jobs = await listJobs(await requireAutomaticUser());
-    return workflowJson({ jobs: jobs.map(job => ({ id: job.id, status: job.status, outcome: job.outcome, version: job.version, createdAt: job.createdAt, updatedAt: job.updatedAt })) });
+    return workflowJson({ jobs: jobs.map(job => ({ id: job.id, title: job.segments[0]?.text.slice(0, 160) ?? null, status: job.status, outcome: job.outcome, version: job.version, createdAt: job.createdAt, updatedAt: job.updatedAt })) });
   }
   catch (error) { return workflowErrorResponse(error); }
 }
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const user = await requireAutomaticUser();
-    if (!(await authRateLimit(`ai-workflows:${user.userId}`, { limit: 10, windowMs: 300_000 })).ok) throw new WorkflowError("BUDGET_EXHAUSTED", { retryAfterSeconds: 300 });
+    if (!(await authRateLimit(`ai-workflows:${user.userId}`, { limit: user.role === "APP_OWNER" ? 60 : 30, windowMs: 300_000 })).ok) throw new WorkflowError("RATE_LIMITED", { retryAfterSeconds: 300 });
     const job = await startJob(user, await readBoundedJson(request, 32_000));
     // Plan in the same request so the first response already shows the plan or a question.
     if (job.status === "PLANNING") await advanceJob(user, job.id).catch(() => undefined);

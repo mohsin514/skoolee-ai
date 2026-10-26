@@ -32,9 +32,9 @@ export function boardState(attempt: { status: string; pausedAt: Date | null; dea
 
 export async function controlBoard(user: AuthUser, assignmentId: string, now = new Date()) {
   return schoolAiTransaction(user, async tx => {
-    const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
+    const { assignment, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
     if (student) throw new ApiError("Exam unavailable.", 404);
-    await staffExamAccess(user, assignment, "view", tx);
+    await staffExamAccess(user, assignment, "view", tx, "SUPERVISION");
     const roster = Array.isArray(assignment.studentIds) ? assignment.studentIds as string[] : [];
     const [pupils, attempts, observations] = await Promise.all([
       tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: roster } }, select: { id: true, fullName: true, rollNo: true } }),
@@ -58,9 +58,9 @@ export async function extendAttempts(user: AuthUser, assignmentId: string, raw: 
   const limit = isSchoolAiManager(user) ? MANAGER_EXTEND_LIMIT_MINUTES : TEACHER_EXTEND_LIMIT_MINUTES;
   if (input.minutes > limit) throw new ApiError(`You can extend by at most ${limit} minutes.`, 403, "EXTEND_ABOVE_LIMIT");
   return schoolAiTransaction(user, async tx => {
-    const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
+    const { assignment, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
     if (student) throw new ApiError("Only exam staff can extend an attempt.", 403);
-    await staffExamAccess(user, assignment, "add", tx);
+    await staffExamAccess(user, assignment, "add", tx, "SUPERVISION");
     const now = new Date();
     const outcomes: Array<{ attemptId: string; outcome: "EXTENDED" | "ALREADY_APPLIED" | "NOT_IN_PROGRESS"; deadlineAt?: string }> = [];
     for (const attemptId of [...new Set(input.attemptIds)]) {
@@ -83,9 +83,9 @@ export const closeInput = z.strictObject({ attemptIds: z.array(z.string().min(1)
 export async function closeAttempts(user: AuthUser, assignmentId: string, raw: unknown) {
   const input = closeInput.parse(raw);
   return schoolAiTransaction(user, async tx => {
-    const { assignment, student } = await scopedAssignment(user, assignmentId, tx);
+    const { assignment, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
     if (student) throw new ApiError("Only exam staff can close an attempt.", 403);
-    await staffExamAccess(user, assignment, "add", tx);
+    await staffExamAccess(user, assignment, "add", tx, "SUPERVISION");
     const now = new Date();
     const outcomes: Array<{ attemptId: string; outcome: "CLOSED" | "NOT_IN_PROGRESS" }> = [];
     for (const attemptId of [...new Set(input.attemptIds)]) {

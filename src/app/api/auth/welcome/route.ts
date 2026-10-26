@@ -13,7 +13,9 @@ const headers = { "Cache-Control": "private, no-store" };
 
 export async function GET() {
   try {
-    const user = await requireAuthUser();
+    // Like profile and tour preferences, this is the caller's own identity.
+    // It must not bounce a platform operator out of a suspended institution.
+    const user = await requireAuthUser({ allowSuspended: true });
     // Own identity only. New institution owners have no campus yet.
     const account = await runUnscoped("welcome: read only the authenticated account", () => prisma.user.findFirst({
       where: { id: user.userId, schoolId: user.schoolId, isActive: true },
@@ -43,7 +45,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
-    const user = await requireAuthUser();
+    const user = await requireAuthUser({ allowSuspended: true });
     // Idempotent acknowledgement; never accept a user ID, role, campus or setup status from the browser.
     await runUnscoped("welcome: acknowledge only the authenticated account", () => prisma.user.updateMany({
       where: { id: user.userId, schoolId: user.schoolId, isActive: true, mustChangePassword: false, welcomeCompletedAt: null },

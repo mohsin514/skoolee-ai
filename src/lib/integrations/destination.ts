@@ -1,5 +1,5 @@
 import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { isIP, type LookupFunction } from "node:net";
 
 // SKO-445: outbound webhook destinations. HTTPS only (plain HTTP only for explicitly allowed test hosts), no
 // credentials in the URL, and every resolved address must be public — checked again at each delivery, so a DNS
@@ -21,6 +21,16 @@ export const isPrivateAddress = (ip: string) => (isIP(ip) === 6 ? v6Private(ip) 
 const allowed = () => process.env.NODE_ENV === "production" ? [] : (process.env.INTEGRATION_TEST_ALLOWED_HOSTS ?? "").split(",").map(s => s.trim()).filter(Boolean);
 
 export type Check = { ok: true; url: URL; address: string } | { ok: false; reason: string };
+
+/** Reuse the validated address at connection time, including Node's all-address lookup mode. */
+export function pinnedDestinationLookup(address: string): LookupFunction {
+  const family = isIP(address);
+  if (!family) throw new Error("The validated destination must be an IP address.");
+  return (_hostname, options, callback) => {
+    if (options.all) callback(null, [{ address, family }]);
+    else callback(null, address, family);
+  };
+}
 
 export function validateShape(raw: string): { ok: true; url: URL } | { ok: false; reason: string } {
   let url: URL;

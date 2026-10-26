@@ -72,6 +72,12 @@ export function RunQuestions({ run, language, busy, pendingKey, onAnswer, level 
           </Heading>
         </div>
       </div>
+      {run.steps.some(step => step.formValues?.length) ? <div className="rounded-xl bg-card p-3 text-sm" data-ai-saved-answers>
+        <p className="mb-2 font-semibold">{runText("savedAnswers", language)}</p>
+        <dl className="space-y-1">{run.steps.flatMap(step => (step.formValues ?? []).map(field => <div key={`${step.id}:${field.pointer}`} className="flex flex-wrap justify-between gap-2">
+          <dt className="text-ink-muted">{humanisePointer(field.pointer, language)}</dt><dd className="break-all" dir="auto">{field.value}</dd>
+        </div>))}</dl>
+      </div> : null}
       <ul className={inComposer ? "space-y-2" : "space-y-3"}>
         {run.questions.map(question => (
           <li key={question.id} data-ai-question={question.promptKey} className={inComposer ? "space-y-2 rounded-xl bg-card px-3 py-2.5 ring-1 ring-brand-100/70 sm:px-4" : "space-y-2 rounded-xl bg-surface-subtle p-3 sm:p-4"}>

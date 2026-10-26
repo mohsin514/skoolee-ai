@@ -24,13 +24,16 @@ type Gate = "OPEN" | "WAITING_FOR_REPORT_CARD";
 const PUBLISHED_REPORT = ["PUBLISHED", "SENT", "CORRECTED"];
 const reviewOf = (value: unknown) => examReviewSchema.parse({ marks: (value as { marks?: unknown })?.marks, note: (value as { note?: unknown })?.note });
 
-async function gates(tx: TxClient, assignment: { schoolId: string; paperSlotId: string | null; gradebookPublication: unknown }, studentIds: readonly string[]) {
+export async function familyNoteGates(tx: TxClient, assignment: { schoolId: string; paperSlotId: string | null; examScheduleId?: string | null; gradebookPublication: unknown }, studentIds: readonly string[]) {
   const publication = assignment.gradebookPublication ? gradebookPublicationSchema.safeParse(assignment.gradebookPublication) : null;
-  const examId = publication?.success ? publication.data.examId : null;
+  // A formal sitting already belongs to an exam through its date-sheet row. Report publication
+  // must unlock its notes even when marks were entered on paper instead of exported here.
+  const schedule = assignment.examScheduleId ? await tx.examSchedule.findFirst({ where: { id: assignment.examScheduleId, schoolId: assignment.schoolId }, select: { examId: true } }) : null;
+  const examId = schedule?.examId ?? (publication?.success ? publication.data.examId : null);
   const slot = assignment.paperSlotId ? await tx.examPaperSlot.findFirst({ where: { id: assignment.paperSlotId, schoolId: assignment.schoolId }, select: { examSession: { select: { familyNotesOnRelease: true } } } }) : null;
   const exam = examId ? await tx.exam.findFirst({ where: { id: examId, schoolId: assignment.schoolId }, select: { session: { select: { familyNotesOnRelease: true } } } }) : null;
   const result = new Map<string, Gate>();
-  if (!assignment.paperSlotId && !examId) { for (const id of studentIds) result.set(id, "OPEN"); return result; }
+  if (!assignment.paperSlotId && !assignment.examScheduleId && !examId) { for (const id of studentIds) result.set(id, "OPEN"); return result; }
   if (slot?.examSession.familyNotesOnRelease || exam?.session?.familyNotesOnRelease) { for (const id of studentIds) result.set(id, "OPEN"); return result; }
   const published = examId ? await tx.reportCard.findMany({ where: { schoolId: assignment.schoolId, examId, studentId: { in: [...studentIds] }, OR: [{ publishedVersionId: { not: null } }, { status: { in: PUBLISHED_REPORT } }] }, select: { studentId: true } }) : [];
   const open = new Set(published.map(row => row.studentId));
@@ -56,7 +59,7 @@ async function view(user: AuthUser, assignmentId: string, tx: TxClient) {
   const { assignment } = await released(user, assignmentId, tx, "view");
   const notes = await tx.familyResultNote.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId }, orderBy: { createdAt: "asc" } });
   const studentIds = notes.map(note => note.studentId);
-  const [gate, guardians, students] = await Promise.all([gates(tx, assignment, studentIds), guardiansOf(tx, user.schoolId, studentIds), tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: studentIds } }, select: { id: true, fullName: true } })]);
+  const [gate, guardians, students] = await Promise.all([familyNoteGates(tx, assignment, studentIds), guardiansOf(tx, user.schoolId, studentIds), tx.student.findMany({ where: { schoolId: user.schoolId, id: { in: studentIds } }, select: { id: true, fullName: true } })]);
   const names = new Map(students.map(row => [row.id, row.fullName]));
   return notes.map(note => ({ id: note.id, studentId: note.studentId, name: names.get(note.studentId) ?? null, language: note.language, sentence: note.sentence, status: note.status, version: note.version, resultVersion: note.resultVersion, sentAt: note.sentAt, gate: gate.get(note.studentId) ?? "WAITING_FOR_REPORT_CARD", hasGuardian: guardians.has(note.studentId) }));
 }
@@ -118,7 +121,7 @@ export async function sendFamilyNote(user: AuthUser, noteId: string, raw: unknow
     const { note, assignment } = await noteFor(user, tx, noteId, input.version);
     const attempt = await tx.schoolAiExamAttempt.findFirst({ where: { id: note.attemptId, schoolId: user.schoolId, status: "REVIEWED" }, select: { reviewVersion: true } });
     if (!attempt || attempt.reviewVersion !== note.resultVersion) throw new ApiError("The result was corrected after this note was drafted. Draft the notes again.", 409);
-    if ((await gates(tx, assignment, [note.studentId])).get(note.studentId) !== "OPEN") throw new ApiError("This note sends after the learner's report card is published.", 409);
+    if ((await familyNoteGates(tx, assignment, [note.studentId])).get(note.studentId) !== "OPEN") throw new ApiError("This note sends after the learner's report card is published.", 409);
     if (!(await guardiansOf(tx, user.schoolId, [note.studentId])).has(note.studentId)) throw new ApiError("This learner has no active guardian account to receive the note.", 409);
     const sent = await tx.familyResultNote.updateMany({ where: { id: note.id, version: input.version, status: "DRAFT" }, data: { status: "SENT", sentById: user.userId, sentAt: new Date(), version: { increment: 1 } } });
     if (sent.count !== 1) throw new ApiError("Another change was saved first.", 409);

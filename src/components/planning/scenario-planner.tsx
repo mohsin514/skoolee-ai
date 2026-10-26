@@ -28,6 +28,21 @@ const ROOM_TYPES: Record<string, string> = { CLASSROOM: "Classroom", LAB: "Lab",
 const HANDOFF: Record<string, string> = { PROPOSED: "Waiting for review", APPROVED: "Approved plan", REJECTED: "Not approved" };
 const UNMODELED_TEXT = ["Transport routes and travel time between buildings or campuses", "Local occupancy, safety and licensing rules", "Teacher qualifications beyond the subjects they teach today", "Part-day timing, shifts and break supervision"];
 
+function findingText(ui: ReturnType<typeof useUiText>, finding: Finding) {
+  if (finding.code === "ROOM_TYPE_PERIODS" && finding.needed != null && finding.available != null) {
+    const missing = finding.needed - finding.available;
+    const type = finding.message.match(/^\d+ ([a-z]+) periods/)?.[1] ?? "specialist";
+    return ui("{0} {1} periods are missing: {2} needed each week, {3} available.", [missing, type, finding.needed, finding.available]);
+  }
+  if (finding.code === "NEW_SECTION" && finding.needed != null && finding.available != null) {
+    const grade = finding.links.find((link) => link.kind === "class")?.label ?? "";
+    return ui("{0} needs {1} more section(s) for {2} students at a cap of {3}.", [grade, finding.needed - finding.available, finding.message.match(/for (\d+) students/)?.[1] ?? "—", finding.message.match(/cap of (\d+)/)?.[1] ?? "—"]);
+  }
+  if (finding.code === "HOME_ROOMS" && finding.needed != null && finding.available != null) return ui("{0} sections need a home classroom; {1} classrooms exist.", [finding.needed, finding.available]);
+  if (finding.code === "SEATS" && finding.needed != null && finding.available != null) return ui("{0} students and {1} classroom seats.", [finding.needed, finding.available]);
+  return ui(finding.message);
+}
+
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
@@ -84,7 +99,7 @@ export function ScenarioPlanner({ readOnly = false }: { readOnly?: boolean } = {
   const compared = compare.map((id) => data.scenarios.find((s) => s.id === id)).filter((s): s is Scenario => !!s);
   const baselineOf = (id: string) => data.baselines.find((b) => b.id === id);
   const subjects = baseline ? [...new Set(baseline.data.subjects.map((s) => s.subject))] : [];
-  const note = (s: Scenario) => [`${s.name}`, ui("Scenario only · live records unchanged"), `${ui("Baseline")} v${baselineOf(s.baselineId)?.version ?? "?"}`, ...SEVERITY.flatMap((g) => [`${ui(g.label)}:`, ...s.result.findings.filter((f) => f.severity === g.key).map((f) => `- ${f.message}`)]), `${ui("Teacher cost (estimate)")}: ${money(s.result.costs.teachers, s.result.costs.currency)}`, `${ui("Room cost (estimate)")}: ${money(s.result.costs.rooms, s.result.costs.currency)}`].join("\n");
+  const note = (s: Scenario) => [`${s.name}`, ui("Scenario only · live records unchanged"), `${ui("Baseline")} v${baselineOf(s.baselineId)?.version ?? "?"}`, ...SEVERITY.flatMap((g) => [`${ui(g.label)}:`, ...s.result.findings.filter((f) => f.severity === g.key).map((f) => `- ${findingText(ui, f)}`)]), `${ui("Teacher cost (estimate)")}: ${money(s.result.costs.teachers, s.result.costs.currency)}`, `${ui("Room cost (estimate)")}: ${money(s.result.costs.rooms, s.result.costs.currency)}`].join("\n");
 
   return (
     <section aria-labelledby="scenario-planner" className="sk-panel space-y-4 p-4">
@@ -175,7 +190,7 @@ export function ScenarioPlanner({ readOnly = false }: { readOnly?: boolean } = {
                     <h4 className="font-semibold">{ui(g.label)}</h4>
                     <ul className="space-y-1">{list.map((f, i) => (
                       <li key={i}>
-                        {g.key === "UNMODELED" && UNMODELED_TEXT.includes(f.message) ? ui(f.message) : <bdi>{f.message}</bdi>}
+                        {g.key === "UNMODELED" && UNMODELED_TEXT.includes(f.message) ? ui(f.message) : <bdi>{findingText(ui, f)}</bdi>}
                         {f.links.length ? <span className="block text-xs text-ink-subtle">{ui("Caused by")}: {f.links.map((l, j) => <span key={j}>{j ? ", " : ""}<bdi>{l.label}</bdi></span>)}</span> : null}
                       </li>
                     ))}</ul>

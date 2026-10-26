@@ -3,14 +3,15 @@
  * live attempt's last save time; the output (`ExamPulse`) has no field that can carry answer text.
  */
 import type { AuthUser } from "@/lib/auth";
+import { ApiError } from "@/lib/api/scope";
 import { scopedAssignment } from "./exam-service";
 import { schoolAiTransaction } from "./transaction";
 import { pulseFromAttempts } from "./exam-pulse";
 
 export async function getExamPulse(user: AuthUser, assignmentId: string, now = new Date()) {
   return schoolAiTransaction(user, async tx => {
-    const { assignment, paper } = await scopedAssignment(user, assignmentId, tx);
-    if (paper === null || paper === undefined) throw new Error("Exam unavailable.");
+    const { assignment, paper, student } = await scopedAssignment(user, assignmentId, tx, "SUPERVISION");
+    if (student) throw new ApiError("Live room progress is available only to exam staff.", 403);
     const attempts = await tx.schoolAiExamAttempt.findMany({ where: { schoolId: user.schoolId, campusId: assignment.campusId, assignmentId: assignment.id, status: "IN_PROGRESS" }, select: { id: true, status: true, responses: true, updatedAt: true, pausedAt: true }, take: 2000 });
     const presence = (raw: unknown) => {
       const out: Record<string, string | undefined> = {};

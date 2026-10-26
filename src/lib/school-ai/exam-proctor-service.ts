@@ -19,6 +19,7 @@ async function sessionAccess(user: AuthUser, assignmentId: string, sessionId: st
   const session = await db.schoolAiProctorSession.findFirst({ where: { id: sessionId, assignmentId, schoolId: user.schoolId, ...(user.role !== "SUPER_ADMIN" ? { campusId: user.campusId ?? "" } : {}) }, include: { assignment: true, attempt: true } });
   if (!session) throw new ApiError("Recording unavailable.", 404);
   if (user.role === "STUDENT") { if (session.userId !== user.userId || session.attempt.userId !== user.userId) throw new ApiError("Recording unavailable.", 404); if (action === "view") await scopedAssignment(user, assignmentId, db); }
+  // Recording content is protected evidence. Room duty permits signals, never capture bytes.
   else await staffExamAccess(user, session.assignment, action, db);
   return session;
 }
@@ -30,13 +31,23 @@ async function activeSession(user: AuthUser, assignmentId: string, id: string, d
   return session;
 }
 export async function getExamProctor(user: AuthUser, assignmentId: string, cursor?: string): Promise<ProctorView> {
-  await actor(user, prisma); const { assignment } = await scopedAssignment(user, assignmentId);
+  await actor(user, prisma); const { assignment } = await scopedAssignment(user, assignmentId, prisma, "SUPERVISION");
   const anchor = cursor ? await prisma.schoolAiProctorSession.findFirst({ where: { id: cursor, schoolId: user.schoolId, assignmentId, ...(user.role === "STUDENT" ? { userId: user.userId } : {}) }, select: { id: true, consentedAt: true } }) : null;
   if (cursor && !anchor) throw new ApiError("Recording page unavailable.", 404);
   const page = await prisma.schoolAiProctorSession.findMany({ where: { schoolId: user.schoolId, assignmentId, ...(user.role === "STUDENT" ? { userId: user.userId } : {}), ...(anchor ? { OR: [{ consentedAt: { lt: anchor.consentedAt } }, { consentedAt: anchor.consentedAt, id: { lt: anchor.id } }] } : {}) }, include: { clips: { where: { status: "READY" }, orderBy: { sequence: "asc" }, select: { id: true, sequence: true, createdAt: true, bytes: true } }, attempt: { select: { studentId: true, status: true, deadlineAt: true } } }, orderBy: [{ consentedAt: "desc" }, { id: "desc" }], take: 51 });
   const sessions = page.slice(0, 50);
   const students = user.role === "STUDENT" ? [] : await prisma.student.findMany({ where: { schoolId: user.schoolId, id: { in: sessions.map(s => s.attempt.studentId) } }, select: { id: true, fullName: true, rollNo: true } });
-  return { policy: proctorPolicy(assignment.proctorPolicy), version: assignment.version, canConfigure: user.role !== "STUDENT" && !await prisma.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId } }), storageAvailable: sourceStorageAvailable(), nextCursor: page.length > 50 ? sessions[49].id : null, sessions: sessions.map(s => ({ id: s.id, attemptId: s.attemptId, userId: s.userId, kind: s.kind, status: !readable(s) ? s.status === "DELETED" ? "DELETED" : "EXPIRED" : s.status === "ACTIVE" && (s.attempt.status !== "IN_PROGRESS" || s.attempt.deadlineAt <= new Date()) ? "ENDED" : s.status, consentedAt: s.consentedAt.toISOString(), retentionUntil: s.retentionUntil.toISOString(), endedAt: s.endedAt?.toISOString() ?? null, bytes: s.bytes, clipCount: s.clipCount, reviewNote: readable(s) ? s.reviewNote : null, reviewedAt: readable(s) ? s.reviewedAt?.toISOString() ?? null : null, student: students.find(p => p.id === s.attempt.studentId) ?? null, clips: readable(s) ? s.clips.map(c => ({ ...c, createdAt: c.createdAt.toISOString() })) : [] })) };
+  let canReadCapture = user.role === "STUDENT";
+  if (!canReadCapture) {
+    try { await staffExamAccess(user, assignment, "view"); canReadCapture = true; }
+    catch (error) { const status = error instanceof Error && "status" in error ? error.status : null; if (status !== 403 && status !== 404) throw error; }
+  }
+  let canConfigure = false;
+  if (user.role !== "STUDENT" && !await prisma.schoolAiExamAttempt.count({ where: { schoolId: user.schoolId, assignmentId } })) {
+    try { await staffExamAccess(user, assignment, "edit"); canConfigure = true; }
+    catch (error) { const status = error instanceof Error && "status" in error ? error.status : null; if (status !== 403 && status !== 404) throw error; }
+  }
+  return { policy: proctorPolicy(assignment.proctorPolicy), version: assignment.version, canConfigure, storageAvailable: sourceStorageAvailable(), nextCursor: page.length > 50 ? sessions[49].id : null, sessions: sessions.map(s => ({ id: s.id, attemptId: s.attemptId, userId: s.userId, kind: s.kind, status: !readable(s) ? s.status === "DELETED" ? "DELETED" : "EXPIRED" : s.status === "ACTIVE" && (s.attempt.status !== "IN_PROGRESS" || s.attempt.deadlineAt <= new Date()) ? "ENDED" : s.status, consentedAt: s.consentedAt.toISOString(), retentionUntil: s.retentionUntil.toISOString(), endedAt: s.endedAt?.toISOString() ?? null, bytes: s.bytes, clipCount: s.clipCount, reviewNote: canReadCapture && readable(s) ? s.reviewNote : null, reviewedAt: canReadCapture && readable(s) ? s.reviewedAt?.toISOString() ?? null : null, student: students.find(p => p.id === s.attempt.studentId) ?? null, clips: canReadCapture && readable(s) ? s.clips.map(c => ({ ...c, createdAt: c.createdAt.toISOString() })) : [] })) };
 }
 export async function updateExamProctorPolicy(user: AuthUser, assignmentId: string, value: unknown) {
   const input = ProctorPolicyUpdateSchema.parse(value);

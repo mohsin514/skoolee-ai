@@ -23,10 +23,14 @@ export async function PUT(
 
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
-      select: { id: true, email: true, fullName: true, password: true },
+      select: { id: true, schoolId: true, email: true, fullName: true, password: true },
     });
 
     if (!targetUser) throw new ApiError("User not found", 404);
+
+    if (targetUser.password && await bcrypt.compare(newPassword, targetUser.password)) {
+      throw new ApiError("New password must be different from current password", 400);
+    }
 
     const recentPasswords = await prisma.passwordHistory.findMany({
       where: { userId: targetUserId },
@@ -45,14 +49,19 @@ export async function PUT(
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await prisma.$transaction([
+      prisma.loginSession.updateMany({
+        where: { userId: targetUserId, isActive: true },
+        data: { isActive: false, logoutAt: new Date() },
+      }),
       prisma.user.update({
         where: { id: targetUserId },
-        data: { password: hashedPassword, lastPasswordChange: new Date() },
+        data: { password: hashedPassword, lastPasswordChange: new Date(), mustChangePassword: true },
       }),
       ...(targetUser.password
         ? [
             prisma.passwordHistory.create({
               data: {
+                schoolId: targetUser.schoolId,
                 userId: targetUserId,
                 oldPasswordHash: targetUser.password,
                 changedBy: user.userId,

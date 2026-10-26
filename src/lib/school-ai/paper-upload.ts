@@ -1,5 +1,5 @@
 /**
- * SKO-501 (plan F2b): read a paper the teacher already wrote (Word, PDF or photo, after extraction) into
+ * SKO-501 (plan F2b): read reviewed text from a teacher's paper (PDF/photo extraction or native text) into
  * draft questions. Pure and deterministic: numbered questions, lettered options, marks written as
  * "[2]", "(2 marks)" or "2 marks", and an answer key after a heading such as "Answers" or "Marking
  * scheme". Nothing is invented: a missing mark becomes 1 with a warning; an unmatched key line is

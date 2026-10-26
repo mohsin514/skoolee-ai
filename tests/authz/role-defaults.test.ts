@@ -49,15 +49,19 @@ test("V2 defaults match the §7.4 table", () => {
   }
 });
 
-test("campus operators keep the full matrix; the group admin and the platform operator stay fixed; families unchanged", () => {
+test("campus operators keep the full matrix; the group admin and the platform operator stay fixed; families gain only personal AI access", () => {
   for (const role of ["CAMPUS_ADMIN", "ADMIN"] as const) {
     for (const mod of PERMISSION_MODULES) assert.deepEqual(DEFAULT_PERMISSIONS[role][mod], VAED, `${role}.${mod}`);
   }
   for (const role of ["SUPER_ADMIN", "APP_OWNER"] as const) {
     assert.deepEqual(moduleFlags([row("fees", NONE, AFTER)], role, "fees"), VAED, `${role} is fixed`);
   }
-  for (const role of ["TEACHER", "PARENT", "STUDENT"] as const) {
+  for (const role of ["TEACHER"] as const) {
     assert.deepEqual(DEFAULT_PERMISSIONS[role], LEGACY_DEFAULT_PERMISSIONS_V1[role], `${role} unchanged`);
+  }
+  for (const role of ["PARENT", "STUDENT"] as const) {
+    assert.deepEqual(DEFAULT_PERMISSIONS[role], { ...LEGACY_DEFAULT_PERMISSIONS_V1[role], ai: VA }, `${role}: personal AI only`);
+    assert.deepEqual(LEGACY_DEFAULT_PERMISSIONS_V1[role].ai, NONE);
   }
   // V1 is kept verbatim: the principal used to hold the full matrix.
   for (const mod of PERMISSION_MODULES) assert.deepEqual(LEGACY_DEFAULT_PERMISSIONS_V1.PRINCIPAL[mod], VAED);

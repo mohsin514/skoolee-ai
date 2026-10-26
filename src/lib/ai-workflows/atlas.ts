@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AuthUser } from "@/lib/auth";
 import { entriesForRole } from "./registry";
-import { runGates } from "./registry/gates";
+import { checkCapabilityAccess } from "./registry/gates";
 import type { CapabilityContext, Locale } from "./registry/types";
 
 /**
@@ -28,8 +28,8 @@ export async function atlasFor(user: AuthUser, ctx: CapabilityContext, language:
   const total = rows.filter(row => row.roles.includes(user.role) || row.roles.includes("*")).length;
   const atlas: Atlas = { connected: 0, total, runs: [], confirm: [], approval: [], unavailable: [] };
   for (const entry of entriesForRole(user.role)) {
-    if (entry.key === "assistant.answer") continue;
-    const gate = await runGates(ctx, entry.gates);
+    if (["assistant.answer", "assistant.conversation"].includes(entry.key)) continue;
+    const gate = await checkCapabilityAccess(ctx, entry);
     const item = { key: entry.key, title: entry.copy.title[language] };
     if (!gate.ok) { atlas.unavailable.push({ ...item, whoCan: gate.whoCan ?? [] }); continue; }
     atlas.connected++;

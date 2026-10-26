@@ -1,3 +1,4 @@
+import { captureEvidence } from "./screenshot-evidence";
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { resetDemoTenant, DEMO_SCHOOL_ID } from "../../scripts/demo/reset-demo-tenant";
@@ -31,7 +32,7 @@ async function signIn(context: BrowserContext, email: string, language: "en" | "
   // After sign-in, which writes the school's default language cookie.
   await context.addCookies([{ name: "skoolee-lang", value: language, url: origin }]);
 }
-const shot = async (page: Page, name: string) => { if (shots) await page.screenshot({ path: `${shots}/${name}.png`, fullPage: true }); };
+const shot = async (page: Page, name: string) => { if (shots) await captureEvidence(page, { path: `${shots}/${name}.png`, fullPage: true }); };
 
 for (const language of ["en", "ar"] as const) {
   test(`teacher at 390px (${language}): drop a syllabus, approve it, move the Teaching Line, see the next step`, async ({ browser }) => {
@@ -77,7 +78,7 @@ test("office at 1440px: request papers, see one per grade, remind the author", a
   await expect(step.locator("[data-slot-status]").first()).toContainText("Grade 7 A, Grade 7 B");
   await step.getByRole("button", { name: "Remind author" }).click();
   await expect(step).toContainText("Reminder sent");
-  await shot(page, "office-papers-1440");
+  if (shots) await captureEvidence(step, { path: `${shots}/office-papers-1440.png` });
   const slot = await db.examPaperSlot.findFirstOrThrow({ where: { schoolId: DEMO_SCHOOL_ID }, select: { nudgeCount: true, authorUserId: true, moderatorUserId: true } });
   expect(slot.nudgeCount).toBe(1);
   expect(slot.authorUserId).not.toBe(slot.moderatorUserId);
@@ -100,7 +101,7 @@ test("head of department approves a syllabus a member sent for review", async ({
   await page.goto("/teacher");
   const queue = page.locator("[data-department-queue]");
   await expect(queue).toContainText("Maths extra");
-  await shot(page, "hod-queue");
+  if (shots) await captureEvidence(queue, { path: `${shots}/hod-queue.png` });
   // The first-sign-in guide opens over the page; close it as a person would.
   if (await page.locator("[data-guide-scroll]").count()) await page.keyboard.press("Escape");
   await queue.getByRole("button", { name: "Approve" }).first().dispatchEvent("click");
@@ -108,4 +109,82 @@ test("head of department approves a syllabus a member sent for review", async ({
   const approved = await db.schoolAiRecord.findFirstOrThrow({ where: { id: accepted.id }, select: { status: true } });
   expect(approved.status).toBe("APPROVED");
   await hod.close();
+});
+
+test("scanned syllabus resumes failed and READY synthetic jobs, explicitly applies text, and preserves missing-page review", async ({ browser }) => {
+  // Isolate this last workflow in the labelled synthetic tenant. No model requests are made.
+  await resetDemoTenant(db, password);
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
+  await signIn(context, "demo-principal@example.invalid");
+  const actor = await db.user.findFirstOrThrow({ where: { schoolId: DEMO_SCHOOL_ID, email: "demo-principal@example.invalid" } });
+  const subject = await db.subject.findFirstOrThrow({ where: { schoolId: DEMO_SCHOOL_ID, name: "Mathematics" } });
+  const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=", "base64");
+  const intake = await context.request.post("/api/school-ai/intake", { headers: { Origin: origin }, multipart: { file: { name: "synthetic-extraction-lifecycle.png", mimeType: "image/png", buffer: image }, documentKind: "syllabus", subjectId: subject.id, classId: subject.classId, language: "en" } });
+  expect(intake.ok()).toBeTruthy();
+  const source = (await intake.json()).record;
+  const job = await db.schoolAiDocumentJob.upsert({ where: { recordId_recordVersion_kind: { recordId: source.id, recordVersion: source.version, kind: "EXTRACT" } }, create: { schoolId: DEMO_SCHOOL_ID, campusId: source.campusId, recordId: source.id, recordVersion: source.version, kind: "EXTRACT", actorId: actor.id, actorRole: actor.role, accessVersion: actor.accessVersion, status: "FAILED", attempts: 1, errorCode: "AI_QUOTA_EXHAUSTED" }, update: { status: "FAILED", attempts: 1, errorCode: "AI_QUOTA_EXHAUSTED", result: undefined } });
+  const mutations: string[] = [];
+  const page = await context.newPage();
+  page.on("request", request => { if (!["GET", "HEAD"].includes(request.method()) && /\/api\/school-ai\//.test(request.url())) mutations.push(new URL(request.url()).pathname); });
+  await page.goto("/ai/studio#space=brief");
+  await page.locator("select").filter({ hasText: "Mathematics" }).first().selectOption({ label: "Grade 7 · A · Mathematics" });
+  const drop = page.locator("[data-syllabus-drop]");
+  await expect(drop).toHaveAttribute("data-syllabus-drop", "extraction");
+  await expect(drop).toContainText("AI provider account is out of credits");
+  if (shots) await captureEvidence(drop.getByRole("region", { name: "Document processing and retention", exact: true }), { path: `${shots}/synthetic-extraction-failed.png` });
+  await page.reload();
+  await page.locator("select").filter({ hasText: "Mathematics" }).first().selectOption({ label: "Grade 7 · A · Mathematics" });
+  await expect(drop).toHaveAttribute("data-syllabus-drop", "extraction");
+  expect(mutations).toEqual([]);
+  await drop.locator('[data-drop-action="manual-review"]').click();
+  await expect(drop).toHaveAttribute("data-syllabus-drop", "check");
+  await expect(drop.getByRole("group", { name: "Page and region review", exact: true })).toBeVisible();
+  await expect(drop.locator('[data-drop-action="confirm"]')).toBeDisabled();
+  // The fixture result deliberately omits page2 and contains an unresolved region.
+  const text = "Unit 1: Numbers\n1.1 Add whole numbers";
+  await db.schoolAiDocumentJob.update({ where: { id: job.id }, data: { status: "READY", version: { increment: 1 }, errorCode: null, result: { text, pages: [{ page: 1, text, reviewed: false, regions: [{ id: "symbol", kind: "TEXT", box: null, text: "Add whole numbers", confidence: null, reviewed: false, needsReview: true, issue: "Synthetic unclear symbol" }] }], uncertainties: ["Synthetic fixture: second page needs transcription"], expectedPageCount: 2, missingPages: [2], structureReviewed: false, model: "synthetic-lifecycle-fixture", tokensUsed: 0 } } });
+  await page.reload();
+  await page.locator("select").filter({ hasText: "Mathematics" }).first().selectOption({ label: "Grade 7 · A · Mathematics" });
+  await expect(drop).toHaveAttribute("data-syllabus-drop", "extraction");
+  const panel = drop.getByRole("region", { name: "Document processing and retention", exact: true });
+  await expect(panel).toContainText("Ready to review");
+  await expect(panel.getByRole("button", { name: "Apply reviewed extraction", exact: true })).toBeDisabled();
+  if (shots) await captureEvidence(panel, { path: `${shots}/synthetic-extraction-ready-review.png` });
+  const unchanged = await db.schoolAiRecord.findUniqueOrThrow({ where: { id: source.id } });
+  expect(unchanged.version).toBe(source.version);
+  expect((unchanged.data as { extractedText: string }).extractedText).toBe("");
+  const unreviewed = await context.request.post(`/api/school-ai/workspace/${source.id}/outcomes/propose`, { headers: { Origin: origin }, data: {} });
+  expect(unreviewed.status()).toBe(422);
+  expect((await unreviewed.json()).code).toBe("OUTLINE_REVIEW_REQUIRED");
+  await panel.getByRole("checkbox", { name: "I reviewed the extracted text and want it saved as a new draft.", exact: true }).check();
+  await panel.getByRole("button", { name: "Apply reviewed extraction", exact: true }).click();
+  await expect(drop).toHaveAttribute("data-syllabus-drop", "check");
+  await expect(drop).toContainText("Missing or untranscribed pages: 2");
+  await expect(drop.locator('[data-drop-action="confirm"]')).toBeDisabled();
+  const applied = await db.schoolAiRecord.findUniqueOrThrow({ where: { id: source.id } });
+  expect(applied.version).toBe(source.version + 1);
+  const body = applied.data as { expectedPageCount: number; missingPages: number[]; sourcePages: Array<{ page: number; reviewed: boolean }>; structureReviewed: boolean; extractionStatus: string };
+  expect(body.expectedPageCount).toBe(2);
+  expect(body.missingPages).toEqual([2]);
+  expect(body.sourcePages[0]).toMatchObject({ page: 1, reviewed: false });
+  expect(body.structureReviewed).toBe(false);
+  expect(body.extractionStatus).toBe("needs_review");
+  if (shots) {
+    await drop.getByRole("group", { name: "Page and region review", exact: true }).evaluate(element => element.scrollIntoView({ block: "start" }));
+    await captureEvidence(page, { path: `${shots}/synthetic-extraction-applied-needs-pages.png`, fullPage: false });
+  }
+  await page.reload();
+  await page.locator("select").filter({ hasText: "Mathematics" }).first().selectOption({ label: "Grade 7 · A · Mathematics" });
+  await expect(drop).toHaveAttribute("data-syllabus-drop", "check");
+  expect(mutations.filter(path => path.endsWith("/outcomes/propose"))).toEqual([]);
+  expect(mutations.filter(path => path.includes("/jobs"))).toEqual([`/api/school-ai/sources/${source.id}/jobs/${job.id}`]);
+  expect(await db.schoolAiDocumentJob.count({ where: { recordId: source.id } })).toBe(1);
+  expect((await db.schoolAiDocumentJob.findUniqueOrThrow({ where: { id: job.id } })).attempts).toBe(1);
+  // The public syllabus endpoint must reject confidential paper kinds before any provider access.
+  const confidential = await context.request.post("/api/school-ai/workspace", { headers: { Origin: origin }, data: { kind: "SOURCE", title: "Synthetic confidential paper", idempotencyKey: `outline-kind-${Date.now()}`, data: { documentKind: "paper", extractedText: "Private answer key: four", mimeType: "text/plain", fileName: "paper.txt", extractionStatus: "manual", origin: "manual", subjectId: subject.id, classId: subject.classId } } });
+  expect(confidential.ok()).toBeTruthy();
+  const blocked = await context.request.post(`/api/school-ai/workspace/${(await confidential.json()).record.id}/outcomes/propose`, { headers: { Origin: origin }, data: {} });
+  expect(blocked.status()).toBe(422);
+  expect((await blocked.json()).code).toBe("OUTLINE_NOT_SYLLABUS");
+  await context.close();
 });

@@ -295,10 +295,11 @@ test("family keys: pickup, child switcher and canteen", async () => {
 
   const student = await caps(FIXTURES[9][1]);
   assert.equal(student.schoolAiExams, true);
-  assert.equal(student.schoolAi, false);
+  assert.equal(student.schoolAi, true);
 
   const owner = await caps(FIXTURES[10][1]);
-  assert.equal(Object.values(owner).some(Boolean), false, "the platform operator has no school capability");
+  assert.equal(owner.schoolAi, true, "the platform operator has its own AI workspace");
+  assert.equal(Object.entries(owner).some(([key, value]) => key !== "schoolAi" && value), false, "the platform operator has no school capability");
 });
 
 test("getCampusSeats: one groupBy; an empty or unknown campus holds nothing", async () => {
@@ -450,13 +451,13 @@ test("serviceAgent: an open request keeps the agent queue; one the person owned 
   }
 });
 
-test("flagships (addendum 2026-10-22): AI Workflows follows the School AI gate; Exam Studio the academic seat", async () => {
+test("flagships: role-scoped AI Workflows and academic-seat Exam Studio", async () => {
   hold(CAMPUS, "CAMPUS_ADMIN", "PRINCIPAL");
   const sa = FIXTURES[0][1], so = FIXTURES[1][1], ca = FIXTURES[2][1], pr = FIXTURES[3][1], te = FIXTURES[4][1];
-  // AI Workflows (`schoolAi`): the institution authority, the campus operator and the principal by default.
+  // AI Workflows (`schoolAi`): each supported role gets its own permission-gated workspace.
   for (const user of [sa, so, ca, pr]) assert.equal((await caps(user)).schoolAi, true, `${user.role}: AI Workflows`);
   for (const label of ["AC", "RE", "LI", "PA", "ST", "AO"]) {
-    assert.equal((await caps(FIXTURES.find(([name]) => name === label)![1])).schoolAi, false, `${label}: no AI Workflows`);
+    assert.equal((await caps(FIXTURES.find(([name]) => name === label)![1])).schoolAi, true, `${label}: role-scoped AI Workflows`);
   }
   // Exam Studio (`schoolAiExams`): principal and teacher; never the group admin or the office roles.
   for (const user of [pr, te]) assert.equal((await caps(user)).schoolAiExams, true, `${user.role}: Exam Studio`);

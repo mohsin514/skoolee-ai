@@ -1,3 +1,4 @@
+import { captureEvidence } from "./screenshot-evidence";
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
@@ -74,6 +75,36 @@ test("candidate saves; the on-duty invigilator opens the board and extends withi
   const body = await board.json();
   expect(body.extendLimit).toBe(15);
   expect(body.rows.find((row: { attemptId: string | null }) => row.attemptId === attemptId).state).toBe("SAVED");
+  const listed = await (await hod.request.get("/api/school-ai/exams")).json();
+  expect(listed.exams.some((exam: { id: string }) => exam.id === examId), "the on-duty invigilator can choose this sitting in Control room").toBeTruthy();
+  expect((await hod.request.get(`/api/school-ai/exams/${examId}/pulse`)).ok()).toBeTruthy();
+  expect((await hod.request.get(`/api/school-ai/exams/${examId}/integrity`)).ok()).toBeTruthy();
+  const proctor = await hod.request.get(`/api/school-ai/exams/${examId}/proctor`);
+  expect(proctor.ok(), await proctor.text()).toBeTruthy();
+  expect((await proctor.json()).canConfigure).toBe(false);
+  const persisted = await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+  const capture = await db.schoolAiProctorSession.create({ data: { schoolId: DEMO_SCHOOL_ID, campusId: persisted.campusId, assignmentId: examId, attemptId, userId: persisted.userId, kind: "CAMERA", clientKey: randomUUID(), consentVersion: "synthetic-role-check", retentionUntil: new Date(Date.now() + 3_600_000) } });
+  const clip = await db.schoolAiProctorClip.create({ data: { schoolId: DEMO_SCHOOL_ID, campusId: persisted.campusId, sessionId: capture.id, sequence: 0, storageKey: `synthetic-role-check/${randomUUID()}`, checksum: "0".repeat(64), mimeType: "video/webm", bytes: 1, status: "READY" } });
+  try {
+    const blocked = await hod.request.get(`/api/school-ai/exams/${examId}/proctor/clips/${clip.id}`);
+    expect([403, 404], "room duty never grants recording bytes").toContain(blocked.status());
+    const signals = await (await hod.request.get(`/api/school-ai/exams/${examId}/proctor`)).json();
+    expect(signals.sessions.find((row: { id: string }) => row.id === capture.id).clips).toEqual([]);
+  } finally {
+    await db.schoolAiProctorClip.delete({ where: { id: clip.id } });
+    await db.schoolAiProctorSession.delete({ where: { id: capture.id } });
+  }
+  // A room duty is not access to the key, every candidate's answers or learning/family records.
+  for (const endpoint of ["attempts", "improvement", "results", "family-notes", "twin"]) {
+    const restricted = await hod.request.get(`/api/school-ai/exams/${examId}/${endpoint}`);
+    expect([403, 404], `invigilator must not access ${endpoint}: ${await restricted.text()}`).toContain(restricted.status());
+  }
+  const learnerPulse = await student.request.get(`/api/school-ai/exams/${examId}/pulse`);
+  expect([403, 409], "active-candidate boundary or service authorization must refuse class progress").toContain(learnerPulse.status());
+  expect(await learnerPulse.json()).not.toHaveProperty("pulse");
+  const learnerBoard = await student.request.get(`/api/school-ai/exams/${examId}/board`);
+  expect([404, 409]).toContain(learnerBoard.status());
+  expect(await learnerBoard.json()).not.toHaveProperty("rows");
   const before = (await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: attemptId } })).deadlineAt.getTime();
   expect((await hod.request.post(`/api/school-ai/exams/${examId}/extend`, { headers, data: { attemptIds: [attemptId], minutes: 20, reason: "Fire drill", idempotencyKey: randomUUID() } })).status()).toBe(403);
   const key = randomUUID();
@@ -96,6 +127,57 @@ test("candidate saves; the on-duty invigilator opens the board and extends withi
   await student.close(); await hod.close();
 });
 
+test("the learner saves, keeps an offline edit and reconnects without losing the answer", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }); await signIn(context, "demo-student@example.invalid");
+  const page = await context.newPage();
+  await page.goto(`/ai/exams/${examId}`);
+  const answer = page.getByLabel("Your answer", { exact: true });
+  await expect(answer).toHaveValue("Light and water", { timeout: 30_000 });
+  await expect(page.locator("#exam-question-q2 [data-answer-status]")).toHaveAttribute("data-answer-status", "CONFIRMED");
+  if (shots) await captureEvidence(page, { path: `${shots}/learner-saved-answers.png`, fullPage: true });
+  await context.setOffline(true);
+  await answer.fill("Light, water and carbon dioxide — written while offline.");
+  await expect(page.locator("#exam-question-q2 [data-answer-status]")).toHaveAttribute("data-answer-status", "FAILED");
+  if (shots) await captureEvidence(page, { path: `${shots}/learner-offline-answer.png`, fullPage: true });
+  await context.setOffline(false);
+  await expect(page.locator("#exam-question-q2 [data-answer-status]")).toHaveAttribute("data-answer-status", "CONFIRMED", { timeout: 20_000 });
+  const saved = (await (await context.request.get(`/api/school-ai/exams/${examId}/attempt`)).json()).attempt;
+  expect(saved.responses.q2).toBe("Light, water and carbon dioxide — written while offline.");
+  await page.reload();
+  await expect(answer).toHaveValue(saved.responses.q2, { timeout: 30_000 });
+  if (shots) await captureEvidence(page, { path: `${shots}/learner-reconnected-answer.png`, fullPage: true });
+  await context.close();
+});
+
+test("the invigilator retries an extension after a lost response without adding time twice", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); await signIn(context, "demo-hod@example.invalid");
+  const page = await context.newPage();
+  await page.goto("/ai/studio#space=control-room");
+  const board = page.locator("[data-room-board]");
+  await expect(board).toBeVisible({ timeout: 30_000 });
+  await expect(board.locator('[data-board-row="SAVED"]')).toHaveCount(1);
+  const before = (await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: attemptId } })).deadlineAt.getTime();
+  const keys: string[] = [];
+  await page.route(`**/api/school-ai/exams/${examId}/extend`, async route => {
+    keys.push(route.request().postDataJSON().idempotencyKey);
+    const response = await route.fetch();
+    if (keys.length === 1) await route.abort("failed"); // the server committed; its response never reached the invigilator
+    else await route.fulfill({ response });
+  });
+  await board.locator('[data-board-row="SAVED"] input[type="checkbox"]').check();
+  await board.getByLabel("Reason", { exact: true }).fill("Fire drill response retry");
+  await board.locator("[data-board-extend]").click();
+  await expect(board.getByRole("status").filter({ hasText: "Could not confirm this change. Try again." })).toBeVisible();
+  await board.locator("[data-board-extend]").click();
+  await expect(board).toContainText("Extended 1 attempts.");
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).toBe(keys[0]);
+  const after = (await db.schoolAiExamAttempt.findUniqueOrThrow({ where: { id: attemptId } })).deadlineAt.getTime();
+  expect(after - before).toBe(10 * 60_000);
+  if (shots) await captureEvidence(page, { path: `${shots}/invigilator-extension-retry.png`, fullPage: true });
+  await context.close();
+});
+
 test("the principal's Control room board moves without a reload", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }); await signIn(context, "demo-principal@example.invalid");
   const page = await context.newPage();
@@ -107,6 +189,20 @@ test("the principal's Control room board moves without a reload", async ({ brows
   const paused = await context.request.post(`/api/school-ai/exams/${examId}/supervision`, { headers, data: { action: "pause", attemptIds: [attemptId], reason: "Candidate unwell" } });
   expect(paused.ok(), await paused.text()).toBeTruthy();
   await expect(board.locator('[data-board-row="PAUSED"]')).toHaveCount(1, { timeout: 12_000 });
-  if (shots) await page.screenshot({ path: `${shots}/control-room-board.png`, fullPage: true });
+  const window = await db.schoolAiExamAssignment.findUniqueOrThrow({ where: { id: examId }, select: { endsAt: true } });
+  await db.schoolAiExamAssignment.update({ where: { id: examId }, data: { endsAt: new Date(Date.now() - 1_000) } });
+  try {
+    const release = await context.request.post(`/api/school-ai/exams/${examId}/results-release`, { headers });
+    expect(release.status(), "the closed nominal window does not release results while a paused candidate is writing").toBe(409);
+    expect((await db.schoolAiExamAssignment.findUniqueOrThrow({ where: { id: examId } })).resultsReleasedAt).toBeNull();
+  } finally { await db.schoolAiExamAssignment.update({ where: { id: examId }, data: { endsAt: window.endsAt } }); }
+  if (shots) await captureEvidence(board, { path: `${shots}/control-room-board.png` });
+  const learner = await browser.newContext({ viewport: { width: 390, height: 844 } }); await signIn(learner, "demo-student@example.invalid");
+  const candidatePage = await learner.newPage();
+  await candidatePage.goto(`/ai/exams/${examId}`);
+  await expect(candidatePage.locator("[data-exam-paused]")).toBeVisible({ timeout: 30_000 });
+  await expect(candidatePage.getByLabel("Your answer", { exact: true })).toHaveCount(0);
+  if (shots) await captureEvidence(candidatePage, { path: `${shots}/learner-supervised-pause-phone.png`, fullPage: true });
+  await learner.close();
   await context.close();
 });
