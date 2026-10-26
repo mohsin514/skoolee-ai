@@ -7,7 +7,7 @@ import { calendarDateIn } from "@/lib/datetime";
 import { getLocalePackage } from "@/lib/locale/store";
 import { addCopies, currentRules, issueCopy, renewLoan, reserveTitle, returnCopy, saveRules } from "@/lib/library/desk";
 import { dueDate, finePreview, ymd, type LoanRules } from "@/lib/library/rules";
-import { createBook, createCategory, createMember, updateBook } from "@/lib/library/catalogue-command";
+import { createBook, createCategory, createMember, updateBook, renameCategory } from "@/lib/library/catalogue-command";
 import { saveRequest } from "@/lib/purchasing/service";
 import type { PermissionAction } from "@/lib/permissions";
 import { defineCapability } from "../../define";
@@ -1009,6 +1009,47 @@ const CATEGORY_CREATE = defineCapability<CategoryInput>({
   },
 });
 
+// The existing catalogue screen and this confirmed action use the same scoped command.
+const categoryRenameInput = z.strictObject({
+  category: NAME, name: NAME, categoryId: ID.optional(), expectedName: NAME.optional(),
+});
+type CategoryRenameInput = z.infer<typeof categoryRenameInput>;
+const CATEGORY_RENAME = defineCapability<CategoryRenameInput>({
+  key: "library.category_update", version: 1, cluster: "C7", inventoryKeys: ["library.category_update"],
+  risk: "UPDATE", class: "B", roles: ROLES, input: categoryRenameInput,
+  evidence: ["/category", "/name"], humanFields: ["categoryId", "expectedName"],
+  gates: deskGates("edit"), scope: { kind: "own-campus" }, idempotency: { mode: "natural" },
+  source: { route: "PATCH /api/library/categories", service: "src/lib/library/catalogue-command.ts:renameCategory", reuse: "extracted" },
+  copy: c(
+    ["Rename a shelf section", "Review and rename an existing catalogue section without moving its books.", "Rename Fiction to Stories"],
+    ["تغيير اسم قسم رف", "مراجعة اسم قسم موجود وتغييره دون نقل كتبه.", "غيّر اسم قسم القصص إلى الأدب"],
+    ["شیلف کے حصے کا نام بدلیں", "موجودہ حصے کا نام دیکھ کر بدلیں؛ کتابیں اسی حصے میں رہیں گی۔", "فکشن کا نام کہانیاں کر دیں"],
+  ),
+  async resolve(ctx, input) {
+    const category = await bindCategory(ctx, input.category, "/category");
+    if (!category) throw new WorkflowError("NOT_FOUND");
+    return { ...input, categoryId: category.id, expectedName: category.name };
+  },
+  async preview(ctx, input) {
+    const current = await prisma.bookCategory.findFirst({ where: { id: input.categoryId ?? "", schoolId: ctx.user.schoolId, campusId: libraryCampus(ctx) } });
+    if (!current) throw new WorkflowError("SCOPE_DENIED");
+    if (current.name !== input.expectedName && current.name !== input.name) throw new WorkflowError("STALE_VERSION");
+    return {
+      title: say(ctx, l("Rename shelf section", "تغيير اسم قسم الرف", "شیلف کے حصے کا نام بدلیں")),
+      lines: [{ label: say(ctx, l("Current name", "الاسم الحالي", "موجودہ نام")), value: current.name }, { label: say(ctx, l("New name", "الاسم الجديد", "نیا نام")), value: input.name }],
+      counts: { updated: current.name === input.name ? 0 : 1 },
+      confirmLabel: say(ctx, l("Save name", "حفظ الاسم", "نام محفوظ کریں")),
+      basis: { id: current.id, name: current.name, next: input.name },
+    };
+  },
+  async execute(ctx, input) {
+    const current = await prisma.bookCategory.findFirst({ where: { id: input.categoryId ?? "", schoolId: ctx.user.schoolId, campusId: libraryCampus(ctx) } });
+    if (!current) throw new WorkflowError("SCOPE_DENIED");
+    const saved = await renameCategory(ctx.user, { id: current.id, name: input.name, expectedName: input.expectedName }).catch(domain);
+    return receipt("library.category_update", [{ model: "bookCategory", id: saved.id }], { updated: current.name === saved.name ? 0 : 1 }, catalogueLink(ctx, "categories"), { name: saved.name }, current.name === saved.name);
+  },
+});
+
 // ─── library.book_create (A; ISBN merge) ──────────────────────────────────
 
 /** The tools.ts `libraryCreateSchema` shape, widened with the shelf section by name. */
@@ -1128,6 +1169,6 @@ const READ_OVERDUE = defineCapability<OverdueInput>({
 
 export const LIBRARY_ENTRIES: readonly CapabilityEntry[] = [
   ISSUE, RETURN, RENEW, RESERVE, ADD_COPIES, SAVE_RULES, MEMBER_CREATE, BOOK_UPDATE, PURCHASE_DRAFT,
-  CATEGORY_CREATE, BOOK_CREATE, READ_OVERDUE,
+  CATEGORY_CREATE, CATEGORY_RENAME, BOOK_CREATE, READ_OVERDUE,
   SAVE_RULES_MONEY, MARK_LOST, DECIDE_CHARGE,
 ];

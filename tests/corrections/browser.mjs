@@ -36,7 +36,7 @@ if(process.env.AUDIT_SCREEN_ONLY!=='1') for(const role of Object.keys(fixture.co
  for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mobile',390,844]]){
   const page=await browser.newPage({viewport:{width,height}});await page.context().addCookies([{name:'skoolee_token',value:fixture.cookies[role].split('=')[1],url:base}]);const r=await page.goto(`${base}/corrections`);await page.waitForTimeout(350);
   const body=await page.locator('body').innerText();if(r.status()>=500||body.includes('Application error:'))throw new Error(`${role} failed`);
-  if(['PARENT','STUDENT'].includes(role)){if(body.includes('PRIVATE'))throw new Error('Private history leaked');await page.getByRole('button',{name:'Payments',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('ol li').length>=5);if((await page.locator('body').innerText()).includes('PRIVATE'))throw new Error('Private finance note leaked');if(name==='mobile')await page.screenshot({path:`${out}/${role.toLowerCase()}-history-mobile.png`,fullPage:true});}
+  if(['PARENT','STUDENT'].includes(role)){if(body.includes('PRIVATE'))throw new Error('Private history leaked');await page.getByRole('tab',{name:'Payments',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('ol li').length>=5);if((await page.locator('body').innerText()).includes('PRIVATE'))throw new Error('Private finance note leaked');if(name==='mobile')await page.screenshot({path:`${out}/${role.toLowerCase()}-history-mobile.png`,fullPage:true});}
   evidence.push({role,viewport:name,status:r.status(),noPrivateLeak:['PARENT','STUDENT'].includes(role)?true:undefined});await page.close();
  }
 }

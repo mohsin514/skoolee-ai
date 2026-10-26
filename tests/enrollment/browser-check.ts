@@ -4,6 +4,7 @@ import { SignJWT } from "jose";
 import { PrismaClient } from "@prisma/client";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
+import { dashboardPathForRole } from "../../src/lib/roles";
 import { enrollmentLabels } from "../../src/lib/students/labels";
 const url=new URL(process.env.DATABASE_URL||"postgresql://invalid");if(url.hostname!=="127.0.0.1"||!(url.port==="55417"&&url.pathname==="/sko217"||url.port==="55438"&&url.pathname==="/postgres"))throw new Error("Dedicated local SKO-217 database required");
 const db=new PrismaClient(),base=process.env.ENROLLMENT_TEST_APP||"http://localhost:3217",secret=process.env.ENROLLMENT_AUTH_SECRET||"local-sko217-fixture";
@@ -27,11 +28,20 @@ async function main(){
   const canManage=["SUPER_ADMIN","ADMIN","CAMPUS_ADMIN"].includes(role);
   if(!canManage)assert.equal((await context.request.post(`${base}/api/students/enrollments`,{data:{action:"propose",studentId:pupil}})).status(),403);
   if(role!=="SUPER_ADMIN")assert.equal((await context.request.post(`${base}/api/students/consolidation`,{data:{action:"preview",sourceId:pupil,targetId:"pupil-survivor"}})).status(),403);
+  // G44: family and platform accounts retain scoped API reads, but cannot enter the staff console.
+  if(["APP_OWNER","PARENT","STUDENT"].includes(role)){
+   await page.goto(`${base}/pupils/${pupil}`,{waitUntil:"networkidle",timeout:120000});
+   assert.equal(new URL(page.url()).pathname,dashboardPathForRole(role));
+   assert.equal(await page.getByRole("heading",{name:enrollmentLabels.en.history,exact:true}).count(),0);
+   results.push(`${role}: staff-console redirect and scoped API checks pass`);
+   await context.close();
+   continue;
+  }
   for(const language of ["en","ar","ur"] as const){
    await db.user.update({where:{id:`identity-${role}`},data:{preferredLanguage:language}});
    await page.goto(`${base}/pupils/${pupil}`,{waitUntil:"networkidle",timeout:120000});
    await page.getByRole("heading",{name:enrollmentLabels[language].history,exact:true}).waitFor();
-   assert.equal(await page.locator("main").getAttribute("dir"),language==="en"?"ltr":"rtl");
+   assert.equal(await page.getByRole("heading",{name:enrollmentLabels[language].history,exact:true}).evaluate(el=>el.closest("[dir]")?.getAttribute("dir")),language==="en"?"ltr":"rtl");
    assert.equal(await page.getByRole("heading",{name:enrollmentLabels[language].change,exact:true}).count(),canManage?1:0);
    for(const width of [1440,768,390]){
     await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`${role}/${language}/${width} overflow`);
