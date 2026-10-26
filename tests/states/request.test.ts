@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkedJson, checkedListJson, failureForStatus, RequestFailure, requestFailure, resourceState } from "../../src/lib/http/request-state";
+import { checkedJson, checkedListJson, failureForStatus, RequestFailure, requestFailure, resourceState, readRequest } from "../../src/lib/http/request-state";
 
 test("HTTP outcomes precede parsing and never disclose server bodies", async () => {
   for (const [status, kind] of [[401,"session"],[403,"denied"],[404,"denied"],[400,"validation"],[422,"validation"],[409,"conflict"],[412,"conflict"],[408,"timeout"],[504,"timeout"],[429,"limited"],[502,"provider"],[503,"provider"],[500,"server"]] as const) {
@@ -43,4 +43,36 @@ test("suppressed internal failures do not copy confidential diagnostics into log
     assert.ok(!JSON.stringify(entries).includes("private-db-host"));
     assert.equal(new RequestFailure("provider").message, "A service is unavailable");
   } finally { console.error = original; }
+});
+
+
+test("reads work without newer AbortSignal statics and propagate cancellation", async () => {
+  const any = Object.getOwnPropertyDescriptor(AbortSignal, "any");
+  const timeout = Object.getOwnPropertyDescriptor(AbortSignal, "timeout");
+  Object.defineProperty(AbortSignal, "any", {value:undefined,configurable:true});
+  Object.defineProperty(AbortSignal, "timeout", {value:undefined,configurable:true});
+  try {
+    const controller = new AbortController();
+    let received: AbortSignal | null = null;
+    const request = (async (_input, init) => {
+      received = init?.signal as AbortSignal;
+      assert.equal(init?.cache,"no-store");
+      controller.abort();
+      assert.equal(received.aborted,true);
+      throw new DOMException("Aborted", "AbortError");
+    }) as typeof fetch;
+    await assert.rejects(readRequest("/synthetic", controller.signal, request), {name:"AbortError"});
+    assert.equal((await readRequest("/synthetic",undefined,(async () => Response.json({success:true})) as typeof fetch)).status,200);
+  } finally {
+    if (any) Object.defineProperty(AbortSignal,"any",any); else Reflect.deleteProperty(AbortSignal,"any");
+    if (timeout) Object.defineProperty(AbortSignal,"timeout",timeout); else Reflect.deleteProperty(AbortSignal,"timeout");
+  }
+});
+
+test("paged selector reads reject a denied later page without returning a partial collection", async () => {
+  const { loadListPages } = await import("../../src/lib/lists/load-pages");
+  let calls = 0;
+  const request = (async () => ++calls === 1 ? Response.json({success:true,data:[{id:"synthetic"}],pagination:{pages:2}}) : new Response("private diagnostic",{status:403})) as typeof fetch;
+  await assert.rejects(loadListPages("/synthetic",new URLSearchParams(),request), (error:unknown) => error instanceof RequestFailure && error.kind === "denied");
+  assert.equal(calls,2);
 });

@@ -37,9 +37,19 @@ export async function checkedJson<T = any>(response: Response, options: { envelo
   return body as T;
 }
 /** Reads only: no automatic replay of mutations with uncertain outcomes. */
-export function readRequest(input: string, signal?: AbortSignal): Promise<Response> {
-  return fetch(input, { cache: "no-store", signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000) });
+export async function readRequest(input: string, signal?: AbortSignal, request: typeof fetch = fetch): Promise<Response> {
+  // Native shells target iOS 15. Do not require the newer AbortSignal.any/timeout statics.
+  const controller = new AbortController();
+  let timedOut = false;
+  const abort = () => controller.abort();
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 20_000);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener("abort", abort, { once: true });
+  try { return await request(input, { cache: "no-store", signal: controller.signal }); }
+  catch (error) { if (timedOut) throw new RequestFailure("timeout"); throw error; }
+  finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
 }
+
 export type ResourceState = "loading" | "no-data" | "no-match" | "failure" | "success" | "denied";
 export function resourceState(input: { loading: boolean; failure?: RequestFailure | null; count: number; filtered?: boolean }): ResourceState {
   if (input.loading) return "loading";

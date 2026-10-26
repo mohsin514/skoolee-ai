@@ -9,6 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
       postgres:
         image: postgres:16
         env:
@@ -20,7 +24,8 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55438/postgres
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:55438/postgres
       AUTH_SECRET: scrum308-ci-synthetic-secret-only-2026
-      NODE_OPTIONS: --max-old-space-size=6144
+      NODE_OPTIONS: --max-old-space-size=12288
+      REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -35,6 +40,7 @@ jobs:
       - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/states/request.test.ts tests/states/render.test.tsx tests/states/api.test.ts tests/locale/catalog-conflicts.test.ts
       - run: pnpm exec playwright install --with-deps chromium
       - run: |
+          # The full role sweep retains enough compiled routes to exceed a 6 GB heap.
           pnpm exec next dev --webpack -p 3109 > /tmp/states-app.log 2>&1 &
           for i in $(seq 1 60); do curl -s http://localhost:3109/api/auth/session > /dev/null && break; sleep 2; done
           node --import ./tests/support/server-only.mjs --import tsx --test --test-concurrency=1 tests/states/states.browser.test.ts
