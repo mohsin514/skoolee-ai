@@ -1,4 +1,5 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
 /**
  * The group console (SUPER_ADMIN of a school group) — governance only (SPEC §3 `super`, §4.4, M1–M18, M117).
@@ -542,7 +543,7 @@ function CampusesView({ campuses, onOpen, onAdd, onActivity, onAppoint, onPromot
 }) {
   const t = useUiText();
   const formatNumber = useFormatNumber();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useListField<string>("group.search", "", "group.page");
   const [leadership, setLeadership] = useState("all");
   const filtered = campuses.filter(campus => {
     const matches = `${campus.name} ${campus.city ?? ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());

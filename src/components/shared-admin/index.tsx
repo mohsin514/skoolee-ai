@@ -1,4 +1,7 @@
 "use client";
+import { loadListPages } from "@/lib/lists/load-pages";
+import { useListPage } from "@/hooks/use-list-page";
+import { useListField } from "@/hooks/use-list-field";
 import { fillNodes } from "@/lib/auth/fill-nodes";
 import { AiWorkflowsHome } from "@/components/ai-workflows/AiWorkflowsHome";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -119,6 +122,7 @@ import {
   WorkspaceToolbar,
   usePaged,
   ViewSwitch,
+  additionalWorkspaceViews,
   useWorkspacePrefs,
 } from "@/components/shared-admin/workspace";
 
@@ -753,9 +757,9 @@ export function FacultyPanel({
   canInvite?: boolean;
 }) {
   const ui = useUiText();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [facultyFilter, setFacultyFilter] = useState<"all" | "unassigned" | "classTeachers" | "onboarding">("all");
-  const [sortKey, setSortKey] = useState<"name" | "subjects" | "classes">("name");
+  const [searchQuery, setSearchQuery] = useListField<string>("teachers.search", "", "teachers.page");
+  const [facultyFilter, setFacultyFilter] = useListField<"all" | "unassigned" | "classTeachers" | "onboarding">("teachers.filter", "all", "teachers.page");
+  const [sortKey, setSortKey] = useListField<"name" | "subjects" | "classes">("teachers.sort", "name", "teachers.page");
   // Rows read well for eight teachers and badly for sixty, where the question
   // is usually "who is carrying what?" — which is a table question.
   const [facultyPrefs, patchFacultyPrefs] = useWorkspacePrefs("faculty", { view: "cards" });
@@ -775,11 +779,12 @@ export function FacultyPanel({
       return matches(t.fullName) || matches(t.email) || Boolean(t.phone?.includes(q));
     });
     return result.sort((a, b) => {
-      if (sortKey === "subjects") return subjectCount(b) - subjectCount(a);
-      if (sortKey === "classes") return classCount(b) - classCount(a);
-      return (a.fullName || "").localeCompare(b.fullName || "");
+      if (sortKey === "subjects") return subjectCount(b) - subjectCount(a) || a.id.localeCompare(b.id);
+      if (sortKey === "classes") return classCount(b) - classCount(a) || a.id.localeCompare(b.id);
+      return (a.fullName || "").localeCompare(b.fullName || "") || a.id.localeCompare(b.id);
     });
   }, [teachers, q, facultyFilter, sortKey]);
+  const teacherPage = useListPage(filtered, "teachers");
 
   /*
    * Pending invites used to disappear the moment you typed anything, so an
@@ -902,15 +907,20 @@ export function FacultyPanel({
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
                 { value: "table", label: "List", icon: ClipboardList },
+                ...additionalWorkspaceViews,
               ]}
             />
           </div>
         </div>
 
-        {facultyPrefs.view === "table" && filtered.length > 0 ? (
+        <Pagination {...teacherPage.controls} />
+        {facultyPrefs.view !== "cards" && filtered.length > 0 ? (
           <div className="mb-4">
             <DataTable
-              rows={filtered}
+              view={facultyPrefs.view}
+              calendarLabel="Joining date"
+              getCalendarDate={(row) => ({ value: row.joiningDate, kind: "date" })}
+              rows={teacherPage.rows}
               rowKey={(t: any) => t.id}
               minWidth={780}
               onRowClick={(t: any) => onViewTeacher(t, filtered)}
@@ -996,9 +1006,9 @@ export function FacultyPanel({
         ) : null}
 
         <div className="space-y-4">
-          {facultyPrefs.view === "table"
+          {facultyPrefs.view !== "cards"
             ? null
-            : filtered.map((teacher: any) => (
+            : teacherPage.rows.map((teacher: any) => (
                 <FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={canInvite ? () => onRemove(teacher.id) : undefined} />
               ))}
 
@@ -4745,16 +4755,16 @@ export function AdmissionQueriesPanel({
   const [queries, setQueries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [sourceFilter, setSourceFilter] = useState("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showOverdue, setShowOverdue] = useState(false);
+  const [statusFilter, setStatusFilter] = useListField<string>("enquiries.status", "ALL", "enquiries.page");
+  const [sourceFilter, setSourceFilter] = useListField<string>("enquiries.source", "ALL", "enquiries.page");
+  const [searchQuery, setSearchQuery] = useListField<string>("enquiries.search", "", "enquiries.page");
+  const [showOverdue, setShowOverdue] = useListField<boolean>("enquiries.overdue", false, "enquiries.page");
   const [showNewModal, setShowNewModal] = useState(false);
   const [selected, setSelected] = useState<any>(null);
   const [now, setNow] = useState(0);
   // A follow-up desk works off "who is furthest past due", which the old
   // fixed order could not answer.
-  const [querySort, setQuerySort] = useState<"overdue" | "next" | "newest" | "name">("overdue");
+  const [querySort, setQuerySort] = useListField<"overdue" | "next" | "newest" | "name">("enquiries.sort", "overdue", "enquiries.page");
   const [queryPrefs, patchQueryPrefs] = useWorkspacePrefs("enquiries", { view: "cards" });
 
   useEffect(() => {
@@ -4767,18 +4777,15 @@ export function AdmissionQueriesPanel({
    * Status, source and overdue are applied client-side (see `filtered`), so
    * sending them to the API as well made every count on this screen wrong the
    * moment a chip was pressed. Only `search` still goes to the server, because
-   * the endpoint caps at 200 rows and searching is the one case that
-   * legitimately needs to reach past them.
+   * the complete bounded-page reader retrieves every matching row, so counts and exports
+   * remain complete beyond the old 200-row cap.
    */
   const loadQueries = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
-      const res = await fetch(`/api/admission-queries?${params.toString()}`, { cache: "no-store" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || "Enquiries could not be loaded.");
-      setQueries(json.data || []);
+      setQueries(await loadListPages("/api/admission-queries", params));
       setLoadFailed(false);
     } catch {
       setLoadFailed(true);
@@ -4836,18 +4843,19 @@ export function AdmissionQueriesPanel({
           // rather than pretending to be urgent.
           const da = due(a);
           const db = due(b);
-          if (da === db) return a.name.localeCompare(b.name);
+          if (da === db) return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
           return da - db;
         }
         case "next":
-          return due(b) - due(a);
+          return due(b) - due(a) || a.id.localeCompare(b.id);
         case "newest":
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime() || a.id.localeCompare(b.id);
         default:
           return a.name.localeCompare(b.name);
       }
     });
   }, [queries, statusFilter, sourceFilter, searchQuery, showOverdue, now, querySort]);
+  const enquiryPage = useListPage(filtered, "enquiries");
 
   const exportQueries = () => {
     if (!filtered.length) {
@@ -5054,11 +5062,13 @@ export function AdmissionQueriesPanel({
             options={[
               { value: "cards", label: "Cards", icon: LayoutGrid },
               { value: "table", label: "List", icon: ClipboardList },
+                ...additionalWorkspaceViews,
             ]}
           />
         </div>
       </div>
 
+      <Pagination {...enquiryPage.controls} />
       {loading && !queries.length ? (
         <SkeletonList rows={4} label={ui("Loading enquiries…")} />
       ) : loadFailed && !queries.length ? (
@@ -5077,9 +5087,12 @@ export function AdmissionQueriesPanel({
         />
       ) : filtered.length === 0 ? (
         <EmptyInline text={ui("No enquiries match these filters. Try clearing them.")} />
-      ) : queryPrefs.view === "table" ? (
+      ) : queryPrefs.view !== "cards" ? (
         <DataTable
-          rows={filtered}
+          view={queryPrefs.view}
+          calendarLabel="Next follow-up"
+          getCalendarDate={(row) => ({ value: row.nextFollowUp, kind: "date" })}
+          rows={enquiryPage.rows}
           rowKey={(q: any) => q.id}
           minWidth={860}
           caption={ui("Admission enquiries")}
@@ -5139,7 +5152,7 @@ export function AdmissionQueriesPanel({
         />
       ) : (
         <ul className="space-y-3" aria-label={ui("Admission enquiries")}>
-          {filtered.map((q) => {
+          {enquiryPage.rows.map((q) => {
             const overdue = isOverdueEnquiry(q, now);
             const SourceIcon = querySourceIcon(q.source);
             return (
@@ -5654,8 +5667,9 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   const ui = useUiText();
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [searchQuery, setSearchQuery] = useListField<string>("archive.search", "", "archive.page");
+  const [statusFilter, setStatusFilter] = useListField<string>("archive.status", "all", "archive.page");
   const [busyId, setBusyId] = useState<string | null>(null);
   // Restoring one student at a time is fine for a mistake; it is not fine after
   // a bulk archive, which the roster can now do in a single action.
@@ -5666,10 +5680,10 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/students?status=archived&limit=200");
-      const json = await res.json();
-      if (json.success) setStudents(json.data || []);
+      setStudents(await loadListPages("/api/students", new URLSearchParams({ status: "archived" })));
+      setLoadFailed(false);
     } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -5695,6 +5709,8 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
       s.guardianName?.toLowerCase().includes(q)
     );
   });
+
+  const archivePage = useListPage(filtered, "archive");
 
   const runBulkStatus = async (status: string, verb: string) => {
     setBulkBusy(true);
@@ -5846,13 +5862,14 @@ export function ArchivedStudentsPanel({ version, onVersionBump }: { version: num
         ]}
       />
 
+      <Pagination {...archivePage.controls} />
       {loading ? (
         <SkeletonList rows={4} label={ui("Loading archived students")} />
-      ) : filtered.length === 0 ? (
+      ) : loadFailed ? <ErrorState onRetry={load} /> : filtered.length === 0 ? (
         <EmptyInline text={ui("No archived or inactive students — archived profiles appear here")} />
       ) : (
         <div className="space-y-3">
-          {filtered.map((s, i) => (
+          {archivePage.rows.map((s, i) => (
             <div
               key={s.id}
               className="sk-rise sk-panel flex flex-wrap items-center gap-4 p-4 transition-all duration-300 hover:border-primary/30 hover:shadow-lg"

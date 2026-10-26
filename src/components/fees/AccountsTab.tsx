@@ -1,4 +1,5 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -741,7 +742,12 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   const { currency: campusCurrency } = useLocale();
   const tr = useUiText();
   const [currency, setCurrency] = useState("");
-  const [from, setFrom] = useState(""), [to, setTo] = useState(""), [filterAccount, setFilterAccount] = useState(""), [source, setSource] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(1);
+  const [from, setFrom] = useListField<string>(`ledger.${kind}.from`, "", `ledger.${kind}.page`);
+  const [to, setTo] = useListField<string>(`ledger.${kind}.to`, "", `ledger.${kind}.page`);
+  const [filterAccount, setFilterAccount] = useListField<string>(`ledger.${kind}.filterAccount`, "", `ledger.${kind}.page`);
+  const [source, setSource] = useListField<string>(`ledger.${kind}.source`, "", `ledger.${kind}.page`);
+  const [status, setStatus] = useListField<string>(`ledger.${kind}.status`, "all", `ledger.${kind}.page`);
+  const [page, setPage] = useListField<number>(`ledger.${kind}.page`, 1, `ledger.${kind}.page`);
   const [entries, setEntries] = useState<LedgerRow[]>([]);
   const [totals, setTotals] = useState<LedgerTotals | null>(null);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
@@ -775,7 +781,9 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   }, [campusId, kind, currency, from, to, filterAccount, source, status]);
   const filtered = Boolean(from || to || filterAccount || source || status !== "all");
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setLoadError("");
     try {
@@ -789,20 +797,23 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
         fetch(`${API}/accounts/bank-accounts${scope}`, { cache: "no-store" }),
       ]);
       const [eJson, aJson, bJson] = await Promise.all([eRes.json().catch(() => ({})), aRes.json().catch(() => ({})), bRes.json().catch(() => ({}))]);
+      if (version !== requestVersion.current) return;
       if (!eRes.ok || !eJson.success) throw new Error(eRes.status === 403 ? tr("You do not have access to the ledger for this campus.") : eJson.error || tr("Failed to load ledger"));
       setEntries(eJson.data);
       setTotals(eJson.totals);
+      if (eJson.page !== page) setPage(eJson.page);
       if (!currency) setCurrency(eJson.currency);
       if (aJson.success) setAccounts(aJson.data);
       if (bJson.success) setBanks(bJson.data);
     } catch (failure) {
+      if (version !== requestVersion.current) return;
       setLoadError(failure instanceof Error ? tr(failure.message) : tr("Failed to load ledger"));
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [filterParams, page, campusId, currency, tr]);
 
-  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   const openNew = () => { setFormError(""); setShowModal(true); };
   // "Export ledger" in the accountant's PageHeader downloads exactly the filtered rows (the same filter as the list).
@@ -869,7 +880,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   const kindTotal = totals ? (kind === "INCOME" ? totals.income : totals.expense) : 0;
   const pages = totals ? Math.max(1, Math.ceil(totals.count / PAGE_SIZE)) : 1;
   const exportParams = filterParams(); exportParams.set("format", "csv");
-  const setFilter = (apply: () => void) => { apply(); setPage(1); };
+  const setFilter = (apply: () => void) => { apply(); };
 
   return (
     <div className="space-y-4" data-ledger-panel={kind}>

@@ -1,3 +1,5 @@
+import { listPagination, pageWindow } from "@/lib/lists/query";
+import { assertListBudget } from "@/lib/lists/access";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { createEnquiry, updateEnquiry } from "@/lib/admissions/enquiries";
@@ -27,7 +29,9 @@ export async function GET(req: NextRequest) {
     // school's entire admissions list. Staff-only, and gated on the same
     // admissions.view bit as the screen it feeds.
     await assertModuleRead(user, "admissions");
+    await assertListBudget(user, "admission-queries");
     const { searchParams } = req.nextUrl;
+    const { page: requestedPage, limit } = listPagination(searchParams, 100, 100);
     const status = searchParams.get("status");
     const source = searchParams.get("source");
     const search = searchParams.get("search")?.trim();
@@ -54,6 +58,8 @@ export async function GET(req: NextRequest) {
         : {}),
     };
 
+    const total = await prisma.admissionQuery.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
     const queries = await prisma.admissionQuery.findMany({
       where,
       select: {
@@ -72,11 +78,11 @@ export async function GET(req: NextRequest) {
         convertedStudent: { select: { id: true, fullName: true, rollNo: true } },
         _count: { select: { followUps: true } },
       },
-      orderBy: [{ status: "asc" }, { nextFollowUp: "asc" }, { createdAt: "desc" }],
-      take: 200,
+      orderBy: [{ status: "asc" }, { nextFollowUp: "asc" }, { createdAt: "desc" }, { id: "asc" }],
+      skip, take: limit,
     });
 
-    return Response.json({ success: true, data: queries });
+    return Response.json({ success: true, data: queries, pagination: { page, limit, total, pages } });
   } catch (error) {
     return errorResponse(error, "[admission-queries] GET failed");
   }
