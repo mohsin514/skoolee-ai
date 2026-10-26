@@ -1,3 +1,4 @@
+import { assertListBudget } from "@/lib/lists/access";
 import { ownerPagination, boundedInteger } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const user = await requirePlatformOwner();
+    await assertListBudget(user, "owner/audit-logs");
 
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action") || "";

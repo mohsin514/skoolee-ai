@@ -1,4 +1,5 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
 /**
  * Platform operations (APP_OWNER) — SPEC §3 `owner`, §4.4/§4.4b owner rows, M109–M111.
@@ -965,9 +966,9 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [planFilter, setPlanFilter] = useState("");
+  const [search, setSearch] = useListField<string>("schools.search", "", "schools.page");
+  const [statusFilter, setStatusFilter] = useListField<string>("schools.status", "", "schools.page");
+  const [planFilter, setPlanFilter] = useListField<string>("schools.plan", "", "schools.page");
   const [showProvisionSchool, setShowProvisionSchool] = useState(false);
   const [preparedSchool, setPreparedSchool] = useState<{ id: string; prefill: SchoolProvisionPrefill } | null>(null);
   useEffect(() => {
@@ -1297,10 +1298,10 @@ function UsersView() {
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
-  const [schoolFilter, setSchoolFilter] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useListField<string>("users.search", "", "users.page");
+  const [schoolFilter, setSchoolFilter] = useListField<string>("users.school", "", "users.page");
+  const [roleFilter, setRoleFilter] = useListField<string>("users.role", "", "users.page");
+  const [statusFilter, setStatusFilter] = useListField<string>("users.status", "", "users.page");
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -1571,21 +1572,21 @@ function AuditLogView() {
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useListField<number>("audit.page", 1, "audit.page");
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
-  const [actionFilter, setActionFilter] = useState("");
-  const [daysFilter, setDaysFilter] = useState("30");
+  const [actionFilter, setActionFilter] = useListField<string>("audit.action", "", "audit.page");
+  const [daysFilter, setDaysFilter] = useListField<string>("audit.days", "30", "audit.page");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const loadLogsVersion = useRef(0);
-  const loadLogs = useCallback(async (p = 1) => {
+  const loadLogs = useCallback(async () => {
     const version = ++loadLogsVersion.current;
     setLoading(true);
     setLoadFailed(false);
     try {
-      const qp = new URLSearchParams({ page: String(p), limit: "30", days: daysFilter });
+      const qp = new URLSearchParams({ page: String(page), limit: "30", days: daysFilter });
       if (actionFilter) qp.set("action", actionFilter);
 
       const res = await fetch(`/api/owner/audit-logs?${qp}`, { cache: "no-store" });
@@ -1595,7 +1596,6 @@ function AuditLogView() {
         setLogs(json.data);
         setTotalPages(json.pagination.pages);
         setTotal(json.pagination.total);
-        setPage(p);
       } else {
         setLoadFailed(true);
       }
@@ -1604,7 +1604,7 @@ function AuditLogView() {
     } finally {
       if (version === loadLogsVersion.current) setLoading(false);
     }
-  }, [actionFilter, daysFilter]);
+  }, [actionFilter, daysFilter, page]);
 
   useEffect(() => { void loadLogs(); }, [loadLogs]);
 
@@ -1631,7 +1631,7 @@ function AuditLogView() {
         description={t("{0} platform actions recorded in the selected period: who did what, and when.", [dates.number(total)])}
         secondaryActions={[
           { id: "export", label: "Export", icon: Download, onClick: () => void exportLogs(), loading: exporting, disabled: loading || total === 0 },
-          { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void loadLogs(1), loading },
+          { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void loadLogs(), loading },
         ]}
       />
 
@@ -1665,7 +1665,7 @@ function AuditLogView() {
           <ErrorState
             title={t("The audit log did not load")}
             description={t("We couldn't load these entries. Check your connection and try again.")}
-            onRetry={() => void loadLogs(page)}
+            onRetry={() => void loadLogs()}
           />
         ) : logs.length === 0 ? (
           <EmptyState
@@ -1771,7 +1771,7 @@ function AuditLogView() {
           <PaginationBar
             pagination={{ page, limit: 30, total, pages: totalPages }}
             label="entries"
-            onPage={(p) => void loadLogs(p)}
+            onPage={setPage}
           />
         )}
       </section>

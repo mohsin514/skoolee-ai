@@ -1,3 +1,4 @@
+import { assertListBudget } from "@/lib/lists/access";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { parseFilters, searchRecords } from "@/lib/search/service";
@@ -8,9 +9,10 @@ import { errorResponse, requireAuthUser } from "@/lib/api/scope";
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertListBudget(user, "search");
     const params = request.nextUrl.searchParams;
     if (params.get("options")) {
-      const result = await searchRecords(user, { q: "", types: ["class"], campusId: null, academicYear: null, classId: null, status: "all", page: 1 }).catch(() => null);
+      const result = await searchRecords(user, { q: "", types: ["class"], campusId: null, academicYear: null, classId: null, status: "all", page: 1 });
       const campusWhere = user.role === "SUPER_ADMIN" ? { schoolId: user.schoolId } : { id: user.campusId ?? "", schoolId: user.schoolId };
       const [campuses, classes] = await Promise.all([
         prisma.campus.findMany({ where: { ...campusWhere, archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -18,7 +20,14 @@ export async function GET(request: NextRequest) {
       ]);
       return Response.json({ success: true, data: { campuses: user.role === "SUPER_ADMIN" ? campuses : [], classes, years: [...new Set(classes.map(cls => cls.academicYear))].sort((a, b) => b - a), allowedTypes: result?.allowedTypes ?? [] } });
     }
-    return Response.json({ success: true, data: await searchRecords(user, parseFilters(params)) }, { headers: { "Cache-Control": "no-store" } });
+    const data = await searchRecords(user, parseFilters(params));
+    // Audit access, never the query, identifiers, contacts or returned record contents.
+    await prisma.auditLog.create({ data: {
+      schoolId: user.schoolId, campusId: user.campusId, userId: user.userId,
+      tableName: "record_search", recordId: user.userId,
+      newValue: { action: "SEARCH", types: data.types, partial: data.partial },
+    } });
+    return Response.json({ success: true, data }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return errorResponse(error, "[search] GET failed");
   }

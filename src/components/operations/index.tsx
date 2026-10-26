@@ -1,8 +1,12 @@
 "use client";
+import { Pagination } from "@/components/shared-admin/workspace";
+import { loadListPages } from "@/lib/lists/load-pages";
+import { useListPagination } from "@/hooks/use-list-page";
+import { useListField } from "@/hooks/use-list-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Bus,
   Building2,
@@ -226,10 +230,14 @@ async function exportList(
   toRow: (row: any) => unknown[],
 ) {
   try {
-    const response = await fetch(url, { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) throw new Error();
-    const rows: any[] = Array.isArray(json.data) ? json.data : [];
+    let rows: any[];
+    if (["/api/inventory/items", "/api/library/books"].includes(url)) rows = await loadListPages(url);
+    else {
+      const response = await fetch(url, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error();
+      rows = Array.isArray(json.data) ? json.data : [];
+    }
     if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
     downloadCSV(`${filename}-${new Date().toISOString().slice(0, 10)}`, [header, ...rows.map(toRow)]);
   } catch {
@@ -806,22 +814,30 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useListField<string>("library.search", "", "library.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("library.category", "", "library.page");
+  const [sort, setSort] = useListField<string>("library.sort", "name", "library.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "library");
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true); setLoadFailed(false);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
       const [br, cr] = await Promise.all([fetch(`/api/library/books${q}`), fetch("/api/library/categories")]);
       const [bj, cj] = await Promise.all([br.json(), cr.json()]);
-      if (bj.success) setRows(bj.data || []);
+      if (version !== requestVersion.current) return;
+      if (!br.ok || !cr.ok || !bj.success || !cj.success) throw new Error("List failed");
+      if (bj.success) { setRows(bj.data || []); setTotal(bj.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
-  }, [search]);
-  useEffect(() => { load(); }, [load]);
+    } catch { if (version === requestVersion.current) setLoadFailed(true); } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // The column is `copiesTotal`. This form sent `totalCopies`, so the route
   // read `undefined`, failed its own `Number.isFinite` check, and rejected
@@ -876,6 +892,11 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
           <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
@@ -1059,8 +1080,9 @@ function IssuesTab() {
   const load = useCallback(async () => {
     setLoading(true); setLoadFailed(false);
     try {
-      const [ir, br, mr] = await Promise.all([fetch("/api/library/issues"), fetch("/api/library/books"), fetch("/api/library/members")]);
-      const [ij, bj, mj] = await Promise.all([ir.json(), br.json(), mr.json()]);
+      const [ir, br, mr] = await Promise.all([fetch("/api/library/issues"), loadListPages("/api/library/books"), fetch("/api/library/members")]);
+      const [ij, mj] = await Promise.all([ir.json(), mr.json()]);
+      const bj = { success: true, data: br };
       if (ij.success) setRows(ij.data || []);
       if (bj.success) setBooks(bj.data || []);
       if (mj.success) setMembers(mj.data || []);
@@ -1362,22 +1384,30 @@ function ItemsTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useListField<string>("inventory.search", "", "inventory.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("inventory.category", "", "inventory.page");
+  const [sort, setSort] = useListField<string>("inventory.sort", "name", "inventory.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "inventory");
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true); setLoadFailed(false);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
       const [ir, cr] = await Promise.all([fetch(`/api/inventory/items${q}`), fetch("/api/inventory/categories")]);
       const [ij, cj] = await Promise.all([ir.json(), cr.json()]);
-      if (ij.success) setRows(ij.data || []);
+      if (version !== requestVersion.current) return;
+      if (!ir.ok || !cr.ok || !ij.success || !cj.success) throw new Error("List failed");
+      if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
-  }, [search]);
-  useEffect(() => { load(); }, [load]);
+    } catch { if (version === requestVersion.current) setLoadFailed(true); } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // Item is (name, unit, categoryId). `description` had no input and no column.
   const form = useValidatedForm({
@@ -1397,7 +1427,7 @@ function ItemsTab() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
+        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} aria-label={ui("Search items…")} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
         <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add item")}</BrandButton>
       </div>
       {showAdd && (
@@ -1414,6 +1444,11 @@ function ItemsTab() {
           <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
@@ -1448,8 +1483,9 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
   const load = useCallback(async () => {
     setLoading(true); setLoadFailed(false);
     try {
-      const [tr, ir, sr, spr] = await Promise.all([fetch("/api/inventory/transactions"), fetch("/api/inventory/items"), fetch("/api/inventory/stores"), fetch("/api/inventory/suppliers")]);
-      const [tj, ij, sj, spj] = await Promise.all([tr.json(), ir.json(), sr.json(), spr.json()]);
+      const [tr, ir, sr, spr] = await Promise.all([fetch("/api/inventory/transactions"), loadListPages("/api/inventory/items"), fetch("/api/inventory/stores"), fetch("/api/inventory/suppliers")]);
+      const [tj, sj, spj] = await Promise.all([tr.json(), sr.json(), spr.json()]);
+      const ij = { success: true, data: ir };
       if (tj.success) setRows(tj.data || []);
       if (ij.success) setItems(ij.data || []);
       if (sj.success) setStores(sj.data || []);

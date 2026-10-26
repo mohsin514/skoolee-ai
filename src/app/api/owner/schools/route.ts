@@ -1,3 +1,4 @@
+import { assertListBudget } from "@/lib/lists/access";
 import { bindProvisionHandoff, completeProvisionHandoff } from "@/lib/owner/workflow-provisioning";
 import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
@@ -21,6 +22,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const user = await requirePlatformOwner();
+    await assertListBudget(user, "owner/schools");
 
     const { searchParams } = new URL(req.url);
     const { page, limit } = ownerPagination(searchParams);
