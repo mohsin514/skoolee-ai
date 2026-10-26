@@ -1,0 +1,56 @@
+name: Scoped list queries
+on:
+  pull_request:
+    branches: [dev, staging, qa, production, demo, main]
+permissions:
+  contents: read
+jobs:
+  lists:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["55438:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_OPTIONS: --max-old-space-size=12288
+      DATABASE_URL: postgresql://postgres@127.0.0.1:55438/postgres
+      DIRECT_URL: postgresql://postgres@127.0.0.1:55438/postgres
+      AUTH_SECRET: scrum306-isolated-ci-test-only-secret
+      SEARCH_TEST_APP: http://localhost:3107
+      SEARCH_EVIDENCE_DIR: /tmp/scrum306-evidence
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate && pnpm prisma migrate deploy
+      - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/lists/query.test.ts tests/owner/helpers.test.ts tests/search/result-href.test.ts
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Authorized lists and actual browser recovery
+        run: |
+          pnpm exec next dev --webpack --port 3107 > /tmp/scrum306-app.log 2>&1 &
+          LIST_APP_PID=$!
+          trap 'kill "$LIST_APP_PID" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:3107/api/auth/session; then break; fi
+            sleep 1
+          done
+          curl -s -o /dev/null http://localhost:3107/search
+          node --import ./tests/support/server-only.mjs --import tsx --test tests/search/records.browser.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: list-query-evidence-${{ github.sha }}
+          path: |
+            /tmp/scrum306-app.log
+            /tmp/scrum306-evidence/
+          retention-days: 7

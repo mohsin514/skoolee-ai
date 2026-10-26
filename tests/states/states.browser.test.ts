@@ -175,7 +175,7 @@ test("offline search retains input and keyboard retry recovers in place",async()
 test("library shows loading then no-data and a distinct no-match with useful next steps",async()=>{
   const ctx=await context("librarian"),page=await ctx.newPage();
   let release:()=>void=()=>{}; const pending=new Promise<void>(resolve=>{release=resolve;});
-  await page.route("**/api/library/books",async route=>{await pending;await route.continue();});
+  await page.route("**/api/library/books?**",async route=>{await pending;await route.continue();});
   await page.goto(`${base}/librarian?view=catalogue&section=books`,{waitUntil:"domcontentloaded"});
   await page.getByRole("button",{name:"Add book",exact:true}).waitFor();
   await page.locator('[aria-busy="true"]').first().waitFor();

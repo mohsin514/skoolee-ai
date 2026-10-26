@@ -1,4 +1,8 @@
 "use client";
+import { Pagination } from "@/components/shared-admin/workspace";
+import { loadListPages } from "@/lib/lists/load-pages";
+import { useListPagination } from "@/hooks/use-list-page";
+import { useListField } from "@/hooks/use-list-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
@@ -228,10 +232,14 @@ async function exportList(
   toRow: (row: any) => unknown[],
 ) {
   try {
-    const response = await fetch(url, { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) throw new Error();
-    const rows: any[] = Array.isArray(json.data) ? json.data : [];
+    let rows: any[];
+    if (["/api/inventory/items", "/api/library/books"].includes(url)) rows = await loadListPages(url);
+    else {
+      const response = await fetch(url, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error();
+      rows = Array.isArray(json.data) ? json.data : [];
+    }
     if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
     downloadCSV(`${filename}-${new Date().toISOString().slice(0, 10)}`, [header, ...rows.map(toRow)]);
   } catch {
@@ -823,24 +831,29 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
-  const loadSequence = useRef(0);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useListField<string>("library.search", "", "library.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("library.category", "", "library.page");
+  const [sort, setSort] = useListField<string>("library.sort", "name", "library.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "library");
   const load = useCallback(async () => {
-    const version = ++loadSequence.current;
+    const version = ++requestVersion.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
       const [br, cr] = await Promise.all([readRequest(`/api/library/books${q}`), readRequest("/api/library/categories")]);
       const [bj, cj] = await Promise.all([checkedListJson(br), checkedListJson(cr)]);
-      if (version !== loadSequence.current) return; if (bj.success) setRows(bj.data || []);
+      if (version !== requestVersion.current) return;
+      if (bj.success) { setRows(bj.data || []); setTotal(bj.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
-  }, [search]);
-  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
+    } catch (error) { if (version === requestVersion.current) { setRows([]); setCats([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // The column is `copiesTotal`. This form sent `totalCopies`, so the route
   // read `undefined`, failed its own `Number.isFinite` check, and rejected
@@ -896,11 +909,16 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
           <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} filtered={Boolean(search)} text="No books yet" /> : rows.map((b: any) => (
+            {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} filtered={Boolean(search || category)} text="No books yet" /> : rows.map((b: any) => (
               <tr key={b.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{b.title}</td>
                 <td className={tdCls}>{b.author || "—"}</td>
@@ -1084,9 +1102,11 @@ function IssuesTab() {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), readRequest("/api/library/books"), readRequest("/api/library/members")]);
-      const [ij, bj, mj] = await Promise.all([checkedListJson(ir), checkedListJson(br), checkedListJson(mr)]);
-      if (version !== loadSequence.current) return; if (ij.success) setRows(ij.data || []);
+      const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), loadListPages("/api/library/books"), readRequest("/api/library/members")]);
+      const [ij, mj] = await Promise.all([checkedListJson(ir), checkedListJson(mr)]);
+      const bj = { success: true, data: br };
+      if (version !== loadSequence.current) return;
+      if (ij.success) setRows(ij.data || []);
       if (bj.success) setBooks(bj.data || []);
       if (mj.success) setMembers(mj.data || []);
     } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
@@ -1397,24 +1417,29 @@ function ItemsTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
-  const loadSequence = useRef(0);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useListField<string>("inventory.search", "", "inventory.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("inventory.category", "", "inventory.page");
+  const [sort, setSort] = useListField<string>("inventory.sort", "name", "inventory.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "inventory");
   const load = useCallback(async () => {
-    const version = ++loadSequence.current;
+    const version = ++requestVersion.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
       const [ir, cr] = await Promise.all([readRequest(`/api/inventory/items${q}`), readRequest("/api/inventory/categories")]);
       const [ij, cj] = await Promise.all([checkedListJson(ir), checkedListJson(cr)]);
-      if (version !== loadSequence.current) return; if (ij.success) setRows(ij.data || []);
+      if (version !== requestVersion.current) return;
+      if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
-  }, [search]);
-  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
+    } catch (error) { if (version === requestVersion.current) { setRows([]); setCats([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // Item is (name, unit, categoryId). `description` had no input and no column.
   const form = useValidatedForm({
@@ -1435,7 +1460,7 @@ function ItemsTab() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
+        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} aria-label={ui("Search items…")} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
         <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add item")}</BrandButton>
       </div>
       {showAdd && (
@@ -1452,11 +1477,16 @@ function ItemsTab() {
           <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} filtered={Boolean(search)} text="No items" /> : rows.map((r: any) => {
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} filtered={Boolean(search || category)} text="No items" /> : rows.map((r: any) => {
               const totalStock = (r.stock || []).reduce((s: number, st: any) => s + (st.quantity || 0), 0);
               return (
                 <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -1488,9 +1518,11 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
     const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const [tr, ir, sr, spr] = await Promise.all([readRequest("/api/inventory/transactions"), readRequest("/api/inventory/items"), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
-      const [tj, ij, sj, spj] = await Promise.all([checkedListJson(tr), checkedListJson(ir), checkedListJson(sr), checkedListJson(spr)]);
-      if (version !== loadSequence.current) return; if (tj.success) setRows(tj.data || []);
+      const [tr, ir, sr, spr] = await Promise.all([readRequest("/api/inventory/transactions"), loadListPages("/api/inventory/items"), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
+      const [tj, sj, spj] = await Promise.all([checkedListJson(tr), checkedListJson(sr), checkedListJson(spr)]);
+      const ij = { success: true, data: ir };
+      if (version !== loadSequence.current) return;
+      if (tj.success) setRows(tj.data || []);
       if (ij.success) setItems(ij.data || []);
       if (sj.success) setStores(sj.data || []);
       if (spj.success) setSuppliers(spj.data || []);

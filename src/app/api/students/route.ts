@@ -1,3 +1,4 @@
+import { assertListBudget } from "@/lib/lists/access";
 import { createStudentRecords } from "@/lib/students/create";
 import { NextRequest } from "next/server";
 import { randomUUID } from "crypto";
@@ -64,13 +65,14 @@ function rosterOrderBy(sortBy: string | null, sortDir: string | null): Prisma.St
     case "class":
       return [{ class: { name: dir } }, ...tiebreak];
     default:
-      return [{ class: { name: "asc" as const } }, { rollNo: "asc" as const }, { fullName: "asc" as const }];
+      return [{ class: { name: "asc" as const } }, { rollNo: "asc" as const }, { fullName: "asc" as const }, { id: "asc" as const }];
   }
 }
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertListBudget(user, "students");
     // The roster carries every child's guardian contacts, address, and medical
     // notes. Families read their own record through /api/parent/data and the
     // student dashboard action — never through here.
@@ -103,7 +105,7 @@ export async function GET(req: NextRequest) {
       if (!Number.isSafeInteger(value) || value < 1) throw new ApiError(`${name} must be a positive integer`, 400);
       return Math.min(value, max);
     };
-    const page = parsePageParam("page", 1, Number.MAX_SAFE_INTEGER);
+    const page = parsePageParam("page", 1, 100_000);
     const limit = parsePageParam("limit", 50, 200);
     const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
       ? null

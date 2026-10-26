@@ -1,4 +1,5 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
 import { ReconciliationsPanel } from "./reconciliations-panel";
 import { AdjustmentsQueue } from "./adjustments-panel";
@@ -80,7 +81,6 @@ export type PaymentsSection = "payments" | "bank-import" | "reconciliation";
 export function FeePaymentsTab({ campusId, command, hideHeader = false, section }: { campusId?: string; command?: PanelCommand | null; hideHeader?: boolean; section?: PaymentsSection }) {
   const [reconciliationVersion, setReconciliationVersion] = useState(0);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
-  const loadSequence = useRef(0);
   const show = (part: PaymentsSection) => !section || section === part;
  const { date: formatDate, money: formatPKR } = useLocaleFormat();
   // Amounts before an invoice is chosen are in the campus currency (locale package, R7).
@@ -89,19 +89,19 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useListField<number>("pay.page", 1, "pay.page");
   const [totalPages, setTotalPages] = useState(1);
-  const [methodFilter, setMethodFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [methodFilter, setMethodFilter] = useListField<string>("pay.methodFilter", "", "pay.page");
+  const [dateFrom, setDateFrom] = useListField<string>("pay.dateFrom", "", "pay.page");
+  const [dateTo, setDateTo] = useListField<string>("pay.dateTo", "", "pay.page");
+  const [searchQuery, setSearchQuery] = useListField<string>("pay.searchQuery", "", "pay.page");
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  useEffect(() => { setSearchInput(searchQuery); }, [searchQuery]);
   const [showPayment, setShowPayment] = useState(false);
   const [showBankImport, setShowBankImport] = useState(false);
 
   const requestVersion = useRef(0);
   const loadPayments = useCallback(async () => {
-    const loadVersion = ++loadSequence.current;
     const version = ++requestVersion.current;
     setLoading(true);
     setLoadFailed(null);
@@ -118,21 +118,20 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
       const res = await readRequest(`${API}/payments?${params}`);
       const json = await checkedJson(res);
       if (version !== requestVersion.current) return;
-      if (loadVersion !== loadSequence.current) return;
       if (res.ok && json.success) {
         setPayments(json.data);
         setTotal(json.total);
         setTotalPages(json.totalPages);
+        if (json.page !== page) setPage(json.page);
       } else {
         setLoadFailed(requestFailure(new Error()));
       }
     } catch (error) {
-      if (loadVersion !== loadSequence.current) return;
       if (version !== requestVersion.current) return;
       // Shown in place with a retry (role-ux R4), never a toast.
-      setLoadFailed(requestFailure(error));
+      setPayments([]); setTotal(0); setLoadFailed(requestFailure(error));
     } finally {
-      if (version === requestVersion.current) if (loadVersion === loadSequence.current) setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [campusId, methodFilter, dateFrom, dateTo, searchQuery, page]);
 
@@ -142,11 +141,11 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
   }, [loadPayments]);
 
   const handleSearch = () => {
-    setPage(1);
     setSearchQuery(searchInput);
   };
 
   const handleExportCSV = () => {
+    if (loading || loadFailed) return;
     if (payments.length === 0) { toast.info(tr("Nothing to export yet.")); return; }
     const rows = payments.map((p) => ({
       "Receipt #": p.receiptNo ?? "",
@@ -169,7 +168,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
     "record-payment": () => setShowPayment(true),
     "bank-import": () => setShowBankImport(true),
   });
-  usePanelCommand(command, { export: handleExportCSV }, !loading);
+  usePanelCommand(command, { export: handleExportCSV }, !loading && !loadFailed);
 
   return (
     <div className="space-y-5">
@@ -200,7 +199,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         <SystemSelect
           aria-label={tr("Payment method")}
           value={methodFilter}
-          onChange={(e) => { setMethodFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setMethodFilter(e.target.value); }}
           className=""
         >
           {METHODS.map((m) => (
@@ -214,7 +213,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
           type="date"
           aria-label={tr("From")}
           value={dateFrom}
-          onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+          onChange={(e) => { setDateFrom(e.target.value); }}
           className=""
           placeholder={tr("From")}
         />
@@ -225,7 +224,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
           type="date"
           aria-label={tr("To")}
           value={dateTo}
-          onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+          onChange={(e) => { setDateTo(e.target.value); }}
           className=""
           placeholder={tr("To")}
         />
@@ -234,6 +233,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
         <div className="flex items-center gap-1 flex-1 min-w-[200px]">
           <SystemInput
             type="text"
+            aria-label={tr("Search by name, receipt #...")}
             placeholder={tr("Search by name, receipt #...")}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -323,7 +323,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((pg) => Math.max(1, pg - 1))}
-                disabled={page <= 1}
+                disabled={loading || page <= 1}
                 className="justify-start flex items-center gap-1 px-3"
               >
                 <ChevronLeft className="w-3 h-3" /><UiText>{"Prev"}</UiText></Button>
@@ -332,7 +332,7 @@ export function FeePaymentsTab({ campusId, command, hideHeader = false, section 
               <Button variant="secondary"
                 type="button"
                 onClick={() => setPage((pg) => Math.min(totalPages, pg + 1))}
-                disabled={page >= totalPages}
+                disabled={loading || page >= totalPages}
                 className="justify-start flex items-center gap-1 px-3"
               ><UiText>{"Next"}</UiText><ChevronRight className="w-3 h-3" />
               </Button>

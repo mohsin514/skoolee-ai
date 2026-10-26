@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         },
         _count: { select: { students: true, subjects: true } },
       },
-      orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }],
+      orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }, { id: "asc" }],
     });
 
     return Response.json({ success: true, data: classes });

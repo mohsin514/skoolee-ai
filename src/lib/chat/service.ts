@@ -1,3 +1,4 @@
+import { boundedInteger } from "@/lib/lists/query";
 // ─────────────────────────────────────────────────────────────────
 // Chat service.
 //
@@ -231,7 +232,7 @@ export async function listConversations(
   user: AuthUser,
   options: ListOptions = {}
 ): Promise<ConversationView[]> {
-  const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+  const limit = boundedInteger(String(options.limit ?? 50), 50, 100);
   const archived = options.filter === "archived";
 
   const memberships = await prisma.conversationMember.findMany({
@@ -259,7 +260,7 @@ export async function listConversations(
         : {}),
     },
     select: { conversationId: true },
-    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }],
+    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }, { conversationId: "asc" }],
     take: limit,
   });
 
@@ -319,7 +320,7 @@ export async function listMessages(
 ): Promise<{ messages: ChatMessageView[]; nextCursor: string | null; hasMoreAfter?: boolean }> {
   await requireMembership(user, conversationId);
 
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), 100);
+  const limit = boundedInteger(String(options.limit ?? DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE, 100);
 
   // SKO-415 gap recovery: after a reconnect the client asks for everything after the last message it
   // holds, oldest first, so the thread converges on stored history without holes or duplicates.
@@ -338,7 +339,7 @@ export async function listMessages(
   const rows = await prisma.chatMessage.findMany({
     where: { conversationId },
     include: messageInclude,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
   });
