@@ -49,7 +49,7 @@ for (const [key, value] of Object.entries({
   form.set(key, value);
 const imported = await fetch(base + "/api/fees/bank-import", {
   method: "POST",
-  headers: { cookie: f.cookies.PRINCIPAL },
+  headers: { cookie: f.cookies.ACCOUNTANT },
   body: form,
 });
 assert.equal(imported.status, 202);
