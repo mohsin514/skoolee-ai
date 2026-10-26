@@ -25,7 +25,7 @@ No schema, migration, backfill, new endpoint, job, event, notification or busine
 
 ## SCRUM-306 dependency
 
-PR #118 is open and unmerged. This branch starts at origin/dev 0de67d36 and imports none of its code. Both changes touch the directory files; merge conflict review is required, but the view parameter has a separate namespace and is compatible with SCRUM-306 list state. SCRUM-306's truncated enquiry collection, independent-list inventory and residual query work are not silently claimed here.
+PR #118 is open and unmerged. This branch starts at origin/dev 0de67d36 and imports none of its list feature code. Both changes touch the directory files; merge conflict review is required, but the view parameter has a separate namespace and is compatible with SCRUM-306 list state. Two minimal harness prerequisites also present in #118 are included after verification: the outbox API command needs the existing server-only preload (confirmed failing in this PR's CI), and the correction browser test must use the existing mobile combobox below 640px instead of its hidden desktop tab. These do not import or restart SCRUM-306's feature scope. SCRUM-306's truncated enquiry collection, independent-list inventory and residual query work are not silently claimed here.
 
 ## Failure behavior
 
