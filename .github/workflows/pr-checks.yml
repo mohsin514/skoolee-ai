@@ -43,6 +43,8 @@ jobs:
           cache: pnpm
       - name: Install from the lockfile (fails if pnpm-lock.yaml is out of sync)
         run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client (types needed by typecheck/build)
+        run: pnpm prisma generate
       - name: Script contract (required npm scripts exist)
         run: |
           node -e '
