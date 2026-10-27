@@ -7,6 +7,8 @@
     "build": "prisma generate && tsx scripts/check-commercial-contract.ts && npm run check:ui && npm run check:capabilities && next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run test:authz && pnpm run test:navigation && pnpm run test:notifications && pnpm run test:tour && pnpm run test:locale && pnpm run test:commercial && pnpm run test:report-versions",
     "check:ui": "node --import tsx --test tests/design-system/adoption.test.ts",
     "check:capabilities": "node --import ./tests/support/server-only.mjs --import tsx scripts/ai-workflows/check-capabilities.ts",
     "test:navigation": "node --import tsx --test \"tests/navigation/*.test.{ts,tsx}\"",
