@@ -56,7 +56,8 @@
     "test:support-access:local": "tsx scripts/sko-215-local-acceptance.ts",
     "test:support-ui:local": "tsx scripts/sko-215-ui-acceptance.ts",
     "test:school-ai:load": "node --import tsx scripts/school-ai-exam-load.ts",
-    "calibrate:school-ai": "node --import tsx scripts/school-ai-calibration.ts"
+    "calibrate:school-ai": "node --import tsx scripts/school-ai-calibration.ts",
+    "qa:seed": "node --import ./tests/support/server-only.mjs --import tsx scripts/qa/seed-pilot.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
