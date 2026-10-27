@@ -26,6 +26,9 @@ export default function FeesPage() {
   const [summary, setSummary] = useState<{ outstanding: number; currency: string | null } | null>(null);
   const [downloading, setDownloading] = useState(false);
 
+  // React Compiler cannot preserve this manual memo (async closure over fetch);
+  // the callback is correct as written. Targeted, not a blanket disable.
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const downloadStatement = useCallback(async () => {
     setDownloading(true);
     try {
