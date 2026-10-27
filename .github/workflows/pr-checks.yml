@@ -32,10 +32,25 @@ jobs:
     name: Lint, types, tests, build, page weight, i18n
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-report-only
+          POSTGRES_DB: sko210
+        ports: ['55410:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       # tsc --noEmit and next build over the whole repo exceed the default heap
       # (exit 134 / SIGABRT). Match the heap the other workflows already use.
       NODE_OPTIONS: --max-old-space-size=12288
+      # DB-backed suites in `pnpm run test` (report-versions, etc.) need the
+      # isolated local database, same as report-versions.yml.
+      DATABASE_URL: postgresql://postgres:synthetic-report-only@127.0.0.1:55410/sko210
+      DIRECT_URL: postgresql://postgres:synthetic-report-only@127.0.0.1:55410/sko210
+      AUTH_SECRET: synthetic-sko210-local-validation-only
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3210
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -49,6 +64,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Generate Prisma client (types needed by typecheck/build)
         run: pnpm prisma generate
+      - name: Apply migrations to the isolated test database
+        run: pnpm prisma migrate deploy
       - name: Script contract (required npm scripts exist)
         run: |
           node -e '
