@@ -1,0 +1,196 @@
+# SKAI PR checks — build, tests, security and app checks on every pull request.
+# Required status check: "PR gate" (it fails if any job below failed or was skipped).
+# Install as .github/workflows/pr-checks.yml (replace your old PR workflow).
+#
+# The pipeline calls npm scripts; map each one to your tools in package.json:
+#   lint, typecheck, test, build                      -> always required
+#   size:check, i18n:check, test:isolation,
+#   test:e2e:smoke, db:migrate:check                  -> required; while you build them, list names in the
+#                                                        repository variable PR_PIPELINE_PHASE_IN (comma-separated)
+#                                                        to get a warning instead of a failure. Also accepts
+#                                                        "audit" and "sast" there for the phase-in period.
+name: PR checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]          # change to your default branch if different
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"                          # match your .nvmrc / engines
+  PHASE_IN: ${{ vars.PR_PIPELINE_PHASE_IN }}
+
+jobs:
+  quality:
+    name: Lint, types, tests, build, page weight, i18n
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install from the lockfile (fails if package-lock.json is out of sync)
+        run: npm ci
+      - name: Script contract (required npm scripts exist)
+        run: |
+          node -e '
+            const s = require("./package.json").scripts || {};
+            const phase = (process.env.PHASE_IN || "").split(",").map(x => x.trim()).filter(Boolean);
+            const core = ["lint", "typecheck", "test", "build"];
+            const phased = ["size:check", "i18n:check", "test:isolation", "test:e2e:smoke", "db:migrate:check"];
+            let bad = false;
+            for (const n of core) if (!s[n]) { console.log(`::error::Missing npm script "${n}" (always required).`); bad = true; }
+            for (const n of phased) if (!s[n]) {
+              if (phase.includes(n)) console.log(`::warning::npm script "${n}" not implemented yet (listed in PR_PIPELINE_PHASE_IN).`);
+              else { console.log(`::error::Missing npm script "${n}". Implement it, or list it in PR_PIPELINE_PHASE_IN while you do.`); bad = true; }
+            }
+            process.exit(bad ? 1 : 0);'
+      - name: Lint (0 errors)
+        run: npm run lint
+      - name: Type check (0 errors)
+        run: npm run typecheck
+      - name: Unit and integration tests (coverage thresholds live in your test config)
+        run: npm run test
+      - name: Production build
+        run: npm run build
+      - name: Page-weight budget (public + login first load <= 300 KB gzip, G-10)
+        run: |
+          if node -e 'process.exit(require("./package.json").scripts?.["size:check"] ? 0 : 1)'; then npm run size:check
+          else echo "::warning::size:check not implemented yet (phase-in)"; fi
+      - name: i18n completeness (EN, UR, AR keys; no hard-coded user-facing strings)
+        run: |
+          if node -e 'process.exit(require("./package.json").scripts?.["i18n:check"] ? 0 : 1)'; then npm run i18n:check
+          else echo "::warning::i18n:check not implemented yet (phase-in)"; fi
+
+  security:
+    name: Secrets, dependencies, static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write        # gitleaks and dependency review comment on the PR
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Secret scan (gitleaks) — any finding fails
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}   # needed for organisation-owned repos (free key for one repo)
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Dependency audit (production dependencies; high or critical fails)
+        run: |
+          if npm audit --omit=dev --audit-level=high; then exit 0; fi
+          if [[ ",${PHASE_IN}," == *",audit,"* ]]; then echo "::warning::npm audit found high/critical issues (phase-in)"; else exit 1; fi
+      - name: Dependency review (only if the repo has GitHub Code Security / Advanced Security)
+        if: vars.HAS_CODE_SECURITY == 'true'
+        uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+      - name: Static analysis (Semgrep community rules; only NEW error-level findings fail)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 -m pip install --quiet semgrep
+          if semgrep scan --config p/javascript --config p/typescript --severity ERROR --error --metrics=off --baseline-commit "$BASE"; then exit 0; fi
+          if [[ ",${PHASE_IN}," == *",sast,"* ]]; then echo "::warning::Semgrep findings (phase-in)"; else exit 1; fi
+
+  app:
+    name: Tenant isolation, migrations, E2E smoke (EN + AR), accessibility
+    needs: quality
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    services:
+      postgres:                                  # change if you use another database
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_DB: skoolee_ci
+          POSTGRES_HOST_AUTH_METHOD: trust     # throwaway CI database, reachable only inside the job
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci@localhost:5432/skoolee_ci
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Detect migration changes
+        id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --name-only "$BASE" "$HEAD" | grep -Eq '(^|/)(migrations|migrate)/|schema\.prisma$|(^|/)drizzle/'; then
+            echo "migrations=true" >> "$GITHUB_OUTPUT"; else echo "migrations=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Migrations apply cleanly on a fresh database (only when migrations changed)
+        if: steps.changes.outputs.migrations == 'true'
+        run: |
+          if node -e 'process.exit(require("./package.json").scripts?.["db:migrate:check"] ? 0 : 1)'; then npm run db:migrate:check
+          elif [[ ",${PHASE_IN}," == *",db:migrate:check,"* ]]; then echo "::warning::db:migrate:check not implemented yet (phase-in)"
+          else echo "::error::Migrations changed but npm script db:migrate:check is missing"; exit 1; fi
+      - name: Tenant isolation and roles (two schools, two campuses, denied roles)
+        run: |
+          if node -e 'process.exit(require("./package.json").scripts?.["test:isolation"] ? 0 : 1)'; then npm run test:isolation
+          else echo "::warning::test:isolation not implemented yet (phase-in)"; fi
+      - name: Install the Playwright browser
+        run: npx --yes playwright install --with-deps chromium
+      - name: E2E smoke — sign-in per role and core journeys in EN and AR (RTL), axe accessibility (no new serious/critical)
+        run: |
+          if node -e 'process.exit(require("./package.json").scripts?.["test:e2e:smoke"] ? 0 : 1)'; then npm run test:e2e:smoke
+          else echo "::warning::test:e2e:smoke not implemented yet (phase-in)"; fi
+      - name: Keep the E2E report for reviewers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  gate:
+    name: PR gate
+    if: always()
+    needs: [quality, security, app]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All checks passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          if os.environ.get("DRAFT") == "true":
+              print("::error::Draft PR — mark it 'Ready for review' to run the full pipeline.")
+              sys.exit(1)
+          results = json.loads(os.environ["RESULTS"])
+          bad = {job: r["result"] for job, r in results.items() if r["result"] != "success"}
+          if bad:
+              print("::error::Not passed: " + ", ".join(f"{j} = {r}" for j, r in bad.items()))
+              sys.exit(1)
+          print("All PR checks passed.")
+          PY

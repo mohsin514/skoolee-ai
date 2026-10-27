@@ -1,0 +1,26 @@
+# CODEOWNERS — who must approve changes to which paths (enable "Require review from Code Owners" on main).
+# Replace @OWNER with a GitHub user or @org/team. Adjust the paths to your repository layout; the last matching line wins.
+
+# Default reviewer for everything
+*                                   @OWNER
+
+# Security-sensitive areas (founder / tech lead approval)
+**/auth/**                          @OWNER
+**/rbac/**                          @OWNER
+**/permissions/**                   @OWNER
+**/middleware.*                     @OWNER
+**/payments/**                      @OWNER
+**/billing/**                       @OWNER
+**/checkout/**                      @OWNER
+**/whatsapp/**                      @OWNER
+**/notifications/**                 @OWNER
+**/otp/**                           @OWNER
+**/ai/**                            @OWNER
+**/prompts/**                       @OWNER
+src/config/ai-release-evaluation.ts @OWNER
+**/migrations/**                    @OWNER
+**/schema.prisma                    @OWNER
+next.config.*                       @OWNER
+
+# The pipeline itself
+.github/                            @OWNER

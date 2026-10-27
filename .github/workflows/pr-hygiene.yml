@@ -1,0 +1,128 @@
+# SKAI PR hygiene — fast checks that re-run when the PR text or labels change.
+# Required status check: "PR hygiene". Install as .github/workflows/pr-hygiene.yml (replace your old PR workflow).
+name: PR hygiene
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
+    branches: [main]          # change to your default branch if different
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    name: PR hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ticket key, template, size, forbidden changes, UI evidence, AI checkbox
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          BODY: ${{ github.event.pull_request.body }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 - <<'PY'
+          import os, re, subprocess, sys
+
+          title, branch = os.environ["TITLE"], os.environ["BRANCH"]
+          body = os.environ.get("BODY") or ""
+          labels = {l.strip() for l in os.environ.get("LABELS", "").split(",") if l.strip()}
+          base, head = os.environ["BASE"], os.environ["HEAD"]
+          errors, warnings = [], []
+
+          def git(*args):
+              return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
+
+          changed = [f for f in git("diff", "--name-only", base, head).splitlines() if f]
+          ui = any(re.search(r"\.(tsx|jsx|css|scss|vue|svelte)$", f) for f in changed)
+          ai = any(re.search(r"(^|/)(ai|prompts?|llm|gateway)/|ai-release-evaluation", f) for f in changed)
+
+          # 1. One SKAI ticket per PR
+          m = re.match(r"^(SKAI-\d+)\b", title)
+          key = m.group(1) if m else None
+          if not key:
+              errors.append("PR title must start with the Jira key, e.g. 'SKAI-123 Short description'.")
+          if not re.search(r"SKAI-\d+", branch):
+              errors.append("Branch name must contain the Jira key, e.g. 'SKAI-123-short-description'.")
+
+          # 2. PR template filled in
+          def section(name):
+              s = re.search(r"^##\s*" + re.escape(name) + r"[^\n]*\n(.*?)(?=^##\s|\Z)", body, re.S | re.M | re.I)
+              return re.sub(r"<!--.*?-->", "", s.group(1), flags=re.S).strip() if s else None
+
+          jira = section("Jira ticket")
+          if jira is None or (key and key not in jira):
+              errors.append(f"The 'Jira ticket' section must contain {key or 'the SKAI key'}.")
+          what = section("What changed and why")
+          if not what or re.fullmatch(r"[-*\s]*", what):
+              errors.append("Fill in 'What changed and why'.")
+          tested = section("How it was tested") or ""
+          if "[x]" not in tested.lower():
+              errors.append("Tick at least one box under 'How it was tested'.")
+          risk = section("Risk, rollback and flags") or ""
+          rb = re.search(r"Rollback:\s*(.*)", risk)
+          if not rb or not rb.group(1).strip() or "<how to undo" in rb.group(1):
+              errors.append("State how to roll back under 'Risk, rollback and flags'.")
+
+          # 3. UI changes need visual evidence
+          shots = section("Screenshots / recordings") or ""
+          if ui and not (re.search(r"!\[|<img|<video|\.(png|jpe?g|gif|webp|mp4|mov)\b|user-attachments", shots, re.I)
+                         or re.search(r"no visual change", shots, re.I)):
+              errors.append("UI files changed: add screenshots or a recording under 'Screenshots / recordings', "
+                            "or write 'No visual change' and why.")
+
+          # 4. AI changes need the AI-05 check
+          if ai and not re.search(r"\[x\]\s*AI-05", body, re.I):
+              errors.append("AI code changed: tick 'AI-05 evaluation impact reviewed' and explain the impact.")
+
+          # 5. Small PRs (lockfiles, translations, generated files and snapshots excluded)
+          skip = re.compile(r"(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|\.snap$|(^|/)(dist|build|\.next|coverage)/|(^|/)locales?/|(^|/)i18n/.*\.json$)")
+          size = 0
+          for line in git("diff", "--numstat", base, head).splitlines():
+              a, d, f = line.split("\t", 2)
+              if a != "-" and not skip.search(f):
+                  size += int(a) + int(d)
+          if size > 1000 and "large-pr-approved" not in labels:
+              errors.append(f"PR changes {size} lines (limit 1000). Split it, or a reviewer adds the label 'large-pr-approved'.")
+          elif size > 400:
+              warnings.append(f"PR changes {size} lines; aim for 400 or fewer.")
+
+          # 6. Forbidden changes in added lines
+          current = None
+          for line in git("diff", "-U0", base, head).splitlines():
+              if line.startswith("+++ "):
+                  current = line[6:] if line.startswith("+++ b/") else None
+                  continue
+              if not line.startswith("+") or current is None:
+                  continue
+              added = line[1:]
+              if re.search(r"\.(test|spec)\.[cm]?[jt]sx?$", current) and re.search(r"\b(it|test|describe)\.only\(", added):
+                  errors.append(f"{current}: focused test (.only) would skip the rest of the suite.")
+              if re.search(r"\b(it|test|describe)\.skip\(", added):
+                  warnings.append(f"{current}: new skipped test; link a ticket in a comment.")
+              if re.search(r"'unsafe-(eval|inline)'", added) and "csp-reviewed" not in labels:
+                  errors.append(f"{current}: adds 'unsafe-eval'/'unsafe-inline' to the content security policy (G-05). "
+                                "Use nonces or hashes; a security reviewer can add the label 'csp-reviewed'.")
+          for f in changed:
+              name = f.rsplit("/", 1)[-1]
+              if re.fullmatch(r"\.env(\..+)?", name) and not name.endswith((".example", ".sample", ".template")):
+                  errors.append(f"{f}: environment files must never be committed (secrets).")
+
+          for w in warnings:
+              print(f"::warning::{w}")
+          for e in errors:
+              print(f"::error::{e}")
+          print(f"Changed files: {len(changed)} | counted lines: {size} | UI: {ui} | AI: {ai}")
+          sys.exit(1 if errors else 0)
+          PY
