@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import bcrypt from "bcryptjs";
 import { totp } from "../../src/lib/auth/mfa-crypto";
+import { collectPageError } from "../support/browser-errors";
 
 // SKO-401 on the isolated app with synthetic records: search covers only the reader's school and campus, before
 // counting; exact identifiers rank first and survive a name change; Arabic spelling variants match; archived and
@@ -145,7 +146,7 @@ test("record search is refused outside its roles; reception sees applications on
 
 test("the search page restores from the URL, drops stale answers, and opens the authoritative record", async () => {
   const lead = await context("lead"), page = await lead.newPage(), errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
+  page.on("pageerror", collectPageError(errors));
   // Make the first answer slow; the newer query must win.
   let slowed = false;
   await page.route("**/api/search?*", async route => {
@@ -198,7 +199,7 @@ test("the principal's staff search lists teachers only, since the academic conso
 
 test("a role without record search sees an access notice on /search, never a Retry", async () => {
   const page = await (await context("teacher")).newPage(), errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
+  page.on("pageerror", collectPageError(errors));
   await page.goto(`${base}/search?q=Synthetic`);
   await page.waitForLoadState("networkidle");
   // P2 may send these roles home instead (§6.3); either way they never see a retry loop.
@@ -223,7 +224,7 @@ test("Arabic staff search on a phone reads right-to-left with isolated identifie
 test("the student directory keeps its filters in the URL and both roll tiles change the list", async () => {
   const lead = await context("lead"), page = await lead.newPage();
   const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
+  page.on("pageerror", collectPageError(errors));
   await page.goto(`${base}/principal?view=students&sq=Bulk%20Pupil%2002`);
   await page.getByText("Synthetic Bulk Pupil 02").first().waitFor({ timeout: 30_000 });
   await page.reload();
