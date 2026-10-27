@@ -98,9 +98,12 @@ export function FeesPanel({ campusId, tabs, initialTab, command, tab: controlled
   const wanted = controlled ? ((controlledTab as FeeTab | null | undefined) ?? fallback) : activeTab;
   const current = allowed.includes(wanted) ? wanted : fallback;
   const currentRef = useRef(current);
-  currentRef.current = current;
   const onTabChangeRef = useRef(onTabChange);
-  onTabChangeRef.current = onTabChange;
+  // React Compiler forbids mutating a ref during render; sync after commit.
+  useEffect(() => {
+    currentRef.current = current;
+    onTabChangeRef.current = onTabChange;
+  });
 
   // First paint uses the fallback (server and client agree); the URL tab is applied after mount. A controlled
   // panel takes its tab from the console instead.

@@ -32,6 +32,10 @@ jobs:
     name: Lint, types, tests, build, page weight, i18n
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    env:
+      # tsc --noEmit and next build over the whole repo exceed the default heap
+      # (exit 134 / SIGABRT). Match the heap the other workflows already use.
+      NODE_OPTIONS: --max-old-space-size=12288
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -43,6 +47,8 @@ jobs:
           cache: pnpm
       - name: Install from the lockfile (fails if pnpm-lock.yaml is out of sync)
         run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client (types needed by typecheck/build)
+        run: pnpm prisma generate
       - name: Script contract (required npm scripts exist)
         run: |
           node -e '
