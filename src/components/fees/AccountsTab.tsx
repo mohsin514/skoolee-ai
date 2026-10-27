@@ -1,8 +1,10 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { UiText, useUiText, useLocaleFormat, useLocale } from "@/components/locale/LocaleProvider";
 import { getFinancialLocale } from "@/app/actions/locale";
@@ -143,26 +145,30 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const [type, setType] = useState("INCOME");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<AccountRow | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
-      const res = await fetch(`${API}/accounts/chart${qp}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/accounts/chart${qp}`);
+      const json = await checkedJson(res);
+      if (loadVersion !== loadSequence.current) return;
       if (json.success) setAccounts(json.data);
-      else setLoadFailed(true);
-    } catch {
-      setLoadFailed(true);
+      else throw new Error("Invalid result");
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const openModal = (row: AccountRow | null) => {
     setEditing(row);
@@ -241,7 +247,7 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
       {loading ? (
         <SkeletonRows />
       ) : loadFailed ? (
-        <ErrorState title={tr("Accounts could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
+        <ErrorState error={loadFailed} title={tr("Accounts could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />
       ) : accounts.length === 0 ? (
         <EmptyState
           icon={Wallet}
@@ -339,26 +345,30 @@ function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<MethodRow | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
-      const res = await fetch(`${API}/accounts/payment-methods${qp}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/accounts/payment-methods${qp}`);
+      const json = await checkedJson(res);
+      if (loadVersion !== loadSequence.current) return;
       if (json.success) setMethods(json.data);
-      else setLoadFailed(true);
-    } catch {
-      setLoadFailed(true);
+      else throw new Error("Invalid result");
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const openModal = (row: MethodRow | null) => {
     setEditing(row);
@@ -437,7 +447,7 @@ function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
       {loading ? (
         <SkeletonRows />
       ) : loadFailed ? (
-        <ErrorState title={tr("Payment methods could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
+        <ErrorState error={loadFailed} title={tr("Payment methods could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />
       ) : methods.length === 0 ? (
         <EmptyState
           icon={CreditCard}
@@ -526,26 +536,30 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
   const [openingBalance, setOpeningBalance] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<BankRow | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
 
   const load = useCallback(async () => {
+    const loadVersion = ++loadSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setLoadFailed(null);
     try {
-      const res = await fetch(`${API}/accounts/bank-accounts${qp}`);
-      const json = await res.json();
+      const res = await readRequest(`${API}/accounts/bank-accounts${qp}`);
+      const json = await checkedJson(res);
+      if (loadVersion !== loadSequence.current) return;
       if (json.success) setBanks(json.data);
-      else setLoadFailed(true);
-    } catch {
-      setLoadFailed(true);
+      else throw new Error("Invalid result");
+    } catch (error) {
+      if (loadVersion !== loadSequence.current) return;
+      setLoadFailed(requestFailure(error));
     } finally {
-      setLoading(false);
+      if (loadVersion === loadSequence.current) setLoading(false);
     }
   }, [qp]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const openModal = (row: BankRow | null) => {
     setEditing(row);
@@ -636,7 +650,7 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
       {loading ? (
         <SkeletonRows />
       ) : loadFailed ? (
-        <ErrorState title={tr("Bank accounts could not be loaded")} description={tr("Check your connection and try again.")} onRetry={() => void load()} />
+        <ErrorState error={loadFailed} title={tr("Bank accounts could not be loaded")} description={tr("Check your connection and try again.")} onRetry={load} />
       ) : banks.length === 0 ? (
         <EmptyState
           icon={Landmark}
@@ -741,7 +755,12 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   const { currency: campusCurrency } = useLocale();
   const tr = useUiText();
   const [currency, setCurrency] = useState("");
-  const [from, setFrom] = useState(""), [to, setTo] = useState(""), [filterAccount, setFilterAccount] = useState(""), [source, setSource] = useState(""), [status, setStatus] = useState("all"), [page, setPage] = useState(1);
+  const [from, setFrom] = useListField<string>(`ledger.${kind}.from`, "", `ledger.${kind}.page`);
+  const [to, setTo] = useListField<string>(`ledger.${kind}.to`, "", `ledger.${kind}.page`);
+  const [filterAccount, setFilterAccount] = useListField<string>(`ledger.${kind}.filterAccount`, "", `ledger.${kind}.page`);
+  const [source, setSource] = useListField<string>(`ledger.${kind}.source`, "", `ledger.${kind}.page`);
+  const [status, setStatus] = useListField<string>(`ledger.${kind}.status`, "all", `ledger.${kind}.page`);
+  const [page, setPage] = useListField<number>(`ledger.${kind}.page`, 1, `ledger.${kind}.page`);
   const [entries, setEntries] = useState<LedgerRow[]>([]);
   const [totals, setTotals] = useState<LedgerTotals | null>(null);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
@@ -775,7 +794,9 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   }, [campusId, kind, currency, from, to, filterAccount, source, status]);
   const filtered = Boolean(from || to || filterAccount || source || status !== "all");
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setLoadError("");
     try {
@@ -789,20 +810,23 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
         fetch(`${API}/accounts/bank-accounts${scope}`, { cache: "no-store" }),
       ]);
       const [eJson, aJson, bJson] = await Promise.all([eRes.json().catch(() => ({})), aRes.json().catch(() => ({})), bRes.json().catch(() => ({}))]);
+      if (version !== requestVersion.current) return;
       if (!eRes.ok || !eJson.success) throw new Error(eRes.status === 403 ? tr("You do not have access to the ledger for this campus.") : eJson.error || tr("Failed to load ledger"));
       setEntries(eJson.data);
       setTotals(eJson.totals);
+      if (eJson.page !== page) setPage(eJson.page);
       if (!currency) setCurrency(eJson.currency);
       if (aJson.success) setAccounts(aJson.data);
       if (bJson.success) setBanks(bJson.data);
     } catch (failure) {
+      if (version !== requestVersion.current) return;
       setLoadError(failure instanceof Error ? tr(failure.message) : tr("Failed to load ledger"));
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [filterParams, page, campusId, currency, tr]);
 
-  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   const openNew = () => { setFormError(""); setShowModal(true); };
   // "Export ledger" in the accountant's PageHeader downloads exactly the filtered rows (the same filter as the list).
@@ -869,7 +893,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
   const kindTotal = totals ? (kind === "INCOME" ? totals.income : totals.expense) : 0;
   const pages = totals ? Math.max(1, Math.ceil(totals.count / PAGE_SIZE)) : 1;
   const exportParams = filterParams(); exportParams.set("format", "csv");
-  const setFilter = (apply: () => void) => { apply(); setPage(1); };
+  const setFilter = (apply: () => void) => { apply(); };
 
   return (
     <div className="space-y-4" data-ledger-panel={kind}>
@@ -904,7 +928,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
         <div role="status" aria-label={tr("Loading ledger")}><SkeletonRows /></div>
       ) : loadError ? (
         <div data-ledger-error>
-          <ErrorState description={loadError} onRetry={() => void load()} retryLabel={tr("Retry")} />
+          <ErrorState description={loadError} onRetry={load} retryLabel={tr("Retry")} />
         </div>
       ) : entries.length === 0 ? (
         filtered ? (

@@ -1,3 +1,4 @@
+import { assertListBudget } from "@/lib/lists/access";
 import { boundedInteger } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertListBudget(user, "super/sessions");
     // G12: the institution authority (group admin, or the school admin of a single school), school-scoped.
     if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Calendar, CalendarRange, CalendarX2, Printer } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { TeacherPage } from "@/components/teacher/teacher-page";
@@ -13,6 +13,8 @@ import { TimetableSkeleton } from "@/components/teacher/teacher-components";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
 import { MyCover } from "@/components/cover/my-cover";
+
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
 
 interface TeacherSlot {
   id: string;
@@ -40,31 +42,26 @@ export default function TeacherTimetablePage() {
   const [loading, setLoading] = useState(true);
   // A failed load used to fall through to "No classes assigned yet", which
   // told the teacher their schedule was empty when it simply had not arrived.
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setLoadFailed(false);
-    let timetableLoaded = false;
+    const version = ++sequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [ttRes, calRes] = await Promise.all([
-        fetch("/api/timetable/teacher"),
-        fetch("/api/academic/calendar"),
+      const [json, calJson] = await Promise.all([
+        readRequest("/api/timetable/teacher").then(r => checkedJson(r)),
+        readRequest("/api/academic/calendar").then(r => checkedJson(r)),
       ]);
-      const json = await ttRes.json();
-      if (json.success) { setSlots(json.data); timetableLoaded = true; }
-      else setLoadFailed(true);
-      const calJson = await calRes.json();
-      if (calJson.success) setWeekendDays(calJson.data.weekends || []);
-    } catch {
-      // The calendar only supplies weekend shading; losing it is not a failed timetable.
-      if (!timetableLoaded) setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
+      if (version !== sequence.current) return;
+      if (!Array.isArray(json.data) || !Array.isArray(calJson.data?.weekends)) throw new RequestFailure("server");
+      setSlots(json.data); setWeekendDays(calJson.data.weekends);
+    } catch (error) {
+      if (version === sequence.current) { setSlots([]); setWeekendDays([]); setLoadFailed(requestFailure(error)); }
+    } finally { if (version === sequence.current) setLoading(false); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
 
   if (loading) return <TimetableSkeleton weekendDays={weekendDays} />;
 
@@ -85,7 +82,7 @@ export default function TeacherTimetablePage() {
       <div className="space-y-6">
       {loadFailed ? (
         <div className="sk-panel sk-enter">
-          <ErrorState
+          <ErrorState error={loadFailed}
             title={ui("Couldn't load your timetable")}
             description={ui("Your schedule didn't load. Try again, and if it keeps happening, ask your academic lead.")}
             onRetry={() => { void load(); }}

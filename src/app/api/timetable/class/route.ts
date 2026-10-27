@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { studentScope } from "@/lib/auth/policy";
-import { requireAuthUser, errorResponse } from "@/lib/api/scope";
+import { campusScope, studentScope } from "@/lib/auth/policy";
+import { ApiError, assertSharedModuleRead, requireAuthUser, errorResponse } from "@/lib/api/scope";
 import { publishedClassTimetable } from "@/lib/timetable/versions";
 
 export const runtime = "nodejs";
@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertSharedModuleRead(user, "timetable");
     const classId = req.nextUrl.searchParams.get("classId");
 
     let resolvedClassId = classId;
@@ -18,9 +19,7 @@ export async function GET(req: NextRequest) {
     // section's published timetable.
     if (user.role === "STUDENT" || user.role === "PARENT") {
       const student = await prisma.student.findFirst({
-        where: user.role === "STUDENT"
-          ? { studentUserId: user.userId }
-          : studentScope(user, "learningRecords"),
+        where: studentScope(user, "learningRecords"),
         select: { classId: true },
       });
       resolvedClassId = student?.classId || null;
@@ -29,6 +28,14 @@ export async function GET(req: NextRequest) {
     if (!resolvedClassId) {
       return Response.json({ error: "No class specified" }, { status: 400 });
     }
+
+    // Validate the tenant/campus boundary before looking up any published version.
+    // Family class IDs were resolved exclusively through their authorized student relationship.
+    const visibleClass = await prisma.class.findFirst({
+      where: { id: resolvedClassId, ...campusScope(user) },
+      select: { id: true },
+    });
+    if (!visibleClass) throw new ApiError("Class is not available", 404);
 
     // SKO-403: the published version in force today, never the working draft.
     const published = await publishedClassTimetable(resolvedClassId);

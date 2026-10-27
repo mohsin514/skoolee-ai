@@ -18,6 +18,7 @@ before(async () => {
   await raw.school.create({ data: { id: schoolId, slug: schoolId, regId: schoolId, name: "Synthetic private conversation school", contactEmail: `${schoolId}@example.invalid`, city: "Synthetic", status: "ACTIVE" } });
   for (const id of [campusId, otherCampus]) await raw.campus.create({ data: { id, schoolId, regId: id, name: "Synthetic campus", city: "Synthetic" } });
   for (const user of [admin, otherAdmin, teacher, outsider, accountant, wrongCampus]) await raw.user.create({ data: { id: user.userId, schoolId, campusId: user.campusId, role: user.role, email: user.email, fullName: `Synthetic ${user.role}`, onboardingComplete: true } });
+  await raw.institutionSetup.create({ data: { schoolId, institutionType: "GROUP", delegateUserId: admin.userId } });
   await raw.rolePermission.create({ data: { schoolId, role: "ACCOUNTANT", module: "ai", canView: true, canAdd: true } });
   await raw.class.create({ data: { id: classId, schoolId, campusId, name: "Synthetic class", academicYear: 2026 } });
   await raw.subject.create({ data: { id: subjectId, schoolId, campusId, classId, teacherId: teacher.userId, name: "Synthetic subject" } });
@@ -193,4 +194,47 @@ test("a conversation with a pending turn is not deleted; retention removes only 
   assert.equal(await raw.schoolAiConversation.count({ where: { id: old.id } }), 0, "the untouched settled conversation is deleted");
   assert.equal(await raw.schoolAiConversation.count({ where: { id: busy.id } }), 1, "one with a pending turn is kept");
   await assert.rejects(() => raw.$transaction(tx => sweepConversationRetention(tx as never, new Date(), 7)), /at least 30 days/);
+});
+
+
+test("export keeps the oldest exchanges beyond 100 history pages (SKO-460)", async () => {
+  const saved = await conversation();
+  const count = 2001;
+  await raw.schoolAiRequest.createMany({ data: Array.from({ length: count }, (_, index) => ({
+    schoolId, campusId, actorId: admin.userId, actorRole: admin.role,
+    conversationId: saved.id, conversationVersion: index + 1,
+    idempotencyKey: randomUUID(), requestHash: randomUUID(), status: "COMPLETED",
+    userMessage: `Question ${index + 1}`, reply: `Answer ${index + 1}`,
+  })) });
+  await raw.schoolAiConversation.update({ where: { id: saved.id }, data: { version: count } });
+  const exported = await exportPrivateConversation(admin, saved.id);
+  assert.equal(exported.exchanges.length, count, "no successful export may silently omit old messages");
+  const questions = exported.exchanges.map(exchange => "turns" in exchange ? exchange.turns?.[0]?.text : null);
+  assert.deepEqual(questions, Array.from({ length: count }, (_, index) => `Question ${index + 1}`));
+});
+
+
+test("retention rechecks activity and audits only conversations actually deleted (SKO-460)", async () => {
+  const resumed = await conversation(), pending = await conversation(), stale = await conversation();
+  await raw.$executeRaw`UPDATE school_ai_conversations SET updated_at = now() - interval '400 days' WHERE id IN (${resumed.id}, ${pending.id}, ${stale.id})`;
+  await raw.$transaction(async tx => {
+    const original = tx.schoolAiConversation.findMany.bind(tx.schoolAiConversation);
+    const intercepted = { ...tx, schoolAiConversation: {
+      ...tx.schoolAiConversation,
+      findMany: async (args: Parameters<typeof original>[0]) => {
+        const rows = await original(args);
+        await tx.schoolAiConversation.update({ where: { id: resumed.id }, data: { title: "Resumed" } });
+        await tx.schoolAiRequest.create({ data: {
+          schoolId, campusId, actorId: admin.userId, actorRole: admin.role, conversationId: pending.id,
+          conversationVersion: 1, idempotencyKey: randomUUID(), requestHash: randomUUID(), status: "PENDING",
+        } });
+        return rows;
+      },
+    } };
+    const result = await sweepConversationRetention(intercepted as never, new Date(), 365);
+    assert.equal(result.deleted, 1);
+  });
+  assert.equal(await raw.schoolAiConversation.count({ where: { id: { in: [resumed.id, pending.id] } } }), 2);
+  const audit = await raw.auditLog.findMany({ where: { schoolId, recordId: { in: [resumed.id, pending.id, stale.id] } } });
+  assert.deepEqual(audit.map(row => row.recordId), [stale.id]);
 });

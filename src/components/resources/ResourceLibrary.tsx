@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Archive, Download, ExternalLink, Eye, MoreHorizontal, Users } from "lucide-react";
 import { Menu } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
@@ -11,6 +11,7 @@ import { getResourceCopy, type ResourceCopy } from "./resource-copy";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
+import { checkedJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { FolderOpen } from "lucide-react";
@@ -68,16 +69,22 @@ export function ResourceLibrary({ audience, adding: addingProp, onAddingChange, 
   const adding = controlledAdding ? Boolean(addingProp) : localAdding;
   const setAdding = (next: boolean) => { if (controlledAdding) onAddingChange?.(next); else setLocalAdding(next); };
   const [retiring, setRetiring] = useState<string | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
   const [replacing, setReplacing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams(Object.entries({ classId, viewAs, q }).filter(([, value]) => value));
-    const data = await call(`/api/resources?${params}`);
-    setView(data);
-    if (data.classId && !classId) setClassId(data.classId);
+    const version = ++sequence.current;
+    setLoadFailed(null);
+    try {
+      const params = new URLSearchParams(Object.entries({ classId, viewAs, q }).filter(([, value]) => value));
+      const data = await checkedJson(await readRequest(`/api/resources?${params}`));
+      if (version !== sequence.current) return;
+      setView(data);
+      if (data.classId && !classId) setClassId(data.classId);
+    } catch (failure) { if (version === sequence.current) { setLoadFailed(requestFailure(failure)); } }
   }, [classId, viewAs, q]);
-  useEffect(() => { setLoadFailed(false); load().catch(() => setLoadFailed(true)); }, [load]);
+  useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
 
   async function run(work: () => Promise<unknown>) {
     setBusy(true); setStatus(null);
@@ -108,12 +115,16 @@ export function ResourceLibrary({ audience, adding: addingProp, onAddingChange, 
 
   const search = <label className="grid gap-1 text-xs font-semibold">{t.search}<Input type="search" value={q} onChange={event => setQ(event.target.value)} /></label>;
 
-  if (loadFailed && !view) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={() => { setLoadFailed(false); load().catch(() => setLoadFailed(true)); }} /></div>;
+  const frame = (children: ReactNode) => <>
+    {loadFailed ? <ErrorState error={loadFailed} onRetry={load} retryLabel={t.retry} /> : null}
+    <div hidden={Boolean(loadFailed)} inert={Boolean(loadFailed)}>{children}</div>
+  </>;
+  if (loadFailed && !view) return <div dir={rtl ? "rtl" : "ltr"} className="sk-panel"><ErrorState error={loadFailed} title={t.errorTitle} description={t.failed} retryLabel={t.retry} onRetry={load} /></div>;
   if (!view) return <div dir={rtl ? "rtl" : "ltr"} className="space-y-3">{banner ?? <SkeletonList rows={3} label={t.loading} />}</div>;
-  if (view.mode === "learner") return <div dir={rtl ? "rtl" : "ltr"} className="space-y-4">{banner}{search}{learnerList(view.resources)}</div>;
-  if (!view.classes.length) return <EmptyState icon={FolderOpen} title={ui("No classes assigned yet")} description={ui("Resources become available when a school administrator assigns your classes.")} />;
+  if (view.mode === "learner") return frame(<div dir={rtl ? "rtl" : "ltr"} className="space-y-4">{banner}{search}{learnerList(view.resources)}</div>);
+  if (!view.classes.length) return frame(<EmptyState icon={FolderOpen} title={ui("No classes assigned yet")} description={ui("Resources become available when a school administrator assigns your classes.")} />);
 
-  return <div dir={rtl ? "rtl" : "ltr"} className="space-y-4">
+  return frame(<div dir={rtl ? "rtl" : "ltr"} className="space-y-4">
     <div className="grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1 text-xs font-semibold">{t.class}<Select value={view.classId} onChange={event => { setClassId(event.target.value); setAdding(false); }}>
         {view.classes.map(klass => <option key={klass.id} value={klass.id}>{klass.name}{klass.section ? ` ${klass.section}` : ""}</option>)}</Select></label>
@@ -191,7 +202,7 @@ export function ResourceLibrary({ audience, adding: addingProp, onAddingChange, 
       onCancel={() => setRetiring(null)}
       onConfirm={() => { const id = retiring; setRetiring(null); if (id) void run(() => call(`/api/resources/${id}`, { op: "retire" })); }}
     />
-  </div>;
+  </div>);
 }
 
 function ResourceForm({ t, language, classId, busy, onCancel, onSubmit }: { t: ResourceCopy; language: string; classId: string; busy: boolean; onCancel: () => void; onSubmit: (body: unknown, file: File | null) => Promise<void> }) {

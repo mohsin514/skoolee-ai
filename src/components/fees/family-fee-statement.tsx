@@ -12,6 +12,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 
+import { checkedJson, readRequest, requestFailure, RequestFailure } from "@/lib/http/request-state";
+
 // SKO-431: the family fee statement for one authorized child. Every figure comes from the server in one
 // currency; due states use the school's calendar; the reconciliation line shows the arithmetic.
 
@@ -46,7 +48,7 @@ function latestReceiptOf(statement: Statement): LatestReceipt | null {
  * does (role-ux M101 / G44a), so `/student/fees` passes `canPay={false}` and gets a note instead of a button.
  * `onSummary` reports the figures a page header needs, including the latest receipt (null when nothing was paid).
  */
-export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { studentId?: string | null; onSummary?: (summary: FamilyFeeSummary) => void; canPay?: boolean }) {
+export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { studentId?: string | null; onSummary?: (summary: FamilyFeeSummary | null) => void; canPay?: boolean }) {
   const ui = useUiText();
   const { money, date } = useLocaleFormat();
   const { currency: campusCurrency } = useLocale();
@@ -54,29 +56,34 @@ export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { st
   const focusInvoice = params.get("invoice");
   const [paymentRef, setPaymentRef] = useState<string | null>(() => params.get("payment"));
   const [currency, setCurrency] = useState<string | null>(null);
-  const [statement, setStatement] = useState<Statement | null>(null), [failed, setFailed] = useState(false);
+  const [statement, setStatement] = useState<Statement | null>(null), [failed, setFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
+  const [loading, setLoading] = useState(true);
   const refreshedFor = useRef<string | null>(null), report = useRef(onSummary);
   useEffect(() => { report.current = onSummary; }, [onSummary]);
   const load = useCallback(async (wanted: string | null) => {
-    setFailed(false);
+    const version = ++sequence.current;
+    setFailed(null); setLoading(true);
+    report.current?.(null);
     const query = new URLSearchParams();
     if (studentId) query.set("studentId", studentId);
     if (wanted) query.set("currency", wanted);
     if (!wanted && focusInvoice) query.set("invoice", focusInvoice);
     try {
-      const response = await fetch(`/api/fees/family-statement?${query}`, { cache: "no-store" });
-      const json = await response.json();
-      if (!response.ok || !json.success) throw new Error(json.error);
+      const json = await checkedJson(await readRequest(`/api/fees/family-statement?${query}`));
+      if (version !== sequence.current) return;
+      if (!Array.isArray(json.data?.invoices) || !json.data?.summary || !json.data?.student || !Array.isArray(json.data?.currencies)) throw new RequestFailure("server");
       setStatement(json.data);
       const data = json.data as Statement;
       report.current?.({ outstanding: data.summary.outstanding, currency: data.currency, fullName: data.student.fullName, latestReceipt: latestReceiptOf(data) });
-    } catch { setFailed(true); }
+    } catch (error) { if (version === sequence.current) { setStatement(null); setFailed(requestFailure(error)); report.current?.(null); } }
+    finally { if (version === sequence.current) setLoading(false); }
   }, [studentId, focusInvoice]);
-  useEffect(() => { const timer = setTimeout(() => void load(currency), 0); return () => clearTimeout(timer); }, [load, currency]);
+  useEffect(() => { const timer = setTimeout(() => void load(currency), 0); return () => { clearTimeout(timer); sequence.current++; }; }, [load, currency]);
   const settled = () => { if (paymentRef && refreshedFor.current !== paymentRef) { refreshedFor.current = paymentRef; void load(currency); } };
 
-  if (failed) return <ErrorState title={ui("Fee statement could not be loaded.")} description={ui("Check your connection and try again.")} retryLabel={ui("Try again")} onRetry={() => void load(currency)} />;
-  if (!statement) return <SkeletonRegion label={ui("Loading fee statement…")} className="space-y-4"><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div><Skeleton className="h-40 rounded-2xl" /></SkeletonRegion>;
+  if (failed) return <ErrorState error={failed} title={ui("Fee statement could not be loaded.")} description={ui("Check your connection and try again.")} retryLabel={ui("Try again")} onRetry={() => void load(currency)} />;
+  if (loading || !statement) return <SkeletonRegion label={ui("Loading fee statement…")} className="space-y-4"><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div><Skeleton className="h-40 rounded-2xl" /></SkeletonRegion>;
   const code = statement.currency ?? campusCurrency, s = statement.summary, fmt = (amount: number) => money(amount, code);
   return <div className="space-y-4" data-family-statement>
     {paymentRef && <PaymentReturnStatus key={paymentRef} orderRef={paymentRef} onSettled={settled} />}

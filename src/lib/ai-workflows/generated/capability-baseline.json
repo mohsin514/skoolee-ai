@@ -387,7 +387,6 @@
   "lesson_plans.publish_activity_as_assignment",
   "library.book_delete",
   "library.category_delete",
-  "library.category_update",
   "library.desk_lookup_expire_holds",
   "library.legacy_issue_book",
   "library.legacy_return_book",

@@ -1,3 +1,7 @@
+import { redis } from "../../src/lib/queue/connection";
+import { after as disconnectRedisAfterTests } from "node:test";
+// Notification services open a shared Redis socket; close it after this test process finishes.
+disconnectRedisAfterTests(() => redis.disconnect());
 import { hashSessionToken } from "../../src/lib/auth/session-cookie";
 import { defaultLocale } from "../../src/lib/locale/package";
 import { consume } from "../../src/lib/queue/outbox";
@@ -385,12 +389,8 @@ async function http(
 }
 for (const role of USER_ROLES)
   test(`HTTP role ${role}: publication controls and child ownership`, async () => {
-    const reviewer = [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "CAMPUS_ADMIN",
-      "PRINCIPAL",
-    ].includes(role);
+    // This campus has an active principal; office roles cannot approve or publish.
+    const reviewer = role === "PRINCIPAL";
     const response = await http(role, "/api/reports", "POST", {
       examId,
       action: "publish",

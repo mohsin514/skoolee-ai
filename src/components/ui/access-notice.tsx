@@ -51,7 +51,7 @@ export function AccessNotice({ title, reason, owner, ownerPhrase = "Managed by {
 
   // The shell's page card is the surface (addendum 2026-10-22): the panel notice fills it without a card of its own.
   return (
-    <section data-access-notice="" aria-live="polite" className="flex min-h-0 flex-1 flex-col items-center justify-center py-8 sm:py-12">
+    <section data-resource-state="denied" data-access-notice="" aria-live="polite" className="flex min-h-0 flex-1 flex-col items-center justify-center py-8 sm:py-12">
       <EmptyState
         icon={icon}
         title={heading}

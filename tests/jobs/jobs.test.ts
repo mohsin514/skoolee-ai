@@ -1,3 +1,7 @@
+import { redis } from "../../src/lib/queue/connection";
+import { after as disconnectRedisAfterTests } from "node:test";
+// Notification services open a shared Redis socket; close it after this test process finishes.
+disconnectRedisAfterTests(() => redis.disconnect());
 import { tmpdir } from "node:os";
 import { hashSessionToken } from "../../src/lib/auth/session-cookie";
 import { SignJWT } from "jose";
@@ -289,11 +293,18 @@ test("100 recipients: 97 acceptances, missing contact, authorization expiry and 
           where: { id: sid },
           data: { guardianWhatsapp: null, guardianPhone: null },
         });
+      const guardianId = randomUUID(), relationshipId = randomUUID();
+      const phone = `+1555000${String(n).padStart(4, "0")}`;
+      await raw.user.create({ data: { id: guardianId, schoolId, campusId, role: "PARENT", email: `${guardianId}@example.invalid`, fullName: "Synthetic guardian", isActive: true, onboardingComplete: true } });
+      await raw.guardianRelationship.create({ data: { id: relationshipId, schoolId, campusId, studentId: sid, guardianUserId: guardianId, createdByUserId: actorId, fullName: "Synthetic guardian", email: `${guardianId}@example.invalid`, phone, relationship: "guardian", status: "ACTIVE", validFrom: new Date(Date.now()-60000), verifiedAt: new Date() } });
+      await raw.guardianAccessVersion.create({ data: { schoolId, relationshipId, permissions: { communication: true, learningRecords: true }, effectiveFrom: new Date(Date.now()-60000), reason: "Synthetic delivery grant", createdByUserId: actorId } });
+      await raw.guardianChannelPreference.create({ data: { schoolId, campusId, guardianUserId: guardianId, channel: "WHATSAPP", recipient: phone, enabled: n !== 97, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic verified consent", updatedById: actorId } });
       const c = await raw.parentCommunication.create({
         data: {
           schoolId,
           campusId,
           studentId: sid,
+          parentUserId: guardianId,
           channel: "WHATSAPP",
           recipient:
             n === 97 ? "UNAVAILABLE" : `+1555000${String(n).padStart(4, "0")}`,
@@ -378,17 +389,14 @@ test("100 recipients: 97 acceptances, missing contact, authorization expiry and 
       operateJob(actor, jobId, "retry", [
         job.items.find((i) => i.state === "completed")!.id,
       ]),
-      /confirmed failed/,
+      /NOT_FAILED/,
     );
     const failed = job.items.filter((i) => i.state === "failed");
     await assert.rejects(
       operateJob(actor, jobId, "retry", [failed[0].id]),
-      /guardian contact/,
+      /RECIPIENT_AUTHORIZATION_REQUIRED/,
     );
-    await raw.student.update({
-      where: { id: communications[97].studentId! },
-      data: { guardianWhatsapp: "+15550000097" },
-    });
+    await raw.guardianChannelPreference.updateMany({ where: { schoolId, guardianUserId: communications[97].parentUserId!, channel: "WHATSAPP" }, data: { enabled: true } });
     await operateJob(
       actor,
       jobId,
@@ -460,13 +468,13 @@ test("100 recipients: 97 acceptances, missing contact, authorization expiry and 
     // Receipt evidence cannot become authorization to re-send.
     await assert.rejects(
       operateJob(actor, jobId, "retry", [job.items[0].id]),
-      /confirmed failed/,
+      /JOB_CANCELLED/,
     );
     const foreign = { ...actor, schoolId: "other-tenant" };
-    await assert.rejects(readJob(foreign, jobId), /not found/);
+    await assert.rejects(readJob(foreign, jobId), { status: 404 });
     await assert.rejects(
       readJob({ ...actor, campusId: "other-campus" }, jobId),
-      /not found/,
+      { status: 403 },
     );
     const readonlyRole = await raw.rolePermission.create({
       data: {
@@ -514,7 +522,7 @@ test("PDF processing resumes the same saved version after an expired worker leas
       "tests/jobs/crash-child.ts",
       [JSON.stringify({ schoolId, eventId: item.workflow_id! })],
       {
-        execArgv: ["--import", "tsx"],
+        execArgv: ["--import", "./tests/support/server-only.mjs", "--import", "tsx"],
         stdio: ["ignore", "ignore", "inherit", "ipc"],
       },
     );
@@ -564,9 +572,10 @@ test("PDF processing resumes the same saved version after an expired worker leas
       currency: "PKR",
       campusId,
     };
-    const importId = await startImportJob(actor, campusId, payload);
-    assert.equal(await startImportJob(actor, campusId, payload), importId);
-    const imp = await readJob(actor, importId);
+    const financeActor = (await resolveCurrentPrincipal({schoolId, userId: users.get("ACCOUNTANT")!}))!;
+    const importId = await startImportJob(financeActor, campusId, payload);
+    assert.equal(await startImportJob(financeActor, campusId, payload), importId);
+    const imp = await readJob(financeActor, importId);
     await consume(
       raw,
       { schoolId, eventId: imp.items[0].workflow_id! },
@@ -577,24 +586,24 @@ test("PDF processing resumes the same saved version after an expired worker leas
       { schoolId, eventId: imp.items[0].workflow_id! },
       processingWorkflow,
     );
-    const done = await readJob(actor, importId);
+    const done = await readJob(financeActor, importId);
     assert.equal(done.counts.completed, 1);
     assert.equal(
       await raw.bankReconciliation.count({ where: { schoolId } }),
       1,
     );
-    const invalidId = await startImportJob(actor, campusId, {
+    const invalidId = await startImportJob(financeActor, campusId, {
       ...payload,
       csv: "wrong,headers\na,b",
     });
-    const bad = await readJob(actor, invalidId);
+    const bad = await readJob(financeActor, invalidId);
     await consume(
       raw,
       { schoolId, eventId: bad.items[0].workflow_id! },
       processingWorkflow,
     );
     assert.equal(
-      (await readJob(actor, invalidId)).items[0].category,
+      (await readJob(financeActor, invalidId)).items[0].category,
       "invalid_file",
     );
   }));
@@ -606,12 +615,15 @@ test("in-flight cancellation preserves acceptance, uncertain outcomes cannot ret
       userId: actorId,
     }))!;
     const version = await getPublishedVersion(reportId);
+    const guardian = await raw.guardianRelationship.findFirstOrThrow({ where: { studentId, schoolId } });
+    await raw.guardianChannelPreference.create({ data: { schoolId, campusId, guardianUserId: guardian.guardianUserId!, channel: "EMAIL", recipient: guardian.email, enabled: true, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic email consent", updatedById: actorId } });
     const communication = await raw.parentCommunication.create({
       data: {
         schoolId,
         campusId,
         studentId,
-        recipient: "synthetic@example.invalid",
+        parentUserId: guardian.guardianUserId,
+        recipient: guardian.email,
         channel: "EMAIL",
         recipientName: "Synthetic in-flight family",
         body: "Frozen approved email",
@@ -661,7 +673,8 @@ test("in-flight cancellation preserves acceptance, uncertain outcomes cannot ret
         schoolId,
         campusId,
         studentId,
-        recipient: "synthetic@example.invalid",
+        parentUserId: guardian.guardianUserId,
+        recipient: guardian.email,
         channel: "EMAIL",
         recipientName: "Synthetic unknown family",
         body: "Frozen approved email",
@@ -697,7 +710,7 @@ test("in-flight cancellation preserves acceptance, uncertain outcomes cannot ret
     assert.equal(failed.items[0].canRetry, false);
     await assert.rejects(
       operateJob(actor, unknownJob, "retry", [failed.items[0].id]),
-      /uncertain provider/,
+      /UNCERTAIN/,
     );
     // Definitive local preflight failure has no uncertain effect, but cannot switch versions.
     await raw.workflowEffect.deleteMany({ where: { jobId: unknownEvent } });
@@ -724,7 +737,7 @@ test("in-flight cancellation preserves acceptance, uncertain outcomes cannot ret
     failed = await readJob(actor, unknownJob);
     await assert.rejects(
       operateJob(actor, unknownJob, "retry", [failed.items[0].id]),
-      /superseded/,
+      /ORIGINAL_VERSION_UNAVAILABLE/,
     );
     assert.equal(
       (

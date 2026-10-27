@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, canManageLibrary, resolveCampusId } from "@/lib/api/scope";
@@ -109,5 +111,31 @@ export async function createMember(user: AuthUser, body: Body) {
 
   return prisma.libraryMember.create({
     data: { campusId, userId, memberNo },
+  });
+}
+
+
+export const categoryRenameSchema = z.strictObject({
+  id: z.string().min(1).max(128), name: z.string().trim().min(1).max(120),
+  expectedName: z.string().min(1).max(120).optional(),
+});
+
+/** Rename within the current campus; a stale preview cannot overwrite a colleague's edit. */
+export async function renameCategory(user: AuthUser, input: unknown) {
+  assertLibrary(user);
+  const data = categoryRenameSchema.parse(input);
+  return schoolAiTransaction(user, async tx => {
+    const existing = await tx.bookCategory.findFirst({ where: {
+      id: data.id, schoolId: user.schoolId,
+      ...(user.role === "SUPER_ADMIN" ? {} : { campusId: user.campusId ?? "" }),
+    } });
+    if (!existing) throw new ApiError("Category not found", 404);
+    if (existing.name === data.name) return existing;
+    if (data.expectedName !== undefined && data.expectedName !== existing.name) throw new ApiError("Category changed. Review its current name before saving.", 409);
+    const duplicate = await tx.bookCategory.findFirst({ where: {
+      schoolId: user.schoolId, campusId: existing.campusId, name: { equals: data.name, mode: "insensitive" }, id: { not: data.id },
+    } });
+    if (duplicate) throw new ApiError("Category with this name already exists", 409);
+    return tx.bookCategory.update({ where: { id: existing.id }, data: { name: data.name } });
   });
 }

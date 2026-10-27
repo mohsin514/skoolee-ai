@@ -105,41 +105,46 @@ export async function requirePlatformOwner(options: { allowSupportAccess?: boole
 }
 
 export function errorResponse(error: unknown, fallback = "Request failed") {
+  const requestId = crypto.randomUUID();
+  const respond = (body: unknown, init: ResponseInit) => Response.json(body, {
+    ...init, headers: { ...init.headers, "x-request-id": requestId },
+  });
   if (error instanceof ZodError) {
-    return Response.json({ error: "Please check the submitted values.", details: error.flatten().fieldErrors }, { status: 400 });
+    return respond({ error: "Please check the submitted values.", details: error.flatten().fieldErrors }, { status: 400 });
   }
   // Checked before ApiError — ValidationError extends it, and the field map is
   // the whole point of the subclass.
   if (error instanceof ValidationError) {
-    return Response.json(
+    return respond(
       { error: error.fieldErrors, message: error.message, details: error.fieldErrors },
       { status: 400 }
     );
   }
 
   if (error instanceof ApiError) {
-    return Response.json(error.code ? { error: error.message, code: error.code } : { error: error.message }, { status: error.status });
+    return respond(error.code ? { error: error.message, code: error.code } : { error: error.message }, { status: error.status });
   }
 
   // Plan and suspension errors carry a machine code (G51) so clients can tell them apart without parsing copy; a
   // message built from values (plan limits) also carries its EN key and the values, for a client that formats it.
   if (error instanceof BillingAccessError) {
-    return Response.json({
+    return respond({
       error: error.message,
       ...(error.code ? { code: error.code } : {}),
       ...(error.messageKey ? { messageKey: error.messageKey, params: error.params ?? [] } : {}),
     }, { status: error.status });
   }
   if (error instanceof Error && "status" in error && typeof error.status === "number" && "code" in error && error.code === "SUBSCRIPTION_SUSPENDED") {
-    return Response.json({ error: error.message, code: error.code }, { status: error.status });
+    return respond({ error: error.message, code: error.code }, { status: error.status });
   }
 
   if (error instanceof Error && "status" in error && typeof error.status === "number") {
-    return Response.json({ error: error.message }, { status: error.status });
+    return respond({ error: error.message }, { status: error.status });
   }
 
-  console.error(fallback, error);
-  return Response.json({ error: fallback }, { status: 500 });
+  // Correlation without request bodies, record identifiers, database errors or secrets.
+  console.error("[api.failure]", { requestId, status: 500 });
+  return respond({ error: fallback }, { status: 500 });
 }
 
 /**

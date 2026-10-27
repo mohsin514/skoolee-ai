@@ -1,3 +1,5 @@
+import { assertListBudget } from "@/lib/lists/access";
+import { listPagination, pageWindow } from "@/lib/lists/query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -11,6 +13,7 @@ import { Prisma } from "@prisma/client";
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
+    await assertListBudget(user, "fees/invoices");
     await assertFeesRead(user);
     const { searchParams } = new URL(req.url);
 
@@ -24,8 +27,7 @@ export async function GET(req: NextRequest) {
     const classId = searchParams.get("classId");
     const search = searchParams.get("search");
     const month = searchParams.get("month");
-    const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-    const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get("pageSize") ?? "20", 10)));
+    const { page: requestedPage, limit: pageSize } = listPagination(searchParams, 20, 50, "pageSize");
 
     const where: Prisma.InvoiceWhereInput = {
       campus: { schoolId: user.schoolId },
@@ -55,9 +57,9 @@ export async function GET(req: NextRequest) {
         : {}),
     };
 
-    const [total, invoices] = await Promise.all([
-      prisma.invoice.count({ where }),
-      prisma.invoice.findMany({
+    const total = await prisma.invoice.count({ where });
+    const { page } = pageWindow(total, requestedPage, pageSize);
+    const invoices = await prisma.invoice.findMany({
         where,
         include: {
           enrollment: true,
@@ -70,11 +72,10 @@ export async function GET(req: NextRequest) {
             },
           },
         },
-        orderBy: { invoiceDate: "desc" },
+        orderBy: [{ invoiceDate: "desc" }, { id: "asc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
-      }),
-    ]);
+      });
 
     return Response.json({
       success: true,
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
       total,
       page,
       pageSize,
-      totalPages: Math.ceil(total / pageSize),
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
     });
   } catch (error) {
     return errorResponse(error, "[fees/invoices] GET failed");

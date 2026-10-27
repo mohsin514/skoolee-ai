@@ -1,8 +1,12 @@
 "use client";
+import { Pagination } from "@/components/shared-admin/workspace";
+import { loadListPages } from "@/lib/lists/load-pages";
+import { useListPagination } from "@/hooks/use-list-page";
+import { useListField } from "@/hooks/use-list-field";
 import { InputGroup } from "@/components/ui/input-group";
 
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Bus,
   Building2,
@@ -70,6 +74,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { FormField } from "@/components/ui/form-field";
@@ -95,7 +100,7 @@ const TXN_KIND_LABEL: Record<string, string> = { RECEIVE: "Received", SELL: "Sol
 const TXN_KIND_OPTION: Record<string, string> = { RECEIVE: "Receive", SELL: "Sell", ISSUE: "Issue", RETURN: "Return" };
 const VEHICLE_MODEL_LABEL: Record<string, string> = { BUS: "Bus", VAN: "Van", CAR: "Car", OTHER: "Other" };
 
-function EmptyRow({ cols, text, hint, state, onRetry }: { cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
+function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false }: { filtered?: boolean; failure?: RequestFailure | null; cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
   const ui = useUiText();
   return (
     <tr>
@@ -104,12 +109,13 @@ function EmptyRow({ cols, text, hint, state, onRetry }: { cols: number; text?: s
           <SkeletonTable rows={3} columns={Math.min(cols, 5)} />
         ) : state === "error" ? (
           <ErrorState
+            error={failure}
             title={ui("These records could not be loaded")}
             description={ui("Check your connection, then try again.")}
             onRetry={onRetry}
           />
         ) : (
-          <EmptyState size="sm" title={ui(text ?? "Nothing here yet")} description={hint ? ui(hint) : undefined} />
+          <div role="status" aria-live="polite" data-resource-state={filtered ? "no-match" : "no-data"}><EmptyState size="sm" title={ui(filtered ? "No matching records" : text ?? "Nothing here yet")} description={filtered ? ui("Change or clear your search to see more records.") : hint ? ui(hint) : ui("Use the available add action to create your first record.")} /></div>
         )}
       </td>
     </tr>
@@ -226,10 +232,14 @@ async function exportList(
   toRow: (row: any) => unknown[],
 ) {
   try {
-    const response = await fetch(url, { cache: "no-store" });
-    const json = await response.json().catch(() => ({}));
-    if (!response.ok || !json.success) throw new Error();
-    const rows: any[] = Array.isArray(json.data) ? json.data : [];
+    let rows: any[];
+    if (["/api/inventory/items", "/api/library/books"].includes(url)) rows = await loadListPages(url);
+    else {
+      const response = await fetch(url, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error();
+      rows = Array.isArray(json.data) ? json.data : [];
+    }
     if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
     downloadCSV(`${filename}-${new Date().toISOString().slice(0, 10)}`, [header, ...rows.map(toRow)]);
   } catch {
@@ -305,19 +315,21 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
   const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const r = await fetch("/api/transport/routes");
-      const j = await r.json();
-      if (j.success) setRows(j.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+      const r = await readRequest("/api/transport/routes");
+      const j = await checkedListJson(r);
+      if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Field names match TransportRoute exactly, and the schema converts the
   // rupees typed here into the paisa the column stores.
@@ -325,6 +337,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
     schema: transportRouteFormSchema,
     initialValues: { title: "", description: "", fare: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/transport/routes", values, form))) return;
       toast.success(ui("Route added."));
       setShowAdd(false);
@@ -364,7 +377,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
           <OpField label="Fare" error={form.errors.fare}>
             <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("fare")} placeholder="0" />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
           {/* Opened from the PageHeader, the row needs its own way out (the in-panel toggle is hidden). */}
           {hideAdd ? <Button variant="ghost" onClick={() => { setShowAdd(false); form.reset(); }}>{ui("Cancel")}</Button> : null}
         </div>
@@ -373,7 +386,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.title}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
@@ -393,19 +406,21 @@ function VehiclesTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const r = await fetch("/api/transport/vehicles");
-      const j = await r.json();
-      if (j.success) setRows(j.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+      const r = await readRequest("/api/transport/vehicles");
+      const j = await checkedListJson(r);
+      if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The column is `model`. This form posted `type`, which the route never read,
   // so the bus/van choice was discarded on save and the Type column below
@@ -414,6 +429,7 @@ function VehiclesTab() {
     schema: vehicleFormSchema,
     initialValues: { number: "", model: "BUS", capacity: "40", driverName: "", driverPhone: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/transport/vehicles", values, form))) return;
       toast.success(ui("Vehicle added."));
       setShowAdd(false);
@@ -460,14 +476,14 @@ function VehiclesTab() {
           <OpField label="Driver Phone" error={form.errors.driverPhone}>
             <SystemInput className={`${inputCls} w-32`} inputMode="tel" {...form.field("driverPhone")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
               <tr key={v.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{v.number}</td>
                 <td className={tdCls}>{v.model ? ui(VEHICLE_MODEL_LABEL[v.model] ?? v.model) : "—"}</td>
@@ -532,15 +548,17 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
-    try { const r = await fetch("/api/dormitory/room-types"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/dormitory/room-types"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // costPerTerm reaches the API in paisa, matching invoices, fees and transport
   // fares — the schema applies the conversion so no call site can double it.
@@ -548,6 +566,7 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
     schema: dormRoomTypeFormSchema,
     initialValues: { name: "", description: "", costPerTerm: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/dormitory/room-types", values, form))) return;
       toast.success(ui("Room type added."));
       setShowAdd(false);
@@ -577,14 +596,14 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
           <OpField label="Description" error={form.errors.description} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder={ui("Occupancy, facilities…")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r.description || "—"}</td>
@@ -605,20 +624,22 @@ function DormRoomsTab() {
   const [rows, setRows] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [rr, tr] = await Promise.all([fetch("/api/dormitory/rooms"), fetch("/api/dormitory/room-types")]);
-      const [rj, tj] = await Promise.all([rr.json(), tr.json()]);
-      if (rj.success) setRows(rj.data || []);
+      const [rr, tr] = await Promise.all([readRequest("/api/dormitory/rooms"), readRequest("/api/dormitory/room-types")]);
+      const [rj, tj] = await Promise.all([checkedListJson(rr), checkedListJson(tr)]);
+      if (version !== loadSequence.current) return; if (rj.success) setRows(rj.data || []);
       if (tj.success) setTypes(tj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The column is `number`; this form posted `roomNumber`, so every save was
   // rejected with "number is required" and the table below read a field that
@@ -628,6 +649,7 @@ function DormRoomsTab() {
     schema: dormRoomFormSchema,
     initialValues: { number: "", roomTypeId: "", capacity: "4" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/dormitory/rooms", values, form))) return;
       toast.success(ui("Room added."));
       setShowAdd(false);
@@ -658,14 +680,14 @@ function DormRoomsTab() {
           <OpField label="Capacity" error={form.errors.capacity}>
             <SystemInput className={`${inputCls} w-20`} type="number" min={1} max={50} {...form.field("capacity")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.number}</td>
                 <td className={tdCls}>{r.roomType?.name || "—"}</td>
@@ -741,16 +763,18 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   usePanelCommand(command, { "add-category": () => setShowAdd(true) });
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
-    try { const r = await fetch("/api/library/categories"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/library/categories"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // BookCategory has only a name. The old `description` lived in state, had no
   // input bound to it, and was rendered in a table column that could never be
@@ -759,6 +783,7 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
     schema: bookCategorySchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/categories", values, form))) return;
       toast.success(ui("Category added."));
       setShowAdd(false);
@@ -780,14 +805,14 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
           <OpField label="Name" error={form.errors.name}>
             <SystemInput className={`${inputCls} w-40`} {...form.field("name")} placeholder={ui("Fiction")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Titles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r._count?.books ?? 0}</td>
@@ -805,23 +830,30 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const [search, setSearch] = useListField<string>("library.search", "", "library.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("library.category", "", "library.page");
+  const [sort, setSort] = useListField<string>("library.sort", "name", "library.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "library");
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++requestVersion.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
-      const [br, cr] = await Promise.all([fetch(`/api/library/books${q}`), fetch("/api/library/categories")]);
-      const [bj, cj] = await Promise.all([br.json(), cr.json()]);
-      if (bj.success) setRows(bj.data || []);
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      const [br, cr] = await Promise.all([readRequest(`/api/library/books${q}`), readRequest("/api/library/categories")]);
+      const [bj, cj] = await Promise.all([checkedListJson(br), checkedListJson(cr)]);
+      if (version !== requestVersion.current) return;
+      if (bj.success) { setRows(bj.data || []); setTotal(bj.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
-  }, [search]);
-  useEffect(() => { load(); }, [load]);
+    } catch (error) { if (version === requestVersion.current) { setRows([]); setCats([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // The column is `copiesTotal`. This form sent `totalCopies`, so the route
   // read `undefined`, failed its own `Number.isFinite` check, and rejected
@@ -830,6 +862,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
     schema: bookFormSchema,
     initialValues: { title: "", author: "", isbn: "", categoryId: "", copiesTotal: "1" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/books", values, form))) return;
       toast.success(ui("Book added."));
       setShowAdd(false);
@@ -873,14 +906,19 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
           <OpField label="Copies" error={form.errors.copiesTotal}>
             <SystemInput className={`${inputCls} w-20`} type="number" min={0} {...form.field("copiesTotal")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} text="No books yet" /> : rows.map((b: any) => (
+            {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} filtered={Boolean(search || category)} text="No books yet" /> : rows.map((b: any) => (
               <tr key={b.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{b.title}</td>
                 <td className={tdCls}>{b.author || "—"}</td>
@@ -983,16 +1021,18 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   usePanelCommand(command, { "add-member": () => setShowAdd(true) });
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
-    try { const r = await fetch("/api/library/members"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/library/members"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // LibraryMember is (userId, memberNo). The old form posted `membershipType`,
   // which is not a column, and never posted `memberNo`, which the route
@@ -1001,6 +1041,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
     schema: libraryMemberSchema,
     initialValues: { userId: "", memberNo: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/members", values, form))) return;
       toast.success(ui("Member added."));
       setShowAdd(false);
@@ -1025,14 +1066,14 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
           <OpField label="Member No" error={form.errors.memberNo}>
             <SystemInput className={`${inputCls} w-32`} {...form.field("memberNo")} placeholder="LM-001" />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
+            {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
               <tr key={m.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{m.user?.fullName || m.userId}</td>
                 <td className={tdCls}>{m.memberNo || "—"}</td>
@@ -1051,22 +1092,26 @@ function IssuesTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [ir, br, mr] = await Promise.all([fetch("/api/library/issues"), fetch("/api/library/books"), fetch("/api/library/members")]);
-      const [ij, bj, mj] = await Promise.all([ir.json(), br.json(), mr.json()]);
+      const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), loadListPages("/api/library/books"), readRequest("/api/library/members")]);
+      const [ij, mj] = await Promise.all([checkedListJson(ir), checkedListJson(mr)]);
+      const bj = { success: true, data: br };
+      if (version !== loadSequence.current) return;
       if (ij.success) setRows(ij.data || []);
       if (bj.success) setBooks(bj.data || []);
       if (mj.success) setMembers(mj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The route reads `dueAt`; this form sent `dueDate`, so the librarian's
   // chosen return date was dropped and every loan silently took the default.
@@ -1074,6 +1119,7 @@ function IssuesTab() {
     schema: bookIssueSchema,
     initialValues: { bookId: "", memberId: "", dueAt: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/issues", values, form))) return;
       toast.success(ui("Book issued."));
       setShowAdd(false);
@@ -1113,14 +1159,14 @@ function IssuesTab() {
           <OpField label="Due Date" error={form.errors.dueAt}>
             <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Issuing…") : ui("Issue")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Issuing…") : ui("Issue")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
               <tr key={i.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{i.book?.title || i.bookId}</td>
                 <td className={tdCls}>{i.member?.user?.fullName || i.memberId}</td>
@@ -1187,12 +1233,14 @@ function ItemCategoriesTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); setLoadFailed(false); try { const r = await fetch("/api/inventory/categories"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/categories"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemCategory holds only a name. The old `description` had no input bound
   // to it and no column behind the table cell that rendered it.
@@ -1200,6 +1248,7 @@ function ItemCategoriesTab() {
     schema: itemCategorySchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/categories", values, form))) return;
       toast.success(ui("Category added."));
       setShowAdd(false);
@@ -1218,14 +1267,14 @@ function ItemCategoriesTab() {
           <OpField label="Name" error={form.errors.name}>
             <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r._count?.items ?? 0}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
@@ -1242,12 +1291,14 @@ function StoresTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); setLoadFailed(false); try { const r = await fetch("/api/inventory/stores"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/stores"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemStore has no `location` column — whatever was typed into that input
   // was discarded on save, and the table column could never fill in.
@@ -1255,6 +1306,7 @@ function StoresTab() {
     schema: itemStoreSchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/stores", values, form))) return;
       toast.success(ui("Store added."));
       setShowAdd(false);
@@ -1273,14 +1325,14 @@ function StoresTab() {
           <OpField label="Name" error={form.errors.name} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("name")} placeholder={ui("Main store")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
@@ -1297,12 +1349,14 @@ function SuppliersTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); setLoadFailed(false); try { const r = await fetch("/api/inventory/suppliers"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch { setLoadFailed(true); } finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/suppliers"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Supplier has no `contactName` column, so that input never persisted.
   // `address` does exist and now has an input rather than only living in state.
@@ -1310,6 +1364,7 @@ function SuppliersTab() {
     schema: supplierSchema,
     initialValues: { name: "", phone: "", email: "", address: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/suppliers", values, form))) return;
       toast.success(ui("Supplier added."));
       setShowAdd(false);
@@ -1337,14 +1392,14 @@ function SuppliersTab() {
           <OpField label="Address" error={form.errors.address} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("address")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.phone || "—"}</td><td className={tdCls}>{r.email || "—"}</td><td className={tdCls}>{r.address || "—"}</td>
                 <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
@@ -1361,29 +1416,37 @@ function ItemsTab() {
   const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [search, setSearch] = useState("");
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const [search, setSearch] = useListField<string>("inventory.search", "", "inventory.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("inventory.category", "", "inventory.page");
+  const [sort, setSort] = useListField<string>("inventory.sort", "name", "inventory.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "inventory");
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++requestVersion.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
-      const [ir, cr] = await Promise.all([fetch(`/api/inventory/items${q}`), fetch("/api/inventory/categories")]);
-      const [ij, cj] = await Promise.all([ir.json(), cr.json()]);
-      if (ij.success) setRows(ij.data || []);
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      const [ir, cr] = await Promise.all([readRequest(`/api/inventory/items${q}`), readRequest("/api/inventory/categories")]);
+      const [ij, cj] = await Promise.all([checkedListJson(ir), checkedListJson(cr)]);
+      if (version !== requestVersion.current) return;
+      if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
-  }, [search]);
-  useEffect(() => { load(); }, [load]);
+    } catch (error) { if (version === requestVersion.current) { setRows([]); setCats([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // Item is (name, unit, categoryId). `description` had no input and no column.
   const form = useValidatedForm({
     schema: itemSchema,
     initialValues: { name: "", categoryId: "", unit: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/items", values, form))) return;
       toast.success(ui("Item added."));
       setShowAdd(false);
@@ -1397,7 +1460,7 @@ function ItemsTab() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
+        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} aria-label={ui("Search items…")} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
         <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add item")}</BrandButton>
       </div>
       {showAdd && (
@@ -1411,14 +1474,19 @@ function ItemsTab() {
           <OpField label="Unit" error={form.errors.unit}>
             <SystemInput className={`${inputCls} w-24`} {...form.field("unit")} placeholder={ui("pcs")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No items" /> : rows.map((r: any) => {
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} filtered={Boolean(search || category)} text="No items" /> : rows.map((r: any) => {
               const totalStock = (r.stock || []).reduce((s: number, st: any) => s + (st.quantity || 0), 0);
               return (
                 <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
@@ -1439,29 +1507,34 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
   const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    setLoading(true); setLoadFailed(false);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [tr, ir, sr, spr] = await Promise.all([fetch("/api/inventory/transactions"), fetch("/api/inventory/items"), fetch("/api/inventory/stores"), fetch("/api/inventory/suppliers")]);
-      const [tj, ij, sj, spj] = await Promise.all([tr.json(), ir.json(), sr.json(), spr.json()]);
+      const [tr, ir, sr, spr] = await Promise.all([readRequest("/api/inventory/transactions"), loadListPages("/api/inventory/items"), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
+      const [tj, sj, spj] = await Promise.all([checkedListJson(tr), checkedListJson(sr), checkedListJson(spr)]);
+      const ij = { success: true, data: ir };
+      if (version !== loadSequence.current) return;
       if (tj.success) setRows(tj.data || []);
       if (ij.success) setItems(ij.data || []);
       if (sj.success) setStores(sj.data || []);
       if (spj.success) setSuppliers(spj.data || []);
-    } catch { setLoadFailed(true); } finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const form = useValidatedForm({
     schema: itemTransactionFormSchema,
     initialValues: { itemId: "", storeId: "", supplierId: "", kind: "RECEIVE", quantity: "1", unitPrice: "", note: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/transactions", values, form))) return;
       toast.success(ui("Transaction recorded."));
       setShowAdd(false);
@@ -1500,14 +1573,14 @@ function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
           <OpField label="Note" error={form.errors.note} width="flex-1">
             <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
           </OpField>
-          <BrandButton onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
       <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
           <thead><tr className="border-b border-edge/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
+            {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
               <tr key={t.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
                 <td className={tdCls}><Badge size="sm" dot variant={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{ui(TXN_KIND_LABEL[t.kind] ?? t.kind)}</Badge></td>

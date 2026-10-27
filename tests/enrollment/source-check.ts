@@ -1,3 +1,4 @@
+import { redis } from "../../src/lib/queue/connection";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { SignJWT } from "jose";
@@ -24,5 +25,5 @@ const concurrent=await db.student.findMany({where:{fullName:"Concurrent Same Nam
 const from="initial-pupil-survivor";const proposal=await fetch("http://localhost:3217/api/students/enrollments",{method:"POST",headers,body:JSON.stringify({action:"propose",studentId:"pupil-survivor",fromEnrollmentId:from,targetClassId:"identity-school-a-2027",effectiveDate:"2027-01-01",rollNo:"FUTURE",reason:"Synthetic future proposal"})});assert.equal(proposal.status,201,await proposal.clone().text());const p=await proposal.json();
 const confirmation=await fetch("http://localhost:3217/api/students/enrollments",{method:"POST",headers,body:JSON.stringify({action:"confirm",studentId:"pupil-survivor",proposalId:p.proposal.id,reviewed:true,capacityChecked:true})});assert.equal(confirmation.status,409);assert.equal((await db.student.findUniqueOrThrow({where:{id:"pupil-survivor"}})).classId,"identity-school-a-2026");
 console.log("Same-name API imports, explicit guardian linking, permanent-ID search, AI identity selection, original-currency invoice PDF, and future proposal boundary: PASS");
-}finally{await db.$disconnect();await prisma.$disconnect();}}
+}finally{await db.$disconnect();await prisma.$disconnect();redis.disconnect();}}
 main().catch(e=>{console.error(e);process.exitCode=1;});

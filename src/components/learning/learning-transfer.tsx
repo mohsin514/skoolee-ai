@@ -1,4 +1,7 @@
 "use client";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { useFetch } from "@/hooks";
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -41,14 +44,12 @@ async function call(url: string, body?: unknown) {
 export function LearningTransferPanel({ studentId }: { studentId: string }) {
   const ui = useUiText();
   const fid = useId();
-  const [cases, setCases] = useState<Summary[] | null>(null);
+  const { data: cases, failure, isLoading, refetch: load } = useFetch<Summary[]>(`/api/learning-transfers?studentId=${encodeURIComponent(studentId)}`, {collection:true});
   const [open, setOpen] = useState<string | null>(null);
   const [intake, setIntake] = useState(false);
   const [form, setForm] = useState({ institution: "", learnerRef: "", curriculumId: "", curriculumName: "", version: "", language: "", objectives: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const load = useCallback(async () => { try { setCases(await call(`/api/learning-transfers?studentId=${encodeURIComponent(studentId)}`)); } catch { setCases([]); } }, [studentId]);
-  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm(f => ({ ...f, [key]: event.target.value }));
   const importCase = async () => {
     setBusy(true); setError("");
@@ -60,6 +61,8 @@ export function LearningTransferPanel({ studentId }: { studentId: string }) {
     } catch (e) { setError(e instanceof SyntaxError ? ui("The objectives must be a JSON list exported by the other school.") : (e as Error).message || ui("The transfer could not be saved. Try again.")); }
     setBusy(false);
   };
+  if (isLoading) return <SkeletonList rows={3} label={ui("Loading…")} />;
+  if (failure) return <ErrorState error={failure} onRetry={load} />;
   if (!cases) return null;
   return <section className="sk-panel min-w-0 space-y-3 p-4" aria-labelledby={`${fid}-title`} data-transfer-panel>
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -183,13 +186,13 @@ export function FamilyTransferConsent() {
   const list = (items: string[]) => new Intl.ListFormat(language, { type: "conjunction" }).format(items);
   const { date } = useLocaleFormat();
   const fid = useId();
-  const [rows, setRows] = useState<{ id: string; child: string; institution: string; curriculumName: string; version: string; objectives: number; rights: Rights; fields: string[]; expiresAt: string | null; downloads: number }[] | null>(null);
+  const { data: rows, failure, isLoading, refetch: load } = useFetch<{ id: string; child: string; institution: string; curriculumName: string; version: string; objectives: number; rights: Rights; fields: string[]; expiresAt: string | null; downloads: number }[]>("/api/family/transfers", {collection:true});
   const [fields, setFields] = useState<Record<string, string[]>>({});
   const [expiry, setExpiry] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<{ id: string; action: "grant" | "revoke" } | null>(null);
   const [error, setError] = useState("");
-  const load = useCallback(async () => { try { setRows(await call("/api/family/transfers")); } catch { setRows([]); } }, []);
-  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
+  if (isLoading) return <SkeletonList rows={3} label={ui("Loading…")} />;
+  if (failure) return <ErrorState error={failure} onRetry={load} />;
   if (!rows?.length) return null;
   const target = rows.find(r => r.id === confirm?.id);
   return <section className="sk-panel min-w-0 space-y-3 p-4" aria-labelledby={`${fid}-title`} data-family-transfer>

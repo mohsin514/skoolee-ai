@@ -47,15 +47,16 @@ for (const [key, value] of Object.entries({
   statementTo: "2026-10-08",
 }))
   form.set(key, value);
+const jobsBeforeRetiredImport = await db.activityJob.count({where:{schoolId:f.schoolId}});
 const imported = await fetch(base + "/api/fees/bank-import", {
   method: "POST",
-  headers: { cookie: f.cookies.PRINCIPAL },
+  headers: { cookie: f.cookies.ACCOUNTANT },
   body: form,
 });
-assert.equal(imported.status, 202);
-const data = await imported.json();
-assert.ok(data.jobId);
-evidence.push({ action: "bank import", status: 202, persistedJob: true });
+assert.equal(imported.status, 410);
+assert.match((await imported.json()).error, /staged import preview/);
+assert.equal(await db.activityJob.count({where:{schoolId:f.schoolId}}), jobsBeforeRetiredImport);
+evidence.push({ action: "legacy bank import requires staged preview", status: 410, noDirectWrite: true });
 const otherCampus = await db.campus.create({
   data: {
     schoolId: f.schoolId,

@@ -11,6 +11,8 @@ import * as React from "react";
 import { AlertTriangle, RefreshCw, WifiOff } from "lucide-react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { Button } from "./button";
+import { RequestFailure } from "@/lib/http/request-state";
+import { AccessNotice } from "./access-notice";
 import { cn } from "@/lib/utils";
 
 export interface ErrorStateProps {
@@ -37,21 +39,39 @@ export function ErrorState({ title, description, error, onRetry, retryLabel, act
   const tr = useUiText();
   const [retrying, setRetrying] = React.useState(false);
   const mounted = React.useRef(true);
-  React.useEffect(() => () => { mounted.current = false; }, []);
-  const retry = React.useCallback(() => {
-    if (!onRetry || retrying) return;
-    const result = onRetry();
-    if (result instanceof Promise || (typeof result === "object" && result !== null && typeof (result as PromiseLike<unknown>).then === "function")) {
-      setRetrying(true);
-      void Promise.resolve(result as PromiseLike<unknown>).catch(() => undefined).finally(() => { if (mounted.current) setRetrying(false); });
-    }
-  }, [onRetry, retrying]);
-  const Icon = offline ? WifiOff : AlertTriangle;
+  const inFlight = React.useRef(false);
+  React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const retry = React.useCallback(async () => {
+    if (!onRetry || inFlight.current) return;
+    inFlight.current = true;
+    setRetrying(true);
+    try { await onRetry(); } catch { /* The owning loader retains its failure state. */ }
+    finally { inFlight.current = false; if (mounted.current) setRetrying(false); }
+  }, [onRetry]);
+  const kind = error instanceof RequestFailure ? error.kind : offline ? "offline" : null;
+  const copy: Record<string, [string, string]> = {
+    timeout: ["The request timed out", "Your work is kept. Try again when the service responds."],
+    conflict: ["This record has changed", "Your draft is kept. Review the latest record before saving again."],
+    validation: ["Check the information", "Your work is kept. Correct the highlighted fields and try again."],
+    limited: ["Too many requests", "Your work is kept. Wait a moment before trying again."],
+    provider: ["A service is unavailable", "Your work is kept. Try again in a moment."],
+    server: ["Something went wrong", "We couldn't load this right now. Please try again."],
+    offline: ["You're offline", "Check your connection and try again."],
+  };
+  if (kind === "denied" || kind === "session") return <AccessNotice
+    title={kind === "session" ? "Sign in again" : "Not available with your access"}
+    reason={kind === "session" ? "Your session has ended. Sign in again to continue." : "Ask your school administrator for access or choose an available workspace."}
+    action={action ?? <Button type="button" variant="outline" onClick={() => window.location.assign("/login")}>{tr(kind === "session" ? "Sign in again" : "Back to dashboard")}</Button>}
+  />;
+  const classified = kind ? copy[kind] : null;
+  const Icon = kind === "offline" ? WifiOff : AlertTriangle;
   const reference = error?.digest;
   const page = variant === "page";
   return (
     <section
       role="alert"
+      data-resource-state="failure"
+      data-failure-kind={kind ?? "server"}
       className={cn(
         "relative isolate flex flex-col items-center overflow-hidden text-center",
         page ? "sk-panel w-full max-w-md px-6 py-10 sm:px-10" : "px-6 py-12",
@@ -63,10 +83,10 @@ export function ErrorState({ title, description, error, onRetry, retryLabel, act
         <Icon className={page ? "size-7" : "size-6"} strokeWidth={2} />
       </div>
       <h2 className={cn("font-bold text-ink-strong", page ? "text-xl" : "text-lg")}>
-        {title ?? (offline ? tr("You're offline") : tr("Something went wrong"))}
+        {(classified ? tr(classified[0]) : title) ?? (offline ? tr("You're offline") : tr("Something went wrong"))}
       </h2>
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
-        {description ?? (offline ? tr("Check your connection and try again.") : tr("We couldn't load this right now. Please try again."))}
+        {(classified ? tr(classified[1]) : description) ?? (offline ? tr("Check your connection and try again.") : tr("We couldn't load this right now. Please try again."))}
       </p>
       {onRetry || action ? (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">

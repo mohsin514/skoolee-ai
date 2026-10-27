@@ -1,3 +1,4 @@
+import { boundedInteger, pageWindow } from "@/lib/lists/query";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
@@ -24,7 +25,7 @@ const STAFF_ROLES = ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTAN
 const STAFF_ROLES_FOR: Partial<Record<string, readonly string[]>> = { PRINCIPAL: ["TEACHER"] };
 export type SearchLanguage = "en" | "ar" | "ur";
 /** `language` (from `?lang=`) only shapes result labels (role names, statuses); it never changes what is searched. */
-export type Filters = { q: string; types: SearchType[]; campusId: string | null; academicYear: number | null; classId: string | null; status: "active" | "archived" | "all"; page: number; language?: SearchLanguage };
+export type Filters = { q: string; types: SearchType[]; campusId: string | null; academicYear: number | null; classId: string | null; status: "active" | "archived" | "all"; page: number; language?: SearchLanguage; sort?: "default" | "name" | "name-desc" };
 export type Result = { type: SearchType; id: string; title: string; context: string[]; identifiers: string[]; exact: boolean; archived: boolean; note?: string; href: string };
 const PAGE = 25;
 
@@ -125,7 +126,7 @@ async function searchStudents(user: AuthUser, filters: Filters, campusIds: strin
       SELECT s.id, s.full_name, s.name_ur, s.roll_no, s.admission_no, s.archived_at, s.consolidated_into_id, c.name AS class_name, c.section, c.academic_year, cp.name AS campus_name, ${exact} AS exact
       FROM students s JOIN classes c ON c.id = s.class_id JOIN campuses cp ON cp.id = s.campus_id
       WHERE ${where}
-      ORDER BY ${exact} DESC, s.archived_at IS NOT NULL, search_fold(s.full_name), s.roll_no, s.id
+      ORDER BY ${exact} DESC, s.archived_at IS NOT NULL, search_fold(s.full_name) ${filters.sort === "name-desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`}, s.roll_no, s.id
       LIMIT ${limit} OFFSET ${offset}`,
     prisma.$queryRaw<{ total: bigint }[]>`SELECT count(*) AS total FROM students s JOIN classes c ON c.id = s.class_id WHERE ${where}`,
   ]);
@@ -155,7 +156,7 @@ async function searchClasses(user: AuthUser, filters: Filters, campusIds: string
     ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { section: { contains: q, mode: "insensitive" } }, { id: q }] } : {}),
   };
   const [rows, total] = await Promise.all([
-    prisma.class.findMany({ where, orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }], take: limit, skip: offset, select: { id: true, name: true, section: true, academicYear: true, archivedAt: true, campus: { select: { name: true } }, _count: { select: { students: { where: { archivedAt: null } } } } } }),
+    prisma.class.findMany({ where, orderBy: filters.sort && filters.sort !== "default" ? [{ name: filters.sort === "name-desc" ? "desc" : "asc" }, { section: "asc" }, { id: "asc" }] : [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, name: true, section: true, academicYear: true, archivedAt: true, campus: { select: { name: true } }, _count: { select: { students: { where: { archivedAt: null } } } } } }),
     prisma.class.count({ where }),
   ]);
   return { total, rows: rows.map(row => ({ type: "class" as const, id: row.id, title: [row.name, row.section].filter(Boolean).join(" "), exact: row.id === q, archived: Boolean(row.archivedAt), context: [row.campus.name, String(row.academicYear), say(filters, "{0} pupils", row._count.students)], identifiers: [], href: resultHref(user.role, "class", { id: row.id }) })) };
@@ -170,7 +171,7 @@ async function searchStaff(user: AuthUser, filters: Filters, campusIds: string[]
     ...(q ? { AND: [{ OR: [{ fullName: { contains: q, mode: "insensitive" } }, { email: { equals: q, mode: "insensitive" } }, { id: q }] }] } : {}),
   };
   const [rows, total] = await Promise.all([
-    prisma.user.findMany({ where, orderBy: [{ fullName: "asc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, fullName: true, role: true, email: true, isActive: true, campus: { select: { name: true } } } }),
+    prisma.user.findMany({ where, orderBy: [{ fullName: filters.sort === "name-desc" ? "desc" : "asc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, fullName: true, role: true, email: true, isActive: true, campus: { select: { name: true } } } }),
     prisma.user.count({ where }),
   ]);
   return { total, rows: rows.map(row => ({ type: "staff" as const, id: row.id, title: row.fullName, exact: row.id === q || row.email.toLowerCase() === q.toLowerCase(), archived: !row.isActive, context: [roleLabelFor({ role: row.role as UserRole, institutionKind: user.institutionKind }, filters.language ?? "en"), row.campus?.name ?? say(filters, "All campuses")], identifiers: [row.email], href: resultHref(user.role, "staff", { id: row.id, isTeacher: row.role === "TEACHER" }) })) };
@@ -184,7 +185,7 @@ async function searchApplications(user: AuthUser, filters: Filters, campusIds: s
     ...(q ? { OR: [{ reference: { equals: q, mode: "insensitive" } }, { childName: { contains: q, mode: "insensitive" } }] } : {}),
   };
   const [rows, total] = await Promise.all([
-    prisma.admissionApplication.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, reference: true, childName: true, status: true, submittedAt: true, formVersion: { select: { form: { select: { name: true } } } } } }),
+    prisma.admissionApplication.findMany({ where, orderBy: filters.sort && filters.sort !== "default" ? [{ childName: filters.sort === "name-desc" ? "desc" : "asc" }, { id: "asc" }] : [{ submittedAt: "desc" }, { id: "asc" }], take: limit, skip: offset, select: { id: true, reference: true, childName: true, status: true, submittedAt: true, formVersion: { select: { form: { select: { name: true } } } } } }),
     prisma.admissionApplication.count({ where }),
   ]);
   return { total, rows: rows.map(row => ({ type: "application" as const, id: row.id, title: row.childName || row.reference, exact: row.reference.toLowerCase() === q.toLowerCase(), archived: ["WITHDRAWN", "REJECTED", "DECLINED", "ENROLLED"].includes(row.status), context: [row.formVersion.form.name, say(filters, APPLICATION_STATUS[row.status] ?? "Submitted")], identifiers: [row.reference], href: resultHref(user.role, "application", { id: row.id, reference: row.reference }) })) };
@@ -202,30 +203,42 @@ export async function searchRecords(user: AuthUser, filters: Filters) {
   const { campusIds } = await scope(user, filters.campusId);
   const single = types.length === 1;
   const limit = single ? PAGE : 8;
-  const offset = single ? Math.max(0, filters.page - 1) * PAGE : 0;
+  let page = boundedInteger(String(filters.page), 1, 100_000);
+  const offset = single ? (page - 1) * PAGE : 0;
   const sources: Record<string, "ok" | "failed"> = {};
   const groups = await Promise.all(types.map(async type => {
-    try { const result = await SEARCHERS[type](user, filters, campusIds, limit, offset); sources[type] = "ok"; return { type, ...result }; }
-    catch (error) { console.error(`[search] ${type} failed`, error); sources[type] = "failed"; return { type, rows: [] as Result[], total: 0 }; }
+    try {
+      let result = await SEARCHERS[type](user, filters, campusIds, limit, offset);
+      if (single) {
+        const window = pageWindow(result.total, page, limit);
+        if (window.page !== page) {
+          page = window.page;
+          result = await SEARCHERS[type](user, filters, campusIds, limit, window.skip);
+        }
+      }
+      sources[type] = "ok"; return { type, ...result };
+    }
+    catch { console.error(`[search] ${type} source failed`); sources[type] = "failed"; return { type, rows: [] as Result[], total: 0 }; }
   }));
   const [school, campus] = await Promise.all([prisma.school.findUnique({ where: { id: user.schoolId }, select: { name: true } }), campusIds?.length === 1 ? prisma.campus.findUnique({ where: { id: campusIds[0] }, select: { name: true } }) : null]);
   return {
     scope: { school: school?.name ?? "", campus: campus?.name ?? null, allCampuses: !campusIds },
     allowedTypes: allowed, types, groups, sources, partial: Object.values(sources).includes("failed"),
-    page: single ? filters.page : 1, pageSize: single ? PAGE : limit,
+    page: single ? page : 1, pageSize: single ? PAGE : limit,
   };
 }
 
 export function parseFilters(params: URLSearchParams): Filters {
-  const types = (params.get("types") ?? "").split(",").filter((type): type is SearchType => (TYPES as readonly string[]).includes(type));
+  const types = [...new Set((params.get("types") ?? "").split(",").filter((type): type is SearchType => (TYPES as readonly string[]).includes(type)))];
   const status = params.get("status");
   const year = Number(params.get("year"));
-  const page = Number(params.get("page"));
+  const page = boundedInteger(params.get("page"), 1, 100_000);
   const lang = params.get("lang");
   return {
     q: (params.get("q") ?? "").slice(0, 100), types, campusId: params.get("campus") || null,
     academicYear: Number.isInteger(year) && year > 1900 && year < 3000 ? year : null, classId: params.get("class") || null,
-    status: status === "archived" || status === "all" ? status : "active", page: Number.isInteger(page) && page > 0 ? Math.min(page, 400) : 1,
+    status: status === "archived" || status === "all" ? status : "active", page,
+    sort: params.get("sort") === "name" || params.get("sort") === "name-desc" ? params.get("sort") as "name" | "name-desc" : "default",
     language: lang === "ar" || lang === "ur" ? lang : "en",
   };
 }
