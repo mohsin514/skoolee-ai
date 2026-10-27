@@ -24,6 +24,7 @@ import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { countLabel } from "@/lib/locale/count-label";
 import { localeTag } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
+import { SALES_EMAIL } from "@/lib/config/contact";
 
 /**
  * Billing & plan — the institution's SkooleeAI subscription, never family tuition (F2).
@@ -87,7 +88,7 @@ const KIND: Record<string, string> = { PLAN_CHANGE: "Plan change", CANCELLATION:
 const REQUEST_STATE: Record<string, string> = { PENDING_REVIEW: "Waiting for billing review", REVIEWED_APPROVED: "Approved", REVIEWED_DECLINED: "Declined", CHECKOUT_STARTED: "Checkout started", VERIFIED_ACTIVE: "Confirmed by the provider", SCHEDULED: "Scheduled", COMPLETED: "Completed", WITHDRAWN: "Withdrawn" };
 const ITEM_LABEL = { campuses: "Campuses", students: "Students", teachers: "Staff" } as const;
 const RETURN_PARAMS = ["success", "canceled", "session_id", "safepay_status"] as const;
-const SALES_EMAIL = process.env.NEXT_PUBLIC_SALES_EMAIL || "sales@skoolee.ai";
+// SALES_EMAIL is sourced from @/lib/config/contact (SKAI-948 / COM-08).
 
 type ReturnOutcome = { tone: "success" | "warning" | "danger"; message: string } | null;
 /** What a provider return URL says happened. Read once, then stripped. */
