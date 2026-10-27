@@ -32,6 +32,10 @@ jobs:
     name: Lint, types, tests, build, page weight, i18n
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    env:
+      # tsc --noEmit and next build over the whole repo exceed the default heap
+      # (exit 134 / SIGABRT). Match the heap the other workflows already use.
+      NODE_OPTIONS: --max-old-space-size=12288
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
