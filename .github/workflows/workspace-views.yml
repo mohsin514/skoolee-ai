@@ -1,0 +1,47 @@
+name: Workspace presentations
+on:
+  pull_request:
+    branches: [dev, staging, qa, production, demo, main]
+permissions:
+  contents: read
+jobs:
+  views:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['55438:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55438/postgres
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:55438/postgres
+      AUTH_SECRET: scrum307-ci-synthetic-secret-only-2026
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate && pnpm exec prisma db push
+      - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/views/calendar.test.ts tests/views/render.test.tsx tests/design-system/workspace-table.test.tsx tests/locale/catalog-conflicts.test.ts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: |
+          pnpm exec next dev --webpack -p 3108 > /tmp/views-app.log 2>&1 &
+          for i in $(seq 1 60); do curl -s http://localhost:3108/api/auth/session > /dev/null && break; sleep 2; done
+          node --import ./tests/support/server-only.mjs --import tsx --test --test-concurrency=1 tests/views/views.browser.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workspace-views-evidence
+          path: |
+            /tmp/scrum307/evidence
+            /tmp/views-app.log

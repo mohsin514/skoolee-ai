@@ -1,0 +1,51 @@
+name: AI Workflows verification
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ai-workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: ai_workflows_test
+        ports: ["55421:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # tsc --noEmit needs about 12 GB in this repository (the hosted runner has 16 GB).
+      NODE_OPTIONS: --max-old-space-size=12288
+      DATABASE_URL: postgresql://postgres@127.0.0.1:55421/ai_workflows_test
+      DIRECT_URL: postgresql://postgres@127.0.0.1:55421/ai_workflows_test
+      REDIS_URL: redis://127.0.0.1:6379
+      AUTH_SECRET: ai-workflows-ci-synthetic-test-secret
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate
+      - run: pnpm prisma migrate deploy
+      - run: pnpm exec tsc --noEmit --incremental false
+      - run: pnpm check:capabilities
+      - run: pnpm test:ai-workflows
+      - run: pnpm test:ai-workflows:db
+      - run: pnpm check:ui

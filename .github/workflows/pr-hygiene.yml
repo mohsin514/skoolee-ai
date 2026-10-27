@@ -5,7 +5,7 @@ name: PR hygiene
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
-    branches: [main]          # change to your default branch if different
+    branches: [main, dev]     # change to your default branch if different
 
 concurrency:
   group: pr-hygiene-${{ github.event.pull_request.number }}

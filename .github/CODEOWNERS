@@ -1,26 +1,26 @@
 # CODEOWNERS — who must approve changes to which paths (enable "Require review from Code Owners" on main).
-# Replace @OWNER with a GitHub user or @org/team. Adjust the paths to your repository layout; the last matching line wins.
+# Replace @mohsin514 with a GitHub user or @org/team. Adjust the paths to your repository layout; the last matching line wins.
 
 # Default reviewer for everything
-*                                   @OWNER
+*                                   @mohsin514
 
 # Security-sensitive areas (founder / tech lead approval)
-**/auth/**                          @OWNER
-**/rbac/**                          @OWNER
-**/permissions/**                   @OWNER
-**/middleware.*                     @OWNER
-**/payments/**                      @OWNER
-**/billing/**                       @OWNER
-**/checkout/**                      @OWNER
-**/whatsapp/**                      @OWNER
-**/notifications/**                 @OWNER
-**/otp/**                           @OWNER
-**/ai/**                            @OWNER
-**/prompts/**                       @OWNER
-src/config/ai-release-evaluation.ts @OWNER
-**/migrations/**                    @OWNER
-**/schema.prisma                    @OWNER
-next.config.*                       @OWNER
+**/auth/**                          @mohsin514
+**/rbac/**                          @mohsin514
+**/permissions/**                   @mohsin514
+**/middleware.*                     @mohsin514
+**/payments/**                      @mohsin514
+**/billing/**                       @mohsin514
+**/checkout/**                      @mohsin514
+**/whatsapp/**                      @mohsin514
+**/notifications/**                 @mohsin514
+**/otp/**                           @mohsin514
+**/ai/**                            @mohsin514
+**/prompts/**                       @mohsin514
+src/config/ai-release-evaluation.ts @mohsin514
+**/migrations/**                    @mohsin514
+**/schema.prisma                    @mohsin514
+next.config.*                       @mohsin514
 
 # The pipeline itself
-.github/                            @OWNER
+.github/                            @mohsin514
