@@ -11,8 +11,8 @@ function fixture() {
     class: { findMany: async () => [] },
     learningResource: { findMany: async () => { throw new Error("Must not read resource rows without a class scope"); } },
   };
-  const module = { exports: {} as any };
-  new Function("module", "exports", "require", code)(module, module.exports, (id: string) => {
+  const mod = { exports: {} as any };
+  new Function("module", "exports", "require", code)(mod, mod.exports, (id: string) => {
     if (id === "@/lib/api/scope") return {
       ApiError: class extends Error { constructor(message: string, public status: number) { super(message); } },
       canManageOperations: (user: any) => user.role === "PRINCIPAL",
