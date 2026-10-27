@@ -201,6 +201,11 @@ test("a role without record search sees an access notice on /search, never a Ret
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${base}/search?q=Synthetic`);
   await page.waitForLoadState("networkidle");
+  // The role guard may redirect these roles home (§6.3); wait for that to settle before deciding.
+  await page.waitForFunction(() => {
+    const path = new URL(window.location.href).pathname;
+    return path !== "/search" || document.body.textContent?.includes("Record search is not part of your workspace.") === true;
+  }, { timeout: 15_000 }).catch(() => {});
   // P2 may send these roles home instead (§6.3); either way they never see a retry loop.
   if (new URL(page.url()).pathname === "/search") {
     await page.getByText("Record search is not part of your workspace.").first().waitFor({ timeout: 15_000 });
