@@ -49,7 +49,7 @@ before(async()=>{
   for(const [id,school,name] of [[campusA,schoolId,"North"],[campusB,otherSchool,"South"]]) await db.campus.create({data:{id,schoolId:school,name,regId:id,city:"Lahore"}});
   await db.campus.create({data:{id:campusC,schoolId,name:"Other campus",regId:campusC,city:"Lahore"}});
   await db.academicCycle.create({data:{schoolId,campusId:campusA,label:"2026",academicYear:2026,status:"ACTIVE"}});
-  await user("ops","CAMPUS_ADMIN"); await user("parent","PARENT"); await user("ops-ar","CAMPUS_ADMIN",campusA,"ar"); await user("ops-ur","CAMPUS_ADMIN",campusA,"ur"); const teacher=await user("teacher","TEACHER");
+  await user("ops","CAMPUS_ADMIN"); await user("parent","PARENT"); await user("ops-ur","CAMPUS_ADMIN",campusA,"ur"); const teacher=await user("teacher","TEACHER");
   await db.class.create({data:{id:class7,schoolId,campusId:campusA,name:"Grade 7",section:"A",academicYear:2026,classTeacherId:teacher}});
   await db.class.create({data:{id:classB,schoolId:otherSchool,campusId:campusB,name:"Grade 7",section:"B",academicYear:2026}});
   for(const [id,school,campus,cls,name] of [[randomUUID(),schoolId,campusA,class7,"Synthetic Ada"],[randomUUID(),otherSchool,campusB,classB,"Synthetic Private"]]) {
@@ -149,7 +149,9 @@ test("teacher directory keeps search and class context across layouts",async()=>
 });
 
 test("Arabic mobile calendar retains record identity and fits RTL",async()=>{
-  const page=await (await context("ops-ar",{width:390,height:844})).newPage();
+  const ctx=await context("ops",{width:390,height:844});
+  await ctx.addCookies([{ name: "skoolee-lang", value: "ar", domain: "localhost", path: "/" }]);
+  const page=await ctx.newPage();
   await page.goto(`${base}/admin?view=students&view.students=calendar&sq=Synthetic%20Ada`);
   // Arabic is the final browser case after several full admin navigations; the
   // dev server may recycle its worker under the CI memory ceiling. Allow that
