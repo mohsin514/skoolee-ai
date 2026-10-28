@@ -72,7 +72,7 @@ export function ReviewedDeleteDialog({ endpoint, record, label, onDeleted, onCan
   }
   return (
     <ConfirmAction open title={ui("Delete {0}?", [preview?.label ?? label])}
-      description={ui(document ? "This document will be removed from the record. Other documents and unsaved work are kept." : "One record will be permanently removed. Related history must be kept; records with dependencies cannot be deleted.")}
+      description={ui(endpoint.startsWith("fees/") ? "This setup record will be removed from future fee calculations. Issued invoices and recorded payments are kept. Records still in use cannot be deleted." : endpoint === "leave/allocations" ? "Staff covered by it lose these days from their allowance for the year. Requests already decided keep their history." : endpoint === "academic/calendar" ? "The holiday will be removed. Those dates may become available for classes and exams. Existing schedules are kept." : document ? "This document will be removed from the record. Other documents and unsaved work are kept." : "One record will be permanently removed. Related history must be kept; records with dependencies cannot be deleted.")}
       confirmLabel={ui("Delete")} cancelLabel={ui("Keep editing")} tone="danger"
       disabled={preparing || !preview || preview.blocked}
       onConfirm={confirm} onCancel={onCancel}

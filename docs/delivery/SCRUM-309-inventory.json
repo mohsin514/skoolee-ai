@@ -21,7 +21,7 @@
     "delete_handlers": [
       105
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/academic/exam-schedule/bulk/route.ts",
@@ -74,7 +74,7 @@
     "delete_handlers": [
       107
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/accounts/chart/route.ts",
@@ -82,7 +82,7 @@
     "delete_handlers": [
       110
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/accounts/ledger/route.ts",
@@ -98,7 +98,7 @@
     "delete_handlers": [
       97
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/admission-queries/route.ts",
@@ -180,7 +180,7 @@
     "delete_handlers": [
       43
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/fees/carry-forwards/route.ts",
@@ -188,7 +188,7 @@
     "delete_handlers": [
       83
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/fees/discount-assignments/route.ts",
@@ -196,7 +196,7 @@
     "delete_handlers": [
       48
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/fees/discounts/route.ts",
@@ -204,7 +204,7 @@
     "delete_handlers": [
       89
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/fees/fine-rules/route.ts",
@@ -212,7 +212,7 @@
     "delete_handlers": [
       76
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/fees/groups/route.ts",
@@ -220,7 +220,7 @@
     "delete_handlers": [
       75
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/fees/master-lines/route.ts",
@@ -228,7 +228,7 @@
     "delete_handlers": [
       80
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/fees/structure/[structureId]/route.ts",
@@ -244,7 +244,7 @@
     "delete_handlers": [
       80
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/front-desk/certificates/route.ts",
@@ -344,7 +344,7 @@
     "delete_handlers": [
       80
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/leave/types/route.ts",
@@ -352,7 +352,7 @@
     "delete_handlers": [
       93
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/library/books/route.ts",
@@ -476,7 +476,7 @@
     "delete_handlers": [
       101
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/student-groups/route.ts",
@@ -484,7 +484,7 @@
     "delete_handlers": [
       99
     ],
-    "review": "pending"
+    "review": "shared-review-contract-implemented"
   },
   {
     "file": "src/app/api/students/documents/route.ts",

@@ -12,7 +12,7 @@ import { toast } from "@/components/ui/toast";
 import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
 import { ErrorState as SharedErrorState } from "@/components/ui/error-state";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
-import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ReviewedDelete, ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
 import { ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
 import { Modal } from "@/components/ui/modal";
 import { Menu, type MenuItem } from "@/components/ui/menu";
@@ -113,23 +113,6 @@ function TypesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
     }
   };
 
-  const handleDelete = async (row: FeeTypeRow) => {
-    try {
-      const res = await fetch(`${API}/types?id=${row.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Fee type deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-        setDeleting(null);
-      }
-    } catch {
-      toast.error(tr("Failed to delete fee type"));
-      setDeleting(null);
-    }
-  };
   usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
   if (loading) {
@@ -168,16 +151,7 @@ function TypesPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
               </div>
               <div className="flex items-center gap-1.5">
                 <RowMenu onEdit={() => openModal(t)} onDelete={() => setDeleting(t)} />
-                <ConfirmAction
-                  open={deleting?.id === t.id}
-                  title={tr("Delete fee type?")}
-                  description={tr("Delete \"{0}\"? Lines using it in any group will also be removed.", [t.name])}
-                  onConfirm={() => handleDelete(t)}
-                  onCancel={() => setDeleting(null)}
-                  tone="danger"
-                  confirmLabel={tr("Delete")}
-                  cancelLabel={tr("Keep editing")}
-                />
+                {deleting?.id === t.id ? <ReviewedDeleteDialog endpoint="fees/types" record={{ id: t.id, campusId }} label={t.name} onCancel={() => setDeleting(null)} onDeleted={load} /> : null}
               </div>
             </div>
           ))}
@@ -266,23 +240,6 @@ function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
     }
   };
 
-  const handleDelete = async (row: FeeGroupRow) => {
-    try {
-      const res = await fetch(`${API}/groups?id=${row.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Fee group deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-        setDeleting(null);
-      }
-    } catch {
-      toast.error(tr("Failed to delete fee group"));
-      setDeleting(null);
-    }
-  };
   usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
   if (loading) {
@@ -323,16 +280,7 @@ function GroupsPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
                   </div>
                   <div className="flex items-center gap-1.5">
                     <RowMenu onEdit={() => openModal(g)} onDelete={() => setDeleting(g)} />
-                    <ConfirmAction
-                      open={deleting?.id === g.id}
-                      title={tr("Delete fee group?")}
-                      description={tr("Delete \"{0}\"? Its lines and class assignments will be removed.", [g.name])}
-                      onConfirm={() => handleDelete(g)}
-                      onCancel={() => setDeleting(null)}
-                      tone="danger"
-                      confirmLabel={tr("Delete")}
-                      cancelLabel={tr("Keep editing")}
-                    />
+                    {deleting?.id === g.id ? <ReviewedDeleteDialog endpoint="fees/groups" record={{ id: g.id, campusId }} label={g.name} onCancel={() => setDeleting(null)} onDeleted={load} /> : null}
                   </div>
                 </div>
                 <div className="rounded-xl bg-brand-50/50 px-3 py-2 flex items-center justify-between">
@@ -442,23 +390,6 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
     }
   };
 
-  const handleDelete = async (line: MasterLineRow) => {
-    try {
-      const res = await fetch(`${API}/master-lines?id=${line.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Master line deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-        setDeleting(null);
-      }
-    } catch {
-      toast.error(tr("Failed to delete master line"));
-      setDeleting(null);
-    }
-  };
   usePanelCommand(command, {
     create: () => {
       if (!selectedGroup) toast.info(tr("Select a fee group first, then add its amounts."));
@@ -516,16 +447,7 @@ function MasterPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
                 <div className="flex items-center gap-3">
                   <p className="text-sm font-bold text-primary">{formatPKR(line.amount, selectedGroup?.currency)}</p>
                   <RowMenu onEdit={() => openModal(line)} onDelete={() => setDeleting(line)} />
-                  <ConfirmAction
-                    open={deleting?.id === line.id}
-                    title={tr("Remove this amount?")}
-                    description={tr("\"{0}\" is no longer charged as part of {1}. Invoices already issued keep their lines.", [line.feeType?.name ?? tr("This fee type"), selectedGroup.name])}
-                    onConfirm={() => handleDelete(line)}
-                    onCancel={() => setDeleting(null)}
-                    tone="danger"
-                    confirmLabel={tr("Remove")}
-                    cancelLabel={tr("Keep editing")}
-                  />
+                  {deleting?.id === line.id ? <ReviewedDeleteDialog endpoint="fees/master-lines" record={{ id: line.id, campusId }} label={line.feeType?.name ?? tr("This fee type")} onCancel={() => setDeleting(null)} onDeleted={load} /> : null}
                 </div>
               </div>
             ))
@@ -621,23 +543,6 @@ function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
     }
   };
 
-  const handleDelete = async (row: GroupAssignmentRow) => {
-    try {
-      const res = await fetch(`${API}/assignments?id=${row.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Assignment removed"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to remove"));
-        setDeleting(null);
-      }
-    } catch {
-      toast.error(tr("Failed to remove assignment"));
-      setDeleting(null);
-    }
-  };
   usePanelCommand(command, {
     create: () => {
       if (groups.length === 0) toast.info(tr("Create a fee group first."));
@@ -679,16 +584,7 @@ function AssignPanel({ campusId, command, hideCreate = false }: FeeSetupPanelPro
               </div>
               <div className="flex items-center gap-3">
                 <RowMenu onDelete={() => setDeleting(a)} deleteLabel="Remove" />
-                <ConfirmAction
-                  open={deleting?.id === a.id}
-                  title={tr("Remove this fee group from the class?")}
-                  description={tr("{0} is no longer charged to {1} for {2}. Invoices already issued are not changed.", [a.feeGroup?.name ?? tr("This fee group"), a.class ? classLabel(a.class.name, a.class.section) : tr("this class"), a.academicYear])}
-                  onConfirm={() => handleDelete(a)}
-                  onCancel={() => setDeleting(null)}
-                  tone="danger"
-                  confirmLabel={tr("Remove")}
-                  cancelLabel={tr("Keep editing")}
-                />
+                {deleting?.id === a.id ? <ReviewedDeleteDialog endpoint="fees/assignments" record={{ id: a.id, campusId }} label={a.feeGroup?.name ?? tr("This fee group")} onCancel={() => setDeleting(null)} onDeleted={load} /> : null}
               </div>
             </div>
           ))}
@@ -814,23 +710,6 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
     }
   };
 
-  const handleDelete = async (row: FeeDiscountRow) => {
-    try {
-      const res = await fetch(`${API}/discounts?id=${row.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Discount deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-        setDeleting(null);
-      }
-    } catch {
-      toast.error(tr("Failed to delete discount"));
-      setDeleting(null);
-    }
-  };
 
   // A failed load stays in the dialog with a retry (R4: load failures are never a toast).
   const [assignFailed, setAssignFailed] = useState(false);
@@ -878,25 +757,17 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
     }
   };
 
-  const removeAssignment = async (assignmentId: string) => {
+  const refreshAssignments = async () => {
     if (!assigning) return;
-    setAssignBusy(true);
     try {
-      const res = await fetch(`${API}/discount-assignments?id=${assignmentId}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        const aRes = await fetch(`${API}/discount-assignments?discountId=${assigning.id}`);
-        const aJson = await aRes.json();
-        if (aJson.success) setAssigned(aJson.data);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to remove"));
-      }
+      const response = await fetch(`${API}/discount-assignments?discountId=${assigning.id}`);
+      const result = await response.json();
+      if (response.ok && result.success) setAssigned(result.data);
+      else toast.error(tr("Check your connection and try again."));
     } catch {
-      toast.error(tr("Failed to remove assignment"));
-    } finally {
-      setAssignBusy(false);
+      toast.error(tr("Check your connection and try again."));
     }
+    load();
   };
 
   usePanelCommand(command, { create: () => openModal(null) }, !loading);
@@ -934,16 +805,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
                 <Button variant="outline" type="button" onClick={() => openAssign(d)} className="justify-start px-2.5 flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" /><UiText>{"Assign"}</UiText></Button>
                 <RowMenu onEdit={() => openModal(d)} onDelete={() => setDeleting(d)} />
-                <ConfirmAction
-                  open={deleting?.id === d.id}
-                  title={tr("Delete discount?")}
-                  description={tr("Delete \"{0}\"? All student assignments for it will be removed.", [d.name])}
-                  onConfirm={() => handleDelete(d)}
-                  onCancel={() => setDeleting(null)}
-                  tone="danger"
-                  confirmLabel={tr("Delete")}
-                  cancelLabel={tr("Keep editing")}
-                />
+                {deleting?.id === d.id ? <ReviewedDeleteDialog endpoint="fees/discounts" record={{ id: d.id, campusId }} label={d.name} onCancel={() => setDeleting(null)} onDeleted={load} /> : null}
               </div>
             </div>
           ))}
@@ -1003,12 +865,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
                       <p className="text-xs font-bold text-ink-strong">
                         {a.student?.fullName} <span className="text-ink-subtle font-bold">· {a.student?.rollNo ?? ""}</span>
                       </p>
-                      <Button variant="secondary"
-                        type="button"
-                        disabled={assignBusy}
-                        onClick={() => removeAssignment(a.id)}
-                        className="px-2"
-                      ><UiText>{"Remove"}</UiText></Button>
+                      <ReviewedDelete endpoint="fees/discount-assignments" record={{ id: a.id, campusId }} label={a.student?.fullName ?? tr("this student")} onDeleted={() => { void refreshAssignments(); }} />
                     </div>
                   ))}
                 </div>
@@ -1135,23 +992,6 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
     }
   };
 
-  const handleDelete = async (row: CarryForwardRow) => {
-    try {
-      const res = await fetch(`${API}/carry-forwards?id=${row.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Carry-forward deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-        setDeleting(null);
-      }
-    } catch {
-      toast.error(tr("Failed to delete carry-forward"));
-      setDeleting(null);
-    }
-  };
   usePanelCommand(command, {
     create: () => { if (students.length === 0) toast.info(tr("There are no students on this campus to carry a balance for.")); else setShowModal(true); },
   }, !loading);
@@ -1191,16 +1031,7 @@ function CarryPanel({ campusId, command, hideCreate = false }: FeeSetupPanelProp
                   {f.balance < 0 ? "-" : "+"}{formatPKR(Math.abs(f.balance), f.currency)}
                 </span>
                 <RowMenu onDelete={() => setDeleting(f)} />
-                <ConfirmAction
-                  open={deleting?.id === f.id}
-                  title={tr("Delete carry-forward?")}
-                  description={tr("Remove the {0} carry-forward for {1}?", [f.toAcademicYear, f.student?.fullName ?? tr("this student")])}
-                  onConfirm={() => handleDelete(f)}
-                  onCancel={() => setDeleting(null)}
-                  tone="danger"
-                  confirmLabel={tr("Delete")}
-                  cancelLabel={tr("Keep editing")}
-                />
+                {deleting?.id === f.id ? <ReviewedDeleteDialog endpoint="fees/carry-forwards" record={{ id: f.id, campusId }} label={f.student?.fullName ?? tr("this student")} onCancel={() => setDeleting(null)} onDeleted={load} /> : null}
               </div>
             </div>
           ))}
@@ -1346,22 +1177,6 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleting) return;
-    try {
-      const res = await fetch(`${API}/fine-rules?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Fine rule deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-      }
-    } catch {
-      toast.error(tr("Failed to delete fine rule"));
-    }
-  };
 
   usePanelCommand(command, { create: () => openModal(null) }, !loading);
 
@@ -1454,16 +1269,7 @@ export function FineRulesPanel({ campusId, command, hideCreate = false }: FeeSet
       )}
 
       {deleting && (
-        <ConfirmAction
-          open
-          title={tr("Delete fine rule?")}
-          description={tr("\"{0}\" will no longer be available for late fines.", [deleting.name])}
-          confirmLabel={tr("Delete")}
-          cancelLabel={tr("Keep editing")}
-          tone="danger"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleting(null)}
-        />
+        <ReviewedDeleteDialog endpoint="fees/fine-rules" record={{ id: deleting.id, campusId }} label={deleting.name} onCancel={() => setDeleting(null)} onDeleted={load} />
       )}
     </div>
   );

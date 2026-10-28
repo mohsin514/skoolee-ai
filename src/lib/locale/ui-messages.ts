@@ -7,6 +7,8 @@ import { arabicRoleUxUi, urduRoleUxUi } from "./role-ux/index";
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
  */
 export const arabicReviewedUi: Record<string, string> = {
+  "This setup record will be removed from future fee calculations. Issued invoices and recorded payments are kept. Records still in use cannot be deleted.": "سيُزال سجل الإعداد من حسابات الرسوم المستقبلية. تبقى الفواتير الصادرة والمدفوعات المسجلة محفوظة. لا يمكن حذف السجلات المستخدمة.",
+  "The holiday will be removed. Those dates may become available for classes and exams. Existing schedules are kept.": "ستُزال العطلة. قد تصبح هذه التواريخ متاحة للدروس والامتحانات. تبقى الجداول الحالية محفوظة.",
   "This document will be removed from the record. Other documents and unsaved work are kept.": "سيُزال هذا المستند من السجل. تبقى المستندات الأخرى والعمل غير المحفوظ.",
   "This could not be completed. Your changes are kept. Please try again.": "تعذر إكمال الإجراء. تم الاحتفاظ بتغييراتك. حاول مرة أخرى.",
   "Delete {0}?": "حذف {0}؟",
@@ -395,6 +397,8 @@ export const arabicUi: Record<string, string> = { ...arabicRoleUxUi, ...arabicRe
 
 /** The reviewed Urdu catalog; same precedence rule as `arabicReviewedUi`. */
 export const urduReviewedUi: Record<string, string> = {
+  "This setup record will be removed from future fee calculations. Issued invoices and recorded payments are kept. Records still in use cannot be deleted.": "یہ ترتیب آئندہ فیس کے حساب سے ہٹا دی جائے گی۔ جاری شدہ رسیدیں اور درج شدہ ادائیگیاں محفوظ رہیں گی۔ زیر استعمال ریکارڈ حذف نہیں کیے جا سکتے۔",
+  "The holiday will be removed. Those dates may become available for classes and exams. Existing schedules are kept.": "تعطیل ہٹا دی جائے گی۔ ان تاریخوں پر کلاسیں اور امتحانات مقرر کیے جا سکیں گے۔ موجودہ شیڈول برقرار رہیں گے۔",
   "This document will be removed from the record. Other documents and unsaved work are kept.": "یہ دستاویز ریکارڈ سے ہٹا دی جائے گی۔ دوسری دستاویزات اور غیر محفوظ کام برقرار رہیں گے۔",
   "This could not be completed. Your changes are kept. Please try again.": "یہ کارروائی مکمل نہیں ہو سکی۔ آپ کی تبدیلیاں محفوظ ہیں۔ دوبارہ کوشش کریں۔",
   "Delete {0}?": "کیا {0} کو حذف کریں؟",

@@ -21,7 +21,7 @@ let browser: Browser;
 
 async function user(key: string, role: string, campus: string | null = campusA, language = "en") {
   const id = randomUUID(), email = `${randomUUID()}@example.invalid`;
-  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { librarian: { v: 1, s: "done", at: new Date().toISOString() } }, joiningDate: new Date("2026-01-01T00:00:00Z"), preferredLanguage: language } });
+  await db.user.create({ data: { id, email, password: await bcrypt.hash(password, 12), fullName: `Synthetic ${key}`, role: role as never, schoolId, campusId: campus, isActive: true, onboardingComplete: true, welcomeCompletedAt: new Date(), tourProgress: { accountant: { v: 1, s: "done", at: new Date().toISOString() }, librarian: { v: 1, s: "done", at: new Date().toISOString() } }, joiningDate: new Date("2026-01-01T00:00:00Z"), preferredLanguage: language } });
   users.set(key, { id, email }); return id;
 }
 async function context(key: string, viewport = { width: 1440, height: 1000 }) {
@@ -45,6 +45,8 @@ before(async () => {
   await db.school.create({ data: { id: schoolId, name: "Synthetic Confirmation School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   for (const id of [campusA, campusB]) await db.campus.create({ data: { id, schoolId, name: id === campusA ? "North" : "South", regId: id, city: "Lahore" } });
   await user("librarian", "LIBRARIAN"); await user("librarian-ur", "LIBRARIAN", campusA, "ur"); await user("teacher", "TEACHER");
+  await user("accountant", "ACCOUNTANT");
+  await db.rolePermission.create({ data: { schoolId, role: "ACCOUNTANT", module: "fees", canView: true, canAdd: true, canEdit: true, canDelete: true } });
   browser = await (process.env.DELETE_BROWSER === "webkit" ? webkit : chromium).launch({ headless: true });
 });
 after(async () => { await browser?.close(); await db.$disconnect(); });
@@ -126,5 +128,41 @@ test("Urdu mobile confirmation has localized consequences, safe focus and keyboa
   await shot(page, "library-confirmation-ur-mobile");
   await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
   assert.ok(await db.book.findUnique({ where: { id: row.id } }));
+  await ctx.close();
+});
+
+
+test("finance deletion preserves the section on cancel, rejects stale review, and persists one canonical audit event", async () => {
+  const row = await db.feeType.create({ data: { schoolId, campusId: campusA, name: "Synthetic Tuition Head", code: randomUUID() } });
+  const ctx = await context("accountant"), page = await ctx.newPage();
+  await page.goto(`${base}/accountant?view=fee-structures&tab=types`);
+  const open = async () => {
+    await page.locator(".sk-panel").filter({ has: page.getByText(row.name, { exact: true }) }).getByRole("button", { name: "More actions", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByRole("button", { name: "Delete", exact: true })).toBeEnabled();
+    return dialog;
+  };
+  let dialog = await open();
+  const before = page.url();
+  await expect(dialog.getByRole("button", { name: "Keep editing", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
+  assert.equal(page.url(), before);
+  assert.ok(await db.feeType.findUnique({ where: { id: row.id } }));
+  dialog = await open();
+  await db.feeType.update({ where: { id: row.id }, data: { description: "Changed after preparation" } });
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await dialog.getByText("This record or its dependencies changed. Review it again before deleting.").waitFor();
+  await shot(page, "finance-stale-review-en");
+  await dialog.getByRole("button", { name: "Review again", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Delete", exact: true })).toBeEnabled();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
+  await dialog.waitFor({ state: "hidden" });
+  await page.reload();
+  await page.getByRole("button", { name: "New fee type", exact: true }).first().waitFor();
+  assert.equal(page.url(), before);
+  assert.equal(await db.feeType.findUnique({ where: { id: row.id } }), null);
+  const receipts = await db.auditLog.findMany({ where: { schoolId, recordId: row.id, tableName: "fee_types" } });
+  assert.equal(receipts.length, 1); assert.ok(receipts[0].oldValue); assert.equal(receipts[0].newValue, null);
   await ctx.close();
 });
