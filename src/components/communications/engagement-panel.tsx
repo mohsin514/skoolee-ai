@@ -325,7 +325,7 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
           cancelLabel={ui("Keep editing")}
           tone="primary"
           busy={running}
-          onConfirm={() => void runReminders()}
+          onConfirm={() => runReminders()}
           onCancel={() => setConfirmRun(false)}
         />
       ) : null}

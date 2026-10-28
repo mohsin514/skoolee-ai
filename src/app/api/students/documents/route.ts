@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
 import { privateDownloadResponse } from "@/lib/storage/private-download";
 import { NextRequest } from "next/server";
@@ -12,7 +13,6 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
-import { deleteFile } from "@/lib/storage/s3";
 
 // Student admission documents.
 // GET  /api/students/documents?studentId=    — list (campus-scoped)
@@ -122,38 +122,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    assertStaffRole(user);
-    await assertPermission(user, "students", "delete");
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const doc = await prisma.studentDocument.findFirst({
-      where: { id, student: studentScope(user) },
-      include: { student: { select: { campusId: true } } },
-    });
-    if (!doc || !matchesDocumentKey(doc.fileKey, "student-docs", doc.student.campusId, doc.studentId)) throw new ApiError("Document not found", 404);
-
-    // Row, timeline entry and audit event commit together; the object is
-    // removed only once the row is gone.
-    await prisma.$transaction(async (tx) => {
-      await tx.studentDocument.delete({ where: { id: doc.id } });
-      await tx.studentTimelineEvent.create({
-        data: {
-          studentId: doc.studentId,
-          kind: "NOTE",
-          title: `Document removed: ${doc.fileName}`,
-          actorId: user.userId,
-        },
-      });
-      await writeAuditEvent(tx, user, { table: "student_documents", recordId: doc.id, action: "DELETE", campusId: doc.student.campusId, before: { studentId: doc.studentId, kind: doc.kind } });
-    });
-    await deleteFile(doc.fileKey).catch(() => {}); // best-effort S3 cleanup
-
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[students/documents] DELETE failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "students/documents");
 }

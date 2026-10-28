@@ -223,6 +223,7 @@ export default function ReportsPage() {
         toast.success(ui("Report card sent to the family."));
       }
       await loadData();
+      return true;
     } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not send this report card. Please try again."))); }
     finally { setSendingReport(null); }
   }, [loadData, router, ui]);
