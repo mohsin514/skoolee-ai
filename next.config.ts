@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { storageConnectOrigins } from "./src/lib/storage/csp";
 
 const nextConfig: NextConfig = {
   // An isolated build directory lets synthetic-data acceptance tests run beside the developer's app.
@@ -17,7 +16,6 @@ const nextConfig: NextConfig = {
 
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "img.clerk.com" },
       { protocol: "https", hostname: "**.amazonaws.com" },
       { protocol: "https", hostname: "**.r2.cloudflarestorage.com" },
       { protocol: "https", hostname: "api.dicebear.com" },
@@ -41,22 +39,9 @@ const nextConfig: NextConfig = {
         key: "Strict-Transport-Security",
         value: "max-age=63072000; includeSubDomains",
       },
-      {
-        key: "Content-Security-Policy",
-        value: [
-          "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-          "style-src 'self' 'unsafe-inline'",
-          "img-src 'self' data: blob: https://api.dicebear.com https://*.amazonaws.com https://*.r2.cloudflarestorage.com https://img.clerk.com",
-          "font-src 'self' data:",
-          `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${storageConnectOrigins(process.env).join(" ")}`,
-          "frame-src 'self' https://js.stripe.com https://checkout.stripe.com",
-          "media-src 'self' blob:",
-          "object-src 'none'",
-          "base-uri 'self'",
-          "form-action 'self'",
-        ].join("; "),
-      },
+      // Content-Security-Policy for pages is set per-request in src/middleware.ts
+      // (SKAI-951 / NFR-SEC-04) so it can carry a nonce. Static config headers
+      // cannot. The per-route API sandboxes below still set their own CSP.
     ];
     return [
       {

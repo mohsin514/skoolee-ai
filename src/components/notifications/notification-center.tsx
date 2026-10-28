@@ -105,7 +105,7 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
           const title = hidden || (item.type && NOTIFICATION_FIXED_TITLE_KINDS.has(item.type)) ? ui(item.title) : item.title;
           const message = hidden || (item.type && NOTIFICATION_FIXED_MESSAGE_KINDS.has(item.type)) ? ui(item.message) : item.message;
           const openable = !hidden && !(item.type && NOTIFICATION_NOTICE_ONLY_KINDS.has(item.type));
-          return <article key={item.id} className={cn("rounded-xl p-2.5", !item.isRead && "bg-brand-50/50")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead}>
+          return <article key={item.id} className={cn("rounded-xl p-2.5", openable && "cursor-pointer", !item.isRead && "bg-brand-50/50")} data-notification={item.id} data-category={item.category} data-state={item.state} data-read={item.isRead} onClick={() => { if (openable) void open(item); }}>
             <div className="flex items-start gap-2.5">
               <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", item.state === "unavailable" ? "bg-muted text-ink-subtle" : "bg-primary/10 text-primary")}><Icon className="h-4 w-4" aria-hidden /></span>
               <div className="min-w-0 flex-1">
@@ -121,10 +121,10 @@ export function NotificationCenter({ formatTime, onClose, onChanged }: { formatT
                 </p>
                 {notice[item.id] ? <p role="status" className="mt-1 text-2xs font-bold text-status-warning-text">{notice[item.id]}</p> : null}
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {openable ? <Button size="sm" variant={item.category === "ACTION" ? "default" : "secondary"} disabled={busy} onClick={() => void open(item)} aria-label={ui("Open {0}", [title])}>
+                  {openable ? <Button size="sm" variant={item.category === "ACTION" ? "default" : "secondary"} disabled={busy} onClick={(event) => { event.stopPropagation(); void open(item); }} aria-label={ui("Open {0}", [title])}>
                     {item.category === "MENTION" ? <><Reply className="h-3 w-3" aria-hidden />{ui("Reply")}</> : item.category === "ACTION" && item.state === "open" ? ui("Open task") : ui("Open")}
                   </Button> : item.state === "unavailable" ? <span className="inline-flex items-center gap-1 text-2xs font-bold text-ink-muted"><AlertTriangle className="h-3 w-3" aria-hidden />{ui("You no longer have access to this item.")}</span> : null}
-                  {!item.isRead ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void seen(item)} aria-label={ui("Mark {0} as seen", [title])}><Eye className="h-3 w-3" aria-hidden />{ui("Seen")}</Button> : null}
+                  {!item.isRead ? <Button size="sm" variant="ghost" disabled={busy} onClick={(event) => { event.stopPropagation(); void seen(item); }} aria-label={ui("Mark {0} as seen", [title])}><Eye className="h-3 w-3" aria-hidden />{ui("Seen")}</Button> : null}
                 </div>
               </div>
             </div>
