@@ -65,6 +65,7 @@ model School {
   institutionSetup     InstitutionSetup?
   subscriptionRequests SubscriptionRequest[]
   registrationKind String @default("UNVERIFIED") @map("registration_kind")
+  registrationIdMode String @default("auto") @map("registration_id_mode")
   id                   String    @id @default(uuid())
   name                 String
   slug                 String    @unique // subdomain routing
@@ -8090,6 +8091,8 @@ model InterventionEvent {
 /// A pilot charter. Linked to a school by reference only, so pilot evidence stays a platform
 /// operator record; participants are recorded under pseudonyms, never as user ids.
 model Pilot {
+  /// Append-only charter snapshots; version is the array length.
+  charterHistory      Json      @default("[]") @map("charter_history")
   id                  String    @id @default(uuid())
   name                String
   targetSchoolId      String?   @map("target_school_id")
