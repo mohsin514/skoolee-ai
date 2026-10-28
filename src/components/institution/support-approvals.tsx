@@ -71,6 +71,7 @@ export function SupportApprovalsPanel() {
       if (!response.ok) { toast.error(friendlyErrorMessage(json.error, t("Could not update support grant"))); return; }
       toast.success(decision === "approve" ? t("Support access approved") : decision === "reject" ? t("Support request rejected") : decision === "revoke" ? t("Support access revoked") : t("Emergency review recorded"));
       await refresh();
+      return true;
     } catch (error) {
       toast.error(friendlyErrorMessage(error, t("Could not update support grant")));
     } finally {
@@ -170,7 +171,7 @@ export function SupportApprovalsPanel() {
         tone="danger"
         busy={Boolean(confirm) && busy(confirm!.item, confirm!.decision)}
         onCancel={() => setConfirm(null)}
-        onConfirm={() => { const target = confirm; if (!target) return; void decide(target.item, target.decision).finally(() => setConfirm(null)); }}
+        onConfirm={() => { const target = confirm; if (!target) return; return decide(target.item, target.decision).then(saved => { if (saved) setConfirm(null); }); }}
       />
     </div>
   );

@@ -58,7 +58,7 @@ export function CampusArchiveDialog({ campus, open, onClose, onDone }: { campus:
         : <FormField name="campus-archive-reason" label={ui("Reason")} required><Input value={reason} maxLength={300} dir="auto" onChange={event => setReason(event.target.value)} /></FormField>}
       {error && <p role="alert" className="font-medium text-destructive">{error}</p>}
     </div>}
-    onConfirm={() => void confirm()} onCancel={onClose} />;
+    onConfirm={() => confirm()} onCancel={onClose} />;
 }
 
 export function CampusArchiveButton({ campus, onDone }: { campus: { id: string; name: string }; onDone: () => Promise<void> | void }) {
@@ -91,6 +91,6 @@ export function ArchivedCampusList({ campuses, onDone }: { campuses: { id: strin
       <Button variant="outline" size="sm" type="button" onClick={() => { setError(""); setRestoring(campus); }}><RotateCcw aria-hidden="true" />{ui("Restore")}</Button>
     </div>)}
     <ConfirmAction open={Boolean(restoring)} title={ui("Restore {0}?", [restoring?.name ?? ""])} description={ui("The campus returns to current lists with everything it held. A campus with the same name that is already active blocks the restore.")} confirmLabel={ui("Restore campus")} cancelLabel={ui("Keep editing")} tone="success" busy={busy}
-      detail={error ? <p role="alert" className="text-sm font-medium text-destructive">{error}</p> : undefined} onConfirm={() => void restore()} onCancel={() => setRestoring(null)} />
+      detail={error ? <p role="alert" className="text-sm font-medium text-destructive">{error}</p> : undefined} onConfirm={() => restore()} onCancel={() => setRestoring(null)} />
   </div>;
 }

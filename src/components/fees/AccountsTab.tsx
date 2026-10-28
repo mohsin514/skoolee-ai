@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { BrandButton, EmptyState, StatCard } from "@/components/role-dashboard";
+import { ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ModalActions, FormInput, FormSelect } from "@/components/shared-admin";
 import { Modal } from "@/components/ui/modal";
@@ -216,22 +217,6 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleting) return;
-    try {
-      const res = await fetch(`${API}/accounts/chart?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Account deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-      }
-    } catch {
-      toast.error(tr("Failed to delete account"));
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -314,15 +299,7 @@ function ChartPanel({ campusId, command, hideCreate = false }: SectionProps) {
       )}
 
       {deleting && (
-        <ConfirmAction
-          open
-          title={tr("Delete account?")}
-          description={tr("\"{0}\" will be removed. Accounts with ledger entries are kept instead.", [deleting.name])}
-          confirmLabel={tr("Delete")}
-          tone="danger"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleting(null)}
-        />
+        <ReviewedDeleteDialog endpoint="accounts/chart" record={{ id: deleting.id, campusId }} label={deleting.name} onCancel={() => setDeleting(null)} onDeleted={load} />
       )}
     </div>
   );
@@ -417,22 +394,6 @@ function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleting) return;
-    try {
-      const res = await fetch(`${API}/accounts/payment-methods?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Payment method deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-      }
-    } catch {
-      toast.error(tr("Failed to delete method"));
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -494,15 +455,7 @@ function MethodsPanel({ campusId, command, hideCreate = false }: SectionProps) {
       )}
 
       {deleting && (
-        <ConfirmAction
-          open
-          title={tr("Delete payment method?")}
-          description={tr("\"{0}\" will be removed everywhere.", [deleting.name])}
-          confirmLabel={tr("Delete")}
-          tone="danger"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleting(null)}
-        />
+        <ReviewedDeleteDialog endpoint="accounts/payment-methods" record={{ id: deleting.id, campusId }} label={deleting.name} onCancel={() => setDeleting(null)} onDeleted={load} />
       )}
     </div>
   );
@@ -620,22 +573,6 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleting) return;
-    try {
-      const res = await fetch(`${API}/accounts/bank-accounts?id=${encodeURIComponent(deleting.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(tr("Bank account deleted"));
-        setDeleting(null);
-        load();
-      } else {
-        toast.error(tr(json.error || "Failed to delete"));
-      }
-    } catch {
-      toast.error(tr("Failed to delete bank"));
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -706,15 +643,7 @@ function BanksPanel({ campusId, command, hideCreate = false }: SectionProps) {
       )}
 
       {deleting && (
-        <ConfirmAction
-          open
-          title={tr("Delete bank account?")}
-          description={tr("\"{0}\" will be removed if it has no ledger entries.", [deleting.name])}
-          confirmLabel={tr("Delete")}
-          tone="danger"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleting(null)}
-        />
+        <ReviewedDeleteDialog endpoint="accounts/bank-accounts" record={{ id: deleting.id, campusId }} label={deleting.name} onCancel={() => setDeleting(null)} onDeleted={load} />
       )}
     </div>
   );
@@ -1038,7 +967,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
           confirmLabel={tr("Post correction")}
           tone="warning"
           busy={acting}
-          onConfirm={() => void handleCorrect()}
+          onConfirm={() => handleCorrect()}
           onCancel={() => setCorrecting(null)}
         />
       )}
@@ -1051,7 +980,7 @@ function EntriesPanel({ campusId, kind, command, hideCreate = false }: SectionPr
           confirmLabel={tr("Delete")}
           tone="danger"
           busy={acting}
-          onConfirm={() => void handleDelete()}
+          onConfirm={() => handleDelete()}
           onCancel={() => setDeleting(null)}
         />
       )}

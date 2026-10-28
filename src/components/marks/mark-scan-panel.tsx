@@ -55,7 +55,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (!subjectId && subjects[0]) setSubjectId(subjects[0].id); }, [subjects, subjectId]);
   const refresh = useCallback(async (id: string) => setView(await call(`/api/marks-scan/${id}`, "GET")), []);
-  const run = async (work: () => Promise<unknown>, done?: string) => { setBusy(true); try { await work(); if (done) toast.success(ui(done)); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
+  const run = async (work: () => Promise<unknown>, done?: string) => { setBusy(true); try { await work(); if (done) toast.success(ui(done)); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
 
   const printSheet = () => run(async () => { const t = await call("/api/marks-scan", "POST", { action: "template", examId, subjectId }); setSheet(await call(`/api/marks-scan/template/${t.id}`, "GET")); });
   const start = () => run(async () => { const list = await call(`/api/marks-scan?examId=${examId}&subjectId=${subjectId}`, "GET"); const latest = list[0]; if (!latest) throw new Error("Print a marks sheet first.");
@@ -126,7 +126,7 @@ export function MarkScanPanel({ examId, subjects, onImported }: { examId: string
       cancelLabel={ui("Keep marks")}
       busy={busy}
       onCancel={() => setConfirmReverse(false)}
-      onConfirm={() => { setConfirmReverse(false); void reverse(); }}
+      onConfirm={async () => { if (await reverse()) setConfirmReverse(false); }}
     />
     {editing && view ? <Modal size="lg" title={editing.name} eyebrow={ui("Check this mark")} subtitle={ui("Row {0} · page {1}", [String(editing.rowNumber), String(editing.pageNumber)])} onClose={() => setEditing(null)}>
       <div className="space-y-3" data-scan-cell-dialog>
