@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthGreeting } from '@/components/auth/AuthGreeting';
-import { AuthMascot } from '@/components/auth/AuthMascot';
-import { InkRule } from '@/components/auth/InkRule';
+import { SplashVisual } from '@/components/SplashVisual';
 import type { Language } from '@/lib/locale/package';
 
 /** The full brand beat: first launch in this tab, motion allowed. */
@@ -18,12 +16,6 @@ const QUICK_HOLD_MS = 1200;
  * read as a twitch on the last frame.
  */
 const SLOW_MS = 400;
-
-const copy: Record<Language, { eyebrow: string; loading: string; opening: string }> = {
-  en: { eyebrow: 'AI school management', loading: 'Loading Skoolee AI', opening: 'Opening sign in' },
-  ar: { eyebrow: 'إدارة مدرسية بالذكاء الاصطناعي', loading: 'جارٍ تحميل Skoolee AI', opening: 'جارٍ فتح تسجيل الدخول' },
-  ur: { eyebrow: 'اے آئی اسکول مینجمنٹ', loading: 'Skoolee AI لوڈ ہو رہا ہے', opening: 'سائن اِن کھل رہا ہے' },
-};
 
 /**
  * `pending` is the server render and hydration; `wake` is a first launch with
@@ -52,18 +44,13 @@ type Intro = 'pending' | 'wake' | 'calm';
  * The overlay is transparent, so the shared body canvas (lilac glow and dot
  * grid) is the ground of both the splash's last frame and login's first.
  *
- * The face is the live Skoolee mascot. On a first launch it wakes: lids open
- * from closed through drowsy, the cap drops on, the pupils scan and settle,
- * while the ink stroke under it writes itself as the progress bar. The server
- * frame already shows it asleep (shut eyes, no cap; motion allowed only), so
- * the wordmark is visible from the first paint and the wake continues from
- * exactly that frame instead of open eyes snapping shut at hydration.
+ * The visual itself is the shared `SplashVisual` — the same markup the hard-load
+ * BootSplash and the setLoading overlay render, so all three are identical.
  *
  * `/` is also left out of history (`replace`, not `push`) so Back from the login
  * screen leaves the app instead of replaying this.
  */
 export default function SplashScreen({ language = 'en' }: { language?: Language }) {
-  const t = copy[language];
   const router = useRouter();
   const [progress, setProgress] = useState(0);
   const [leaving, setLeaving] = useState(false);
@@ -117,71 +104,16 @@ export default function SplashScreen({ language = 'en' }: { language?: Language 
     return () => window.clearTimeout(timer);
   }, [handingOver]);
 
-  // The progress loop re-renders this component every frame; the face only
-  // needs to change when the intro is decided or the hand-over stalls.
-  // Until the intro is decided (server frame and hydration) the face sleeps:
-  // shut eyes with the lash, no cap, so a first launch wakes from exactly
-  // what was painted and the wordmark is on screen from the first paint.
-  const face = useMemo(
-    () => (
-      <AuthMascot
-        entrance={intro === 'wake' ? 'wake' : 'none'}
-        asleep={intro === 'pending'}
-        size="min(3.5rem, 14vw)"
-        rule={false}
-        lookDuration={2}
-        signals={{ thinking: stalled }}
-      />
-    ),
-    [intro, stalled],
-  );
-
-  const pct = Math.round(progress * 100);
-  // The arrival runs from the server frame; it never restarts at mount.
-  const delay = (ms: number) => ({ '--sk-delay': `${ms}ms` }) as CSSProperties;
-
   return (
     // Scrolls rather than clips if the column ever outgrows the screen (200% text in a landscape phone).
     <div className="fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto">
-      {/* pt-6 is the cap's headroom: the cap sits above the wordmark's box, so
-          without it the group reads high and a very short screen clips the cap. */}
-      <div className="flex w-full flex-col items-center px-6 pt-6 text-center">
-        {/* The one face: the same wordmark login opens with, awake. */}
-        <div className="sk-rise">{face}</div>
-
-        {/* Login opens with an ink swash under the same wordmark. Here that
-            swash writes itself over its own faint guide as the progress bar,
-            so the element the eye is resting on carries the loading state. */}
-        <div className="sk-enter" style={delay(90)}>
-          <div
-            role="progressbar"
-            aria-label={t.loading}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={pct}
-            className="relative mt-4 w-[min(220px,64vw)]"
-          >
-            <InkRule width="100%" className="absolute inset-x-0 top-0 opacity-15" />
-            <InkRule progress={progress} width="100%" className="relative block" />
-            {/* A soft light travels along the ink while /login is still on its way.
-                It fades out on every side, so it reads only where it crosses the stroke. */}
-            {stalled && (
-              <span className="sk-shimmer pointer-events-none absolute -inset-y-2 start-0 w-1/2 bg-radial from-white/85 to-transparent to-70% rtl:-scale-x-100 motion-reduce:hidden" />
-            )}
-          </div>
-        </div>
-
-        <div className="sk-enter mt-7" style={delay(160)}>
-          <AuthGreeting language={language} className="text-center text-lg font-semibold text-balance text-ink-strong" />
-          <p className="sk-eyebrow mt-1.5 text-primary">{t.eyebrow}</p>
-        </div>
-
-        {/* The percentage was the only status a screen reader got, and it read
-            out on every frame. One announcement, in words. */}
-        <span role="status" className="sr-only">
-          {pct < 100 ? t.loading : t.opening}
-        </span>
-      </div>
+      <SplashVisual
+        language={language}
+        progress={progress}
+        entrance={intro === 'wake' ? 'wake' : intro === 'calm' ? 'calm' : 'none'}
+        asleep={intro === 'pending'}
+        stalled={stalled}
+      />
     </div>
   );
 }
