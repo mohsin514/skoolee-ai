@@ -66,6 +66,6 @@ export function ReconciliationsPanel({ campusId, version = 0, onPosted, showEmpt
       </article>;
     })}
     <ConfirmAction open={Boolean(posting)} title={ui("Post matched payments?")} description={posting ? ui("{0} matched transaction(s) totalling {1} become payments with receipts. {2} stays unallocated for review. This cannot be posted twice.", [posting.matched.length, money(posting.report.allocated, posting.matched[0]?.currency || campusCurrency), money(posting.report.unallocated, posting.matched[0]?.currency || campusCurrency)]) : ""}
-      confirmLabel={ui("Post payments")} cancelLabel={ui("Keep editing")} tone="primary" busy={busy} onConfirm={() => void post()} onCancel={() => setPosting(null)} />
+      confirmLabel={ui("Post payments")} cancelLabel={ui("Keep editing")} tone="primary" busy={busy} onConfirm={() => post()} onCancel={() => setPosting(null)} />
   </section>;
 }

@@ -159,7 +159,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
       tone="danger"
       busy={busy}
       onCancel={() => setConfirmReverse(false)}
-      onConfirm={() => void reverse()}
+      onConfirm={() => reverse()}
     />
     <div className="space-y-4" dir="auto">
       {committed && batch ? <section className="space-y-3">

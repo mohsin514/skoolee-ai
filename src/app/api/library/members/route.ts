@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -46,29 +47,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const existing = await prisma.libraryMember.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!existing) throw new ApiError("Member not found", 404);
-
-    const unreturned = await prisma.bookIssue.count({
-      where: { memberId: id, returnedAt: null },
-    });
-    if (unreturned > 0) throw new ApiError("Cannot delete member with unreturned issues", 409);
-
-    await prisma.libraryMember.delete({ where: { id } });
-
-    return Response.json({ success: true, data: { id } });
-  } catch (error) {
-    return errorResponse(error, "[library] DELETE members failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "library/members");
 }

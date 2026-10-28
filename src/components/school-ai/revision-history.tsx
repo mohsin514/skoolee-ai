@@ -127,7 +127,7 @@ function RevisionInspector({ record, language, onRecord, onAction }: Omit<Props,
         </div>
       </>}
     </>}
-    <ConfirmAction open={restoreOpen} title={h.restoreTitle} description={interpolateAI(h.restoreDescription, { source: selectedVersion, current: current.version })} confirmLabel={h.restore} cancelLabel={c.close} busy={busy === "restore"} onCancel={() => setRestoreOpen(false)} onConfirm={() => void restore()} />
+    <ConfirmAction open={restoreOpen} title={h.restoreTitle} description={interpolateAI(h.restoreDescription, { source: selectedVersion, current: current.version })} confirmLabel={h.restore} cancelLabel={c.close} busy={busy === "restore"} onCancel={() => setRestoreOpen(false)} onConfirm={() => restore()} />
   </div>;
 }
 

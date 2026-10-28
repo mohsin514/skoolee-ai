@@ -19,6 +19,7 @@ test.beforeAll(async () => {
     bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
     tsconfig: path.join(root, "tsconfig.json"),
+    alias: { "@/app/actions/locale": path.join(root, "tests/design-system/component-adoption/locale-mock.ts") },
   });
   fixtureScript = result.outputFiles[0].text;
   const compiler = await compile(await readFile(path.join(root, "src/app/globals.css"), "utf8"), {
@@ -66,7 +67,7 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: test.info().outputPath("busy-confirmation.png") });
     await page.evaluate(() => window.dispatchEvent(new Event("fixture:release-operation")));
     await expect(dialog.getByRole("button", { name: "Keep editing", exact: true })).toBeEnabled();
-    await expect(dialog.getByRole("button", { name: "Start example operation" })).toHaveAttribute("aria-busy", "false");
+    await expect(dialog.getByRole("button", { name: "Start example operation" })).not.toHaveAttribute("aria-busy", "true");
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Open confirmation", exact: true })).toBeFocused();
@@ -105,7 +106,7 @@ test("nested confirmation keeps the parent open and restores its trigger", async
   const trigger = page.getByRole("button", { name: "Open nested confirmation", exact: true });
   await trigger.click();
   const confirmation = page.getByRole("alertdialog", { name: "Confirm synthetic change", exact: true });
-  await expect(confirmation.getByRole("button", { name: overlayMessages.ur.cancel, exact: true })).toBeFocused();
+  await expect(confirmation.getByRole("button", { name: overlayMessages.ur.keepEditing, exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(confirmation).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: "Edit synthetic record", exact: true })).toBeVisible();
@@ -188,7 +189,7 @@ for (const language of ["ar", "ur"] as const) {
     await expect(input).toHaveValue("Authored example مسودہ");
     await form.getByRole("button", { name: "Open nested confirmation", exact: true }).click();
     const confirmation = page.getByRole("alertdialog", { name: "Confirm synthetic change", exact: true });
-    await expect(confirmation.getByRole("button", { name: copy.cancel, exact: true })).toBeFocused();
+    await expect(confirmation.getByRole("button", { name: copy.keepEditing, exact: true })).toBeFocused();
     await expect(confirmation.getByRole("button", { name: "Start example operation", exact: true })).toBeVisible();
     await expect(confirmation).toHaveAccessibleDescription("Only this browser fixture changes.");
     await page.keyboard.press("Escape");
@@ -296,9 +297,9 @@ test("requireReason blocks Confirm until the reason is long enough, then records
   await page.getByRole("button", { name: "Open reasoned approval" }).click();
   const dialog = page.getByRole("alertdialog", { name: "Approve your own request?" });
   const reason = dialog.getByLabel("Reason for approving");
-  await expect(reason).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "Keep editing", exact: true })).toBeFocused();
   await reason.fill("too short");
-  await dialog.getByRole("button", { name: "Approve with reason" }).click();
+  await dialog.getByRole("button", { name: "Approve with reason" }).click({ force: true });
   await expect(dialog).toBeVisible();
   await expect(reason).toHaveAttribute("aria-invalid", "true");
   await reason.fill("  Sole admin on this campus  ");
@@ -306,3 +307,22 @@ test("requireReason blocks Confirm until the reason is long enough, then records
   await expect(dialog).toBeHidden();
   await expect(page.getByLabel("Recorded reason")).toHaveText("Sole admin on this campus");
 });
+
+for (const language of ["en", "ur"] as const) {
+  test(`async confirmation fences same-tick activation and retains reason on rejection (${language})`, async ({ page }) => {
+    await mountFixture(page, language === "ur" ? 390 : 1440, language === "ur" ? "rtl" : "ltr", language);
+    await page.getByRole("button", { name: "Open async confirmation" }).click();
+    const dialog = page.getByRole("alertdialog", { name: "Delete synthetic draft?" });
+    await expect(dialog.getByRole("button", { name: overlayMessages[language].keepEditing, exact: true })).toBeFocused();
+    await dialog.getByLabel("Deletion reason").fill("Synthetic reviewed reason");
+    await dialog.getByRole("button", { name: "Delete synthetic draft", exact: true }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+    await expect(page.getByLabel("Async submissions")).toHaveText("1");
+    await page.keyboard.press("Escape"); await expect(dialog).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event("fixture:reject-confirmation")));
+    await expect(dialog.getByRole("alert")).toBeVisible();
+    await expect(dialog.getByLabel("Deletion reason")).toHaveValue("Synthetic reviewed reason");
+    await expect(dialog.getByRole("button", { name: "Delete synthetic draft", exact: true })).toBeEnabled();
+    await page.keyboard.press("Escape"); await expect(dialog).toBeHidden();
+    await expect(page.getByRole("button", { name: "Open async confirmation" })).toBeFocused();
+  });
+}

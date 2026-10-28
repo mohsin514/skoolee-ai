@@ -16,7 +16,7 @@ for(const [name,width,height] of [['desktop',1440,1000],['tablet',820,1180],['mo
    await page.context().addCookies([{name:'skoolee_token',value:fixture.cookies[role].split('=')[1],url:base}]);
    await page.goto(`${base}/corrections?kind=${role==='TEACHER'?'MARK':'PAYMENT'}`);
    await page.waitForFunction(()=>document.querySelector('section select')?.options.length>1);
-   await page.locator('section select').first().selectOption({index:1});
+   await page.locator('section select:visible').first().selectOption({index:1});
    if(role==='TEACHER')await page.locator('input[type=number]').fill('77');
    else await page.locator('input[inputmode=decimal]').first().fill('1.001');
    await page.locator('textarea').nth(0).fill('Synthetic correction reason');await page.locator('textarea').nth(1).fill('Public synthetic correction');await page.locator('textarea').nth(2).fill('PRIVATE BROWSER NOTE');

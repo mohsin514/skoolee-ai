@@ -158,7 +158,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
         </li>)}
       </ul>}
 
-    {leaving ? <ConfirmAction open title={ui("Check out {0}?", [leaving.name])} description={ui("{0}, here since {1} to see {2}, is recorded as leaving now.", [leaving.name, dateTime(leaving.inTime), leaving.toMeet ?? "—"])} confirmLabel={ui("Check out")} tone="primary" busy={busy} onConfirm={() => void checkOut()} onCancel={() => setLeaving(null)} /> : null}
+    {leaving ? <ConfirmAction open title={ui("Check out {0}?", [leaving.name])} description={ui("{0}, here since {1} to see {2}, is recorded as leaving now.", [leaving.name, dateTime(leaving.inTime), leaving.toMeet ?? "—"])} confirmLabel={ui("Check out")} tone="primary" busy={busy} onConfirm={() => checkOut()} onCancel={() => setLeaving(null)} /> : null}
     {correcting ? <CorrectVisit visit={correcting} onClose={() => setCorrecting(null)} onDone={() => { setCorrecting(null); void load(); }} /> : null}
   </div>;
 }

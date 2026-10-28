@@ -1,4 +1,8 @@
 name: Student enrollment invariants
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 on:
   pull_request:
     branches: [dev, staging, qa, production, demo, main]

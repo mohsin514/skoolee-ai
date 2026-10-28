@@ -572,7 +572,7 @@ export function MasterDatesheet({
         confirmLabel={ui("Remove paper")}
         cancelLabel={ui("Keep editing")}
         onCancel={() => setRemoving(null)}
-        onConfirm={() => { if (removing) void removeSubject(removing); }}
+        onConfirm={() => { if (removing) return removeSubject(removing); }}
       />
     </div>
   );

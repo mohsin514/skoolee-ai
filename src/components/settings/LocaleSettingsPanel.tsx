@@ -204,7 +204,7 @@ export function LocaleCurrencyReview() {
         cancelLabel={ui("Keep editing")}
         busy={busy}
         onCancel={() => setDeciding(null)}
-        onConfirm={() => void decide()}
+        onConfirm={() => decide()}
       />
     </section>
   );

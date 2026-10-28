@@ -251,8 +251,8 @@ function TemplatesTab({ templates, canApprove, onChanged }: { templates: Templat
   const [deleting, setDeleting] = useState<Template | null>(null);
   const run = async (key: string, work: () => Promise<unknown>, message: string) => {
     setBusy(key);
-    try { await work(); toast.success(message); onChanged(); }
-    catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The change was not saved.")); }
+    try { await work(); toast.success(message); onChanged(); return true; }
+    catch (failure) { toast.error(ui(failure instanceof Error ? failure.message : "The change was not saved.")); return false; }
     finally { setBusy(null); }
   };
   return <div className="space-y-3">
@@ -265,7 +265,7 @@ function TemplatesTab({ templates, canApprove, onChanged }: { templates: Templat
       description={deleting ? ui("\"{0}\" has never been approved, so no document uses it. Deleting it cannot be undone.", [deleting.name]) : ""}
       confirmLabel={ui("Delete draft")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={() => { const template = deleting; setDeleting(null); if (template) void run(`delete-${template.id}`, async () => { const response = await fetch(`/api/front-desk/certificates?id=${encodeURIComponent(template.id)}`, { method: "DELETE" }); const json = await response.json().catch(() => ({})); if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved."); }, ui("Draft deleted.")); }}
+      onConfirm={async () => { const template = deleting; if (template && await run(`delete-${template.id}`, async () => { const response = await fetch(`/api/front-desk/certificates?id=${encodeURIComponent(template.id)}`, { method: "DELETE" }); const json = await response.json().catch(() => ({})); if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved."); }, ui("Draft deleted."))) setDeleting(null); }}
       onCancel={() => setDeleting(null)}
     />
     {!templates.length ? <EmptyState size="sm" icon={FileText} title={ui("No templates yet. Create one, then approve it before documents can be issued.")} />
