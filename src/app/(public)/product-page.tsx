@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import { SALES_EMAIL } from "@/lib/config/contact";
 
 export interface ProductPageCopy {
   eyebrow: string;
@@ -26,7 +27,7 @@ export interface ProductPageCopy {
 // Skoolee is sold sales-led — there is no self-serve signup. Marketing
 // CTAs open a demo request addressed to the sales inbox; the APP_OWNER
 // provisions the school manually from /owner afterwards.
-const SALES_EMAIL = process.env.NEXT_PUBLIC_SALES_EMAIL || "sales@skoolee.ai";
+// SALES_EMAIL is sourced from @/lib/config/contact (SKAI-948 / COM-08).
 
 function demoMailto(context: string) {
   const subject = encodeURIComponent(`Demo request — ${context}`);

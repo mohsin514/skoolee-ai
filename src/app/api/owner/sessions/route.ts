@@ -1,3 +1,4 @@
+import { pageWindow } from "@/lib/lists/query";
 import { assertListBudget } from "@/lib/lists/access";
 import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
@@ -15,29 +16,28 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("userId") || "";
     const activeOnly = searchParams.get("active") === "true";
-    const { page, limit } = ownerPagination(searchParams, 50, 200);
+    const { page: requestedPage, limit } = ownerPagination(searchParams, 50, 200);
 
     const where: any = {};
     if (userId) where.userId = userId;
     if (activeOnly) { where.isActive = true; where.expiresAt = { gt: new Date() }; }
 
-    const [sessions, total] = await Promise.all([
-      prisma.loginSession.findMany({
+    const total = await prisma.loginSession.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const sessions = await prisma.loginSession.findMany({
         where,
         include: {
           user: { select: { id: true, fullName: true, email: true, role: true, school: { select: { id: true, name: true } } } },
         },
         orderBy: [{ loginAt: "desc" }, { id: "desc" }],
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
-      }),
-      prisma.loginSession.count({ where }),
-    ]);
+      });
 
     return Response.json({
       success: true,
       data: sessions,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: { page, limit, total, pages },
     });
   } catch (error) {
     return errorResponse(error, "[owner/sessions] GET failed");
