@@ -9,6 +9,7 @@ import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
 import { ANNUAL_DISCOUNT, PLAN_ORDER, PLANS, annualMonthlyPrice, type BillingPeriod } from "@/config/plans";
 import { COUNTRIES, currencyForCountry, type Country } from "@/lib/locale/country";
 import type { PlanType } from "@/types";
+import { SALES_EMAIL as salesEmail } from "@/lib/config/contact";
 
 type Language = "en" | "ar" | "ur";
 type PricingCopy = {
@@ -108,7 +109,7 @@ const copy = {
     unlimited: "لامحدود",
   },
 } satisfies Record<Language, PricingCopy>;
-const salesEmail = process.env.NEXT_PUBLIC_SALES_EMAIL || "sales@skoolee.ai";
+// salesEmail is sourced from @/lib/config/contact (SKAI-948 / COM-08).
 
 export function PricingPage() {
   const [country, setCountry] = useState<Country>("PK");
