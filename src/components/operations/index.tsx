@@ -71,7 +71,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { ConfirmAction } from "@/components/ui/confirm-action";
+import { ReviewedDelete } from "@/components/ui/reviewed-delete";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
@@ -126,31 +126,6 @@ function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false 
  * The row's overflow menu (role-ux §4.5.2–3): destructive actions never sit inline in a row. "Delete" is the last,
  * danger-toned item and is confirmed (R3: consequence, "Keep editing" to back out).
  */
-function DeleteBtn({ onClick, loading }: { onClick: () => void; loading: boolean }) {
-  const ui = useUiText();
-  const [asking, setAsking] = useState(false);
-  return (
-    <>
-      <Menu
-        label="More actions"
-        align="end"
-        items={[{ id: "delete", label: "Delete", icon: Trash2, tone: "danger", disabled: loading, onSelect: () => setAsking(true) }]}
-        trigger={<IconButton label={ui("More actions")} variant="ghost" loading={loading} data-row-actions><MoreHorizontal aria-hidden="true" /></IconButton>}
-      />
-      <ConfirmAction
-        open={asking}
-        title={ui("Delete this record?")}
-        description={ui("This permanently deletes the record. This cannot be undone.")}
-        confirmLabel={ui("Delete")}
-        cancelLabel={ui("Keep editing")}
-        tone="danger"
-        busy={loading}
-        onConfirm={() => { setAsking(false); onClick(); }}
-        onCancel={() => setAsking(false)}
-      />
-    </>
-  );
-}
 
 /**
  * A labelled cell in one of the inline "add" rows.
@@ -318,7 +293,6 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -346,15 +320,6 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try {
-      const r = await fetch(`/api/transport/routes?id=${id}`, { method: "DELETE" });
-      const j = await r.json();
-      if (!j.success) throw new Error(j.error);
-      toast.success(ui("Route removed.")); load();
-    } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
-  };
   usePanelCommand(command, { "add-route": () => setShowAdd(true) });
 
   return (
@@ -392,7 +357,7 @@ function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: 
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.fare != null ? campusMoney(r.fare) : "—"}</td>
                 <td className={tdCls}>{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="transport/routes" record={r} label={r.title} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -409,7 +374,6 @@ function VehiclesTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -438,15 +402,6 @@ function VehiclesTab() {
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try {
-      const r = await fetch(`/api/transport/vehicles?id=${id}`, { method: "DELETE" });
-      const j = await r.json();
-      if (!j.success) throw new Error(j.error);
-      toast.success(ui("Vehicle removed.")); load();
-    } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
-  };
 
   return (
     <>
@@ -490,7 +445,7 @@ function VehiclesTab() {
                 <td className={tdCls}>{v.capacity ?? "—"}</td>
                 <td className={tdCls}>{v.driverName || "—"}</td>
                 <td className={tdCls}>{v.driverPhone || "—"}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(v.id)} loading={deleting === v.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="transport/vehicles" record={v} label={v.number} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -551,7 +506,6 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -575,10 +529,6 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/dormitory/room-types?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
-  };
 
   usePanelCommand(command, { "add-room-type": () => setShowAdd(true) });
 
@@ -609,7 +559,7 @@ function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; com
                 <td className={tdCls}>{r.description || "—"}</td>
                 <td className={tdCls}>{r.costPerTerm ? campusMoney(r.costPerTerm) : "—"}</td>
                 <td className={tdCls}>{r._count?.rooms ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="dormitory/room-types" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -627,7 +577,6 @@ function DormRoomsTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -658,10 +607,6 @@ function DormRoomsTab() {
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/dormitory/rooms?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Room removed.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
-  };
 
   return (
     <>
@@ -694,7 +639,7 @@ function DormRoomsTab() {
                 <td className={tdCls}>{r.capacity}</td>
                 <td className={tdCls}>{r.occupied ?? 0} / {r.capacity}{r.upcoming ? ` (+${r.upcoming})` : ""}</td>
                 <td className={tdCls}>{ui(r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available")}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="dormitory/rooms" record={r} label={r.number} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -767,7 +712,6 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   usePanelCommand(command, { "add-category": () => setShowAdd(true) });
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -792,10 +736,6 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/library/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
-  };
 
   return (
     <>
@@ -816,7 +756,7 @@ function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelComman
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r._count?.books ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/categories" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -837,7 +777,6 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   const [sort, setSort] = useListField<string>("library.sort", "name", "library.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const requestVersion = useRef(0);
   const paged = useListPagination(total, "library");
@@ -872,10 +811,6 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
   });
 
   usePanelCommand(command, { "add-book": () => setShowAdd(true) });
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/library/books?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
-  };
 
   return (
     <>
@@ -926,7 +861,7 @@ function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null;
                 <td className={tdCls}>{b.category?.name || "—"}</td>
                 <td className={tdCls}>{b.copiesTotal}</td>
                 <td className={tdCls}>{b.copiesAvailable}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(b.id)} loading={deleting === b.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/books" record={b} label={b.title} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1025,7 +960,6 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   usePanelCommand(command, { "add-member": () => setShowAdd(true) });
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const version = ++loadSequence.current;
@@ -1050,10 +984,6 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/library/members?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); }
-  };
 
   return (
     <>
@@ -1078,7 +1008,7 @@ function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | nul
                 <td className={tdCls}>{m.user?.fullName || m.userId}</td>
                 <td className={tdCls}>{m.memberNo || "—"}</td>
                 <td className={tdCls}>{m._count?.issues ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(m.id)} loading={deleting === m.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/members" record={m} label={m.memberNo} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1236,7 +1166,6 @@ function ItemCategoriesTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => { const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/categories"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
@@ -1257,7 +1186,6 @@ function ItemCategoriesTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>
@@ -1277,7 +1205,7 @@ function ItemCategoriesTab() {
             {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r._count?.items ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/categories" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1294,7 +1222,6 @@ function StoresTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => { const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/stores"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
@@ -1315,7 +1242,6 @@ function StoresTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/stores?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>
@@ -1335,7 +1261,7 @@ function StoresTab() {
             {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/stores" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1352,7 +1278,6 @@ function SuppliersTab() {
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => { const version = ++loadSequence.current;
     setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/suppliers"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
@@ -1373,7 +1298,6 @@ function SuppliersTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/suppliers?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>
@@ -1402,7 +1326,7 @@ function SuppliersTab() {
             {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
               <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.phone || "—"}</td><td className={tdCls}>{r.email || "—"}</td><td className={tdCls}>{r.address || "—"}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/suppliers" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1423,7 +1347,6 @@ function ItemsTab() {
   const [sort, setSort] = useListField<string>("inventory.sort", "name", "inventory.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const requestVersion = useRef(0);
   const paged = useListPagination(total, "inventory");
@@ -1455,7 +1378,6 @@ function ItemsTab() {
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/items?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success(ui("Record deleted.")); load(); } catch (e: any) { toast.error(e); } finally { setDeleting(null); } };
 
   return (
     <>
@@ -1491,7 +1413,7 @@ function ItemsTab() {
               return (
                 <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                   <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.category?.name || "—"}</td><td className={tdCls}>{r.unit || "—"}</td><td className={tdCls}>{totalStock}</td>
-                  <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                  <td className={tdCls}><ReviewedDelete endpoint="inventory/items" record={r} label={r.name} onDeleted={load} /></td>
                 </tr>
               );
             })}

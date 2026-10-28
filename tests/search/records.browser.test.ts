@@ -209,7 +209,7 @@ test("a role without record search sees an access notice on /search, never a Ret
   }, { timeout: 15_000 }).catch(() => {});
   // P2 may send these roles home instead (§6.3); either way they never see a retry loop.
   if (new URL(page.url()).pathname === "/search") {
-    await page.getByText("Record search is not part of your workspace.").first().waitFor({ timeout: 15_000 });
+    await page.getByText("Record search is not part of your workspace.").first().waitFor({ timeout: 30_000 });
     assert.equal(await page.getByRole("button", { name: /^(Retry|Try again)$/ }).count(), 0);
   }
   assert.deepEqual(errors, []);

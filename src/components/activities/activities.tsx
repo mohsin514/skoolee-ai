@@ -123,7 +123,7 @@ export function ActivitiesDesk() {
   // A roster that fails to load says so in place, with a retry (R4), instead of leaving the previous one on screen.
   const loadRoster = useCallback(async (id: string) => { setOpen(id); setRosterError(false); try { setRoster(await call(`/api/activities?id=${encodeURIComponent(id)}`)); } catch { setRoster(null); setRosterError(true); } }, []);
   useEffect(() => { void load(); }, [load]);
-  const act = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { await call("/api/activities", "POST", body); toast.success(ui(done)); if (open) await loadRoster(open); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
+  const act = async (body: Record<string, unknown>, done: string) => { setBusy(true); try { await call("/api/activities", "POST", body); toast.success(ui(done)); if (open) await loadRoster(open); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (error && !list) return <div data-activities-desk><ErrorState title={ui("Activities could not be loaded")} description={ui(error)} onRetry={() => { setError(""); void load(); }} retryLabel={ui("Try again")} /></div>;
   if (!list) return <div data-activities-desk aria-busy="true"><SkeletonList rows={3} label={ui("Loading activities…")} /></div>;
   const lead = list.canLead === true;
@@ -191,7 +191,7 @@ export function ActivitiesDesk() {
       description={confirming?.kind === "cancel-activity" ? ui("\"{0}\" is cancelled for everyone and families are told. Paid places are marked for a refund request to the finance desk.", [confirming.title]) : confirming ? ui("{0} loses this place and the next family on the waiting list is offered it. A paid place is marked for a refund request.", [confirming.name]) : ""}
       confirmLabel={ui(confirming?.kind === "cancel-activity" ? "Cancel activity" : "Cancel place")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={() => { const c = confirming; setConfirming(null); if (!c) return; if (c.kind === "cancel-activity") void act({ action: "cancel", activityId: c.id }, "Activity cancelled. Families were told."); else void act({ action: "cancel-place", placeId: c.id, reason: "Cancelled by the coordinator" }, "Place cancelled."); }}
+      onConfirm={async () => { const c = confirming; if (!c) return; const saved = c.kind === "cancel-activity" ? await act({ action: "cancel", activityId: c.id }, "Activity cancelled. Families were told.") : await act({ action: "cancel-place", placeId: c.id, reason: "Cancelled by the coordinator" }, "Place cancelled."); if (saved) setConfirming(null); }}
       onCancel={() => setConfirming(null)}
     />
     <ConfirmAction
@@ -203,7 +203,7 @@ export function ActivitiesDesk() {
       requireReason={{ label: ui("Reason for waiving the fee") }}
       confirmLabel={ui("Waive fee")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={(reason) => { const w = waiving; setWaiving(null); if (w) void act({ action: "fee", placeId: w.id, feeStatus: "WAIVED", reason }, "Fee waived."); }}
+      onConfirm={async (reason) => { const w = waiving; if (w && await act({ action: "fee", placeId: w.id, feeStatus: "WAIVED", reason }, "Fee waived.")) setWaiving(null); }}
       onCancel={() => setWaiving(null)}
     />
   </div>;

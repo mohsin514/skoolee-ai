@@ -78,7 +78,7 @@ export function FamilyPickups({ studentId, addRequest, hideAdd = false }: { stud
       description={withdrawing ? ui("{0} can no longer collect your child with this code. You can authorize a pickup again at any time.", [withdrawing.recipientName]) : ""}
       confirmLabel={ui("Withdraw")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={() => { const item = withdrawing; setWithdrawing(null); if (item) void run(() => call("/api/pickup", "POST", { action: "revoke", id: item.id }), "Withdrawn. This code can no longer be used."); }}
+      onConfirm={async () => { const item = withdrawing; if (item && await run(() => call("/api/pickup", "POST", { action: "revoke", id: item.id }), "Withdrawn. This code can no longer be used.")) setWithdrawing(null); }}
       onCancel={() => setWithdrawing(null)}
     />
     {open ? <Modal title={ui("Authorize a pickup")} onClose={() => setOpen(false)}>
@@ -222,7 +222,7 @@ function Restrictions() {
         description={lifting ? ui("Gate staff will no longer see \"{0}\" and a valid pickup code can release this pupil again. The restriction stays in the history.", [lifting.instruction]) : ""}
         confirmLabel={ui("Lift restriction")}
         cancelLabel={ui("Keep editing")}
-        onConfirm={() => { const r = lifting; if (!r) return; setLiftBusy(true); void call("/api/pickup/restrictions", "POST", { action: "lift", id: r.id }).then(() => { toast.success(ui("Restriction lifted.")); setLifting(null); return open(student); }).catch(e => toast.error(ui(e instanceof Error ? e.message : "The change was not saved."))).finally(() => setLiftBusy(false)); }}
+        onConfirm={() => { const r = lifting; if (!r) return; setLiftBusy(true); return call("/api/pickup/restrictions", "POST", { action: "lift", id: r.id }).then(() => { toast.success(ui("Restriction lifted.")); setLifting(null); return open(student); }).catch(e => toast.error(ui(e instanceof Error ? e.message : "The change was not saved."))).finally(() => setLiftBusy(false)); }}
         onCancel={() => setLifting(null)}
       />
       <div className="grid gap-2 sm:grid-cols-3"><FormField name="pg-kind" label={ui("Restriction")}><Select value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>{["LEAD_APPROVAL", "DO_NOT_RELEASE", "CUSTODY_ORDER"].map(k => <option key={k} value={k}>{kindLabel(k)}</option>)}</Select></FormField><FormField name="pg-instr" label={ui("What gate staff should do")}><Input value={form.instruction} onChange={e => setForm({ ...form, instruction: e.target.value })} /></FormField><FormField name="pg-reason" label={ui("Reason (leaders only)")}><Input value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })} /></FormField></div>
