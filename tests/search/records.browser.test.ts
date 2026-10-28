@@ -198,16 +198,14 @@ test("the principal's staff search lists teachers only, since the academic conso
   assert.ok(staff.rows.every(row => row.title === "Synthetic teacher"), staff.rows.map(row => row.title).join(","));
 });
 
-test("a role without record search sees an access notice on /search, never a Retry", async () => {
+test("a role without record search is redirected to its dashboard, never a Retry", async () => {
   const page = await (await context("teacher")).newPage(), errors: string[] = [];
   page.on("pageerror", collectPageError(errors));
   await page.goto(`${base}/search?q=Synthetic`);
-  await page.waitForLoadState("networkidle");
-  // P2 may send these roles home instead (§6.3); either way they never see a retry loop.
-  if (new URL(page.url()).pathname === "/search") {
-    await page.getByText("Record search is not part of your workspace.").first().waitFor({ timeout: 30_000 });
-    assert.equal(await page.getByRole("button", { name: /^(Retry|Try again)$/ }).count(), 0);
-  }
+  // The server redirect can arrive after the streamed /search shell. Wait for
+  // the destination instead of branching on a transient URL during navigation.
+  await page.waitForURL(url => url.pathname === "/teacher");
+  assert.equal(await page.getByRole("button", { name: /^(Retry|Try again)$/ }).count(), 0);
   assert.deepEqual(errors, []);
   await page.close();
 });

@@ -1,6 +1,7 @@
 import { PrismaClient, UserRole, AttendanceStatus, InvoiceStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { TENANT_MODELS } from "../src/lib/db/tenant-models";
+import { assertSeedAllowed, seedSecret } from "./seed-guard";
 
 /** Set once the demo school exists, then stamped onto every tenant-scoped row
  *  the seed writes. The seed predates the school_id migration and threads only
@@ -269,8 +270,11 @@ const SPECIALTY_INDEX: Record<string, number> = {
 const TEACHER_FIRST = ["Mohammad", "Abdul", "Syed", "Muhammad", "Khalid", "Naveed", "Aamir", "Zeeshan", "Kamran", "Javed"] as const;
 
 async function seedUsers(schoolId: string, campusId: string, campusIdx: number) {
-  const adminPassword = await bcrypt.hash("Admin@123", 10);
-  const ownerPassword = await bcrypt.hash("Hussain?512", 10);
+  // NFR-SEC-09: credentials come from the environment, never hardcoded here.
+  // Local/dev falls back to throwaway values (the guard has already proven we
+  // are off any internet-facing environment before we reach this point).
+  const adminPassword = await bcrypt.hash(seedSecret(process.env, "SEED_DEMO_PASSWORD", "Admin@123"), 10);
+  const ownerPassword = await bcrypt.hash(seedSecret(process.env, "SEED_OWNER_PASSWORD", "ChangeMe!Local1"), 10);
 
   const owner = await upsertUser({
     email: "mohsin@skooleeai.com",
@@ -279,7 +283,7 @@ async function seedUsers(schoolId: string, campusId: string, campusIdx: number) 
     password: ownerPassword,
     schoolId,
   });
-  console.log(`  ✓ Owner: ${owner.email} / Hussain?512`);
+  console.log(`  ✓ Owner: ${owner.email} (password from SEED_OWNER_PASSWORD)`);
 
   // Super Admin is school-wide; attach to the first campus so dashboards load.
   const admin = await upsertUser({
@@ -290,7 +294,7 @@ async function seedUsers(schoolId: string, campusId: string, campusIdx: number) 
     schoolId,
     campusId: campusIdx === 0 ? campusId : undefined,
   });
-  if (campusIdx === 0) console.log(`  ✓ Super Admin: ${admin.email} / Admin@123`);
+  if (campusIdx === 0) console.log(`  ✓ Super Admin: ${admin.email} (password from SEED_DEMO_PASSWORD)`);
 
   // ── Per-campus leadership ──
   const campusAdmin = await upsertUser({
@@ -1277,7 +1281,10 @@ async function seedAIInsights(schoolId: string, campusId: string, campusName: st
 // ---------------------------------------------------------------------------
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  // NFR-SEC-09 (SKAI-947): fail closed before writing anything if this is an
+  // internet-facing environment. Demo seed accounts must never exist there.
+  const decision = assertSeedAllowed(process.env);
+  console.log(`🌱 Seeding database... (${decision.reason})`);
 
   const { school, campuses } = await seedSchool();
 
@@ -1308,8 +1315,11 @@ async function main() {
 
   console.log("\n✅ Seeding complete!");
   console.log("");
-  console.log("   Login accounts (password Admin@123 unless noted):");
-  console.log("   - mohsin@skooleeai.com      / Hussain?512  → App Owner console (/owner)");
+  console.log("   Demo login accounts (passwords are NOT printed — NFR-SEC-09):");
+  console.log("   Owner password  = $SEED_OWNER_PASSWORD (fallback ChangeMe!Local1 in local dev)");
+  console.log("   Demo password   = $SEED_DEMO_PASSWORD  (fallback Admin@123 in local dev)");
+  console.log("");
+  console.log("   - mohsin@skooleeai.com      → App Owner console (/owner)");
   console.log("   - admin@demo.com            → Super Admin (/super)");
   console.log("");
   console.log("   Main Campus (/admin):");

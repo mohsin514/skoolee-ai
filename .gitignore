@@ -98,3 +98,4 @@ docs/qa/evidence/*.sql
 /docs/qa/evidence/ui-plan/**/*.json
 /docs/qa/evidence/ui-plan/**/*.txt
 /docs/qa/evidence/ui-plan/**/*.log
+.tmp-prisma/
