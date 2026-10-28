@@ -1,6 +1,6 @@
 "use client";
 
-import { SplashVisual, splashCopy } from "@/components/SplashVisual";
+import { SplashVisual } from "@/components/SplashVisual";
 import { useDocumentLocale } from "@/hooks/use-document-locale";
 
 /**
@@ -15,12 +15,10 @@ import { useDocumentLocale } from "@/hooks/use-document-locale";
  */
 export function AppLoaderUI() {
   const { language, dir } = useDocumentLocale();
-  const t = splashCopy[language] ?? splashCopy.en;
+  // SplashVisual renders the single sr-only role="status" announcement itself, so the
+  // overlay wrapper stays a plain decorative container (no nested status region).
   return (
     <div
-      role="status"
-      aria-live="polite"
-      aria-label={t.loading}
       dir={dir}
       className="pointer-events-none fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto bg-background"
     >
