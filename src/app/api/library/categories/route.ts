@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -57,27 +58,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const existing = await prisma.bookCategory.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!existing) throw new ApiError("Category not found", 404);
-
-    const bookCount = await prisma.book.count({ where: { categoryId: id } });
-    if (bookCount > 0) throw new ApiError("Cannot delete category that has books assigned", 409);
-
-    await prisma.bookCategory.delete({ where: { id } });
-
-    return Response.json({ success: true, data: { id } });
-  } catch (error) {
-    return errorResponse(error, "[library] DELETE categories failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "library/categories");
 }

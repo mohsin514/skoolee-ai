@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -99,33 +100,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) throw new ApiError("Category id is required", 400);
-
-    const category = await prisma.studentCategory.findFirst({
-      where: { id, ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? null : user.campusId) },
-      include: { _count: { select: { students: true } } },
-    });
-    if (!category) throw new ApiError("Category not found", 404);
-
-    // Block deletion while any student references the tag — discounts (Module 2)
-    // will add their own reference check here too.
-    if (category._count.students > 0) {
-      throw new ApiError(
-        `This category is used by ${category._count.students} student${category._count.students === 1 ? "" : "s"}. Move them to another category before deleting it.`,
-        409
-      );
-    }
-
-    await prisma.studentCategory.delete({ where: { id } });
-
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[student-categories] DELETE failed");
-  }
+  return operationDeleteResponse(req, "student-categories");
 }

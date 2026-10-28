@@ -227,7 +227,7 @@ function CancelDialog({ stay, onClose, onDone }: { stay: Stay; onClose: () => vo
   return <ConfirmAction open title={ui("Cancel this reservation?")} tone="warning" busy={busy} confirmLabel={ui("Cancel reservation")} cancelLabel={ui("Keep it")}
     description={ui("{0} will no longer be expected in room {1} from {2}. The cancelled reservation stays in history.", [stay.student.fullName, stay.roomNumber, formatDate(stay.startDate)])}
     detail={<div className="space-y-2"><label htmlFor="dorm-cancel-reason" className="block text-xs font-semibold">{ui("Reason")}</label><Input id="dorm-cancel-reason" value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /><ErrorLine error={error} /></div>}
-    onConfirm={() => { if (reason.trim().length < 3) { setError(ui("Give a reason for cancelling.")); return; } void run({ action: "cancel", id: stay.id, reason: reason.trim() }, "Reservation cancelled."); }}
+    onConfirm={() => { if (reason.trim().length < 3) { setError(ui("Give a reason for cancelling.")); return; } return run({ action: "cancel", id: stay.id, reason: reason.trim() }, "Reservation cancelled."); }}
     onCancel={onClose} />;
 }
 

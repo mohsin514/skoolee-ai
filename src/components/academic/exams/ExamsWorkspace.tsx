@@ -890,7 +890,6 @@ function ResultsStep({
   const firstPublishable = lead ? session.classes.find((c) => RESULT_ACTIONS[c.status]?.next === "PUBLISHED")?.examId ?? null : null;
 
   const advance = async (cls: SessionClass, status: string) => {
-    setConfirmPublish(null);
     setBusy(cls.examId);
     try {
       // Locking has its own endpoint (it freezes marks and generates this exam's result cards; G30 decides who
@@ -909,6 +908,7 @@ function ResultsStep({
         : status === "LOCKED"
           ? ui("Marks locked for {0}", [classLabel(cls)])
           : ui("{0} marked as reviewed", [classLabel(cls)]));
+      setConfirmPublish(null);
       onChanged();
     } catch (e) {
       toast.error(friendlyErrorMessage(e, ui("Could not update this exam")));
@@ -1044,7 +1044,7 @@ function ResultsStep({
         tone="warning"
         busy={confirmPublish !== null && busy === confirmPublish.examId}
         onCancel={() => setConfirmPublish(null)}
-        onConfirm={() => { if (confirmPublish) void advance(confirmPublish, "PUBLISHED"); }}
+        onConfirm={() => { if (confirmPublish) return advance(confirmPublish, "PUBLISHED"); }}
       />
     </div>
   );

@@ -532,7 +532,7 @@ export function StudentDetailModal({ student, onClose }: { student: any; exams?:
 
 export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks, onClose, onSend, onGenerateRemarks, onSaveRemarks }: {
   report: any; busy: boolean; remarkBusy: string | null; savingRemarks?: boolean;
-  onClose: () => void; onSend: () => void;
+  onClose: () => void; onSend: () => Promise<boolean | undefined>;
   onGenerateRemarks?: (studentId: string, examId: string) => void;
   onSaveRemarks?: (remarks: { en: string; ur: string }) => void | Promise<void>;
 }) {
@@ -954,7 +954,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
       confirmLabel={ui("Send to guardian")}
       cancelLabel={ui("Keep editing")}
       busy={busy}
-      onConfirm={() => { setConfirmSend(false); onSend(); }}
+      onConfirm={async () => { if (await onSend()) setConfirmSend(false); }}
       onCancel={() => setConfirmSend(false)}
     />
     </>

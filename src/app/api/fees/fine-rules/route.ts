@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -74,23 +75,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "fees", "delete");
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feeFineRule.findFirst({ where: { id, ...scopedCampusWhere(user) } });
-    if (!existing) throw new ApiError("Fine rule not found", 404);
-
-    await prisma.$transaction(async (tx) => {
-      await tx.feeFineRule.delete({ where: { id } });
-      await writeAuditEvent(tx, user, { table: "fee_fine_rules", recordId: id, action: "DELETE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, graceDays: existing.graceDays, isActive: existing.isActive } });
-    });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/fine-rules] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/fine-rules");
 }
