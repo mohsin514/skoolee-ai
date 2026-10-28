@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -81,30 +82,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "fees", "delete");
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feeCarryForward.findFirst({
-      where: { id, student: { campus: { schoolId: user.schoolId } } },
-    });
-    if (!existing) throw new ApiError("Carry-forward not found", 404);
-
-    await prisma.$transaction(async (tx) => {
-      // SKO-389: a credit created by a recorded overpayment, or a balance already carried onto invoices,
-      // is financial history; it changes only through a finance correction.
-      if (existing.balance < 0) throw new ApiError("This is a credit from a recorded payment. Change it through a finance correction instead of deleting it.", 409);
-      const applied = await tx.invoice.count({ where: { studentId: existing.studentId, carryForwardAmount: { not: 0 } } });
-      if (applied) throw new ApiError(`This balance has already been carried onto ${applied} invoice(s). Change it through a finance correction instead of deleting it.`, 409);
-      await tx.feeCarryForward.delete({ where: { id } });
-      await writeAuditEvent(tx, user, { table: "fee_carry_forwards", recordId: id, action: "DELETE", campusId: existing.campusId, before: { studentId: existing.studentId, fromAcademicYear: existing.fromAcademicYear, toAcademicYear: existing.toAcademicYear, balance: existing.balance, currency: existing.currency } });
-    });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/carry-forwards] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/carry-forwards");
 }

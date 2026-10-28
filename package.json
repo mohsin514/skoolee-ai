@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "pnpm run test:authz && pnpm run test:navigation && pnpm run test:notifications && pnpm run test:tour && pnpm run test:locale && pnpm run test:commercial",
+    "test": "pnpm run test:authz && pnpm run test:navigation && pnpm run test:notifications && pnpm run test:tour && pnpm run test:locale && pnpm run test:commercial && pnpm run test:deployment",
     "check:ui": "node --import tsx --test tests/design-system/adoption.test.ts",
     "check:capabilities": "node --import ./tests/support/server-only.mjs --import tsx scripts/ai-workflows/check-capabilities.ts",
     "test:navigation": "node --import ./tests/support/server-only.mjs --import tsx --test \"tests/navigation/*.test.{ts,tsx}\"",
@@ -56,7 +56,9 @@
     "test:support-access:local": "tsx scripts/sko-215-local-acceptance.ts",
     "test:support-ui:local": "tsx scripts/sko-215-ui-acceptance.ts",
     "test:school-ai:load": "node --import tsx scripts/school-ai-exam-load.ts",
-    "calibrate:school-ai": "node --import tsx scripts/school-ai-calibration.ts"
+    "calibrate:school-ai": "node --import tsx scripts/school-ai-calibration.ts",
+    "test:deployment": "node --test tests/deployment/*.test.mjs",
+    "smoke:deployment": "node scripts/deployment/smoke.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

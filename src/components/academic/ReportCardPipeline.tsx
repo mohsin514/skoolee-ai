@@ -610,7 +610,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
         cancelLabel={ui("Keep editing")}
         tone="warning"
         busy={busy}
-        onConfirm={() => void action("publish")}
+        onConfirm={() => action("publish")}
         onCancel={() => setPending(null)}
       />
       <ConfirmAction
@@ -621,7 +621,7 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
         cancelLabel={ui("Keep editing")}
         tone="primary"
         busy={busy}
-        onConfirm={() => void action("send")}
+        onConfirm={() => action("send")}
         onCancel={() => setPending(null)}
       />
     </section>

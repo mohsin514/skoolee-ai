@@ -1,0 +1,18 @@
+{
+  "checkedAt": "2026-10-28T10:17:31.672Z",
+  "origin": "https://dev.skooleeai.com",
+  "scope": "Public login and anonymous session denial only; no capability or deployed-commit certification.",
+  "passed": false,
+  "checks": [
+    {
+      "path": "/login",
+      "passed": false,
+      "error": "Request timed out, failed, or returned invalid content."
+    },
+    {
+      "path": "/api/auth/session",
+      "status": 401,
+      "passed": true
+    }
+  ]
+}

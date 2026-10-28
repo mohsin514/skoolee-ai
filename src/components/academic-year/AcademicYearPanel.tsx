@@ -164,7 +164,8 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
       toast.success(json.message);
       await load();
       openPromotionWizard();
-    } catch (err: any) { toast.error(err.message); }
+      return true;
+    } catch (err: any) { toast.error(err.message); return false; }
     finally { setClosing(false); }
   }, [campusId, load]);
 
@@ -321,7 +322,7 @@ export function AcademicYearPanel({ campusId }: { campusId?: string }) {
         confirmLabel={ui("Close year")}
         busy={closing}
         onCancel={() => setConfirmCloseYear(null)}
-        onConfirm={() => { const y = confirmCloseYear; setConfirmCloseYear(null); if (y !== null) void handleCloseYear(y); }}
+        onConfirm={async () => { const y = confirmCloseYear; if (y !== null && await handleCloseYear(y)) setConfirmCloseYear(null); }}
       />
       <div className="flex flex-wrap gap-3">
         <BrandButton variant="dark" icon={<ArrowRight className="w-4 h-4 rtl:rotate-180" />} onClick={() => openPromotionWizard()}>

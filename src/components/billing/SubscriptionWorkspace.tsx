@@ -558,7 +558,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
         requireReason={{ label: t("Reason for billing review"), minLength: 10 }}
         busy={busy === "cancel"}
         onCancel={() => { setConfirm(null); setCancelPreview(null); }}
-        onConfirm={(reason?: string) => void confirmRequest(reason)}
+        onConfirm={(reason?: string) => confirmRequest(reason)}
       />
       <ConfirmAction
         open={confirm === "refund"}
@@ -570,7 +570,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
         requireReason={{ label: t("Reason for billing review"), minLength: 10 }}
         busy={busy === "refund"}
         onCancel={() => setConfirm(null)}
-        onConfirm={(reason?: string) => void confirmRequest(reason)}
+        onConfirm={(reason?: string) => confirmRequest(reason)}
       />
       <ConfirmAction
         open={confirm === "grace"}
@@ -587,7 +587,7 @@ export function SubscriptionWorkspace({ showHeader = true }: { showHeader?: bool
         requireReason={{ label: t("Reason for billing review"), minLength: 10 }}
         busy={busy === "grace"}
         onCancel={() => { setConfirm(null); setGraceUntil(""); }}
-        onConfirm={(reason?: string) => { if (!graceUntil) { toast.error(t("Choose the date you will pay by.")); return; } void confirmRequest(reason); }}
+        onConfirm={(reason?: string) => { if (!graceUntil) { toast.error(t("Choose the date you will pay by.")); return; } return confirmRequest(reason); }}
       />
     </div>
   );

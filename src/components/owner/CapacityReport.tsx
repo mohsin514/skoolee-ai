@@ -197,7 +197,7 @@ export function CapacityReport() {
       requireReason={{ label: ui("Why revert this change?"), minLength: 5 }}
       busy={revertBusy}
       onCancel={() => setReverting(null)}
-      onConfirm={(reason?: string) => void revert(reason)}
+      onConfirm={(reason?: string) => revert(reason)}
     />
   </div>;
 }
