@@ -150,12 +150,14 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
       if (json.success) {
         toast.success(tr(json.message || "Structure deactivated"));
         loadData();
+        return true;
       } else {
         toast.error(tr(json.error || "Failed to deactivate"));
       }
     } catch {
       toast.error(tr("Failed to deactivate structure"));
     }
+    return false;
   };
 
   const activeStructures = structures.filter(
@@ -282,7 +284,7 @@ function StructureCard({
 }: {
   structure: FeeStructure;
   onEdit: () => void;
-  onDeactivate: () => void;
+  onDeactivate: () => Promise<boolean>;
 }) {
   const { money: formatPKR, date } = useLocaleFormat();
   const tr = useUiText();
@@ -316,7 +318,7 @@ function StructureCard({
             open={confirmOpen}
             title={tr("Deactivate this fee structure?")}
             description={tr("This will deactivate the fee structure for {0}. Existing invoices won't be affected.", [classLabel(fs.class.name, fs.class.section)])}
-            onConfirm={() => { setConfirmOpen(false); onDeactivate(); }}
+            onConfirm={async () => { if (await onDeactivate()) setConfirmOpen(false); }}
             onCancel={() => setConfirmOpen(false)}
             tone="danger"
             confirmLabel={tr("Deactivate")}

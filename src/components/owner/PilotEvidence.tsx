@@ -327,7 +327,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
         cancelLabel={ui("Keep editing")}
         requireReason={{ label: ui("Why exclude this observation?"), minLength: 5 }}
         onCancel={() => setExcluding(null)}
-        onConfirm={(reason?: string) => { const target = excluding; if (!target || !reason?.trim()) return; void act("exclude", { observationId: target.id, reason: reason.trim() }, "Observation excluded.").then(() => setExcluding(null)); }}
+        onConfirm={(reason?: string) => { const target = excluding; if (!target || !reason?.trim()) return; return act("exclude", { observationId: target.id, reason: reason.trim() }, "Observation excluded.").then(saved => { if (saved) setExcluding(null); }); }}
       />
     </section>
   );
