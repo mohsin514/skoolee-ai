@@ -72,7 +72,7 @@ export class SetupCompletionError extends Error {
 }
 
 type SetupRow = NonNullable<Awaited<ReturnType<typeof prisma.institutionSetup.findUnique>>>;
-type SchoolRow = { id: string; name: string; city: string; contactEmail: string; phone: string | null; regId: string; plan: string; registrationKind: string; commercialContract: Prisma.JsonValue };
+type SchoolRow = { id: string; name: string; city: string; contactEmail: string; phone: string | null; regId: string; registrationKind: string; registrationIdMode: string; plan: string; commercialContract: Prisma.JsonValue };
 
 export interface SetupActor {
   kind: "owner" | "delegate";
@@ -81,7 +81,7 @@ export interface SetupActor {
   school: SchoolRow;
 }
 
-const schoolSelect = { id: true, name: true, city: true, contactEmail: true, phone: true, regId: true, plan: true, registrationKind: true, commercialContract: true } as const;
+const schoolSelect = { id: true, name: true, city: true, contactEmail: true, phone: true, regId: true, plan: true, registrationKind: true, registrationIdMode: true, commercialContract: true } as const;
 
 function initialDraft(school: SchoolRow, ownerPhone: string | null, country: string): SetupDraft {
   const year = new Date().getFullYear();
@@ -93,6 +93,7 @@ function initialDraft(school: SchoolRow, ownerPhone: string | null, country: str
       email: school.contactEmail,
       phone: school.phone || ownerPhone || "",
       regId: school.regId,
+      autoId: school.registrationIdMode !== "manual",
       primaryCampusRegId: `BR-${randomBytes(3).toString("hex").slice(0, 4).toUpperCase()}`,
       timezone: "",
       academicYear: String(year),
