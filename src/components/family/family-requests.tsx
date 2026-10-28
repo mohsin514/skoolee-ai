@@ -127,6 +127,13 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
   const [rows, setRows] = useState<Trip[] | null>(null), [review, setReview] = useState<{ trip: Trip; choice: "GRANTED" | "DECLINED" | "WITHDRAWN"; key: string } | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false), [receipt, setReceipt] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
+  const reviewKey = `skoolee:family-trip-review:${studentId}`;
+  const openReview = (trip: Trip, choice: "GRANTED" | "DECLINED" | "WITHDRAWN") => {
+    const next = { tripId: trip.tripId, version: trip.version.version, choice, key: key() };
+    try { sessionStorage.setItem(reviewKey, JSON.stringify(next)); } catch { /* The confirmation remains usable in memory. */ }
+    setReview({ trip, choice, key: next.key });
+  };
+  const clearReview = () => { try { sessionStorage.removeItem(reviewKey); } catch { /* */ } setReview(null); };
   const load = useCallback(async () => {
     const version = ++sequence.current;
     setLoadFailed(null);
@@ -136,6 +143,17 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
     } catch (failure) { if (version === sequence.current) { setRows(null); setLoadFailed(requestFailure(failure)); } }
   }, [studentId]);
   useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
+  useEffect(() => {
+    if (!rows || review) return;
+    try {
+      const raw = sessionStorage.getItem(reviewKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { tripId?: string; version?: number; choice?: "GRANTED" | "DECLINED" | "WITHDRAWN"; key?: string };
+      const trip = rows.find(item => item.tripId === saved.tripId && item.version.version === saved.version);
+      if (trip && saved.choice && saved.key) setReview({ trip, choice: saved.choice, key: saved.key });
+      else sessionStorage.removeItem(reviewKey);
+    } catch { try { sessionStorage.removeItem(reviewKey); } catch { /* */ } }
+  }, [rows, review, reviewKey]);
   const money = (amount: number, currency: string) => new Intl.NumberFormat(language === "ar" ? "ar" : language === "ur" ? "ur" : "en", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
   const confirm = async () => {
     if (!review) return;
@@ -144,7 +162,7 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
       const response = await fetch("/api/family/trips", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: review.trip.tripId, studentId, version: review.trip.version.version, choice: review.choice, idempotencyKey: review.key }) });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) { setError(ui(json.error || "Your answer was not recorded.")); if (response.status === 409) void load(); return; }
-      setReceipt(json.data.receiptCode); setReview(null); void load();
+      setReceipt(json.data.receiptCode); clearReview(); void load();
     } finally { setBusy(false); }
   };
   if (loadFailed) return <section className="sk-panel p-5" data-guardian-trips><ErrorState error={loadFailed} onRetry={load} /></section>;
@@ -171,17 +189,17 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
         : trip.deadlinePassed && !answered ? <p className="text-xs font-semibold text-ink" data-trip-expired>{ui("The time to answer has passed. Contact the school.")}</p>
         : <div className="flex flex-wrap gap-2">
             {!answered || answered.choice === "WITHDRAWN" ? <>
-              <Button onClick={() => setReview({ trip, choice: "GRANTED", key: key() })} data-trip-choice="GRANTED">{ui("Give permission")}</Button>
-              <Button variant="outline" onClick={() => setReview({ trip, choice: "DECLINED", key: key() })} data-trip-choice="DECLINED">{ui("Refuse permission")}</Button>
-            </> : answered.choice === "GRANTED" && !trip.departed ? <Button variant="outline" onClick={() => setReview({ trip, choice: "WITHDRAWN", key: key() })} data-trip-choice="WITHDRAWN">{ui("Withdraw permission")}</Button> : null}
+              <Button onClick={() => openReview(trip, "GRANTED")} data-trip-choice="GRANTED">{ui("Give permission")}</Button>
+              <Button variant="outline" onClick={() => openReview(trip, "DECLINED")} data-trip-choice="DECLINED">{ui("Refuse permission")}</Button>
+            </> : answered.choice === "GRANTED" && !trip.departed ? <Button variant="outline" onClick={() => openReview(trip, "WITHDRAWN")} data-trip-choice="WITHDRAWN">{ui("Withdraw permission")}</Button> : null}
           </div>}
     </article>; })}
-    {review ? <Modal size="sm" title={ui("Confirm your answer")} eyebrow={ui("Trip permission")} subtitle={review.trip.version.title} onClose={() => setReview(null)}>
+    {review ? <Modal size="sm" title={ui("Confirm your answer")} eyebrow={ui("Trip permission")} subtitle={review.trip.version.title} onClose={clearReview}>
       <div className="space-y-3" data-trip-review>
         {error ? <Alert tone="danger" compact data-trip-review-error>{error}</Alert> : null}
         <Alert tone={review.choice === "GRANTED" ? "success" : "danger"} compact live="off"><span className="font-semibold">{choiceLabel(ui, review.choice)}</span></Alert>
         <p className="text-sm">{ui("Your answer applies to version {0} of these terms. If the school changes them, you will be asked again.", [String(review.trip.version.version)])}</p>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} loading={busy} onClick={() => void confirm()} data-trip-confirm>{ui("Confirm my answer")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={clearReview}>{ui("Back")}</Button><Button disabled={busy} loading={busy} onClick={() => void confirm()} data-trip-confirm>{ui("Confirm my answer")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
