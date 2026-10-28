@@ -52,11 +52,15 @@ export type SeedEnvDecision = {
   envName: string;
 };
 
+// A seed environment may omit NODE_ENV; the standalone script defaults it below.
+// Do not require Next.js's augmented ProcessEnv shape for partial test inputs.
+type SeedEnv = Readonly<Record<string, string | undefined>>;
+
 /**
  * Decide whether seeding is permitted in the current environment.
  * Pure function of `env` so it is unit-testable without a live process.
  */
-export function evaluateSeedEnv(env: NodeJS.ProcessEnv): SeedEnvDecision {
+export function evaluateSeedEnv(env: SeedEnv): SeedEnvDecision {
   const envName = (
     env.APP_ENV ||
     env.VERCEL_ENV ||
@@ -123,7 +127,7 @@ export function evaluateSeedEnv(env: NodeJS.ProcessEnv): SeedEnvDecision {
 }
 
 /** Throws (fails closed) when the current environment must not be seeded. */
-export function assertSeedAllowed(env: NodeJS.ProcessEnv = process.env): SeedEnvDecision {
+export function assertSeedAllowed(env: SeedEnv = process.env): SeedEnvDecision {
   const decision = evaluateSeedEnv(env);
   if (!decision.allowed) {
     throw new Error(
@@ -143,7 +147,7 @@ export function assertSeedAllowed(env: NodeJS.ProcessEnv = process.env): SeedEnv
  * proven we are off any internet-facing environment.
  */
 export function seedSecret(
-  env: NodeJS.ProcessEnv,
+  env: SeedEnv,
   key: string,
   localFallback: string,
 ): string {
