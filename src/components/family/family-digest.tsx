@@ -1,5 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useFetch } from "@/hooks";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,10 +140,13 @@ type GuardianDigest = { id: string; weekStart: string; version: number; content:
 export function GuardianDigest({ studentId }: { studentId: string }) {
   const ui = useUiText();
   const { date } = useLocaleFormat();
-  const [rows, setRows] = useState<GuardianDigest[] | null>(null), [index, setIndex] = useState(0);
-  useEffect(() => { let live = true; fetch(`/api/family/digests?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" }).then(r => r.json()).then(json => { if (live) setRows(json.success ? json.data : []); }).catch(() => live && setRows([])); return () => { live = false; }; }, [studentId]);
+  const { data: rows, failure, isLoading, refetch } = useFetch<GuardianDigest[]>(`/api/family/digests?studentId=${encodeURIComponent(studentId)}`, { collection: true });
+  const [index, setIndex] = useState(0);
+  useEffect(() => { setIndex(0); }, [studentId]);
+  if (isLoading) return <SkeletonList rows={2} label={ui("Loading…")} />;
+  if (failure) return <ErrorState error={failure} onRetry={refetch} />;
   if (!rows || !rows.length) return null;
-  const current = rows[index];
+  const current = rows[Math.min(index, rows.length - 1)];
   return <section className="sk-panel space-y-3 p-5" data-guardian-digest={current.id}>
     <div className="flex items-center justify-between gap-2"><h3 className="text-base font-bold text-ink-strong">{ui("Weekly update")}</h3>{rows.length > 1 ? <div className="flex gap-1"><Button size="sm" variant="outline" disabled={index >= rows.length - 1} onClick={() => setIndex(index + 1)}>{ui("Earlier")}</Button><Button size="sm" variant="outline" disabled={index === 0} onClick={() => setIndex(index - 1)}>{ui("Later")}</Button></div> : null}</div>
     <DigestCard ui={ui} weekStart={current.weekStart} content={current.content} reviewedBy={current.reviewedBy} formatDate={date} />

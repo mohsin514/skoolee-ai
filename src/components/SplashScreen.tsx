@@ -33,24 +33,17 @@ const copy: Record<Language, { eyebrow: string; loading: string; opening: string
 type Intro = 'pending' | 'wake' | 'calm';
 
 /**
- * The entry beat for `/`, which then hands over to `/login`.
- *
- * Two things used to go wrong at the hand-over, and both showed up as a blink:
- *
- *  1. The overlay removed itself (`setIsVisible(false)`) in the same callback
- *     that started the navigation. `router.replace` is asynchronous — it has to
- *     fetch the RSC payload and the login chunk — so the overlay was gone for
- *     however long that took, exposing the bare page underneath.
- *  2. Nothing warmed `/login` up first, so that fetch only began at the moment
- *     it was needed.
- *
- * Now the route is prefetched the instant this mounts, and the overlay is never
- * hidden by hand. It lets the router's own client-side transition do the swap:
- * with no `loading.tsx` in the tree, React keeps this subtree on screen until
- * `/login` is ready to commit, then exchanges the two in a single paint.
- *
- * The overlay is transparent, so the shared body canvas (lilac glow and dot
- * grid) is the ground of both the splash's last frame and login's first.
+ * `landing`  — the entry beat for `/`, which hands over to `/login` (default).
+ * `hold`     — the same beat with no navigation and no end; the caller unmounts it
+ *              (the hard-reload BootSplash wrapper, the setLoading overlay).
+ */
+export type SplashMode = 'landing' | 'hold';
+
+/**
+ * THE one splash. This single component's design is used everywhere a loader
+ * shows — first landing on `/`, a hard reload of any screen, and the long
+ * client-side `setLoading(true)` overlay — so there is exactly one splash
+ * design in the app, not a landing one and look-alikes.
  *
  * The face is the live Skoolee mascot. On a first launch it wakes: lids open
  * from closed through drowsy, the cap drops on, the pupils scan and settle,
@@ -59,10 +52,27 @@ type Intro = 'pending' | 'wake' | 'calm';
  * the wordmark is visible from the first paint and the wake continues from
  * exactly that frame instead of open eyes snapping shut at hydration.
  *
- * `/` is also left out of history (`replace`, not `push`) so Back from the login
- * screen leaves the app instead of replaying this.
+ * In `landing` mode (`/`): `/login` is prefetched on mount and the overlay is
+ * never hidden by hand — the router's own client-side transition swaps the two
+ * in a single paint (no `loading.tsx` in the tree keeps this subtree on screen
+ * until `/login` commits). `/` is left out of history (`replace`, not `push`)
+ * so Back from login leaves the app instead of replaying this. The caller's
+ * overlay is transparent, so the shared body canvas is the ground of both the
+ * splash's last frame and login's first.
+ *
+ * In `hold` mode: the beat plays once, then `onDone` fires (the hard-reload
+ * wrapper fades and unmounts). An indeterminate caller (`setLoading`) omits
+ * `onDone` and the stroke simply holds full while the operation runs.
  */
-export default function SplashScreen({ language = 'en' }: { language?: Language }) {
+export default function SplashScreen({
+  language = 'en',
+  mode = 'landing',
+  onDone,
+}: {
+  language?: Language;
+  mode?: SplashMode;
+  onDone?: () => void;
+}) {
   const t = copy[language];
   const router = useRouter();
   const [progress, setProgress] = useState(0);
@@ -73,12 +83,12 @@ export default function SplashScreen({ language = 'en' }: { language?: Language 
   // a loader and a frozen screen.
   const [isPending, startTransition] = useTransition();
   const [slow, setSlow] = useState(false);
-  const handingOver = leaving && isPending;
+  const handingOver = mode === 'landing' && leaving && isPending;
   const stalled = handingOver && slow;
 
   useEffect(() => {
-    router.prefetch('/login');
-  }, [router]);
+    if (mode === 'landing') router.prefetch('/login');
+  }, [router, mode]);
 
   // One rAF loop drives both the bar and the clock, so the two can't disagree
   // the way a CSS keyframe and a JS timer did.
@@ -108,8 +118,12 @@ export default function SplashScreen({ language = 'en' }: { language?: Language 
 
   useEffect(() => {
     if (!leaving) return;
-    startTransition(() => router.replace('/login'));
-  }, [leaving, router, startTransition]);
+    if (mode === 'landing') {
+      startTransition(() => router.replace('/login'));
+    } else {
+      onDone?.();
+    }
+  }, [leaving, mode, router, startTransition, onDone]);
 
   useEffect(() => {
     if (!handingOver) return;
@@ -142,46 +156,42 @@ export default function SplashScreen({ language = 'en' }: { language?: Language 
 
   return (
     // Scrolls rather than clips if the column ever outgrows the screen (200% text in a landscape phone).
-    <div className="fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto">
-      {/* pt-6 is the cap's headroom: the cap sits above the wordmark's box, so
-          without it the group reads high and a very short screen clips the cap. */}
-      <div className="flex w-full flex-col items-center px-6 pt-6 text-center">
-        {/* The one face: the same wordmark login opens with, awake. */}
-        <div className="sk-rise">{face}</div>
+    <div className="flex w-full flex-col items-center px-6 pt-6 text-center">
+      {/* The one face: the same wordmark login opens with, awake. */}
+      <div className="sk-rise">{face}</div>
 
-        {/* Login opens with an ink swash under the same wordmark. Here that
-            swash writes itself over its own faint guide as the progress bar,
-            so the element the eye is resting on carries the loading state. */}
-        <div className="sk-enter" style={delay(90)}>
-          <div
-            role="progressbar"
-            aria-label={t.loading}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={pct}
-            className="relative mt-4 w-[min(220px,64vw)]"
-          >
-            <InkRule width="100%" className="absolute inset-x-0 top-0 opacity-15" />
-            <InkRule progress={progress} width="100%" className="relative block" />
-            {/* A soft light travels along the ink while /login is still on its way.
-                It fades out on every side, so it reads only where it crosses the stroke. */}
-            {stalled && (
-              <span className="sk-shimmer pointer-events-none absolute -inset-y-2 start-0 w-1/2 bg-radial from-white/85 to-transparent to-70% rtl:-scale-x-100 motion-reduce:hidden" />
-            )}
-          </div>
+      {/* Login opens with an ink swash under the same wordmark. Here that
+          swash writes itself over its own faint guide as the progress bar,
+          so the element the eye is resting on carries the loading state. */}
+      <div className="sk-enter" style={delay(90)}>
+        <div
+          role="progressbar"
+          aria-label={t.loading}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={pct}
+          className="relative mt-4 w-[min(220px,64vw)]"
+        >
+          <InkRule width="100%" className="absolute inset-x-0 top-0 opacity-15" />
+          <InkRule progress={progress} width="100%" className="relative block" />
+          {/* A soft light travels along the ink while /login is still on its way.
+              It fades out on every side, so it reads only where it crosses the stroke. */}
+          {stalled && (
+            <span className="sk-shimmer pointer-events-none absolute -inset-y-2 start-0 w-1/2 bg-radial from-white/85 to-transparent to-70% rtl:-scale-x-100 motion-reduce:hidden" />
+          )}
         </div>
-
-        <div className="sk-enter mt-7" style={delay(160)}>
-          <AuthGreeting language={language} className="text-center text-lg font-semibold text-balance text-ink-strong" />
-          <p className="sk-eyebrow mt-1.5 text-primary">{t.eyebrow}</p>
-        </div>
-
-        {/* The percentage was the only status a screen reader got, and it read
-            out on every frame. One announcement, in words. */}
-        <span role="status" className="sr-only">
-          {pct < 100 ? t.loading : t.opening}
-        </span>
       </div>
+
+      <div className="sk-enter mt-7" style={delay(160)}>
+        <AuthGreeting language={language} className="text-center text-lg font-semibold text-balance text-ink-strong" />
+        <p className="sk-eyebrow mt-1.5 text-primary">{t.eyebrow}</p>
+      </div>
+
+      {/* The percentage was the only status a screen reader got, and it read
+          out on every frame. One announcement, in words. */}
+      <span role="status" className="sr-only">
+        {pct < 100 ? t.loading : t.opening}
+      </span>
     </div>
   );
 }

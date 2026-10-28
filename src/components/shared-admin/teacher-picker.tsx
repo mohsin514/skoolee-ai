@@ -2,7 +2,7 @@
 import { Button as SystemButton } from "@/components/ui/button";
 import { InputGroup } from "@/components/ui/input-group";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { AlertTriangle, Ban, Search, Sparkles, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,8 @@ import { AvatarImage } from "@/components/ui/avatar-image";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+
+import { checkedListJson, readRequest } from "@/lib/http/request-state";
 
 export interface PickerTeacher {
   id: string;
@@ -44,26 +46,22 @@ export function useTeacherAvailability(enabled = true) {
   const [availability, setAvailability] = useState<TeacherAvailability[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const sequence = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
-    setLoading(true);
+    const version = ++sequence.current;
+    setLoading(true); setFailed(false);
     try {
-      const res = await fetch("/api/teachers/availability", { cache: "no-store" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || "Teacher availability could not be loaded.");
-      setAvailability(json.data || []);
-      setFailed(false);
+      const json = await checkedListJson(await readRequest("/api/teachers/availability"));
+      if (version !== sequence.current) return;
+      setAvailability(json.data);
     } catch {
-      setFailed(true);
-    } finally {
-      setLoading(false);
-    }
+      if (version === sequence.current) { setAvailability([]); setFailed(true); }
+    } finally { if (version === sequence.current) setLoading(false); }
   }, [enabled]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { void refresh(); return () => { sequence.current++; }; }, [refresh]);
 
   return { availability, loading, failed, refresh };
 }

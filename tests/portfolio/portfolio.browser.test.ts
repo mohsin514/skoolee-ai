@@ -166,7 +166,7 @@ test("sharing is per guardian with current permission; revoke, expiry and lost p
   assert.equal((await call("parentA", "get", `/api/portfolio?share=${ids.share}`)).status, 404, "a revoked share does not open");
   assert.equal((await call("parentA", "get", `/api/portfolio/export?share=${ids.share}`)).status, 404, "nor its export");
   // Re-approve so the next shares are valid; then test expiry and lost permission.
-  let e = await db.portfolioEntry.findUniqueOrThrow({ where: { id: ids.e1 } });
+  const e = await db.portfolioEntry.findUniqueOrThrow({ where: { id: ids.e1 } });
   await call("teacher", "post", "/api/portfolio", { action: "review", entryId: ids.e1, knownVersion: e.version, decision: "approve", teacherComment: "Graph idea approved.", familyVisible: true });
   const s2 = (await call("teacher", "post", "/api/portfolio", { action: "share", studentId: ids.mira, guardianUserId: id("parentA"), entryIds: [ids.e1], days: 10 })).json.data.id;
   await db.portfolioShare.update({ where: { id: s2 }, data: { createdAt: new Date(Date.now() - 2 * DAY), expiresAt: new Date(Date.now() - 1000) } });

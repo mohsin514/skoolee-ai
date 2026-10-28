@@ -1,9 +1,10 @@
 "use client";
 
 import { Button as SystemButton } from "@/components/ui/button";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { BookMarked, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
@@ -49,26 +50,23 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
   const [pendingDelete, setPendingDelete] = useState<SyllabusTopic | null>(null);
   const [open, setOpen] = useState(false);
   // R4: a syllabus that did not load is an inline error with Retry, not a toast.
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const sequence = useRef(0);
 
   const fetchTopics = useCallback(async () => {
-    if (!subjectId) return;
-    setLoading(true);
+    const version = ++sequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const res = await fetch(`/api/subjects/${subjectId}/syllabus`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "");
+      const json = await checkedListJson(await readRequest(`/api/subjects/${subjectId}/syllabus`));
+      if (version !== sequence.current) return;
       setTopics(json.data || []);
-      setLoadFailed(false);
-    } catch {
-      setLoadFailed(true);
-    } finally {
-      setLoading(false);
-    }
+    } catch (failure) { if (version === sequence.current) { setTopics([]); setLoadFailed(requestFailure(failure)); } }
+    finally { if (version === sequence.current) setLoading(false); }
   }, [subjectId]);
 
   useEffect(() => {
-    fetchTopics();
+    void fetchTopics();
+    return () => { sequence.current++; };
   }, [fetchTopics]);
 
   const addTopic = async () => {
@@ -180,7 +178,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
       {open ? (
         <div className="mt-4 space-y-3">
           {loadFailed && !loading ? (
-            <ErrorState className="py-6" title={ui("The syllabus did not load")} onRetry={() => void fetchTopics()} retryLabel={ui("Try again")} />
+            <ErrorState error={loadFailed} className="py-6" title={ui("The syllabus did not load")} onRetry={fetchTopics} retryLabel={ui("Try again")} />
           ) : loading ? (
             <SkeletonRegion className="space-y-1.5" label={ui("Loading syllabus")}>
               <SkeletonBar className="h-9 w-full rounded-xl" />

@@ -138,10 +138,12 @@ export function PickupGate({ mode = "gate", hideHeader = false, command }: { mod
     finally { setBusy(false); void loadQueue(); }
   };
   const doScan = async (value = code) => { const data = await post({ action: "scan", code: value, gate }); if (data) { setCheck(data); setIdentity(false); setMethod(data.recipient?.idMethod ?? ""); setNote(""); } };
-  useEffect(() => { checkRef.current = () => {
-    if (code.trim().length >= 20 && !busy) { void doScan(); return; }
-    codeField.current?.querySelector("input")?.focus();
-  }; });
+  useEffect(() => {
+    checkRef.current = () => {
+      if (code.trim().length >= 20 && !busy) { void doScan(); return; }
+      codeField.current?.querySelector("input")?.focus();
+    };
+  });
   const readPhoto = async (file: File | undefined) => {
     if (!file) return;
     const Detector = (window as unknown as { BarcodeDetector?: new (o: unknown) => { detect: (s: unknown) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;

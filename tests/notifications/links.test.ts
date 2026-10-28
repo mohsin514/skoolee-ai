@@ -196,6 +196,7 @@ function school(people: Person[]) {
     async userName(id) { return people.find((p) => p.id === id) ? `Name of ${id}` : null; },
     async campusName(_school, campusId) { return `Campus ${campusId}`; },
   };
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- test harness helper, not a React hook
   const restore = useRecipientDirectory(directory, async (kind, payload) => {
     const recipients = await NOTIFICATION_EVENTS[kind]!.recipients(payload);
     notices.push({ kind, payload, recipients: recipients.filter((id) => id !== payload.actorId) });
@@ -347,6 +348,7 @@ function vacancyHarness(people: Person[]) {
       for (const row of rows) if (row.dedupeKey === `CAMPUS_OPS_VACANT:campus:${campusId}` && row.resolvedAt) row.resolvedAt = null;
     },
   };
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- test harness helper, not a React hook
   const restore = useRecipientDirectory(directory, async (kind, payload) => {
     const def = NOTIFICATION_EVENTS[kind]!;
     const source = def.source?.(payload);
