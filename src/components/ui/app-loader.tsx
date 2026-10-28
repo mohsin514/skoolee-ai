@@ -20,7 +20,7 @@ export function AppLoaderUI() {
   return (
     <div
       dir={dir}
-      className="pointer-events-none fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto bg-background"
+      className="pointer-events-none fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto sk-splash-surface"
     >
       <SplashVisual language={language} progress={1} entrance="wake" stalled />
     </div>
