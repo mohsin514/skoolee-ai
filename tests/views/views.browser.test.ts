@@ -151,7 +151,10 @@ test("teacher directory keeps search and class context across layouts",async()=>
 test("Arabic mobile calendar retains record identity and fits RTL",async()=>{
   const page=await (await context("ops-ar",{width:390,height:844})).newPage();
   await page.goto(`${base}/admin?view=students&view.students=calendar&sq=Synthetic%20Ada`);
-  await page.locator('[data-record-id]').waitFor();
+  // Arabic is the final browser case after several full admin navigations; the
+  // dev server may recycle its worker under the CI memory ceiling. Allow that
+  // restart to settle before asserting the rendered record.
+  await page.locator('[data-record-id]').waitFor({ timeout: 120_000 });
   assert.equal(await page.locator('html').getAttribute('dir'),"rtl");
   assert.equal(await page.locator('[data-record-id]').first().getAttribute('data-record-id'),pupils["Synthetic Ada"]);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
