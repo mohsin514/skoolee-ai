@@ -16,6 +16,8 @@ export function AppLoaderUI() {
   const { language, dir } = useDocumentLocale();
   return (
     <div
+      role="dialog"
+      aria-label="Loading Skoolee AI"
       aria-hidden="true"
       dir={dir}
       className="pointer-events-none fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto sk-splash-surface"

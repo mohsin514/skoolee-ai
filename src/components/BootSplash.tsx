@@ -38,6 +38,8 @@ export default function BootSplash() {
   return (
     <div
       data-boot-splash
+      role="dialog"
+      aria-label="Loading Skoolee AI"
       aria-hidden="true"
       className={`pointer-events-none fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto sk-splash-surface transition-opacity duration-300 ease-out ${phase === 'fading' ? 'opacity-0' : 'opacity-100'}`}
     >
