@@ -49,3 +49,5 @@ or payment is fabricated. Human code-owner review is required for migration/comm
 handling. Actual school execution, translated charter comprehension, independent review
 and real cycle evidence remain blockers; neither this PR nor synthetic tests close them.
 Never mark SKAI-832 Done or unblock SKAI-980 from test data. QA owns final acceptance.
+
+Local QA (2026-10-28, code 94cccee5): lint, types, full tests, build, five pilot tests and four isolated browser tests passed; EN/UR/AR, keyboard, 200% text and migration evidence are linked in PR #153. Human acceptance and deployment remain pending.
