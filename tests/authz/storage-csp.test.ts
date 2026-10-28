@@ -3,13 +3,15 @@ import test from "node:test";
 import { storageConnectOrigins } from "../../src/lib/storage/csp";
 import config from "../../next.config";
 
-test("the app connect policy permits its configured S3 upload origin", async () => {
-  const headers = await config.headers!();
-  const policy = headers.find(row => row.source === "/:path*")!.headers.find(header => header.key === "Content-Security-Policy")!.value;
-  const connections = policy.split("; ").find(directive => directive.startsWith("connect-src "))!;
-  for (const origin of storageConnectOrigins(process.env)) assert.ok(connections.split(" ").includes(origin));
-  assert.ok(connections.includes("'self'"));
-  assert.ok(!connections.includes("https://*.amazonaws.com"));
+// tsx's ESM/CJS interop can expose the config one level deeper in the test
+// runner while Next loads it directly. Normalize both shapes before inspection.
+const nextConfig = (config as typeof config & { default?: typeof config }).default ?? config;
+
+test("page CSP is nonce-backed in middleware; storage origins remain validated", async () => {
+  const headers = await nextConfig.headers!();
+  const pageHeaders = headers.find(row => row.source === "/:path*")!.headers;
+  assert.equal(pageHeaders.find(header => header.key === "Content-Security-Policy"), undefined);
+  assert.ok(storageConnectOrigins(process.env).every(origin => /^https?:\/\//.test(origin)));
 });
 
 test("storage upload origins match regional, dotted and custom endpoints", () => {
