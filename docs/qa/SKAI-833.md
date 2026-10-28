@@ -69,3 +69,17 @@ Use `src/lib/pilots/findings.ts` for paired baseline/follow-up analysis. A perce
 ## Closure evidence
 
 The ticket is ready for review only when the implementation commit, environment, role, school/campus, locale, device, network condition, server outcome, screenshots, test commands, reviewer, and date are recorded. A failed observed retest remains open and is linked as a blocking defect; local automated passes cannot close it.
+
+## Current handoff status (2026-10-28)
+
+The current implementation slice is pushed in PR #152 at commit `03098101`. Local validation is recorded truthfully as follows:
+
+- `npm run lint` and `npm run typecheck` pass.
+- `npm run test` is blocked in this environment by a `pnpm` `EPERM` while opening a temporary dependency path.
+- `npm run build` reaches Prisma generation, then is blocked by a `tsx` IPC-pipe `EPERM`.
+- `npm run test:isolation`, `npm run i18n:check`, `npm run size:check`, and `npm run test:e2e:smoke` are not defined in this checkout.
+- The family browser suite still requires the isolated database at `127.0.0.1:55438/postgres`.
+
+The following workflow families remain explicit implementation or evidence gaps: reception visitors, phone calls, complaints, and certificates; dormitory allocations; admin admissions and quick-create panels; owner provisioning and subscription review; and library copy registration. These forms currently rely on local state and direct requests, so refresh/navigation recovery has not been demonstrated for them.
+
+Representative pilot measurements, bilingual/mobile/keyboard browser evidence, screenshots or recordings, PR checklist completion, remote check status, and Jira transitions remain outstanding. Jira must remain out of Done; QA owns that transition after reviewing equivalent evidence.

@@ -21,6 +21,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { InfoTip } from "@/components/ui/tooltip";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-465: the reception call log. Calls are recorded once; a promised callback is an owned task that
 // stays open through attempts and reschedules until an outcome is recorded. Notes marked sensitive are
@@ -142,6 +144,8 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
   const { timezone } = useLocale();
   const [form, setForm] = useState(() => ({ name: "", phone: "", direction: "IN", date: localNow(timezone), purpose: "", note: "", sensitive: false, callbackDue: "", callbackOwnerId: "" }));
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const draftValues = { ...form, note: form.sensitive ? "" : form.note };
+  const draft = useFormDraft({ record: "reception:phone-call", schema: 1, values: draftValues, baseline: { ...draftValues, name: "", phone: "", purpose: "", note: "", callbackDue: "", callbackOwnerId: "" }, fields: ["name", "phone", "direction", "date", "purpose", "note", "callbackDue", "callbackOwnerId"] as const, apply: values => setForm(current => ({ ...current, name: String(values.name ?? ""), phone: String(values.phone ?? ""), direction: String(values.direction ?? "IN"), date: String(values.date ?? current.date), purpose: String(values.purpose ?? ""), note: String(values.note ?? ""), callbackDue: String(values.callbackDue ?? ""), callbackOwnerId: String(values.callbackOwnerId ?? "") })) });
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const set = (field: keyof typeof form) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
   const submit = async () => {
@@ -153,6 +157,7 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
     setBusy(true); setError("");
     try {
       const json = await call("POST", { ...payload, idempotencyKey: attempt.current.key });
+      draft.markSaved();
       toast.success(json.replayed ? ui("This call was already logged; nothing was added twice.") : ui("Call logged."));
       onDone();
     } catch (failure) {
@@ -161,6 +166,7 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
   };
   return <Modal title={ui("Log call")} eyebrow={ui("Phone calls")} subtitle={ui("Keep it short: who called, why, and whether someone owes them a callback.")} onClose={onClose} dirty={Boolean(form.name || form.phone || form.note || form.purpose)}>
     <div className="space-y-3" data-call-form>
+      <DraftRecovery recordLabel={ui("Phone call")} draft={draft} saving={busy} excluded={ui("Sensitive call notes are never stored in this signed-in browser draft.")} />
       {error ? <Alert tone="danger" compact data-call-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="call-name" label={ui("Caller name")}><Input value={form.name} maxLength={120} onChange={set("name")} /></FormField>

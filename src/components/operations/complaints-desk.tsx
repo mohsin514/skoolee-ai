@@ -19,6 +19,8 @@ import { downloadCSV } from "@/lib/csv";
 
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-467: intake (routine or confidential), a queue with owner and due date, and a case view where the
 // original report stays fixed and every assignment, note, resolution and reopening is appended.
@@ -122,6 +124,7 @@ export function ComplaintsDesk({ hideHeader = false, command }: { hideHeader?: b
 function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; leader: boolean; onClose: () => void; onDone: () => void }) {
   const ui = useUiText();
   const [form, setForm] = useState(EMPTY), [busy, setBusy] = useState(false), [error, setError] = useState(""), [receipt, setReceipt] = useState<string | null>(null);
+  const draft = useFormDraft({ record: "reception:complaint-intake", schema: 1, values: form, baseline: EMPTY, fields: ["complainantName", "anonymous", "type", "description", "date", "phone", "ownerId", "dueDate"] as const, enabled: !form.confidential, apply: values => setForm(current => ({ ...current, complainantName: String(values.complainantName ?? ""), anonymous: Boolean(values.anonymous), type: String(values.type ?? ""), description: String(values.description ?? ""), date: String(values.date ?? current.date), phone: String(values.phone ?? ""), ownerId: String(values.ownerId ?? ""), dueDate: String(values.dueDate ?? "") })) });
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const set = (field: keyof typeof EMPTY) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
   const submit = async () => {
@@ -132,6 +135,7 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
     setBusy(true); setError("");
     try {
       const json = await call("POST", { ...payload, idempotencyKey: attempt.current.key });
+      draft.markSaved();
       setReceipt(json.data.referenceCode);
       toast.success(json.replayed ? ui("This complaint was already recorded; nothing was added twice.") : ui("Complaint {0} recorded.", [json.data.referenceCode]));
     } catch (failure) {
@@ -147,6 +151,7 @@ function IntakeDialog({ owners, leader, onClose, onDone }: { owners: Owner[]; le
   </Modal>;
   return <Modal title={ui("Record complaint")} eyebrow={ui("Complaints")} subtitle={ui("Write down what was reported. The original report cannot be edited later; follow-up is added as notes.")} onClose={onClose} dirty={Boolean(form.description || form.complainantName)}>
     <div className="space-y-3" data-complaint-intake>
+      <DraftRecovery recordLabel={ui("Complaint")} draft={draft} saving={busy} excluded={ui("Confidential complaints are excluded from browser drafts.")} />
       {error ? <Alert tone="danger" compact data-complaint-error>{error}</Alert> : null}
       <fieldset className="space-y-2 rounded-xl border border-border p-3">
         <legend className="px-1 text-xs font-semibold">{ui("Kind of concern")}</legend>

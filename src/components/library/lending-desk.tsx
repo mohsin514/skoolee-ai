@@ -57,6 +57,14 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [copyForm, setCopyForm] = useState({ bookId: "", barcodes: "" });
+  const copyRegistrationDraft = useFormDraft({
+    record: "library:copy-registration",
+    schema: 1,
+    values: copyForm,
+    baseline: { bookId: "", barcodes: "" },
+    fields: ["bookId", "barcodes"] as const,
+    apply: (values) => setCopyForm({ bookId: String(values.bookId ?? ""), barcodes: String(values.barcodes ?? "") }),
+  });
   const returnDraft = useFormDraft({
     record: "library:return",
     schema: 1,
@@ -213,7 +221,8 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
           </div>
           <div className="space-y-2">
             <h3 className="font-semibold">{ui("Add barcoded copies")}</h3>
-            <form className="space-y-2 rounded-xl border border-border p-2" onSubmit={async (e) => { e.preventDefault(); const r = await post("copies", { bookId: copyForm.bookId, barcodes: copyForm.barcodes.split(/[\s,]+/).filter(Boolean) }); if (r) { setMessage(ui("{0} copies registered.", [r.length])); setCopyForm({ bookId: copyForm.bookId, barcodes: "" }); void load(); } }}>
+            <form className="space-y-2 rounded-xl border border-border p-2" onSubmit={async (e) => { e.preventDefault(); const r = await post("copies", { bookId: copyForm.bookId, barcodes: copyForm.barcodes.split(/[\s,]+/).filter(Boolean) }); if (r) { setMessage(ui("{0} copies registered.", [r.length])); copyRegistrationDraft.markSaved(); setCopyForm({ bookId: copyForm.bookId, barcodes: "" }); void load(); } }}>
+              <DraftRecovery recordLabel={ui("Copy registration")} draft={copyRegistrationDraft} excluded={ui("Only the selected title and barcode list are stored in this signed-in browser draft.")} />
               <FormField name="cp-book" label={ui("Title")}><Select value={copyForm.bookId} onChange={(e) => setCopyForm((f) => ({ ...f, bookId: e.target.value }))}><option value="">{ui("Choose a title")}</option>{overview.books.map((b) => <option key={b.id} value={b.id}>{b.title} ({b.copiesAvailable}/{b.copiesTotal})</option>)}</Select></FormField>
               <FormField name="cp-codes" label={ui("Barcodes")} hint={ui("One per copy, separated by spaces or commas.")}><Input dir="ltr" value={copyForm.barcodes} onChange={(e) => setCopyForm((f) => ({ ...f, barcodes: e.target.value }))} /></FormField>
               <Button type="submit" size="sm" variant="secondary" disabled={!copyForm.bookId || !copyForm.barcodes.trim()}>{ui("Register copies")}</Button>
