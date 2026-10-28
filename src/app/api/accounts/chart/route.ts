@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -108,32 +109,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "accounts", "delete");
-
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const account = await prisma.chartOfAccount.findFirst({
-      where: { id, ...campusFence(user) },
-      include: { _count: { select: { entries: true } } },
-    });
-    if (!account) throw new ApiError("Account not found", 404);
-    if (account._count.entries > 0) {
-      throw new ApiError("This account has ledger entries and stays for audit. Deactivate it to stop new entries.", 409);
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.chartOfAccount.delete({ where: { id: account.id } });
-      await writeAuditEvent(tx, user, {
-        table: "chart_of_accounts", recordId: account.id, action: "DELETE", campusId: account.campusId,
-        before: { type: account.type, isSystem: account.isSystem },
-      });
-    });
-    return Response.json({ success: true, message: "Account deleted" });
-  } catch (error) {
-    return errorResponse(error, "accounts/chart DELETE failed");
-  }
+  return operationDeleteResponse(req, "accounts/chart");
 }

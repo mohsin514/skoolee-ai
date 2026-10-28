@@ -83,7 +83,7 @@ export function ReadinessHome() {
   useEffect(() => { void load(); }, [load]);
   async function run(work: () => Promise<unknown>, quiet = false) {
     setBusy(true);
-    try { await work(); await load(); if (!quiet) toast.success(t.saved); }
+    try { await work(); await load(); if (!quiet) toast.success(t.saved); return true; }
     catch (error) { toast.error(error); }
     finally { setBusy(false); }
   }
@@ -323,7 +323,7 @@ export function ReadinessHome() {
           description={t.confirmBody}
           confirmLabel={t.approve}
           busy={busy}
-          onConfirm={async () => { await run(() => call({ op: "approve", expectedVersion: lead.readiness.version })); setConfirmingApproval(false); }}
+          onConfirm={async () => { if (await run(() => call({ op: "approve", expectedVersion: lead.readiness.version }))) setConfirmingApproval(false); }}
           onCancel={() => setConfirmingApproval(false)}
         />
       </> : null}
