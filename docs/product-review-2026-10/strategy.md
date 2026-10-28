@@ -1,6 +1,6 @@
 # Skoolee product strategy and launch contract
 
-Decision date: 15 October 2026. Target customers are international schools globally and local schools in Pakistan, Saudi Arabia and the UAE. The commercial flagship is **Skoolee Exam Studio**, owned by SKO-408. Its promise is: **Turn assessed work into the next useful lesson, with evidence at every step.** The broader school platform supports adoption and expansion. The fundraising objective is at least USD 10 million; it is an ambition to substantiate through customer and operating evidence, not an outcome a feature list can guarantee.
+Decision updated 28 October 2026: current geographic focus is Pakistan, Saudi Arabia and Dubai. Additional international markets and other UAE emirates are deferred to [SKAI-1006](https://skooleeai.atlassian.net/browse/SKAI-1006). Foreign-curriculum schools within the selected markets remain eligible. The [D2 research proposal](d2-market-research.md) supplies city/cohort recommendations for founder review, not validated demand or shipped support. The commercial flagship is **Skoolee Exam Studio**, owned by SKO-408. Its promise is: **Turn assessed work into the next useful lesson, with evidence at every step.** The broader school platform supports adoption and expansion. The fundraising objective is at least USD 10 million; it is an ambition to substantiate through customer and operating evidence, not an outcome a feature list can guarantee.
 
 ## Market judgment
 
@@ -8,7 +8,7 @@ The product addresses real school jobs, but breadth and AI generation do not est
 
 The gap to test is narrower: schools spend effort moving between evidence, marking, instruction and family communication; uncertain marks and weak questions can be mistaken for learner weaknesses; later improvement is often disconnected from the original decision. Skoolee can compete through a fast, explainable, multilingual workflow that preserves context across those handoffs and works beside an existing SIS/LMS. This is a product hypothesis, not a verified competitor absence or a claim that nobody has attempted it.
 
-Conduct 24 structured discovery interviews across four cohorts: global international, Pakistani local, Saudi local and UAE local schools, including buyer, academic lead and classroom teacher perspectives. Observe an actual assessment cycle, count repeated entry, time review effort, identify incumbent systems, and ask for a paid pilot decision. Proceed by cohort only when at least three schools independently describe the same painful workflow and two accept a scoped pilot. These are proposed discovery gates, not current traction. The [SKAI-902 discovery packet](cohort-discovery.md) prepares consent, comparable interviews and a decision record; its Pakistan-first quota is proposed for founder review and does not approve D2 or replace these gates.
+Propose 24 structured sessions across Pakistan (12), KSA (6) and Dubai (6), separating buyers, academic leads and teacher usability. Interview execution is deferred to [SKAI-1005](https://skooleeai.atlassian.net/browse/SKAI-1005) by founder instruction. Observe an actual assessment cycle, count repeated entry, time review effort, identify incumbent systems and ask for a scoped paid-pilot decision. The proposed proceed gate remains three independent schools reporting the same problem and two scoped pilots per cohort; it is not current traction. Use the [discovery packet](cohort-discovery.md) for consent and evidence handling. D2 desk research may be reviewed now; no buyer-validation criterion is marked passed.
 
 ## One flagship with three memorable moments
 
@@ -22,14 +22,14 @@ The same assessment, learner mapping, objective and evidence versions survive ev
 
 | Cohort | First use case | Required validation before a supported claim |
 | --- | --- | --- |
-| Global international schools | Assessment and learning recovery alongside the existing SIS/LMS | School-selected curriculum/version, rubrics and objective mapping; stable external identifiers; import/export reconciliation; supported language, timezone, devices and procurement requirements |
+| Additional international geographies — deferred | Assessment and learning recovery alongside the existing SIS/LMS | School-selected curriculum/version, rubrics and objective mapping; stable external identifiers; import/export reconciliation; supported language, timezone, devices and procurement requirements |
 | Pakistani schools | Mixed paper/digital assessment, Urdu/English teacher review and family action | Named board/syllabus edition and grade/subject; local mark conventions; low-bandwidth capture; Urdu print; verified PKR tuition/provider flow |
 | Saudi schools | Arabic/English assessment and academic oversight | Named national or international curriculum; Arabic mathematics and print; school calendar and working week; institution-approved processing arrangements; separately verified SAR finance package |
-| UAE schools | Multilingual assessment across diverse school curricula | School and emirate-specific operating requirements validated by qualified owners; curriculum/rubric versions; Arabic/English print; AED finance/provider support; mixed-calendar families |
+| Dubai schools — other UAE emirates deferred | Multilingual assessment across diverse school curricula | School and emirate-specific operating requirements validated by qualified owners; curriculum/rubric versions; Arabic/English print; AED finance/provider support; mixed-calendar families |
 
 Country, curriculum, instructional language, family language, payment rail and hosting region are independent choices. The interface must show supported, pilot and unavailable combinations before purchase or exam release. A school can use the supported assessment module while unsupported finance or specialist modules remain disabled. Do not infer global payments from currency formatting or regulatory approval from a country dropdown.
 
-Prioritize teacher-reviewed mathematics and science workflows with objective-level evidence in the first validation cohorts; add subjects only with educator calibration. This is a validation order, not a geographic exclusion. International school curricula and local curricula retain their own source rights, grading and standards; mapping is reviewed rather than silently equating them.
+Prioritize teacher-reviewed mathematics and science workflows with objective-level evidence in the first validation cohorts; add subjects only with educator calibration. This is a validation order within the founder-selected markets; additional geographies remain deferred. International school curricula and local curricula retain their own source rights, grading and standards; mapping is reviewed rather than silently equating them.
 
 ## Product architecture and AI use
 
@@ -85,8 +85,8 @@ LEAP's official startup programme currently lists **12–15 April 2027**. The pr
 
 | Window | Proposed exit evidence |
 | --- | --- |
-| October–November 2026 | 24 discovery interviews; cohort pain and purchasing validation; runnable assessment slice; named support matrix; assessed privacy/security and recovery controls |
-| December 2026 | 6–8 consented design-partner pilots spanning the target cohorts where onboarding gates pass; baseline timing and quality observations; at least two complete learning cycles per participating class |
+| October–November 2026 | D2 desk-research decision review; buyer discovery deferred to SKAI-1005; runnable assessment slice; named support matrix; assessed privacy/security and recovery controls |
+| December 2026 | 6–8 consented design-partner pilots only if deferred discovery is activated and onboarding gates pass (reschedule if not); baseline timing and quality observations; at least two complete learning cycles per participating class |
 | January–February 2027 | Paid conversion decisions, repeat teacher use, independent educator review, integration reconciliation, observed costs and support load; narrow or stop cohorts that do not demonstrate value |
 | March 2027 | Permissioned case studies, reference buyers, defensible cohort metrics, security/recovery evidence and a reliable live/offline-recorded demo; investor data room and driver-based operating plan |
 | April 2027 | Show shipped behavior, pilot evidence and a clear use of capital; distinguish real results from targets and demo fixtures |

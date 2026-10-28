@@ -1,40 +1,33 @@
 # SKAI-902 — first cohort and boards: discovery packet
 
-Prepared 28 October 2026. Status: **preparation only; D2 is undecided**.
-Owner: founder (Mohsin Ali). Second reader: not yet nominated.
+Prepared 28 October 2026. Status: **research proposal ready for founder review; interviews deferred**.
+Owner/reviewer: founder (Mohsin Ali). Original second-reader requirement remains unverified.
 [Jira SKAI-902](https://skooleeai.atlassian.net/browse/SKAI-902) is authoritative;
 record the eventual signed decision there and in the PRD v2.0 Confluence decision log.
 This packet contains no completed interviews, recruitment authorization or pilot commitments.
 
 ## Scope and evidence baseline
 
-The ticket recommends Pakistani owner-run groups with 2–10 campuses and 600–5,000
-students, initially urban Punjab/Sindh and mathematics/science. These are recruitment
-hypotheses, not a selected cohort or verified board support. Exact cities, boards,
-syllabus editions, grades and subjects remain open founder decisions.
-The [strategy](strategy.md) retains global international, Pakistan, Saudi and UAE
-markets; a first discovery cohort does not silently remove those markets.
-The [claims register](../leap/claims-register.md) has no usable evidence of school
-usage, willingness to pay, time savings or learning gains. Do not infer demand from
-Exam Studio demonstrations or synthetic QA-01 test results.
+The founder narrowed current markets on 28 October 2026 to Pakistan, KSA and Dubai.
+See the [D2 market research and recommendation](d2-market-research.md) for source-backed
+city/cohort proposals, curriculum boundaries, positioning and explicit uncertainties.
+Foreign-curriculum schools within these markets remain eligible; additional countries
+and other UAE emirates are deferred. Research recommendations await founder approval.
+The [claims register](../leap/claims-register.md) still has no buyer-validated demand,
+revenue, time-saving or learning-gain evidence. Synthetic QA-01 tests never supply it.
 
-## Proposed recruitment quota — founder review required
+## Proposed recruitment quota — deferred to backlog
 
-Keep the strategy's proposed 24 sessions, with a Pakistan-first allocation to test
-D2: 12 Pakistan, 4 Saudi, 4 UAE and 4 international-school sessions. Classify an
-international school only in the international cohort, recording its country
-separately to avoid double counting. Count sessions and independent schools separately.
-Aim for at least six distinct Pakistan groups spanning both size bands (2–4 and
-5–10 campuses), both provinces, and different board/edition requirements. Multiple
-campuses in one group are not independent schools for corroboration.
-
-Within Pakistan propose six budget-owner interviews, three academic-lead interviews
-and three teacher usability sessions; in each other cohort propose two buyers, one
-academic lead and one teacher. Keep buyer discovery and teacher usability separate
-even when one person holds both roles. Record invited, refused, scheduled, completed
-and withdrawn counts by cohort/role, plus school-size coverage. Review gaps after
-each four completed sessions and record any quota change and its reason. This is
-research planning, not a forecast. Outreach requires separate explicit authorization.
+Propose 24 sessions: 12 Pakistan, 6 KSA and 6 Dubai; no additional-geography quota.
+Pakistan: six buyers, three academic leads and three separate teacher sessions;
+KSA and Dubai: three buyers, one academic lead and two teacher sessions each.
+Target six independent Pakistan groups across Punjab/Sindh and both 2–4/5–10 campus
+bands; Gulf school sizes remain a discovery question. Count schools/groups separately
+from sessions and campuses. Record invited/refused/completed/withdrawn by cohort/role.
+Review underrepresented roles/sizes after every four completed sessions, recording
+quota revisions and reasons. These are proposed research targets, not sales forecasts.
+Interview execution is deferred by founder instruction to SKAI-1005. Outreach requires
+separate authorization. No interview, consent or commitment is implied by this plan.
 
 ## Consent script and handling
 
@@ -120,12 +113,13 @@ collapse withdrawals, unavailable evidence or refused payment into positive sign
 
 ## D2 decision and one-page positioning template
 
-**Current result: pending.** No cohort, city or named board edition is approved here.
-Fill the following together after consented discovery; link each conclusion to notes.
+**Current result: desk-research proposal ready; founder review pending.** Geographic focus
+is instructed; city/pack choices remain recommendations in the research report. Use the
+following record for review now, and append buyer evidence when SKAI-1005 is completed.
 
 | Decision field | Required entry before sign-off |
 | --- | --- |
-| Options compared | Pakistan cities/groups/boards; Saudi, UAE and international alternatives; evidence for and against each |
+| Options compared | Pakistan cities/groups/boards; KSA and Dubai; deferred additional geographies; evidence for and against each |
 | First buyer and problem | Exact cohort, purchaser, workflow and reason to continue, narrow or stop |
 | Scope | Cities, independent-school definition, campus/size band, named board and syllabus edition/year, grades and subjects |
 | Positioning (one page) | For [buyer], we address [observed problem] through [verified workflow], alongside [current tools]; evidence [references] |
@@ -143,13 +137,15 @@ proposal. Any change to that proposal needs an explicit founder rationale.
 
 ## Remaining blockers and handoff
 
-- No consented observations or interviews are supplied with this task; corroboration,
-  contradictory evidence review and paid-pilot classification remain unverified.
-- Founder must choose the cohort/cities and exact board editions, approve positioning
-  and resolve D1/V3 dependencies; an agent cannot manufacture these decisions.
-- A second human reader must review the final decision. Copy only the approved
-  decision into Jira and the PRD decision log, then update SKAI-894, SKAI-958,
-  SKAI-888 and SKAI-1000, which SKAI-902 blocks. Do not release their gates early.
-- A preparation PR is not D2 acceptance. Keep human research, founder sign-off and
-  QA explicit; only QA may close the ticket. No application or pilot-service change
-  is needed to prepare this packet.
+- Buyer research is deferred to [SKAI-1005](https://skooleeai.atlassian.net/browse/SKAI-1005)
+  by the founder, not passed or waived as evidence of demand. The thresholds above
+  remain rollout gates; they no longer prevent submitting D2 desk research for review.
+- Founder will review the complete research recommendation. Record the accepted
+  cities, pack order, exclusions and rationale in Jira and the PRD decision log.
+- The original independent second-reader criterion remains unverified unless the
+  founder explicitly changes it. Human PR approval and required green checks remain.
+- Additional international geography is [SKAI-1006](https://skooleeai.atlassian.net/browse/SKAI-1006); keep it outside the
+  current positioning. Update SKAI-894, SKAI-958, SKAI-888 and SKAI-1000 with the
+  reviewed scope without declaring their curriculum, payment or trust gates passed.
+- SKAI-902 remains In Review. No application/pilot-service change belongs in this
+  decision PR; implementation follows the existing feature-owner tickets. QA owns Done.
