@@ -20,6 +20,8 @@ import { ViewTabs } from "@/components/ui/view-tabs";
 import { AccessNotice } from "@/components/ui/access-notice";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 /** `?tab=report` is the Help menu's "Record a concern" deep link (role-ux §4.2); other tabs open by id. */
 function careTabFromUrl(): string | null {
@@ -429,6 +431,16 @@ function CareSettings() {
   type S = { domain: Domain; enabled: boolean; procedureReference: string; leadUserId: string; leadName: string; retentionMonths: number | null; confirmedAt: string | null; confirmedBy: string };
   const [data, setData] = useState<{ settings: S[]; members: { id: string; domain: Domain; role: string; userId: string; name: string }[]; staff: { id: string; fullName: string; role: string }[] } | null>(null);
   const [drafts, setDrafts] = useState<Record<string, { procedureReference: string; leadUserId: string; retentionMonths: string; confirm: boolean }>>({}), [add, setAdd] = useState<Record<string, { userId: string; role: string }>>({}), [busy, setBusy] = useState(false);
+  const settingsDraft = useFormDraft({
+    record: "care:workspace-settings",
+    schema: 1,
+    values: drafts,
+    baseline: Object.fromEntries((data?.settings ?? []).map(s => [s.domain, { procedureReference: s.procedureReference, leadUserId: s.leadUserId, retentionMonths: s.retentionMonths ? String(s.retentionMonths) : "", confirm: false }])),
+    fields: ["CLINIC", "SAFEGUARDING"] as const,
+    structures: { CLINIC: ["procedureReference", "leadUserId", "retentionMonths", "confirm"], SAFEGUARDING: ["procedureReference", "leadUserId", "retentionMonths", "confirm"] },
+    enabled: Boolean(data),
+    apply: values => setDrafts(values as typeof drafts),
+  });
   // Removing someone's confidential access and switching a workspace off are permission changes (role-ux R3).
   const [removing, setRemoving] = useState<{ id: string; name: string; domain: Domain } | null>(null);
   const [disabling, setDisabling] = useState<{ domain: Domain; draft: { procedureReference: string; leadUserId: string; retentionMonths: string } } | null>(null);
@@ -437,6 +449,7 @@ function CareSettings() {
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (!data) return null;
   return <section className="space-y-3" data-care-settings>
+    <DraftRecovery recordLabel={ui("Care workspace settings")} draft={settingsDraft} saving={busy} excluded={ui("Student health and safeguarding records are never stored in this device draft.")} />
     <ConfirmAction
       open={Boolean(removing)}
       busy={busy}
