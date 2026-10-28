@@ -1,3 +1,4 @@
+import { pageWindow } from "@/lib/lists/query";
 import { assertListBudget } from "@/lib/lists/access";
 import { bindProvisionHandoff, completeProvisionHandoff } from "@/lib/owner/workflow-provisioning";
 import { ownerPagination } from "@/lib/owner/list-query";
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     await assertListBudget(user, "owner/schools");
 
     const { searchParams } = new URL(req.url);
-    const { page, limit } = ownerPagination(searchParams);
+    const { page: requestedPage, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
     const status = searchParams.get("status") || "";
     const plan = searchParams.get("plan") || "";
@@ -44,8 +45,9 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const [schools, total] = await Promise.all([
-      prisma.school.findMany({
+    const total = await prisma.school.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const schools = await prisma.school.findMany({
         where,
         include: {
           campuses: {
@@ -64,11 +66,9 @@ export async function GET(req: NextRequest) {
           _count: { select: { users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } } } },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
-      }),
-      prisma.school.count({ where }),
-    ]);
+      });
 
     const data = schools.map((school) => ({
       id: school.id,
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       data,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: { page, limit, total, pages },
     });
   } catch (error) {
     return errorResponse(error, "[owner/schools] GET failed");
