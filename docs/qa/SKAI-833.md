@@ -83,3 +83,23 @@ The current implementation slice is pushed in PR #152 at commit `03098101`. Loca
 The following workflow families remain explicit implementation or evidence gaps: reception visitors, phone calls, complaints, and certificates; dormitory allocations; admin admissions and quick-create panels; owner provisioning and subscription review; and library copy registration. These forms currently rely on local state and direct requests, so refresh/navigation recovery has not been demonstrated for them.
 
 Representative pilot measurements, bilingual/mobile/keyboard browser evidence, screenshots or recordings, PR checklist completion, remote check status, and Jira transitions remain outstanding. Jira must remain out of Done; QA owns that transition after reviewing equivalent evidence.
+
+## Evidence capture matrix
+
+Use one row per executed task. Do not mark a row complete from code inspection alone. Replace `TBD` only with observed evidence from synthetic QA-01 records.
+
+| Role | School / campus | Journey and trigger | Locale / device | Network / fault | Outcome | Active + correction time | Screenshot / recording | Reviewer / date |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| APP_OWNER | QA-01 / campus A | Provisioning; refresh and rejected save | en / desktop | Slow then rejected | TBD | TBD | TBD | TBD |
+| SUPER_ADMIN | QA-01 / campus B | Cross-campus policy; denied role | ar / desktop | Permission revoked | TBD | TBD | TBD | TBD |
+| CAMPUS_ADMIN | QA-02 / campus A | Admissions quick-create; duplicate submit | en / mobile | Offline then retry | TBD | TBD | TBD | TBD |
+| ADMIN | QA-02 / campus B | Class/student setup; stale version | ur / desktop | Concurrent edit | TBD | TBD | TBD | TBD |
+| PRINCIPAL | QA-01 / campus B | Improvement action; refresh | ar / mobile | Slow network | TBD | TBD | TBD | TBD |
+| TEACHER | QA-02 / campus A | Report remarks; session expiry | en / desktop | Sign-out during save | TBD | TBD | TBD | TBD |
+| PARENT | QA-01 / campus A | Leave/trip request; back navigation | ur / mobile | Provider failure | TBD | TBD | TBD | TBD |
+| STUDENT | QA-02 / campus B | Assignment submission; duplicate submit | en / mobile | Interrupted network | TBD | TBD | TBD | TBD |
+| ACCOUNTANT | QA-01 / campus B | Payment entry; rejected save | ar / desktop | Retry after timeout | TBD | TBD | TBD | TBD |
+| LIBRARIAN | QA-02 / campus A | Copy registration/return; refresh | en / desktop | Offline then sync | TBD | TBD | TBD | TBD |
+| RECEPTIONIST | QA-02 / campus B | Visitor/call/complaint/certificate | ur / mobile | Permission change | TBD | TBD | TBD | TBD |
+
+For each row also record whether the result was independent, assisted, abandoned, or incorrect; the exact server response; denied-role behavior; and any missing or excluded observation. Retain recordings only with explicit permission and a stated deletion date.
