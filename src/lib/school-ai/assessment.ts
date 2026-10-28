@@ -26,6 +26,11 @@ export const curriculumDataSchema = z.object({
     sourceRecordId: id.optional(),
     sourceVersion: z.number().int().positive().optional(),
     pageRange: draftText(40).optional(),
+    url: z.string().url().optional(),
+    checksum: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+    rightsScope: draftText(500).optional(),
+    reviewedAt: z.string().datetime().optional(),
+    reviewDueAt: z.string().datetime().optional(),
   }).strict()).max(30),
   lessonPlans: z.array(lessonPlanSchema).max(50).optional(),
   sectionCoverage: z.array(z.object({
@@ -47,10 +52,20 @@ export const curriculumDataSchema = z.object({
     unit: draftText(200).optional(),
   }).strict()).max(200),
   pack: z.object({
+    packId: id.optional(),
+    version: z.number().int().positive().optional(),
     authority: draftText(200),
     edition: draftText(80),
     language: assessmentLanguageSchema,
     rights: z.enum(["APPROVED", "UNDER_REVIEW", "MANUAL"]),
+    examYear: draftText(20).optional(),
+    teachingYear: draftText(80).optional(),
+    grade: draftText(80).optional(),
+    term: draftText(80).optional(),
+    marks: z.number().positive().optional(),
+    durationMinutes: z.number().int().positive().optional(),
+    choices: z.number().int().positive().optional(),
+    paperRules: draftText(1000).optional(),
   }).strict().optional(),
   // SKO-500: approving this curriculum also approves the cited SOURCE revision (one approval, not two).
   approvalBundle: z.object({ sourceRecordId: id, sourceVersion: z.number().int().positive() }).strict().optional(),
@@ -221,12 +236,17 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
   if (!curriculum.academicYear.trim()) errors.push("Academic year is required.");
   if (!curriculum.board.trim()) errors.push("Curriculum or board is required.");
   if (!curriculum.sources.length) errors.push("Add at least one source.");
+  if (curriculum.pack && (!curriculum.pack.packId || !curriculum.pack.version)) errors.push("Versioned packs require an immutable pack ID and version.");
+  if (curriculum.pack?.authority.toLowerCase().includes("fbise") && !curriculum.pack.examYear) errors.push("FBISE packs require an exam year.");
+  if (curriculum.pack?.examYear && curriculum.pack.teachingYear && curriculum.pack.examYear === curriculum.pack.teachingYear) errors.push("Exam year must remain distinct from teaching year.");
+  if (curriculum.pack?.rights === "APPROVED" && curriculum.sources.some(source => !source.url || !source.checksum || !source.rightsScope || !source.reviewedAt)) errors.push("Approved pack sources need URL, checksum, rights scope and review metadata.");
   if (!unique(curriculum.sources.map((source) => source.id))) errors.push("Source identifiers must be unique.");
   if (!unique(curriculum.outcomes.map((outcome) => outcome.id))) errors.push("Outcome identifiers must be unique.");
   for (const source of curriculum.sources) {
     if (!source.title.trim() || !source.reference.trim() || !source.excerpt.trim() || !source.approved) {
       errors.push(`Source ${source.title || source.id} needs a title, reference, readable content and confirmation.`);
     }
+    if (source.reviewDueAt && source.reviewDueAt < new Date().toISOString()) errors.push(`Source ${source.title || source.id} is stale and must be reviewed before publication.`);
   }
   if (!curriculum.sources.some((source) => source.kind !== "PAST_PAPER" && source.approved)) {
     errors.push("A past paper alone cannot establish curriculum coverage; add a syllabus, textbook or approved teacher plan.");
