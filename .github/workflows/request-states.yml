@@ -39,9 +39,12 @@ jobs:
       - run: pnpm exec prisma generate && pnpm exec prisma db push
       - run: node --import ./tests/support/server-only.mjs --import tsx --test tests/states/request.test.ts tests/states/render.test.tsx tests/states/api.test.ts tests/locale/catalog-conflicts.test.ts
       - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec next build
       - run: |
-          # The full role sweep retains enough compiled routes to exceed a 6 GB heap.
-          pnpm exec next dev --webpack -p 3109 > /tmp/states-app.log 2>&1 &
+          # Serve a precompiled production build. next dev --webpack compiled routes
+          # on demand, and the full role sweep retained enough to exceed the 6 GB heap
+          # so late-route navigations timed out. next start pre-builds every route.
+          pnpm exec next start --hostname 127.0.0.1 -p 3109 > /tmp/states-app.log 2>&1 &
           for i in $(seq 1 60); do curl -s http://localhost:3109/api/auth/session > /dev/null && break; sleep 2; done
           node --import ./tests/support/server-only.mjs --import tsx --test --test-concurrency=1 tests/states/states.browser.test.ts
       - uses: actions/upload-artifact@v4
