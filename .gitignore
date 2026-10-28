@@ -98,4 +98,5 @@ docs/qa/evidence/*.sql
 /docs/qa/evidence/ui-plan/**/*.json
 /docs/qa/evidence/ui-plan/**/*.txt
 /docs/qa/evidence/ui-plan/**/*.log
+qa-credentials.json
 .tmp-prisma/
