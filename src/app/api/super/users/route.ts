@@ -1,3 +1,4 @@
+import { pageWindow } from "@/lib/lists/query";
 import { assertListBudget } from "@/lib/lists/access";
 import { UserRole } from "@prisma/client";
 import { ownerPagination } from "@/lib/owner/list-query";
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 
     const { searchParams } = new URL(req.url);
-    const { page, limit } = ownerPagination(searchParams);
+    const { page: requestedPage, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
     const role = searchParams.get("role") || "";
     const campusId = searchParams.get("campusId") || "";
@@ -40,8 +41,9 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
+    const total = await prisma.user.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const users = await prisma.user.findMany({
         where,
         select: {
           id: true,
@@ -57,16 +59,14 @@ export async function GET(req: NextRequest) {
           campus: { select: { id: true, name: true } },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
-      }),
-      prisma.user.count({ where }),
-    ]);
+      });
 
     return Response.json({
       success: true,
       data: users,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: { page, limit, total, pages },
     });
   } catch (error) {
     return errorResponse(error, "[super/users] GET failed");
