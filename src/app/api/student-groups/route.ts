@@ -19,11 +19,30 @@ export async function GET(req: NextRequest) {
       ? null
       : await resolveCampusId(user, requestedCampusId);
 
-    const groups = await prisma.studentGroup.findMany({
+    let groups = await prisma.studentGroup.findMany({
       where: scopedCampusWhere(user, campusId),
       include: { _count: { select: { students: true } } },
       orderBy: { name: "asc" },
     });
+
+    // New campuses have no student-group rows yet, but registration needs the
+    // logistics choices promised by the form. Bootstrap only an empty,
+    // campus-scoped list; existing custom groups are left untouched.
+    if (campusId && groups.length === 0) {
+      await prisma.studentGroup.createMany({
+        data: ["Transport users", "Hostel residents"].map((name) => ({
+          schoolId: user.schoolId,
+          campusId,
+          name,
+        })),
+        skipDuplicates: true,
+      });
+      groups = await prisma.studentGroup.findMany({
+        where: scopedCampusWhere(user, campusId),
+        include: { _count: { select: { students: true } } },
+        orderBy: { name: "asc" },
+      });
+    }
 
     return Response.json({ success: true, data: groups });
   } catch (error) {
