@@ -8,10 +8,10 @@ import { useDocumentLocale } from "@/hooks/use-document-locale";
  * (route changes use the layout-shaped skeletons instead).
  *
  * The visual is the shared `SplashVisual` — the exact same markup the landing `SplashScreen` and the hard-load
- * `BootSplash` render, so every loading surface in the app is identical. `setLoading` has no known duration, so the
- * stroke is shown full (progress 1) with a soft light travelling along it (`stalled`), the splash's "still working"
- * state, rather than a one-shot progress fill. It ignores the pointer so the app underneath stays usable until it is
- * dismissed.
+ * `BootSplash` render, so every loading surface in the app is identical, down to the mascot's eyes. `setLoading` has
+ * no known duration, so the ink stroke is simply shown full (progress 1); the mascot stays in the same idle gaze as
+ * the other two surfaces (no `thinking` signal, no travelling light), so the eyes do not look different here. It
+ * ignores the pointer so the app underneath stays usable until it is dismissed.
  */
 export function AppLoaderUI() {
   const { language, dir } = useDocumentLocale();
@@ -22,7 +22,7 @@ export function AppLoaderUI() {
       dir={dir}
       className="pointer-events-none fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto sk-splash-surface"
     >
-      <SplashVisual language={language} progress={1} entrance="wake" stalled />
+      <SplashVisual language={language} progress={1} entrance="wake" />
     </div>
   );
 }
