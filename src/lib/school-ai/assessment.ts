@@ -31,6 +31,7 @@ export const curriculumDataSchema = z.object({
     rightsScope: draftText(500).optional(),
     reviewedAt: z.string().datetime().optional(),
     reviewDueAt: z.string().datetime().optional(),
+    authoritativeNotice: draftText(500).optional(),
   }).strict()).max(30),
   lessonPlans: z.array(lessonPlanSchema).max(50).optional(),
   sectionCoverage: z.array(z.object({
@@ -238,6 +239,17 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
   if (!curriculum.sources.length) errors.push("Add at least one source.");
   if (curriculum.pack && (!curriculum.pack.packId || !curriculum.pack.version)) errors.push("Versioned packs require an immutable pack ID and version.");
   if (curriculum.pack?.authority.toLowerCase().includes("fbise") && !curriculum.pack.examYear) errors.push("FBISE packs require an exam year.");
+  if (curriculum.pack?.authority.toLowerCase().includes("lahore")) {
+    const pack = curriculum.pack;
+    if (!pack.term) errors.push("BISE Lahore packs require a term.");
+    if (!pack.examYear) errors.push("BISE Lahore packs require the examination year.");
+    if (!pack.grade) errors.push("BISE Lahore packs require the grade.");
+    if (!pack.marks || !pack.durationMinutes || !pack.choices) errors.push("BISE Lahore packs require marks, duration and choice rules.");
+    if (!pack.paperRules?.trim()) errors.push("BISE Lahore packs require the approved paper and assessment rules.");
+    for (const source of curriculum.sources) if (!source.authoritativeNotice?.trim() || !source.reviewedAt) errors.push(`BISE Lahore source ${source.title || source.id} needs an authority notice and review date.`);
+    const historical2026 = /annual[- ]exam[- ]?2026|reduced/i.test(`${pack.edition} ${pack.paperRules ?? ""}`) || pack.marks === 75;
+    if (historical2026 && pack.examYear !== "2026") errors.push("The reduced Grade 9 2026 paper rules are historical and cannot be used for another examination year.");
+  }
   if (curriculum.pack?.examYear && curriculum.pack.teachingYear && curriculum.pack.examYear === curriculum.pack.teachingYear) errors.push("Exam year must remain distinct from teaching year.");
   if (curriculum.pack?.rights === "APPROVED" && curriculum.sources.some(source => !source.url || !source.checksum || !source.rightsScope || !source.reviewedAt)) errors.push("Approved pack sources need URL, checksum, rights scope and review metadata.");
   if (!unique(curriculum.sources.map((source) => source.id))) errors.push("Source identifiers must be unique.");
@@ -271,6 +283,22 @@ export function validateCurriculumApproval(curriculum: CurriculumData): string[]
     for (const row of curriculum.sectionCoverage) {
       if (!row.confirmed || !unique(row.outcomeIds) || row.outcomeIds.some(outcomeId => !curriculum.outcomes.some(outcome => outcome.id === outcomeId && outcome.taught))) errors.push(`Section ${row.section}: confirm distinct taught curriculum outcomes.`);
     }
+  }
+  return errors;
+}
+
+/** Board-specific pack rules fail closed until the named exam contract is evidenced. */
+export function validateMarketContract(curriculum: CurriculumData): string[] {
+  const pack = curriculum.pack;
+  if (!pack) return ["A versioned curriculum pack is required."];
+  const authority = pack.authority.toLowerCase();
+  const errors: string[] = [];
+  if (authority.includes("fbise") && !pack.examYear) errors.push("FBISE packs require an exam year.");
+  if (authority.includes("lahore")) {
+    if (!pack.examYear || !pack.term) errors.push("BISE Lahore packs require exam year and term.");
+    if (!pack.marks || !pack.durationMinutes || !pack.choices) errors.push("BISE Lahore packs require marks, duration and choice rules.");
+    if (!curriculum.sources.every(source => source.authoritativeNotice)) errors.push("BISE Lahore packs require an authority notice for every source.");
+    if (pack.edition.includes("2026") && pack.examYear !== "2026") errors.push("historical 2026 rules cannot be used for another exam year.");
   }
   return errors;
 }
