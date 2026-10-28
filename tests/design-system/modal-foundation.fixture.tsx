@@ -17,6 +17,8 @@ function ModalFoundationFixture() {
   const [closeCount, setCloseCount] = useState(0);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [recordedReason, setRecordedReason] = useState("");
+  const [asyncOpen, setAsyncOpen] = useState(false);
+  const [submissions, setSubmissions] = useState(0);
 
   useEffect(() => {
     const release = () => setBusy(false);
@@ -49,6 +51,13 @@ function ModalFoundationFixture() {
     <ConfirmAction open={reasonOpen} title="Approve your own request?" description="No other approver holds this seat; the reason is recorded."
       tone="warning" confirmLabel="Approve with reason" requireReason={{ label: "Reason for approving", minLength: 10 }}
       onConfirm={(reason) => { setRecordedReason(reason ?? ""); setReasonOpen(false); }} onCancel={() => setReasonOpen(false)} />
+    <button type="button" onClick={() => setAsyncOpen(true)}>Open async confirmation</button>
+    <output aria-label="Async submissions">{submissions}</output>
+    <ConfirmAction open={asyncOpen} title="Delete synthetic draft?" description="One synthetic draft will be removed." tone="danger"
+      confirmLabel="Delete synthetic draft" requireReason={{ label: "Deletion reason" }} onCancel={() => setAsyncOpen(false)}
+      onConfirm={() => { setSubmissions(n => n + 1); return new Promise<void>((_resolve, reject) => {
+        window.addEventListener("fixture:reject-confirmation", () => reject(new Error("Synthetic failure")), { once: true });
+      }); }} />
     <Dialog open={compoundOpen} onOpenChange={setCompoundOpen}>
       <DialogContent dismissible={!busy}>
         <DialogHeader><DialogTitle>Compound synthetic dialog</DialogTitle></DialogHeader>

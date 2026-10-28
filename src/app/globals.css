@@ -1262,6 +1262,43 @@ body.dark::after {
 }
 
 @layer components {
+  /* Opaque splash backdrop: the same lilac glow + dot grid the body canvas
+     paints, but on a solid base. SplashScreen (at `/`) is transparent and shows
+     the real body canvas (z-index:-1); BootSplash and the setLoading overlay sit
+     ABOVE it (z-[9999]) and must cover the page underneath, so they reproduce the
+     canvas here instead of showing a flat `bg-background`. Keeps all three splash
+     surfaces looking identical. */
+  .sk-splash-surface {
+    position: relative;
+    background-color: hsl(var(--background));
+    isolation: isolate;
+  }
+  .sk-splash-surface::before,
+  .sk-splash-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .sk-splash-surface::before {
+    background:
+      radial-gradient(60rem 34rem at 0% -8%, rgb(129 39 207 / 0.13), transparent 62%),
+      radial-gradient(48rem 30rem at 100% -4%, rgb(177 14 107 / 0.08), transparent 60%),
+      radial-gradient(64rem 38rem at 55% 115%, rgb(79 70 229 / 0.08), transparent 62%),
+      radial-gradient(40rem 30rem at 100% 70%, rgb(156 72 234 / 0.06), transparent 65%);
+  }
+  .sk-splash-surface::after {
+    background-image: radial-gradient(circle, rgb(129 39 207 / 0.26) 1.4px, transparent 1.9px);
+    background-size: 22px 22px;
+    -webkit-mask-image: linear-gradient(to bottom, black, rgb(0 0 0 / 0.5) 30rem, rgb(0 0 0 / 0.32));
+    mask-image: linear-gradient(to bottom, black, rgb(0 0 0 / 0.5) 30rem, rgb(0 0 0 / 0.32));
+  }
+  .dark .sk-splash-surface::after,
+  .sk-splash-surface.dark::after {
+    background-image: radial-gradient(circle, rgb(196 170 222 / 0.2) 1.4px, transparent 1.9px);
+  }
+
   /* Frosted chrome for sticky headers and floating bars. */
   .sk-glass {
     background: rgb(255 255 255 / 0.74);

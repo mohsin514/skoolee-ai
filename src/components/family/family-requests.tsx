@@ -92,7 +92,7 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
       cancelLabel={ui("Keep request")}
       busy={busy}
       onCancel={() => setCancelling(null)}
-      onConfirm={async () => { const row = cancelling; setCancelling(null); if (row && await send("PATCH", { id: row.id, action: "cancel" })) { toast.success(ui("Leave request cancelled.")); void load(); } }}
+      onConfirm={async () => { const row = cancelling; if (row && await send("PATCH", { id: row.id, action: "cancel" })) { setCancelling(null); toast.success(ui("Leave request cancelled.")); void load(); } }}
     />
     {open ? <Modal size="sm" title={ui("Request leave")} eyebrow={ui("Attendance")} subtitle={ui("For days that have not happened yet. Explain past absences from the list above.")} onClose={() => setOpen(false)}>
       <div className="space-y-3" data-leave-form>

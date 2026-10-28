@@ -99,7 +99,7 @@ export function CampusPolicy({ campuses }: { campuses?: { id: string; name: stri
       <FormField name="ov-reason" label={ui("Why does this campus need a different value?")}><Input value={req.reason} onChange={e => setReq({ ...req, reason: e.target.value })} dir="auto" data-override-reason /></FormField>
       <FormField name="ov-until" label={ui("Valid until")}><Input type="date" value={req.validUntil} onChange={e => setReq({ ...req, validUntil: e.target.value })} dir="ltr" data-override-until /></FormField>
       <p className="text-xs text-ink-muted">{ui("A group policy owner reviews this. Until then the inherited value applies.")}</p>
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="outline" onClick={() => setReq(null)}>{ui("Keep editing")}</Button><Button loading={busy} disabled={busy || req.reason.trim().length < 5 || !req.validUntil} onClick={async () => { setBusy(true); try { await call("/api/group-policy", "POST", { action: "request-override", campusId: data.campus.id, domain, key: req.key, value: parse(req.key, req.value), reason: req.reason, validUntil: new Date(`${req.validUntil}T23:59:59`).toISOString() }); toast.success(ui("Override requested. The inherited value applies until it is approved.")); setReq(null); await load(); } catch (e) { toast.error(friendlyErrorMessage(e, ui("The change was not saved."))); } finally { setBusy(false); } }} data-override-submit>{ui("Send request")}</Button></div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="outline" onClick={() => setReq(null)}>{ui("Keep editing")}</Button><Button loading={busy} disabled={busy || req.reason.trim().length < 5 || !req.validUntil} onClick={async () => { setBusy(true); try { await call("/api/group-policy", "POST", { action: "request-override", campusId: data.campus.id, domain, key: req.key, value: parse(req.key, req.value), reason: req.reason, validUntil: new Date(`${req.validUntil}T23:59:59`).toISOString() }); toast.success(ui("Override requested. The inherited value applies until it is approved.")); setReq(null); await load(); return true; } catch (e) { toast.error(friendlyErrorMessage(e, ui("The change was not saved."))); return false; } finally { setBusy(false); } }} data-override-submit>{ui("Send request")}</Button></div>
     </div></Modal> : null}
   </section>;
 }
@@ -163,7 +163,7 @@ function DraftEditor({ template, lib, reload }: { template: Template; lib: Libra
         confirmLabel={ui("Approve and schedule v{0}", [String(preview.version)])} cancelLabel={ui("Keep editing")} busy={pendingAction === "self-approve"}
         requireReason={{ label: ui("Why is this change needed now?"), minLength: 10 }}
         onCancel={() => setSelfApprove(false)}
-        onConfirm={(reason?: string) => void run(async () => {
+        onConfirm={(reason?: string) => run(async () => {
           // SD3 (§2.5): the sole authority submits to themself and approves with a typed reason.
           await call("/api/group-policy", "POST", { action: "submit", versionId: draft.id, effectiveFrom: new Date(effective).toISOString(), reviewerId: lib.userId, previewHash: preview.previewHash, reason });
           await call("/api/group-policy", "POST", { action: "review", versionId: draft.id, decision: "APPROVE", reason });
@@ -190,7 +190,7 @@ export function GroupPolicy({ focus }: { focus?: "library" | "reviews" } = {}) {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [declining, setDeclining] = useState<Library["pending"][number] | null>(null);
   const [selfReview, setSelfReview] = useState<Version | null>(null);
-  const run = async (work: () => Promise<unknown>, done: string, tag?: string) => { setBusy(true); setPendingAction(tag ?? null); try { await work(); toast.success(ui(done)); await load(); } catch (e) { toast.error(friendlyErrorMessage(e, ui("The change was not saved."))); } finally { setBusy(false); setPendingAction(null); } };
+  const run = async (work: () => Promise<unknown>, done: string, tag?: string) => { setBusy(true); setPendingAction(tag ?? null); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(friendlyErrorMessage(e, ui("The change was not saved."))); return false; } finally { setBusy(false); setPendingAction(null); } };
 
   const overrideRequests = lib?.pending.length ? <div className="sk-panel space-y-2 p-4" data-override-requests><h3 className="font-bold text-ink-strong">{ui("Override requests")}</h3>{lib.pending.map(o => <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-subtle p-3 text-sm" data-override-request={o.key}>
     <span className="min-w-0"><bdi>{lib.campuses.find(c => c.id === o.campusId)?.name}</bdi> · {ui(LABELS[o.key] ?? o.key)}: <bdi>{show(ui, o.key, o.value)}</bdi> · {ui("until {0}", [date(o.validUntil)])} · <span dir="auto">{o.reason}</span></span>
@@ -201,7 +201,7 @@ export function GroupPolicy({ focus }: { focus?: "library" | "reviews" } = {}) {
     description={ui("The campus keeps the group value. The campus admin who asked is told.")} confirmLabel={ui("Decline")} cancelLabel={ui("Keep editing")}
     busy={Boolean(declining) && pendingAction === `decline-${declining?.id}`}
     onCancel={() => setDeclining(null)}
-    onConfirm={() => { const target = declining; if (!target) return; void run(() => call("/api/group-policy", "POST", { action: "decide-override", id: target.id, decision: "DECLINE" }), "Override declined.", `decline-${target.id}`).finally(() => setDeclining(null)); }} />;
+    onConfirm={() => { const target = declining; if (!target) return; return run(() => call("/api/group-policy", "POST", { action: "decide-override", id: target.id, decision: "DECLINE" }), "Override declined.", `decline-${target.id}`).then(saved => { if (saved) setDeclining(null); }); }} />;
 
   if (focus === "reviews") {
     if (denied) return <ErrorState description={ui("Group policy reviews could not be loaded.")} onRetry={() => void load()} />;
@@ -224,7 +224,7 @@ export function GroupPolicy({ focus }: { focus?: "library" | "reviews" } = {}) {
         busy={Boolean(selfReview) && pendingAction === `review-approve-${selfReview?.id}`}
         requireReason={{ label: ui("Why is this change needed now?"), minLength: 10 }}
         onCancel={() => setSelfReview(null)}
-        onConfirm={(reason?: string) => { const target = selfReview; if (!target) return; void run(() => call("/api/group-policy", "POST", { action: "review", versionId: target.id, decision: "APPROVE", reason }), "Version scheduled.", `review-approve-${target.id}`).finally(() => setSelfReview(null)); }} />
+        onConfirm={(reason?: string) => { const target = selfReview; if (!target) return; return run(() => call("/api/group-policy", "POST", { action: "review", versionId: target.id, decision: "APPROVE", reason }), "Version scheduled.", `review-approve-${target.id}`).then(saved => { if (saved) setSelfReview(null); }); }} />
     </div>;
   }
 

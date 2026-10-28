@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -106,30 +107,5 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
-
-    const id = request.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
-
-    const existing = await prisma.dormRoomType.findFirst({
-      where: { id, campusId },
-      select: { id: true },
-    });
-    if (!existing) throw new ApiError("Room type not found", 404);
-
-    const roomCount = await prisma.dormRoom.count({ where: { roomTypeId: id } });
-    if (roomCount > 0) {
-      throw new ApiError(`Cannot delete: ${roomCount} room(s) reference this room type`, 409);
-    }
-
-    const data = await prisma.dormRoomType.delete({ where: { id } });
-
-    return Response.json({ success: true, data });
-  } catch (error) {
-    return errorResponse(error, "[dormitory] DELETE room-types failed");
-  }
+  return operationDeleteResponse(request, "dormitory/room-types");
 }

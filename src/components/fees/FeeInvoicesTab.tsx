@@ -198,6 +198,7 @@ export function FeeInvoicesTab({ campusId, readOnly = false, command, hideHeader
         toast.success(tr(json.message));
         loadInvoices();
         if (detailInvoice?.id === id) setDetailInvoice(null);
+        return true;
       } else {
         toast.error(tr(json.error || "Failed to update status"));
       }
@@ -424,7 +425,7 @@ function InvoiceDetailModal({
   failed?: RequestFailure | null;
   onRetry?: () => void;
   onClose: () => void;
-  onStatusChange: (id: string, status: "OVERDUE" | "CANCELLED") => void;
+  onStatusChange: (id: string, status: "OVERDUE" | "CANCELLED") => Promise<boolean | undefined>;
 }) {
  const { date: formatDate, money: formatPKR } = useLocaleFormat();
   const tr = useUiText();
@@ -452,7 +453,7 @@ function InvoiceDetailModal({
       title={tr("Mark this invoice overdue?")}
       description={tr("The invoice is flagged overdue and late-fee rules start to apply. You can still record payments against it.")}
       cancelLabel={tr("Keep editing")}
-      onConfirm={() => { setConfirmOverdue(false); onStatusChange(inv.id, "OVERDUE"); }}
+      onConfirm={() => { return onStatusChange(inv.id, "OVERDUE").then(saved => { if (saved) setConfirmOverdue(false); }); }}
       onCancel={() => setConfirmOverdue(false)}
       tone="warning"
       confirmLabel={tr("Mark overdue")}
@@ -462,7 +463,7 @@ function InvoiceDetailModal({
       title={tr("Cancel this invoice?")}
       description={tr("The family no longer owes this invoice and it cannot be reopened. An invoice with any payment recorded cannot be cancelled.")}
       cancelLabel={tr("Keep editing")}
-      onConfirm={() => { setConfirmCancel(false); onStatusChange(inv.id, "CANCELLED"); }}
+      onConfirm={() => { return onStatusChange(inv.id, "CANCELLED").then(saved => { if (saved) setConfirmCancel(false); }); }}
       onCancel={() => setConfirmCancel(false)}
       tone="danger"
       confirmLabel={tr("Cancel invoice")}

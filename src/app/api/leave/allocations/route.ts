@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
@@ -78,21 +79,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "leave", "delete");
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const allocation = await prisma.leaveAllocation.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!allocation) throw new ApiError("Allocation not found", 404);
-
-    await prisma.leaveAllocation.delete({ where: { id } });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[leave/allocations] DELETE failed");
-  }
+  return operationDeleteResponse(req, "leave/allocations");
 }

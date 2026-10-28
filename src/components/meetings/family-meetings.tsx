@@ -132,7 +132,7 @@ export function FamilyMeetings({ studentId }: { studentId: string }) {
       </div> : null}
       confirmLabel={ui("Cancel meeting")}
       cancelLabel={ui("Keep the meeting")}
-      onConfirm={() => void cancel()}
+      onConfirm={() => cancel()}
       onCancel={() => setCancelling(null)}
     />
   </section>;
