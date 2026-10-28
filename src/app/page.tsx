@@ -27,7 +27,12 @@ export default async function EntryPage() {
   return (
     // Transparent: the shared body canvas (lilac glow and dot grid) is the
     // ground of both the splash and /login, so there is no flash between them.
-    <main lang={language} dir={directionFor(language)} className="min-h-dvh">
+    // Scrolls rather than clips if the column ever outgrows the screen (200% text in a landscape phone).
+    <main
+      lang={language}
+      dir={directionFor(language)}
+      className="fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto"
+    >
       <SplashScreen language={language} />
     </main>
   );
