@@ -1,3 +1,4 @@
+import { pageWindow } from "@/lib/lists/query";
 import { assertListBudget } from "@/lib/lists/access";
 import { boundedInteger, ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get("action") || "";
     const days = boundedInteger(searchParams.get("days"), 30, 365);
-    const { page, limit } = ownerPagination(searchParams, 50, 200);
+    const { page: requestedPage, limit } = ownerPagination(searchParams, 50, 200);
 
     // The platform audit table is global; this school sees only actions by its own people or about itself.
     const where: any = {
@@ -30,23 +31,22 @@ export async function GET(req: NextRequest) {
     };
     if (action) where.action = action;
 
-    const [logs, total] = await Promise.all([
-      prisma.superAdminAuditLog.findMany({
+    const total = await prisma.superAdminAuditLog.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const logs = await prisma.superAdminAuditLog.findMany({
         where,
         include: {
           user: { select: { id: true, fullName: true, email: true } },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
-      }),
-      prisma.superAdminAuditLog.count({ where }),
-    ]);
+      });
 
     return Response.json({
       success: true,
       data: logs,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: { page, limit, total, pages },
     });
   } catch (error) {
     return errorResponse(error, "[super/audit-logs] GET failed");

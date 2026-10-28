@@ -16,7 +16,8 @@ import { collectPageError } from "../support/browser-errors";
 // teachers, accountants and librarians get 403 "Record search is not part of your workspace." (and an AccessNotice
 // on /search, never a Retry); families get 403; every result opens in the searcher's own console.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+const isolatedTarget = (url.port === "55438" && url.pathname === "/postgres") || (url.port === "55452" && url.pathname === "/skai52");
+if (url.hostname !== "127.0.0.1" || !isolatedTarget) throw Error("Only the isolated search QA databases are allowed");
 const base = process.env.SEARCH_TEST_APP || "http://localhost:3107";
 const evidence = process.env.SEARCH_EVIDENCE_DIR || "/tmp/sko401-evidence";
 const db = new PrismaClient(), password = "SyntheticSearch401!";
@@ -49,12 +50,12 @@ const search = async (ctx: BrowserContext, query: Record<string, string>) => {
   return { status: response.status(), data: (await response.json()).data as Data };
 };
 const students = (data: Data) => data.groups.find(group => group.type === "student") ?? { total: 0, rows: [] };
-const shot = async (page: Page, name: string) => { await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
+const shot = async (page: Page, name: string) => { await page.waitForFunction(() => Array.from(document.querySelectorAll('[aria-label="Loading Skoolee AI"]')).every(element => element.getClientRects().length === 0)); await page.evaluate("Promise.all(document.getAnimations().filter(a => Number.isFinite(Number(a.effect && a.effect.getComputedTiming().endTime))).map(a => a.finished.catch(() => undefined)))"); await page.screenshot({ path: `${evidence}/${name}.png` }); };
 
 before(async () => {
-  await db.school.create({ data: { id: schoolId, name: "Synthetic Cypress Search School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
+  await db.school.create({ data: { id: schoolId, name: "QA-01 Synthetic Search School", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   for (const [id, name] of [[campusA, "Cypress North"], [campusB, "Cypress South"]]) await db.campus.create({ data: { id, schoolId, name, regId: id, city: "Lahore" } });
-  await db.school.create({ data: { id: otherSchool, name: "Synthetic Other Tenant", slug: otherSchool, regId: otherSchool, contactEmail: `${otherSchool}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
+  await db.school.create({ data: { id: otherSchool, name: "QA-02 Synthetic Other Tenant", slug: otherSchool, regId: otherSchool, contactEmail: `${otherSchool}@example.invalid`, city: "Lahore", status: "ACTIVE", plan: "PRO" } });
   await db.campus.create({ data: { id: otherCampus, schoolId: otherSchool, name: "Other Tenant North", regId: otherCampus, city: "Lahore" } });
   await db.class.create({ data: { id: otherClass, schoolId: otherSchool, campusId: otherCampus, name: "Grade 7", section: "B", academicYear: 2026 } });
   await db.student.create({ data: { schoolId: otherSchool, campusId: otherCampus, classId: otherClass, fullName: "Synthetic Ahmad Raza", rollNo: "N-701", gender: "MALE", enrollmentDate: new Date("2025-04-01Z") } });
@@ -197,21 +198,14 @@ test("the principal's staff search lists teachers only, since the academic conso
   assert.ok(staff.rows.every(row => row.title === "Synthetic teacher"), staff.rows.map(row => row.title).join(","));
 });
 
-test("a role without record search sees an access notice on /search, never a Retry", async () => {
+test("a role without record search is redirected to its dashboard, never a Retry", async () => {
   const page = await (await context("teacher")).newPage(), errors: string[] = [];
   page.on("pageerror", collectPageError(errors));
   await page.goto(`${base}/search?q=Synthetic`);
-  await page.waitForLoadState("networkidle");
-  // The role guard may redirect these roles home (§6.3); wait for that to settle before deciding.
-  await page.waitForFunction(() => {
-    const path = new URL(window.location.href).pathname;
-    return path !== "/search" || document.body.textContent?.includes("Record search is not part of your workspace.") === true;
-  }, { timeout: 15_000 }).catch(() => {});
-  // P2 may send these roles home instead (§6.3); either way they never see a retry loop.
-  if (new URL(page.url()).pathname === "/search") {
-    await page.getByText("Record search is not part of your workspace.").first().waitFor({ timeout: 30_000 });
-    assert.equal(await page.getByRole("button", { name: /^(Retry|Try again)$/ }).count(), 0);
-  }
+  // The server redirect can arrive after the streamed /search shell. Wait for
+  // the destination instead of branching on a transient URL during navigation.
+  await page.waitForURL(url => url.pathname === "/teacher");
+  assert.equal(await page.getByRole("button", { name: /^(Retry|Try again)$/ }).count(), 0);
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -433,4 +427,91 @@ test("SCRUM-306: stalled search times out and retries without losing the query",
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await page.getByText("Synthetic Bulk Pupil 00", { exact: true }).waitFor();
   await page.close();
+});
+
+test("SKAI-52: stale administration pages clamp after authorized counts, including empty lists", async () => {
+  await user("platform", "APP_OWNER", null);
+  const platform = await context("platform"), group = await context("owner");
+  for (const [ctx, path] of [[platform, "/api/owner/users"], [platform, "/api/owner/schools"], [platform, "/api/owner/sessions"], [platform, "/api/owner/audit-logs"], [group, "/api/super/users"], [group, "/api/super/audit-logs"]] as const) {
+    const response = await ctx.request.get(`${base}${path}?page=999999999&limit=2`);
+    assert.equal(response.status(), 200, path);
+    const json = await response.json();
+    assert.equal(json.pagination.page, Math.max(1, Math.ceil(json.pagination.total / 2)), `${path}: stale page clamps to authorized last page`);
+    assert.equal(json.data.length, json.pagination.total ? ((json.pagination.total - 1) % 2) + 1 : 0, path);
+  }
+  for (const campusId of [campusA, campusB]) {
+    const json = await (await group.request.get(`${base}/api/super/users?campusId=${campusId}&page=99999&limit=2`)).json();
+    assert.ok(json.data.length > 0);
+    assert.ok(json.data.every((row: { campus: { id: string } }) => row.campus.id === campusId));
+  }
+  const foreign = await (await group.request.get(`${base}/api/super/users?campusId=${otherCampus}&page=99999`)).json();
+  assert.equal(foreign.pagination.total, 0); assert.equal(foreign.pagination.page, 1); assert.deepEqual(foreign.data, []);
+  for (const path of ["/api/owner/users", "/api/super/users", "/api/owner/audit-logs", "/api/super/audit-logs"]) {
+    assert.equal((await (await context("parent")).request.get(base + path)).status(), 403);
+  }
+});
+
+test("SKAI-52: owner paging survives refresh, Back and filters", async () => {
+  if (!users.has("platform")) await user("platform", "APP_OWNER", null);
+  await db.user.createMany({ data: Array.from({ length: 30 }, (_, i) => ({ schoolId, campusId: campusA, email: `${randomUUID()}@example.invalid`, fullName: `QA-01 Directory ${String(i).padStart(2, "0")}`, password: "unused-test-account", role: "TEACHER" as const })) });
+  const authenticated = await context("platform");
+  const recording = await browser.newContext({ storageState: await authenticated.storageState(), viewport: { width: 1440, height: 1000 }, recordVideo: { dir: evidence, size: { width: 1440, height: 1000 } } });
+  const page = await recording.newPage();
+  await page.goto(`${base}/owner?view=users&users.search=QA-01%20Directory`);
+  await page.getByRole("button", { name: "Next page", exact: true }).waitFor({ timeout: 60000 });
+  await page.getByRole("button", { name: "Next page", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.waitForURL(url => url.searchParams.get("users.page") === "2", { timeout: 10000 });
+  await page.reload();
+  await page.getByRole("button", { name: "Previous page", exact: true }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Next page", exact: true }).isDisabled(), true);
+  await page.getByRole("textbox", { name: "Search users", exact: true }).fill("QA-01 Directory 01");
+  await page.waitForURL(url => !url.searchParams.has("users.page"));
+  await page.getByRole("table").getByText("QA-01 Directory 01", { exact: true }).waitFor();
+  await page.goBack();
+  await page.waitForURL(url => url.searchParams.get("users.page") === "2");
+  assert.equal(await page.getByRole("textbox", { name: "Search users", exact: true }).inputValue(), "QA-01 Directory");
+  await page.waitForFunction(() => document.querySelector<HTMLButtonElement>('button[aria-label="Next page"]')?.disabled === true);
+  await shot(page, "SKAI-52_owner-paging_EN");
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  assert.equal(await page.getByRole("textbox", { name: "Search users", exact: true }).isVisible(), true);
+  await shot(page, "SKAI-52_owner-200-percent_EN");
+  await page.close();
+  await recording.close();
+  await page.video()!.saveAs(`${evidence}/SKAI-52_flow.webm`);
+});
+
+test("SKAI-52: 501 inventory rows traverse bounded stable pages without crossing tenants or campuses", async () => {
+  await db.item.createMany({ data: Array.from({ length: 501 }, (_, i) => ({ schoolId, campusId: campusA, name: `QA-01 Inventory ${String(i).padStart(4, "0")}` })) });
+  await db.item.createMany({ data: [{ schoolId, campusId: campusB, name: "QA-01 Inventory South" }, { schoolId: otherSchool, campusId: otherCampus, name: "QA-01 Inventory Other" }] });
+  const ctx = await context("ops"), ids = new Set<string>(), started = Date.now();
+  for (let page = 1; page <= 6; page++) {
+    const response = await ctx.request.get(`${base}/api/inventory/items?search=QA-01%20Inventory&sort=name-desc&limit=100&page=${page}`);
+    assert.equal(response.status(), 200);
+    const json = await response.json();
+    assert.equal(json.pagination.total, 501); assert.ok(json.data.length <= 100);
+    for (const row of json.data) { assert.equal(row.campusId, campusA); assert.ok(!ids.has(row.id)); ids.add(row.id); }
+  }
+  assert.equal(ids.size, 501);
+  console.log(`SKAI-52 inventory traversal: 501 rows / 6 requests / ${Date.now() - started} ms (local QA, not a production SLO)`);
+  assert.equal((await (await context("parent")).request.get(base + "/api/inventory/items")).status(), 403);
+});
+
+
+test("SKAI-52: owner Arabic phone layout and denied-role evidence", async () => {
+  await user("platform-ar", "APP_OWNER", null, "ar");
+  const page = await (await context("platform-ar", { width: 390, height: 844 })).newPage();
+  await page.goto(`${base}/owner?view=users&users.search=QA-01%20Directory&users.page=2`);
+  await page.locator("article").filter({ hasText: "QA-01 Directory" }).first().waitFor({ timeout: 60000 });
+  assert.equal(await page.evaluate(() => document.documentElement.dir), "rtl");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await shot(page, "SKAI-52_03_rtl_AR");
+  await page.close();
+  const denied = await (await context("teacher")).newPage();
+  await denied.goto(`${base}/search?q=QA-01`);
+  await denied.waitForLoadState("networkidle");
+  assert.ok(["/search", "/teacher"].includes(new URL(denied.url()).pathname));
+  assert.equal((await denied.request.get(base + "/api/search?q=QA-01")).status(), 403);
+  await shot(denied, "SKAI-52_02_denied");
+  await denied.close();
 });
