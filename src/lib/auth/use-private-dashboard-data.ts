@@ -24,7 +24,7 @@ export function usePrivateDashboardData<T>(load: () => Promise<T>, { enabled = t
   const [error, setError] = useState<string | null>(null);
   const requestVersion = useRef(0);
   const settled = useRef(onSettled);
-  settled.current = onSettled;
+  useEffect(() => { settled.current = onSettled; });
 
   const refetch = useCallback(async () => {
     const version = ++requestVersion.current;
