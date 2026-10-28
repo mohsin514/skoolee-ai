@@ -79,7 +79,7 @@ export function Portfolio({ studentId, addRequest, hideAdd = false }: { studentI
   const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return false; } finally { setBusy(false); } };
   const openAdd = async () => { setAdding(true); try { setAttempts((await call(`/api/portfolio?view=evidence${q ? `&${q.slice(1)}` : ""}`)).attempts); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "Could not load evidence to add.")); } };
   const openAddRef = useRef(openAdd);
-  openAddRef.current = openAdd;
+  useEffect(() => { openAddRef.current = openAdd; });
   useEffect(() => { if (addRequest) void openAddRef.current(); }, [addRequest]);
 
   if (error) return <section data-portfolio><ErrorState description={error} onRetry={() => void load()} retryLabel={ui("Try again")} /></section>;

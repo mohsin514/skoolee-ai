@@ -260,11 +260,13 @@ export default function MarksPage() {
      product uses, and states the count. */
   const [clearTarget, setClearTarget] = useState<{ subjectId: string; subjectName: string } | null>(null);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const clearColumn = useCallback((subjectId: string, subjectName: string) => {
     if (!markSheet) return;
     setClearTarget({ subjectId, subjectName });
   }, [markSheet]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const confirmClearColumn = useCallback(() => {
     if (!markSheet || !clearTarget) return;
     const { subjectId } = clearTarget;

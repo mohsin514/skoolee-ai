@@ -13,8 +13,8 @@ function fixture(versions: Array<{ id: string; reportCard: { currentVersionId: s
     reportVersion: { findMany: async (args: unknown) => { queries.versions = args; return versions; } },
     reportCard: { count: async (args: unknown) => { queries.legacy = args; return legacy; } },
   };
-  const module = { exports: {} as { pendingReportReviewCount: (school: string, campus: string) => Promise<number> } };
-  new Function("module", "exports", "require", code)(module, module.exports, (id: string) => {
+  const mod = { exports: {} as { pendingReportReviewCount: (school: string, campus: string) => Promise<number> } };
+  new Function("module", "exports", "require", code)(mod, mod.exports, (id: string) => {
     assert.equal(id, "@/lib/db/prisma");
     return { prisma: db };
   });

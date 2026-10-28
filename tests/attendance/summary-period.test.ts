@@ -15,8 +15,8 @@ function fixture() {
     attendance: { findMany: async ({ where }: any) => records.filter((record) => record.date >= where.date.gte && record.date <= where.date.lte) },
     class: { findMany: async () => [{ id: "class-a", name: "Year 1", section: "A", _count: { students: 1 } }] },
   };
-  const module = { exports: {} as any };
-  new Function("module", "exports", "require", code)(module, module.exports, (id: string) => {
+  const mod = { exports: {} as any };
+  new Function("module", "exports", "require", code)(mod, mod.exports, (id: string) => {
     if (id === "@/lib/db/prisma") return { prisma: db };
     if (id === "@/lib/api/scope") return {
       requireAuthUser: async () => ({ role: "PRINCIPAL", schoolId: "school-a", campusId: "campus-a" }),

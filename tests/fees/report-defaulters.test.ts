@@ -31,8 +31,8 @@ function fixture() {
   };
   const currencies = { exports: {} as any };
   new Function("module", "exports", "require", currencyCode)(currencies, currencies.exports, () => ({ prisma: db }));
-  const module = { exports: {} as any };
-  new Function("module", "exports", "require", routeCode)(module, module.exports, (id: string) => {
+  const mod = { exports: {} as any };
+  new Function("module", "exports", "require", routeCode)(mod, mod.exports, (id: string) => {
     if (id === "../invoice-currency") return currencies.exports;
     if (id === "@/lib/db/prisma") return { prisma: db };
     if (id === "@/lib/locale/store") return { getLocalePackage: async () => ({ currency: "USD" }) };

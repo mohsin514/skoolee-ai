@@ -101,7 +101,7 @@ test("limitations are explicit; the package must be the campus's own jurisdictio
 test("activation needs identity, owner, dated evidence, a passing fixture run on this exact configuration and a second approver", async () => {
   const d = await tax("finance1", activation({}));
   assert.equal(d.status, 201); ids.a1 = d.json.data.id;
-  let row = (await call("finance1", "get", "/api/tax?view=overview")).json.data.activations.find((a: { id: string }) => a.id === ids.a1);
+  const row = (await call("finance1", "get", "/api/tax?view=overview")).json.data.activations.find((a: { id: string }) => a.id === ids.a1);
   assert.ok(row.blockers.some((b: string) => /tax number does not have the format/.test(b)));
   assert.ok(row.blockers.some((b: string) => /validation owner/.test(b)) && row.blockers.some((b: string) => /evidence reference/.test(b)) && row.blockers.some((b: string) => /fixtures/.test(b)));
   const early = await tax("finance2", { action: "approve", id: ids.a1 });
