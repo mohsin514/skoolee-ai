@@ -142,7 +142,7 @@ export function SubscriptionRequestReview() {
       requireReason={{ label: t("Reason recorded in the audit log"), minLength: 8 }}
       busy={Boolean(deciding) && busy === deciding?.row.id}
       onCancel={() => setDeciding(null)}
-      onConfirm={(reason?: string) => { const target = deciding; if (!target) return; void review(target.row, target.decision, reason ?? ""); }}
+      onConfirm={(reason?: string) => { const target = deciding; if (!target) return; return review(target.row, target.decision, reason ?? ""); }}
     />
   </div>;
 }

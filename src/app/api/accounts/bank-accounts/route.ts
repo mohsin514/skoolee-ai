@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -105,31 +106,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    await assertPermission(user, "accounts", "delete");
-
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const bank = await prisma.bankAccount.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-      include: { _count: { select: { entries: true } } },
-    });
-    if (!bank) throw new ApiError("Bank account not found", 404);
-    if (bank._count.entries > 0) {
-      throw new ApiError("Cannot delete: this bank account has ledger entries", 409);
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.bankAccount.delete({ where: { id: bank.id } });
-      await writeAuditEvent(tx, user, {
-        table: "bank_accounts", recordId: bank.id, action: "DELETE", campusId: bank.campusId,
-        before: { currency: bank.currency, openingBalance: bank.openingBalance, isActive: bank.isActive },
-      });
-    });
-    return Response.json({ success: true, message: "Bank account deleted" });
-  } catch (error) {
-    return errorResponse(error, "accounts/bank-accounts DELETE failed");
-  }
+  return operationDeleteResponse(req, "accounts/bank-accounts");
 }

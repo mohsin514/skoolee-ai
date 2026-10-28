@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -87,26 +88,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "fees", "delete");
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feeDiscount.findFirst({ where: { id, ...scopedCampusWhere(user) } });
-    if (!existing) throw new ApiError("Discount not found", 404);
-
-    await prisma.$transaction(async (tx) => {
-      // SKO-389: a discount still assigned to pupils is not removed from them silently.
-      const assigned = await tx.feeDiscountAssignment.count({ where: { discountId: id } });
-      if (assigned) throw new ApiError(`This discount is assigned to ${assigned} pupil(s). Remove those assignments first; invoices already issued keep their discount.`, 409);
-      await tx.feeDiscount.delete({ where: { id } });
-      await writeAuditEvent(tx, user, { table: "fee_discounts", recordId: id, action: "DELETE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, currency: existing.currency, categoryId: existing.categoryId } });
-    });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/discounts] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/discounts");
 }

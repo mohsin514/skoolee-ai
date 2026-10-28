@@ -188,7 +188,7 @@ function AssignmentDetail({ t, language, detail, subjects, busy, editing, setEdi
       cancelLabel={t.keepOpen}
       busy={busy}
       onCancel={() => setConfirmClose(false)}
-      onConfirm={() => { setConfirmClose(false); void run(() => call(`/api/assignments/${assignment.id}`, { op: "close" })); }}
+      onConfirm={async () => { if (await run(() => call(`/api/assignments/${assignment.id}`, { op: "close" }))) setConfirmClose(false); }}
     />
     {editing && <AssignmentEditor t={t} classId={""} subjects={subjects} resources={detail.resources} initial={assignment} busy={busy} onCancel={() => setEditing(false)} onSave={async body => { if (await run(() => call(`/api/assignments/${assignment.id}`, { op: "update", ...body }))) setEditing(false); }} />}
     {plan && <ReleaseReview t={t} language={language} plan={plan} busy={busy} onCancel={closePreview} onRelease={async () => {

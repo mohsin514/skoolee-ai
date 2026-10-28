@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -187,50 +188,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "timetable", "delete");
-
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const target = await prisma.classRoom.findFirst({ where: { id, ...resourceScope(user) }, select: { campusId: true } });
-    if (!target) throw new ApiError("Resource not found in your campus", 404);
-    return await withSchedulingResourceWrite(user, target.campusId, "timetable", "delete", async tx => {
-      const room = await tx.classRoom.findFirst({
-        where: { id, ...resourceScope(user), campusId: target.campusId },
-        select: {
-          id: true,
-          roomNumber: true,
-          _count: { select: { slots: true, examSchedules: true, examRooms: true } },
-        },
-      });
-      if (!room) throw new ApiError("Room not found", 404);
-
-      // The usage count was already being read here and then ignored, so deleting
-      // a room that timetables and date sheets point at silently unpicked those
-      // assignments. Refuse, and say exactly what is holding the room.
-      const holds: string[] = [];
-      if (room._count.slots > 0) {
-        holds.push(`${room._count.slots} timetable slot${room._count.slots === 1 ? "" : "s"}`);
-      }
-      const examUses = room._count.examSchedules + room._count.examRooms;
-      if (examUses > 0) {
-        holds.push(`${examUses} exam paper${examUses === 1 ? "" : "s"}`);
-      }
-      if (holds.length > 0) {
-        throw new ApiError(
-          `Room ${room.roomNumber} is still in use by ${holds.join(" and ")}. Move them to another room first.`,
-          409,
-        );
-      }
-
-      await tx.classRoom.delete({ where: { id } });
-      return Response.json({ success: true, data: { id } });
-    });
-  } catch (error) {
-    return errorResponse(error, "[academic/rooms] DELETE failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "academic/rooms");
 }

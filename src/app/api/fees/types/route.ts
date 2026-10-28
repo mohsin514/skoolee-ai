@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -78,26 +79,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
-        await assertPermission(user, "fees", "delete");
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feeType.findFirst({ where: { id, ...scopedCampusWhere(user) } });
-    if (!existing) throw new ApiError("Fee type not found", 404);
-
-    await prisma.$transaction(async (tx) => {
-      // SKO-389: a fee type still priced in master lines is not deleted out from under them.
-      const lines = await tx.feesMasterLine.count({ where: { feeTypeId: id } });
-      if (lines) throw new ApiError(`This fee type is used by ${lines} master line(s). Remove it from those lines first; invoices already issued are not affected.`, 409);
-      await tx.feeType.delete({ where: { id } });
-      await writeAuditEvent(tx, user, { table: "fee_types", recordId: id, action: "DELETE", campusId: existing.campusId });
-    });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/types] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/types");
 }
