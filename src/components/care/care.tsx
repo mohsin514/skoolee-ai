@@ -529,7 +529,7 @@ export function CareDesk() {
     {current === "clinic" ? (me.CLINIC?.enabled ? <ClinicWorkspace /> : <p className="sk-panel p-4 text-sm" data-care-disabled>{ui("This confidential workspace has not been enabled for your campus.")}</p>) : null}
     {current === "safeguarding" ? (me.SAFEGUARDING?.enabled ? <SafeguardingWorkspace /> : <p className="sk-panel p-4 text-sm" data-care-disabled>{ui("This confidential workspace has not been enabled for your campus.")}</p>) : null}
     {current === "oversight" ? <div className="space-y-4">{me.CLINIC?.role === "LEAD" ? <Oversight domain="CLINIC" /> : null}{me.SAFEGUARDING?.role === "LEAD" ? <Oversight domain="SAFEGUARDING" /> : null}</div> : null}
-    {current === "emergency" ? (grant ? <EmergencyRecord grant={grant} onClose={() => { setGrant(null); void load(); }} /> : <EmergencyPanel me={me} reload={() => void load()} onOpen={setGrant} />) : null}
+    {current === "emergency" ? (grant ? <EmergencyRecord grant={grant} onClose={() => { setGrant(null); void refetch(); }} /> : <EmergencyPanel me={me} reload={() => void refetch()} onOpen={setGrant} />) : null}
     {current === "settings" ? <CareSettings /> : null}
   </div>;
 }
