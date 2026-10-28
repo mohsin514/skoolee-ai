@@ -15,6 +15,8 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-421 family side. Leave: a request for future days that the school decides; it never marks the
 // register. Trips: the exact version is shown and named in the answer; giving and refusing permission are
@@ -39,6 +41,15 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
   const { date } = useLocaleFormat();
   const [rows, setRows] = useState<Leave[] | null>(null), [open, setOpen] = useState(false), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ fromDate: "", toDate: "", reason: "" }), [reply, setReply] = useState<Record<string, string>>({});
+  const leaveDraft = useFormDraft({
+    record: `family:leave:${studentId}`,
+    schema: 1,
+    values: form,
+    baseline: { fromDate: "", toDate: "", reason: "" },
+    fields: ["fromDate", "toDate", "reason"] as const,
+    enabled: open,
+    apply: (values) => setForm({ fromDate: String(values.fromDate ?? ""), toDate: String(values.toDate ?? ""), reason: String(values.reason ?? "") }),
+  });
   const [cancelling, setCancelling] = useState<Leave | null>(null);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
@@ -96,13 +107,14 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
     />
     {open ? <Modal size="sm" title={ui("Request leave")} eyebrow={ui("Attendance")} subtitle={ui("For days that have not happened yet. Explain past absences from the list above.")} onClose={() => setOpen(false)}>
       <div className="space-y-3" data-leave-form>
+        <DraftRecovery recordLabel={ui("Leave request")} draft={leaveDraft} saving={busy} excluded={ui("Do not include medical details; device drafts stay only in this signed-in browser for 24 hours.")} />
         {error ? <Alert tone="danger" compact data-leave-error>{error}</Alert> : null}
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField name="leave-from" label={ui("First day")}><Input type="date" value={form.fromDate} onChange={e => setForm({ ...form, fromDate: e.target.value, toDate: form.toDate || e.target.value })} /></FormField>
           <FormField name="leave-to" label={ui("Last day")}><Input type="date" value={form.toDate} min={form.fromDate} onChange={e => setForm({ ...form, toDate: e.target.value })} /></FormField>
         </div>
         <FormField name="leave-reason" label={ui("Reason")} hint={ui("Keep it short. Do not include medical details here.")}><Textarea value={form.reason} maxLength={1000} onChange={e => setForm({ ...form, reason: e.target.value })} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Cancel")}</Button><Button disabled={busy || !form.fromDate || form.reason.trim().length < 3} onClick={async () => { if (await send("POST", { studentId, ...form })) { toast.success(ui("Request sent. The school will review it.")); setOpen(false); setForm({ fromDate: "", toDate: "", reason: "" }); void load(); } }} loading={busy} data-leave-send>{ui("Send request")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Cancel")}</Button><Button disabled={busy || !form.fromDate || form.reason.trim().length < 3} onClick={async () => { if (await send("POST", { studentId, ...form })) { toast.success(ui("Request sent. The school will review it.")); leaveDraft.markSaved(); setOpen(false); setForm({ fromDate: "", toDate: "", reason: "" }); void load(); } }} loading={busy} data-leave-send>{ui("Send request")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
