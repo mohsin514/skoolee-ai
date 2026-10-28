@@ -20,7 +20,7 @@ function cleanProfileImage(value: unknown) {
   const trimmed = value.trim();
   if (!trimmed) return null;
   if (/^profile-images\/\S+$/i.test(trimmed)) return trimmed;
-  if (trimmed.length > 1_500_000) throw new ApiError("Profile image is too large", 413);
+  if (trimmed.length > 5_000_000) throw new ApiError("Profile image is too large", 413);
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
   if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
   throw new ApiError("Use an image upload, data image, or a valid image URL", 400);

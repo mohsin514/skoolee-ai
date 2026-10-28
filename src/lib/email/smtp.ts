@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import net from "node:net";
 import tls from "node:tls";
+import { NOREPLY_EMAIL, SUPPORT_EMAIL } from "@/lib/config/contact";
 
-const DEFAULT_FROM_EMAIL = "noreply@skoolee.ai";
+const DEFAULT_FROM_EMAIL = NOREPLY_EMAIL;
 
 function getFromEmail() {
   return (
@@ -211,7 +212,7 @@ function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
     "Precedence: bulk",
     "Auto-Submitted: auto-generated",
     // List-Unsubscribe improves deliverability for bulk senders
-    "List-Unsubscribe: <mailto:support@skoolee.ai>",
+    `List-Unsubscribe: <mailto:${SUPPORT_EMAIL}>`,
   ].filter(Boolean);
 
   const body = [
@@ -237,8 +238,8 @@ function buildMimeMessage(input: SmtpMailInput, recipients: string[]) {
 
 async function connect(config: SmtpConfig) {
   // Use the from email domain for EHLO to improve deliverability
-  const fromEmail = config.user || 'noreply@skoolee.ai';
-  const domain = fromEmail.split('@')[1] || 'skoolee.ai';
+  const fromEmail = config.user || NOREPLY_EMAIL;
+  const domain = fromEmail.split('@')[1] || 'skooleeai.com';
   
   let socket: net.Socket | tls.TLSSocket;
   if (config.secure) {

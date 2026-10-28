@@ -989,8 +989,9 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
   const [detailSchool, setDetailSchool] = useState<SchoolRow | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  const [requestedPage, setPage] = useListField<number>("schools.page", 1, "schools.page");
   const loadSchoolsVersion = useRef(0);
-  const loadSchools = useCallback(async (page = 1) => {
+  const loadSchools = useCallback(async (page = requestedPage) => {
     const version = ++loadSchoolsVersion.current;
     setLoading(true);
     setLoadFailed(false);
@@ -1014,7 +1015,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
     } finally {
       if (version === loadSchoolsVersion.current) setLoading(false);
     }
-  }, [search, statusFilter, planFilter]);
+  }, [search, statusFilter, planFilter, requestedPage]);
 
   useEffect(() => { void loadSchools(); }, [loadSchools]);
 
@@ -1241,7 +1242,7 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
               <PaginationBar
                 pagination={pagination}
                 label="schools"
-                onPage={(p) => void loadSchools(p)}
+                onPage={setPage}
               />
             )}
           </>
@@ -1341,8 +1342,9 @@ function UsersView() {
     return qp;
   }, [search, roleFilter, statusFilter, schoolFilter]);
 
+  const [requestedPage, setPage] = useListField<number>("users.page", 1, "users.page");
   const loadUsersVersion = useRef(0);
-  const loadUsers = useCallback(async (page = 1) => {
+  const loadUsers = useCallback(async (page = requestedPage) => {
     const version = ++loadUsersVersion.current;
     setLoading(true);
     setLoadFailed(false);
@@ -1362,7 +1364,7 @@ function UsersView() {
     } finally {
       if (version === loadUsersVersion.current) setLoading(false);
     }
-  }, [filters]);
+  }, [filters, requestedPage]);
 
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
@@ -1545,7 +1547,7 @@ function UsersView() {
               </Table>
 
             {pagination.pages > 1 && (
-              <PaginationBar pagination={pagination} label="users" onPage={(p) => void loadUsers(p)} />
+              <PaginationBar pagination={pagination} label="users" onPage={setPage} />
             )}
           </>
         )}
@@ -1786,12 +1788,13 @@ function SessionsView() {
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const [showActiveOnly, setShowActiveOnly] = useListField<boolean>("sessions.active", true, "sessions.page");
   const [terminatingId, setTerminatingId] = useState<string | null>(null);
   const [confirmSession, setConfirmSession] = useState<SessionEntry | null>(null);
 
+  const [requestedPage, setPage] = useListField<number>("sessions.page", 1, "sessions.page");
   const loadSessionsVersion = useRef(0);
-  const loadSessions = useCallback(async (page = 1) => {
+  const loadSessions = useCallback(async (page = requestedPage) => {
     const version = ++loadSessionsVersion.current;
     setLoading(true);
     setLoadFailed(false);
@@ -1813,7 +1816,7 @@ function SessionsView() {
     } finally {
       if (version === loadSessionsVersion.current) setLoading(false);
     }
-  }, [showActiveOnly]);
+  }, [showActiveOnly, requestedPage]);
 
   useEffect(() => { void loadSessions(); }, [loadSessions]);
 
@@ -1954,7 +1957,7 @@ function SessionsView() {
         )}
 
         {pagination.pages > 1 && (
-          <PaginationBar pagination={pagination} label="sessions" onPage={(p) => void loadSessions(p)} />
+          <PaginationBar pagination={pagination} label="sessions" onPage={setPage} />
         )}
       </section>
 

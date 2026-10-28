@@ -14,7 +14,7 @@ import { securityCardClass } from "@/components/account-security/TwoFactorCard";
 
 type Form = { fullName: string; phone: string; profileImageUrl: string };
 const toForm = (profile: EditableProfile): Form => ({ fullName: profile.fullName || "", phone: profile.phone || "", profileImageUrl: profile.profileImageUrl || "" });
-const MAX_IMAGE_BYTES = 1_500_000;
+const MAX_IMAGE_BYTES = 5_000_000;
 
 /**
  * Profile inside the Settings modal: photo, name and phone (GET/PATCH /api/profile).
@@ -62,7 +62,7 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
   function pickImage(file?: File) {
     if (!file) return;
     if (!file.type.startsWith("image/")) { setMessage({ kind: "error", text: t("Please choose an image file") }); return; }
-    if (file.size > MAX_IMAGE_BYTES) { setMessage({ kind: "error", text: t("Use an image under 1.5 MB") }); return; }
+    if (file.size > MAX_IMAGE_BYTES) { setMessage({ kind: "error", text: t("Use an image under 5 MB") }); return; }
     const reader = new FileReader();
     reader.onload = () => { if (typeof reader.result === "string") update({ profileImageUrl: reader.result }); };
     reader.readAsDataURL(file);
@@ -123,7 +123,7 @@ export function ProfileSettingsSection({ onSaved, onDirtyChange }: {
           </div>
           <div className="min-w-0 flex-1">
             <h4 id="settings-photo-heading" className="text-base font-bold tracking-tight text-ink-strong">{t("Profile photo")}</h4>
-            <p className="mt-1 text-sm font-semibold text-ink-muted">{t("PNG or JPG, up to 1.5 MB.")}</p>
+            <p className="mt-1 text-sm font-semibold text-ink-muted">{t("PNG or JPG, up to 5 MB.")}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={event => { pickImage(event.target.files?.[0]); event.target.value = ""; }} />
               <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={saving}>
