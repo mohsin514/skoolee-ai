@@ -65,6 +65,7 @@ model School {
   institutionSetup     InstitutionSetup?
   subscriptionRequests SubscriptionRequest[]
   registrationKind String @default("UNVERIFIED") @map("registration_kind")
+  registrationIdMode String @default("auto") @map("registration_id_mode")
   id                   String    @id @default(uuid())
   name                 String
   slug                 String    @unique // subdomain routing

@@ -733,6 +733,7 @@ export default function RegisterPage() {
           countryIso,
           language,
           regId: formData.regId.trim(),
+          regIdMode: formData.autoId ? "auto" : "manual",
         }),
       });
       const step2 = await step2Res.json();

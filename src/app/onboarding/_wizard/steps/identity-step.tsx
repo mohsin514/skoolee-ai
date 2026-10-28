@@ -14,6 +14,7 @@ import { CountrySelect } from "@/components/ui/country-select";
 import { Input } from "@/components/ui/input";
 import { InputGroup } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import { FieldError, InputField, PhoneField } from "../fields";
 import { generateId } from "../helpers";
 import type { IdentityStepProps } from "../types";
@@ -31,7 +32,11 @@ export function IdentityStep({ t, local, language, headingRef, folio, notices, b
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-3 @min-[26rem]:grid-cols-[minmax(0,1fr)_6.5rem]">
         <PhoneField field="phone" error={errors.phone && t.errors[errors.phone]} label={t.phone} value={s.phone} onChange={(phone) => setSchool({ phone })} country={s.country} language={language} />
-        <InputField field="establishedYear" error={errors.establishedYear && t.errors[errors.establishedYear]} label={t.established} value={s.establishedYear} onChange={(val) => setSchool({ establishedYear: val.replace(/[^\d]/g, '').slice(0, 4) })} placeholder="1998" icon={CalendarDays} inputMode="numeric" />
+        <div className="space-y-1.5">
+          <Label htmlFor="field-establishedYear" className="sk-field-label">{t.established}</Label>
+          <DatePicker id="field-establishedYear" label={t.established} value={s.establishedYear ? `${s.establishedYear}-01-01` : ""} onValueChange={(value) => setSchool({ establishedYear: value.slice(0, 4) })} locale={language === "ar" ? "ar" : language === "ur" ? "ur" : "en-US"} aria-invalid={!!errors.establishedYear} />
+          {errors.establishedYear && <FieldError id="field-establishedYear-error" live={false}>{t.errors[errors.establishedYear]}</FieldError>}
+        </div>
       </div>
       <InputField field="website" error={errors.website && t.errors[errors.website]} label={t.website} value={s.website} onChange={(val) => setSchool({ website: val })} placeholder="www.school.edu.pk" icon={Globe} type="url" />
       <div className="space-y-1.5">
