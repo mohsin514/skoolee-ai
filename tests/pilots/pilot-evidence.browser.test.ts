@@ -1,3 +1,4 @@
+import { evidence as commercialEvidence } from "./charter-fixture";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -13,10 +14,11 @@ import { prisma as appPrisma } from "../../src/lib/db/prisma";
 // permission, are frozen at approval, go stale when the source is corrected, and the external export
 // carries no participant rows and names the school only with named permission.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || !((url.port === "55438" && url.pathname === "/postgres") || (url.port === "55483" && url.pathname === "/skai832"))) throw Error("Only isolated local DB 55438 is allowed");
 const base = process.env.PILOT_TEST_APP || "http://localhost:3108";
 const evidence = process.env.PILOT_EVIDENCE_DIR || "/tmp/sko430-evidence";
 const db = new PrismaClient(), password = "SyntheticPilot430!";
+const schoolB = `QA-01-B-${randomUUID()}`, campusB = randomUUID();
 const schoolId = `pi430-${randomUUID()}`, campusId = randomUUID();
 const users = new Map<string, { id: string; email: string }>();
 const sessions = new Map<string, Awaited<ReturnType<BrowserContext["storageState"]>>>();
@@ -39,19 +41,21 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   return c;
 }
 const post = async (key: string, path: string, data: object) => (await context(key)).request.post(`${base}/api/owner/pilots${path}`, { data });
-const act = (pilot: string, action: string, data: object) => post("owner", `/${pilot}`, { action, data });
+const act = async (pilot: string, action: string, data: object) => post("owner", `/${pilot}`, { action, data: action === "charter" ? { ...data, version: (await detail(pilot)).pilot.charterHistory.length } : data });
 const detail = async (pilot: string) => (await (await (await context("owner")).request.get(`${base}/api/owner/pilots/${pilot}`)).json()).data;
 const exported = async () => (await (await (await context("owner")).request.get(`${base}/api/owner/pilots/export`)).json()).data;
-const charter = (extra: object = {}) => ({ name: "Synthetic Cedar marks pilot", country: "AE", curriculum: "British", language: "en", useCase: "Paper marks entry", startsOn: "2026-09-01", endsOn: "2026-11-30",
+const charter = (extra: object = {}) => ({ name: "QA-01 marks pilot", country: "AE", curriculum: "British", language: "en", useCase: "Paper marks entry", startsOn: "2026-09-01", endsOn: "2026-11-30",
   championName: "Synthetic Champion", measurementOwnerId: users.get("owner")!.id, targetSchoolId: schoolId,
   workflows: [{ key: "MARKS_ENTRY", definition: "Enter one class's term-test marks from paper.", successDefinition: "All marks entered and checked by the teacher." }], ...extra });
 const observe = (pilot: string, participant: string, phase: string, active: number, correction: number, extra: object = {}) =>
   act(pilot, "observation", { workflow: "MARKS_ENTRY", phase, participant, task: "Term test, class of 30", difficulty: "Standard", activeSeconds: active, correctionSeconds: correction, elapsedSeconds: active * 2, completed: true, source: "OBSERVED", observedOn: phase === "BASELINE" ? "2026-09-05" : "2026-10-20", ...extra });
 
 before(async () => {
-  await db.school.create({ data: { id: schoolId, name: "Synthetic Cedar Academy", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Dubai", status: "ACTIVE", plan: "PRO" } });
-  await db.campus.create({ data: { id: campusId, schoolId, name: "Cedar Main", regId: campusId, city: "Dubai" } });
-  await user("owner", "APP_OWNER"); await user("admin", "ADMIN");
+  await db.school.create({ data: { id: schoolId, name: "QA-01 School A", slug: schoolId, regId: schoolId, contactEmail: `${schoolId}@example.invalid`, city: "Dubai", status: "ACTIVE", plan: "PRO" } });
+  await db.campus.create({ data: { id: campusId, schoolId, name: "QA-01 Campus A", regId: campusId, city: "Dubai" } });
+  await db.school.create({ data: { id: schoolB, name: "QA-01 School B", slug: schoolB, regId: schoolB, contactEmail: "qa01b@example.invalid", city: "QA", status: "ACTIVE", plan: "PRO" } });
+  await db.campus.create({ data: { id: campusB, schoolId: schoolB, name: "QA-01 Campus B", regId: campusB, city: "QA" } });
+  await user("owner", "APP_OWNER"); await user("admin", "ADMIN"); await user("teacher", "TEACHER");
   await db.authAttempt.deleteMany({});
   await mkdir(evidence, { recursive: true });
   browser = await chromium.launch({ headless: true });
@@ -60,6 +64,7 @@ after(async () => {
   await browser?.close();
   await db.pilot.deleteMany({ where: { measurementOwnerId: users.get("owner")?.id } }).catch(() => undefined);
   await db.school.delete({ where: { id: schoolId } }).catch(() => undefined);
+  await db.school.delete({ where: { id: schoolB } });
   await db.$disconnect(); await appPrisma.$disconnect();
 });
 
@@ -67,12 +72,20 @@ test("only the platform operator reaches pilot evidence; consent comes before a 
   assert.equal((await (await context("admin")).request.get(`${base}/api/owner/pilots`)).status(), 403);
   assert.equal((await post("admin", "", charter())).status(), 403);
   assert.equal((await post("owner", "", charter({ measurementOwnerId: users.get("admin")!.id }))).status(), 400, "the measurement owner must be a platform operator");
+  assert.equal((await post("teacher", "", charter())).status(), 403);
+  const second = await post("owner", "", charter({ name: "QA-01 school B pilot", targetSchoolId: schoolB }));
+  const secondId = (await second.json()).data.id;
+  const secondBefore = await detail(secondId);
   const created = await post("owner", "", charter());
   assert.equal(created.status(), 201, await created.text());
   ids.pilot = (await created.json()).data.id;
+  assert.equal((await post("admin", `/${ids.pilot}`, { action: "charter", data: { status: "ACTIVE" } })).status(), 403);
+  const writes = await Promise.all([0, 1].map(() => post("owner", `/${ids.pilot}`, { action: "charter", data: { version: 0, caseStudyPermission: "NONE" } })));
+  assert.deepEqual(writes.map(r => r.status()).sort(), [200, 409], "concurrent charter writes cannot overwrite each other");
   assert.equal((await act(ids.pilot, "charter", { status: "ACTIVE" })).status(), 409, "no consent recorded yet");
-  assert.equal((await act(ids.pilot, "charter", { consentReference: "Signed consent form CF-17 (synthetic)", status: "ACTIVE" })).status(), 200);
+  assert.equal((await act(ids.pilot, "charter", { consentReference: "QA-01 signed consent", status: "ACTIVE", commercial: { ...commercialEvidence(), cycles: [1, 2].map(n => ({ id: `QA-01-cycle-${n}`, workflow: "MARKS_ENTRY", completed: true, reference: `QA-01-cycle-source-${n}`, date: `2026-10-0${n}` })) } })).status(), 200);
   assert.equal((await observe(ids.pilot, "teacher@example.invalid", "BASELINE", 600, 60)).status(), 400, "participants are pseudonyms, never emails");
+  assert.deepEqual(await detail(secondId), secondBefore, "school B and campus B remain unchanged");
   const synth = await post("owner", "", charter({ name: "Synthetic demo walkthrough", synthetic: true }));
   ids.synthetic = (await synth.json()).data.id;
   assert.equal((await observe(ids.synthetic, "D-1", "BASELINE", 600, 60)).status(), 400, "a synthetic pilot only holds synthetic rows");
@@ -121,7 +134,7 @@ test("claims need measured evidence and permission, freeze at approval and go st
   assert.match((await noPermission.json()).error, /case-study permission/);
   assert.equal((await act(ids.pilot, "charter", { caseStudyPermission: "AGGREGATE" })).status(), 409, "permission needs a reference");
   assert.equal((await act(ids.pilot, "charter", { caseStudyPermission: "AGGREGATE", permissionReference: "Email from principal, 2026-11-02 (synthetic)" })).status(), 200);
-  ids.named = await claim("Synthetic Cedar Academy cut marks entry time in its pilot.", "TIME:MARKS_ENTRY", true);
+  ids.named = await claim("QA-01 School A cut marks entry time in its pilot.", "TIME:MARKS_ENTRY", true);
   assert.match((await (await act(ids.pilot, "review", { claimId: ids.named, version: 1, decision: "APPROVE", note: "Checking named permission." })).json()).error, /anonymised figures only/);
   assert.equal((await act(ids.pilot, "review", { claimId: ids.accuracy, version: 1, decision: "APPROVE", note: "Evidence checked against sheets." })).status(), 200);
   assert.equal((await act(ids.pilot, "review", { claimId: ids.earlyClaim, version: 1, decision: "APPROVE", note: "Five pairs now recorded." })).status(), 200);
@@ -158,18 +171,35 @@ test("claims need measured evidence and permission, freeze at approval and go st
   await act(ids.pilot, "charter", { caseStudyPermission: "AGGREGATE", permissionReference: "Email from principal, 2026-11-02 (synthetic)" });
 });
 
-test("the owner console shows denominators, withheld figures and claim states (EN desktop, AR phone)", async () => {
+test("the owner console shows denominators, withheld figures and claim states (EN/UR desktop, AR phone; recovery and accessibility)", async () => {
   const c = await context("owner");
   const page = await c.newPage();
   await page.goto(`${base}/owner?view=pilots`);
   await page.getByRole("button", { name: "Pilot evidence" }).first().click().catch(() => undefined);
   await page.getByRole("heading", { name: "Pilot evidence" }).waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: /Synthetic Cedar marks pilot/ }).click();
+  await page.getByRole("button", { name: /QA-01 marks pilot/ }).click();
   await page.getByRole("heading", { name: "Task time: baseline vs follow-up" }).waitFor();
   assert.ok(await page.getByText("5 of 6 baseline / 6 follow-up").isVisible());
   assert.ok(await page.getByText("Stale").first().isVisible(), "the corrected claim is shown as stale");
-  await page.getByRole("heading", { name: "Task time: baseline vs follow-up" }).scrollIntoViewIfNeeded();
+  await page.getByRole("heading", { name: "Commercial charter evidence" }).scrollIntoViewIfNeeded();
+  await page.locator("[data-boot-splash]").waitFor({ state: "hidden" });
   await page.screenshot({ path: `${evidence}/en-1440-pilot.png`, fullPage: false });
+  const price = page.getByLabel("Pilot price", { exact: false });
+  await price.fill("125");
+  await page.route("**/api/owner/pilots/*", route => route.request().method() === "POST" ? route.abort() : route.continue());
+  await page.getByRole("button", { name: "Save charter", exact: true }).click();
+  await page.getByText("Request failed", { exact: true }).waitFor();
+  assert.equal(await price.inputValue(), "125", "network failure preserves edits");
+  await page.unroute("**/api/owner/pilots/*");
+  await page.getByRole("button", { name: "Save charter", exact: true }).click();
+  await page.getByText("Charter updated.", { exact: true }).waitFor();
+  assert.equal((await detail(ids.pilot)).pilot.charterHistory.at(-1).commercial.price, 125);
+  await price.focus(); await page.keyboard.press("Tab");
+  assert.equal(await page.getByLabel("Currency", { exact: false }).evaluate(el => el === document.activeElement), true);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole("heading", { name: "Commercial charter evidence" }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${evidence}/en-200-percent.png` });
   await page.close();
 
   await db.user.update({ where: { id: users.get("owner")!.id }, data: { preferredLanguage: "ar" } });
@@ -177,11 +207,19 @@ test("the owner console shows denominators, withheld figures and claim states (E
   const ar = await phone.newPage();
   await ar.goto(`${base}/owner?view=pilots`);
   await ar.getByRole("heading", { name: "أدلة التجربة الميدانية" }).waitFor({ timeout: 60_000 });
-  await ar.getByRole("button", { name: /Synthetic Cedar marks pilot/ }).click();
+  await ar.getByRole("button", { name: /QA-01 marks pilot/ }).click();
   await ar.getByRole("heading", { name: "عينات الدقة" }).waitFor();
   assert.equal(await ar.evaluate(() => document.documentElement.dir), "rtl");
-  await ar.getByRole("heading", { name: "عينات الدقة" }).scrollIntoViewIfNeeded();
+  await ar.getByRole("heading", { name: "أدلة الميثاق التجاري" }).scrollIntoViewIfNeeded();
+  await ar.locator("[data-boot-splash]").waitFor({ state: "hidden" });
   await ar.screenshot({ path: `${evidence}/ar-390-pilot.png` });
   await phone.close();
+  await db.user.update({ where: { id: users.get("owner")!.id }, data: { preferredLanguage: "ur" } });
+  const ur = await c.newPage(); await ur.goto(`${base}/owner?view=pilots`);
+  await ur.getByRole("button", { name: /QA-01 marks pilot/ }).click();
+  await ur.getByRole("heading", { name: "تجارتی چارٹر کے شواہد" }).scrollIntoViewIfNeeded();
+  await ur.locator("[data-boot-splash]").waitFor({ state: "hidden" });
+  assert.equal(await ur.evaluate(() => document.documentElement.dir), "rtl");
+  await ur.screenshot({ path: `${evidence}/ur-1440-pilot.png` }); await ur.close();
   await db.user.update({ where: { id: users.get("owner")!.id }, data: { preferredLanguage: "en" } });
 });
