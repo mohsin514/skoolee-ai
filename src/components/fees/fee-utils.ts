@@ -33,7 +33,7 @@ export function forwardCommand(command: PanelCommand | null | undefined, id?: st
  */
 export function usePanelCommand(command: PanelCommand | null | undefined, handlers: Record<string, () => void>, ready = true) {
   const latest = useRef(handlers);
-  latest.current = handlers;
+  useEffect(() => { latest.current = handlers; });
   useEffect(() => {
     if (!ready || !command || consumedCommands.has(command)) return;
     const handler = latest.current[command.id];

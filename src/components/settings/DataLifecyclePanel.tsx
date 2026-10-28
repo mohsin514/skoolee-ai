@@ -67,6 +67,10 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
   const [plan, setPlan] = useState({ targetRegion: "ap-south-1", reason: "" });
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [exportForm, setExportForm] = useState({ studentId: "", reason: "" });
+  // Set once after mount: Date.now() is impure and the React Compiler forbids
+  // it during render (even inside useMemo). An effect runs post-commit.
+  const [minHoldDate, setMinHoldDate] = useState("");
+  useEffect(() => { setMinHoldDate(new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)); }, []);
 
   const load = useCallback(async () => setData(await call("/api/data-lifecycle")), []);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error.message })); }, [load]);
@@ -167,7 +171,7 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
       })}</ul>
       <form className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.2fr_1.2fr_auto] lg:items-end" onSubmit={event => { event.preventDefault(); run(() => call("/api/data-lifecycle", { method: "POST", body: JSON.stringify({ action: "hold", category: hold.category, reason: hold.reason, ...(hold.recordId.trim() ? { recordId: hold.recordId.trim() } : {}), ...(hold.expiresOn ? { expiresAt: new Date(`${hold.expiresOn}T23:59:59Z`).toISOString() } : {}) }) })); }}>
         <label className="grid gap-1 text-sm font-semibold">{t.category}<Select value={hold.category} onChange={event => setHold({ ...hold, category: event.target.value })}>{(data.holdCategories ?? Object.keys(data.categories)).map(id => <option key={id} value={id}>{categoryLabel(id)}</option>)}</Select></label>
-        <label className="grid gap-1 text-sm font-semibold">{t.holdExpires}<Input type="date" required={hold.category === "AUDIT_LOG"} min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)} value={hold.expiresOn} onChange={event => setHold({ ...hold, expiresOn: event.target.value })} />{hold.category === "AUDIT_LOG" && <span className="text-xs font-normal text-ink-muted">{t.holdExpiresHelp}</span>}</label>
+        <label className="grid gap-1 text-sm font-semibold">{t.holdExpires}<Input type="date" required={hold.category === "AUDIT_LOG"} min={minHoldDate} value={hold.expiresOn} onChange={event => setHold({ ...hold, expiresOn: event.target.value })} />{hold.category === "AUDIT_LOG" && <span className="text-xs font-normal text-ink-muted">{t.holdExpiresHelp}</span>}</label>
         <label className="grid gap-1 text-sm font-semibold">{t.recordOptional}<Input dir="ltr" value={hold.recordId} onChange={event => setHold({ ...hold, recordId: event.target.value })} /></label>
         <label className="grid gap-1 text-sm font-semibold">{t.reason}<Input required minLength={5} value={hold.reason} onChange={event => setHold({ ...hold, reason: event.target.value })} /></label>
         <Button type="submit" disabled={busy}>{t.placeHold}</Button>
