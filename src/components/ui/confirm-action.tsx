@@ -158,6 +158,10 @@ export function ConfirmAction({
     }
   };
 
+  const cancel = () => {
+    if (!inFlight.current && !pending) onCancel();
+  };
+
   return (
     <Modal
       title={title}
@@ -166,7 +170,7 @@ export function ConfirmAction({
       tone={t.modal}
       size={requireReason ? "sm" : "xs"}
       role="alertdialog"
-      onClose={onCancel}
+      onClose={cancel}
       dismissible={!pending}
       initialFocusRef={cancelRef}
       describedBy={descriptionId}
@@ -177,7 +181,7 @@ export function ConfirmAction({
       hideClose={pending}
       footer={
         <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-          <Button ref={cancelRef} type="button" variant="outline" onClick={onCancel} disabled={pending} className="min-h-12 px-5">
+          <Button ref={cancelRef} type="button" variant="outline" onClick={cancel} disabled={pending} className="min-h-12 px-5">
             {/* R3: the way out of a confirmation is "Keep editing", so a "Cancel activity?" question never shows two "Cancel"s. */}
             {cancelLabel ?? copy.keepEditing}
           </Button>
