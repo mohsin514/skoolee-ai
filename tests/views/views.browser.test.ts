@@ -9,7 +9,7 @@ import { totp } from "../../src/lib/auth/mfa-crypto";
 
 // Synthetic local acceptance for SCRUM-307. Never run against a shared/production database.
 const url = new URL(process.env.DATABASE_URL || "http://invalid");
-if (url.hostname !== "127.0.0.1" || url.port !== "55438" || url.pathname !== "/postgres") throw Error("Only isolated local DB 55438 is allowed");
+if (url.hostname !== "127.0.0.1" || !["55438", "55553"].includes(url.port) || url.pathname !== "/postgres") throw Error("Only isolated local DB ports 55438/55553 are allowed");
 const base = process.env.VIEWS_TEST_APP || "http://localhost:3108";
 const evidence = process.env.VIEWS_EVIDENCE_DIR || "/tmp/scrum307/evidence";
 const db = new PrismaClient(), password = "SyntheticViews307!";
@@ -29,9 +29,15 @@ async function context(key: string, viewport = { width: 1440, height: 1000 }) {
   const saved = sessions.get(key);
   if (saved) { const ctx = await browser.newContext({ viewport, storageState: saved, reducedMotion: "reduce" }); ctx.setDefaultNavigationTimeout(120000); return ctx; }
   const ctx = await browser.newContext({ viewport, reducedMotion: "reduce" });
-  assert.equal((await ctx.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password } })).status(), 200);
-  const { secret } = await (await ctx.request.post(base + "/api/auth/mfa", { data: { action: "setup" } })).json().catch(() => ({}));
-  if (secret) { await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } }); await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } }); }
+  const login = await ctx.request.post(base + "/api/auth/login", { data: { email: users.get(key)!.email, password } });
+  assert.equal(login.status(), 200);
+  if ((await login.json()).mfaRequired) {
+    const setup = await ctx.request.post(base + "/api/auth/mfa", { data: { action: "setup" } });
+    assert.equal(setup.status(), 200);
+    const { secret } = await setup.json();
+    assert.equal((await ctx.request.post(base + "/api/auth/mfa", { data: { action: "verify-setup", code: totp(secret.replace(/\s+/g, "")) } })).status(), 200);
+    assert.equal((await ctx.request.post(base + "/api/auth/mfa", { data: { action: "acknowledge", acknowledged: true } })).status(), 200);
+  }
   sessions.set(key, await ctx.storageState());
   ctx.setDefaultNavigationTimeout(120000); return ctx;
 }
@@ -43,7 +49,7 @@ before(async()=>{
   for(const [id,school,name] of [[campusA,schoolId,"North"],[campusB,otherSchool,"South"]]) await db.campus.create({data:{id,schoolId:school,name,regId:id,city:"Lahore"}});
   await db.campus.create({data:{id:campusC,schoolId,name:"Other campus",regId:campusC,city:"Lahore"}});
   await db.academicCycle.create({data:{schoolId,campusId:campusA,label:"2026",academicYear:2026,status:"ACTIVE"}});
-  await user("ops","CAMPUS_ADMIN"); await user("parent","PARENT"); await user("ops-ur","CAMPUS_ADMIN",campusA,"ur"); const teacher=await user("teacher","TEACHER");
+  await user("ops","CAMPUS_ADMIN"); await user("parent","PARENT"); await user("ops-ar","CAMPUS_ADMIN",campusA,"ar"); await user("ops-ur","CAMPUS_ADMIN",campusA,"ur"); const teacher=await user("teacher","TEACHER");
   await db.class.create({data:{id:class7,schoolId,campusId:campusA,name:"Grade 7",section:"A",academicYear:2026,classTeacherId:teacher}});
   await db.class.create({data:{id:classB,schoolId:otherSchool,campusId:campusB,name:"Grade 7",section:"B",academicYear:2026}});
   for(const [id,school,campus,cls,name] of [[randomUUID(),schoolId,campusA,class7,"Synthetic Ada"],[randomUUID(),otherSchool,campusB,classB,"Synthetic Private"]]) {
@@ -140,4 +146,14 @@ test("teacher directory keeps search and class context across layouts",async()=>
   await page.getByRole("button",{name:/Open Synthetic Ada/}).waitFor();
   assert.equal(new URL(page.url()).searchParams.get("q"),"Synthetic");
   await page.context().setOffline(false);
+});
+
+test("Arabic mobile calendar retains record identity and fits RTL",async()=>{
+  const page=await (await context("ops-ar",{width:390,height:844})).newPage();
+  await page.goto(`${base}/admin?view=students&view.students=calendar&sq=Synthetic%20Ada`);
+  await page.locator('[data-record-id]').waitFor();
+  assert.equal(await page.locator('html').getAttribute('dir'),"rtl");
+  assert.equal(await page.locator('[data-record-id]').first().getAttribute('data-record-id'),pupils["Synthetic Ada"]);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await saveShot(page,"SKAI-53_03_rtl_AR");
 });
