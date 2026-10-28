@@ -14,6 +14,7 @@ import {
 import { SUBSCRIPTION_PAUSED_MESSAGE } from "@/lib/billing/hub";
 
 import { JWT_SECRET } from "@/lib/auth/secret";
+import { buildCsp } from "@/lib/security/csp-policy";
 import { requiredOnboardingPath } from "@/lib/onboarding/launch-plan";
 import { allowedDuringCandidateExam, candidateExamUrl } from "@/lib/school-ai/exam-boundary";
 // The cookie helper stays dependency-free. The active candidate boundary below
@@ -100,7 +101,7 @@ function allowedWhileSuspended(pathname: string, method: string, isBillingWorksp
   return (method === "GET" || method === "HEAD") && matchesPath(pathname, SUSPENDED_SHELL_READS);
 }
 
-export async function proxy(req: NextRequest) {
+async function proxyImpl(req: NextRequest, nonce: string) {
   let normalizedPath: string;
   try {
     normalizedPath = req.nextUrl.pathname;
@@ -301,6 +302,7 @@ export async function proxy(req: NextRequest) {
       requestHeaders.delete("x-campus-id");
     }
     requestHeaders.set("x-school-slug", String(payload.schoolSlug || ""));
+    requestHeaders.set("x-nonce", nonce);
 
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     if (role === "STUDENT" && /^\/ai\/exams\/[^/]+$/.test(pathname)) {
@@ -324,3 +326,26 @@ export async function proxy(req: NextRequest) {
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
+
+/**
+ * SKAI-951 / NFR-SEC-04 — wrap the proxy so every page response carries a
+ * per-request nonce CSP. Production script-src = self + nonce + strict-dynamic
+ * (no unsafe-inline/unsafe-eval); dev keeps the permissive policy for HMR.
+ * API routes keep their own per-route CSPs set in next.config.ts, so we do not
+ * overwrite a CSP the inner handler already set (e.g. the print/upload sandboxes).
+ */
+export async function proxy(req: NextRequest) {
+  const isProd = process.env.NODE_ENV === "production";
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(16));
+  const nonce = btoa(String.fromCharCode(...nonceBytes));
+
+  const response = await proxyImpl(req, nonce);
+
+  // Only stamp the page CSP when the inner handler did not set one, and never
+  // on API routes (they own their policy).
+  const pathname = req.nextUrl.pathname;
+  if (!pathname.startsWith("/api") && !response.headers.has("content-security-policy")) {
+    response.headers.set("content-security-policy", buildCsp({ nonce, isProd, env: process.env }));
+  }
+  return response;
+}
