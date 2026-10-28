@@ -57,12 +57,9 @@
     "test:support-ui:local": "tsx scripts/sko-215-ui-acceptance.ts",
     "test:school-ai:load": "node --import tsx scripts/school-ai-exam-load.ts",
     "calibrate:school-ai": "node --import tsx scripts/school-ai-calibration.ts",
-<<<<<<< HEAD
-    "qa:seed": "node --import ./tests/support/server-only.mjs --import tsx scripts/qa/seed-pilot.ts"
-=======
+    "qa:seed": "node --import ./tests/support/server-only.mjs --import tsx scripts/qa/seed-pilot.ts",
     "test:deployment": "node --test tests/deployment/*.test.mjs",
     "smoke:deployment": "node scripts/deployment/smoke.mjs"
->>>>>>> origin/dev
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
