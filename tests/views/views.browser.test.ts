@@ -71,6 +71,8 @@ test("admin roster preserves filters, selection, record actions, URL and refresh
   const page=await (await context("ops")).newPage();
   await page.addInitScript(() => localStorage.setItem("skoolee.workspace.students", "null"));
   await page.goto(`${base}/admin?view=students&sq=Synthetic%20Ada`);
+  await page.locator("[data-boot-splash]").waitFor({ state: "hidden", timeout: 60_000 });
+  await page.getByRole("button",{name:"List",exact:true}).waitFor({ timeout: 60_000 });
   await page.getByRole("button",{name:"List",exact:true}).click();
   await page.getByRole("checkbox",{name:/Select Synthetic Ada/}).check();
   for(const view of ["Grid","Calendar"]){

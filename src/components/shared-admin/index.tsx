@@ -87,6 +87,7 @@ import { translateUi } from "@/lib/locale/ui-messages";
 import { AiActionPanel, AIReviewQueue, BrandButton, EmptyState } from "@/components/role-dashboard";
 import { cn } from "@/lib/utils";
 import { CornerSparkles } from "@/components/CornerSparkles";
+import { ReviewedDelete, ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { RestoreStudentDialog } from "./restore-student-dialog";
 import { TeacherPicker, useTeacherAvailability } from "@/components/shared-admin/teacher-picker";
@@ -2424,17 +2425,7 @@ export function StudentAdmissionsPanel({
     }
   };
 
-  const deleteDocument = async (doc: any) => {
-    try {
-      const res = await fetch(`/api/students/documents?id=${encodeURIComponent(doc.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
-      toast.success(ui("Document deleted"));
-      onVersionBump();
-    } catch (error) {
-      toast.error(friendlyErrorMessage(error, ui("Could not delete the document. Please try again.")));
-    }
-  };
+
 
   const addNote = async () => {
     if (!noteDraft.trim()) return;
@@ -2629,13 +2620,7 @@ export function StudentAdmissionsPanel({
                       <Download className="h-3 w-3" />{ui("View")}
                     </a>
                   ) : null}
-                  <SystemButton variant="ghost"
-                    type="button"
-                    onClick={() => deleteDocument(doc)}
-                    className="flex items-center gap-1.5 px-3 justify-start"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </SystemButton>
+                  <ReviewedDelete endpoint="students/documents" record={{ id: doc.id, campusId: student.campusId }} label={doc.fileName} onDeleted={onVersionBump} />
                 </div>
               </div>
             ))}
@@ -2725,7 +2710,6 @@ export function TeacherDetailModal({
   const [deductions, setDeductions] = useState<{ name: string; amount: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadKind, setUploadKind] = useState("CV");
-  const [docBusy, setDocBusy] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const loadStaffRecords = useCallback(async () => {
@@ -2855,20 +2839,7 @@ export function TeacherDetailModal({
     }
   };
 
-  const deleteStaffDoc = async (doc: any) => {
-    setDocBusy(doc.id);
-    try {
-      const res = await fetch(`/api/staff/documents?id=${encodeURIComponent(doc.id)}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
-      toast.success(ui("Document deleted"));
-      await loadStaffRecords();
-    } catch (error) {
-      toast.error(friendlyErrorMessage(error, ui("Could not delete the document. Please try again.")));
-    } finally {
-      setDocBusy(null);
-    }
-  };
+
 
   // R7: money and dates through the locale package (never "Rs." or a hard-coded en-PK).
   const rupee = (minor: number) => formatStaffMoney(minor, schoolCurrency);
@@ -3364,9 +3335,7 @@ export function TeacherDetailModal({
                       <a href={doc.downloadUrl || "#"} target="_blank" rel="noreferrer" className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-subtle transition-colors hover:bg-card hover:text-primary">
                         <Download className="h-4 w-4" />
                       </a>
-                      <SystemButton variant="ghost" type="button" onClick={() => deleteStaffDoc(doc)} disabled={docBusy === doc.id} className="flex items-center justify-center">
-                        {docBusy === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </SystemButton>
+                      <ReviewedDelete endpoint="staff/documents" record={{ id: doc.id, campusId: teacher.campusId }} label={doc.fileName} onDeleted={loadStaffRecords} />
                     </div>
                   ))
                 )}
@@ -4342,7 +4311,6 @@ export function StudentSetupPanel({
   const [creating, setCreating] = useState<StudentTagKind | null>(null);
   const [deleting, setDeleting] = useState<{ kind: StudentTagKind; item: any } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirmBusy, setConfirmBusy] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
@@ -4392,31 +4360,12 @@ export function StudentSetupPanel({
     }
   };
 
-  const deleteTag = async () => {
-    if (!deleting) return;
-    setConfirmBusy(true);
-    try {
-      const res = await fetch(`${STUDENT_TAG_API[deleting.kind]}?id=${deleting.item.id}`, { method: "DELETE" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(apiErrorMessage(json.error, ui("This could not be deleted. Please try again.")));
-      toast.success(ui(deleting.kind === "category" ? "Category deleted" : "Group deleted"));
-      setDeleting(null);
-      await load();
-    } catch (error) {
-      // The dialog stays open so the person can retry or keep the tag.
-      toast.error(friendlyErrorMessage(error, ui("This could not be deleted. Please try again.")));
-    } finally {
-      setConfirmBusy(false);
-    }
-  };
-
   const modal = editing || (creating ? { kind: creating, item: null } : null);
   const kind = modal?.kind as StudentTagKind;
 
   const countOf = (t: { _count?: { students?: number } }) => t._count?.students ?? 0;
   const taggedStudents = categories.reduce((sum, c) => sum + countOf(c), 0);
   const unusedTags = [...categories, ...groups].filter((t) => countOf(t) === 0).length;
-  const inUse = deleting ? countOf(deleting.item) : 0;
 
   return (
     <div className="space-y-8">
@@ -4505,27 +4454,8 @@ export function StudentSetupPanel({
         />
       ) : null}
 
-      <ConfirmAction
-        open={Boolean(deleting)}
-        title={ui(deleting?.kind === "category" ? "Delete this category?" : "Delete this group?")}
-        description={
-          deleting
-            ? inUse > 0
-              // "keep their links until reassigned" told an admin nothing about
-              // how much work they were about to create for themselves.
-              ? ui(inUse === 1
-                ? "\"{0}\" is on 1 student. Deleting it removes that tag, and any fee rule that depends on it stops applying. This cannot be undone."
-                : "\"{0}\" is on {1} students. Deleting it removes that tag from all of them, and any fee rule that depends on it stops applying. This cannot be undone.", [deleting.item.name, inUse])
-              : ui("\"{0}\" is not on any student, so removing it changes nothing else.", [deleting.item.name])
-            : ""
-        }
-        confirmLabel={ui(deleting?.kind === "category" ? "Delete category" : "Delete group")}
-        cancelLabel={ui("Keep it")}
-        tone="danger"
-        busy={confirmBusy}
-        onCancel={() => setDeleting(null)}
-        onConfirm={deleteTag}
-      />
+      {deleting ? <ReviewedDeleteDialog endpoint={deleting.kind === "category" ? "student-categories" : "student-groups"}
+        record={deleting.item} label={deleting.item.name} onCancel={() => setDeleting(null)} onDeleted={load} /> : null}
     </div>
   );
 }
@@ -6039,7 +5969,6 @@ export function LeaveManagementPanel({
   };
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ kind: "type" | "allocation"; id: string; name: string } | null>(null);
-  const [deleteBusy, setDeleteBusy] = useState(false);
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear());
   const [statusFilter, setStatusFilter] = useState("");
   const [requestSearch, setRequestSearch] = useState("");
@@ -6145,14 +6074,6 @@ export function LeaveManagementPanel({
     }
   };
 
-  const deleteType = async (type: { id: string; name: string }) => {
-    const res = await fetch(`/api/leave/types?id=${encodeURIComponent(type.id)}`, { method: "DELETE" });
-    const json = await res.json().catch(() => ({}));
-    if (!json.success) throw new Error(json.error || ui("The leave type could not be deleted."));
-    toast.success(ui("Leave type \"{0}\" deleted", [type.name]));
-    setReloadTick((t) => t + 1);
-  };
-
   const addAllocation = async () => {
     if (!allocForm.leaveTypeId) {
       toast.error(ui("Select a leave type"));
@@ -6181,29 +6102,6 @@ export function LeaveManagementPanel({
       toast.error(friendlyErrorMessage(error, ui("Could not create the allocation. Please try again.")));
     } finally {
       setAllocBusy(false);
-    }
-  };
-
-  const deleteAllocation = async (id: string) => {
-    const res = await fetch(`/api/leave/allocations?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    const json = await res.json().catch(() => ({}));
-    if (!json.success) throw new Error(json.error || ui("The allocation could not be removed."));
-    toast.success(ui("Allocation removed"));
-    setReloadTick((t) => t + 1);
-  };
-
-  // F16: deleting a leave type or an allocation is confirmed first, and a failure keeps the dialog open.
-  const confirmDelete = async () => {
-    if (!pendingDelete) return;
-    setDeleteBusy(true);
-    try {
-      if (pendingDelete.kind === "type") await deleteType({ id: pendingDelete.id, name: pendingDelete.name });
-      else await deleteAllocation(pendingDelete.id);
-      setPendingDelete(null);
-    } catch (error) {
-      toast.error(friendlyErrorMessage(error, ui("This action could not be completed. Please try again.")));
-    } finally {
-      setDeleteBusy(false);
     }
   };
 
@@ -6393,19 +6291,8 @@ export function LeaveManagementPanel({
         ) : undefined}
       />
 
-      <ConfirmAction
-        open={Boolean(pendingDelete)}
-        title={pendingDelete?.kind === "type" ? ui("Delete leave type {0}?", [pendingDelete?.name ?? ""]) : ui("Remove this allocation?")}
-        description={pendingDelete?.kind === "type"
-          ? ui("Staff can no longer apply for this type. Requests already decided keep their history. This cannot be undone.")
-          : ui("Staff covered by it lose these days from their allowance for the year. Requests already decided keep their history.")}
-        confirmLabel={pendingDelete?.kind === "type" ? ui("Delete leave type") : ui("Remove allocation")}
-        cancelLabel={ui("Keep editing")}
-        tone="danger"
-        busy={deleteBusy}
-        onCancel={() => setPendingDelete(null)}
-        onConfirm={() => void confirmDelete()}
-      />
+      {pendingDelete ? <ReviewedDeleteDialog endpoint={pendingDelete.kind === "type" ? "leave/types" : "leave/allocations"}
+        record={{ id: pendingDelete.id, campusId }} label={pendingDelete.name} onCancel={() => setPendingDelete(null)} onDeleted={() => setReloadTick(t => t + 1)} /> : null}
 
       {loadError ? (
         <ErrorState title={ui("Leave records could not be loaded")} description={ui(loadError)} onRetry={() => setReloadTick((t) => t + 1)} />

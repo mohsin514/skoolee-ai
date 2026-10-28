@@ -61,8 +61,8 @@ export function InstallmentPlanPanel({ invoiceId, currency, canPropose = true }:
       const response = await request();
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error || ui("The plan could not be saved."));
-      toast.success(success); setFirstDue(""); await load();
-    } catch (failure) { setError(failure instanceof Error ? failure.message : ui("The plan could not be saved.")); } finally { setBusy(false); }
+      toast.success(success); setFirstDue(""); await load(); return true;
+    } catch (failure) { setError(failure instanceof Error ? failure.message : ui("The plan could not be saved.")); return false; } finally { setBusy(false); }
   };
   if (!data) {
     if (!loadFailed) return null;
@@ -90,7 +90,7 @@ export function InstallmentPlanPanel({ invoiceId, currency, canPropose = true }:
         description={ui("The family is shown this schedule and only past-due instalments count as overdue. You can still cancel the plan later.")}
         confirmLabel={ui("Approve plan")}
         cancelLabel={ui("Keep editing")}
-        onConfirm={() => { setApproving(false); void act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "approve" }) }), ui("Instalment plan approved.")); }}
+        onConfirm={async () => { if (await act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "approve" }) }), ui("Instalment plan approved."))) setApproving(false); }}
         onCancel={() => setApproving(false)}
       />
       <ConfirmAction
@@ -101,7 +101,7 @@ export function InstallmentPlanPanel({ invoiceId, currency, canPropose = true }:
         description={ui("The schedule is withdrawn and the invoice falls due on its original date again. The family is no longer shown the instalments.")}
         confirmLabel={ui("Cancel plan")}
         cancelLabel={ui("Keep editing")}
-        onConfirm={() => { setCancelling(false); void act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "cancel" }) }), ui("Instalment plan cancelled.")); }}
+        onConfirm={async () => { if (await act(() => fetch("/api/fees/payment-plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plan.id, version: plan.version, action: "cancel" }) }), ui("Instalment plan cancelled."))) setCancelling(false); }}
         onCancel={() => setCancelling(false)}
       />
     </> : canPropose && data.balance > 0 ? <>

@@ -325,7 +325,7 @@ export function RoleHeader({
         cancelLabel={t("Keep editing")}
         busy={signingOut}
         onCancel={() => setSignOutCount(null)}
-        onConfirm={() => { void signOut(); }}
+        onConfirm={() => signOut()}
       />
 
       <SettingsModalHost onProfileSaved={setHeaderProfile} />

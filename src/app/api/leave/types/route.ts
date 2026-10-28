@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -91,28 +92,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "leave", "delete");
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const type = await prisma.leaveType.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-      include: { _count: { select: { requests: true } } },
-    });
-    if (!type) throw new ApiError("Leave type not found", 404);
-    if (type._count.requests > 0) {
-      throw new ApiError(
-        `Cannot delete "${type.name}" — ${type._count.requests} leave request${type._count.requests === 1 ? "" : "s"} reference it`,
-        409
-      );
-    }
-
-    await prisma.leaveType.delete({ where: { id } });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[leave/types] DELETE failed");
-  }
+  return operationDeleteResponse(req, "leave/types");
 }

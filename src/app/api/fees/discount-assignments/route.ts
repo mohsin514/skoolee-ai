@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -46,26 +47,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "fees", "delete");
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feeDiscountAssignment.findFirst({
-      where: { id, discount: { campus: { schoolId: user.schoolId } } },
-      include: { discount: { select: { campusId: true } } },
-    });
-    if (!existing) throw new ApiError("Assignment not found", 404);
-
-    await prisma.$transaction(async (tx) => {
-      await tx.feeDiscountAssignment.delete({ where: { id } });
-      await writeAuditEvent(tx, user, { table: "fee_discount_assignments", recordId: id, action: "DELETE", campusId: existing.discount.campusId, before: { discountId: existing.discountId, studentId: existing.studentId } });
-    });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/discount-assignments] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/discount-assignments");
 }

@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { campusScope } from "@/lib/auth/policy";
 import { matchesDocumentKey } from "@/lib/storage/document-key-scope";
 import { privateDownloadResponse } from "@/lib/storage/private-download";
@@ -5,7 +6,6 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { deleteFile } from "@/lib/storage/s3";
 
 // Staff documents (CV, CNIC, degrees, contracts...).
 // GET    /api/staff/documents?userId= — list (admin only, school-scoped)
@@ -98,28 +98,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "staff", "delete");
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const doc = await prisma.staffDocument.findFirst({
-      where: { id, user: campusScope(user) },
-    });
-    if (!doc) throw new ApiError("Document not found", 404);
-    const campusId = await resolveCampusId(user, doc.fileKey.split("/")[1]);
-    if (!matchesDocumentKey(doc.fileKey, "staff-docs", campusId, doc.userId)) throw new ApiError("Document not found", 404);
-
-    await prisma.$transaction(async (tx) => {
-      await tx.staffDocument.delete({ where: { id } });
-      await writeAuditEvent(tx, user, { table: "staff_documents", recordId: id, action: "DELETE", campusId, before: { userId: doc.userId, kind: doc.kind } });
-    });
-    await deleteFile(doc.fileKey).catch(() => {});
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[staff/documents] DELETE failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "staff/documents");
 }

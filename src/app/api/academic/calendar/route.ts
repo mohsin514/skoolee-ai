@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { inspectHolidayRange, inspectWeekendChange } from "@/lib/academic/calendar-write";
 import { withSchedulingResourceWrite } from "@/lib/academic/resource-write";
 import { getLocalePackage } from "@/lib/locale/store";
@@ -103,24 +104,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
-    await assertPermission(user, "timetable", "delete");
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const campusId = await resolveCampusId(user, searchParams.get("campusId"));
-    return await withSchedulingResourceWrite(user, campusId, "timetable", "delete", async tx => {
-      const existing = await tx.holiday.findFirst({ where: { id, campusId } });
-      if (!existing) throw new ApiError("Holiday not found", 404);
-
-      await tx.holiday.delete({ where: { id } });
-      return Response.json({ success: true });
-    });
-  } catch (error) {
-    return errorResponse(error, "[academic/calendar] DELETE failed");
-  }
+  return operationDeleteResponse(req, "academic/calendar");
 }

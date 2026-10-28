@@ -55,6 +55,6 @@ export function ArchivedClassesPanel({ version, onRestored }: { version?: number
         </li>)}</ul>}
     <ConfirmAction open={Boolean(restoring)} title={ui("Restore {0}?", [restoring ? label(restoring) : ""])} description={ui("The class returns to current class lists. The campus and any active class with the same name, section and year are checked first; nothing changes if there is a conflict.")} confirmLabel={ui("Restore class")} tone="success" busy={busy}
       detail={error ? <Alert tone="danger" compact>{error}</Alert> : undefined}
-      onConfirm={() => void restore()} onCancel={() => setRestoring(null)} />
+      onConfirm={() => restore()} onCancel={() => setRestoring(null)} />
   </section>;
 }

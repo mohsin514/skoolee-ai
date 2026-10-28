@@ -307,7 +307,7 @@ export function YearClosureChecklist({
         tone="warning"
         busy={closing}
         onCancel={() => setConfirm(null)}
-        onConfirm={() => void closeYear(false)}
+        onConfirm={() => closeYear(false)}
       />
       <ConfirmAction
         open={confirm === "force"}
@@ -321,7 +321,7 @@ export function YearClosureChecklist({
         // the reason is long enough; the reason is kept in the activity log.
         requireReason={{ label: ui("Why are you closing the year with work outstanding?"), minLength: 10, placeholder: ui("At least 10 characters. Your reason is kept in the activity log.") }}
         onCancel={() => setConfirm(null)}
-        onConfirm={(reason) => void closeYear(true, reason)}
+        onConfirm={(reason) => closeYear(true, reason)}
       />
     </div>
   );
