@@ -68,7 +68,7 @@ const copy = {
     alreadyAccepted: "This invitation has already been accepted. Please sign in.", unavailable: "Could not check this invitation right now. Check your connection and try again.",
     expiredNotice: "This invitation has expired. Request a new link.", requestLink: "Request a new link", requestLinkSent: "If the invitation is still available, a new link will be sent. Check your inbox and spam folder, or contact your administrator.",
     validating: "Validating invitation status…", noLongerValid: "This invitation is no longer valid.", scope: "Your invitation scope", invitedBy: "Invited by", administrator: "your institution administrator", expires: "Expires",
-    purchasing: "Subscription purchasing", management: "Membership management", fullName: "Your full name", password: "Password", confirmPassword: "Confirm password", createPassword: "Create a secure password", repeatPassword: "Repeat password",
+    purchasing: "Subscription purchasing", management: "Membership management", fullName: "Your full name", fullNameRequired: "Please enter your full name.", password: "Password", confirmPassword: "Confirm password", createPassword: "Create a secure password", repeatPassword: "Repeat password",
     checks: "Password requirements", eightChars: "8 characters", uppercase: "Uppercase letter", number: "Number", match: "Passwords match", met: "Met", pending: "Needed",
     activate: "Activate account", activating: "Activating account…", returnLogin: "Return to sign in", accepted: "Invitation accepted for {institution} · {campus}. Sign in to your {role} workspace.",
     invalidToken: "This invitation link is incomplete. Open the latest invite email or ask your administrator to resend it.", noActiveInvite: "This invitation is no longer active.",
@@ -88,7 +88,7 @@ const copy = {
     alreadyAccepted: "قُبلت هذه الدعوة من قبل. سجّل الدخول.", unavailable: "تعذر التحقق من هذه الدعوة الآن. تحقق من اتصالك ثم حاول مجدداً.",
     expiredNotice: "انتهت صلاحية الدعوة. اطلب رابطاً جديداً.", requestLink: "طلب رابط جديد", requestLinkSent: "إذا كانت الدعوة لا تزال متاحة، فسيُرسل رابط جديد. تحقق من بريدك ومجلد الرسائل غير المرغوب فيها أو تواصل مع المسؤول.",
     validating: "جارٍ التحقق من حالة الدعوة…", noLongerValid: "لم تعد هذه الدعوة صالحة.", scope: "نطاق الدعوة", invitedBy: "أرسل الدعوة", administrator: "مسؤول المؤسسة", expires: "تنتهي في",
-    purchasing: "شراء الاشتراك", management: "إدارة العضويات", fullName: "الاسم الكامل", password: "كلمة المرور", confirmPassword: "تأكيد كلمة المرور", createPassword: "أنشئ كلمة مرور آمنة", repeatPassword: "أعد كتابة كلمة المرور",
+    purchasing: "شراء الاشتراك", management: "إدارة العضويات", fullName: "الاسم الكامل", fullNameRequired: "يرجى إدخال اسمك الكامل.", password: "كلمة المرور", confirmPassword: "تأكيد كلمة المرور", createPassword: "أنشئ كلمة مرور آمنة", repeatPassword: "أعد كتابة كلمة المرور",
     checks: "متطلبات كلمة المرور", eightChars: "٨ أحرف", uppercase: "حرف كبير", number: "رقم", match: "كلمتا المرور متطابقتان", met: "مكتمل", pending: "مطلوب",
     activate: "تفعيل الحساب", activating: "جارٍ تفعيل الحساب…", returnLogin: "العودة لتسجيل الدخول", accepted: "قُبلت الدعوة إلى {institution} · {campus}. سجّل الدخول إلى مساحة عمل {role}.",
     invalidToken: "رابط الدعوة غير مكتمل. افتح أحدث رسالة دعوة أو اطلب من المسؤول إعادة إرسالها.", noActiveInvite: "لم تعد هذه الدعوة نشطة.",
@@ -108,7 +108,7 @@ const copy = {
     alreadyAccepted: "یہ دعوت پہلے ہی قبول ہو چکی ہے۔ سائن اِن کریں۔", unavailable: "ابھی اس دعوت کی جانچ نہیں ہو سکی۔ اپنا کنکشن چیک کر کے دوبارہ کوشش کریں۔",
     expiredNotice: "دعوت کی مدت ختم ہو گئی ہے۔ نیا لنک طلب کریں۔", requestLink: "نیا لنک طلب کریں", requestLinkSent: "اگر دعوت اب بھی دستیاب ہوئی تو نیا لنک بھیجا جائے گا۔ اپنا اِن باکس اور اسپام فولڈر دیکھیں یا منتظم سے رابطہ کریں۔",
     validating: "دعوت کی حالت کی تصدیق ہو رہی ہے…", noLongerValid: "یہ دعوت اب درست نہیں۔", scope: "آپ کی دعوت کا دائرہ", invitedBy: "دعوت بھیجنے والا", administrator: "آپ کے ادارے کا منتظم", expires: "میعاد ختم",
-    purchasing: "سبسکرپشن کی خریداری", management: "رکنیت کا انتظام", fullName: "پورا نام", password: "پاس ورڈ", confirmPassword: "پاس ورڈ کی تصدیق", createPassword: "محفوظ پاس ورڈ بنائیں", repeatPassword: "پاس ورڈ دوبارہ لکھیں",
+    purchasing: "سبسکرپشن کی خریداری", management: "رکنیت کا انتظام", fullName: "پورا نام", fullNameRequired: "براہ کرم اپنا پورا نام درج کریں۔", password: "پاس ورڈ", confirmPassword: "پاس ورڈ کی تصدیق", createPassword: "محفوظ پاس ورڈ بنائیں", repeatPassword: "پاس ورڈ دوبارہ لکھیں",
     checks: "پاس ورڈ کی شرائط", eightChars: "۸ حروف", uppercase: "بڑا انگریزی حرف", number: "ایک عدد", match: "پاس ورڈ ایک جیسے ہیں", met: "مکمل", pending: "باقی",
     activate: "اکاؤنٹ فعال کریں", activating: "اکاؤنٹ فعال ہو رہا ہے…", returnLogin: "سائن اِن پر واپس جائیں", accepted: "{institution} · {campus} کی دعوت قبول ہو گئی۔ اپنے {role} ورک اسپیس میں سائن اِن کریں۔",
     invalidToken: "دعوت کا لنک مکمل نہیں۔ تازہ ترین دعوتی ای میل کھولیں یا منتظم سے دوبارہ بھیجنے کو کہیں۔", noActiveInvite: "یہ دعوت اب فعال نہیں۔",
@@ -289,6 +289,16 @@ export default function AcceptInvitePage() {
     }
     if (inviteStatus !== "pending") {
       fail(t.noActiveInvite);
+      return;
+    }
+
+    // Full name is required to activate the account.
+    if (!fullName.trim()) {
+      fail(t.fullNameRequired);
+      return;
+    }
+    if (fullName.trim().length < 2) {
+      fail(t.fullNameRequired);
       return;
     }
 
