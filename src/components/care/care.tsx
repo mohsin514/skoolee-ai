@@ -291,7 +291,7 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
         confirmLabel={ui("Release")}
         cancelLabel={ui("Keep editing")}
         busy={busy}
-        onConfirm={() => { const item = releasing; setReleasing(null); if (item) void run(() => call("/api/care", "POST", { action: "release-disclosure", id: item.id }), "Released to the approved recipient."); }}
+        onConfirm={() => { const item = releasing; if (item) return run(() => call("/api/care", "POST", { action: "release-disclosure", id: item.id }), "Released to the approved recipient.").then(saved => { if (saved) setReleasing(null); }); }}
         onCancel={() => setReleasing(null)}
       />
       {data.disclosures.length ? <ul className="space-y-2">{data.disclosures.map(d => <li key={d.id} className="rounded-xl border px-3 py-2 text-sm" data-disclosure={d.id} data-disclosure-status={d.status}>
@@ -372,7 +372,7 @@ function Oversight({ domain }: { domain: Domain }) {
   const load = useCallback(() => call(`/api/care?view=oversight&domain=${domain}`).then(setData).catch(() => setData(null)), [domain]);
   useEffect(() => { void load(); }, [load]);
   if (!data) return null;
-  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
+  const review = async (id: string) => { setBusy(true); try { await call("/api/care", "POST", { action: "review-emergency", id, note: notes[id] }); toast.success(ui("Review recorded.")); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
     <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
     <h3 className="text-base font-semibold text-ink-strong">{ui("Emergency access")}</h3>
@@ -434,7 +434,7 @@ function CareSettings() {
   const [disabling, setDisabling] = useState<{ domain: Domain; draft: { procedureReference: string; leadUserId: string; retentionMonths: string } } | null>(null);
   const load = useCallback(() => call("/api/care?view=settings").then((d: { settings: S[] }) => { setData(d as never); setDrafts(Object.fromEntries(d.settings.map(s => [s.domain, { procedureReference: s.procedureReference, leadUserId: s.leadUserId, retentionMonths: s.retentionMonths ? String(s.retentionMonths) : "", confirm: false }]))); }).catch(() => setData(null)), []);
   useEffect(() => { void load(); }, [load]);
-  const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
+  const run = async (work: () => Promise<unknown>, done: string) => { setBusy(true); try { await work(); toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); return false; } finally { setBusy(false); } };
   if (!data) return null;
   return <section className="space-y-3" data-care-settings>
     <ConfirmAction
@@ -445,7 +445,7 @@ function CareSettings() {
       description={removing ? ui("{0} can no longer open records in the {1} workspace. Records they wrote stay, and you can add them again later.", [removing.name, domainLabel(ui, removing.domain)]) : ""}
       confirmLabel={ui("Remove access")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={() => { const r = removing; setRemoving(null); if (r) void run(() => call("/api/care", "POST", { action: "revoke-member", id: r.id }), "Access removed."); }}
+      onConfirm={() => { const r = removing; if (r) return run(() => call("/api/care", "POST", { action: "revoke-member", id: r.id }), "Access removed.").then(saved => { if (saved) setRemoving(null); }); }}
       onCancel={() => setRemoving(null)}
     />
     <ConfirmAction
@@ -456,7 +456,7 @@ function CareSettings() {
       description={disabling ? ui("Members can no longer open {0} records until the workspace is enabled again. Nothing is deleted.", [domainLabel(ui, disabling.domain)]) : ""}
       confirmLabel={ui("Disable")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={() => { const x = disabling; setDisabling(null); if (x) void run(() => call("/api/care", "POST", { action: "configure", domain: x.domain, enabled: false, procedureReference: x.draft.procedureReference, leadUserId: x.draft.leadUserId, retentionMonths: x.draft.retentionMonths }), "Workspace disabled."); }}
+      onConfirm={() => { const x = disabling; if (x) return run(() => call("/api/care", "POST", { action: "configure", domain: x.domain, enabled: false, procedureReference: x.draft.procedureReference, leadUserId: x.draft.leadUserId, retentionMonths: x.draft.retentionMonths }), "Workspace disabled.").then(saved => { if (saved) setDisabling(null); }); }}
       onCancel={() => setDisabling(null)}
     />
     {data.settings.map(s => {

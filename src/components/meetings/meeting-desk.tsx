@@ -59,7 +59,7 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
   useEffect(() => { void load(); }, [load]);
   const ready = Boolean(desk) && !error;
   useEffect(() => { onReadyChange?.(ready); }, [ready, onReadyChange]);
-  const run = async (work: () => Promise<unknown>, done?: string) => { setBusy(true); try { await work(); if (done) toast.success(ui(done)); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); } finally { setBusy(false); } };
+  const run = async (work: () => Promise<unknown>, done?: string) => { setBusy(true); try { await work(); if (done) toast.success(ui(done)); await load(); return true; } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); await load(); return false; } finally { setBusy(false); } };
   const openBooking = (b: Booking) => { setOpen(b); setSummary(b.followUp?.summary ?? ""); setDrafts(b.actions.map(a => ({ text: a.text, ownerRole: a.ownerRole as Draft["ownerRole"], dueDate: a.dueDate }))); setNote(""); };
 
   const createWindow = () => run(async () => { await call("/api/meetings", "POST", { action: "window", ...form, slotMinutes: Number(form.slotMinutes), bufferMinutes: Number(form.bufferMinutes || 0), maxBookings: form.maxBookings ? Number(form.maxBookings) : null }); setOffering(false); }, "Meeting times opened.");
@@ -122,7 +122,7 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
       cancelLabel={ui("Keep times")}
       busy={busy}
       onCancel={() => setConfirm(null)}
-      onConfirm={() => { const w = confirm?.kind === "withdraw" ? confirm.window : null; setConfirm(null); if (w) void act({ action: "withdraw", windowId: w.id }, "Times withdrawn. Families with bookings were asked to choose again."); }}
+      onConfirm={async () => { const w = confirm?.kind === "withdraw" ? confirm.window : null; if (w && await act({ action: "withdraw", windowId: w.id }, "Times withdrawn. Families with bookings were asked to choose again.")) setConfirm(null); }}
     />
     <ConfirmAction
       open={confirm?.kind === "cancel"}
@@ -133,7 +133,7 @@ export function MeetingDesk({ offerOpen, onOfferOpenChange, onReadyChange }: { o
       cancelLabel={ui("Keep meeting")}
       busy={busy}
       onCancel={() => setConfirm(null)}
-      onConfirm={() => { const b = confirm?.kind === "cancel" ? confirm.booking : null; setConfirm(null); if (b) void act({ action: "cancel", bookingId: b.id, knownVersion: b.version }, "Meeting cancelled. The family has been told."); }}
+      onConfirm={async () => { const b = confirm?.kind === "cancel" ? confirm.booking : null; if (b && await act({ action: "cancel", bookingId: b.id, knownVersion: b.version }, "Meeting cancelled. The family has been told.")) setConfirm(null); }}
     />
 
     {open ? <Modal size="lg" title={open.studentName} eyebrow={status(open)} subtitle={when(open)} onClose={() => setOpen(null)}>

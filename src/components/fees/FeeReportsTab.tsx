@@ -186,7 +186,7 @@ function DefaultersReport({ campusId, currency, readOnly = false, command, showT
       description={tr("Each family with an overdue balance gets one reminder through their usual channel. Families are not told about other families.")}
       confirmLabel={tr("Send reminders")}
       cancelLabel={tr("Keep editing")}
-      onConfirm={() => void remindAll()}
+      onConfirm={() => remindAll()}
       onCancel={() => setConfirmAll(false)}
     />
   );

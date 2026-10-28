@@ -28,6 +28,8 @@ interface ConfirmActionProps {
   confirmLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
+  /** Blocks confirmation while a preview is missing or permission is denied. Cancel remains available. */
+  disabled?: boolean;
   tone?: "danger" | "warning" | "primary" | "success";
   /** Extra detail shown in a panel under the description, e.g. what is affected. */
   detail?: React.ReactNode;
@@ -36,7 +38,7 @@ interface ConfirmActionProps {
    * least `minLength` characters, and the reason is passed to `onConfirm`.
    */
   requireReason?: ConfirmReason;
-  onConfirm: (reason?: string) => void | Promise<void>;
+  onConfirm: (reason?: string) => void | Promise<unknown>;
   onCancel: () => void;
 }
 
@@ -90,6 +92,7 @@ export function ConfirmAction({
   confirmLabel,
   cancelLabel,
   busy = false,
+  disabled = false,
   tone = "primary",
   detail,
   requireReason,
@@ -104,6 +107,10 @@ export function ConfirmAction({
   const reasonId = useId();
   const [reason, setReason] = useState("");
   const [attempted, setAttempted] = useState(false);
+  const inFlight = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const pending = busy || submitting;
 
   // Every opening starts with an empty reason: a reason typed for one record
   // must never be carried onto the next decision.
@@ -111,6 +118,7 @@ export function ConfirmAction({
     if (!open) return;
     setReason("");
     setAttempted(false);
+    setFailed(false);
   }, [open]);
 
   if (!open) return null;
@@ -123,8 +131,9 @@ export function ConfirmAction({
   const hintId = `${reasonId}-hint`;
   const errorId = `${reasonId}-error`;
 
-  const confirm = () => {
-    const outcome = confirmOutcome({ busy, reason, rule: requireReason });
+  const confirm = async () => {
+    if (inFlight.current || disabled) return;
+    const outcome = confirmOutcome({ busy: pending, reason, rule: requireReason });
     if (!outcome.confirm) {
       if (outcome.blockedBy === "reason") {
         setAttempted(true);
@@ -132,7 +141,21 @@ export function ConfirmAction({
       }
       return;
     }
-    void onConfirm(outcome.reason);
+    // Ref fencing is synchronous: rapid keyboard/click activation cannot race
+    // React's next render. Callers must return their mutation promise.
+    inFlight.current = true;
+    setSubmitting(true);
+    setFailed(false);
+    try {
+      await onConfirm(outcome.reason);
+    } catch {
+      // Never close or discard a typed reason on failure. Domain callers may
+      // render more specific recovery copy; this is the safe shared fallback.
+      setFailed(true);
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -144,17 +167,17 @@ export function ConfirmAction({
       size={requireReason ? "sm" : "xs"}
       role="alertdialog"
       onClose={onCancel}
-      dismissible={!busy}
-      initialFocusRef={requireReason ? reasonRef : cancelRef}
+      dismissible={!pending}
+      initialFocusRef={cancelRef}
       describedBy={descriptionId}
       // Mid-write is the worst moment to lose the question: a stray click on the
       // backdrop or a reflexive Escape while the request is in flight would
       // leave the caller's `busy` state stranded with nothing on screen.
-      disableBackdropClose={busy || (Boolean(requireReason) && reason.trim().length > 0)}
-      hideClose={busy}
+      disableBackdropClose={pending || (Boolean(requireReason) && reason.trim().length > 0)}
+      hideClose={pending}
       footer={
         <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-          <Button ref={cancelRef} type="button" variant="outline" onClick={onCancel} disabled={busy} className="min-h-12 px-5">
+          <Button ref={cancelRef} type="button" variant="outline" onClick={onCancel} disabled={pending} className="min-h-12 px-5">
             {/* R3: the way out of a confirmation is "Keep editing", so a "Cancel activity?" question never shows two "Cancel"s. */}
             {cancelLabel ?? copy.keepEditing}
           </Button>
@@ -162,7 +185,8 @@ export function ConfirmAction({
             type="button"
             variant={dialogActionVariant(t.action)}
             onClick={confirm}
-            loading={busy}
+            loading={pending}
+            disabled={disabled}
             aria-disabled={requireReason && !ready ? true : undefined}
             aria-describedby={requireReason && !ready ? hintId : undefined}
             className={cn("min-h-12 px-6", dialogActionClass(t.action), requireReason && !ready && "opacity-60")}
@@ -173,6 +197,7 @@ export function ConfirmAction({
       }
     >
       <p id={descriptionId} className="text-sm leading-relaxed text-ink">{description}</p>
+      {failed ? <p role="alert" className="mt-3 text-sm text-rose-700">{say("This could not be completed. Your changes are kept. Please try again.")}</p> : null}
       {detail ? (
         <div className="mt-4 rounded-2xl border border-edge/20 bg-surface-subtle px-4 py-3 text-xs font-medium text-ink">
           {detail}
@@ -189,7 +214,7 @@ export function ConfirmAction({
             placeholder={requireReason.placeholder ?? say("Explain why, for the audit record.")}
             aria-invalid={attempted && !ready ? true : undefined}
             aria-describedby={[hintId, attempted && !ready ? errorId : null].filter(Boolean).join(" ")}
-            disabled={busy}
+            disabled={pending}
             rows={3}
             className="min-h-24"
           />

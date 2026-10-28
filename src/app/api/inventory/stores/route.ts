@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -82,29 +83,6 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
-
-    const campusId = await resolveCampusId(user);
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const store = await prisma.itemStore.findFirst({
-      where: { id, campusId },
-      include: { _count: { select: { stock: true } } },
-    });
-    if (!store) throw new ApiError("Store not found", 404);
-
-    if (store._count.stock > 0) {
-      throw new ApiError("Cannot delete store that is referenced by item stock", 409);
-    }
-
-    await prisma.itemStore.delete({ where: { id } });
-
-    return Response.json({ success: true, data: { id } });
-  } catch (error) {
-    return errorResponse(error, "[inventory/stores] DELETE failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "inventory/stores");
 }
