@@ -44,7 +44,7 @@ export function RestoreStudentDialog({ student, onClose, onRestored }: { student
       {conflict?.rollNo && <FormField name="restore-roll" label={ui("New current roll number (currently {0}, now used by another student)", [student?.rollNo ?? ""])}><Input value={rollNo} maxLength={32} dir="ltr" autoFocus onChange={event => setRollNo(event.target.value)} /></FormField>}
       {conflict?.admissionNo && <FormField name="restore-admission" label={ui("New current admission number (currently {0}, now used by another student)", [student?.admissionNo ?? ""])}><Input value={admissionNo} maxLength={64} dir="ltr" onChange={event => setAdmissionNo(event.target.value)} /></FormField>}
     </div>}
-    onConfirm={() => void restore()}
+    onConfirm={() => restore()}
     onCancel={close}
   />;
 }

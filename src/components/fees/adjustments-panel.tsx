@@ -85,7 +85,7 @@ function AdjustmentRow({ row, onChanged }: { row: Adjustment; onChanged: () => v
       requireReason={selfDecision
         ? { label: ui("Why are you deciding your own request?"), minLength: 10, placeholder: ui("For example: no other campus admin is appointed yet.") }
         : { label: ui("Reason for this decision"), minLength: 10, placeholder: ui("For example: checked the receipt and the fee policy.") }}
-      onConfirm={(reason?: string) => void act(confirming === "decline" ? "decline" : "approve", reason)}
+      onConfirm={(reason?: string) => act(confirming === "decline" ? "decline" : "approve", reason)}
       onCancel={() => setConfirming(null)}
     />
     <ConfirmAction
@@ -96,7 +96,7 @@ function AdjustmentRow({ row, onChanged }: { row: Adjustment; onChanged: () => v
       description={ui("The refund stays unpaid and the family's balance does not change. Request a new refund if the money still needs to go back.")}
       confirmLabel={ui("Record refund failed")}
       cancelLabel={ui("Keep editing")}
-      onConfirm={() => void act("failed")}
+      onConfirm={() => act("failed")}
       onCancel={() => setConfirming(null)}
     />
   </li>;

@@ -92,7 +92,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
     refocus();
   };
   usePanelCommand(command, { scan: () => scanRef.current?.focus(), renew: startRenew });
-  const markLost = async (loan: Loan) => { if (await post("lost", { issueId: loan.id })) { setMessage(ui("Marked lost. A charge was recorded for review.")); await refreshMember(); void load(); } };
+  const markLost = async (loan: Loan) => { if (await post("lost", { issueId: loan.id })) { setMessage(ui("Marked lost. A charge was recorded for review.")); await refreshMember(); void load(); return true; } return false; };
 
   const scan = async (value: string) => {
     if (!value.trim()) return;
@@ -123,7 +123,7 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
         description={losing ? ui("\"{0}\" is taken off the shelf and a lost-copy charge is recorded for review. The charge can still be waived or sent to the fees office.", [losing.title]) : ""}
         confirmLabel={ui("Mark lost")}
         cancelLabel={ui("Keep editing")}
-        onConfirm={() => { const loan = losing; setLosing(null); if (loan) void markLost(loan); }}
+        onConfirm={async () => { const loan = losing; if (loan && await markLost(loan)) setLosing(null); }}
         onCancel={() => setLosing(null)}
       />
       {overviewLoading && !overview ? <p role="status" className="text-sm text-ink-muted">{ui("Loading library data…")}</p> : null}

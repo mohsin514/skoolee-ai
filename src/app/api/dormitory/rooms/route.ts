@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
@@ -144,30 +145,5 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
-
-    const id = request.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const campusId = await resolveCampusId(user, request.nextUrl.searchParams.get("campusId"));
-
-    const existing = await prisma.dormRoom.findFirst({
-      where: { id, campusId },
-      select: { id: true },
-    });
-    if (!existing) throw new ApiError("Room not found", 404);
-
-    const history = await prisma.dormAllocation.count({ where: { roomId: id } });
-    if (history > 0) {
-      throw new ApiError("This room has allocation history, which is kept. Mark it out of service instead.", 409);
-    }
-
-    const data = await prisma.dormRoom.delete({ where: { id } });
-
-    return Response.json({ success: true, data });
-  } catch (error) {
-    return errorResponse(error, "[dormitory] DELETE rooms failed");
-  }
+  return operationDeleteResponse(request, "dormitory/rooms");
 }

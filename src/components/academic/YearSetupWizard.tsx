@@ -1,5 +1,6 @@
 "use client";
 
+import { ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -85,6 +86,7 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [cycleStatus, setCycleStatus] = useState<string>("DRAFT");
 
+  const [removingHoliday, setRemovingHoliday] = useState<{ id: string; name: string } | null>(null);
   const [weekends, setWeekends] = useState<number[]>([6, 7]);
   const [holidays, setHolidays] = useState<{ id: string; name: string; fromDate: string; toDate: string }[]>([]);
 
@@ -210,16 +212,6 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
       } else toast.error(friendlyErrorMessage(new Error(typeof json.error === "string" ? json.error : ""), ui("The holiday could not be added. Try again.")));
     } finally { setSaving(false); }
   };
-  const removeHoliday = async (id: string) => {
-    try {
-      const sp = new URLSearchParams({ id });
-      if (campusId) sp.set("campusId", campusId);
-      const res = await fetch(`/api/academic/calendar?${sp.toString()}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) setHolidays((h) => h.filter((x) => x.id !== id));
-    } catch { toast.error(ui("The holiday could not be removed")); }
-  };
-
   const isHoliday = (iso: string) => holidays.some((h) => iso >= h.fromDate && iso <= h.toDate);
   const holidayOn = (iso: string) => holidays.find((h) => iso >= h.fromDate && iso <= h.toDate);
 
@@ -374,6 +366,8 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
 
   return (
     <div className="space-y-6">
+      {removingHoliday ? <ReviewedDeleteDialog endpoint="academic/calendar" record={{ id: removingHoliday.id, campusId }} label={removingHoliday.name}
+        onCancel={() => setRemovingHoliday(null)} onDeleted={() => setHolidays(rows => rows.filter(row => row.id !== removingHoliday.id))} /> : null}
       {/* Stepper */}
       <div className="flex items-center gap-2">
         {steps.map((s, i) => (
@@ -461,7 +455,7 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
                 {holidays.map((h) => (
                   <span key={h.id} className="flex items-center gap-2 rounded-full bg-status-info-surface px-3 py-1 text-xs font-bold text-status-info-text">
                     {h.name} ({h.fromDate}→{h.toDate})
-                    <Button variant="ghost" onClick={() => removeHoliday(h.id)} className=""><X className="h-3 w-3" /></Button>
+                    <Button variant="ghost" aria-label={ui("Delete {0}?", [h.name])} onClick={() => setRemovingHoliday(h)} className=""><X className="h-3 w-3" /></Button>
                   </span>
                 ))}
               </div>
