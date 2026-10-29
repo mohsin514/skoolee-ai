@@ -5,9 +5,8 @@ import { schoolClock } from "@/lib/timetable/school-clock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "@/components/ui/toast";
 import {
   AlertCircle, ArrowRight, CalendarCheck, CheckCircle2,
   ClipboardList, GraduationCap, Sun, UserCheck, Users,
@@ -26,7 +25,6 @@ import { clashingSlotIds } from "@/lib/timetable/clashes";
 import { readTeacherSchedule, scheduleAvailability as availabilityOf } from "@/lib/timetable/teacher-schedule-read";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { useCountLabel, useIsSingular } from "@/components/locale/use-count-label";
-import { localeTag } from "@/lib/locale/package";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { FlagshipCard } from "@/components/ui/flagship";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
@@ -64,7 +62,6 @@ export default function TeacherToday() {
   const [scheduleAvailability, setScheduleAvailability] = useState<"published" | "unpublished" | "failed">("published");
   const [selfAttendanceStatus, setSelfAttendanceStatus] = useState<"loading" | "unmarked" | "marked" | "failed">("loading");
   const [selfAttendanceTime, setSelfAttendanceTime] = useState<string | null>(null);
-  const [markingSelf, setMarkingSelf] = useState(false);
 
   const [attendanceRetry, setAttendanceRetry] = useState(0);
   useEffect(() => {
@@ -88,23 +85,6 @@ export default function TeacherToday() {
     })();
     return () => { active = false; };
   }, [locale.timezone, attendanceRetry]);
-
-  const handleMarkSelfAttendance = useCallback(async () => {
-    setMarkingSelf(true);
-    try {
-      const res = await fetch("/api/teacher-attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ? ui(json.error) : ui("Could not check you in. Please try again."));
-      setSelfAttendanceStatus("marked");
-      setSelfAttendanceTime(json.data?.checkInTime || new Date().toLocaleTimeString(localeTag(locale), { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: locale.timezone }));
-      toast.success(json.alreadyMarked ? ui("You were already checked in today.") : ui("You're checked in for today."));
-    } catch (err) { toast.error(err); }
-    finally { setMarkingSelf(false); }
-  }, [ui, locale]);
 
   useEffect(() => {
     (async () => {
@@ -172,10 +152,11 @@ export default function TeacherToday() {
           <Button variant="outline" size="sm" onClick={() => setAttendanceRetry(value => value + 1)}>{ui("Try again")}</Button>
         </span>
       ) : (
-        <Button variant="outline" onClick={handleMarkSelfAttendance} loading={markingSelf}>
-          {markingSelf ? null : <UserCheck aria-hidden="true" />}
-          {ui("Check in for today")}
-        </Button>
+        // SKAI-1119: teachers cannot mark their own attendance; admins/principals record it.
+        <Badge variant="outline" className="min-h-11 rounded-xl px-3 text-xs">
+          <UserCheck aria-hidden="true" />
+          {ui("Not marked yet")}
+        </Badge>
       )}
     </span>
   );
