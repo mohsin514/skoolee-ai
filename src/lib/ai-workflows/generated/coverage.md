@@ -1,18 +1,18 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **875**; connected: **148**.
+Total capabilities: **876**; connected: **148**.
 
-Risk: ACCESS_GRANT 54 · APPROVAL_DECISION 71 · COMMUNICATION 37 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 58 · PUBLISH 29 · READ 48 · UPDATE 270
+Risk: ACCESS_GRANT 54 · APPROVAL_DECISION 71 · COMMUNICATION 37 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 48 · UPDATE 270
 
-Reuse: direct 578 · inline-prisma 228 · wrapper 69
+Reuse: direct 579 · inline-prisma 228 · wrapper 69
 
-Idempotent: no 256 · unknown 50 · versioned 1 · yes 568
+Idempotent: no 256 · unknown 50 · versioned 1 · yes 569
 
 ## By role
 
 | Role | Capabilities | Connected |
 |---|---|---|
-| APP_OWNER | 65 | 14 |
+| APP_OWNER | 66 | 14 |
 | SUPER_ADMIN | 665 | 18 |
 | ADMIN | 702 | 88 |
 | CAMPUS_ADMIN | 656 | 86 |
@@ -35,7 +35,7 @@ Idempotent: no 256 · unknown 50 · versioned 1 · yes 568
 | C5 Attendance, communication and engagement | 71 | 14 |
 | C6 Finance, payroll, purchasing and inventory | 120 | 26 |
 | C7 Campus operations | 112 | 24 |
-| C8 Platform, group governance and onboarding | 71 | 14 |
+| C8 Platform, group governance and onboarding | 72 | 14 |
 | C8 Reviewed RAG knowledge | 4 | 1 |
 | C9a school-ai exams and Exam Studio | 94 | 1 |
 | C9b school-ai workspace, setup, runs, assistant, plus /api/ai and /api/automatio | 61 | 0 |

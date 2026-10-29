@@ -160,9 +160,11 @@ export type PackGateInput = {
   activation: ActivationSnapshot | null;
   /** Pin already recorded on a paper, if any. */
   pin?: { packId: string; version: number; contentSha256: string } | null;
+  /** SKAI-1053 (D5): AI paths pass the pack's educator-evaluation flag; a failed evaluation keeps AI off. */
+  aiEvaluation?: { allowed: true } | { allowed: false; reasons: string[] };
   now?: Date;
 };
-export type PackGate = { gated: false } | { gated: true; allowed: true; pin: { packId: string; version: number; contentSha256: string } } | { gated: true; allowed: false; code: "CURRICULUM_PACK_NOT_ACTIVE"; reasons: string[] };
+export type PackGate = { gated: false } | { gated: true; allowed: true; pin: { packId: string; version: number; contentSha256: string } } | { gated: true; allowed: false; code: "CURRICULUM_PACK_NOT_ACTIVE" | "CURRICULUM_PACK_AI_EVALUATION_FAILED"; reasons: string[] };
 
 /** Exam Studio and AI paper generation: a catalogue pack must be ACTIVE for this campus, and outputs pin its hash. */
 export function curriculumPackGate(input: PackGateInput): PackGate {
@@ -176,5 +178,6 @@ export function curriculumPackGate(input: PackGateInput): PackGate {
   if (blockers.length) return blocked(blockers);
   const pin = { packId, version: input.catalogue.version, contentSha256: input.catalogue.contentSha256 };
   if (input.pin && (input.pin.packId !== pin.packId || input.pin.version !== pin.version || input.pin.contentSha256 !== pin.contentSha256)) return blocked(["This paper was prepared against a different pack version. Regenerate it against the active version."]);
+  if (input.aiEvaluation && !input.aiEvaluation.allowed) return { gated: true, allowed: false, code: "CURRICULUM_PACK_AI_EVALUATION_FAILED", reasons: input.aiEvaluation.reasons };
   return { gated: true, allowed: true, pin };
 }
