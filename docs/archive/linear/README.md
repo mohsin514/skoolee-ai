@@ -6,7 +6,7 @@ Decision D6 (`docs/product-review-2026-10/d6-tracker-of-record.md`) makes Jira p
 
 | File | What it is |
 | --- | --- |
-| `linear-issues-2026-10-29.csv` | Every Linear issue, including archived, completed and canceled ones (SKAI-1054, D6-01). Columns: `id,title,status,statusType,project,createdAt,completedAt,url`. |
+| `linear-issues-2026-10-29.csv (added in the follow-up PR SKAI-1054-linear-csv)` | Every Linear issue, including archived, completed and canceled ones (SKAI-1054, D6-01). Columns: `id,title,status,statusType,project,createdAt,completedAt,url`. |
 | `open-items-crosswalk.md` | Open SKO issues grouped by Linear project, each with a suggested SKAI home (SKAI-1055, D6-02). |
 
 Issue descriptions, comments and attachments are deliberately **not** exported. At least one issue (SKO-5) contains plaintext test passwords in its description; for full detail, open the issue URL in Linear (read-only).
