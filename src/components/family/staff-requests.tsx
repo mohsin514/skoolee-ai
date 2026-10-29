@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bus, CalendarCheck } from "lucide-react";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { readApiError } from "@/lib/api/envelope-client";
 
 // SKO-421 staff side. Leave requests are decided here and never mark the register. Trip notices are
 // published as versions; a revision says whether it is a material change (fresh answers needed) and what
@@ -35,7 +36,7 @@ const standing = (ui: Ui, status: string) => ({ GRANTED: ui("Permission recorded
 async function send(url: string, method: string, body: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || json.error || json.success === false) throw new Error(readApiError(json, "The change was not saved."));
   return json.data;
 }
 

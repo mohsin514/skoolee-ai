@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { readApiError } from "@/lib/api/envelope-client";
 
 // SKO-455: one panel, three audiences. Students own goals and choose who sees them; guardians read
 // what was shared; designated counsellors hold appointments, restricted notes, alumni and mentoring.
@@ -38,7 +39,7 @@ const SHARE_FLAG = { COUNSELLOR: "share-c", GUARDIAN: "share-g" } as const;
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok || !json?.success) throw new Error(json?.error || "Request failed");
+  if (!response?.ok || !json || json.error || json.success === false) throw new Error(readApiError(json, "Request failed"));
   return json.data;
 }
 

@@ -14,6 +14,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { CalendarClock, CalendarPlus } from "lucide-react";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { readApiError } from "@/lib/api/envelope-client";
 
 // SKO-420: the teacher's meeting desk — open windows, see each slot's state, handle bookings, record whether
 // a meeting took place, then write the shared summary and a few owned actions. Staff notes are a separate,
@@ -29,7 +30,7 @@ type Draft = { text: string; ownerRole: "FAMILY" | "STAFF"; dueDate: string };
 async function call(url: string, method: string, body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || json.error || json.success === false) throw new Error(readApiError(json, "The change was not saved."));
   return json.data;
 }
 const LIVE = ["CONFIRMED", "RESCHEDULE_NEEDED"];
