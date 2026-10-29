@@ -9,6 +9,7 @@ import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { describeError, loadWidget } from "@/lib/dashboard/widget";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel, roleLabelFor } from "@/lib/roles";
 import { institutionKindOf, isInstitutionAuthority, kindFor } from "@/lib/auth/institution";
@@ -138,6 +139,17 @@ async function campusWaitingCounts(schoolId: string): Promise<Map<string, Campus
 }
 
 export const getSuperAdminDashboardData = cache(async function getSuperAdminDashboardData() {
+  try {
+    return await loadSuperAdminDashboardData();
+  } catch (error) {
+    // SKAI-1038: production strips server-action messages, so the cause is only visible here.
+    console.error("[super-dashboard] load failed", describeError(error));
+    throw error;
+  }
+});
+
+async function loadSuperAdminDashboardData() {
+  const degraded: string[] = [];
   const session = await getAuthUser();
   if (!session || session.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
@@ -205,35 +217,35 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.aIInsight.findMany({
+    loadWidget("aiInsights", () => prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId },
       select: aiInsightSelect(),
       orderBy: { createdAt: "desc" },
       take: 5,
-    }),
-    prisma.aIUsageLog.groupBy({
+    }), [], degraded),
+    loadWidget("aiUsage", () => prisma.aIUsageLog.groupBy({
       by: ["campusId"],
       where: { schoolId: session.schoolId },
       _count: { _all: true },
       _sum: { tokensUsed: true },
-    }),
-    prisma.aIReviewItem.findMany({
+    }), [], degraded),
+    loadWidget("aiReview", () => prisma.aIReviewItem.findMany({
       where: { schoolId: session.schoolId, status: "PENDING" },
       select: aiReviewSelect(),
       orderBy: { createdAt: "asc" },
       take: 5,
-    }),
-    prisma.parentCommunication.groupBy({
+    }), [], degraded),
+    loadWidget("communications", () => prisma.parentCommunication.groupBy({
       by: ["campusId", "status"],
       where: { schoolId: session.schoolId },
       _count: { _all: true },
-    }),
-    prisma.invoice.groupBy({
+    }), [], degraded),
+    loadWidget("invoices", () => prisma.invoice.groupBy({
       by: ["campusId", "status"],
       where: { currency, campus: { schoolId: session.schoolId } },
       _count: { _all: true },
       _sum: { totalAmount: true, totalAmountPaid: true },
-    }),
+    }), [], degraded),
   ]);
 
   const aiUsageMap = aiUsageByCampus.reduce<Record<string, { runs: number; tokens: number }>>((acc, item) => {
@@ -364,6 +376,8 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     aiInsights,
     aiUsageByCampus,
     pendingAIReviewItems,
+    /** SKAI-1038: widgets whose read failed and show their empty state; the rest of the console still loads. */
+    degraded,
     // G46a: GROUP or STANDALONE from the resolved session (§1.1), for kind-aware copy in the console.
     institutionKind: kindFor(session) ?? institutionKindOf({}),
     /** Flagship card on Today: "Set up your school with AI" while true, else "Run an AI workflow" (addendum 2026-10-22). */
@@ -374,7 +388,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       role: roleLabelFor(session),
     },
   };
-});
+}
 
 export const getCampusDashboardData = cache(async function getCampusDashboardData() {
   const session = await getAuthUser();

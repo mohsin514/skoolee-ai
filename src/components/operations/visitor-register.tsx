@@ -18,6 +18,8 @@ import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-466: on-site visitors first, overdue visits flagged, one-action check-out, duplicate check-in
 // warnings that keep the draft, refused visitors recorded without admission, corrections with a reason.
@@ -39,6 +41,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState("");
   const [form, setForm] = useState(EMPTY), [mode, setMode] = useState<"closed" | "check-in" | "refuse">("closed");
   const [saving, setSaving] = useState(false), [formError, setFormError] = useState(""), [duplicates, setDuplicates] = useState<Duplicate[]>([]);
+  const draft = useFormDraft({ record: "reception:visitor-intake", schema: 1, values: form, baseline: EMPTY, fields: ["name", "purpose", "toMeet", "reference", "phone", "refusedReason"] as const, apply: values => setForm({ name: String(values.name ?? ""), purpose: String(values.purpose ?? ""), toMeet: String(values.toMeet ?? ""), reference: String(values.reference ?? ""), phone: String(values.phone ?? ""), refusedReason: String(values.refusedReason ?? "") }) });
   const [leaving, setLeaving] = useState<Visit | null>(null), [correcting, setCorrecting] = useState<Visit | null>(null), [busy, setBusy] = useState(false);
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
 
@@ -79,7 +82,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) { const message: string = typeof json.error === "string" ? json.error : "The visit was not saved. Your details are kept; try again."; setFormError(ui(message)); setDuplicates(json.duplicates ?? []); return; }
       toast.success(json.replayed ? ui("This check-in was already saved; nothing was added twice.") : refused ? ui("Refused visitor recorded. They were not admitted.") : ui("{0} checked in to see {1}.", [json.data.name, json.data.toMeet]));
-      attempt.current = null; setForm(EMPTY); setMode("closed"); void load();
+      draft.markSaved(); attempt.current = null; setForm(EMPTY); setMode("closed"); void load();
     } catch {
       setFormError(ui("The connection failed before the server answered. Your details are kept; retrying will not check the visitor in twice."));
     } finally { setSaving(false); }
@@ -122,6 +125,7 @@ export function VisitorRegister({ canManage = true, hideHeader = false, command 
         <p>{formError}</p>
         {duplicates.length ? <ul className="mt-1 list-disc ps-4 font-normal">{duplicates.map(item => <li key={item.id}>{ui("On site since {0}, seeing {1}", [dateTime(item.inTime), item.toMeet ?? "—"])}{item.reference ? ` · ${item.reference}` : ""}</li>)}</ul> : null}
       </Alert> : null}
+      <DraftRecovery recordLabel={ui("Visitor entry")} draft={draft} saving={saving} excluded={ui("Only visitor intake fields are stored in this signed-in browser draft.")} />
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="visitor-name" label={ui("Visitor name")}><Input value={form.name} maxLength={120} onChange={set("name")} autoComplete="off" /></FormField>
         <FormField name="visitor-purpose" label={ui("Purpose of visit")}><Input value={form.purpose} maxLength={200} onChange={set("purpose")} /></FormField>

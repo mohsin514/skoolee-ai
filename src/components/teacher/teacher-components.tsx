@@ -28,6 +28,8 @@ import { ErrorState } from "@/components/ui/error-state";
 import { WorkspacePageSkeleton } from "@/components/teacher/teacher-page";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 
 /* ── Pure helpers ── */
@@ -534,7 +536,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
   report: any; busy: boolean; remarkBusy: string | null; savingRemarks?: boolean;
   onClose: () => void; onSend: () => Promise<boolean | undefined>;
   onGenerateRemarks?: (studentId: string, examId: string) => void;
-  onSaveRemarks?: (remarks: { en: string; ur: string }) => void | Promise<void>;
+  onSaveRemarks?: (remarks: { en: string; ur: string }) => void | Promise<boolean | void>;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
   const [detailReport, setDetailReport] = useState<any>(report);
@@ -553,6 +555,15 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
   const translationRequest = useRef<AbortController | null>(null);
   const avatar = report.student?.profileImageUrl;
   const ui = useUiText();
+  const remarksDraft = useFormDraft({
+    record: `teacher:report-remarks:${report.id}`,
+    schema: 1,
+    values: remarks,
+    baseline: { en: detailReport.remarksEn || "", ur: detailReport.remarksUr || "" },
+    fields: ["en", "ur"] as const,
+    enabled: Boolean(onSaveRemarks),
+    apply: (values) => setRemarks({ en: String(values.en ?? ""), ur: String(values.ur ?? "") }),
+  });
 
   useEffect(() => {
     setDetailReport(report);
@@ -877,6 +888,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
           <PanelTitle icon={FileText} title="Remarks" />
           {onSaveRemarks ? (
             <div className="mt-4 space-y-3">
+              <DraftRecovery recordLabel={ui("Report remarks")} draft={remarksDraft} saving={Boolean(savingRemarks)} excluded={ui("Only the English and Urdu remark text is stored in this signed-in browser draft.")} />
               <div>
                 <p className="text-2xs font-semibold text-ink-subtle">{ui("English")}</p>
                 <Textarea value={remarks.en} onChange={(e) => handleRemarksEnChange(e.target.value)} rows={3} className="mt-1.5" placeholder={ui("Write remarks for this pupil…")} aria-label={ui("Remarks in English")} />
@@ -910,7 +922,7 @@ export function ReportCardDetailModal({ report, busy, remarkBusy, savingRemarks,
               </div>
               <div className="flex justify-end">
                 <BrandButton variant="dark" icon={savingRemarks ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  onClick={() => onSaveRemarks({ en: remarks.en, ur: remarks.ur })} disabled={savingRemarks || translatingUr}>
+                  onClick={async () => { const saved = await onSaveRemarks({ en: remarks.en, ur: remarks.ur }); if (saved !== false) remarksDraft.markSaved(); }} disabled={savingRemarks || translatingUr}>
                   {savingRemarks ? ui("Saving…") : ui("Save remarks")}
                 </BrandButton>
               </div>

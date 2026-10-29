@@ -39,7 +39,7 @@ For each project, collect:
 
 | Value                          | Where it goes                                   |
 |--------------------------------|-------------------------------------------------|
-| Pooler URI (port 6543)         | `DATABASE_URL` (runtime)                         |
+| Pooler URI (port 6543)         | `DATABASE_URL` (runtime) — append `?pgbouncer=true&connection_limit=1` (SKAI-1038; the app adds them if missing) |
 | Direct URI (port 5432)         | `DIRECT_URL` (migrations)                         |
 | Project URL / anon / service   | `NEXT_PUBLIC_SUPABASE_URL` + keys                |
 

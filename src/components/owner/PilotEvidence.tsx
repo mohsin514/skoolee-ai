@@ -23,6 +23,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "@/components/ui/toast";
 import { PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 import { cn } from "@/lib/utils";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-430: pilot charter, comparable observations, evidence-state measures and claim review in the
 // owner console. Figures always show their denominator; withheld percentages show the reason.
@@ -197,6 +199,11 @@ function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullN
   const ui = useUiText();
   const [form, setForm] = useState({ name: "", country: "", curriculum: "", language: "en", useCase: "", startsOn: "", endsOn: "", championName: "", measurementOwnerId: owners[0]?.id ?? "", workflowKey: "", definition: "", successDefinition: "", synthetic: false });
   const [busy, setBusy] = useState(false);
+  const draft = useFormDraft({
+    record: "owner:pilot-charter", schema: 1, values: form, baseline: { ...form, measurementOwnerId: owners[0]?.id ?? "" },
+    fields: ["name", "country", "curriculum", "language", "useCase", "startsOn", "endsOn", "championName", "measurementOwnerId", "workflowKey", "definition", "successDefinition", "synthetic"] as const,
+    apply: (values) => setForm((current) => ({ ...current, ...values, synthetic: Boolean(values.synthetic) })),
+  });
   const set = (key: string, value: string | boolean) => setForm((f) => ({ ...f, [key]: value }));
   return (
     <form className="grid gap-3 md:grid-cols-2" onSubmit={async (e) => {
@@ -204,9 +211,10 @@ function PilotForm({ owners, onCreated, onError }: { owners: { id: string; fullN
       try {
         const pilot = await call("/api/owner/pilots", { method: "POST", body: JSON.stringify({ name: form.name, country: form.country.toUpperCase(), curriculum: form.curriculum, language: form.language, useCase: form.useCase, startsOn: form.startsOn, endsOn: form.endsOn || null,
           championName: form.championName, measurementOwnerId: form.measurementOwnerId, synthetic: form.synthetic, workflows: [{ key: form.workflowKey.toUpperCase(), definition: form.definition, successDefinition: form.successDefinition }] }) });
-        onCreated(pilot.id);
+        draft.markSaved(); onCreated(pilot.id);
       } catch (err) { onError((err as Error).message); } finally { setBusy(false); }
     }}>
+      <div className="md:col-span-2"><DraftRecovery recordLabel={ui("Pilot charter")} draft={draft} saving={busy} excluded={ui("Only charter fields are stored in this signed-in browser draft; participant observations are never stored here.")} /></div>
       <FormField name="pilot-f1" label={ui("Pilot name")} required><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></FormField>
       <FormField name="pilot-f2" label={ui("Measurement owner")} required><Select value={form.measurementOwnerId} onChange={(e) => set("measurementOwnerId", e.target.value)}>{owners.map((o) => <option key={o.id} value={o.id}>{o.fullName}</option>)}</Select></FormField>
       <FormField name="pilot-f3" label={ui("Country code")} hint={ui("Two letters, for example PK, SA or AE.")} required><Input dir="ltr" maxLength={2} value={form.country} onChange={(e) => set("country", e.target.value)} /></FormField>

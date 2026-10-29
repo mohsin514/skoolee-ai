@@ -15,6 +15,8 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-421 family side. Leave: a request for future days that the school decides; it never marks the
 // register. Trips: the exact version is shown and named in the answer; giving and refusing permission are
@@ -39,6 +41,15 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
   const { date } = useLocaleFormat();
   const [rows, setRows] = useState<Leave[] | null>(null), [open, setOpen] = useState(false), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ fromDate: "", toDate: "", reason: "" }), [reply, setReply] = useState<Record<string, string>>({});
+  const leaveDraft = useFormDraft({
+    record: `family:leave:${studentId}`,
+    schema: 1,
+    values: form,
+    baseline: { fromDate: "", toDate: "", reason: "" },
+    fields: ["fromDate", "toDate", "reason"] as const,
+    enabled: open,
+    apply: (values) => setForm({ fromDate: String(values.fromDate ?? ""), toDate: String(values.toDate ?? ""), reason: String(values.reason ?? "") }),
+  });
   const [cancelling, setCancelling] = useState<Leave | null>(null);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
@@ -96,13 +107,14 @@ export function GuardianLeave({ studentId, requestSignal, hideRequestButton = fa
     />
     {open ? <Modal size="sm" title={ui("Request leave")} eyebrow={ui("Attendance")} subtitle={ui("For days that have not happened yet. Explain past absences from the list above.")} onClose={() => setOpen(false)}>
       <div className="space-y-3" data-leave-form>
+        <DraftRecovery recordLabel={ui("Leave request")} draft={leaveDraft} saving={busy} excluded={ui("Do not include medical details; device drafts stay only in this signed-in browser for 24 hours.")} />
         {error ? <Alert tone="danger" compact data-leave-error>{error}</Alert> : null}
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField name="leave-from" label={ui("First day")}><Input type="date" value={form.fromDate} onChange={e => setForm({ ...form, fromDate: e.target.value, toDate: form.toDate || e.target.value })} /></FormField>
           <FormField name="leave-to" label={ui("Last day")}><Input type="date" value={form.toDate} min={form.fromDate} onChange={e => setForm({ ...form, toDate: e.target.value })} /></FormField>
         </div>
         <FormField name="leave-reason" label={ui("Reason")} hint={ui("Keep it short. Do not include medical details here.")}><Textarea value={form.reason} maxLength={1000} onChange={e => setForm({ ...form, reason: e.target.value })} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Cancel")}</Button><Button disabled={busy || !form.fromDate || form.reason.trim().length < 3} onClick={async () => { if (await send("POST", { studentId, ...form })) { toast.success(ui("Request sent. The school will review it.")); setOpen(false); setForm({ fromDate: "", toDate: "", reason: "" }); void load(); } }} loading={busy} data-leave-send>{ui("Send request")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>{ui("Cancel")}</Button><Button disabled={busy || !form.fromDate || form.reason.trim().length < 3} onClick={async () => { if (await send("POST", { studentId, ...form })) { toast.success(ui("Request sent. The school will review it.")); leaveDraft.markSaved(); setOpen(false); setForm({ fromDate: "", toDate: "", reason: "" }); void load(); } }} loading={busy} data-leave-send>{ui("Send request")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
@@ -115,6 +127,13 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
   const [rows, setRows] = useState<Trip[] | null>(null), [review, setReview] = useState<{ trip: Trip; choice: "GRANTED" | "DECLINED" | "WITHDRAWN"; key: string } | null>(null), [error, setError] = useState(""), [busy, setBusy] = useState(false), [receipt, setReceipt] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
+  const reviewKey = `skoolee:family-trip-review:${studentId}`;
+  const openReview = (trip: Trip, choice: "GRANTED" | "DECLINED" | "WITHDRAWN") => {
+    const next = { tripId: trip.tripId, version: trip.version.version, choice, key: key() };
+    try { sessionStorage.setItem(reviewKey, JSON.stringify(next)); } catch { /* The confirmation remains usable in memory. */ }
+    setReview({ trip, choice, key: next.key });
+  };
+  const clearReview = () => { try { sessionStorage.removeItem(reviewKey); } catch { /* */ } setReview(null); };
   const load = useCallback(async () => {
     const version = ++sequence.current;
     setLoadFailed(null);
@@ -124,6 +143,17 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
     } catch (failure) { if (version === sequence.current) { setRows(null); setLoadFailed(requestFailure(failure)); } }
   }, [studentId]);
   useEffect(() => { void load(); return () => { sequence.current++; }; }, [load]);
+  useEffect(() => {
+    if (!rows || review) return;
+    try {
+      const raw = sessionStorage.getItem(reviewKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { tripId?: string; version?: number; choice?: "GRANTED" | "DECLINED" | "WITHDRAWN"; key?: string };
+      const trip = rows.find(item => item.tripId === saved.tripId && item.version.version === saved.version);
+      if (trip && saved.choice && saved.key) setReview({ trip, choice: saved.choice, key: saved.key });
+      else sessionStorage.removeItem(reviewKey);
+    } catch { try { sessionStorage.removeItem(reviewKey); } catch { /* */ } }
+  }, [rows, review, reviewKey]);
   const money = (amount: number, currency: string) => new Intl.NumberFormat(language === "ar" ? "ar" : language === "ur" ? "ur" : "en", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
   const confirm = async () => {
     if (!review) return;
@@ -132,7 +162,7 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
       const response = await fetch("/api/family/trips", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: review.trip.tripId, studentId, version: review.trip.version.version, choice: review.choice, idempotencyKey: review.key }) });
       const json = await response.json().catch(() => ({}));
       if (!response.ok || !json.success) { setError(ui(json.error || "Your answer was not recorded.")); if (response.status === 409) void load(); return; }
-      setReceipt(json.data.receiptCode); setReview(null); void load();
+      setReceipt(json.data.receiptCode); clearReview(); void load();
     } finally { setBusy(false); }
   };
   if (loadFailed) return <section className="sk-panel p-5" data-guardian-trips><ErrorState error={loadFailed} onRetry={load} /></section>;
@@ -159,17 +189,17 @@ export function GuardianTrips({ studentId }: { studentId: string }) {
         : trip.deadlinePassed && !answered ? <p className="text-xs font-semibold text-ink" data-trip-expired>{ui("The time to answer has passed. Contact the school.")}</p>
         : <div className="flex flex-wrap gap-2">
             {!answered || answered.choice === "WITHDRAWN" ? <>
-              <Button onClick={() => setReview({ trip, choice: "GRANTED", key: key() })} data-trip-choice="GRANTED">{ui("Give permission")}</Button>
-              <Button variant="outline" onClick={() => setReview({ trip, choice: "DECLINED", key: key() })} data-trip-choice="DECLINED">{ui("Refuse permission")}</Button>
-            </> : answered.choice === "GRANTED" && !trip.departed ? <Button variant="outline" onClick={() => setReview({ trip, choice: "WITHDRAWN", key: key() })} data-trip-choice="WITHDRAWN">{ui("Withdraw permission")}</Button> : null}
+              <Button onClick={() => openReview(trip, "GRANTED")} data-trip-choice="GRANTED">{ui("Give permission")}</Button>
+              <Button variant="outline" onClick={() => openReview(trip, "DECLINED")} data-trip-choice="DECLINED">{ui("Refuse permission")}</Button>
+            </> : answered.choice === "GRANTED" && !trip.departed ? <Button variant="outline" onClick={() => openReview(trip, "WITHDRAWN")} data-trip-choice="WITHDRAWN">{ui("Withdraw permission")}</Button> : null}
           </div>}
     </article>; })}
-    {review ? <Modal size="sm" title={ui("Confirm your answer")} eyebrow={ui("Trip permission")} subtitle={review.trip.version.title} onClose={() => setReview(null)}>
+    {review ? <Modal size="sm" title={ui("Confirm your answer")} eyebrow={ui("Trip permission")} subtitle={review.trip.version.title} onClose={clearReview}>
       <div className="space-y-3" data-trip-review>
         {error ? <Alert tone="danger" compact data-trip-review-error>{error}</Alert> : null}
         <Alert tone={review.choice === "GRANTED" ? "success" : "danger"} compact live="off"><span className="font-semibold">{choiceLabel(ui, review.choice)}</span></Alert>
         <p className="text-sm">{ui("Your answer applies to version {0} of these terms. If the school changes them, you will be asked again.", [String(review.trip.version.version)])}</p>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} loading={busy} onClick={() => void confirm()} data-trip-confirm>{ui("Confirm my answer")}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={clearReview}>{ui("Back")}</Button><Button disabled={busy} loading={busy} onClick={() => void confirm()} data-trip-confirm>{ui("Confirm my answer")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
