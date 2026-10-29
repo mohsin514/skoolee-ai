@@ -85,7 +85,8 @@ export function validateContractForPublication(raw: unknown, now = new Date()): 
   if (!c.sources.some(source => source.kind !== "PAST_PAPER" && source.kind !== "MODEL_PAPER")) errors.push("Past and model papers are structural references only; cite an authoritative notice, syllabus or framework.");
   for (const source of c.sources) if (!source.rightsScope || !source.permissionEvidence) errors.push(`Source ${source.id} has no verified rights scope and permission evidence.`);
   const editions = new Map<string, string>();
-  for (const source of c.sources) {
+  // Notices and papers are separate documents; a curriculum document kind must have one edition.
+  for (const source of c.sources.filter(item => !["NOTICE", "PAST_PAPER", "MODEL_PAPER"].includes(item.kind))) {
     const key = `${source.kind}:${source.authority}`;
     const seen = editions.get(key);
     if (seen && seen !== source.edition) errors.push(`Conflicting ${source.kind} editions (${seen} vs ${source.edition}); resolve with a qualified educator.`);
