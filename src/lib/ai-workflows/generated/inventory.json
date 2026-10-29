@@ -11925,6 +11925,21 @@
   "source": "appendix-a"
  },
  {
+  "key": "platform.set_ai_cost_rates",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "PUT",
+  "route": "/api/owner/ai-cost-report",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "FINANCIAL",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "platform.set_ai_workflows_live",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "PUT",
