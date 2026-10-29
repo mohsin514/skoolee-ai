@@ -876,6 +876,10 @@ model StaffProfile {
   bankAccountNumber String? @map("bank_account_number")
   bankName          String? @map("bank_name")
   socialLinksJson   Json?   @map("social_links_json")
+  // SKAI-1149: UAE regulator fields (src/lib/identity/regulator-ids.ts). Optional; ADEK eSIS / MOE ID in regulatorId.
+  emiratesId        String? @map("emirates_id")
+  nationality       String?
+  regulatorId       String? @map("regulator_id")
 
   // ─── Where this person sits in the institution ─────────────
   // `designation` above is the legacy free-text label and is mirrored from
@@ -913,6 +917,7 @@ model StaffProfile {
 
   @@index([schoolId])
   @@index([schoolId, seniorityLevel])
+  @@index([schoolId, emiratesId])
   @@index([reportsToId])
   @@index([primaryDepartmentId])
   @@map("staff_profiles")
@@ -1431,6 +1436,9 @@ model Student {
   dateOfBirth          DateTime? @map("date_of_birth")
   bloodType            String?   @map("blood_type")
   nationality          String?   @default("Pakistan")
+  // SKAI-1149: UAE regulator fields (src/lib/identity/regulator-ids.ts). Optional; ADEK eSIS / MOE ID in regulatorId.
+  emiratesId           String?   @map("emirates_id")
+  regulatorId          String?   @map("regulator_id")
   phone                String?
   guardianName         String?   @map("guardian_name")
   guardianNameUr       String?   @map("guardian_name_ur")
@@ -1481,6 +1489,7 @@ model Student {
   @@index([schoolId, admissionNo])
   @@index([campusId, rollNo])
   @@index([schoolId])
+  @@index([schoolId, emiratesId])
   @@map("students")
 }
 

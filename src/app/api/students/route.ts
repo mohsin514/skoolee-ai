@@ -19,6 +19,7 @@ import {
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { studentProfileUpdateSchema } from "@/lib/students/profile-update";
+import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
 
 function asDate(value: string | null) {
   if (!value) return null;
@@ -329,7 +330,7 @@ export async function PATCH(req: NextRequest) {
         id,
         ...scopedCampusWhere(user, user.role === "SUPER_ADMIN" ? updates.campusId : user.campusId),
       },
-      select: { id: true, campusId: true, classId: true, status: true },
+      select: { id: true, campusId: true, classId: true, status: true, emiratesId: true, nationality: true, regulatorId: true },
     });
     if (!existing) throw new ApiError("Student not found", 404);
 
@@ -362,10 +363,15 @@ export async function PATCH(req: NextRequest) {
       "allergies",
       "medications",
       "previousSchool",
-      "nationality",
     ] as const) {
       if (updates[key] !== undefined) data[key] = updates[key] || null;
     }
+    // SKAI-1149: regulator fields are validated and normalised; a malformed value is refused, never dropped.
+    for (const [key, parse] of [["emiratesId", parseEmiratesId], ["nationality", parseNationality], ["regulatorId", parseRegulatorId]] as const) {
+      if (updates[key] === undefined) continue;
+      try { data[key] = parse(updates[key]); } catch (error) { throw new ApiError((error as Error).message, 400); }
+    }
+    const regulatorChange = regulatorAuditChange(existing, data);
     if (updates.gender) data.gender = updates.gender;
     if (updates.bloodType && ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].includes(updates.bloodType)) data.bloodType = updates.bloodType;
     if (updates.status && STUDENT_STATUSES.includes(updates.status)) data.status = updates.status;
@@ -480,8 +486,8 @@ export async function PATCH(req: NextRequest) {
       data: {
         tableName: 'student',
         recordId: id,
-        oldValue: { classId: existing.classId, previousClassName: previousClassName || undefined },
-        newValue: { classId: data.classId || existing.classId, rollNo: data.rollNo },
+        oldValue: { classId: existing.classId, previousClassName: previousClassName || undefined, ...(regulatorChange.fields.length ? { regulator: regulatorChange.from } : {}) },
+        newValue: { classId: data.classId || existing.classId, rollNo: data.rollNo, ...(regulatorChange.fields.length ? { regulator: regulatorChange.to } : {}) },
         userId: user.userId,
       }
     });

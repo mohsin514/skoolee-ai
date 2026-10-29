@@ -77,8 +77,10 @@ import {
   Wallet,
   X,
   type LucideIcon,
+  IdCard,
 } from "lucide-react";
 import { Menu, type MenuItem } from "@/components/ui/menu";
+import { maskIdentifier, parseEmiratesId, parseRegulatorId } from "@/lib/identity/regulator-ids";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
 import { ViewTabs } from "@/components/ui/view-tabs";
@@ -1777,6 +1779,8 @@ function studentDraftValues(record: any): Record<string, string> {
       gender: record.gender || "",
       bloodType: record.bloodType || "",
       nationality: record.nationality || "",
+      emiratesId: record.emiratesId || "",
+      regulatorId: record.regulatorId || "",
       phone: record.phone || "",
       guardianName: record.guardianName || "",
       guardianNameUr: record.guardianNameUr || "",
@@ -1891,7 +1895,7 @@ export function StudentDetailModal({
   const baseline = studentDraftValues(student);
   const pupilDraft = useFormDraft({ record: `student:${summary.id}`, schema: 1, enabled: !!full && full.id === summary.id,
     values: edits, baseline,
-    fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
+    fields: ["fullName", "nameUr", "rollNo", "dateOfBirth", "gender", "nationality", "emiratesId", "regulatorId", "phone", "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail", "guardianRelationship", "guardianOccupation", "city", "province", "postalCode", "address", "previousSchool", "categoryId", "groupId"],
     apply: (next) => { setEdits(next); setEditing(true); setProfileTab("overview"); },
     current: async () => {
       const response = await fetch(`/api/students/${summary.id}`, { cache: "no-store" });
@@ -1906,20 +1910,25 @@ export function StudentDetailModal({
   const setEd = (field: string, value: string) => setEdits((p) => ({ ...p, [field]: value }));
 
   const saveEdits = async () => {
+    // SKAI-1149: normalise regulator IDs first, so a typed "784199..." matches the dashed value the server stores.
+    let next: Record<string, string>;
+    try { next = { ...edits, emiratesId: parseEmiratesId(edits.emiratesId) ?? "", regulatorId: parseRegulatorId(edits.regulatorId) ?? "" }; }
+    catch (error) { toast.error(ui((error as Error).message)); return; }
+    setEdits(next);
     const updates: Record<string, any> = {};
     const strFields = [
-      "fullName", "nameUr", "rollNo", "gender", "bloodType", "nationality", "phone",
+      "fullName", "nameUr", "rollNo", "gender", "bloodType", "nationality", "emiratesId", "regulatorId", "phone",
       "guardianName", "guardianNameUr", "guardianPhone", "guardianEmail",
       "guardianRelationship", "guardianOccupation",
       "city", "province", "postalCode", "address",
       "medicalNotes", "specialNeeds", "allergies", "medications", "previousSchool",
     ];
-    for (const f of strFields) updates[f] = edits[f] || null;
-    if (edits.fullName) updates.fullName = edits.fullName;
-    if (edits.rollNo) updates.rollNo = edits.rollNo;
-    if (edits.dateOfBirth) updates.dateOfBirth = edits.dateOfBirth;
-    updates.categoryId = edits.categoryId || null;
-    updates.groupId = edits.groupId || null;
+    for (const f of strFields) updates[f] = next[f] || null;
+    if (next.fullName) updates.fullName = next.fullName;
+    if (next.rollNo) updates.rollNo = next.rollNo;
+    if (next.dateOfBirth) updates.dateOfBirth = next.dateOfBirth;
+    updates.categoryId = next.categoryId || null;
+    updates.groupId = next.groupId || null;
     updates.expectedValues = pupilDraft.baseline;
     try {
       await onUpdate(student.id, updates);
@@ -1929,7 +1938,7 @@ export function StudentDetailModal({
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error("Could not verify the saved record. Your draft is retained.");
       const saved = studentDraftValues(result.data);
-      if (Object.keys(edits).some(k => String(saved[k] ?? "") !== String(edits[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
+      if (Object.keys(next).some(k => String(saved[k] ?? "") !== String(next[k] ?? ""))) { await pupilDraft.reviewCurrent(); throw new Error("The server has not confirmed these values. Review your draft against the current record."); }
       pupilDraft.markSaved(); setFull(result.data); setEditing(false);
     } catch (error) { toast.error(friendlyErrorMessage(error, ui("Could not save the changes. Your draft is kept."))); }
   };
@@ -2143,6 +2152,8 @@ export function StudentDetailModal({
                 {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map((bt) => <option key={bt} value={bt}>{bt}</option>)}
               </FormSelect>
               <FormInput label={ui("Nationality")} value={ed("nationality")} placeholder={ui("Pakistan")} onChange={(v) => setEd("nationality", v)} />
+              <FormInput label={ui("Emirates ID")} value={ed("emiratesId")} placeholder="784-YYYY-NNNNNNN-C" onChange={(v) => setEd("emiratesId", v)} />
+              <FormInput label={ui("eSIS / MOE ID")} value={ed("regulatorId")} placeholder={ui("Regulator record number")} onChange={(v) => setEd("regulatorId", v)} />
               <FormInput label={ui("Phone")} value={ed("phone")} placeholder="+92 300 1234567" onChange={(v) => setEd("phone", v)} />
               <FormInput label={ui("Previous school")} value={ed("previousSchool")} placeholder={ui("Previous school")} onChange={(v) => setEd("previousSchool", v)} />
               <div className="grid grid-cols-2 gap-3">
@@ -2178,6 +2189,8 @@ export function StudentDetailModal({
               <DetailRow label={ui("Gender")} value={ui(genderLabel(student.gender))} />
               <DetailRow label={ui("Blood type")} value={student.bloodType || "N/A"} />
               <DetailRow label={ui("Nationality")} value={student.nationality || "N/A"} />
+              <DetailRow label={ui("Emirates ID")} value={maskIdentifier(student.emiratesId) || "N/A"} />
+              <DetailRow label={ui("eSIS / MOE ID")} value={student.regulatorId || "N/A"} />
               <DetailRow label={ui("Phone")} value={student.phone || "N/A"} />
               <DetailRow label={ui("Previous school")} value={student.previousSchool || "N/A"} />
               <DetailRow label={ui("Category")} value={student.category?.name || "None"} />
@@ -2741,6 +2754,9 @@ export function TeacherDetailModal({
       bankAccountName: p.bankAccountName || "",
       bankAccountNumber: p.bankAccountNumber || "",
       bankName: p.bankName || "",
+      emiratesId: p.emiratesId || "",
+      nationality: p.nationality || "",
+      regulatorId: p.regulatorId || "",
     });
     setAllowances(
       Object.entries((p.allowancesJson as Record<string, number>) || {}).map(([name, amount]) => ({
@@ -2758,6 +2774,10 @@ export function TeacherDetailModal({
   };
 
   const saveStaff = async () => {
+    // SKAI-1149: catch a malformed regulator ID here; the route enforces the same rule.
+    let regulator: { emiratesId: string | null; regulatorId: string | null };
+    try { regulator = { emiratesId: parseEmiratesId(staffForm.emiratesId), regulatorId: parseRegulatorId(staffForm.regulatorId) }; }
+    catch (error) { toast.error(ui((error as Error).message)); return; }
     setStaffSaving(true);
     try {
       const toObject = (rows: { name: string; amount: string }[]) => {
@@ -2782,6 +2802,8 @@ export function TeacherDetailModal({
           bankAccountName: staffForm.bankAccountName,
           bankAccountNumber: staffForm.bankAccountNumber,
           bankName: staffForm.bankName,
+          nationality: staffForm.nationality,
+          ...regulator,
         }),
       });
       const json = await res.json();
@@ -3266,6 +3288,15 @@ export function TeacherDetailModal({
                   <FormInput label={ui("Bank Name")} value={staffForm.bankName || ""} placeholder={ui("e.g. HBL, Meezan")} onChange={(v) => setStaffForm((p) => ({ ...p, bankName: v }))} />
                 </div>
               </div>
+              <div className="sk-panel p-5">
+                <PanelTitle icon={IdCard} title={ui("Regulator IDs")} />
+                <p className="mt-1 text-2xs font-bold text-ink-subtle">{ui("Optional. Used for UAE regulator returns (KHDA, ADEK, SPEA, MOE).")}</p>
+                <div className="mt-4 space-y-3">
+                  <FormInput label={ui("Emirates ID")} value={staffForm.emiratesId || ""} placeholder="784-YYYY-NNNNNNN-C" onChange={(v) => setStaffForm((p) => ({ ...p, emiratesId: v }))} />
+                  <FormInput label={ui("Nationality")} value={staffForm.nationality || ""} placeholder={ui("Nationality")} onChange={(v) => setStaffForm((p) => ({ ...p, nationality: v }))} />
+                  <FormInput label={ui("eSIS / MOE ID")} value={staffForm.regulatorId || ""} placeholder={ui("Regulator record number")} onChange={(v) => setStaffForm((p) => ({ ...p, regulatorId: v }))} />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -3304,6 +3335,14 @@ export function TeacherDetailModal({
                   <DetailRow label={ui("Account holder")} value={staff?.staffProfile?.bankAccountName || "Not set"} />
                   <DetailRow label={ui("Account Number")} value={staff?.staffProfile?.bankAccountNumber ? maskAccount(staff.staffProfile.bankAccountNumber) : "Not set"} />
                   <DetailRow label={ui("Bank")} value={staff?.staffProfile?.bankName || "Not set"} />
+                </div>
+              </div>
+              <div className="sk-panel p-5">
+                <PanelTitle icon={IdCard} title={ui("Regulator IDs")} />
+                <div className="mt-4 space-y-3">
+                  <DetailRow label={ui("Emirates ID")} value={maskIdentifier(staff?.staffProfile?.emiratesId) || "Not set"} />
+                  <DetailRow label={ui("Nationality")} value={staff?.staffProfile?.nationality || "Not set"} />
+                  <DetailRow label={ui("eSIS / MOE ID")} value={staff?.staffProfile?.regulatorId || "Not set"} />
                 </div>
               </div>
             </div>
