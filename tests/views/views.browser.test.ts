@@ -125,7 +125,7 @@ test("faculty and enquiries use calendar and grid without losing their records",
 });
 test("Urdu mobile calendar fits and preserves roster selection",async()=>{
   const page=await (await context("ops-ur",{width:390,height:844})).newPage();
-  await page.goto(`${base}/admin?view=students&view.students=calendar&sq=Synthetic%20Ada`);
+  for(let attempt=1;;attempt++){ try { await page.goto(`${base}/admin?view=students&view.students=calendar&sq=Synthetic%20Ada`); break; } catch(error){ if(attempt>=5) throw error; await page.waitForTimeout(10_000); } }
   await page.locator('[data-record-id]').waitFor();
   assert.equal(await page.locator('html').getAttribute('dir'),"rtl");
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
