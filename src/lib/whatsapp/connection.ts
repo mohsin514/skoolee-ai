@@ -18,7 +18,7 @@ export function requireWhatsAppAdmin(user: AuthUser) {
 }
 
 /** Public, non-secret settings the browser needs to start Embedded Signup. */
-export function signupConfig(env: NodeJS.ProcessEnv = process.env) {
+export function signupConfig(env: Record<string, string | undefined> = process.env) {
   return { mode: graphMode(env), appId: env.NEXT_PUBLIC_META_APP_ID || env.META_APP_ID || null, configId: env.META_WHATSAPP_CONFIG_ID || null };
 }
 

@@ -84,9 +84,9 @@ test("bad ids, Meta failures and a disabled adapter are refused without storing 
 });
 
 test("graph mode never goes live without Meta credentials", () => {
-  assert.equal(graphMode({} as NodeJS.ProcessEnv), "disabled");
-  assert.equal(graphMode({ META_APP_ID: "1", META_APP_SECRET: "s" } as NodeJS.ProcessEnv), "live");
-  assert.equal(graphMode({ WHATSAPP_GRAPH_MODE: "mock", META_APP_ID: "1", META_APP_SECRET: "s" } as NodeJS.ProcessEnv), "mock");
+  assert.equal(graphMode({}), "disabled");
+  assert.equal(graphMode({ META_APP_ID: "1", META_APP_SECRET: "s" }), "live");
+  assert.equal(graphMode({ WHATSAPP_GRAPH_MODE: "mock", META_APP_ID: "1", META_APP_SECRET: "s" }), "mock");
 });
 
 test("connecting and disconnecting a WABA are human-only AI exclusions", () => {

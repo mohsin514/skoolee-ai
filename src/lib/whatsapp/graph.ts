@@ -19,7 +19,7 @@ export interface GraphAdapter {
 
 export const graphBase = () => process.env.WHATSAPP_API_URL || "https://graph.facebook.com/v18.0";
 
-export function graphMode(env: NodeJS.ProcessEnv = process.env): GraphMode {
+export function graphMode(env: Record<string, string | undefined> = process.env): GraphMode {
   const mode = env.WHATSAPP_GRAPH_MODE;
   if (mode === "live" || mode === "mock" || mode === "disabled") return mode;
   return env.META_APP_ID && env.META_APP_SECRET ? "live" : "disabled";
