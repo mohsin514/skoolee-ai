@@ -131,7 +131,8 @@ export function validateExamReview(paper: PaperData, responses: ExamResponses, r
     if (!responses[mark.questionId]?.trim() && mark.marks !== 0) errors.push(`Unanswered question ${mark.questionId} cannot receive marks.`);
   }
   if (paper.questions.some((question) => responses[question.id]?.trim() && !review.marks.some((mark) => mark.questionId === question.id))) errors.push("Review every answered question before finalizing.");
-  if (review.marks.reduce((sum, mark) => sum + mark.marks, 0) > paper.blueprint.totalMarks) errors.push("Reviewed marks exceed the paper total.");
+  // SKAI-1014: decimal marks (e.g. 3 × 1.1) must not trip binary rounding; same tolerance as paper validation.
+  if (review.marks.reduce((sum, mark) => sum + mark.marks, 0) > paper.blueprint.totalMarks + 0.00001) errors.push("Reviewed marks exceed the paper total.");
   return errors;
 }
 
