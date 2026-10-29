@@ -50,7 +50,7 @@
     "test:onboarding:launch": "playwright test --config tests/onboarding/launch-guide.config.ts",
     "test:onboarding:db": "node --import tsx --test tests/onboarding/setup.database.test.ts",
     "test:onboarding:browser": "node --import tsx --test --test-concurrency=1 tests/onboarding/onboarding.browser.test.ts",
-    "test:commercial": "node --import ./tests/support/server-only.mjs --import tsx --test tests/commercial/contract.test.ts",
+    "test:commercial": "node --import ./tests/support/server-only.mjs --import tsx --test tests/commercial/contract.test.ts tests/commercial/ai-cost-report.test.ts",
     "test:commercial:db": "node --import tsx --test tests/commercial/contract.database.test.ts",
     "check:commercial": "tsx scripts/check-commercial-contract.ts",
     "check:ai-release": "tsx scripts/check-ai-release.ts",
