@@ -60,9 +60,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (body.action === "notify" && typeof body.versionId === "string") return Response.json({ success: true, delivery: await notifyTimetableVersion(user, id, body.versionId) });
     if (body.action === "unpublish") {
       const result = await changeManualTimetableStatus(user, campusId, id, body.action);
-      // Notifications are outside the retry boundary and only follow an actual
-      // committed status transition; repeated publish requests do not resend.
-      if (body.action === "publish" && result.changed) notify("TIMETABLE_PUBLISHED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, className: result.data.class.name });
+      // SKAI-1129: unpublishing sends no notice. The publish notice (with classId) fires in the publish branch above;
+      // there is no unpublish event, so the former publish-only notify here was unreachable and is removed.
       return Response.json({ success: true, data: result.data, ...(result.validation ? { validation: result.validation } : {}) });
     }
     if (Array.isArray(body.slots)) return Response.json({ success: true, ...await saveManualTimetable(user, campusId, id, body.slots, typeof body.draftRevision === "number" ? body.draftRevision : undefined) });
