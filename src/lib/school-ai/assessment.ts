@@ -162,6 +162,8 @@ export const paperDataSchema = z.object({
   examType: z.enum(["QUIZ", "CLASS_TEST", "MID_TERM", "FINAL"]).optional(),
   // SKO-500: the office paper slot this paper answers, when it was requested from the date sheet.
   slotId: id.optional(),
+  // SKAI-1008: the catalogue pack version (and its content hash) this paper was generated against.
+  curriculumPackPin: z.object({ packId: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).max(120), version: z.number().int().positive(), contentSha256: z.string().regex(/^[a-f0-9]{64}$/) }).strict().optional(),
   generation: z.object({
     kind: z.enum(["MANUAL", "AI", "UPLOADED"]),
     model: draftText(200).nullable(),
