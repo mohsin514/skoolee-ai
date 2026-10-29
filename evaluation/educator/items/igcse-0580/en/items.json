@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "pack": "igcse-0580",
+  "language": "en",
+  "setVersion": "0.0.1",
+  "placeholder": true,
+  "frozen": {
+    "frozenAt": "2026-10-29T00:00:00.000Z",
+    "contentSha256": "70049e85b195ed6cb07355a949f2e75e42778fa8287f9f30266da1c92472cc19"
+  },
+  "items": [
+    {
+      "id": "placeholder-1",
+      "topic": "PLACEHOLDER",
+      "difficulty": "easy",
+      "stem": "PLACEHOLDER item 1 - not an evaluation item. Educators replace this set (D5-02); solve x + 1 = 4.",
+      "referenceAnswer": "x = 3",
+      "maxMarks": 1,
+      "syntheticResponse": "x = 3",
+      "placeholder": true
+    },
+    {
+      "id": "placeholder-2",
+      "topic": "PLACEHOLDER",
+      "difficulty": "easy",
+      "stem": "PLACEHOLDER item 2 - not an evaluation item. Educators replace this set (D5-02); solve x + 2 = 5.",
+      "referenceAnswer": "x = 3",
+      "maxMarks": 1,
+      "syntheticResponse": "x = 3",
+      "placeholder": true
+    }
+  ]
+}

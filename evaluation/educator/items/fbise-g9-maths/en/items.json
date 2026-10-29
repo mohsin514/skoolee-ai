@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "pack": "fbise-g9-maths",
+  "language": "en",
+  "setVersion": "0.0.1",
+  "placeholder": true,
+  "frozen": {
+    "frozenAt": "2026-10-29T00:00:00.000Z",
+    "contentSha256": "24bc8b251418279c2aa55a4d5c50340fcd7d70861f254e212ceaf79c96e83842"
+  },
+  "items": [
+    {
+      "id": "placeholder-1",
+      "topic": "PLACEHOLDER",
+      "difficulty": "easy",
+      "stem": "PLACEHOLDER item 1 - not an evaluation item. Educators replace this set (D5-02); solve x + 1 = 4.",
+      "referenceAnswer": "x = 3",
+      "maxMarks": 1,
+      "syntheticResponse": "x = 3",
+      "placeholder": true
+    },
+    {
+      "id": "placeholder-2",
+      "topic": "PLACEHOLDER",
+      "difficulty": "easy",
+      "stem": "PLACEHOLDER item 2 - not an evaluation item. Educators replace this set (D5-02); solve x + 2 = 5.",
+      "referenceAnswer": "x = 3",
+      "maxMarks": 1,
+      "syntheticResponse": "x = 3",
+      "placeholder": true
+    }
+  ]
+}
