@@ -24,6 +24,7 @@ import {
 } from "@/lib/auth/session-cookie";
 import { endSession } from "@/lib/auth/session-revocation";
 import { clientIp } from "@/lib/http/client-ip";
+import { ApiError, errorResponse } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -162,6 +163,8 @@ async function handleLogin(req: NextRequest) {
     await applySignInLanguage(user, body, res);
     return res;
   } catch (error) {
+    // Input rejected by the validation boundary keeps its 4xx instead of a generic 500.
+    if (error instanceof ApiError) return errorResponse(error);
     console.error("[auth/login]", error);
     return Response.json({ error: "Login failed" }, { status: 500 });
   }
