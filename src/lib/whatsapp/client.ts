@@ -1,98 +1,49 @@
 // ===========================================
 // SkooleeAI - WhatsApp Client (Meta Cloud API)
 // ===========================================
-
-const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL || "https://graph.facebook.com/v18.0";
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || "";
+import { runWithTenantContext } from "@/lib/db/tenant-context";
+import { schoolSender } from "./connection";
+import { sendingAdapter, type SendResult } from "./graph";
 
 interface WhatsAppMessage {
   to: string;
   text: string;
   pdfUrl?: string;
+  /** SKAI-1045: the sending school. With a connected WABA the school's own number (and Meta bill) is used. */
+  schoolId?: string;
+}
+
+/** The legacy platform number from env, kept for schools that have not connected their own account. */
+function platformSender() {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || "", token = process.env.WHATSAPP_ACCESS_TOKEN || "";
+  return phoneNumberId && token ? { phoneNumberId, token, source: "PLATFORM" as const } : null;
+}
+
+export async function resolveSender(schoolId?: string) {
+  if (schoolId) {
+    const own = await runWithTenantContext({ schoolId }, () => schoolSender(schoolId));
+    if (own) return { ...own, source: "SCHOOL_WABA" as const };
+  }
+  return platformSender();
 }
 
 /**
- * Send a text message via WhatsApp Cloud API.
+ * Send a text message (and optional PDF document) via WhatsApp Cloud API.
  */
-export async function sendWhatsAppMessage(
-  message: WhatsAppMessage
-): Promise<{ success: boolean; messageId?: string; error?: string }> {
+export async function sendWhatsAppMessage(message: WhatsAppMessage): Promise<SendResult> {
   try {
     if (process.env.DISABLE_OUTBOUND_MESSAGES === "true") return { success: false, error: "Outbound messages are disabled" };
-    if (!PHONE_NUMBER_ID || !ACCESS_TOKEN) {
-      return {
-        success: false,
-        error: "WhatsApp credentials are not configured",
-      };
-    }
-
-    const textResponse = await fetch(
-      `${WHATSAPP_API_URL}/${PHONE_NUMBER_ID}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: message.to,
-          type: "text",
-          text: { body: message.text },
-        }),
-      }
-    );
-
-    if (!textResponse.ok) {
-      const err = await textResponse.json();
-      return {
-        success: false,
-        error: err?.error?.message || "Failed to send WhatsApp message",
-      };
-    }
-
-    const textResult = await textResponse.json();
-
-    if (message.pdfUrl) {
-      const documentResponse = await fetch(
-        `${WHATSAPP_API_URL}/${PHONE_NUMBER_ID}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${ACCESS_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: message.to,
-            type: "document",
-            document: {
-              link: message.pdfUrl,
-              caption: "Report Card",
-              filename: "report-card.pdf",
-            },
-          }),
-        }
-      );
-
-      if (!documentResponse.ok) {
-        const err = await documentResponse.json();
-        return {
-          success: false,
-          error: err?.error?.message || "WhatsApp text sent, but document delivery failed",
-        };
-      }
-    }
-
-    return {
-      success: true,
-      messageId: textResult?.messages?.[0]?.id,
-    };
+    const sender = await resolveSender(message.schoolId);
+    if (!sender) return { success: false, error: "WhatsApp credentials are not configured" };
+    const graph = sendingAdapter();
+    const text = await graph.sendMessage(sender.phoneNumberId, sender.token, { to: message.to, type: "text", text: { body: message.text } });
+    if (!text.success || !message.pdfUrl) return text;
+    const document = await graph.sendMessage(sender.phoneNumberId, sender.token, {
+      to: message.to, type: "document",
+      document: { link: message.pdfUrl, caption: "Report Card", filename: "report-card.pdf" },
+    });
+    return document.success ? text : { success: false, error: document.error || "WhatsApp text sent, but document delivery failed" };
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
 }

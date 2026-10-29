@@ -1,0 +1,31 @@
+/** SKAI-1045/1046 WhatsApp settings copy: [English, Arabic, Urdu]. Reviewed catalogs win for shared words. */
+export const whatsappUiEntries: readonly (readonly [string, string, string])[] = [
+  ["WhatsApp", "واتساب", "واٹس ایپ"],
+  ["WhatsApp Business", "واتساب للأعمال", "واٹس ایپ بزنس"],
+  ["Connect your school's own WhatsApp Business Account. Messages go out under your school's name and Meta bills your school directly.", "اربط حساب واتساب للأعمال الخاص بمدرستك. تُرسل الرسائل باسم مدرستك وتُصدر Meta الفواتير لمدرستك مباشرة.", "اپنے اسکول کا اپنا واٹس ایپ بزنس اکاؤنٹ جوڑیں۔ پیغامات آپ کے اسکول کے نام سے جائیں گے اور Meta براہ راست آپ کے اسکول کو بل کرے گا۔"],
+  ["Test mode: no real Meta account is contacted.", "وضع الاختبار: لا يتم الاتصال بأي حساب Meta حقيقي.", "ٹیسٹ موڈ: کسی حقیقی Meta اکاؤنٹ سے رابطہ نہیں کیا جاتا۔"],
+  ["WhatsApp sign-up is not set up for this deployment yet. Ask Skoolee support.", "لم يتم إعداد التسجيل في واتساب لهذا النظام بعد. تواصل مع دعم Skoolee.", "اس سسٹم کے لیے واٹس ایپ سائن اپ ابھی سیٹ نہیں ہوا۔ Skoolee سپورٹ سے رابطہ کریں۔"],
+  ["Connected", "مرتبط", "منسلک"],
+  ["Phone number", "رقم الهاتف", "فون نمبر"],
+  ["Disconnect", "فصل", "منقطع کریں"],
+  ["Business name", "اسم النشاط التجاري", "کاروبار کا نام"],
+  ["Connected on", "تاريخ الربط", "جوڑنے کی تاریخ"],
+  ["WhatsApp Business Account ID", "معرّف حساب واتساب للأعمال", "واٹس ایپ بزنس اکاؤنٹ آئی ڈی"],
+  ["Not connected", "غير مرتبط", "منسلک نہیں"],
+  ["Connecting…", "جارٍ الربط…", "جوڑا جا رہا ہے…"],
+  ["Connect with Facebook", "الربط عبر فيسبوك", "فیس بک کے ذریعے جوڑیں"],
+  ["Disconnect WhatsApp?", "فصل واتساب؟", "واٹس ایپ منقطع کریں؟"],
+  ["Messages will stop going out from your school's number. Your WhatsApp account at Meta is not deleted, and you can connect again later.", "سيتوقف إرسال الرسائل من رقم مدرستك. لن يُحذف حسابك على واتساب لدى Meta، ويمكنك الربط مرة أخرى لاحقًا.", "آپ کے اسکول کے نمبر سے پیغامات جانا بند ہو جائیں گے۔ Meta پر آپ کا واٹس ایپ اکاؤنٹ حذف نہیں ہوگا اور آپ بعد میں دوبارہ جوڑ سکتے ہیں۔"],
+  ["WhatsApp connected", "تم ربط واتساب", "واٹس ایپ جڑ گیا"],
+  ["WhatsApp disconnected", "تم فصل واتساب", "واٹس ایپ منقطع ہو گیا"],
+  ["Meta sign-up could not load. Check your connection and try again.", "تعذّر تحميل التسجيل في Meta. تحقق من اتصالك وحاول مرة أخرى.", "Meta سائن اپ لوڈ نہیں ہو سکا۔ اپنا کنکشن چیک کر کے دوبارہ کوشش کریں۔"],
+  ["Meta sign-up was not finished.", "لم يكتمل التسجيل في Meta.", "Meta سائن اپ مکمل نہیں ہوا۔"],
+  ["Only the institution administrator manages WhatsApp.", "يدير مسؤول المؤسسة فقط واتساب.", "واٹس ایپ کا انتظام صرف ادارے کا منتظم کرتا ہے۔"],
+  ["WhatsApp Embedded Signup is not configured for this deployment.", "لم يتم إعداد التسجيل المضمّن في واتساب لهذا النظام.", "اس سسٹم کے لیے واٹس ایپ ایمبیڈڈ سائن اپ ترتیب نہیں دیا گیا۔"],
+  ["The Meta sign-up did not finish. Start again.", "لم يكتمل التسجيل في Meta. ابدأ من جديد.", "Meta سائن اپ مکمل نہیں ہوا۔ دوبارہ شروع کریں۔"],
+  ["Meta returned an account we could not read. Start again.", "أعادت Meta حسابًا تعذّرت قراءته. ابدأ من جديد.", "Meta نے ایسا اکاؤنٹ بھیجا جو پڑھا نہیں جا سکا۔ دوبارہ شروع کریں۔"],
+  ["Meta did not confirm the WhatsApp account. Try again.", "لم تؤكد Meta حساب واتساب. حاول مرة أخرى.", "Meta نے واٹس ایپ اکاؤنٹ کی تصدیق نہیں کی۔ دوبارہ کوشش کریں۔"],
+  ["WhatsApp is not connected.", "واتساب غير مرتبط.", "واٹس ایپ منسلک نہیں ہے۔"],
+];
+export const arabicWhatsappUi: Record<string, string> = Object.fromEntries(whatsappUiEntries.map(([key, ar]) => [key, ar]));
+export const urduWhatsappUi: Record<string, string> = Object.fromEntries(whatsappUiEntries.map(([key, , ur]) => [key, ur]));

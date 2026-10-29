@@ -26,6 +26,8 @@ const RULES: Rule[] = [
     match: key => key === "platform.record_pilot_readiness" || key === "platform.record_pack_expansion_decision" },
   { category: "internal", reason: "Curriculum pack evidence and approvals are human attestations by the school and a named educator; the AI must never attest rights or approve, activate or revoke its own source material.",
     match: key => key === "curriculum.record_pack_evidence" || key === "curriculum.transition_pack" || key === "curriculum.request_pack" },
+  { category: "auth", reason: "Connecting the school's own WhatsApp Business Account is a Meta login in the administrator's browser and grants Meta-billed sending; buying managed-sending credit is a payment decision. Both stay with a person.",
+    match: key => ["whatsapp.connect_waba", "whatsapp.disconnect_waba", "whatsapp.managed_settings", "whatsapp.managed_top_up"].includes(key), link: "/admin" },
   { category: "internal", reason: "Unauthenticated public forms are completed by families on the public page, not from a signed-in assistant.",
     match: key => key.startsWith("public.") },
 ];

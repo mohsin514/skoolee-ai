@@ -30,6 +30,7 @@
     "test:school-ai:e2e": "playwright test --config tests/school-ai/playwright.config.ts",
     "audit:ui": "node --import tsx scripts/ui-adoption-inventory.ts",
     "worker:outbox": "tsx src/workers/outbox-worker.ts",
+    "test:whatsapp": "node --import ./tests/support/server-only.mjs --import tsx --test tests/whatsapp/*.test.ts",
     "test:outbox": "node --import tsx --test tests/outbox/outbox.test.ts",
     "test:outbox:api": "node --import ./tests/support/server-only.mjs --import tsx --test tests/outbox/api.test.ts",
     "test:logout": "node --import tsx --test \"tests/logout/*.test.ts\"",

@@ -296,6 +296,7 @@ model School {
   taxDocuments TaxDocument[]
   taxSubmissionAttempts TaxSubmissionAttempt[]
   integrationConnections IntegrationConnection[]
+  whatsAppConnection WhatsAppConnection?
   integrationCredentials IntegrationCredential[]
   integrationEvents IntegrationEvent[]
   integrationDeliveries IntegrationDelivery[]
@@ -10304,4 +10305,27 @@ model PilotReadinessRecord {
   @@unique([schoolId, version])
   @@index([pilotId])
   @@map("pilot_readiness_records")
+}
+
+/// SKAI-1045 (D3-01): the school's own WhatsApp Business Account, connected through Meta Embedded Signup.
+/// Meta bills the school directly. The access token is AES-256-GCM encrypted at rest (protectSecret).
+model WhatsAppConnection {
+  id                 String    @id @default(uuid())
+  schoolId           String    @unique @map("school_id")
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status             String    @default("CONNECTED") // CONNECTED | DISCONNECTED
+  wabaId             String    @map("waba_id")
+  phoneNumberId      String    @map("phone_number_id")
+  businessId         String?   @map("business_id")
+  displayPhoneNumber String?   @map("display_phone_number")
+  verifiedName       String?   @map("verified_name")
+  accessTokenEnc     String?   @map("access_token_enc") // encrypted; cleared on disconnect
+  tokenExpiresAt     DateTime? @map("token_expires_at")
+  connectedById      String    @map("connected_by_id")
+  connectedAt        DateTime  @default(now()) @map("connected_at")
+  disconnectedAt     DateTime? @map("disconnected_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([phoneNumberId])
+  @@map("whatsapp_connections")
 }

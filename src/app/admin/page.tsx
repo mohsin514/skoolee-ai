@@ -142,6 +142,7 @@ import { MembershipsPanel } from "@/components/memberships/memberships-panel";
 import { AuditHistoryPanel } from "@/components/audit/audit-history-panel";
 import { IdentityAdmin } from "@/components/identity/identity-admin";
 import { Integrations } from "@/components/integrations/integrations";
+import { WhatsAppConnectionPanel } from "@/components/whatsapp/whatsapp-connection-panel";
 import { DataLifecyclePanel } from "@/components/settings/DataLifecyclePanel";
 import { ReadinessHome } from "@/components/readiness/ReadinessHome";
 import { LocaleSettingsPanel } from "@/components/settings/LocaleSettingsPanel";
@@ -2166,6 +2167,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
         { id: "locale", label: "Language & region" },
         { id: "identity", label: "Sign-in" },
         { id: "integrations", label: "Integrations" },
+        { id: "whatsapp", label: "WhatsApp" },
         { id: "data", label: "Data & privacy" },
         { id: "activity", label: "Activity log" },
         { id: "setup", label: "Setup checklist", hidden: readinessDone },
@@ -2183,6 +2185,7 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
           {active === "locale" ? <LocaleSettingsPanel scope="school" />
             : active === "identity" ? <IdentityAdmin />
             : active === "integrations" ? <Integrations />
+            : active === "whatsapp" ? <WhatsAppConnectionPanel />
             : active === "data" ? <DataLifecyclePanel userId={session?.id ?? data.currentUserId ?? ""} />
             : active === "activity" ? <AuditHistoryPanel />
             : active === "setup" ? <ReadinessHome />
