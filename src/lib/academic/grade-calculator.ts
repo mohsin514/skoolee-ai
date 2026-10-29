@@ -239,13 +239,15 @@ export async function calculateWeightedGrade(
   academicYear: number,
   db: TxClient = prisma,
   academicModelVersionId?: string | null,
+  /** SKAI-152: evaluate proposed rules without saving them (the editor's preview). */
+  configOverride?: WeightConfig,
 ): Promise<WeightedGradeResult> {
   const [student, config] = await Promise.all([
     db.student.findUnique({
       where: { id: studentId },
       select: { id: true, fullName: true, classId: true },
     }),
-    getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId),
+    configOverride ?? getOrCreateGradeWeightConfig(campusId, classId, academicYear, db, academicModelVersionId),
   ]);
 
   if (!student) throw new Error("Student not found");

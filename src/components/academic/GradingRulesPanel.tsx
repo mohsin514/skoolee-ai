@@ -66,8 +66,20 @@ interface ClassGroup {
   config: Config;
   drifted: boolean;
   configured: boolean;
+  /** SKAI-152: the save this editor opened from; a later save by someone else is refused. */
+  version?: string | null;
   students: number;
   subjects: number;
+}
+
+interface WeightImpact {
+  students: number;
+  changed: number;
+  gradeChanged: number;
+  newlyFailing: number;
+  newlyPassing: number;
+  largestShift: number;
+  skipped: number;
 }
 
 const WEIGHTS: {
@@ -350,6 +362,9 @@ function RulesEditor({
   const tr = useUiText();
   const [cfg, setCfg] = useState<Config>(group.config);
   const [saving, setSaving] = useState(false);
+  const [impact, setImpact] = useState<{ cfg: string; result: WeightImpact } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [stale, setStale] = useState(false);
 
   const total =
     cfg.quizWeight + cfg.classTestWeight + cfg.midTermWeight + cfg.finalWeight;
@@ -364,20 +379,43 @@ function RulesEditor({
   const set = (key: keyof Config, value: number) =>
     setCfg((c) => ({ ...c, [key]: Math.max(0, Math.min(100, value)) }));
 
+  const payload = (extra: Record<string, unknown>) => JSON.stringify({
+    campusId,
+    className: group.className,
+    academicYear,
+    ...cfg,
+    ...extra,
+  });
+
+  // SKAI-152: show what the proposed weights do to results already marked, before saving.
+  const preview = async () => {
+    setPreviewing(true);
+    try {
+      const res = await fetch("/api/grade-config", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload({ preview: true }) });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "");
+      setImpact({ cfg: JSON.stringify(cfg), result: json.preview });
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, tr("Could not preview the effect of these rules. Try again.")));
+    } finally {
+      setPreviewing(false);
+    }
+  };
+  const impactCurrent = impact && impact.cfg === JSON.stringify(cfg) ? impact.result : null;
+
   const save = async () => {
     setSaving(true);
     try {
       const res = await fetch("/api/grade-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          campusId,
-          className: group.className,
-          academicYear,
-          ...cfg,
-        }),
+        body: payload({ expectedVersion: group.version ?? null }),
       });
       const json = await res.json();
+      if (res.status === 409 && json.code === "STALE_VERSION") {
+        setStale(true);
+        return;
+      }
       if (!res.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "");
       toast.success(
         json.sectionsUpdated === 1
@@ -392,8 +430,11 @@ function RulesEditor({
     }
   };
 
-  const blockedReason = Math.round(total) !== 100
-    ? tr("The weights add up to {0}% — they must add up to 100%.", [Math.round(total)])
+  const roundedTotal = Math.round(total * 100) / 100;
+  const blockedReason = stale
+    ? tr("Someone else changed these rules. Close and reopen to load the latest version.")
+    : Math.abs(roundedTotal - 100) > 0.01
+    ? tr("The weights add up to {0}% — they must add up to 100%.", [roundedTotal])
     : ladderBroken
     ? tr("Each grade must start below the one above it.")
     : null;
@@ -477,12 +518,12 @@ function RulesEditor({
             <span
               className={cn(
                 "rounded-lg px-2 py-0.5 text-2xs font-bold tabular-nums",
-                Math.round(total) === 100
+                Math.abs(roundedTotal - 100) <= 0.01
                   ? "bg-status-success-surface text-status-success-text"
                   : "bg-status-error-surface text-status-error-text",
               )}
             >
-              {tr("{0}% of 100", [Math.round(total)])}
+              {tr("{0}% of 100", [roundedTotal])}
             </span>
             <div className="ms-auto flex flex-wrap gap-1.5">
               {PRESETS.map((p) => (
@@ -550,6 +591,29 @@ function RulesEditor({
           <p className="mt-2 ps-0.5 text-2xs font-medium leading-snug text-ink-subtle">
             {tr("Set a type to 0% and it stops counting towards the report card — useful when a school grades on term exams alone.")}
           </p>
+          {/* SKAI-152: recalculation preview before saving. */}
+          <div className="sk-panel mt-3 p-3" aria-live="polite">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="min-w-0 flex-1 text-xs font-semibold text-ink-muted">
+                {tr("See how these rules change results already marked, before you save.")}
+              </p>
+              <Button variant="secondary" type="button" onClick={preview} disabled={previewing || !!blockedReason} className="px-2.5 py-1">
+                {previewing ? tr("Calculating…") : tr("Preview effect")}
+              </Button>
+            </div>
+            {impactCurrent ? (
+              <div className="mt-2 flex flex-wrap gap-1.5" data-testid="grade-weight-impact">
+                <Badge variant="neutral">{tr("{0} of {1} students change", [impactCurrent.changed, impactCurrent.students])}</Badge>
+                <Badge variant="neutral">{tr("{0} change grade", [impactCurrent.gradeChanged])}</Badge>
+                <Badge variant={impactCurrent.newlyFailing ? "danger" : "neutral"}>{tr("{0} would now fail", [impactCurrent.newlyFailing])}</Badge>
+                <Badge variant={impactCurrent.newlyPassing ? "success" : "neutral"}>{tr("{0} would now pass", [impactCurrent.newlyPassing])}</Badge>
+                <Badge variant="neutral">{tr("Largest shift {0} points", [impactCurrent.largestShift])}</Badge>
+                {impactCurrent.skipped ? <Badge variant="warning">{tr("{0} could not be calculated", [impactCurrent.skipped])}</Badge> : null}
+              </div>
+            ) : impact ? (
+              <p className="mt-2 text-2xs font-medium text-ink-subtle">{tr("The rules changed since the last preview. Preview again.")}</p>
+            ) : null}
+          </div>
         </div>
 
         {/* ── Mode ──────────────────────────────────────────────────────── */}
