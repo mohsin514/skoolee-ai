@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { daysToTenths, tenthsToDays } from "@/lib/leave";
 import { createLeaveAllocation } from "@/lib/leave/create-allocation-command";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Leave allocations — role-wide rows (role set, userId null) or per-user
 // overrides (userId set, role null).
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const allocation = await createLeaveAllocation(user, body);
     return Response.json({ success: true, data: allocation }, { status: 201 });
   } catch (error) {
@@ -57,8 +59,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "edit");
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const allocation = await prisma.leaveAllocation.findFirst({
       where: { id: body.id, campus: { schoolId: user.schoolId } },

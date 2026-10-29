@@ -12,6 +12,8 @@ import {
 } from "@/lib/api/scope";
 import { daysToTenths, tenthsToDays } from "@/lib/leave";
 import { createLeaveType } from "@/lib/leave/create-type-command";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Leave types per campus.
 // GET           — list (any signed-in staff)
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const type = await createLeaveType(user, body);
     return Response.json({ success: true, data: type }, { status: 201 });
   } catch (error) {
@@ -64,8 +66,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "edit");
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const type = await prisma.leaveType.findFirst({
       where: { id: body.id, campus: { schoolId: user.schoolId } },

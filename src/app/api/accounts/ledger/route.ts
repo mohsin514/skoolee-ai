@@ -15,6 +15,8 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Ledger entries
 // GET /api/accounts/ledger?campusId=&currency=&kind=&accountId=&source=MANUAL|FEE|PAYROLL|CORRECTION&status=all|open|reversed&from=&to=&page=&pageSize=[&format=csv]
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     await assertPermission(user, "accounts", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { entry, replayed } = await postManualEntry(user, campusId, body);
     const { requestHash: _hash, idempotencyKey: _key, ...data } = entry;
@@ -101,7 +103,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     await assertPermission(user, "accounts", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     if (body.action !== "reverse") throw new ApiError("Unsupported action", 400);
     if (!body.id) throw new ApiError("id is required", 400);
     const { entry, replayed } = await reverseLedgerEntry(user, String(body.id), body.reason);
