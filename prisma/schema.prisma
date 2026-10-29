@@ -10138,3 +10138,80 @@ model AiSetupResponse {
   @@unique([schoolId, userId, questionnaireKey])
   @@map("ai_setup_responses")
 }
+
+/// SKAI-1016: one reviewed trust requirement for one market. Platform evidence, never school data;
+/// `reference` points at restricted storage. Superseded rows are kept for audit.
+model MarketTrustReview {
+  id           String    @id @default(uuid())
+  market       String
+  requirement  String
+  reference    String
+  reviewer     String
+  reviewedAt   DateTime  @map("reviewed_at")
+  reviewDueAt  DateTime? @map("review_due_at")
+  locales      String[]  @default([])
+  supersededAt DateTime? @map("superseded_at")
+  recordedById String    @map("recorded_by_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([market, requirement, supersededAt])
+  @@map("market_trust_reviews")
+}
+
+/// SKAI-1017: versioned bounded pilot proposal for one school. amount NULL = explicitly undecided.
+model PilotProposal {
+  id                     String   @id @default(uuid())
+  schoolId               String   @map("school_id")
+  version                Int
+  market                 String
+  currency               String
+  amount                 Decimal? @db.Decimal(14, 2)
+  /// Full PilotProposal payload as validated by validateProposal.
+  scope                  Json
+  budgetApprover         String?  @map("budget_approver")
+  academicChampion       String?  @map("academic_champion")
+  dataProcessingApprover String?  @map("data_processing_approver")
+  problems               Json     @default("[]")
+  recordedById           String   @map("recorded_by_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  @@unique([schoolId, version])
+  @@map("pilot_proposals")
+}
+
+/// SKAI-1017: append-only commercial stage evidence; the stage is derived by classifyStage.
+model PilotCommercialEvent {
+  id                 String   @id @default(uuid())
+  schoolId           String   @map("school_id")
+  stage              String
+  demoAttended       Boolean  @default(false) @map("demo_attended")
+  declinedToPay      Boolean  @default(false) @map("declined_to_pay")
+  signedAgreementRef String?  @map("signed_agreement_ref")
+  settlementRef      String?  @map("settlement_ref")
+  recordedById       String   @map("recorded_by_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt])
+  @@map("pilot_commercial_events")
+}
+
+/// SKAI-1018: versioned school-specific readiness record + signed go/no-go decision.
+/// `record` is validated by readinessRecordSchema; `blockers` is the evaluation at save time.
+model PilotReadinessRecord {
+  id           String   @id @default(uuid())
+  schoolId     String   @map("school_id")
+  pilotId      String?  @map("pilot_id")
+  version      Int
+  market       String?
+  record       Json
+  outcome      String?
+  signer       String?
+  ready        Boolean  @default(false)
+  blockers     Json     @default("[]")
+  recordedById String   @map("recorded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([schoolId, version])
+  @@index([pilotId])
+  @@map("pilot_readiness_records")
+}
