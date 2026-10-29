@@ -138,13 +138,17 @@ export type ContractPin = { packId: string; version: number; contentSha256: stri
 /** Assessment output stores this pin; later defaults or versions never rewrite it. */
 export function pinContract(contract: CurriculumContract): ContractPin {
   if (contract.status !== "APPROVED") throw new Error("Only an approved contract version can be pinned to assessment output.");
+  return { packId: contract.packId, version: contract.version, contentSha256: contractContentSha256(contract) };
+}
+
+/** Content hash of a contract version; status is excluded so approval does not change identity. */
+export function contractContentSha256(contract: CurriculumContract): string {
   const { status: _status, ...content } = contract;
-  return { packId: contract.packId, version: contract.version, contentSha256: createHash("sha256").update(canonical(content)).digest("hex") };
+  return createHash("sha256").update(canonical(content)).digest("hex");
 }
 
 export function pinMatches(pin: ContractPin, contract: CurriculumContract): boolean {
-  const { status: _status, ...content } = contract;
-  return pin.packId === contract.packId && pin.version === contract.version && pin.contentSha256 === createHash("sha256").update(canonical(content)).digest("hex");
+  return pin.packId === contract.packId && pin.version === contract.version && pin.contentSha256 === contractContentSha256(contract);
 }
 
 export type ContractRequest = { board: (typeof contractBoards)[number]; schoolGrade: string; subject: string; examYear: string; tier?: string; language: "en" | "ar" | "ur" };
