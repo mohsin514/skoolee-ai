@@ -1,12 +1,12 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **876**; connected: **148**.
+Total capabilities: **882**; connected: **148**.
 
-Risk: ACCESS_GRANT 54 · APPROVAL_DECISION 71 · COMMUNICATION 37 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 48 · UPDATE 270
+Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 71 · COMMUNICATION 39 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 49 · UPDATE 270
 
-Reuse: direct 579 · inline-prisma 228 · wrapper 69
+Reuse: direct 579 · inline-prisma 228 · wrapper 75
 
-Idempotent: no 256 · unknown 50 · versioned 1 · yes 569
+Idempotent: no 259 · unknown 50 · versioned 1 · yes 572
 
 ## By role
 
@@ -29,7 +29,7 @@ Idempotent: no 256 · unknown 50 · versioned 1 · yes 569
 | Cluster | Capabilities | Connected |
 |---|---|---|
 | C1 Academic structure | 75 | 11 |
-| C2 People, staff and access | 61 | 13 |
+| C2 People, staff and access | 67 | 13 |
 | C3 Students, admissions and family | 93 | 21 |
 | C4 Teaching and assessment | 110 | 20 |
 | C5 Attendance, communication and engagement | 71 | 14 |
