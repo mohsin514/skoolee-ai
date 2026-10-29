@@ -16,7 +16,7 @@ import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "luc
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/csv";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
-import { reconciliationSheet, rehearsalGroups } from "@/lib/imports/rehearsal";
+import { reconciliationSheet, rehearsalGroups, rosterTemplateCsv } from "@/lib/imports/rehearsal";
 
 interface ClassRecord { id: string; name: string; section?: string | null; academicYear: number }
 interface Props { open: boolean; onOpenChange: (open: boolean) => void; classes: ClassRecord[]; defaultClassId: string; onSuccess: () => void }
@@ -24,8 +24,6 @@ interface ImportRow { rowNumber: number; source: Record<string, string>; proposa
 interface Batch { id: string; campusId: string; kind: string; state: string; sourceName?: string; createdAt?: string; expiresAt: string; reviewToken: string; summary: { total: number; accepted: number; rejected: number; skipped: number; unresolved: number }; rows?: ImportRow[]; receipt?: Record<string, any> | null }
 interface ReversalAnalysis { eligible: boolean; dependencies: Array<{ studentName: string; rollNo: string; references: string[] }>; missing: string[]; action: string }
 
-// SKAI-913: the minimum pilot roster. Medical notes, addresses and pupil emails are left out on purpose.
-const CSV_TEMPLATE = "fullName,rollNo,className,classSection,gender,dateOfBirth,guardianName,guardianPhone,guardianRelationship\nSample Pupil One,QA-001,,,FEMALE,2015-04-12,Sample Guardian,+92 3000000001,MOTHER";
 
 const rowStateVariant = (state: string) => (state === "ACCEPTED" ? "success" : state === "SKIPPED" ? "neutral" : "danger");
 
@@ -153,7 +151,7 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
     finally { setBusy(false); }
   };
   const downloadTemplate = () => {
-    const url = URL.createObjectURL(new Blob(["\uFEFF", CSV_TEMPLATE], { type: "text/csv;charset=utf-8;" }));
+    const url = URL.createObjectURL(new Blob(["\uFEFF", rosterTemplateCsv()], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a"); link.href = url; link.download = "student_import_template.csv"; link.click(); URL.revokeObjectURL(url);
   };
   const downloadSheet = () => batch && downloadCSV("student_import_" + batch.id + "_reconciliation.csv", reconciliationSheet(rows as Parameters<typeof reconciliationSheet>[0]));

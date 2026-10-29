@@ -72,3 +72,17 @@ test("the reconciliation sheet explains every row and exports no contact, addres
   const flat = JSON.stringify(sheet);
   for (const sensitive of ["+92 3000000009", "asthma", "QA street"]) assert.ok(!flat.includes(sensitive), `${sensitive} must not be exported`);
 });
+
+test("a file built from the template passes admission validation, including address, city and medical notes", async () => {
+  const { rosterTemplateColumns, rosterTemplateCsv } = await import("../../src/lib/imports/rehearsal");
+  const { parseImportCsv, normalizeImportHeader, importField } = await import("../../src/lib/imports/csv");
+  const { studentSchema } = await import("../../src/lib/validators/schemas");
+  const columns = rosterTemplateColumns();
+  for (const required of ["fullName", "rollNo", "guardianName", "guardianPhone", "address", "city", "medicalNotes"]) assert.ok(columns.includes(required), `${required} must be a template column`);
+  for (const sensitive of ["studentEmail", "guardianEmail", "phone"]) assert.ok(!columns.includes(sensitive), `${sensitive} is not needed for the pilot`);
+  const [headers, values] = parseImportCsv(rosterTemplateCsv());
+  const row = Object.fromEntries(headers.map((header, index) => [normalizeImportHeader(header), values[index]]));
+  const pick = (name: string) => importField(row, [name]) || undefined;
+  const parsed = studentSchema.safeParse({ ...Object.fromEntries(columns.map((column) => [column, pick(column)])), classId: "class-1", gender: pick("gender") });
+  assert.ok(parsed.success, parsed.success ? "" : parsed.error.issues.map((issue) => issue.message).join("; "));
+});
