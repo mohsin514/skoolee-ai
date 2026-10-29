@@ -440,9 +440,9 @@ async function loadSuperAdminDashboardData() {
   };
 }
 
-export const getCampusDashboardData = cache(async function getCampusDashboardData() {
+export const getCampusDashboardData = cache(boundToSession(async function getCampusDashboardData() {
   return logConsoleFailure("admin-dashboard", loadCampusDashboardData);
-});
+}));
 
 async function loadCampusDashboardData() {
   const session = await getAuthUser();
