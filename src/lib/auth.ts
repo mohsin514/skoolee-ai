@@ -10,6 +10,8 @@ import type { InstitutionKind } from "@/lib/auth/institution";
 import { JWT_SECRET } from "@/lib/auth/secret";
 import { SESSION_COOKIE_NAME, hashSessionToken } from "@/lib/auth/session-cookie";
 import { isSessionRevoked } from "@/lib/auth/session-revocation";
+import { ACTIVE_CAMPUS_COOKIE, resolveActiveCampusId } from "@/lib/auth/active-campus";
+import { lookupSchoolCampus } from "@/lib/auth/active-campus-server";
 
 export interface AuthUser {
   isInstitutionOwner?: boolean;
@@ -29,6 +31,8 @@ export interface AuthUser {
   /** GROUP or STANDALONE, resolved by resolveCurrentPrincipal (src/lib/auth/institution.ts). Hand-built users
    *  without it fail closed in every authority predicate. */
   institutionKind?: InstitutionKind;
+  /** SKAI-1113: SUPER_ADMIN only. A validated campus of this school chosen in the campus switcher; null/absent = "All campuses". */
+  activeCampusId?: string | null;
 }
 
 export async function getAuthUser(): Promise<AuthUser | null> {
@@ -57,7 +61,9 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     if (await isSessionRevoked(hashSessionToken(token))) return null;
 
     const principal = await resolveCurrentPrincipal({ userId, schoolId, role, accessVersion: payload.accessVersion, mfaVerified: payload.mfaVerified });
-    return principal ? { ...principal, mfaVerified: payload.mfaVerified === "deferred" ? "deferred" : payload.mfaVerified === true } : null;
+    if (!principal) return null;
+    const activeCampusId = await resolveActiveCampusId(principal, cookieStore.get(ACTIVE_CAMPUS_COOKIE)?.value, lookupSchoolCampus);
+    return { ...principal, ...(activeCampusId ? { activeCampusId } : {}), mfaVerified: payload.mfaVerified === "deferred" ? "deferred" : payload.mfaVerified === true };
   } catch {
     return null;
   }

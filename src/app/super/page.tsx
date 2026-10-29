@@ -49,6 +49,7 @@ import { useConsoleView, WORKSPACE_VIEW_CHANGE } from "@/components/nav/useConso
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView";
 import { RoleShell, ManagementCard, AiActionPanel, useShellSession } from "@/components/role-dashboard";
+import { CampusSwitcher } from "@/components/role-dashboard/CampusSwitcher";
 import { CommandCentreSkeleton, PageSkeleton, PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
 import { FlagshipCard } from "@/components/ui/flagship";
 import { PageHeader } from "@/components/ui/page-header";
@@ -228,6 +229,7 @@ export default function SuperAdminDashboard() {
       userName={data?.user?.fullName ?? session?.fullName}
       avatarSeed={data?.user?.email ?? session?.fullName}
       dashboardHref="/super"
+      headerContext={<CampusSwitcher />}
       // F3 / §3.2: a paused school never opens the chat stream — decided from the school's state (server-read for
       // the page load, re-checked when a reload fails), not from whether the dashboard happened to load.
       chatDock={!suspended}

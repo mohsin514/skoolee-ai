@@ -11491,6 +11491,21 @@
   "source": "appendix-a"
  },
  {
+  "key": "governance.set_active_campus",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/super/active-campus",
+  "roles": [
+   "SUPER_ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "governance.support_emergency_review",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "PATCH",

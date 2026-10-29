@@ -23,6 +23,9 @@ export class AccessDenied extends Error {
 }
 
 export function campusScope(user: AuthUser): { schoolId: string; campusId?: string } {
+  // SKAI-1113: a SUPER_ADMIN who picked a campus in the switcher works inside it; "All campuses" stays school-wide.
+  // activeCampusId is only set by getAuthUser after checking the campus belongs to user.schoolId.
+  if (user.role === "SUPER_ADMIN" && user.activeCampusId) return { schoolId: user.schoolId, campusId: user.activeCampusId };
   if (user.role === "SUPER_ADMIN" || user.role === "APP_OWNER" || isFamily(user)) return { schoolId: user.schoolId };
   if (!user.campusId) throw new AccessDenied("campus", "view", user);
   return { schoolId: user.schoolId, campusId: user.campusId };
