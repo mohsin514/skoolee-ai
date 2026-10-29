@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "pack": "ksa-intermediate-maths",
+  "language": "ar",
+  "setVersion": "0.0.1",
+  "placeholder": true,
+  "frozen": {
+    "frozenAt": "2026-10-29T00:00:00.000Z",
+    "contentSha256": "0566f1ceeeb3da62c42cacd2a205ce58a7e342e91cd2e6138c1a1a273344e423"
+  },
+  "items": [
+    {
+      "id": "placeholder-1",
+      "topic": "PLACEHOLDER",
+      "difficulty": "easy",
+      "stem": "PLACEHOLDER item 1 - not an evaluation item. Educators replace this set (D5-02); solve x + 1 = 4.",
+      "referenceAnswer": "x = 3",
+      "maxMarks": 1,
+      "syntheticResponse": "x = 3",
+      "placeholder": true
+    }
+  ]
+}

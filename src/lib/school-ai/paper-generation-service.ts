@@ -44,8 +44,9 @@ async function currentSource(user: AuthUser, curriculumId: string, version: numb
   const issues = validateCurriculumApproval(curriculum);
   if (issues.length) throw new SchoolAiError("Review the approved curriculum evidence before generating a paper.", 422, "AI_GENERATION_SOURCE_CHANGED");
   // SKAI-1008..1012: a catalogue curriculum pack must be ACTIVE for this campus before any generation.
-  const gate = await curriculumPackGateFor(tx, user.schoolId, record.campusId, curriculum.pack);
-  if (gate.gated && !gate.allowed) throw Object.assign(new SchoolAiError(`This curriculum pack is not active for this campus. ${gate.reasons[0]}`, 422, gate.code), { details: gate.reasons });
+  // SKAI-1053 (D5): AI generation also needs the pack's educator evaluation to pass.
+  const gate = await curriculumPackGateFor(tx, user.schoolId, record.campusId, curriculum.pack, undefined, new Date(), { ai: true });
+  if (gate.gated && !gate.allowed) throw Object.assign(new SchoolAiError(gate.code === "CURRICULUM_PACK_AI_EVALUATION_FAILED" ? `AI is off for this curriculum pack. ${gate.reasons[0]}` : `This curriculum pack is not active for this campus. ${gate.reasons[0]}`, 422, gate.code), { details: gate.reasons });
   return { record, curriculum, pin: gate.gated && gate.allowed ? gate.pin : undefined };
 }
 

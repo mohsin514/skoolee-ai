@@ -9,6 +9,11 @@ import { SchoolAiError } from "./access";
 import { schoolAiTransaction } from "./transaction";
 import { curriculumContractSchema } from "./curriculum-contract";
 import { saveOriginal, sourceStorageAvailable } from "./source-storage";
+import { getAIModel } from "@/lib/ai/openai";
+import { AI_PROMPT_VERSION } from "@/lib/ai/prompts";
+import { AI_POLICY_VERSION } from "@/lib/ai/evaluation";
+import { educatorEvalEnforced, evaluationFingerprint, evaluationStatusSchema, packAiEvaluationGate } from "@/lib/ai-evaluation/educator/gate";
+import educatorEvaluationStatus from "@/config/educator-evaluation-status.json";
 import {
   PACK_GEOGRAPHIES, activationBlockers, canApprovePack, canManagePackRequest, curriculumPackGate, planTransition, shippedCurriculumPacks, sourceEvidenceSchema,
   type ActivationSnapshot, type ActivationStatus, type CatalogueRow, type DeclaredPack, type PackActor, type PackGate, type SourceEvidence,
@@ -175,12 +180,18 @@ export async function transitionCurriculumPack(user: AuthUser, activationId: str
  * The enforcement read used by paper generation and paper approval. Fails closed: a curriculum that
  * names a catalogue pack is refused unless that version is ACTIVE for the paper's campus.
  */
-export async function curriculumPackGateFor(db: TxClient, schoolId: string, campusId: string | null, declared: DeclaredPack | undefined, pin?: { packId: string; version: number; contentSha256: string } | null, now = new Date()): Promise<PackGate> {
+export async function curriculumPackGateFor(db: TxClient, schoolId: string, campusId: string | null, declared: DeclaredPack | undefined, pin?: { packId: string; version: number; contentSha256: string } | null, now = new Date(), opts: { ai?: boolean } = {}): Promise<PackGate> {
   if (!declared?.packId) return { gated: false };
   const knownPackIds = new Set(shippedCurriculumPacks().map(pack => pack.packId));
   const versions = await db.curriculumPackVersion.findMany({ where: { packId: declared.packId } });
   if (!versions.length && !knownPackIds.has(declared.packId)) return { gated: false };
   const version = versions.find(row => row.version === declared.version) ?? null;
   const activation = version && campusId ? await db.curriculumPackActivation.findFirst({ where: { schoolId, campusId, packVersionId: version.id, status: "ACTIVE" }, orderBy: { updatedAt: "desc" } }) : null;
-  return curriculumPackGate({ declared, knownPackIds: new Set([...knownPackIds, declared.packId]), catalogue: version ? catalogueRowOf(version) : null, activation: activation ? snapshotOf(activation) : null, pin, now });
+  return curriculumPackGate({ declared, knownPackIds: new Set([...knownPackIds, declared.packId]), catalogue: version ? catalogueRowOf(version) : null, activation: activation ? snapshotOf(activation) : null, pin, now, aiEvaluation: opts.ai ? currentPackAiEvaluation(declared.packId) : undefined });
+}
+
+/** SKAI-1053 (D5-04): the committed educator-evaluation verdicts for the running model/prompt. */
+export function currentPackAiEvaluation(packId: string) {
+  const fingerprint = evaluationFingerprint({ model: getAIModel(), promptVersion: AI_PROMPT_VERSION, policyVersion: AI_POLICY_VERSION });
+  return packAiEvaluationGate(packId, evaluationStatusSchema.parse(educatorEvaluationStatus), fingerprint, educatorEvalEnforced());
 }
