@@ -31,6 +31,8 @@ const RULES: Rule[] = [
     match: key => key === "curriculum.record_pack_evidence" || key === "curriculum.transition_pack" || key === "curriculum.request_pack" },
   { category: "auth", reason: "Connecting the school's own WhatsApp Business Account is a Meta login in the administrator's browser and grants Meta-billed sending; buying managed-sending credit is a payment decision. Both stay with a person.",
     match: key => ["whatsapp.connect_waba", "whatsapp.disconnect_waba", "whatsapp.managed_settings", "whatsapp.managed_provision", "whatsapp.managed_top_up"].includes(key), link: "/admin" },
+  { category: "internal", reason: "The regulator fee cap is a school-wide compliance setting an administrator owns; the AI must never loosen the cap that limits the fees it can set.",
+    match: key => key === "fees.set_fee_cap_policy" },
   { category: "internal", reason: "Unauthenticated public forms are completed by families on the public page, not from a signed-in assistant.",
     match: key => key.startsWith("public.") },
 ];

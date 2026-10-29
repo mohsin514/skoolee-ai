@@ -381,6 +381,9 @@ export const feeStructureSchema = z.object({
   campusId: z.string().optional(),
   classId: z.string().min(1),
   monthlyFee: z.coerce.number().int().min(0),
+  // SKAI-1154: regulator-approved monthly fee (minor units) and permit reference; null clears them.
+  approvedFee: z.coerce.number().int().min(0).nullable().optional(),
+  approvedFeeReference: z.string().trim().max(120).nullable().optional(),
   oneTimeFeesJson: z.string().optional(),
   installmentType: z.enum(["11-month", "6-month", "quarterly", "one-time"]).optional(),
   discountRulesJson: z.string().optional(),

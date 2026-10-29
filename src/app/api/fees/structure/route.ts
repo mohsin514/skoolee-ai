@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -76,14 +77,23 @@ export async function POST(req: NextRequest) {
     const academicYearId = await resolveFeeStructureYearId(prisma, user.schoolId, campusId, body.academicYearId);
     const existing = await prisma.feeStructure.findFirst({
       where: { classId: parsed.data.classId, academicYearId, activeFrom },
-      select: { id: true },
+      select: { id: true, approvedFee: true },
     });
+
+    // SKAI-1154: the school's opt-in regulator fee cap.
+    const capSchool = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { feeCapMode: true } });
+    const capMode = capSchool?.feeCapMode ?? "OFF";
+    const approvedFee = parsed.data.approvedFee !== undefined ? parsed.data.approvedFee : (existing?.approvedFee ?? null);
+    const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: parsed.data.monthlyFee, approvedFee }), capMode);
+    if (cap.error) return Response.json({ error: cap.error, feeCap: "blocked" }, { status: 422 });
 
     const data: any = {
       campusId,
       classId: parsed.data.classId,
       academicYearId,
       monthlyFee: parsed.data.monthlyFee,
+      approvedFee,
+      approvedFeeReference: parsed.data.approvedFeeReference !== undefined ? parsed.data.approvedFeeReference || null : undefined,
       oneTimeFeesJson: oneTimeFeesJson as any,
       installmentType: parsed.data.installmentType ?? undefined,
       discountRulesJson: discountRulesJson as any,
@@ -120,7 +130,7 @@ export async function POST(req: NextRequest) {
       data: {
         tableName: "fee_structure",
         recordId: structure.id,
-        newValue: { classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee },
+        newValue: { classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee, approvedFee, feeCapMode: capMode },
         userId: user.userId,
       },
     });
@@ -137,6 +147,7 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         data: structure,
+        ...(cap.warning ? { feeCapWarning: cap.warning } : {}),
         message: `Fee structure ${existing ? "updated" : "created"} for ${structure.class.name}`,
       },
       { status: existing ? 200 : 201 }

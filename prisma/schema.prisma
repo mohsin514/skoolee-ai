@@ -80,6 +80,9 @@ model School {
   timezone             String    @default("Asia/Karachi")
   // SKAI-1143: hosting region for later tenant routing (src/lib/school/data-region.ts). DEFAULT = the shared region.
   dataRegion           String    @default("DEFAULT") @map("data_region")
+  // SKAI-1154: opt-in regulator fee caps (src/lib/fees/regulator-cap.ts). OFF | WARN | BLOCK; framework KHDA_ECI first.
+  feeCapMode           String    @default("OFF") @map("fee_cap_mode")
+  feeCapFramework      String    @default("KHDA_ECI") @map("fee_cap_framework")
   plan                 String    @default("FREE") // FREE, BASIC, PRO
   planStartedAt        DateTime? @map("plan_started_at") // first paid activation
   planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
@@ -2335,6 +2338,9 @@ model FeeStructure {
   academicYearId    String?        @map("academic_year_id")
   academicYear      AcademicCycle? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
   monthlyFee        Int       @map("monthly_fee")
+  /// SKAI-1154: the regulator-approved monthly fee (same minor units as monthlyFee) and its permit reference.
+  approvedFee          Int?    @map("approved_fee")
+  approvedFeeReference String? @map("approved_fee_reference")
   oneTimeFeesJson   Json?     @map("one_time_fees_json")
   installmentType   String?   @map("installment_type")
   discountRulesJson Json?     @map("discount_rules_json")
@@ -2497,6 +2503,9 @@ model Invoice {
   localeSnapshot Json? @map("locale_snapshot")
   /// SKO-402: the school and campus identity as first printed on this invoice; later rebranding never changes it.
   issuerSnapshot Json? @map("issuer_snapshot")
+  /// SKAI-1154: the regulator-approved fee and permit reference printed on this invoice, copied at generation.
+  approvedFee          Int?    @map("approved_fee")
+  approvedFeeReference String? @map("approved_fee_reference")
   id              String        @id @default(uuid())
   schoolId        String        @default("") @map("school_id")
   school          School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
