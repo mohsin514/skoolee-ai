@@ -13,6 +13,8 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Payment method references CRUD
 // GET /api/accounts/payment-methods?campusId=
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const method = await createPaymentMethod(user, body);
 
     return Response.json({ success: true, data: method }, { status: 201 });
@@ -59,8 +61,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const method = await prisma.paymentMethodRef.findFirst({
       where: { id: body.id, campus: { schoolId: user.schoolId } },
