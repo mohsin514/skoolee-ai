@@ -93,6 +93,7 @@ import { LearningActions } from "@/components/learning/learning-actions";
 import { PolicyManager } from "@/components/policies/policy-manager";
 import { AdmissionsDesk } from "@/components/admissions/admissions-desk";
 import { GuardianAccessManager } from "@/components/GuardianAccessManager";
+import { ConsentStatusPanel } from "@/components/family/guardian-consent";
 import { AnalyticsCharts } from "@/components/analytics/analytics-charts";
 import { CampusPackagesPanel, CanteenPanel } from "@/components/campus-packages/campus-packages";
 import { AdmissionForm } from "@/components/students/admission-form";
@@ -1522,6 +1523,13 @@ function AdminWorkspace({ ctx }: { ctx: AdminCtx }) {
         </ViewFrame>
       );
     }
+
+    case "guardian-consent":
+      return (
+        <ViewFrame title={title} description={description} icon={icon ?? ShieldCheck}>
+          <ConsentStatusPanel />
+        </ViewFrame>
+      );
 
     case "communications":
       return (

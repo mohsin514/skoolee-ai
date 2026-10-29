@@ -182,6 +182,7 @@ model School {
   promptTemplates         PromptTemplate[]
   parentConversations     ParentConversation[]
   consentLogs             ConsentLog[]
+  guardianConsents        GuardianConsent[]
   classRooms              ClassRoom[]
   periodDefinitions       PeriodDefinition[]
   timetables              Timetable[]
@@ -797,6 +798,7 @@ model User {
   studentProfile                Student?                 @relation("StudentUser")
   parentedStudents              Student[]                @relation("Parent")
   guardianRelationships         GuardianRelationship[]   @relation("GuardianAccount")
+  guardianConsents              GuardianConsent[]        @relation("GuardianConsentGiver")
   createdGuardianRelationships  GuardianRelationship[]   @relation("GuardianCreatedBy")
   guardianAccessEvents          GuardianAccessEvent[]    @relation("GuardianAccessActor")
   reviewedGuardianLinks         GuardianReviewQueue[]    @relation("GuardianReviewActor")
@@ -1411,6 +1413,7 @@ model Student {
   parent               User?     @relation("Parent", fields: [parentUserId], references: [id], onDelete: SetNull)
   guardianRelationships GuardianRelationship[]
   guardianReviewQueue   GuardianReviewQueue[]
+  guardianConsents      GuardianConsent[]
   admissionNo          String?   @map("admission_no") // Institution-scoped identifier; id is the immutable identity
   fullName             String    @map("full_name")
   nameUr               String?   @map("name_ur")
@@ -1543,6 +1546,31 @@ model GuardianAccessEvent {
 
   @@index([schoolId, relationshipId, createdAt])
   @@map("guardian_access_events")
+}
+
+// SKAI-1157: a guardian's consent for one child, per processing purpose (SKAI-1105 §3.1). Append-only: each
+// submission is a new row naming who answered, when, every purpose's choice, the notice version and the
+// language the notice was shown in. The latest row per guardian and child is the one in force.
+model GuardianConsent {
+  id             String   @id @default(uuid())
+  schoolId       String   @default("") @map("school_id")
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId       String   @map("campus_id")
+  studentId      String   @map("student_id")
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardianUserId String   @map("guardian_user_id")
+  guardian       User     @relation("GuardianConsentGiver", fields: [guardianUserId], references: [id], onDelete: Restrict)
+  relationshipId String   @map("relationship_id")
+  guardianName   String   @map("guardian_name")
+  choices        Json     // { [purpose]: boolean } for every purpose in the notice version
+  noticeVersion  String   @map("notice_version")
+  language       String   // en | ar | ur: the language the notice was shown in
+  receiptCode    String   @unique @map("receipt_code")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, campusId, studentId, createdAt])
+  @@index([schoolId, guardianUserId, studentId, createdAt])
+  @@map("guardian_consents")
 }
 
 // Contact-only legacy records are not proof of a family relationship. Preserve
