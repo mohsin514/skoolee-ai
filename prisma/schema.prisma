@@ -1934,6 +1934,10 @@ model Subject {
   teacherId  String? @map("teacher_id")
   teacher    User?   @relation("Teacher", fields: [teacherId], references: [id])
   totalMarks Int     @default(100) @map("total_marks")
+  // SKAI-149: catalogue code (one meaning per school), core vs elective, archive-not-delete.
+  code       String?
+  isElective Boolean   @default(false) @map("is_elective")
+  archivedAt DateTime? @map("archived_at")
 
   // Relations
   marks          Mark[]

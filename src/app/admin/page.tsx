@@ -506,9 +506,9 @@ export default function CampusConsolePage() {
 
   const handleCreateSubject = async (
     classId: string,
-    subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }
+    subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean; code?: string; isOptional?: boolean; packId?: string }
   ) => {
-    if (!subject.name.trim()) {
+    if (!subject.packId && !subject.name.trim()) {
       toast.error(ui("Enter a subject name before adding it."));
       return false;
     }
@@ -524,10 +524,14 @@ export default function CampusConsolePage() {
           totalMarks: subject.totalMarks || 100,
           teacherId: subject.teacherId || undefined,
           applyToAllSections: subject.applyToAllSections || undefined,
+          code: subject.code?.trim() || undefined,
+          isOptional: subject.isOptional || undefined,
+          packId: subject.packId,
         }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      if (subject.packId) toast.success(ui("{0} subjects added, {1} already there", [result.createdCount ?? 0, result.skippedCount ?? 0]));
       toast.success(result.createdCount > 1 ? ui("Subject added to {0} sections", [result.createdCount]) : ui("Subject added"));
       const nextData = await loadData();
       syncSelectedClass(nextData, classId);
@@ -786,10 +790,14 @@ export default function CampusConsolePage() {
     setConfirmAction({
       title: ui("Delete {0}?", [subject.name]),
       description: subjectRemovalText(impact, ui),
-      confirmLabel: blocked ? ui("Close") : ui("Delete subject"),
+      // SKAI-149: a subject in use is archived, never deleted, so its marks and exams keep their history.
+      confirmLabel: blocked ? ui("Archive subject") : ui("Delete subject"),
       tone: blocked ? "primary" : "danger",
       run: async () => {
-        if (blocked) return;
+        if (blocked) {
+          await handleUpdateSubject(subject.classId, subject.id, { archived: true });
+          return;
+        }
         const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" });
         const result = await res.json();
         if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not delete the subject. Please try again.")));
@@ -835,7 +843,7 @@ export default function CampusConsolePage() {
     }
   };
 
-  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
+  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean }) => {
     setSavingSubjectUpdateId(subjectId);
     const failed = ui("Could not save the subject changes. Please try again.");
     try {

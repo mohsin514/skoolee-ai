@@ -482,7 +482,7 @@ async function loadCampusDashboardData() {
           select: {
             id: true,
             name: true,
-            totalMarks: true,
+            totalMarks: true, code: true, isElective: true, archivedAt: true,
             teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
           },
           orderBy: { name: "asc" },
@@ -803,7 +803,7 @@ async function loadTeacherDashboardData() {
           select: {
             id: true,
             name: true,
-            totalMarks: true,
+            totalMarks: true, code: true, isElective: true, archivedAt: true,
             teacherId: true,
             teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
           },
@@ -1109,7 +1109,7 @@ async function loadPrincipalDashboardData() {
           select: {
             id: true,
             name: true,
-            totalMarks: true,
+            totalMarks: true, code: true, isElective: true, archivedAt: true,
             teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
           },
           orderBy: { name: "asc" },
@@ -1453,7 +1453,7 @@ export const getStudentDashboardData = cache(boundToSession(async function getSt
             select: {
               id: true,
               name: true,
-              totalMarks: true,
+              totalMarks: true, code: true, isElective: true, archivedAt: true,
               teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
             },
             orderBy: { name: "asc" },

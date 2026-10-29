@@ -4,6 +4,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button as SystemButton } from "@/components/ui/button";
 import React, {
   useCallback,
@@ -18,6 +19,7 @@ import { parseSections } from "@/lib/class-sections";
 import {
   Archive,
   AlertCircle,
+  ArchiveRestore,
   BookOpen,
   Check,
   CheckCircle2,
@@ -94,6 +96,9 @@ interface ClassManagerProps {
       totalMarks: number;
       teacherId: string;
       applyToAllSections?: boolean;
+      code?: string;
+      isOptional?: boolean;
+      packId?: string;
     },
   ) => Promise<boolean>;
   onChangeSubjectTeacher: (
@@ -120,7 +125,7 @@ interface ClassManagerProps {
   onUpdateSubject: (
     classId: string,
     subjectId: string,
-    updates: { name?: string; totalMarks?: number },
+    updates: { name?: string; totalMarks?: number; code?: string; isElective?: boolean; archived?: boolean },
   ) => Promise<void>;
   onRefresh?: () => void;
 }
@@ -932,6 +937,8 @@ function SectionDetailView({
     section.classTeacher?.id || "",
   );
   const [applyToAllSections, setApplyToAllSections] = useState(false);
+  const [subjectCode, setSubjectCode] = useState("");
+  const [subjectElective, setSubjectElective] = useState(false);
 
   // Inline editing
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(
@@ -964,13 +971,21 @@ function SectionDetailView({
           ? section.classTeacher?.id || ""
           : newSubjectTeacherId,
       applyToAllSections,
+      code: subjectCode,
+      isOptional: subjectElective,
     });
     if (created) {
       setSubjectName("");
       setSubjectMarks("100");
+      setSubjectCode("");
+      setSubjectElective(false);
       toast.success(ui("Subject added"));
     }
   };
+
+  // SKAI-149: bulk add from a curriculum pack; subjects already in the section are skipped.
+  const addPack = (packId: string) =>
+    onCreateSubject(section.id, { name: "", totalMarks: Number(subjectMarks) || 100, teacherId: teachingMode === "SINGLE" ? section.classTeacher?.id || "" : "", applyToAllSections, packId });
 
   const startEditingSubject = (subject: any) => {
     setEditingSubjectId(subject.id);
@@ -1156,10 +1171,10 @@ function SectionDetailView({
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-bold text-ink-strong">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <p className="min-w-0 max-w-full truncate text-sm font-bold text-ink-strong">
                               {subject.name}
                             </p>
                             {subject.totalMarks ? (
@@ -1167,6 +1182,9 @@ function SectionDetailView({
                                 {ui("{0} marks", [subject.totalMarks])}
                               </Badge>
                             ) : null}
+                            {subject.code ? <Badge size="sm" variant="outline" className="shrink-0" dir="ltr">{subject.code}</Badge> : null}
+                            <Badge size="sm" variant={subject.isElective ? "info" : "neutral"} className="shrink-0">{subject.isElective ? ui("Elective") : ui("Core")}</Badge>
+                            {subject.archivedAt ? <Badge size="sm" variant="warning" className="shrink-0">{ui("Archived")}</Badge> : null}
                           </div>
                           <p className="mt-1 text-xs font-medium text-ink-subtle">
                             {teachingMode === "SINGLE" ? (
@@ -1194,7 +1212,7 @@ function SectionDetailView({
                             )}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/card:opacity-100">
+                        <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover/card:opacity-100 sm:group-focus-within/card:opacity-100">
                           {/* Syllabus chip */}
                           <SystemButton variant="ghost"
                             type="button"
@@ -1214,6 +1232,11 @@ function SectionDetailView({
                             }
                           >
                             <Pencil className="h-3 w-3" aria-hidden="true" />
+                          </IconButton>
+                          <IconButton variant="ghost" label={subject.archivedAt ? ui("Restore subject") : ui("Archive subject")}
+                            onClick={() => onUpdateSubject(section.id, subject.id, { archived: !subject.archivedAt })}
+                          >
+                            {subject.archivedAt ? <ArchiveRestore className="h-3 w-3" aria-hidden="true" /> : <Archive className="h-3 w-3" aria-hidden="true" />}
                           </IconButton>
                           <IconButton variant="ghost" label={ui("Delete subject")}
                             onClick={() =>
@@ -1304,6 +1327,16 @@ function SectionDetailView({
                 placeholder="100"
                 onChange={setSubjectMarks}
               />
+              <FormInput
+                label={ui("Subject code (optional)")}
+                value={subjectCode}
+                placeholder={ui("e.g. MATH")}
+                onChange={(value) => setSubjectCode(value.toUpperCase())}
+              />
+              <label className="flex items-center gap-3 self-end rounded-xl border border-edge/40 bg-card p-3 text-sm font-semibold text-ink-strong">
+                <Checkbox checked={subjectElective} onChange={(event) => setSubjectElective(event.target.checked)} />
+                {ui("Elective subject")}
+              </label>
             </div>
             {teachingMode === "SUBJECT" ? (
               <div className="mt-3">
@@ -1350,7 +1383,13 @@ function SectionDetailView({
                 </span>
               </SystemButton>
             ) : null}
-            <div className="mt-3 flex justify-end">
+            <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+              {[["primary", ui("Add primary core pack")], ["secondary", ui("Add secondary core pack")]].map(([id, label]) => (
+                <SystemButton key={id} variant="ghost" type="button" onClick={() => addPack(id)} disabled={creatingSubject} className="flex h-11 items-center gap-2 px-4">
+                  <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                  {label}
+                </SystemButton>
+              ))}
               <SystemButton variant="dark"
                 type="button"
                 onClick={createSubject}
