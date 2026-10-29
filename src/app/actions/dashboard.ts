@@ -122,6 +122,16 @@ async function campusWaitingCounts(schoolId: string): Promise<Map<string, Campus
       prisma.admissionApplication.groupBy({ by: ["campusId"], where: { schoolId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } }, _count: { _all: true } }),
       prisma.leaveRequest.groupBy({ by: ["campusId"], where: { schoolId, status: "PENDING", user: { role: { not: "TEACHER" } } }, _count: { _all: true } }),
     ]);
+    // SKAI-1026: a campus with no principal hands teachers' leave to its operator (`canLeadAcademics`), so those
+    // pending requests wait on the operator too.
+    const [teacherLeave, principals] = await Promise.all([
+      prisma.leaveRequest.groupBy({ by: ["campusId"], where: { schoolId, status: "PENDING", user: { role: "TEACHER" } }, _count: { _all: true } }),
+      prisma.user.groupBy({ by: ["campusId"], where: { schoolId, role: "PRINCIPAL", isActive: true }, _count: { _all: true } }),
+    ]);
+    const led = new Set(principals.map((row) => row.campusId));
+    const leaveByCampus = new Map<string, number>();
+    for (const row of leave) leaveByCampus.set(row.campusId, row._count._all);
+    for (const row of teacherLeave) if (!led.has(row.campusId)) leaveByCampus.set(row.campusId, (leaveByCampus.get(row.campusId) ?? 0) + row._count._all);
     const waiting = new Map<string, CampusWaiting>();
     const at = (campusId: string) => {
       const row = waiting.get(campusId) ?? { adjustments: 0, applications: 0, leave: 0 };
@@ -130,7 +140,7 @@ async function campusWaitingCounts(schoolId: string): Promise<Map<string, Campus
     };
     for (const row of adjustments) at(row.campusId).adjustments = row._count._all;
     for (const row of applications) at(row.campusId).applications = row._count._all;
-    for (const row of leave) at(row.campusId).leave = row._count._all;
+    for (const [campusId, count] of leaveByCampus) at(campusId).leave = count;
     return waiting;
   } catch (error) {
     console.warn("[dashboard] campus waiting counts unavailable", { error: error instanceof Error ? error.message : String(error) });
