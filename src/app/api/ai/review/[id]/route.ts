@@ -5,6 +5,8 @@ import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
 import { assertPermission } from "@/lib/permissions";
 import { canLeadAcademics } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +36,7 @@ export async function PATCH(
     }
     await assertPermission(user, "ai", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const action = body?.action;
     if (action !== "approve" && action !== "reject") {
       return Response.json({ error: "action must be approve or reject" }, { status: 400 });

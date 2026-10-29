@@ -8,13 +8,15 @@ import {
   requireAuthUser,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { id, ...updates } = body;
     if (!id) throw new ApiError("User id is required", 400);
 

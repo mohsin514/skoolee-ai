@@ -10,6 +10,8 @@ import { seedRolePermissions } from "@/lib/auth/seed-permissions";
 import { createPlanContract } from "@/config/commercial-contract";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { z } from "zod";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 /** G3: the kind is decided when the tenant is provisioned; it is never inferred from campus counts later. */
 const registrationKindSchema = z.enum(["GROUP", "STANDALONE"]).default("GROUP");
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
     return errorResponse(error instanceof ApiError && error.status === 401 ? error : new ApiError("Only the platform operator can create a school.", 403));
   }
   try {
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const kind = registrationKindSchema.safeParse(body?.registrationKind ?? undefined);
     if (!kind.success) return Response.json({ error: { registrationKind: ["Choose GROUP or STANDALONE."] } }, { status: 400 });
     const parsed = onboardingSchema.safeParse(body);
