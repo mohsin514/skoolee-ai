@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { describeDatabaseTarget, pooledDatabaseUrl } from "../../src/lib/db/pool-url";
-import { describeError, loadWidget } from "../../src/lib/dashboard/widget";
+import { createWidgetLoader, dashboardConcurrency, describeError, loadWidget } from "../../src/lib/dashboard/widget";
 
 const POOLER = "postgresql://u:p@aws-0-x.pooler.supabase.com:6543/postgres?sslmode=require";
 
@@ -49,4 +49,32 @@ test("a failing widget degrades to its fallback and is recorded, others still lo
   } finally {
     console.error = original;
   }
+});
+
+test("SKAI-1032: the widget loader runs reads within the pool budget and degrades failures", async () => {
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const loader = createWidgetLoader("test", 2);
+    let active = 0;
+    let peak = 0;
+    const read = (value: number, fail = false) => async () => {
+      active += 1; peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active -= 1;
+      if (fail) throw Object.assign(new Error("Timed out fetching a new connection"), { code: "P2024" });
+      return value;
+    };
+    const results = await Promise.all([1, 2, 3, 4, 5].map((n) => loader.widget(`w${n}`, read(n, n === 3), 0)));
+    assert.deepEqual(results, [1, 2, 0, 4, 5]);
+    assert.equal(peak, 2);
+    assert.deepEqual(loader.degraded, ["w3"]);
+    await assert.rejects(() => loader.required("core", read(1, true)), /Timed out/);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(dashboardConcurrency({ DATABASE_URL: "postgresql://u:p@h:6543/db?connection_limit=3" }), 3);
+  assert.equal(dashboardConcurrency({ PRISMA_CONNECTION_LIMIT: "2" }), 2);
+  assert.equal(dashboardConcurrency({ VERCEL: "1" }), 1);
+  assert.equal(dashboardConcurrency({}), 5);
 });
