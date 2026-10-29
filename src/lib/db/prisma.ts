@@ -11,6 +11,7 @@ import {
   TenantContextError,
 } from "./tenant-context";
 import { GLOBAL_MODELS, TENANT_MODELS } from "./tenant-models";
+import { pooledDatabaseUrl } from "./pool-url";
 
 // ─────────────────────────────────────────────────────────────────
 // Tenant guard
@@ -434,7 +435,8 @@ function tenantGuard() {
 const prismaClientSingleton = () => {
   return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-    datasourceUrl: process.env.DATABASE_URL,
+    // SKAI-1038: pgbouncer + a small per-instance pool, so serverless instances cannot exhaust the pooler.
+    datasourceUrl: pooledDatabaseUrl(process.env.DATABASE_URL),
   }).$extends(tenantGuard());
 };
 
@@ -466,9 +468,9 @@ export type TxClient = Omit<
   "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
 >;
 
-if (process.env.NODE_ENV !== "production") {
-  globalThis.prisma = guardedClient;
-}
+// Cached in every environment (SKAI-1038): Next.js can evaluate this module more than once per server instance
+// (separate route/action bundles), and each evaluation would otherwise open a second pool.
+globalThis.prisma = guardedClient;
 
 // Now that the client exists, hand the guard its transaction entry point.
 rlsClient = prisma as unknown as RlsCapableClient;
