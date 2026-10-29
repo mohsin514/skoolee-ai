@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, canManageOperations } from "@/lib/api/scope";
@@ -34,8 +35,10 @@ export async function createCampusSubjects(user: AuthUser, input: SubjectInput) 
     // Existing rows (archived included) are skipped, so a retried or repeated pack never duplicates.
     const create = targets.flatMap(target => items.filter(item => !existing.some(row => row.classId === target.id && (normalize(row.name) === normalize(item.name) || item.code && row.code?.toUpperCase() === item.code))).map(item => ({ target, item })));
     if (!create.length) throw new ApiError(items.length > 1 ? "Every subject in this pack already exists in the selected sections." : "This subject already exists in the selected sections.", 409);
-    const created = [];
-    for (const { target, item } of create) created.push(await tx.subject.create({ data: { schoolId: user.schoolId, campusId: cls.campusId, classId: target.id, name: item.name, code: item.code, isElective: item.isElective, totalMarks, teacherId }, include: { class: { select: { id: true, name: true, section: true } }, teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } } }));
+    // One insert and one read keep a whole pack inside the transaction's time budget.
+    const rows = create.map(({ target, item }) => ({ id: randomUUID(), schoolId: user.schoolId, campusId: cls.campusId, classId: target.id, name: item.name, code: item.code, isElective: item.isElective, totalMarks, teacherId }));
+    await tx.subject.createMany({ data: rows });
+    const created = await tx.subject.findMany({ where: { schoolId: user.schoolId, id: { in: rows.map(row => row.id) } }, include: { class: { select: { id: true, name: true, section: true } }, teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } } });
     if (teacherId) for (const row of created) await recordTeachingAssignment(tx, user, { campusId: cls.campusId, classId: row.classId, subjectId: row.id, teacherId, from: effectiveDate(undefined) });
     const subject = created.find(row => row.classId === cls.id) ?? created[0]; await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "subject", recordId: subject.id, newValue: { names: [...new Set(created.map(row => row.name))], totalMarks, createdIds: created.map(row => row.id) }, userId: user.userId } }); return { subject, cls, createdCount: created.length, skippedCount: targets.length * items.length - created.length };
   });
