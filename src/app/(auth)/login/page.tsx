@@ -1,7 +1,7 @@
 "use client";
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
 import { useState, useEffect, useEffectEvent, useRef, useCallback, type CSSProperties } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm, useWatch, type Control } from "react-hook-form";
 import { safeReturnPath } from "@/lib/auth/return-path";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -244,7 +244,6 @@ function EmailTypoRescue({ control, language, onApply }: { control: Control<Logi
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { language, setLanguage, signInLanguage, clearExplicit } = useAuthLanguage();
   const t = copy[language];
@@ -405,7 +404,7 @@ export default function LoginPage() {
     if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) {
       // Carry the requested page through the second factor; it is validated again on landing.
       const requested = searchParams.get("redirect");
-      router.push(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
+      window.location.assign(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
       return;
     }
     toast.success(fillText(t.welcomeToast, user.fullName));
@@ -415,15 +414,21 @@ export default function LoginPage() {
     // before navigating away — a beat of confirmation feels more deliberate.
     await new Promise((resolve) => setTimeout(resolve, 550));
 
+    // SKAI-1021 / SKAI-1063: a full-document navigation, not router.push. A soft
+    // navigation keeps every module-level client cache (shell session, access map,
+    // router segment cache) from whatever identity this tab held before, and turns
+    // a proxy redirect on the RSC request into "nothing happened, still on /login".
+    // A document load starts the new identity from a clean JavaScript heap and lets
+    // the server's answer (console, onboarding, or a visible error) be what shows.
     if (user.mustChangePassword) {
-      router.push("/first-login");
+      window.location.assign("/first-login");
     } else if (user.role === "TEACHER" && !user.onboardingComplete) {
-      router.push("/teacher-onboarding");
+      window.location.assign("/teacher-onboarding");
     } else {
       // A deep link that sent the user here is honoured only inside their own role's area.
-      router.push(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
+      window.location.assign(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
     }
-  }, [router, t, searchParams]);
+  }, [t, searchParams]);
 
   /**
    * One request shape for both passes. The second pass adds `schoolId`, which

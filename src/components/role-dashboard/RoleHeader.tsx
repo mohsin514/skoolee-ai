@@ -5,7 +5,6 @@ import { Tooltip } from "@/components/ui/tooltip";
 
 import { SettingsModalHost } from "@/components/settings/SettingsModalHost";
 import { openSettings } from "@/components/settings/settings-sections";
-import { clearDeviceDrafts } from "@/lib/drafts/store";
 
 import Link from "next/link";
 import { AvatarImage } from "@/components/ui/avatar-image";
@@ -24,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { clearOnSignOut, pendingOnDevice } from "@/lib/offline/store";
-import { clearNavigationAccessCache } from "@/components/nav/NavigationAccess";
+import { signOutAndLeave } from "@/lib/auth/sign-out";
 import { dashboardPathForRole, type UserRole } from "@/lib/roles";
 
 
@@ -188,11 +187,10 @@ export function RoleHeader({
   const signOut = async () => {
     setSigningOut(true);
     clearOnSignOut();
-    clearDeviceDrafts();
-    // The shell's per-tab access cache never outlives the session it was confirmed for.
-    clearNavigationAccessCache();
-    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
-    window.location.href = "/login";
+    // SKAI-1021: drafts, the access map and the shell session are dropped, the server
+    // session is closed (with a retry), and only then is /login loaded — as a replace,
+    // so Back cannot repaint this console.
+    await signOutAndLeave();
   };
 
   const handleLogout = () => {

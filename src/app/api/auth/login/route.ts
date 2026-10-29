@@ -19,8 +19,10 @@ import { isPendingVerification } from "@/lib/auth/verification";
 const TIMING_HASH = "$2a$12$utCRA1dXQTT8A9JBh4zQcO9TcVl2Hmaznnf01qUhQ5.w6D/T6LQ6e";
 
 import {
+  SESSION_COOKIE_NAME,
   SESSION_DAYS,
 } from "@/lib/auth/session-cookie";
+import { endSession } from "@/lib/auth/session-revocation";
 import { clientIp } from "@/lib/http/client-ip";
 
 export async function POST(req: NextRequest) {
@@ -144,6 +146,13 @@ async function handleLogin(req: NextRequest) {
     }
 
     const user = usable[0];
+
+    // SKAI-1021: whatever session this browser still carries (a sign-out whose
+    // request never landed, a second tab, a stale cookie) is closed server-side
+    // before a new identity is issued, so it can never be resumed afterwards —
+    // even if an in-flight response later re-delivers that cookie.
+    const priorToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+    if (priorToken) await endSession(priorToken);
 
     // MFA users get their language applied only after the second factor (AC7).
     if (needsMfaChallenge(user)) return startMfa(user, sessionDays);
