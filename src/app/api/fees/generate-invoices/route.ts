@@ -16,6 +16,8 @@ import {
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { pickStructureForClass } from "@/lib/fees/structure-year";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function generateInvoiceNumber(campusId: string, year: number, sequence: number): string {
   const shortId = campusId.split("-").pop()?.slice(0, 4).toUpperCase() ?? "XX";
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = generateInvoicesSchema.safeParse(body);
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;

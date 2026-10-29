@@ -10,6 +10,8 @@ import {
   assertPermission,
 } from "@/lib/api/scope";
 import { studentScope } from "@/lib/auth/policy";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(
   req: NextRequest,
@@ -65,7 +67,7 @@ export async function PATCH(
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
 
     const { invoiceId } = await params;
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { status } = body;
 
     if (!["OVERDUE", "CANCELLED"].includes(status)) {

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, assertStaffRole, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { recordPayment } from "@/lib/fees/payment";
 import { conservationReport } from "@/lib/fees/bank-reconciliation";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-432: a committed bank statement is posted as payments in one reviewed step. Each matched row
 // becomes one payment keyed to its bank transaction, so a replay posts nothing twice; rows whose
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     assertStaffRole(user);
     await assertPermission(user, "fees", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     if (body.action !== "post") throw new ApiError("action must be post", 400);
     const result = await prisma.$transaction(async (tx) => {
       const rec = await tx.bankReconciliation.findFirst({ where: { id: String(body.id ?? ""), schoolId: user.schoolId } });
