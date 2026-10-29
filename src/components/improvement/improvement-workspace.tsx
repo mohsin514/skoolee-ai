@@ -18,6 +18,8 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { ClipboardCheck, FileDown, Layers, Plus } from "lucide-react";
 
 // SKO-450: improvement evidence workspace. Frameworks are school-configured references and no accreditation outcome
@@ -304,12 +306,14 @@ function ActionForm({ view, people, onDone }: { view: View; people: Person[]; on
   const ui = useUiText();
   const { busy, submit } = useSubmit(onDone);
   const [f, setF] = useState({ title: "", ownerId: "", dueDate: inDays(60), expectedMeasure: "", criterionIds: [] as string[] });
+  const draft = useFormDraft({ record: `principal:improvement-action:${view.framework.id}`, schema: 1, values: f, baseline: { title: "", ownerId: "", dueDate: inDays(60), expectedMeasure: "", criterionIds: [] }, fields: ["title", "ownerId", "dueDate", "expectedMeasure", "criterionIds"] as const, apply: (values) => setF({ title: String(values.title ?? ""), ownerId: String(values.ownerId ?? ""), dueDate: String(values.dueDate ?? inDays(60)), expectedMeasure: String(values.expectedMeasure ?? ""), criterionIds: Array.isArray(values.criterionIds) ? values.criterionIds.map(String) : [] }) });
   return <div className="space-y-3" data-action-form>
+    <DraftRecovery recordLabel={ui("Improvement action")} draft={draft} saving={busy} excluded={ui("Only action fields are stored in this signed-in browser draft.")} />
     <FormField name="ac-title" label={ui("Action")}><Input value={f.title} onChange={e => setF({ ...f, title: e.target.value })} dir="auto" data-action-title /></FormField>
     <div className="grid gap-2 sm:grid-cols-2"><FormField name="ac-owner" label={ui("Owner")}><Select value={f.ownerId} onChange={e => setF({ ...f, ownerId: e.target.value })} data-action-owner><option value="">{ui("Choose an owner")}</option>{people.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}</Select></FormField><FormField name="ac-due" label={ui("Due date")}><Input type="date" value={f.dueDate} onChange={e => setF({ ...f, dueDate: e.target.value })} data-action-due /></FormField></div>
     <FormField name="ac-measure" label={ui("Expected measure")}><Textarea value={f.expectedMeasure} onChange={e => setF({ ...f, expectedMeasure: e.target.value })} rows={2} dir="auto" data-action-measure /></FormField>
     <FormField name="ac-criteria" label={ui("Criteria")}><CriteriaPicker criteria={view.criteria} value={f.criterionIds} onChange={v => setF({ ...f, criterionIds: v })} name="action" /></FormField>
-    <Button disabled={busy || !f.title || !f.ownerId || f.expectedMeasure.length < 5 || !f.criterionIds.length} data-action-save onClick={() => submit({ action: "improvement", frameworkId: view.framework.id, ...f }, ui("Improvement action created."))}>{ui("Create an improvement action")}</Button>
+    <Button disabled={busy || !f.title || !f.ownerId || f.expectedMeasure.length < 5 || !f.criterionIds.length} data-action-save onClick={async () => { const result = await submit({ action: "improvement", frameworkId: view.framework.id, ...f }, ui("Improvement action created.")); if (result) draft.markSaved(); }}>{ui("Create an improvement action")}</Button>
   </div>;
 }
 

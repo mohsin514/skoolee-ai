@@ -233,7 +233,7 @@ export default function ReportsPage() {
   }, []);
 
   const saveRemarks = useCallback(async (remarks: { en: string; ur: string }) => {
-    if (!selectedReportCard) return;
+    if (!selectedReportCard) return false;
     setSavingRemarks(true);
     try {
       const res = await fetch(`/api/reports/${selectedReportCard.id}/remarks`, {
@@ -246,8 +246,10 @@ export default function ReportsPage() {
       toast.success(ui("Remarks saved."));
       setSelectedReportCard((prev: any) => ({ ...prev, ...result.reportCard }));
       await loadData();
+      return true;
     } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not save remarks. Please try again."))); }
     finally { setSavingRemarks(false); }
+    return false;
   }, [selectedReportCard, loadData, ui]);
 
   if (loading && !data) return <ReportsSkeleton />;

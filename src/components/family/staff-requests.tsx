@@ -17,6 +17,8 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Bus, CalendarCheck } from "lucide-react";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-421 staff side. Leave requests are decided here and never mark the register. Trip notices are
 // published as versions; a revision says whether it is a material change (fresh answers needed) and what
@@ -42,6 +44,7 @@ export function LearnerLeaveQueue() {
   const { date } = useLocaleFormat();
   const { data: rows, failure, isLoading, refetch: load } = useFetch<LeaveRow[]>("/api/attendance/leave", {collection:true});
   const [deciding, setDeciding] = useState<{ row: LeaveRow; action: "approve" | "decline" | "clarify" } | null>(null), [note, setNote] = useState(""), [busy, setBusy] = useState(false);
+  const decisionDraft = useFormDraft({ record: `staff:leave-decision:${deciding?.row.id ?? "none"}`, schema: 1, values: { note }, baseline: { note: "" }, fields: ["note"] as const, enabled: Boolean(deciding), apply: (values) => setNote(String(values.note ?? "")) });
   if (isLoading) return <SkeletonList rows={3} label={ui("Loading…")} />;
   if (failure) return <ErrorState error={failure} onRetry={load} />;
   if (!rows) return null;
@@ -54,8 +57,8 @@ export function LearnerLeaveQueue() {
       <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => setDeciding({ row, action: "approve" })} data-leave-approve>{ui("Approve")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "clarify" })} data-leave-clarify>{ui("Ask for more detail")}</Button><Button size="sm" variant="outline" onClick={() => setDeciding({ row, action: "decline" })} data-leave-decline>{ui("Decline")}</Button></div>
     </li>)}</ul> : <EmptyState size="sm" icon={CalendarCheck} title={ui("Nothing waiting.")} />}
     {deciding ? <Modal size="sm" title={deciding.action === "approve" ? ui("Approve leave") : deciding.action === "decline" ? ui("Decline leave") : ui("Ask for more detail")} eyebrow={ui("Attendance")} subtitle={deciding.row.studentName} onClose={() => setDeciding(null)}>
-      <div className="space-y-3"><FormField name="leave-note" label={deciding.action === "approve" ? ui("Note (optional)") : ui("Message to the family")}><Textarea value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "approve" && note.trim().length < 2} onClick={async () => { setBusy(true); try { await send("/api/attendance/leave", "POST", { id: deciding.row.id, action: deciding.action, note: note.trim() || undefined, knownVersion: deciding.row.version }); toast.success(ui("Decision recorded")); setDeciding(null); setNote(""); void load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} loading={busy} data-leave-confirm>{ui("Confirm")}</Button></div></div>
+      <div className="space-y-3"><DraftRecovery recordLabel={ui("Leave decision message")} draft={decisionDraft} saving={busy} excluded={ui("Only the decision message is stored in this signed-in browser draft.")} /><FormField name="leave-note" label={deciding.action === "approve" ? ui("Note (optional)") : ui("Message to the family")}><Textarea value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDeciding(null)}>{ui("Cancel")}</Button><Button disabled={busy || deciding.action !== "approve" && note.trim().length < 2} onClick={async () => { setBusy(true); try { await send("/api/attendance/leave", "POST", { id: deciding.row.id, action: deciding.action, note: note.trim() || undefined, knownVersion: deciding.row.version }); decisionDraft.markSaved(); toast.success(ui("Decision recorded")); setDeciding(null); setNote(""); void load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} loading={busy} data-leave-confirm>{ui("Confirm")}</Button></div></div>
     </Modal> : null}
   </div>;
 }

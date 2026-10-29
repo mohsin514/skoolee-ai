@@ -37,6 +37,8 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 
 // ─── shared bits ─────────────────────────────────────────
@@ -234,6 +236,22 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Handoff | null>(null);
 
+  const schoolDraftValues = { ...form, kind: kind ?? "" };
+  const schoolDraftBaseline = useMemo(() => ({ ...schoolDraftValues }), []);
+  const schoolDraft = useFormDraft({
+    record: `owner:provision-school:${workflowHandoffId ?? "new"}`,
+    schema: 1,
+    values: schoolDraftValues,
+    baseline: schoolDraftBaseline,
+    fields: ["schoolName", "city", "contactEmail", "ownerName", "ownerEmail", "phone", "campusName", "campusCity", "board", "address", "plan", "status", "kind"] as const,
+    enabled: !done,
+    apply: (next) => {
+      const { kind: nextKind, ...nextForm } = next;
+      setForm(nextForm as typeof form);
+      setKind(nextKind === "GROUP" || nextKind === "STANDALONE" ? nextKind : null);
+    },
+  });
+
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const planDef = PLANS[form.plan];
   // R7: numbers in the viewer's language and numbering system (locale tag), never the bare language.
@@ -310,6 +328,7 @@ export function ProvisionSchoolModal({ onClose, onCreated, prefill, workflowHand
       wide
     >
       <div className="space-y-6 p-6">
+        <DraftRecovery recordLabel={t("School provision")} draft={schoolDraft} saving={busy} excluded={t("Passwords are never stored in browser drafts.")} />
         {error && <ErrorBanner message={error} />}
 
         <fieldset className="space-y-3">

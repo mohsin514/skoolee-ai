@@ -5264,6 +5264,14 @@ function NewQueryModal({
   });
   const [busy, setBusy] = useState(false);
   const [attempted, setAttempted] = useState(false);
+  const draft = useFormDraft({
+    record: "admin:admission-enquiry",
+    schema: 1,
+    values: form,
+    baseline: { name: "", phone: "", email: "", classInterestedId: "", source: "WALK_IN", note: "" },
+    fields: ["name", "phone", "email", "classInterestedId", "source", "note"] as const,
+    apply: (values) => setForm({ name: String(values.name ?? ""), phone: String(values.phone ?? ""), email: String(values.email ?? ""), classInterestedId: String(values.classInterestedId ?? ""), source: String(values.source ?? "WALK_IN"), note: String(values.note ?? "") }),
+  });
   const dirty = Boolean(form.name || form.phone || form.email || form.note);
 
   // Group the flat class rows into their class groups (name + academic year)
@@ -5287,6 +5295,7 @@ function NewQueryModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiErrorMessage(data.error, ui("The enquiry could not be saved. Please try again.")));
+      draft.markSaved();
       toast.success(ui("Enquiry created"));
       onCreated();
     } catch (error) {
@@ -5309,6 +5318,7 @@ function NewQueryModal({
       footer={<SharedModalActions busy={busy} busyLabel={ui("Saving…")} actionLabel={ui("Create enquiry")} onCancel={onClose} onAction={submit} tone="emerald" />}
     >
       <div className="space-y-4">
+        <DraftRecovery recordLabel={ui("Admissions enquiry")} draft={draft} saving={busy} excluded={ui("Only enquiry fields are stored in this signed-in browser draft.")} />
         <FormField name="enquiry-name" label={ui("Name")} required error={nameError}>
           <SystemInput value={form.name} placeholder={ui("Guardian or student name")} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </FormField>

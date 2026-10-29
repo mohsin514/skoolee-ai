@@ -19,6 +19,8 @@ import type { PanelCommand } from "@/components/fees/fee-types";
 import { downloadCSV } from "@/lib/csv";
 
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-464: the postal and courier register. The queue opens on items still awaiting a handoff; closing an
 // item names who it was handed to, and a delivery also says how it was confirmed. Corrections need a reason
@@ -125,6 +127,14 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
   const ui = useUiText();
   const [form, setForm] = useState({ direction: "RECEIVE", date: todayText(), fromName: "", toName: "", courier: "", referenceNo: "", note: "", ownerId: "" });
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [receipt, setReceipt] = useState<string | null>(null);
+  const draft = useFormDraft({
+    record: "reception:postal-intake",
+    schema: 1,
+    values: form,
+    baseline: { direction: "RECEIVE", date: todayText(), fromName: "", toName: "", courier: "", referenceNo: "", note: "", ownerId: "" },
+    fields: ["direction", "date", "fromName", "toName", "courier", "referenceNo", "note", "ownerId"] as const,
+    apply: (values) => setForm({ direction: String(values.direction ?? "RECEIVE"), date: String(values.date ?? todayText()), fromName: String(values.fromName ?? ""), toName: String(values.toName ?? ""), courier: String(values.courier ?? ""), referenceNo: String(values.referenceNo ?? ""), note: String(values.note ?? ""), ownerId: String(values.ownerId ?? "") }),
+  });
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const set = (field: keyof typeof form) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
   const submit = async () => {
@@ -135,6 +145,7 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
     setBusy(true); setError("");
     try {
       const json = await send("POST", { ...payload, idempotencyKey: attempt.current.key });
+      draft.markSaved();
       setReceipt(json.data.itemCode);
       toast.success(json.replayed ? ui("This item was already recorded; nothing was added twice.") : ui("Item {0} recorded.", [json.data.itemCode]));
     } catch (failure) {
@@ -150,6 +161,7 @@ function IntakeDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: (
   </Modal>;
   return <Modal title={ui("Record item")} eyebrow={ui("Post and couriers")} subtitle={ui("Record only what is needed to hand the item over.")} onClose={onClose} dirty={Boolean(form.toName || form.referenceNo || form.note)}>
     <div className="space-y-3" data-postal-intake>
+      <DraftRecovery recordLabel={ui("Postal item")} draft={draft} saving={busy} excluded={ui("Only the handoff fields are stored in this signed-in browser draft.")} />
       {error ? <Alert tone="danger" compact data-postal-error>{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="postal-direction" label={ui("Direction")}><Select value={form.direction} onChange={set("direction")}><option value="RECEIVE">{ui("Incoming")}</option><option value="DISPATCH">{ui("Outgoing")}</option></Select></FormField>

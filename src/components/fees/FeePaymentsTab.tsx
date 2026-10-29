@@ -31,6 +31,8 @@ import {
 import { toast } from "@/components/ui/toast";
 import { Alert } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { BrandButton, EmptyState } from "@/components/role-dashboard";
 import { downloadPdfFile } from "@/lib/download";
@@ -396,6 +398,7 @@ function PaymentModal({
   const [receipt, setReceipt] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const restoredPaymentRef = useRef(false);
 
   const handleDownloadPdf = async () => {
     if (!receipt?.id) return;
@@ -460,6 +463,22 @@ function PaymentModal({
     }
   };
 
+  const paymentDraft = useFormDraft({
+    record: `accountant:payment:${campusId ?? "all"}`,
+    schema: 1,
+    values: { studentId: selectedStudent?.id ?? "", studentName: selectedStudent?.fullName ?? "", invoiceId: selectedInvoiceId, amount, fineAmount, discountAmount, note, paymentDate, paymentMethod, referenceNumber },
+    baseline: { studentId: "", studentName: "", invoiceId: "", amount: "", fineAmount: "", discountAmount: "", note: "", paymentDate: "", paymentMethod: "CASH", referenceNumber: "" },
+    fields: ["studentId", "studentName", "invoiceId", "amount", "fineAmount", "discountAmount", "note", "paymentDate", "paymentMethod", "referenceNumber"] as const,
+    enabled: step === "payment",
+    apply: (values) => {
+      setSelectedStudent(values.studentId ? { id: String(values.studentId), fullName: String(values.studentName ?? "") } : null);
+      setSelectedInvoiceId(String(values.invoiceId ?? "")); setAmount(String(values.amount ?? "")); setFineAmount(String(values.fineAmount ?? ""));
+      setDiscountAmount(String(values.discountAmount ?? "")); setNote(String(values.note ?? "")); setPaymentDate(String(values.paymentDate ?? ""));
+      setPaymentMethod(String(values.paymentMethod ?? "CASH")); setReferenceNumber(String(values.referenceNumber ?? "")); setStep("payment"); restoredPaymentRef.current = true;
+    },
+  });
+  useEffect(() => { if (!restoredPaymentRef.current || !selectedStudent?.id) return; restoredPaymentRef.current = false; void loadStudentInvoices(selectedStudent.id, selectedStudent); }, [selectedStudent]);
+
   const currency = invoices.find((invoice) => invoice.id === selectedInvoiceId)?.currency || campusCurrency;
   const collectKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
@@ -489,6 +508,7 @@ function PaymentModal({
       });
       const json = await res.json();
       if (json.success) {
+        paymentDraft.markSaved();
         setReceipt({
           currency,
           id: json.data?.paymentId || "",
@@ -604,6 +624,7 @@ function PaymentModal({
           </div>
         ) : step === "search" ? (
           <div className="space-y-4">
+            <DraftRecovery recordLabel={tr("Payment draft")} draft={paymentDraft} saving={saving} excluded={tr("Only student, invoice and payment fields are stored in this signed-in browser draft.")} />
             <div>
               <label className="text-2xs font-semibold uppercase tracking-wider text-ink-subtle block mb-1"><UiText>{"Find student"}</UiText></label>
               <div className="flex gap-2">
