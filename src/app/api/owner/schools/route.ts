@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
       establishedYear: school.establishedYear,
       status: school.status,
       plan: school.plan,
+      dataRegion: school.dataRegion,
       aiCreditsUsed: school.aiCreditsUsed,
       aiCreditsLimit: school.aiCreditsLimit,
       aiWorkflowsLiveAt: school.aiWorkflowsLiveAt,
