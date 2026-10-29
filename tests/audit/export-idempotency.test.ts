@@ -55,3 +55,17 @@ test("reusing a requestKey with different filters is rejected", async () => {
   await exportAuditHistory(admin, { requestKey: key }, allow, db);
   await assert.rejects(() => exportAuditHistory(admin, { requestKey: key, tableName: "students" }, allow, db), { status: 409 });
 });
+
+test("a retry still replays when the stored filters come back in a different key order (JSONB)", async () => {
+  const { db, rows, add } = fakeDb();
+  add({ schoolId: "s1", tableName: "students", recordId: "st1", userId: "u1", newValue: { status: "ACTIVE" } });
+  const key = randomUUID();
+  const input = { requestKey: key, from: "2026-10-01", to: "2026-10-29" };
+  const first = await exportAuditHistory(admin, input, allow, db, new Date("2026-10-29T10:00:00Z"));
+  // Postgres JSONB stores object keys shortest-first, so the receipt reads back reordered.
+  const receipt = rows.find(r => r.tableName === "audit_log_exports" && r.recordId === key)!;
+  const stored = receipt.newValue as { filters: Record<string, unknown> };
+  stored.filters = Object.fromEntries(Object.entries(stored.filters).sort(([a], [b]) => a.length - b.length || a.localeCompare(b)));
+  const retry = await exportAuditHistory(admin, input, allow, db, new Date("2026-10-30T10:00:00Z"));
+  assert.deepEqual(retry, first);
+});
