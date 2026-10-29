@@ -21,7 +21,7 @@ Packs are scored separately and never pooled (D2).
 - Items are written by educators, not by the AI and not by the engineering team. Each has a stem, a reference answer, a mark allocation and a **synthetic** learner response for the AI to mark. No real student work and no personal data. The runner refuses any prompt that fails `assertNoPII`.
 - Format: `evaluation/educator/items/<pack>/<language>/items.json`, schema in `src/lib/ai-evaluation/educator/item-set.ts` (schema version 1).
 - A set is **frozen** before scoring with `pnpm eval:educator freeze <items.json>`, which records a SHA-256 of its content. The runner refuses any set that is not frozen, was edited after freezing, contains placeholders, or has fewer than 30 items.
-- The repository holds only **placeholder sets** (two items each, `"placeholder": true`). They exist to test the tooling and are never recorded as results.
+- The repository holds only **placeholder sets** (one item each, `"placeholder": true`). They exist to test the tooling and are never recorded as results.
 
 ## 3. Rubric (per item, per reviewer)
 

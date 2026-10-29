@@ -6,7 +6,7 @@
   "placeholder": true,
   "frozen": {
     "frozenAt": "2026-10-29T00:00:00.000Z",
-    "contentSha256": "e0c9e4fa8c74a6e25b83014e4601f5bfd6c623c5b628151bd3ec94c785630805"
+    "contentSha256": "fad55e19b9125f81b3a5fa6a72d97dd213fa81323e7797e401ea8619d61e50f4"
   },
   "items": [
     {
@@ -14,16 +14,6 @@
       "topic": "PLACEHOLDER",
       "difficulty": "easy",
       "stem": "PLACEHOLDER item 1 - not an evaluation item. Educators replace this set (D5-02); solve x + 1 = 4.",
-      "referenceAnswer": "x = 3",
-      "maxMarks": 1,
-      "syntheticResponse": "x = 3",
-      "placeholder": true
-    },
-    {
-      "id": "placeholder-2",
-      "topic": "PLACEHOLDER",
-      "difficulty": "easy",
-      "stem": "PLACEHOLDER item 2 - not an evaluation item. Educators replace this set (D5-02); solve x + 2 = 5.",
       "referenceAnswer": "x = 3",
       "maxMarks": 1,
       "syntheticResponse": "x = 3",
