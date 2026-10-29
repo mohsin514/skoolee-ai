@@ -6486,6 +6486,57 @@ model AuthAttempt {
   @@map("auth_attempts")
 }
 
+// SKAI-954 / SKAI-1061: phone OTP challenges. Pre-authentication and keyed by hashes:
+// the phone number and code are never stored in clear. Platform-global like AuthAttempt.
+model PhoneOtpChallenge {
+  id               String        @id @default(uuid())
+  purpose          String // guardian_sign_in | staff_second_factor
+  phoneHash        String        @map("phone_hash")
+  market           String
+  /**
+   * Staff second factor only: the already-authenticated user the code is bound to.
+   */
+  userId           String?       @map("user_id")
+  flowHash         String        @map("flow_hash")
+  codeHash         String        @map("code_hash")
+  fallbackCodeHash String?       @map("fallback_code_hash")
+  language         String        @default("en")
+  attempts         Int           @default(0)
+  expiresAt        DateTime      @map("expires_at")
+  verifiedAt       DateTime?     @map("verified_at")
+  consumedAt       DateTime?     @map("consumed_at")
+  supersededAt     DateTime?     @map("superseded_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  deliveries       OtpDelivery[]
+
+  @@index([phoneHash, createdAt])
+  @@index([expiresAt])
+  @@map("phone_otp_challenges")
+}
+
+// SKAI-954 / SKAI-897 (V5/V6): one row per OTP send attempt — channel, cost, delivery timing, verification.
+model OtpDelivery {
+  id                String            @id @default(uuid())
+  challengeId       String            @map("challenge_id")
+  challenge         PhoneOtpChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  market            String
+  channel           String // whatsapp | sms
+  provider          String
+  providerMessageId String?           @unique @map("provider_message_id")
+  isFallback        Boolean           @default(false) @map("is_fallback")
+  status            String // sent | delivered | read | failed | not_on_whatsapp
+  errorCode         String?           @map("error_code")
+  costMicroUsd      Int?              @map("cost_micro_usd")
+  costVerified      Boolean           @default(false) @map("cost_verified")
+  sentAt            DateTime          @default(now()) @map("sent_at")
+  deliveredAt       DateTime?         @map("delivered_at")
+  verifiedAt        DateTime?         @map("verified_at")
+
+  @@index([challengeId])
+  @@index([market, sentAt])
+  @@map("otp_deliveries")
+}
+
 // Append-only effective-dated locale policies. Campus rows contain only overrides.
 model LocalePolicy {
   status String @default("ACTIVE")

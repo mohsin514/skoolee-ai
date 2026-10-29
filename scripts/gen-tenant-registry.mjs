@@ -26,6 +26,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  */
 const GLOBAL = [
   "AuthAttempt", // Cross-instance pre-auth throttles, keyed only by SHA-256.
+  "PhoneOtpChallenge", "OtpDelivery", // SKAI-954: pre-auth phone OTP, keyed by hashes; no tenant payload.
   "School",
   "PlatformConfig",
   "PendingRegistration",
