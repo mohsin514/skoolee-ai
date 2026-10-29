@@ -29,6 +29,9 @@ export const studentProfileUpdateSchema = z.object({
   medications: optionalText,
   previousSchool: optionalText,
   nationality: optionalText,
+  // SKAI-1149: validated and normalised in the route (src/lib/identity/regulator-ids.ts).
+  emiratesId: optionalText,
+  regulatorId: optionalText,
   gender: z.union([z.enum(["MALE", "FEMALE", "OTHER"]), z.literal("")]).nullish(),
   bloodType: optionalText,
   status: optionalText,

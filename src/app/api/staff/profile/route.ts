@@ -2,6 +2,7 @@ import { campusScope } from "@/lib/auth/policy";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
+import { parseEmiratesId, parseNationality, parseRegulatorId, regulatorAuditChange } from "@/lib/identity/regulator-ids";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
@@ -123,6 +124,12 @@ export async function PATCH(req: NextRequest) {
     if (body.bankAccountName !== undefined) data.bankAccountName = String(body.bankAccountName ?? "").trim() || null;
     if (body.bankAccountNumber !== undefined) data.bankAccountNumber = String(body.bankAccountNumber ?? "").trim() || null;
     if (body.bankName !== undefined) data.bankName = String(body.bankName ?? "").trim() || null;
+    // SKAI-1149: regulator fields are validated and normalised; a malformed value is refused, never dropped.
+    for (const [key, parse] of [["emiratesId", parseEmiratesId], ["nationality", parseNationality], ["regulatorId", parseRegulatorId]] as const) {
+      if (body[key] === undefined) continue;
+      try { data[key] = parse(body[key]); } catch (error) { throw new ApiError((error as Error).message, 400); }
+    }
+    const regulatorChange = regulatorAuditChange(existing ?? {}, data as Record<string, string | null | undefined>);
 
     const events: Array<{ kind: string; title: string; detail: string }> = [];
     const changed = (before: unknown, after: unknown) =>
@@ -170,13 +177,15 @@ export async function PATCH(req: NextRequest) {
           data: events.map((e) => ({ ...e, userId, actorId: user.userId })),
         });
       }
-      // Field names, contract type and salary only; bank details and labels stay out.
+      // Field names, contract type and salary only; bank details and labels stay out, regulator IDs masked.
       await writeAuditEvent(tx, user, {
         table: "staff_profiles", recordId: saved.id, action: existing ? "UPDATE" : "CREATE",
         ...(existing ? { before: { contractType: current.contractType, basicSalary: current.basicSalary } } : {}),
         after: {
           userId, fieldsChanged: Object.keys(data).sort().join(","), contractType: saved.contractType ?? null, basicSalary: saved.basicSalary,
           bankDetailsChanged: ["bankAccountName", "bankAccountNumber", "bankName"].some((field) => inBody(field) && changed(current[field as keyof typeof current], data[field])),
+          // Identifiers are masked to the last four characters (regulatorAuditChange).
+          ...Object.fromEntries(regulatorChange.fields.flatMap((field) => [[`${field}From`, regulatorChange.from[field]], [`${field}To`, regulatorChange.to[field]]])),
         },
       });
       return saved;

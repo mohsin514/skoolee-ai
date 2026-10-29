@@ -7,6 +7,17 @@
  * اسکول منتظم, group admin = مدير المجموعة / ادارے کا منتظم, principal = المدير / پرنسپل.
  */
 const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
+  // SKAI-1149: regulator field set on student and staff records.
+  ["Emirates ID", "رقم الهوية الإماراتية", "امارات آئی ڈی"],
+  ["eSIS / MOE ID", "رقم eSIS / وزارة التربية", "eSIS / MOE آئی ڈی"],
+  ["Regulator record number", "رقم السجل لدى الجهة التنظيمية", "ریگولیٹر ریکارڈ نمبر"],
+  ["Regulator IDs", "أرقام الجهات التنظيمية", "ریگولیٹر آئی ڈیز"],
+  ["Optional. Used for UAE regulator returns (KHDA, ADEK, SPEA, MOE).", "اختياري. يُستخدم في تقارير الجهات التنظيمية في الإمارات (KHDA وADEK وSPEA ووزارة التربية).", "اختیاری۔ متحدہ عرب امارات کے ریگولیٹر گوشواروں (KHDA، ADEK، SPEA، MOE) کے لیے۔"],
+  ["Emirates ID may contain only digits, spaces and dashes.", "يجب أن يحتوي رقم الهوية الإماراتية على أرقام ومسافات وشرطات فقط.", "امارات آئی ڈی میں صرف ہندسے، خالی جگہ اور ڈیش ہو سکتے ہیں۔"],
+  ["Emirates ID must be 15 digits starting with 784.", "يجب أن يتكوّن رقم الهوية الإماراتية من 15 رقمًا يبدأ بـ 784.", "امارات آئی ڈی 784 سے شروع ہونے والے 15 ہندسوں کی ہونی چاہیے۔"],
+  ["Emirates ID check digit does not match. Check the number on the card.", "رقم التحقق في الهوية الإماراتية غير مطابق. تحقّق من الرقم على البطاقة.", "امارات آئی ڈی کا چیک ہندسہ میل نہیں کھاتا۔ کارڈ پر نمبر دیکھیں۔"],
+  ["eSIS / MOE ID may contain only letters, digits and dashes (up to 30).", "يجب أن يحتوي رقم eSIS / وزارة التربية على حروف وأرقام وشرطات فقط (حتى 30).", "eSIS / MOE آئی ڈی میں صرف حروف، ہندسے اور ڈیش ہو سکتے ہیں (زیادہ سے زیادہ 30)۔"],
+  ["Nationality must be 60 characters or fewer.", "يجب ألا تتجاوز الجنسية 60 حرفًا.", "قومیت 60 حروف یا اس سے کم ہونی چاہیے۔"],
   ["Login ready", "الدخول جاهز", "لاگ اِن تیار ہے"],
   ["Enrolment history", "سجل التسجيل", "داخلے کی تاریخ"],
   ["\"{0}\" created with no sections", "تم إنشاء \"{0}\" بدون شُعب", "\"{0}\" بغیر سیکشن کے بنا دی گئی"],
