@@ -11,7 +11,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Accessibility, Archive, ArrowRightLeft, Award, BadgeCheck, Banknote, BarChart3, BedDouble, BookCheck, BookCopy, BookOpen, Building2,
   Bus, CalendarCheck, CalendarClock, CalendarDays, CalendarRange, ClipboardCheck, ClipboardList, Clock, Compass, ConciergeBell,
-  Contact, CreditCard, Crown, DollarSign, DoorOpen, FileCheck2, FileText, FlaskConical, FolderOpen, Gauge, GraduationCap,
+  Coins, Contact, CreditCard, Crown, DollarSign, DoorOpen, FileCheck2, FileText, FlaskConical, FolderOpen, Gauge, GraduationCap,
   HeartHandshake, History, House, Inbox, Landmark, Layers, LayoutDashboard, LayoutGrid, Library, Lightbulb, Lock, Mail,
   MessageCircle, MessageSquareWarning, MonitorCheck, Network, Package, PenLine, PhoneCall, Plane, Receipt, ScanLine, Scale,
   School, ScrollText, Send, Settings, Shield, ShieldCheck, SlidersHorizontal, Sparkles, Sun, Tag, Target, Trophy, UserCheck,
@@ -435,6 +435,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
         leaf("pilot-readiness", "Pilot readiness", ShieldCheck, v("pilot-readiness")),
         leaf("curriculum-packs", "Curriculum catalogue", BookCheck, v("curriculum-packs")),
         leaf("capacity", "Capacity", Gauge, v("capacity")),
+        leaf("ai-cost", "AI cost per credit", Coins, v("ai-cost")),
       ]),
     ],
     accountMenu: [], aliases: {}, retired: {},

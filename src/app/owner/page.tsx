@@ -102,6 +102,7 @@ import { PilotEvidence } from "@/components/owner/PilotEvidence";
 import { PilotReadinessConsole } from "@/components/owner/PilotReadinessConsole";
 import { CurriculumCatalogue } from "@/components/owner/CurriculumCatalogue";
 import { CapacityReport } from "@/components/owner/CapacityReport";
+import { AiCostReport } from "@/components/owner/AiCostReport";
 
 type Tr = ReturnType<typeof useUiText>;
 
@@ -470,6 +471,7 @@ export default function OwnerDashboard() {
         {view === "pilot-readiness" && <PilotReadinessConsole />}
         {view === "curriculum-packs" && <CurriculumCatalogue />}
         {view === "capacity" && <CapacityReport />}
+        {view === "ai-cost" && <AiCostReport />}
       </section>
     </RoleShell>
   );
