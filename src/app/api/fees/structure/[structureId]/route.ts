@@ -10,6 +10,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
 
 export async function PUT(
   req: NextRequest,
@@ -37,9 +38,15 @@ export async function PUT(
     const oneTimeFeesJson = parsed.data.oneTimeFeesJson ? JSON.parse(parsed.data.oneTimeFeesJson) : undefined;
     const discountRulesJson = parsed.data.discountRulesJson ? JSON.parse(parsed.data.discountRulesJson) : undefined;
 
-    const structure = await prisma.feeStructure.update({
+    // SKAI-1123: the structure edit, the year, and the re-pricing of unpaid PENDING invoices commit together.
+    const { structure, recomputed } = await prisma.$transaction(async (tx) => {
+    const academicYearId = body.academicYearId !== undefined
+      ? await resolveFeeStructureYearId(tx, user.schoolId, existing.campusId, body.academicYearId)
+      : existing.academicYearId;
+    const structure = await tx.feeStructure.update({
       where: { id: structureId },
       data: {
+        academicYearId,
         classId: parsed.data.classId,
         monthlyFee: parsed.data.monthlyFee,
         oneTimeFeesJson: oneTimeFeesJson as any,
@@ -53,17 +60,22 @@ export async function PUT(
         updatedBy: user.userId,
       },
       include: {
-        class: { select: { id: true, name: true, section: true } },
+        class: { select: { id: true, name: true, section: true, academicYear: true } },
       },
     });
 
-    await prisma.auditLog.create({
+    const recomputed = await recomputePendingInvoices(tx, user, structure);
+
+    await tx.auditLog.create({
       data: {
         tableName: "fee_structure",
         recordId: structure.id,
-        newValue: { action: "update", classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee },
+        oldValue: { classId: existing.classId, monthlyFee: existing.monthlyFee, academicYearId: existing.academicYearId },
+        newValue: { action: "update", classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee, academicYearId, invoicesRecomputed: recomputed.updated },
         userId: user.userId,
       },
+    });
+    return { structure, recomputed };
     });
 
     notify("FEE_STRUCTURE_UPDATED", {
@@ -77,6 +89,7 @@ export async function PUT(
     return Response.json({
       success: true,
       data: structure,
+      invoicesRecomputed: recomputed.updated,
       message: `Fee structure updated for ${structure.class.name}`,
     });
   } catch (error) {

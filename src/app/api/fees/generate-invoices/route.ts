@@ -15,6 +15,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { pickStructureForClass } from "@/lib/fees/structure-year";
 
 function generateInvoiceNumber(campusId: string, year: number, sequence: number): string {
   const shortId = campusId.split("-").pop()?.slice(0, 4).toUpperCase() ?? "XX";
@@ -72,12 +73,17 @@ export async function POST(req: NextRequest) {
         activeFrom: { lte: dueDate },
         OR: [{ activeTo: { gte: invoiceDate } }, { activeTo: null }],
       },
-      include: { class: true },
+      include: { class: true, academicYear: { select: { academicYear: true } } },
       orderBy: { activeFrom: "desc" },
     });
 
+    // SKAI-1123: a class is billed from the structure priced for its own academic year.
     const feeMap = new Map<string, typeof feeStructures[number]>();
-    for (const structure of feeStructures) if (!feeMap.has(structure.classId)) feeMap.set(structure.classId, structure);
+    for (const student of students) {
+      if (feeMap.has(student.classId)) continue;
+      const picked = pickStructureForClass(feeStructures, student.classId, student.class.academicYear);
+      if (picked) feeMap.set(student.classId, picked);
+    }
     const enrollments = await tx.studentEnrollment.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: students.map(student => student.id) }, NOT: { origin: { startsWith: "LEGACY" } } }, select: { id: true, studentId: true, classId: true, academicYear: true, startDate: true, endDate: true } });
 
     const maxSeq = await tx.invoice.findFirst({

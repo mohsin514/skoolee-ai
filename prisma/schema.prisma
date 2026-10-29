@@ -2328,6 +2328,10 @@ model FeeStructure {
   campus            Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
   classId           String    @map("class_id")
   class             Class     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  /// SKAI-1123: the academic year (campus AcademicCycle) this structure prices. Null only for legacy rows
+  /// whose campus had no active cycle at backfill time.
+  academicYearId    String?        @map("academic_year_id")
+  academicYear      AcademicCycle? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
   monthlyFee        Int       @map("monthly_fee")
   oneTimeFeesJson   Json?     @map("one_time_fees_json")
   installmentType   String?   @map("installment_type")
@@ -2344,8 +2348,9 @@ model FeeStructure {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  @@unique([classId, activeFrom])
+  @@unique([classId, academicYearId, activeFrom])
   @@index([campusId, classId])
+  @@index([academicYearId])
   @@index([schoolId])
   @@map("fee_structures")
 }
@@ -5315,6 +5320,8 @@ model AcademicCycle {
   endDate      DateTime? @map("end_date") @db.Date
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  feeStructures FeeStructure[]
 
   @@unique([campusId, academicYear])
   @@index([campusId, status])

@@ -11,6 +11,7 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { resolveFeeStructureYearId } from "@/lib/fees/structure-year";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,12 +27,20 @@ export async function GET(req: NextRequest) {
     if (campusId) where.campusId = campusId;
     if (classId) where.classId = classId;
     where.campus = { schoolId: user.schoolId };
+    // SKAI-1123: scoped to one academic year. ?academicYearId=<cycle> picks a year, "all" lists every year;
+    // by default the campus's active year (plus legacy year-less rows) is shown.
+    const requestedYear = searchParams.get("academicYearId");
+    if (requestedYear !== "all") {
+      const yearId = campusId ? await resolveFeeStructureYearId(prisma, user.schoolId, campusId, requestedYear) : requestedYear;
+      if (yearId) where.OR = requestedYear ? [{ academicYearId: yearId }] : [{ academicYearId: yearId }, { academicYearId: null }];
+    }
 
     const structures = await prisma.feeStructure.findMany({
       where,
       include: {
         class: { select: { id: true, name: true, section: true } },
         campus: { select: { id: true, name: true } },
+        academicYear: { select: { id: true, label: true, academicYear: true, status: true } },
       },
       orderBy: [{ activeFrom: "desc" }],
     });
@@ -62,14 +71,16 @@ export async function POST(req: NextRequest) {
     const oneTimeFeesJson = parsed.data.oneTimeFeesJson ? JSON.parse(parsed.data.oneTimeFeesJson) : undefined;
     const discountRulesJson = parsed.data.discountRulesJson ? JSON.parse(parsed.data.discountRulesJson) : undefined;
 
+    const academicYearId = await resolveFeeStructureYearId(prisma, user.schoolId, campusId, body.academicYearId);
     const existing = await prisma.feeStructure.findFirst({
-      where: { classId: parsed.data.classId, activeFrom },
+      where: { classId: parsed.data.classId, academicYearId, activeFrom },
       select: { id: true },
     });
 
     const data: any = {
       campusId,
       classId: parsed.data.classId,
+      academicYearId,
       monthlyFee: parsed.data.monthlyFee,
       oneTimeFeesJson: oneTimeFeesJson as any,
       installmentType: parsed.data.installmentType ?? undefined,
