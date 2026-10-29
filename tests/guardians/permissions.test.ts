@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { EMPTY_GUARDIAN_PERMISSIONS, hasGuardianPermission, parseGuardianPermissions } from "../../src/lib/parent/guardian-permissions";
-import { guardianStudentWhere, liveGuardianRelationshipWhere } from "../../src/lib/parent/guardian-query";
+import { anyLiveGuardianRelationshipWhere, guardianStudentWhere, liveGuardianRelationshipWhere } from "../../src/lib/parent/guardian-query";
 
 test("missing and malformed guardian grants deny every capability", () => {
   for (const value of [null, undefined, "learningRecords", [], { learningRecords: 1, consents: { fieldTrips: "true" } }]) {
@@ -66,4 +66,12 @@ test("revoked and expired guardian links fail the live communication predicate",
       permissions: { path: ["communication"], equals: false },
     },
   });
+});
+
+test("staff directory relationship scopes communication to any live guardian", () => {
+  const at = new Date("2026-10-29T00:00:00.000Z");
+  const query = anyLiveGuardianRelationshipWhere("communication", at);
+  assert.equal(query.guardianUserId, undefined);
+  const versions = query.accessVersions as { some: Record<string, unknown> };
+  assert.deepEqual(versions.some.permissions, { path: ["communication"], equals: true });
 });

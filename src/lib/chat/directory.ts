@@ -14,7 +14,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type { AuthUser } from "@/lib/auth";
 import { type UserRole } from "@/lib/roles";
-import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
+import { anyLiveGuardianRelationshipWhere, liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
 import {
   LEADERSHIP_ROLES,
   STAFF_ROLES,
@@ -69,7 +69,7 @@ async function familyIdsForTeacher(userId: string): Promise<string[]> {
 
   const roster = await prisma.student.findMany({
     where: { classId: { in: classIds }, status: "active" },
-    select: { studentUserId: true, guardianRelationships: { where: liveGuardianRelationshipWhere(userId, "communication"), select: { guardianUserId: true } } },
+    select: { studentUserId: true, guardianRelationships: { where: anyLiveGuardianRelationshipWhere("communication"), select: { guardianUserId: true } } },
   });
 
   const ids = new Set<string>();
