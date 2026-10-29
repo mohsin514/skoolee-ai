@@ -568,6 +568,19 @@ const entries: [string, string, string][] = [
 ["The AI Workflows setting could not be changed. Please try again.", "تعذّر تغيير إعداد مهام الذكاء الاصطناعي. يُرجى المحاولة مرة أخرى.", "AI ورک فلوز کی ترتیب تبدیل نہیں ہو سکی۔ براہ کرم دوبارہ کوشش کریں۔"],
 ["AI Workflows turned live", "تم تفعيل مهام الذكاء الاصطناعي", "AI ورک فلوز فعال کیے گئے"],
 ["AI Workflows back in practice mode", "عادت مهام الذكاء الاصطناعي إلى وضع التدريب", "AI ورک فلوز واپس پریکٹس موڈ میں"],
+// SKAI-942 / SKAI-943: admission form required-field messages.
+["Student name is required", "اسم الطالب مطلوب", "طالب علم کا نام ضروری ہے"],
+["Roll number is required", "رقم القيد مطلوب", "رول نمبر ضروری ہے"],
+["Class is required", "الصف مطلوب", "کلاس ضروری ہے"],
+["Student must be at least 3 years old", "يجب ألا يقل عمر الطالب عن 3 سنوات", "طالب علم کی عمر کم از کم 3 سال ہونی چاہیے"],
+["Enter a valid email address", "أدخل بريدًا إلكترونيًا صالحًا", "درست ای میل پتہ درج کریں"],
+["Must be different from student email", "يجب أن يختلف عن بريد الطالب الإلكتروني", "طالب علم کی ای میل سے مختلف ہونا چاہیے"],
+["Guardian name is required", "اسم ولي الأمر مطلوب", "سرپرست کا نام ضروری ہے"],
+["Guardian phone number is required", "رقم هاتف ولي الأمر مطلوب", "سرپرست کا فون نمبر ضروری ہے"],
+["Guardian name and phone are required. Use Edit to go back and fill them in.", "اسم ولي الأمر وهاتفه مطلوبان. استخدم «تعديل» للرجوع وإكمالهما.", "سرپرست کا نام اور فون ضروری ہیں۔ واپس جا کر درج کرنے کے لیے ترمیم استعمال کریں۔"],
+["Street address is required", "عنوان الشارع مطلوب", "گلی کا پتہ ضروری ہے"],
+["City is required", "المدينة مطلوبة", "شہر ضروری ہے"],
+["Medical notes are required (enter 'None' if not applicable)", "الملاحظات الطبية مطلوبة (اكتب «لا يوجد» إن لم تنطبق)", "طبی نوٹس ضروری ہیں (اگر لاگو نہ ہو تو 'کوئی نہیں' لکھیں)"],
 ];
 export const arabicWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, ar]) => [key, ar]));
 export const urduWorkflowUi: Record<string, string> = Object.fromEntries(entries.map(([key, , ur]) => [key, ur]));
