@@ -16,6 +16,7 @@ import { Archive, MoreHorizontal, Pencil, ScrollText } from "lucide-react";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-429: school leaders write and approve policy versions (audience, office, effective dates,
 // numbered sections), answer escalated questions and check the assistant against owner questions.
@@ -32,7 +33,7 @@ const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approv
 async function call(url: string, init?: RequestInit) {
   const response = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json" } }).catch(() => null);
   const json = await response?.json().catch(() => null);
-  if (!response?.ok || !json?.success) throw new Error(json?.error || "");
+  if (!response?.ok || !isApiOk(json)) throw new Error(readApiError(json, ""));
   return json.data;
 }
 const blank = () => ({ topic: "", title: "", office: "GENERAL", audience: "FAMILY", effectiveFrom: new Date().toISOString().slice(0, 10), effectiveUntil: "", sections: [{ id: "1", heading: "", text: "" }] as Section[] });

@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
-import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok as envelopeOk } from "@/lib/api/envelope";
 import * as policy from "@/lib/group-policy/service";
 
 export const runtime = "nodejs";
 
 const headers = { "Cache-Control": "private, no-store" };
-const ok = (data: unknown, status = 200) => Response.json({ success: true, data }, { status, headers });
+const ok = (data: unknown, status = 200) => envelopeOk(data, { status, headers });
 
 // SKO-443: group policy. GET ?view=campus&campusId=&domain=&at= | library | preview&versionId=&effectiveFrom= |
 // history&templateId= | provenance&recordType=&recordId=. POST {action: template | draft | submit | review |
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
       case "provenance": return ok(await policy.provenanceFor(user, p.get("recordType") ?? "", p.get("recordId") ?? ""));
       default: throw new ApiError("Unknown view", 400);
     }
-  } catch (error) { return errorResponse(error, "[group-policy] GET failed"); }
+  } catch (error) { return failFrom(error, "[group-policy] GET failed"); }
 }
 
 export async function POST(request: NextRequest) {
@@ -40,5 +41,5 @@ export async function POST(request: NextRequest) {
       case "revoke-override": return ok(await policy.revokeOverride(user, String(body.id ?? "")));
       default: throw new ApiError("Unknown action", 400);
     }
-  } catch (error) { return errorResponse(error, "[group-policy] POST failed"); }
+  } catch (error) { return failFrom(error, "[group-policy] POST failed"); }
 }

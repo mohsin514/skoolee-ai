@@ -4,10 +4,10 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import {
   ApiError,
   canManageCampusOps,
-  errorResponse,
   requireAuthUser,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -98,8 +98,8 @@ export async function PATCH(req: NextRequest) {
       return next;
     });
 
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[users] PATCH failed");
+    return failFrom(error, "[users] PATCH failed");
   }
 }

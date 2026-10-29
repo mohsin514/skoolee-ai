@@ -171,6 +171,7 @@ import {
   classLabel,
 } from "@/components/shared-admin";
 import { AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/AiWorkflowsHome";
+import { readApiError } from "@/lib/api/envelope-client";
 
 /* ────────────────────────── Session (names for "Managed by" copy) ────────────────────────── */
 
@@ -856,7 +857,7 @@ export default function CampusConsolePage() {
     try {
       const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: teacherId, ...updates }) });
       const result = await res.json();
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, failed));
+      if (!res.ok) throw new Error(readApiError(result, failed));
       toast.success(ui("Teacher updated"));
       setSelectedTeacher((current: any) => (current?.id === teacherId ? { ...current, ...result.data } : current));
       await loadData();
