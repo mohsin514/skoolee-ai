@@ -51,6 +51,23 @@
   "source": "appendix-a"
  },
  {
+  "key": "academic.calendar.update_holiday",
+  "cluster": "C1 Academic structure",
+  "method": "PUT",
+  "route": "/api/academic/calendar",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "partial",
+  "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "academic.class.archive",
   "cluster": "C1 Academic structure",
   "method": "DELETE",

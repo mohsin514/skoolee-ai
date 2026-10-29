@@ -1,21 +1,21 @@
 # AI Workflows capability coverage (generated — do not edit)
 
-Total capabilities: **886**; connected: **148**.
+Total capabilities: **887**; connected: **148**.
 
-Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 49 · UPDATE 272
+Risk: ACCESS_GRANT 57 · APPROVAL_DECISION 72 · COMMUNICATION 40 · CREATE 229 · DESTRUCTIVE 79 · FINANCIAL 59 · PUBLISH 29 · READ 49 · UPDATE 273
 
-Reuse: direct 582 · inline-prisma 229 · wrapper 75
+Reuse: direct 582 · inline-prisma 230 · wrapper 75
 
-Idempotent: no 260 · unknown 50 · versioned 1 · yes 575
+Idempotent: no 260 · unknown 50 · versioned 1 · yes 576
 
 ## By role
 
 | Role | Capabilities | Connected |
 |---|---|---|
 | APP_OWNER | 66 | 14 |
-| SUPER_ADMIN | 667 | 18 |
-| ADMIN | 703 | 88 |
-| CAMPUS_ADMIN | 656 | 86 |
+| SUPER_ADMIN | 668 | 18 |
+| ADMIN | 704 | 88 |
+| CAMPUS_ADMIN | 657 | 86 |
 | PRINCIPAL | 389 | 22 |
 | TEACHER | 249 | 24 |
 | ACCOUNTANT | 140 | 27 |
@@ -28,7 +28,7 @@ Idempotent: no 260 · unknown 50 · versioned 1 · yes 575
 
 | Cluster | Capabilities | Connected |
 |---|---|---|
-| C1 Academic structure | 75 | 11 |
+| C1 Academic structure | 76 | 11 |
 | C2 People, staff and access | 67 | 13 |
 | C3 Students, admissions and family | 94 | 21 |
 | C4 Teaching and assessment | 110 | 20 |
