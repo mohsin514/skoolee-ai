@@ -23,7 +23,7 @@ after(async () => { await db.school.deleteMany({ where: { id: { in: schools } } 
 const entry = <T extends ExecEntry<any> | HandoffEntry<any>>(key: string) => ADMIN_ROSTER_ENTRIES.find(item => item.key === key) as T;
 const exec = (key: string) => entry<ExecEntry<any>>(key);
 const handoff = (key: string) => entry<HandoffEntry<any>>(key);
-const HOME = { address: "Street 1", city: "Lahore", medicalNotes: "None" };
+const HOME = { guardianName: "Synthetic Guardian", address: "Street 1", city: "Lahore", medicalNotes: "None" };
 const KEY = () => `wf-test-${randomUUID()}`;
 
 async function fixture(role: "ADMIN" | "CAMPUS_ADMIN" = "CAMPUS_ADMIN") {
