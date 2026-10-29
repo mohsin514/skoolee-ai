@@ -1007,6 +1007,7 @@ _Verifier: The inventory misses no in-scope handler: I checked 60 route.ts files
 - src/app/actions/completeOnboarding.ts:getOnboardingSession — read the setup view (setup-service.ts:164 setupView)
 - src/app/actions/addCampus.ts:addCampus — group admin opens a campus (isGroupConsole), seeds its calendar and optionally invites a CAMPUS_ADMIN; the automation campus.create tool covers it only partially and without calendar seeding
 - src/app/actions/settings.ts:updateSchoolDetails — school identity edit by the institution authority (settings.ts:91-94) with a revision check and audit; no API route
+- src/app/actions/settings.ts:setUaeReportTemplate — SKAI-1151 turn the UAE bilingual report-card template on or off; institution authority only, audited; no API route
 - src/app/actions/settings.ts:updateCampusDetails — campus edit: SUPER_ADMIN for any campus, CAMPUS_ADMIN/ADMIN for their own (settings.ts:97-107); no API route
 - src/app/actions/settings.ts:previewCampusArchive / archiveCampus / restoreCampus — group admin only (isGroupConsole, settings.ts:405-407); archive is blocked by active students, classes, open invoices, pending payments or the last active campus; no API route
 - src/app/actions/settings.ts:getInstitutionHistory — read the school or campus change history

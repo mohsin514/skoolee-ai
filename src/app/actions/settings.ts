@@ -113,6 +113,8 @@ export interface InstitutionSettings {
     timezone: string;
     /** ISO alpha-2 ("" when unknown): picks the exam boards campus forms offer. */
     country: string;
+    /** SKAI-1151: UAE report-card template (mandatory Arabic + Islamic Education, bilingual print). */
+    uaeReportTemplate: boolean;
   };
   campuses: {
     revision: string;
@@ -178,6 +180,7 @@ export async function getInstitutionSettings(): Promise<InstitutionSettings> {
       timezone: school.timezone,
       /** ISO alpha-2 ("" when unknown): picks the exam boards campus forms offer. */
       country,
+      uaeReportTemplate: school.uaeReportTemplate,
     },
     campuses: campuses.map((c) => ({
       revision: recordRevision(c),
@@ -361,4 +364,23 @@ export async function restoreCampus(campusId: string) {
     await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "campus", recordId: id, userId: session.userId, oldValue: { archived: true }, newValue: { archived: false } } });
     return { success: true, alreadyActive: false };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+/**
+ * SKAI-1151: switch the UAE report-card template on or off. It changes what
+ * every campus's report card prints, so it is the institution authority's
+ * call, like the school name and logo. Already-approved versions keep the
+ * template they were approved with; only newly generated versions follow.
+ */
+export async function setUaeReportTemplate(enabled: boolean) {
+  const session = await requireSession();
+  assertCanEditSchool(session);
+  if (typeof enabled !== "boolean") throw new Error("Choose on or off.");
+  await prisma.$transaction(async (tx) => {
+    const current = await tx.school.findUniqueOrThrow({ where: { id: session.schoolId }, select: { uaeReportTemplate: true } });
+    if (current.uaeReportTemplate === enabled) return;
+    await tx.school.update({ where: { id: session.schoolId }, data: { uaeReportTemplate: enabled } });
+    await tx.auditLog.create({ data: { schoolId: session.schoolId, tableName: "school", recordId: session.schoolId, userId: session.userId, oldValue: { kind: "UAE_REPORT_TEMPLATE", enabled: current.uaeReportTemplate } as Prisma.InputJsonValue, newValue: { kind: "UAE_REPORT_TEMPLATE", enabled } as Prisma.InputJsonValue } });
+  });
+  return { success: true, uaeReportTemplate: enabled };
 }

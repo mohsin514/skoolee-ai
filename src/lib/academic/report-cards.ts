@@ -6,6 +6,7 @@ import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { getLocalePackage, loadLocaleTimeline } from "@/lib/locale/store";
 import { localePackageSchema } from "@/lib/locale/package";
 import { attendanceRuleFor } from "@/lib/attendance/rule";
+import { buildUaeTemplate, orderMandatoryFirst } from "@/lib/academic/uae-report-template";
 import {
   buildSubjectDistribution,
   calculateWeightedGrade,
@@ -383,7 +384,7 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
     where: { id: reportCardId },
     include: {
       enrollment: true,
-      campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true } } } },
+      campus: { select: { name: true, city: true, address: true, phone: true, email: true, website: true, principalName: true, board: true, logoUrl: true, school: { select: { name: true, logoUrl: true, phone: true, website: true, tagline: true, contactEmail: true, establishedYear: true, uaeReportTemplate: true } } } },
       exam: {
         select: {
           id: true, title: true, term: true, academicYear: true, examType: true, subjectId: true, academicModelVersionId: true,
@@ -449,27 +450,31 @@ export async function getLiveReportCardPayload(reportCardId: string, db: TxClien
 
   const storedLocale = localePackageSchema.safeParse(reportCard.localeSnapshot);
   const locale = storedLocale.success ? storedLocale.data : await getLocalePackage(reportCard.schoolId, reportCard.campusId, reportCard.generatedAt, undefined, db);
+  const markRows = marks.map((mark) => ({
+    subjectId: mark.subjectId,
+    subject: mark.subject.name,
+    obtained: mark.marksObtained,
+    total: mark.subject.totalMarks,
+    isAbsent: mark.isAbsent,
+    isExempt: mark.isExempt,
+    // An absent paper has no grade. Falling back to grading the stored 0
+    // would print "F" against a paper the pupil never sat.
+    grade: mark.isAbsent
+      ? "ABS"
+      : mark.isExempt
+        ? "EX"
+        : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
+  }));
+  // SKAI-1151: the school's UAE template is frozen into the snapshot with everything else.
+  const uaeTemplate = reportCard.campus.school.uaeReportTemplate ? buildUaeTemplate(markRows) : null;
   return {
     locale: { ...locale, language: reportCard.reportLanguage as "en" | "ar" | "ur" },
     reportCard,
     weightConfig,
-    subjectDistribution,
+    subjectDistribution: uaeTemplate ? orderMandatoryFirst(subjectDistribution) : subjectDistribution,
     overall,
-    marks: marks.map((mark) => ({
-      subjectId: mark.subjectId,
-      subject: mark.subject.name,
-      obtained: mark.marksObtained,
-      total: mark.subject.totalMarks,
-      isAbsent: mark.isAbsent,
-      isExempt: mark.isExempt,
-      // An absent paper has no grade. Falling back to grading the stored 0
-      // would print "F" against a paper the pupil never sat.
-      grade: mark.isAbsent
-        ? "ABS"
-        : mark.isExempt
-          ? "EX"
-          : gradeForMark(mark.marksObtained, mark.subject.totalMarks, weightConfig?.thresholds),
-    })),
+    uaeTemplate,
+    marks: markRows,
   };
 }
 
