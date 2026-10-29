@@ -6456,7 +6456,12 @@ export function LeaveManagementPanel({
                       </p>
                     ) : null}
                   </div>
-                  {r.status === "PENDING" ? (
+                  {r.status === "PENDING" && r.canDecide === false ? (
+                    // SKAI-1026: visible on this desk, decided by the academic lead or the campus operator (§7.6).
+                    <Badge variant="warning" className="shrink-0 self-start sm:self-center">
+                      {ui(r.user?.role === "TEACHER" ? "Waiting for the principal" : "Waiting for the campus admin")}
+                    </Badge>
+                  ) : r.status === "PENDING" ? (
                     // §4.5.2: the queue row's one inline pair — Approve, then Decline as outline (both 44 px).
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-ink-muted">

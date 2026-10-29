@@ -22,9 +22,11 @@ import {
 import { useTeacherData } from "../teacher-data-context";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { useCountLabel } from "@/components/locale/use-count-label";
 
 export default function TeacherInsightsPage() {
   const ui = useUiText();
+  const count = useCountLabel();
   const { data, loading, error, refetch } = useTeacherData();
   const router = useRouter();
 
@@ -273,7 +275,7 @@ export default function TeacherInsightsPage() {
                 </div>
               </div>
               <Badge variant="neutral" size="sm" data-numeric className="shrink-0">
-                {ui("{0} classes", [classBreakdown.length])}
+                {count(classBreakdown.length, "class")}
               </Badge>
             </div>
 
@@ -299,7 +301,7 @@ export default function TeacherInsightsPage() {
                       <TableCell className="px-4 py-3">
                         <p className="text-sm font-semibold text-ink-strong">{cls.label}</p>
                         <p className="text-xs text-ink-subtle">
-                          {ui(cls.role)} · {ui("{0} subjects", [cls.subjects])}
+                          {ui(cls.role)} · {count(cls.subjects, "subject")}
                         </p>
                       </TableCell>
                       <TableCell className="px-3 py-3 text-center text-sm tabular-nums text-ink-strong">
