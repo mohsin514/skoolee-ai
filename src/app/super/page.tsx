@@ -236,6 +236,8 @@ export default function SuperAdminDashboard() {
     >
       {/* The shell draws the one page card (addendum 2026-10-22); this is its scrolling body. */}
       <div className={cn("custom-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY)} data-super-view={view} data-needs-data={needsData || undefined}>
+        {/* SKAI-1113: the header context row is hidden below sm, so phones get the switcher at the top of the page. */}
+        <div className="flex sm:hidden"><CampusSwitcher /></div>
         {content}
       </div>
 
