@@ -2,6 +2,7 @@ import { z } from "zod";
 import { contractContentSha256, contractPilotEligibility, curriculumContractSchema, validateContractForPublication, type CurriculumContract } from "./curriculum-contract";
 import { evaluatePilotEligibility, pilotEligibilityInputSchema } from "./pilot-eligibility";
 import { fbiseGrade9MathematicsPack } from "./packs/fbise-g9-mathematics";
+import { BISE_LAHORE_G9_MATHEMATICS_GEOGRAPHIES, biseLahoreGrade9MathematicsPack } from "./packs/bise-lahore-g9-mathematics";
 import { ksaIntermediateGrades, ksaIntermediateMathematicsPack, ksaSemesters, type KsaIntermediateGrade } from "./packs/ksa-intermediate-mathematics";
 import { buildCambridge0580Pack, type Cambridge0580Component, type Cambridge0580Tier } from "./packs/cambridge-0580-mathematics";
 
@@ -10,8 +11,8 @@ import { buildCambridge0580Pack, type Cambridge0580Component, type Cambridge0580
  * (DRAFT → APPROVED → ACTIVE, any → REVOKED, revoke terminal) and the gate that Exam Studio and AI
  * paper generation consult. Pure and DB-free; `curriculum-pack-service.ts` persists it.
  *
- * BISE Lahore (SKAI-1010) has no SKAI-1008 contract module yet: its rules live on the curriculum
- * record (`assessment.ts` pack checks), so it is not seeded here and is not invented.
+ * BISE Lahore (SKAI-1010) ships as a SKAI-1008 contract in `packs/bise-lahore-g9-mathematics.ts`;
+ * the #159 curriculum-record checks in `assessment.ts` link to it by pack id.
  */
 export const ACTIVATION_STATUSES = ["DRAFT", "APPROVED", "ACTIVE", "REVOKED"] as const;
 export type ActivationStatus = (typeof ACTIVATION_STATUSES)[number];
@@ -24,7 +25,15 @@ export function shippedCurriculumPacks(): CurriculumContract[] {
   const cambridgeCombos: [Cambridge0580Tier, Cambridge0580Component][] = [["Core", "P1"], ["Core", "P3"], ["Extended", "P2"], ["Extended", "P4"]];
   // One exam year per verified edition, June series; the school records its own grade label on activation.
   const cambridge = ["2027", "2028"].flatMap(examYear => cambridgeCombos.map(([tier, component]) => buildCambridge0580Pack({ examYear, teachingYear: `${Number(examYear) - 1}-${examYear.slice(2)}`, tier, component, schoolGradeLabel: "Year 11", series: "June" })));
-  return [fbiseGrade9MathematicsPack, ...ksa, ...cambridge].map(pack => curriculumContractSchema.parse(pack));
+  return [fbiseGrade9MathematicsPack, biseLahoreGrade9MathematicsPack, ...ksa, ...cambridge].map(pack => curriculumContractSchema.parse(pack));
+}
+
+/** Packs bound to a board's own pilot geography; a pack absent here follows the SKAI-1007 gate alone. */
+const packGeographyScope: Record<string, readonly PackGeography[]> = {
+  [biseLahoreGrade9MathematicsPack.packId]: BISE_LAHORE_G9_MATHEMATICS_GEOGRAPHIES,
+};
+export function packGeographies(packId: string): readonly PackGeography[] | undefined {
+  return packGeographyScope[packId];
 }
 
 export type CatalogueRow = { packId: string; version: number; board: string; subject: string; schoolGrade: string; examYear: string; language: string; status: string; contentSha256: string; content: CurriculumContract; unverified: CurriculumContract["unverified"] };
@@ -79,6 +88,8 @@ export function activationBlockers(catalogue: CatalogueRow, activation: Activati
   const known = new Set(catalogue.content.sources.map(source => source.id));
   for (const item of activation.sourceEvidence) if (!known.has(item.sourceId)) errors.push(`Evidence names an unknown source ${item.sourceId}.`);
   errors.push(...validateContractForPublication(contract, now));
+  const scope = packGeographies(catalogue.packId);
+  if (scope && !scope.includes(activation.geography as PackGeography)) errors.push(`Pack ${catalogue.packId} is limited to ${scope.join(", ")}; another board's campus cannot borrow it.`);
   const budget = Boolean(activation.localBudgetApprover?.trim());
   // Geography and the local budget approver are independent of contract evidence: always report them.
   const market = evaluatePilotEligibility({ geography: activation.geography, board: contract.board, grade: contract.gradeMapping.schoolGrade, subject: contract.subject, examYear: contract.examYear, academicYear: contract.teachingYear, term: contract.term, tier: contract.tier, language: contract.language, approvalStatus: "APPROVED", approvedAt: now, localBudgetApprover: budget }, now);
