@@ -35,6 +35,7 @@ const GLOBAL = [
   "DataServiceVerification", // Platform hosting evidence for a service/region; no tenant data.
   "Pilot", "PilotObservation", "PilotMeasure", "PilotClaim", // SKO-430: platform-operator pilot evidence; schools by reference, participants pseudonymous.
   "QuestionNetwork", "QuestionNetworkMember", "QuestionNetworkItem", "QuestionNetworkReview", "QuestionNetworkAdoption", "QuestionNetworkStat", // SKO-454: shared across schools; the service enforces school, audience, membership and embargo on every access.
+  "PackExpansionDecision", // SKAI-1019/1020: founder decisions on deferred curriculum packs; no tenant data.
   "ResourcePolicy", "PerformanceRun", // SKO-451: platform-operator capacity policy and measured runs; schools by reference, no pupil data.
 ];
 

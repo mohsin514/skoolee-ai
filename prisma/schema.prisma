@@ -10138,3 +10138,18 @@ model AiSetupResponse {
   @@unique([schoolId, userId, questionnaireKey])
   @@map("ai_setup_responses")
 }
+
+/// SKAI-1019/1020: append-only founder + educator ADOPT/DEFER/REJECT decisions for deferred curriculum packs.
+/// Platform-global (no tenant data): the latest row per candidate is current; `record` is the full gate evidence.
+model PackExpansionDecision {
+  id            String   @id @default(uuid())
+  candidateId   String   @map("candidate_id")
+  outcome       String
+  record        Json
+  boundedTicket String?  @map("bounded_ticket")
+  decidedById   String   @map("decided_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([candidateId, createdAt(sort: Desc)])
+  @@map("pack_expansion_decisions")
+}
