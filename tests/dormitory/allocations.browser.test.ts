@@ -112,6 +112,16 @@ test("a move keeps continuous history, replays safely and respects the future re
   assert.equal((await post(ctx, { studentId: pupils.omar, roomId: rooms["A-101"], startDate: today, endDate: plus(5) })).status(), 201, "a stay that ends before both arrive fits");
 });
 
+test("SKAI-1064: creating a room type and a room returns 201 Created", async () => {
+  const ctx = await context("warden");
+  const type = await ctx.request.post(`${base}/api/dormitory/room-types`, { data: { campusId, name: `Synthetic type ${Date.now()}` } });
+  assert.equal(type.status(), 201);
+  const typeId = (await type.json()).data.id;
+  const room = await ctx.request.post(`${base}/api/dormitory/rooms`, { data: { campusId, roomTypeId: typeId, number: `Z-${Date.now()}`, capacity: 2 } });
+  assert.equal(room.status(), 201);
+  assert.ok((await room.json()).data.id);
+});
+
 test("capacity and out-of-service changes show their impact and cannot strand residents", async () => {
   const ctx = await context("warden"), roomsApi = `${base}/api/dormitory/rooms`;
   const preview = await (await ctx.request.patch(roomsApi, { data: { id: rooms["A-101"], capacity: 1, dryRun: true } })).json();
