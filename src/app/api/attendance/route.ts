@@ -11,6 +11,8 @@ import {
 } from "@/lib/api/scope";
 import { dateOnly, getClassForAttendance, saveAttendanceRegister } from "@/lib/attendance/save-register-command";
 import { schoolToday } from "@/lib/datetime";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
     if (!canMarkAttendance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "attendance", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = attendanceSchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 

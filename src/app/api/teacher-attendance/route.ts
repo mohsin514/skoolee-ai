@@ -7,6 +7,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function parseLocalDate(date: string): Date {
   const [y, m, d] = date.split("-").map(Number);
@@ -148,7 +150,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     // SKAI-1119: teachers must not mark their own attendance. Marking is admin/principal-only.
     if (user.role === "TEACHER") {

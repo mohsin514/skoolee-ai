@@ -7,6 +7,8 @@ import { isCampusAdminRole } from "@/lib/roles";
 import { bulkMarksSchema } from "@/lib/validators/schemas";
 import { enterBulkMarks } from "@/lib/marks/enter-bulk-command";
 import { clientIp } from "@/lib/http/client-ip";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function canEnterMarks(role: string) {
   return role === "TEACHER" || role === "PRINCIPAL" || role === "SUPER_ADMIN" || isCampusAdminRole(role);
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Only academic staff can enter marks" }, { status: 403 });
     }
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = bulkMarksSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
