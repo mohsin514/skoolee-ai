@@ -4,7 +4,7 @@ import { auditedOperation, isAuditedModel, resetAuditTrailState } from "../../sr
 import { runWithTenantContext } from "../../src/lib/db/tenant-context";
 
 // SKAI-1162: every create, update and delete on an audited model writes exactly one audit row,
-// filed under the row's school and the acting user, and a route's own audit row replaces it.
+// filed under the row's school and the acting user, and a route's own audit row is appended as a newer event that supersedes it (audit_logs is append-only).
 
 type Row = Record<string, unknown>;
 
@@ -79,8 +79,9 @@ test("delete writes one audit row with the deleted record as the old value", asy
   assert.deepEqual(audits[0].newValue, { operation: "delete" });
 });
 
-test("a route's own audit row replaces the automatic one instead of adding a second", async () => {
+test("a route's own audit row is appended and supersedes the automatic one, never updating it", async () => {
   const { audits, client } = fakeClient();
+  (client as unknown as { auditLog: { update: unknown } }).auditLog.update = async () => { throw new Error("Audit events are append-only"); };
   await asUser(async () => {
     await auditedOperation({
       delegate: "student",
@@ -89,20 +90,17 @@ test("a route's own audit row replaces the automatic one instead of adding a sec
       query: async () => ({ id: "s1", schoolId: "school-a" }),
       client,
     });
-    let manualInserted = false;
     await auditedOperation({
       delegate: "auditLog",
       operation: "create",
       args: { data: { tableName: "student", recordId: "s1", newValue: { rich: true }, userId: "user-1" } },
-      query: async () => (manualInserted = true),
+      query: async (args) => (client as unknown as { auditLog: { create: (a: unknown) => Promise<unknown> } }).auditLog.create(args),
       client,
     });
-    assert.equal(manualInserted, false);
   });
 
-  assert.equal(audits.length, 1);
-  assert.equal(audits[0].tableName, "student");
-  assert.deepEqual(audits[0].newValue, { rich: true });
+  assert.equal(audits.length, 2);
+  assert.deepEqual(audits[1].newValue, { rich: true, supersedesAuditId: audits[0].id });
 });
 
 test("reads, skipped models and bulk counts behave as documented", async () => {

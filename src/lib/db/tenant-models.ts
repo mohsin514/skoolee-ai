@@ -147,6 +147,7 @@ export const TENANT_MODELS = new Set<string>([
   "guardianAccessEvent",
   "guardianAccessVersion",
   "guardianChannelPreference",
+  "guardianConsent",
   "guardianRelationship",
   "guardianReviewQueue",
   "holiday",

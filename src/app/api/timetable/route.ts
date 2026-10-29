@@ -5,6 +5,8 @@ import { requireAuthUser, errorResponse, resolveCampusId, canManageOperations,
 } from "@/lib/api/scope";
 import { createManualTimetable, resolveTimetableCreateCampus } from "@/lib/timetable/manual";
 import { notify } from "@/lib/notifications/in-app";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) return Response.json({ error: "Forbidden" }, { status: 403 });
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveTimetableCreateCampus(user, body);
     const timetable = await createManualTimetable(user, campusId, body);
     notify("TIMETABLE_CREATED", { schoolId: user.schoolId, campusId, actorId: user.userId, actorName: user.fullName, className: timetable.class.name });

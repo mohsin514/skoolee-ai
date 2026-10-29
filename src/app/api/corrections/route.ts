@@ -4,6 +4,7 @@ import { requireAuthUser, errorResponse, ApiError } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { preview, requestCorrection, decideCorrection, history, catalog, permit } from "@/lib/corrections/service";
 import { isFamily, studentScope, campusScope } from "@/lib/auth/policy";
+import { readJsonBody } from "@/lib/api/validate";
 const proposal = z.object({ kind: z.enum(["MARK", "PAYMENT"]), sourceId: z.string().min(1), expectedVersion: z.string().min(1), marksObtained: z.number().int().nonnegative().optional(), isAbsent: z.boolean().optional(), allocations: z.array(z.object({ invoiceId: z.string(), minor: z.number().int().nonnegative() })).max(100).optional(), unappliedMinor: z.number().int().nonnegative().optional() });
 const body = z.discriminatedUnion("action", [
     z.object({ action: z.literal("preview"), proposal }),
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     try {
         const user = await requireAuthUser();
-        const input = body.safeParse(await req.json());
+        const input = body.safeParse(await readJsonBody(req));
         if (!input.success)
             throw new ApiError("Enter a valid correction, reason and public explanation", 400);
         const data = input.data;

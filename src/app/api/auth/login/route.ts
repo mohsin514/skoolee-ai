@@ -24,6 +24,8 @@ import {
 } from "@/lib/auth/session-cookie";
 import { endSession } from "@/lib/auth/session-revocation";
 import { clientIp } from "@/lib/http/client-ip";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function POST(req: NextRequest) {
   // Login is inherently cross-tenant: the school is unknown until the
@@ -44,7 +46,7 @@ async function handleLogin(req: NextRequest) {
       return Response.json({ error: "Unsupported login request" }, { status: 403 });
     }
     const ip = clientIp(req.headers);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody, { preserve: ["password"] });
     const rateKeyEmail = typeof body?.email === "string" ? body.email.toLowerCase().trim() : "";
     const { ok, remaining } = await authRateLimit(`login:${ip}:${rateKeyEmail}`, { limit: 10, windowMs: 60_000 });
     const ipLimit = await authRateLimit(`login-ip:${ip}`, { limit: 60, windowMs: 60_000 });

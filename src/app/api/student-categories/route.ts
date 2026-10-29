@@ -4,11 +4,11 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   canManageCampusOps,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { created, fail, failFrom, ok } from "@/lib/api/envelope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -27,9 +27,9 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    return Response.json({ success: true, data: categories });
+    return ok(categories);
   } catch (error) {
-    return errorResponse(error, "[student-categories] GET failed");
+    return failFrom(error, "[student-categories] GET failed");
   }
 }
 
@@ -54,12 +54,12 @@ export async function POST(req: NextRequest) {
       include: { _count: { select: { students: true } } },
     });
 
-    return Response.json({ success: true, data: category }, { status: 201 });
+    return created(category);
   } catch (error: any) {
     if (error?.code === "P2002") {
-      return Response.json({ error: "A category with this name already exists in this campus" }, { status: 409 });
+      return fail("CONFLICT", "A category with this name already exists in this campus");
     }
-    return errorResponse(error, "[student-categories] POST failed");
+    return failFrom(error, "[student-categories] POST failed");
   }
 }
 
@@ -92,12 +92,12 @@ export async function PATCH(req: NextRequest) {
       include: { _count: { select: { students: true } } },
     });
 
-    return Response.json({ success: true, data: category });
+    return ok(category);
   } catch (error: any) {
     if (error?.code === "P2002") {
-      return Response.json({ error: "A category with this name already exists in this campus" }, { status: 409 });
+      return fail("CONFLICT", "A category with this name already exists in this campus");
     }
-    return errorResponse(error, "[student-categories] PATCH failed");
+    return failFrom(error, "[student-categories] PATCH failed");
   }
 }
 

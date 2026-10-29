@@ -9,6 +9,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-465 reception call log and callback queue.
 // GET   ?campusId=&view=open|mine|overdue|unassigned|all&direction=IN|OUT&q=   → calls with their callbacks
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can log calls.", 403);
     await assertPermission(user, "front-desk", "add");
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { call, replayed } = await logCall(user, campusId, body);
     const { requestHash: _hash, idempotencyKey: _key, ...data } = call;
@@ -68,8 +70,7 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuthUser();
     await assertModuleRead(user, "front-desk");
     await assertPermission(user, "front-desk", "edit");
-    const body = await request.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { outcome: _outcome, ...data } = await actOnCallback(user, campusId, body);
     return Response.json({ success: true, data });

@@ -24,6 +24,8 @@ import {
   ensureAICreditsAvailable,
   generateAIDraft,
 } from "@/lib/ai/openai";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -405,7 +407,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await assertSharedModuleRead(user, "ai");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = aiFeatureRequestSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });

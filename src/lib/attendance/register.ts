@@ -11,6 +11,7 @@ import { triggerRepeatedAbsenceAlert } from "@/lib/notifications/automation";
 import { ATTENDANCE_STATUSES, DEFAULT_ATTENDANCE_RULE } from "@/lib/attendance";
 import { attendanceRuleFor, explainClosed } from "./rule";
 export { attendanceRuleFor, EXPLAIN_WINDOW_DAYS } from "./rule";
+import { regulatorView } from "./regulator";
 
 // SKO-405: the class register. A register is one class on one school day; its roster is the pupils
 // enrolled in that class on that date (dated enrollment), so a pupil who later moved still appears on the
@@ -74,7 +75,7 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
   if (!canMarkAttendance(user)) throw new ApiError("You cannot view attendance registers.", 403);
   const date = dayDate(dateText);
   const cls = await assignedClass(prisma, user, classId);
-  const [roster, register, rule] = await Promise.all([datedRoster(prisma, user, cls.id, date), prisma.attendanceRegister.findUnique({ where: { classId_date: { classId: cls.id, date } } }), attendanceRuleFor(user.schoolId)]);
+  const [roster, register, rule, school] = await Promise.all([datedRoster(prisma, user, cls.id, date), prisma.attendanceRegister.findUnique({ where: { classId_date: { classId: cls.id, date } } }), attendanceRuleFor(user.schoolId), prisma.school.findUnique({ where: { id: user.schoolId }, select: { attendanceRegulator: true } })]);
   const rows = await prisma.attendance.findMany({ where: { schoolId: user.schoolId, studentId: { in: roster.map(r => r.studentId) }, date }, include: { marker: { select: { fullName: true } }, explanations: { where: { status: { in: ["PENDING", "CLARIFICATION"] } }, select: { id: true, status: true } } } });
   const byStudent = new Map(rows.map(row => [row.studentId, row]));
   const entries = roster.map(enrollment => {
@@ -83,7 +84,7 @@ export async function registerView(user: AuthUser, classId: string, dateText: st
       status: (row?.status ?? null) as Status | null, arrivalTime: row?.arrivalTime ?? null, departureTime: row?.departureTime ?? null, note: row?.notes ?? null, version: row?.version ?? 0, markedBy: row?.marker?.fullName ?? null, markedAt: row?.markedAt ?? null, openExplanation: row?.explanations[0]?.status ?? null };
   });
   const counts = Object.fromEntries([...ATTENDANCE_STATUSES, "UNMARKED"].map(status => [status, entries.filter(entry => (entry.status ?? "UNMARKED") === status).length]));
-  return { class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule };
+  return { class: { id: cls.id, name: [cls.name, cls.section].filter(Boolean).join(" "), academicYear: cls.academicYear }, date: dateText, register: register ? { status: register.status, submittedAt: register.submittedAt, version: register.version } : { status: "OPEN", submittedAt: null, version: 0 }, entries, counts, rule, regulator: regulatorView(school?.attendanceRegulator, date) };
 }
 
 type EntryInput = { studentId: string; status: Status; knownStatus: Status | null; arrivalTime?: string | null; departureTime?: string | null; note?: string | null; reviewedConflict?: boolean };

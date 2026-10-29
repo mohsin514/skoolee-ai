@@ -27,7 +27,7 @@ type Ui = ReturnType<typeof useUiText>;
 export type Status = "PRESENT" | "LATE" | "PARTIAL" | "ABSENT" | "EXCUSED" | "LEAVE";
 const STATUSES: Status[] = ["PRESENT", "LATE", "PARTIAL", "ABSENT", "EXCUSED", "LEAVE"];
 type Entry = { studentId: string; name: string; rollNo: string; movedSince: boolean; status: Status | null; arrivalTime: string | null; departureTime: string | null; note: string | null; version: number; markedBy: string | null; openExplanation: string | null };
-type Register = { class: { id: string; name: string }; date: string; today: string; register: { status: "OPEN" | "SUBMITTED"; submittedAt: string | null }; entries: Entry[]; rule: { version: number } };
+type Register = { class: { id: string; name: string }; date: string; today: string; register: { status: "OPEN" | "SUBMITTED"; submittedAt: string | null }; entries: Entry[]; rule: { version: number }; regulator: { regulator: string; name: string; confirmed: boolean; codes: Record<Status, string>; schoolDay: boolean } | null };
 type Draft = { status: Status | null; arrivalTime: string; departureTime: string };
 type Conflict = { studentId: string; name: string; current: string | null; yours: string; seen: string | null; markedBy: string | null };
 
@@ -92,6 +92,9 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
     {loadError ? <ErrorState title={ui("Couldn't load the register")} description={loadError} onRetry={() => void load()} /> : null}
     {loading && !data && !loadError ? <SkeletonList rows={5} label={ui("Loading register…")} /> : null}
     {data ? <>
+      {data.regulator ? <Alert tone={data.regulator.schoolDay ? "info" : "warning"} data-register-regulator={data.regulator.regulator} title={ui("Reporting in {0} codes", [ui(data.regulator.name)])}>
+        <p>{data.regulator.schoolDay ? null : <>{ui("This day is a weekend in the regulator's calendar.")} </>}{data.regulator.confirmed ? null : ui("This code set is provisional until it is checked against the regulator's guidance.")}</p>
+      </Alert> : null}
       <div className="flex flex-wrap gap-2 text-xs font-semibold tabular-nums" data-register-counts>
         {["UNMARKED", ...STATUSES].map(key => <span key={key} className={cn("rounded-full border px-3 py-1", key === "UNMARKED" && counts.UNMARKED ? "border-status-warning-border bg-status-warning-surface text-status-warning-text" : "border-edge/30")} data-count={key}>{statusLabel(ui, key)}: <bdi>{counts[key] ?? 0}</bdi></span>)}
       </div>
@@ -99,7 +102,7 @@ export function ClassRegister({ classes, initialClassId }: { classes: { id: stri
         {entries.map(entry => { const d = drafts[entry.studentId] ?? { status: null, arrivalTime: "", departureTime: "" }; return <li key={entry.studentId} className="flex flex-wrap items-center gap-3 py-2" data-register-row={entry.studentId} data-status={d.status ?? "UNMARKED"}>
           <div className="min-w-0 flex-1 basis-44"><p className="truncate text-sm font-semibold text-ink-strong"><bdi>{entry.name}</bdi></p><p className="text-xs text-ink-muted">{ui("Roll {0}", [entry.rollNo])}{entry.movedSince ? <> · {ui("Moved to another class since")}</> : null}{entry.openExplanation ? <> · {ui("Explanation waiting")}</> : null}</p></div>
           <div role="radiogroup" aria-label={ui("Attendance for {0}", [entry.name])} className="flex flex-wrap gap-1">
-            {STATUSES.map(status => <Button variant="ghost" key={status} type="button" role="radio" aria-checked={d.status === status} onClick={() => setDraft(entry.studentId, { status })} className={cn("rounded-lg border border-edge/40 px-2 py-1 text-xs font-bold", tone[status])} data-mark={status}>{statusLabel(ui, status)}</Button>)}
+            {STATUSES.map(status => <Button variant="ghost" key={status} type="button" role="radio" aria-checked={d.status === status} onClick={() => setDraft(entry.studentId, { status })} className={cn("rounded-lg border border-edge/40 px-2 py-1 text-xs font-bold", tone[status])} data-mark={status}>{statusLabel(ui, status)}{data.regulator ? <bdi className="ms-1 opacity-75" data-regulator-code>{data.regulator.codes[status]}</bdi> : null}</Button>)}
           </div>
           {d.status === "LATE" || d.status === "PARTIAL" ? <div className="flex flex-wrap gap-2">
             <FormField name={`arrive-${entry.studentId}`} label={ui("Arrived")}><Input type="time" value={d.arrivalTime} onChange={event => setDraft(entry.studentId, { arrivalTime: event.target.value })} className="w-28" /></FormField>

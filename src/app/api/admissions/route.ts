@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { actOnApplication, applicationDetail, convertApplication, documentFile, listApplications, listForms, publishForm, saveForm, setFormOpen, staffSaveAnswers, staffStart } from "@/lib/admissions/service";
 import { ApiError, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-398 admissions (staff).
 // GET   ?forms=1                         → forms with draft and published version
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     switch (body.action) {
       case "save-form": return Response.json({ success: true, data: await saveForm(user, campusId, body) });
@@ -64,8 +66,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await request.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     return Response.json({ success: true, data: await actOnApplication(user, campusId, body) });
   } catch (error) {

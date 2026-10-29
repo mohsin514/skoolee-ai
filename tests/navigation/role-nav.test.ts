@@ -169,7 +169,7 @@ test("every visible key is a permission module or a capability key; aliases poin
 test("leaves without a visibility clause are only the ones the spec allows", () => {
   const allowed = new Set([
     "super.campuses", "principal.learning-actions", "principal.academic-year",
-    "parent.meetings", "parent.activities", "student.study", "student.portfolio", "teacher.portfolios",
+    "parent.meetings", "parent.activities", "parent.consent", "student.study", "student.portfolio", "teacher.portfolios",
   ]);
   for (const id of CONSOLES) {
     const nav = ROLE_NAV[id];
