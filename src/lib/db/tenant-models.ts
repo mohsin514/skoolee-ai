@@ -381,6 +381,7 @@ export const GLOBAL_MODELS = new Set<string>([
   "curriculumPackVersion",
   "dataServiceVerification",
   "marketTrustReview",
+  "packExpansionDecision",
   "passwordReset",
   "pendingRegistration",
   "performanceRun",
