@@ -28,7 +28,7 @@ export const GO_NO_GO_CRITERIA = {
   PAPER_ACCEPTANCE: { source: "SKAI-1005 §8 accepted papers", metric: "CORRECTNESS_FINAL rate", threshold: { direction: "higher", green: 60, red: 30, unit: "%" } },
   /** SKO-430 paired task time change, worst workflow; negative is faster. */
   TASK_TIME_CHANGE: { source: "SKO-430 paired task time", metric: "TIME changePercent (worst workflow)", threshold: { direction: "lower", green: -20, red: 0, unit: "%" } },
-} as const satisfies Record<string, { source: string; metric: string; threshold?: NumericThreshold; green?: readonly string[]; red?: readonly string[] }>;
+} as const satisfies Record<string, { source: string; metric: string; threshold?: NumericThreshold; minPapers?: number; windowDays?: number; green?: readonly string[]; red?: readonly string[] }>;
 
 export type CriterionKey = keyof typeof GO_NO_GO_CRITERIA;
 export const CRITERION_KEYS = Object.keys(GO_NO_GO_CRITERIA) as CriterionKey[];
