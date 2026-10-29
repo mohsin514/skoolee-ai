@@ -11704,6 +11704,36 @@
   "source": "appendix-a"
  },
  {
+  "key": "platform.record_pack_expansion_decision",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/owner/pack-expansion",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "platform.record_pilot_readiness",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/owner/pilot-readiness",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "platform.reset_user_password",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "PUT",

@@ -22,6 +22,8 @@ const RULES: Rule[] = [
     match: key => key.startsWith("uploads.") || /presign|upload_document|upload_clip|put_private_file|confirm_upload|intake\.upload|paperFromUpload/.test(key) },
   { category: "platform-console", reason: "Switching a school out of practice mode is a deliberate platform-owner decision; the AI must never lift its own practice gate.",
     match: key => key === "platform.set_ai_workflows_live" },
+  { category: "platform-console", reason: "Pilot trust reviews, proposals, commercial evidence and go/no-go decisions are signed founder decisions; the AI must never record or approve its own pilot readiness.",
+    match: key => key === "platform.record_pilot_readiness" || key === "platform.record_pack_expansion_decision" },
   { category: "internal", reason: "Unauthenticated public forms are completed by families on the public page, not from a signed-in assistant.",
     match: key => key.startsWith("public.") },
 ];

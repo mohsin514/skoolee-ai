@@ -1,6 +1,8 @@
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import IORedis from "ioredis";
+import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
+import { realtimeDisabledResponse } from "@/lib/queue/sse-fallback";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,18 @@ export async function GET(req: Request) {
   }
 
   const userId = user.userId;
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  const redisUrl = resolveRedisUrl();
+  if (!redisUrl) {
+    // SKAI-1035: realtime disabled. Answer with the unread count from the DB
+    // and close; the long `retry` turns EventSource into a quiet DB poll.
+    warnRealtimeDisabledOnce();
+    const unreadCount = await prisma.notification
+      .count({ where: { userId, isRead: false } })
+      .catch(() => null);
+    return realtimeDisabledResponse(
+      unreadCount === null ? [] : [`event: init\ndata: ${JSON.stringify({ unreadCount })}\n\n`]
+    );
+  }
   let subscriber: IORedis | null = null;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 

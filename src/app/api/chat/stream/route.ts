@@ -1,6 +1,8 @@
 import IORedis from "ioredis";
 import { getAuthUser } from "@/lib/auth";
 import { chatChannel, clearPresence, markPresent } from "@/lib/chat/realtime";
+import { resolveRedisUrl, warnRealtimeDisabledOnce } from "@/lib/queue/redis-config";
+import { realtimeDisabledResponse } from "@/lib/queue/sse-fallback";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +29,13 @@ export async function GET(req: Request) {
   if (user.role === "APP_OWNER") return new Response("Forbidden", { status: 403 });
 
   const userId = user.userId;
-  const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+  const redisUrl = resolveRedisUrl();
+  if (!redisUrl) {
+    // SKAI-1035: realtime disabled. Tell the client and close; threads still
+    // load and sends still work over ordinary requests.
+    warnRealtimeDisabledOnce();
+    return realtimeDisabledResponse([`event: ready\ndata: ${JSON.stringify({ userId, realtime: false })}\n\n`]);
+  }
 
   let subscriber: IORedis | null = null;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
