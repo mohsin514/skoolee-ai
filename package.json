@@ -16,6 +16,7 @@
     "check:ui": "node --import tsx --test tests/design-system/adoption.test.ts",
     "check:capabilities": "node --import ./tests/support/server-only.mjs --import tsx scripts/ai-workflows/check-capabilities.ts",
     "test:pilots": "node --import ./tests/support/server-only.mjs --import tsx --test tests/pilots/charter.test.ts tests/pilots/findings.test.ts tests/pilots/scoped-exchange.test.ts tests/pilots/qa-seed-plan.test.ts tests/pilots/readiness-service.test.ts",
+    "test:pilots:db": "node --import ./tests/support/server-only.mjs --import tsx --test tests/pilots/scoped-exchange.database.test.ts",
     "test:navigation": "node --import ./tests/support/server-only.mjs --import tsx --test \"tests/navigation/*.test.{ts,tsx}\"",
     "test:tour": "node --import ./tests/support/server-only.mjs --import tsx --test tests/tour/*.test.ts",
     "test:authz": "node --import ./tests/support/server-only.mjs --import tsx --test tests/authz/*.test.ts",
