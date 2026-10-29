@@ -34,6 +34,28 @@ export async function GET(req: NextRequest) {
           select: { id: true, kind: true, fileKey: true, fileName: true, uploadedAt: true },
           orderBy: { uploadedAt: "desc" },
         },
+        // SKAI-1117: assigned classes (as class teacher) and subjects taught.
+        ledClasses: {
+          where: { ...campusScope(user), archivedAt: null },
+          select: {
+            id: true,
+            name: true,
+            section: true,
+            academicYear: true,
+            _count: { select: { students: true, subjects: true } },
+          },
+          orderBy: { name: "asc" },
+        },
+        taughtSubjects: {
+          where: campusScope(user),
+          select: {
+            id: true,
+            name: true,
+            totalMarks: true,
+            class: { select: { id: true, name: true, section: true } },
+          },
+          orderBy: { name: "asc" },
+        },
         staffTimelineEvents: {
           select: { id: true, kind: true, title: true, detail: true, createdAt: true },
           orderBy: { createdAt: "desc" },
