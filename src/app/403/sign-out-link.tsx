@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { clearDeviceDrafts } from "@/lib/drafts/store";
+import { clearClientIdentity, endServerSession } from "@/lib/auth/sign-out";
 
 /** Signing out is a POST, so it cannot be a plain link. */
 export function SignOutLink({ label = "Sign out" }: { label?: string }) {
@@ -12,15 +12,13 @@ export function SignOutLink({ label = "Sign out" }: { label?: string }) {
 
   const signOut = async () => {
     setPending(true);
-    clearDeviceDrafts();
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch {
+    clearClientIdentity();
+    if (!(await endServerSession())) {
       // Network failure: stay on the page and let the person try again.
       setPending(false);
       return;
     }
-    window.location.href = "/login";
+    window.location.replace("/login");
   };
 
   return (

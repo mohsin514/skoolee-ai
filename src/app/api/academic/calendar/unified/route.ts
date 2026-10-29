@@ -1,7 +1,10 @@
 import { loadLocaleTimeline } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { studentScope } from "@/lib/auth/policy";
+import { publishedPapersForClasses } from "@/lib/academic/datesheet-publication";
+import { mergePublishedPapers } from "@/lib/academic/family-calendar";
 import { isOfficeRole } from "@/lib/academic/exam-permissions";
 
 /**
@@ -29,6 +32,15 @@ export async function GET(req: NextRequest) {
 
     // The office sees drafts on the calendar; everyone else only sees announced exams.
     const canSeeDrafts = isOfficeRole(user.role);
+    // SKAI-1027: families only see session papers from the published date sheet,
+    // never the live draft rows (same read model as /api/academic/exam-schedule).
+    const family = isFamilyRole(user);
+    const familyClassIds = family
+      ? [...new Set((await prisma.student.findMany({
+          where: user.role === "STUDENT" ? { studentUserId: user.userId } : studentScope(user, "learningRecords"),
+          select: { classId: true },
+        })).map((s) => s.classId).filter((id): id is string => Boolean(id)))]
+      : [];
 
     const [weekends, terms, holidays, schedules] = await Promise.all([
       loadLocaleTimeline(user.schoolId, campusId),
@@ -45,7 +57,7 @@ export async function GET(req: NextRequest) {
         where: {
           campusId,
           date: { gte: new Date(`${year}-01-01`), lte: new Date(`${year}-12-31`) },
-          ...(canSeeDrafts ? {} : { exam: { status: { in: ANNOUNCED_EXAM_STATUSES } } }),
+          ...(canSeeDrafts ? {} : { exam: { status: { in: ANNOUNCED_EXAM_STATUSES }, ...(family ? { sessionId: null } : {}) } }),
         },
         select: {
           date: true,
@@ -78,6 +90,18 @@ export async function GET(req: NextRequest) {
         });
       }
       examMap.get(key)!.dates.push(dateStr);
+    }
+
+    if (family) {
+      const published = await publishedPapersForClasses(user.schoolId, familyClassIds);
+      mergePublishedPapers(examMap, published, year);
+      if (published.length) {
+        const types = await prisma.exam.findMany({ where: { id: { in: [...new Set(published.map((p) => p.examId))] }, campusId }, select: { id: true, examType: true, status: true } });
+        for (const t of types) { const e = examMap.get(t.id); if (e) { e.examType = t.examType; e.status = t.status; } }
+        // Papers of another campus never reach this campus's calendar.
+        for (const p of published) if (!types.some((t) => t.id === p.examId)) examMap.delete(p.examId);
+        for (const e of examMap.values()) e.dates.sort();
+      }
     }
 
     return Response.json({

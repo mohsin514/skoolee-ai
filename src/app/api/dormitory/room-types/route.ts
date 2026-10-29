@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return Response.json({ success: true, data });
+    return Response.json({ success: true, data }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[dormitory] POST room-types failed");
   }
