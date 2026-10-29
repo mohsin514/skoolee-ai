@@ -1458,6 +1458,21 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Save and continue", "حفظ ومتابعة", "محفوظ کریں اور جاری رکھیں"],
   ["Year and terms", "السنة والفصول الدراسية", "سال اور ٹرمز"],
   ["Choose an exam whose papers are scheduled first.", "اختر أولًا امتحانًا جُدولت أوراقه.", "پہلے ایسا امتحان منتخب کریں جس کے پرچے شیڈول ہو چکے ہوں۔"],
+  // SKAI-118 weekend configuration
+  ["Keep at least one working day in the week.", "أبقِ يوم عمل واحدًا على الأقل في الأسبوع.", "ہفتے میں کم از کم ایک کام کا دن رکھیں۔"],
+  ["Choose at least one weekend day.", "اختر يوم عطلة أسبوعية واحدًا على الأقل.", "کم از کم ایک ہفتہ وار چھٹی کا دن منتخب کریں۔"],
+  ["The weekend change could not be previewed. Try again.", "تعذّرت معاينة تغيير العطلة الأسبوعية. حاول مرة أخرى.", "ہفتہ وار چھٹی کی تبدیلی کا پیش منظر نہیں دکھایا جا سکا۔ دوبارہ کوشش کریں۔"],
+  ["Weekend updated", "تم تحديث العطلة الأسبوعية", "ہفتہ وار چھٹی اپ ڈیٹ ہو گئی"],
+  ["Review the weekend change", "راجع تغيير العطلة الأسبوعية", "ہفتہ وار چھٹی کی تبدیلی کا جائزہ لیں"],
+  ["Apply weekend", "تطبيق العطلة الأسبوعية", "ہفتہ وار چھٹی لاگو کریں"],
+  ["Keep current weekend", "الإبقاء على العطلة الحالية", "موجودہ ہفتہ وار چھٹی رکھیں"],
+  ["Current: {0}. New: {1}.", "الحالية: {0}. الجديدة: {1}.", "موجودہ: {0}۔ نئی: {1}۔"],
+  ["Checking the affected dates…", "جارٍ فحص التواريخ المتأثرة…", "متاثرہ تاریخیں چیک کی جا رہی ہیں…"],
+  ["From {0} to {1}:", "من {0} إلى {1}:", "{0} سے {1} تک:"],
+  ["{0} school days become weekend days — no attendance register or lessons on them.", "{0} أيام دراسية تصبح عطلة أسبوعية — بلا سجل حضور أو حصص.", "{0} اسکول کے دن ہفتہ وار چھٹی بن جائیں گے — ان پر حاضری رجسٹر یا اسباق نہیں ہوں گے۔"],
+  ["{0} weekend days become school days — attendance and the timetable will expect them.", "{0} أيام عطلة تصبح أيامًا دراسية — سيتوقعها الحضور والجدول.", "{0} چھٹی کے دن اسکول کے دن بن جائیں گے — حاضری اور ٹائم ٹیبل ان کی توقع کریں گے۔"],
+  ["{0} holiday days now fall on the weekend.", "{0} أيام عطلة رسمية تقع الآن في العطلة الأسبوعية.", "{0} تعطیلات کے دن اب ہفتہ وار چھٹی پر آتے ہیں۔"],
+  ["Past attendance is unchanged; the change applies from today.", "لا يتغير الحضور السابق؛ يسري التغيير من اليوم.", "پچھلی حاضری میں کوئی تبدیلی نہیں؛ تبدیلی آج سے لاگو ہوگی۔"],
 ];
 
 export const arabicP6Ui: Record<string, string> = Object.fromEntries(P6.map(([en, ar]) => [en, ar]));
