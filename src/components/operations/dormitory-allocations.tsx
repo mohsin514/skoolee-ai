@@ -16,6 +16,8 @@ import { Modal } from "@/components/ui/modal";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-463: occupancy on a chosen date, dated allocations, moves that keep history, and room changes that
 // show their impact before saving. Residents show only name, roll number and class.
@@ -139,7 +141,15 @@ function AllocateDialog({ rooms, today, onClose, onDone }: { rooms: Room[]; toda
   const [query, setQuery] = useState(""), [options, setOptions] = useState<StudentOption[]>([]), [student, setStudent] = useState<StudentOption | null>(null);
   const [roomId, setRoomId] = useState(""), [start, setStart] = useState(today), [end, setEnd] = useState(""), [reason, setReason] = useState("");
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
-  const { busy, error, setError, run } = useSubmit(onDone);
+  const allocateDraft = useFormDraft({
+    record: "dormitory:allocation",
+    schema: 1,
+    values: { query, studentId: student?.id ?? "", studentName: student?.fullName ?? "", rollNo: student?.rollNo ?? "", roomId, start, end, reason },
+    baseline: { query: "", studentId: "", studentName: "", rollNo: "", roomId: "", start: today, end: "", reason: "" },
+    fields: ["query", "studentId", "studentName", "rollNo", "roomId", "start", "end", "reason"] as const,
+    apply: (values) => { setQuery(String(values.query ?? "")); const id = String(values.studentId ?? ""); setStudent(id ? { id, fullName: String(values.studentName ?? ""), rollNo: String(values.rollNo ?? ""), class: null, dormRoom: null } : null); setRoomId(String(values.roomId ?? "")); setStart(String(values.start ?? today)); setEnd(String(values.end ?? "")); setReason(String(values.reason ?? "")); },
+  });
+  const { busy, error, setError, run } = useSubmit((message) => { allocateDraft.markSaved(); onDone(message); });
   useEffect(() => {
     const timer = setTimeout(async () => {
       const response = await fetch(`/api/dormitory/allocations?lookup=students&q=${encodeURIComponent(query)}`, { cache: "no-store" }).catch(() => null);
@@ -160,6 +170,7 @@ function AllocateDialog({ rooms, today, onClose, onDone }: { rooms: Room[]; toda
   return <Modal title={ui("Allocate student")} eyebrow={ui("Hostel")} subtitle={ui("A stay runs from the start date up to, not including, the end date.")} onClose={onClose} dirty={Boolean(student || reason)}>
     <div className="space-y-3" data-dorm-allocate>
       <ErrorLine error={error} />
+      <DraftRecovery recordLabel={ui("Hostel allocation")} draft={allocateDraft} excluded={ui("Only the selected student and allocation details are stored in this signed-in browser draft.")} />
       <FormField name="dorm-student-search" label={ui("Find student by name or roll number")}><Input value={query} onChange={event => setQuery(event.target.value)} /></FormField>
       <fieldset className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
         <legend className="px-1 text-xs font-semibold">{ui("Student")}</legend>

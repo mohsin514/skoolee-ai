@@ -8,7 +8,7 @@
 // between activated and draft campuses all derive from the saved state.
 // ─────────────────────────────────────────────────────────────────
 import { z } from "zod";
-import { EMAIL_PATTERN } from "@/lib/school/details";
+import { EMAIL_PATTERN, isValidPhone } from "@/lib/school/details";
 
 export const INSTITUTION_TYPES = ["STANDALONE", "GROUP"] as const;
 export const ADOPTION_MODES = ["EXAM_STUDIO", "FULL_OPERATIONS"] as const;
@@ -98,11 +98,7 @@ export type StepErrors = Record<string, string>;
 
 const blank = (value: string | undefined) => !value || !value.trim();
 const badEmail = (value: string) => Boolean(value.trim()) && !EMAIL_PATTERN.test(value.trim());
-const badPhone = (value: string) => {
-  if (!value.trim()) return false;
-  const digits = value.replace(/\D/g, "").length;
-  return digits < 7 || digits > 15;
-};
+const badPhone = (value: string) => !isValidPhone(value);
 
 /** Accept a public HTTP(S) address, including the scheme-free domain shown in the form. */
 export function validWebsite(value: string): boolean {

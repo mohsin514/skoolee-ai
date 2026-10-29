@@ -13,6 +13,8 @@ import { Menu } from "@/components/ui/menu";
 import { MoreHorizontal } from "lucide-react";
 import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-436: the lending desk. Scan a member card, then copies; scan a copy to return it. Focus goes
 // back to the scan field after every scan. Fines are previewed and explained, never the first step.
@@ -55,6 +57,22 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [copyForm, setCopyForm] = useState({ bookId: "", barcodes: "" });
+  const copyRegistrationDraft = useFormDraft({
+    record: "library:copy-registration",
+    schema: 1,
+    values: copyForm,
+    baseline: { bookId: "", barcodes: "" },
+    fields: ["bookId", "barcodes"] as const,
+    apply: (values) => setCopyForm({ bookId: String(values.bookId ?? ""), barcodes: String(values.barcodes ?? "") }),
+  });
+  const returnDraft = useFormDraft({
+    record: "library:return",
+    schema: 1,
+    values: { returnCode, condition },
+    baseline: { returnCode: "", condition: "GOOD" },
+    fields: ["returnCode", "condition"] as const,
+    apply: (values) => { setReturnCode(String(values.returnCode ?? "")); setCondition(String(values.condition ?? "GOOD")); },
+  });
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
   const overviewVersion = useRef(0);
@@ -174,10 +192,11 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       <form className="flex flex-wrap items-end gap-2 rounded-xl border border-border p-3" data-tour="library.lending.return" onSubmit={async (e) => {
         e.preventDefault();
         const r = await post("return", { barcode: returnCode.trim(), condition });
-        if (r) { setMessage(r.alreadyReturned ? ui("Already returned · no duplicate change") : ui(r.heldForNextReservation ? "Return recorded. The copy is now held for the next reservation." : "Return recorded; availability updated.") + (r.fine?.amount ? ` ${ui("Fine recorded: {0}", [money(r.fine.amount, r.fine.currency)])}` : "")); setReturnCode(""); setFine(null); void load(); if (member) await refreshMember(); }
+        if (r) { setMessage(r.alreadyReturned ? ui("Already returned · no duplicate change") : ui(r.heldForNextReservation ? "Return recorded. The copy is now held for the next reservation." : "Return recorded; availability updated.") + (r.fine?.amount ? ` ${ui("Fine recorded: {0}", [money(r.fine.amount, r.fine.currency)])}` : "")); returnDraft.markSaved(); setReturnCode(""); setFine(null); void load(); if (member) await refreshMember(); }
         refocus();
       }}>
         <h3 className="w-full font-semibold">{ui("Return a copy")}</h3>
+        <div className="w-full"><DraftRecovery recordLabel={ui("Library return")} draft={returnDraft} excluded={ui("Only the barcode and condition are stored in this signed-in browser draft.")} /></div>
         <FormField name="desk-return" label={ui("Copy barcode")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input dir="ltr" value={returnCode} onChange={(e) => { setReturnCode(e.target.value); setFine(null); }} /></FormField>
         <FormField name="desk-condition" label={ui("Condition")}><Select value={condition} onChange={(e) => setCondition(e.target.value)}><option value="GOOD">{ui("Good")}</option><option value="WORN">{ui("Worn")}</option><option value="DAMAGED">{ui("Damaged")}</option></Select></FormField>
         <Button type="button" variant="outline" disabled={!returnCode.trim()} onClick={async () => { try { const p = await call(`/api/library/desk?preview=${encodeURIComponent(returnCode.trim())}`); setFine(p.onLoan ? p.fine : null); if (!p.onLoan) setMessage(ui("Already returned · no duplicate change")); } catch (e) { setError(ui((e as Error).message)); } }}>{ui("Preview fine")}</Button>
@@ -202,7 +221,8 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
           </div>
           <div className="space-y-2">
             <h3 className="font-semibold">{ui("Add barcoded copies")}</h3>
-            <form className="space-y-2 rounded-xl border border-border p-2" onSubmit={async (e) => { e.preventDefault(); const r = await post("copies", { bookId: copyForm.bookId, barcodes: copyForm.barcodes.split(/[\s,]+/).filter(Boolean) }); if (r) { setMessage(ui("{0} copies registered.", [r.length])); setCopyForm({ bookId: copyForm.bookId, barcodes: "" }); void load(); } }}>
+            <form className="space-y-2 rounded-xl border border-border p-2" onSubmit={async (e) => { e.preventDefault(); const r = await post("copies", { bookId: copyForm.bookId, barcodes: copyForm.barcodes.split(/[\s,]+/).filter(Boolean) }); if (r) { setMessage(ui("{0} copies registered.", [r.length])); copyRegistrationDraft.markSaved(); setCopyForm({ bookId: copyForm.bookId, barcodes: "" }); void load(); } }}>
+              <DraftRecovery recordLabel={ui("Copy registration")} draft={copyRegistrationDraft} excluded={ui("Only the selected title and barcode list are stored in this signed-in browser draft.")} />
               <FormField name="cp-book" label={ui("Title")}><Select value={copyForm.bookId} onChange={(e) => setCopyForm((f) => ({ ...f, bookId: e.target.value }))}><option value="">{ui("Choose a title")}</option>{overview.books.map((b) => <option key={b.id} value={b.id}>{b.title} ({b.copiesAvailable}/{b.copiesTotal})</option>)}</Select></FormField>
               <FormField name="cp-codes" label={ui("Barcodes")} hint={ui("One per copy, separated by spaces or commas.")}><Input dir="ltr" value={copyForm.barcodes} onChange={(e) => setCopyForm((f) => ({ ...f, barcodes: e.target.value }))} /></FormField>
               <Button type="submit" size="sm" variant="secondary" disabled={!copyForm.bookId || !copyForm.barcodes.trim()}>{ui("Register copies")}</Button>

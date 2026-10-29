@@ -871,7 +871,7 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Engineer, Doctor, Teacher...", "مهندس، طبيب، معلم...", "انجینئر، ڈاکٹر، استاد..."],
   ["Enter details or write 'None' if not applicable", "أدخل التفاصيل أو اكتب «لا يوجد»", "تفصیل لکھیں یا «کوئی نہیں» لکھیں"],
   ["Fee / scholarship eligibility tag", "وسم أهلية الرسوم / المنحة", "فیس / وظیفے کی اہلیت کا ٹیگ"],
-  ["Filled in from the English name as you type. Check the spelling.", "يُملأ من الاسم الإنجليزي أثناء الكتابة. تحقّق من الإملاء.", "انگریزی نام لکھتے ہی بھر جاتا ہے۔ ہجے چیک کریں۔"],
+  ["Type the name in Urdu, or use the Urdu keyboard.", "اكتب الاسم بالأردية، أو استخدم لوحة المفاتيح الأردية.", "نام اردو میں لکھیں، یا اردو کی بورڈ استعمال کریں۔"],
   ["Full name (English)", "الاسم الكامل (بالإنجليزية)", "پورا نام (انگریزی)"],
   ["Full name (Urdu)", "الاسم الكامل (بالأردية)", "پورا نام (اردو)"],
   ["Guardian email", "بريد ولي الأمر", "سرپرست کی ای میل"],

@@ -21,6 +21,8 @@ import { ConfirmAction } from "@/components/ui/confirm-action";
 import { forwardCommand, usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { downloadCSV } from "@/lib/csv";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 // SKO-469: issue certificates and ID cards from approved template versions. Reception previews the exact
 // text for the chosen pupil (missing fields block issuing), a leader approves identity-sensitive documents,
@@ -168,6 +170,14 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
   const [templateId, setTemplateId] = useState(reissue?.templateId ?? templates[0]?.id ?? ""), [student, setStudent] = useState<Student | null>(reissue ? { id: reissue.student.id, fullName: reissue.student.fullName, rollNo: reissue.student.rollNo, admissionNo: null, className: "" } : null);
   const [query, setQuery] = useState(""), [matches, setMatches] = useState<Student[]>([]), [reason, setReason] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const issueDraft = useFormDraft({
+    record: `certificates:issue:${reissue?.id ?? "new"}`,
+    schema: 1,
+    values: { templateId, studentId: student?.id ?? "", query, reason },
+    baseline: { templateId: reissue?.templateId ?? templates[0]?.id ?? "", studentId: reissue?.student.id ?? "", query: "", reason: "" },
+    fields: ["templateId", "studentId", "query", "reason"] as const,
+    apply: (values) => { setTemplateId(String(values.templateId ?? "")); setQuery(String(values.query ?? values.studentId ?? "")); setReason(String(values.reason ?? "")); },
+  });
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   useEffect(() => {
     if (reissue || query.trim().length < 2) return;
@@ -191,6 +201,7 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
     try {
       const json = await send("POST", { ...payload, idempotencyKey: attempt.current.key });
       toast.success(json.data.status === "ISSUED" ? ui("{0} issued.", [json.data.serial]) : ui("{0} sent to your campus admin for approval.", [json.data.serial]));
+      issueDraft.markSaved();
       onDone();
     } catch (failure) {
       setError(failure instanceof TypeError ? ui("The connection failed before the server answered. Retrying will not issue the document twice.") : ui(failure instanceof Error ? failure.message : "The change was not saved."));
@@ -198,6 +209,7 @@ function IssueDialog({ templates, reissue, onClose, onDone }: { templates: Templ
   };
   return <Modal title={reissue ? ui("Reissue {0}", [reissue.serial]) : ui("Issue document")} eyebrow={ui("Certificates and ID cards")} size="lg" onClose={onClose} dirty={Boolean(student || reason)}>
     <div className="space-y-3" data-issue-dialog>
+      <DraftRecovery recordLabel={ui("Certificate issue")} draft={issueDraft} saving={busy} excluded={ui("Preview content and student records are never stored in browser drafts.")} />
       {error ? <Alert tone="danger" compact data-issue-error>{error}</Alert> : null}
       <FormField name="issue-template" label={ui("Template")}><Select value={templateId} onChange={event => setTemplateId(event.target.value)}>{templates.map(template => <option key={template.id} value={template.id}>{template.name} · {kindLabel(ui, template.kind)} · {languageLabel(ui, template.language)} · v{template.currentVersion}</option>)}</Select></FormField>
       {reissue ? <p className="text-sm">{ui("Pupil")}: <bdi className="font-semibold text-ink-strong">{reissue.student.fullName}</bdi> · <bdi dir="ltr">{reissue.student.rollNo}</bdi></p> : <>

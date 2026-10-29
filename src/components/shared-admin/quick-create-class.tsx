@@ -37,6 +37,8 @@ import {
 } from "@/components/shared-admin/teacher-picker";
 import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 /* ── Types ────────────────────────────────────────────────────────────── */
 
@@ -120,6 +122,16 @@ export function QuickCreateClass({
   const [newSubjectMarks, setNewSubjectMarks] = useState("100");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+
+  const draftValues = { name, academicYear, teachingMode, hasSections, sectionsInput, subjects, copyFromClassId };
+  const classDraft = useFormDraft({
+    record: "admin:quick-create-class",
+    schema: 1,
+    values: draftValues,
+    baseline: { name: "", academicYear: String(new Date().getFullYear()), teachingMode: "SINGLE", hasSections: false, sectionsInput: "", subjects: [], copyFromClassId: "" },
+    fields: ["name", "academicYear", "teachingMode", "hasSections", "sectionsInput", "subjects", "copyFromClassId"] as const,
+    apply: (next) => { setName(next.name); setAcademicYear(next.academicYear); setTeachingMode(next.teachingMode as "SINGLE" | "SUBJECT"); setHasSections(next.hasSections); setSectionsInput(next.sectionsInput); setSubjects(next.subjects); setCopyFromClassId(next.copyFromClassId); },
+  });
 
   const { availability } = useTeacherAvailability();
 
@@ -387,6 +399,7 @@ export function QuickCreateClass({
           ? ui("\"{0}\" created with section {1}", [name.trim(), effectiveSections[0].name])
           : ui("\"{0}\" created with no sections", [name.trim()]));
       onCreated(createdClasses);
+      classDraft.markSaved();
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -431,6 +444,7 @@ export function QuickCreateClass({
       dirty={Boolean(name.trim()) && !busy}
       dirtyMessage={ui("This class has not been created yet. Discard it?")}
     >
+        <DraftRecovery draft={classDraft} saving={busy} recordLabel={ui("Quick class setup")} excluded={ui("Passwords and server-generated records are never stored in this browser draft.")} />
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="shrink-0 border-b border-edge/15 bg-brand-50/70 px-6 pt-5 pb-4 sm:px-7">
           <div className="flex items-center justify-between">
