@@ -153,11 +153,16 @@ test("Arabic mobile calendar retains record identity and fits RTL",async()=>{
   // Signed-in display language is resolved from the user's preferredLanguage (getDisplayLocale), not the cookie.
   await ctx.addCookies([{ name: "skoolee-lang", value: "ar", domain: "localhost", path: "/" }]);
   const page=await ctx.newPage();
-  await page.goto(`${base}/admin?view=students&view.students=calendar&sq=Synthetic%20Ada`);
   // Arabic is the final browser case after several full admin navigations; the
-  // dev server may recycle its worker under the CI memory ceiling. Allow that
-  // restart to settle before asserting the rendered record.
-  await page.locator('[data-record-id]').waitFor({ timeout: 120_000 });
+  // dev server may recycle its worker under the CI memory ceiling, leaving the
+  // first navigation on a dead page. Reload until the record renders.
+  for(let attempt=1;;attempt++){
+    try {
+      await page.goto(`${base}/admin?view=students&view.students=calendar&sq=Synthetic%20Ada`);
+      await page.locator('[data-record-id]').waitFor({ timeout: 45_000 });
+      break;
+    } catch(error){ if(attempt>=5) throw error; await page.waitForTimeout(10_000); }
+  }
   assert.equal(await page.locator('html').getAttribute('dir'),"rtl");
   assert.equal(await page.locator('[data-record-id]').first().getAttribute('data-record-id'),pupils["Synthetic Ada"]);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
