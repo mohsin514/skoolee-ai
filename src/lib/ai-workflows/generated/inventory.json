@@ -8184,6 +8184,22 @@
   "source": "appendix-a"
  },
  {
+  "key": "fees.set_fee_cap_policy",
+  "cluster": "C6 Finance, payroll, purchasing and inventory",
+  "method": "PUT",
+  "route": "/api/fees/fee-cap-policy",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "fees.set_invoice_status",
   "cluster": "C6 Finance, payroll, purchasing and inventory",
   "method": "PATCH",

@@ -58,6 +58,8 @@ export function legacyInvoiceAmounts(structure: LegacyStructure) {
 
 type RecomputeStructure = LegacyStructure & {
   id: string;
+  approvedFee?: number | null;
+  approvedFeeReference?: string | null;
   campusId: string;
   classId: string;
   currency: string;
@@ -111,6 +113,7 @@ export async function recomputePendingInvoices(
       where: { id: invoice.id, schoolId: actor.schoolId, status: "PENDING", totalAmountPaid: 0 },
       data: {
         monthlyFee: amounts.monthlyFee,
+        ...(structure.approvedFee !== undefined ? { approvedFee: structure.approvedFee, approvedFeeReference: structure.approvedFeeReference ?? null } : {}),
         oneTimeFees: amounts.oneTimeTotal,
         subtotal: amounts.subtotal,
         discountAmount: amounts.discountAmount,

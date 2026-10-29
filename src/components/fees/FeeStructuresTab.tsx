@@ -33,6 +33,7 @@ import type { ClassOption, FeeStructure, PanelCommand } from "./fee-types";
 import { API, classLabel, formatPKR, forwardCommand, paisaToRupees, rupeesToPaisa, usePanelCommand } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+import { evaluateFeeCap, type FeeCapMode } from "@/lib/fees/regulator-cap";
 
 export type StructureSubTab = "types" | "groups" | "master" | "assign" | "discounts" | "carry" | "fines" | "legacy";
 
@@ -112,6 +113,8 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeStructure | null>(null);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const [capMode, setCapMode] = useState<FeeCapMode>("OFF");
+  const [canEditCap, setCanEditCap] = useState(false);
   const loadSequence = useRef(0);
 
   const qp = campusId ? `?campusId=${encodeURIComponent(campusId)}` : "";
@@ -131,6 +134,8 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
       if (sJson.success) setStructures(sJson.data);
       else throw new Error("Invalid result");
       if (cJson.success) setClasses(cJson.data);
+      // SKAI-1154: the opt-in regulator fee cap; an unreadable policy leaves the cap off in the form only.
+      void readRequest(`${API}/fee-cap-policy`).then(checkedJson).then((p) => { if (loadVersion === loadSequence.current && p.success) { setCapMode(p.data.mode); setCanEditCap(Boolean(p.data.canEdit)); } }).catch(() => undefined);
     } catch (error) {
       if (loadVersion !== loadSequence.current) return;
       setLoadFailed(requestFailure(error));
@@ -142,6 +147,20 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const changeCapMode = async (mode: FeeCapMode) => {
+    const previous = capMode;
+    setCapMode(mode);
+    try {
+      const res = await fetch(`${API}/fee-cap-policy`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, framework: "KHDA_ECI" }) });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to save");
+      toast.saved(tr("Fee cap policy saved"));
+    } catch (error) {
+      setCapMode(previous);
+      toast.error(tr(error instanceof Error ? error.message : "Failed to save"));
+    }
+  };
 
   const handleDeactivate = async (id: string) => {
     try {
@@ -215,6 +234,21 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
         {hideCreate ? null : <Button onClick={() => { setEditing(null); setShowModal(true); }}><Plus className="size-4" aria-hidden="true" /><UiText>{"New fee structure"}</UiText></Button>}
       </div>
 
+      <div className="sk-panel flex flex-wrap items-end justify-between gap-3 p-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-ink-strong"><UiText>{"Regulator fee cap"}</UiText></p>
+          <p className="text-2xs text-ink-subtle"><UiText>{"KHDA ECI framework: record each class's approved fee and stop fees above it."}</UiText></p>
+        </div>
+        <label className="w-full sm:w-80">
+          <span className="sr-only"><UiText>{"Regulator fee cap"}</UiText></span>
+          <SystemSelect value={capMode} disabled={!canEditCap} title={canEditCap ? undefined : tr("Only a school administrator can change the fee cap policy")} onChange={(e) => void changeCapMode(e.target.value as FeeCapMode)}>
+            <option value="OFF">{tr("Off")}</option>
+            <option value="WARN">{tr("Warn above the approved fee")}</option>
+            <option value="BLOCK">{tr("Block above the approved fee")}</option>
+          </SystemSelect>
+        </label>
+      </div>
+
       {unassignedClasses.length > 0 && (
         <Alert tone="warning" live="off" compact title={tr("Classes without fee structure")}>
             {unassignedClasses.map((c) => classLabel(c.name, c.section)).join(", ")}
@@ -236,6 +270,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
             <StructureCard
               key={fs.id}
               structure={fs}
+              capMode={capMode}
               onEdit={() => { setEditing(fs); setShowModal(true); }}
               onDeactivate={() => handleDeactivate(fs.id)}
             />
@@ -269,6 +304,7 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
           campusId={campusId}
           classes={classes}
           editing={editing}
+          capMode={capMode}
           onClose={() => { setShowModal(false); setEditing(null); }}
           onSaved={() => { setShowModal(false); setEditing(null); loadData(); }}
         />
@@ -279,10 +315,12 @@ function LegacyStructuresTab({ campusId, command, hideCreate = false }: { campus
 
 function StructureCard({
   structure: fs,
+  capMode,
   onEdit,
   onDeactivate,
 }: {
   structure: FeeStructure;
+  capMode: FeeCapMode;
   onEdit: () => void;
   onDeactivate: () => Promise<boolean>;
 }) {
@@ -293,6 +331,7 @@ function StructureCard({
   const discountRules = fs.discountRulesJson ?? {};
   const oneTimeTotal = Object.values(oneTimeFees).reduce((s, v) => s + v, 0);
   const hasExtras = Object.keys(oneTimeFees).length > 0 || Object.keys(discountRules).length > 0;
+  const capStatus = evaluateFeeCap({ mode: capMode, fee: fs.monthlyFee, approvedFee: fs.approvedFee }).status;
 
   return (
     <div className="sk-panel p-5 transition-all hover:-translate-y-0.5">
@@ -332,6 +371,12 @@ function StructureCard({
           <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Monthly"}</UiText></p>
           <p className="text-sm font-bold text-primary">{formatPKR(fs.monthlyFee, fs.currency)}</p>
         </div>
+        {fs.approvedFee != null && (
+          <div className="rounded-xl bg-surface-subtle px-3 py-2">
+            <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"Approved fee"}</UiText></p>
+            <p className="text-sm font-bold text-ink-muted">{formatPKR(fs.approvedFee, fs.currency)}</p>
+          </div>
+        )}
         {oneTimeTotal > 0 && (
           <div className="rounded-xl bg-status-info-surface px-3 py-2">
             <p className="text-2xs font-semibold uppercase text-ink-subtle"><UiText>{"One-Time"}</UiText></p>
@@ -351,6 +396,12 @@ function StructureCard({
           </div>
         )}
       </div>
+
+      {capStatus === "warn" || capStatus === "block" ? (
+        <Alert tone="warning" live="off" compact className="mb-3" title={tr("This fee is above the regulator-approved fee.")} />
+      ) : capStatus === "missing" ? (
+        <Alert tone="info" live="off" compact className="mb-3" title={tr("Record the regulator-approved fee for this class before charging it.")} />
+      ) : null}
 
       {hasExtras && (
         <div className="space-y-1.5">
@@ -376,12 +427,14 @@ function StructureModal({
   campusId,
   classes,
   editing,
+  capMode,
   onClose,
   onSaved,
 }: {
   campusId?: string;
   classes: ClassOption[];
   editing: FeeStructure | null;
+  capMode: FeeCapMode;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -393,6 +446,8 @@ function StructureModal({
   useEffect(() => { if (!editing) void getFinancialLocale(campusId).then((policy) => setCurrency(policy.currency)).catch(() => undefined); }, [campusId, editing]);
   const [classId, setClassId] = useState(editing?.classId ?? "");
   const [monthlyFee, setMonthlyFee] = useState(editing ? String(paisaToRupees(editing.monthlyFee, editing.currency)) : "");
+  const [approvedFee, setApprovedFee] = useState(editing?.approvedFee != null ? String(paisaToRupees(editing.approvedFee, editing.currency)) : "");
+  const [approvedFeeReference, setApprovedFeeReference] = useState(editing?.approvedFeeReference ?? "");
   const [installmentType, setInstallmentType] = useState(editing?.installmentType ?? "11-month");
   const [lateFeePct, setLateFeePct] = useState(String(editing?.lateFeePercentage ?? 2.0));
   const [compoundLateFee, setCompoundLateFee] = useState(editing?.compoundLateFee ?? true);
@@ -414,6 +469,11 @@ function StructureModal({
       : []
   );
   const [saving, setSaving] = useState(false);
+  const formCap = evaluateFeeCap({
+    mode: capMode,
+    fee: monthlyFee ? rupeesToPaisa(monthlyFee, currency) : 0,
+    approvedFee: approvedFee ? rupeesToPaisa(approvedFee, currency) : null,
+  });
 
   const handleSave = async () => {
     if (!classId || !monthlyFee || !currency) {
@@ -436,6 +496,8 @@ function StructureModal({
       campusId: campusId || "",
       classId,
       monthlyFee: rupeesToPaisa(monthlyFee, currency),
+      approvedFee: approvedFee ? rupeesToPaisa(approvedFee, currency) : null,
+      approvedFeeReference: approvedFeeReference.trim() || null,
       installmentType,
       lateFeePercentage: parseFloat(lateFeePct),
       compoundLateFee,
@@ -458,6 +520,7 @@ function StructureModal({
       const json = await res.json();
       if (json.success) {
         toast.success(tr(json.message || "Fee structure saved"));
+        if (json.feeCapWarning) toast.warning(tr(json.feeCapWarning));
         onSaved();
       } else {
         toast.error(tr(json.error || "Failed to save"));
@@ -513,6 +576,24 @@ function StructureModal({
               </SystemSelect>
             </label>
           </div>
+
+          {capMode !== "OFF" || editing?.approvedFee != null ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label>
+                  <span className={labelClass}>{tr("Regulator-approved fee")} (<bdi>{currency}</bdi>)</span>
+                  <SystemInput type="number" value={approvedFee} onChange={(e) => setApprovedFee(e.target.value)} className={inputClass} />
+                </label>
+                <label>
+                  <span className={labelClass}><UiText>{"Approval reference"}</UiText></span>
+                  <SystemInput type="text" maxLength={120} value={approvedFeeReference} onChange={(e) => setApprovedFeeReference(e.target.value)} placeholder={tr("e.g. KHDA fee permit number")} className={inputClass} />
+                </label>
+              </div>
+              {formCap.status === "warn" || formCap.status === "block" ? (
+                <Alert tone={formCap.status === "block" ? "danger" : "warning"} live="polite" compact title={tr(formCap.message)} />
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-3 gap-3">
             <label>

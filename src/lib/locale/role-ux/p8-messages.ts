@@ -556,6 +556,20 @@ const P8: Record<string, readonly [ar: string, ur: string]> = {
   "Hostel sections": ["أقسام السكن", "ہاسٹل کے حصے"],
   "Inventory sections": ["أقسام المخزون", "سامان کے ذخیرے کے حصے"],
   "The export could not be prepared. Check your connection, then try again.": ["تعذّر تجهيز التصدير. تحقّق من اتصالك ثم حاول مجددًا.", "ایکسپورٹ تیار نہیں ہو سکا۔ اپنا کنکشن جانچیں، پھر دوبارہ کوشش کریں۔"],
+  // SKAI-1154: regulator fee caps on fee structures.
+  "Regulator fee cap": ["سقف الرسوم التنظيمي", "ریگولیٹر کی فیس کی حد"],
+  "KHDA ECI framework: record each class's approved fee and stop fees above it.": ["إطار مؤشر تكلفة التعليم لهيئة المعرفة: سجّل الرسوم المعتمدة لكل صف وامنع الرسوم التي تتجاوزها.", "KHDA ECI فریم ورک: ہر جماعت کی منظور شدہ فیس درج کریں اور اس سے زیادہ فیس روکیں۔"],
+  "Warn above the approved fee": ["تنبيه عند تجاوز الرسوم المعتمدة", "منظور شدہ فیس سے زیادہ ہونے پر انتباہ"],
+  "Block above the approved fee": ["منع تجاوز الرسوم المعتمدة", "منظور شدہ فیس سے زیادہ ہونے پر روکیں"],
+  "Fee cap policy saved": ["تم حفظ سياسة سقف الرسوم", "فیس کی حد کی پالیسی محفوظ ہو گئی"],
+  "Approved fee": ["الرسوم المعتمدة", "منظور شدہ فیس"],
+  "Regulator-approved fee": ["الرسوم المعتمدة من الجهة التنظيمية", "ریگولیٹر کی منظور شدہ فیس"],
+  "Approval reference": ["مرجع الاعتماد", "منظوری کا حوالہ"],
+  "e.g. KHDA fee permit number": ["مثال: رقم تصريح الرسوم من هيئة المعرفة", "مثلاً KHDA فیس پرمٹ نمبر"],
+  "This fee is above the regulator-approved fee.": ["هذه الرسوم أعلى من الرسوم المعتمدة من الجهة التنظيمية.", "یہ فیس ریگولیٹر کی منظور شدہ فیس سے زیادہ ہے۔"],
+  "This fee is above the regulator-approved fee. Lower it or update the approved fee.": ["هذه الرسوم أعلى من الرسوم المعتمدة من الجهة التنظيمية. خفّضها أو حدّث الرسوم المعتمدة.", "یہ فیس ریگولیٹر کی منظور شدہ فیس سے زیادہ ہے۔ اسے کم کریں یا منظور شدہ فیس اپ ڈیٹ کریں۔"],
+  "Record the regulator-approved fee for this class before charging it.": ["سجّل الرسوم المعتمدة من الجهة التنظيمية لهذا الصف قبل تحصيلها.", "اس جماعت سے فیس لینے سے پہلے ریگولیٹر کی منظور شدہ فیس درج کریں۔"],
+  "Only a school administrator can change the fee cap policy": ["يمكن لمسؤول المدرسة فقط تغيير سياسة سقف الرسوم", "فیس کی حد کی پالیسی صرف اسکول ایڈمنسٹریٹر بدل سکتا ہے"],
 };
 
 export const arabicP8Ui: Record<string, string> = Object.fromEntries(Object.entries(P8).map(([key, [ar]]) => [key, ar]));
