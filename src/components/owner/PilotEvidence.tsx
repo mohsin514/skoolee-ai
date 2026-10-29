@@ -41,12 +41,13 @@ type MeasureFinding = { key: string; kind: string; workflow: string | null; curr
   excludedSynthetic: number; superseded: number; rate: number | null; rateWithheld: string | null };
 type Observation = { id: string; workflow: string; phase: string; participant: string; task: string; difficulty: string; activeSeconds: number | null; correctionSeconds: number | null; elapsedSeconds: number | null; completed: boolean; source: string; synthetic: boolean; excludedReason: string | null; observedOn: string };
 type Claim = { id: string; version: number; statement: string; findingKey: string; identifiable: boolean; status: string; stale: boolean; reviewNote: string | null; support: { supported: boolean; reason: string | null }; exportBlockedBy: string | null };
-type Detail = { pilot: Pilot; observations: Observation[]; findings: { time: TimeFinding[]; correctness: { workflow: string; extraction: MeasureFinding; final: MeasureFinding }[]; other: MeasureFinding[] }; claims: Claim[] };
+type Detail = { pilot: Pilot; observations: Observation[]; findings: { time: TimeFinding[]; correctness: { workflow: string; extraction: MeasureFinding; final: MeasureFinding }[]; other: MeasureFinding[] }; claims: Claim[];
+  activationGate?: { allowed: true; market: string } | { allowed: false; blockers: { item: string; reason: string }[] } | null };
 type Exported = { generatedAt: string; statements: { claimId: string; statement: string; school: string | null; cohort: Record<string, string>; sample: Record<string, number>; limitations: string[] }[]; excluded: { claimId: string; pilot: string; reason: string }[] };
 
 const STATE_LABEL: Record<string, string> = { MEASURED: "Measured", SELF_REPORTED: "Self-reported", TARGET: "Target", VERBAL_INTENT: "Verbal intent", UNKNOWN: "Unknown" };
 const KIND_LABEL: Record<string, string> = { CORRECTNESS_EXTRACTION: "Extraction accuracy", CORRECTNESS_FINAL: "Final approved accuracy", WEEKLY_ACTIVE: "Weekly active users", SUPPORT_MINUTES: "Support effort", SERVING_COST: "Serving cost", AI_CREDITS: "AI credits used", SATISFACTION: "Satisfaction", PAID_CONVERSION: "Paid conversion", RENEWAL: "Renewal" };
-const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approved", RETURNED: "Returned", WITHDRAWN: "Withdrawn", STALE: "Stale", WAITING_CHARTER: "Waiting for charter", WAITING_PAYMENT: "Waiting for payment", WAITING_PROVIDER: "Waiting for provider", WAITING_READINESS: "Waiting for readiness", PLANNED: "Planned", ACTIVE: "Active", CLOSED: "Closed" };
+const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approved", RETURNED: "Returned", WITHDRAWN: "Withdrawn", STALE: "Stale", WAITING_CHARTER: "Waiting for charter", WAITING_PAYMENT: "Waiting for payment", WAITING_PROVIDER: "Waiting for provider", WAITING_READINESS: "Waiting for readiness", WAITING_PILOT_GATE: "Waiting for pilot readiness gate",PLANNED: "Planned", ACTIVE: "Active", CLOSED: "Closed" };
 const PERMISSION_LABEL: Record<string, string> = { NONE: "No case-study permission", AGGREGATE: "Anonymised figures only", NAMED: "School may be named" };
 const PHASE_LABEL: Record<string, string> = { BASELINE: "Baseline", FOLLOW_UP: "Follow-up" };
 
@@ -273,6 +274,13 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
           {pilot.status !== "ACTIVE" && pilot.status !== "CLOSED" ? <Button variant="outline" onClick={() => act("charter", { status: "ACTIVE" }, "Charter updated.")}>{ui("Start pilot")}</Button> : null}
           {pilot.status !== "CLOSED" ? <Button variant="outline" onClick={() => act("charter", { status: "CLOSED" }, "Pilot closed.")}>{ui("Close pilot")}</Button> : null}
         </div>
+        {detail.activationGate && !detail.activationGate.allowed && pilot.status !== "CLOSED" ? (
+          <Alert className="mt-4" tone="warning" live="off" title={ui("This pilot cannot become active yet")}>
+            <ul className="list-disc space-y-1 ps-5 text-sm" data-testid="pilot-gate-blockers">
+              {detail.activationGate.blockers.map((b, i) => <li key={`${b.item}-${i}`}><span className="font-semibold" dir="ltr">{b.item}</span>: {ui(b.reason)}</li>)}
+            </ul>
+          </Alert>
+        ) : null}
       </div>
 
       <div>
