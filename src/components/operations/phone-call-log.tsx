@@ -148,10 +148,17 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
   const draft = useFormDraft({ record: "reception:phone-call", schema: 1, values: draftValues, baseline: { ...draftValues, name: "", phone: "", purpose: "", note: "", callbackDue: "", callbackOwnerId: "" }, fields: ["name", "phone", "direction", "date", "purpose", "note", "callbackDue", "callbackOwnerId"] as const, apply: values => setForm(current => ({ ...current, name: String(values.name ?? ""), phone: String(values.phone ?? ""), direction: String(values.direction ?? "IN"), date: String(values.date ?? current.date), purpose: String(values.purpose ?? ""), note: String(values.note ?? ""), callbackDue: String(values.callbackDue ?? ""), callbackOwnerId: String(values.callbackOwnerId ?? "") })) });
   const attempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const set = (field: keyof typeof form) => (event: { target: { value: string } }) => setForm(current => ({ ...current, [field]: event.target.value }));
+  // SKAI-1023: the callback is read from the fields themselves at save time. A value the browser shows but React
+  // state never received (autofill, a picker or a scripted fill without an input event) was silently dropped, so
+  // the call saved with no callback and the open/unassigned counters stayed at zero.
+  const dueField = useRef<HTMLInputElement>(null), ownerField = useRef<HTMLSelectElement>(null);
   const submit = async () => {
     if (form.name.trim().length < 2 || form.phone.replace(/\D/g, "").length < 6 || form.purpose.trim().length < 2 || !form.date) { setError(ui("Enter the caller's name, a phone number with at least 6 digits, the call time and the purpose.")); return; }
-    if (form.callbackOwnerId && !form.callbackDue) { setError(ui("Choose when the callback is due, or leave the owner empty.")); return; }
-    const payload = { ...form, callbackDue: form.callbackDue || undefined, callbackOwnerId: form.callbackOwnerId || undefined };
+    if (dueField.current?.validity.badInput) { setError(ui("Finish the callback date and time, or clear it.")); return; }
+    const callbackDue = dueField.current?.value || form.callbackDue, callbackOwnerId = ownerField.current?.value ?? form.callbackOwnerId;
+    if (callbackOwnerId && !callbackDue) { setError(ui("Choose when the callback is due, or leave the owner empty.")); return; }
+    if (callbackDue !== form.callbackDue || callbackOwnerId !== form.callbackOwnerId) setForm(current => ({ ...current, callbackDue, callbackOwnerId }));
+    const payload = { ...form, callbackDue: callbackDue || undefined, callbackOwnerId: callbackOwnerId || undefined };
     const fingerprint = JSON.stringify(payload);
     if (attempt.current?.fingerprint !== fingerprint) attempt.current = { fingerprint, key: crypto.randomUUID() };
     setBusy(true); setError("");
@@ -179,8 +186,8 @@ function LogCallDialog({ owners, onClose, onDone }: { owners: Owner[]; onClose: 
       <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.sensitive} onChange={event => setForm(current => ({ ...current, sensitive: event.target.checked }))} data-call-sensitive />{ui("Sensitive note (health, safeguarding, family matters) — only leaders, you and the callback owner can read it")}</label>
       <fieldset className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
         <legend className="px-1 text-xs font-semibold text-ink-strong">{ui("Callback (optional)")}</legend>
-        <FormField name="call-callback-due" label={ui("Call back by (school time)")}><Input type="datetime-local" value={form.callbackDue} min={form.date} onChange={set("callbackDue")} /></FormField>
-        <FormField name="call-callback-owner" label={ui("Owner")}><Select value={form.callbackOwnerId} onChange={set("callbackOwnerId")}><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
+        <FormField name="call-callback-due" label={ui("Call back by (school time)")}><Input ref={dueField} type="datetime-local" value={form.callbackDue} min={form.date} onChange={set("callbackDue")} data-call-callback-due /></FormField>
+        <FormField name="call-callback-owner" label={ui("Owner")}><Select ref={ownerField} value={form.callbackOwnerId} onChange={set("callbackOwnerId")} data-call-callback-owner><option value="">{ui("Unassigned")}</option>{owners.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</Select></FormField>
       </fieldset>
       <div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void submit()} loading={busy}>{ui("Log call")}</Button></div>
     </div>

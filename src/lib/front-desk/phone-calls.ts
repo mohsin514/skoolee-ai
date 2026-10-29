@@ -93,6 +93,8 @@ export async function logCall(user: AuthUser, campusId: string, body: Record<str
     if (!["IN", "OUT"].includes(input.direction)) throw new ApiError("Direction must be incoming or outgoing.", 400);
     if (input.note && input.note.length > 1000) throw new ApiError("Note is too long (max 1000).", 400);
     if (input.date.getTime() > Date.now() + 5 * 60_000) throw new ApiError("The call time cannot be in the future.", 400);
+    // SKAI-1023: an owner without a due time used to be dropped silently along with the callback.
+    if (body.callbackOwnerId && !body.callbackDue) throw new ApiError("Choose when the callback is due, or leave the owner empty.", 400);
     const callback = body.callbackDue ? { dueAt: instant(body.callbackDue, "Callback due", timezone), ownerId: body.callbackOwnerId ? String(body.callbackOwnerId) : null } : null;
     if (callback && callback.dueAt < input.date) throw new ApiError("The callback cannot be due before the call.", 400);
     const requestHash = hash({ ...input, date: input.date.toISOString(), callback: callback && { ...callback, dueAt: callback.dueAt.toISOString() } });
