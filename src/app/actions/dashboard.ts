@@ -1,5 +1,5 @@
 'use server'
-import { dominantInvoiceCurrency } from "@/app/api/fees/reports/invoice-currency";
+import { dominantInvoiceCurrency, pickDominantCurrency } from "@/app/api/fees/reports/invoice-currency";
 import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
 import { pendingReportReviewCount } from "@/lib/academic/report-review-count";
 
@@ -382,11 +382,9 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
-  const { currency: localeCurrency } = await getLocalePackage(session.schoolId, campusId);
-  const currency = await dominantInvoiceCurrency(session.schoolId, [campusId], localeCurrency);
-  const aiSetupPending = aiSetupPendingFor(session);
 
   const [
+    locale,
     classes,
     teachers,
     campusAdmins,
@@ -402,9 +400,10 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     aiInsights,
     pendingAIReviewItems,
     attendanceRecords,
-    invoiceTotals,
-    invoiceGroups,
+    invoiceGroupsByCurrency,
+    aiSetupPending,
   ] = await Promise.all([
+    getLocalePackage(session.schoolId, campusId),
     prisma.class.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       include: {
@@ -617,18 +616,37 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         student: { select: { fullName: true, rollNo: true, classId: true } },
       },
     }),
-    prisma.invoice.aggregate({
-      where: { currency, campusId, campus: { schoolId: session.schoolId } },
-      _sum: { totalAmount: true, totalAmountPaid: true },
-      _count: true,
-    }),
     prisma.invoice.groupBy({
-      by: ["status"],
-      where: { currency, campusId, campus: { schoolId: session.schoolId } },
-      _count: true,
+      by: ["currency", "status"],
+      where: { campusId, campus: { schoolId: session.schoolId } },
+      _count: { _all: true },
       _sum: { totalAmount: true, totalAmountPaid: true },
     }),
+    aiSetupPendingFor(session),
   ]);
+
+  const currencyCounts = new Map<string, number>();
+  for (const group of invoiceGroupsByCurrency) {
+    if (group.status === "CANCELLED" || !group.currency) continue;
+    currencyCounts.set(group.currency, (currencyCounts.get(group.currency) ?? 0) + group._count._all);
+  }
+  const currency = pickDominantCurrency(
+    [...currencyCounts].map(([currencyCode, count]) => ({ currency: currencyCode, count })),
+    locale.currency,
+  );
+  const invoiceGroups = invoiceGroupsByCurrency
+    .filter((group) => group.currency === currency)
+    .map(({ status, _count, _sum }) => ({ status, _count, _sum }));
+  const invoiceTotals = invoiceGroups.reduce(
+    (total, group) => ({
+      _count: total._count + group._count._all,
+      _sum: {
+        totalAmount: total._sum.totalAmount + (group._sum.totalAmount ?? 0),
+        totalAmountPaid: total._sum.totalAmountPaid + (group._sum.totalAmountPaid ?? 0),
+      },
+    }),
+    { _count: 0, _sum: { totalAmount: 0, totalAmountPaid: 0 } },
+  );
 
   const pendingAdmin = pendingInvitations.find((invite) => invite.role === "CAMPUS_ADMIN" || invite.role === "ADMIN");
   const pendingPrincipal = pendingInvitations.find((invite) => invite.role === "PRINCIPAL");
@@ -646,7 +664,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     canInviteAdmins: isInstitutionAuthority(session),
     institutionKind: kindFor(session) ?? institutionKindOf({}),
     /** Flagship card on Today: true only for the standalone owner whose school is not set up yet (addendum 2026-10-22). */
-    aiSetupPending: await aiSetupPending,
+    aiSetupPending,
     classes,
     teachers,
     campusAdmins,

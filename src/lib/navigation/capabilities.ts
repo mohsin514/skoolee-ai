@@ -119,11 +119,37 @@ async function guardianChildren(user: AuthUser, permission: "pickup" | "any") {
   return prisma.student.count({ where: { AND: [studentScope(user, permission), { archivedAt: null }] } });
 }
 
-export async function capabilitiesFor(user: AuthUser, permissions: Map<string, PermissionFlags>): Promise<Record<CapabilityKey, boolean>> {
+export async function capabilitiesFor(
+  user: AuthUser,
+  permissionsInput: Map<string, PermissionFlags> | Promise<Map<string, PermissionFlags>>,
+): Promise<Record<CapabilityKey, boolean>> {
   const caps = Object.fromEntries(CAPABILITY_KEYS.map((key) => [key, false])) as Record<CapabilityKey, boolean>;
   const role = user.role;
   const operator = isCampusOperator(user);
   const kind = kindFor(user);
+  const campusStaff = CAMPUS_STAFF.includes(role) && Boolean(user.campusId);
+  const dutyStaff = DUTY_STAFF.includes(role);
+
+  // These reads do not depend on the editable permission matrix. Start them
+  // while that matrix is loading so the navigation gate pays for one database
+  // round trip instead of three serial ones on a cold request.
+  const seatsPromise = campusStaff
+    ? getCampusSeats(user.schoolId, user.campusId).catch((error: unknown) => {
+      console.warn("[navigation] campus seats unavailable", { role, error: error instanceof Error ? error.message : String(error) });
+      return ALL_SEATS;
+    })
+    : Promise.resolve(NO_SEATS);
+  const dutiesPromise = Promise.all([
+    operator ? true : dutyStaff ? duty("careMember", user, () => careMember(user)) : false,
+    operator ? true : dutyStaff ? duty("serviceAgent", user, () => serviceAgent(user)) : false,
+    operator ? true : dutyStaff ? duty("tripToday", user, () => tripToday(user)) : false,
+    operator ? true : dutyStaff ? duty("activityStaff", user, () => activityStaff(user)) : false,
+    role === "TEACHER" || role === "STUDENT" || role === "PARENT" ? duty("accessPlans", user, () => accessPlans(user)) : false,
+    CAMPUS_STAFF.includes(role) || role === "PARENT" || role === "STUDENT" ? duty("pkgCanteen", user, () => pkgCanteen(user)) : false,
+    role === "PARENT" ? duty("pickupGuardian", user, async () => (await guardianChildren(user, "pickup")) > 0) : false,
+    role === "PARENT" ? duty("multiChild", user, async () => (await guardianChildren(user, "any")) >= 2) : false,
+  ]);
+  const permissions = await permissionsInput;
 
   // Institution and identity — pure, no queries.
   caps.institutionAuthority = isInstitutionAuthority(user);
@@ -148,13 +174,7 @@ export async function capabilitiesFor(user: AuthUser, permissions: Map<string, P
 
   // Seats — one groupBy for campus staff; the group admin, families and the platform operator hold none.
   // When the seat lookup fails, assume every seat is held: operators then hold no fallback desk (fail closed).
-  const campusStaff = CAMPUS_STAFF.includes(role) && Boolean(user.campusId);
-  const seats = campusStaff
-    ? await getCampusSeats(user.schoolId, user.campusId).catch((error: unknown) => {
-      console.warn("[navigation] campus seats unavailable", { role, error: error instanceof Error ? error.message : String(error) });
-      return ALL_SEATS;
-    })
-    : NO_SEATS;
+  const seats = await seatsPromise;
   caps.hasCampusAdmin = seats.campusAdmin;
   caps.hasPrincipal = seats.principal;
   caps.hasAccountant = seats.accountant;
@@ -173,17 +193,7 @@ export async function capabilitiesFor(user: AuthUser, permissions: Map<string, P
   if (examStudioSeat) caps.schoolAiExams = caps.schoolAi && permissions.get("exams")?.canView === true;
 
   // Duties — operators run them on their campus; named staff only while the duty exists.
-  const dutyStaff = DUTY_STAFF.includes(role);
-  const [care, agent, trip, activity, plans, canteen, pickup, children] = await Promise.all([
-    operator ? true : dutyStaff ? duty("careMember", user, () => careMember(user)) : false,
-    operator ? true : dutyStaff ? duty("serviceAgent", user, () => serviceAgent(user)) : false,
-    operator ? true : dutyStaff ? duty("tripToday", user, () => tripToday(user)) : false,
-    operator ? true : dutyStaff ? duty("activityStaff", user, () => activityStaff(user)) : false,
-    role === "TEACHER" || role === "STUDENT" || role === "PARENT" ? duty("accessPlans", user, () => accessPlans(user)) : false,
-    CAMPUS_STAFF.includes(role) || role === "PARENT" || role === "STUDENT" ? duty("pkgCanteen", user, () => pkgCanteen(user)) : false,
-    role === "PARENT" ? duty("pickupGuardian", user, async () => (await guardianChildren(user, "pickup")) > 0) : false,
-    role === "PARENT" ? duty("multiChild", user, async () => (await guardianChildren(user, "any")) >= 2) : false,
-  ]);
+  const [care, agent, trip, activity, plans, canteen, pickup, children] = await dutiesPromise;
   caps.careMember = care;
   caps.serviceAgent = agent;
   caps.tripToday = trip;

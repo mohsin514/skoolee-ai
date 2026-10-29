@@ -162,6 +162,22 @@ test("every fixture gets exactly the capability keys, each a boolean", async () 
   }
 });
 
+test("capability database reads start while the permission map is still loading", async () => {
+  hold(CAMPUS, "ADMIN");
+  let release!: (value: Map<string, PermissionFlags>) => void;
+  const pendingPermissions = new Promise<Map<string, PermissionFlags>>((resolve) => { release = resolve; });
+
+  const result = capabilitiesFor(FIXTURES[1][1], pendingPermissions);
+  await Promise.resolve();
+  assert.ok(
+    state.calls.includes("user.groupBy") || state.calls.includes("campusPackage.count"),
+    "independent capability reads should not wait behind the permission query",
+  );
+
+  release(permissionMap("ADMIN"));
+  assert.equal((await result).campusOps, true);
+});
+
 test("institution keys follow the authority helper (SA, SO, CA, PR)", async () => {
   hold(CAMPUS, "CAMPUS_ADMIN", "PRINCIPAL");
   const sa = await caps(FIXTURES[0][1]);

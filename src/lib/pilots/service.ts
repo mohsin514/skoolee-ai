@@ -42,7 +42,24 @@ const PilotInput = z.object({
 }).refine((v) => !v.endsOn || v.endsOn >= v.startsOn, { message: "The pilot cannot end before it starts.", path: ["endsOn"] })
   .refine((v) => new Set(v.workflows.map((w) => w.key)).size === v.workflows.length, { message: "Workflow keys must be unique.", path: ["workflows"] });
 
+const CommercialEvidence = z.object({
+  charterReference: text(4, 200), schoolApproval: text(4, 200), vendorApproval: text(4, 200),
+  scopeAndResponsibilities: text(10, 1000), baselineMethod: text(10, 500),
+  price: z.number().finite().nonnegative(), currency: z.string().regex(/^[A-Z]{3}$/),
+  paymentStatus: z.enum(["PENDING", "FAILED", "PAID"]), invoiceReference: text(4, 200),
+  paymentReference: text(4, 200).nullable(), refundTerms: text(10, 500),
+  authorityReference: text(4, 200).nullable(), privacyReference: text(4, 200).nullable(),
+  deploymentReference: text(4, 200).nullable(), providerReference: text(4, 200).nullable(),
+  cycles: z.array(z.object({ id: text(2, 80), workflow: workflowKey, completed: z.boolean(), reference: text(4, 200), date })).max(100),
+  closure: z.object({ outcome: z.enum(["PAID", "RENEWED", "DECLINED", "STOPPED"]), reason: text(4, 500), reference: text(4, 200), date, exitReference: text(4, 200) }).nullable(),
+}).refine(v => new Set(v.cycles.map(c => c.id)).size === v.cycles.length && new Set(v.cycles.map(c => `${c.workflow}:${c.date}:${c.reference}`)).size === v.cycles.length, "Cycle evidence must be distinct.")
+  .refine(v => [...v.cycles.map(c => c.date), ...(v.closure ? [v.closure.date] : [])].every(d => d <= new Date().toISOString().slice(0, 10)), "Evidence dates cannot be in the future.");
+export type PilotCommercialEvidence = z.infer<typeof CommercialEvidence>;
 const CharterInput = z.object({
+  version: z.number().int().nonnegative().default(0),
+  commercial: CommercialEvidence.optional(),
+  workflows: PilotInput.shape.workflows.optional(),
+
   consentReference: text(4, 200).nullable().optional(),
   caseStudyPermission: z.enum(PERMISSIONS).optional(),
   permissionReference: text(4, 200).nullable().optional(),
@@ -101,18 +118,45 @@ export async function createPilot(input: unknown, actorId: string) {
   } });
 }
 
-export async function updateCharter(id: string, input: unknown) {
+export async function updateCharter(id: string, input: unknown, actorId?: string) {
   const pilot = await requirePilot(id);
   const data = parse(CharterInput, input);
-  if (data.status === "ACTIVE" && !(data.consentReference ?? pilot.consentReference)) throw new PilotError("Record the school's consent before the pilot becomes active.", 409);
-  if (data.caseStudyPermission && data.caseStudyPermission !== "NONE" && !(data.permissionReference ?? pilot.permissionReference)) throw new PilotError("Case-study permission needs a reference to the school's written permission.", 409);
-  return prisma.pilot.update({ where: { id }, data: {
+  let status = data.status ?? pilot.status;
+  const history = Array.isArray(pilot.charterHistory) ? pilot.charterHistory : [];
+  if (data.version !== history.length) throw new PilotError("This pilot changed. Reload and try again.", 409);
+  if (data.workflows && !data.commercial) throw new PilotError("Scope changes need both parties’ approval references.", 409);
+  const previous = history.at(-1) as { commercial?: unknown } | undefined;
+  const commercial = data.commercial ?? (previous?.commercial ? parse(CommercialEvidence, previous.commercial) : null);
+  const consent = data.consentReference === undefined ? pilot.consentReference : data.consentReference;
+  const permission = data.caseStudyPermission ?? pilot.caseStudyPermission;
+  const permissionReference = data.permissionReference === undefined ? pilot.permissionReference : data.permissionReference;
+  if (status === "ACTIVE" && pilot.synthetic) throw new PilotError("A synthetic pilot cannot become active.", 409);
+  if (status === "ACTIVE" && !consent) throw new PilotError("Record the school's consent before the pilot becomes active.", 409);
+  if (permission !== "NONE" && !permissionReference) throw new PilotError("Case-study permission needs a reference to the school's written permission.", 409);
+  if (data.endsOn && asDate(data.endsOn) < pilot.startsOn) throw new PilotError("The pilot cannot end before it starts.");
+  const prior = previous?.commercial ? parse(CommercialEvidence, previous.commercial) : null;
+  const scopeChanged = (data.workflows && JSON.stringify(data.workflows) !== JSON.stringify(pilot.workflows)) || (prior && commercial?.scopeAndResponsibilities !== prior.scopeAndResponsibilities);
+  if (scopeChanged && prior && (commercial?.schoolApproval === prior.schoolApproval || commercial?.vendorApproval === prior.vendorApproval)) throw new PilotError("Scope changes need fresh approval references from both parties.", 409);
+  if (status === "ACTIVE") {
+    if (!commercial) status = "WAITING_CHARTER";
+    else if (commercial.paymentStatus !== "PAID" || !commercial.paymentReference) status = "WAITING_PAYMENT";
+    else if (!commercial.providerReference) status = "WAITING_PROVIDER";
+    else if (!commercial.authorityReference || !commercial.privacyReference || !commercial.deploymentReference) status = "WAITING_READINESS";
+  }
+  if (status === "CLOSED" && !pilot.synthetic && !commercial?.closure) throw new PilotError("Record the closure outcome, source, date and exit evidence.", 409);
+  const workflows = data.workflows ?? pilot.workflows;
+  if (data.workflows && JSON.stringify(data.workflows.map(w => w.key).sort()) !== JSON.stringify(workflowKeys(pilot).sort())) throw new PilotError("Preserve the agreed workflow keys when revising definitions.", 409);
+  if (commercial?.cycles.some(c => !workflowKeys({ workflows }).includes(c.workflow))) throw new PilotError("That workflow is not defined in this pilot's charter.");
+  const snapshot = { recordedById: actorId ?? null, original: history.length ? null : { workflows: pilot.workflows, consentReference: pilot.consentReference, startsOn: pilot.startsOn.toISOString(), endsOn: pilot.endsOn?.toISOString() ?? null }, at: new Date().toISOString(), commercial, workflows, championName: pilot.championName, startsOn: pilot.startsOn.toISOString(), endsOn: data.endsOn === undefined ? pilot.endsOn?.toISOString() ?? null : data.endsOn, consentReference: consent, caseStudyPermission: permission, permissionReference, status };
+  const updated = await prisma.pilot.updateMany({ where: { id, updatedAt: pilot.updatedAt, charterHistory: { equals: history as Prisma.InputJsonValue } }, data: {
     ...(data.consentReference !== undefined ? { consentReference: data.consentReference, consentRecordedAt: data.consentReference ? new Date() : null } : {}),
     ...(data.caseStudyPermission ? { caseStudyPermission: data.caseStudyPermission } : {}),
     ...(data.permissionReference !== undefined ? { permissionReference: data.permissionReference } : {}),
-    ...(data.status ? { status: data.status } : {}),
+    status, ...(data.workflows ? { workflows: data.workflows } : {}), charterHistory: [...history, snapshot] as Prisma.InputJsonValue,
     ...(data.endsOn !== undefined ? { endsOn: data.endsOn ? asDate(data.endsOn) : null } : {}),
   } });
+  if (!updated.count) throw new PilotError("This pilot changed. Reload and try again.", 409);
+  return requirePilot(id);
 }
 
 export async function recordObservation(id: string, input: unknown, actorId: string) {
@@ -161,12 +205,27 @@ type ClaimRow = Awaited<ReturnType<typeof prisma.pilotClaim.findMany>>[number];
 type PilotRow = NonNullable<Awaited<ReturnType<typeof prisma.pilot.findUnique>>>;
 
 /** Whether this approved claim may leave the platform now, and why not. */
+function cycleBlock(pilot: PilotRow, findingKey: string): string | null {
+  if (!findingKey.includes(":")) return null;
+  const workflow = findingKey.slice(findingKey.indexOf(":") + 1);
+  const history = Array.isArray(pilot.charterHistory) ? pilot.charterHistory : [];
+  const last = history.at(-1) as { commercial?: unknown } | undefined;
+  const result = CommercialEvidence.safeParse(last?.commercial);
+  if (!result.success || !workflowKeys(pilot).includes(workflow) || result.data.cycles.filter(c => c.workflow === workflow && c.completed).length < 2) return "Record two complete cycles for this workflow before approving a claim.";
+  return null;
+}
 function exportBlock(pilot: PilotRow, claim: ClaimRow, finding: Finding | null): string | null {
+  const cycles = cycleBlock(pilot, claim.findingKey);
+  if (cycles) return cycles;
+
   if (pilot.synthetic) return "Synthetic pilot: never exported as a result.";
   if (claim.status !== "APPROVED") return `Claim is ${claim.status.toLowerCase()}.`;
   if (claim.snapshotHash !== findingHash(finding)) return "The evidence changed after approval; review the claim again.";
-  if (pilot.caseStudyPermission === "NONE") return "The school has not given case-study permission.";
+  if (pilot.caseStudyPermission === "NONE" || !pilot.permissionReference) return "The school has not given case-study permission.";
   if (claim.identifiable && pilot.caseStudyPermission !== "NAMED") return "The claim identifies the school, but permission covers anonymised figures only.";
+  const revisions = Array.isArray(pilot.charterHistory) ? pilot.charterHistory : [];
+  const latest = revisions.at(-1) as { at?: string } | undefined;
+  if (latest?.at && (!claim.reviewedAt || new Date(latest.at) > claim.reviewedAt)) return "The charter changed after approval; review the claim again.";
   return null;
 }
 
@@ -214,6 +273,8 @@ export async function reviewClaim(id: string, claimId: string, input: unknown, r
   const entry = { at: new Date().toISOString(), by: reviewerId, action: data.decision, note: data.note } as Record<string, unknown>;
   if (data.decision === "APPROVE") {
     if (pilot.synthetic) throw new PilotError("A synthetic pilot cannot support an external claim.", 409);
+    const cycles = cycleBlock(pilot, claim.findingKey);
+    if (cycles) throw new PilotError(cycles, 409);
     const [observations, measures] = await Promise.all([prisma.pilotObservation.findMany({ where: { pilotId: id } }), prisma.pilotMeasure.findMany({ where: { pilotId: id } })]);
     const finding = findingFor(claim.findingKey, observations as ObservationRow[], measures as MeasureRow[]);
     const support = claimSupport(finding);

@@ -22,6 +22,7 @@ export const SignupStep2Schema = z.object({
   password: z.string().min(8, "Minimum 8 characters"),
   schoolName: z.string().min(3, "Institution name is required"),
   regId: z.string().min(3, "Unique identity code is required"),
+  regIdMode: z.enum(["auto", "manual"]).default("auto"),
   // Captured at signup so the owner's account is reachable from day one:
   // it lands on the user record (staff directory, profile) and doubles as the
   // school's first contact number until onboarding overrides it.
@@ -146,6 +147,7 @@ async function createSchoolAndOwner(valid: SignupStep2Input): Promise<SignupResu
         name: valid.schoolName,
         registrationKind: pending.registrationType === "school_group" ? "GROUP" : "STANDALONE",
         regId: valid.regId,
+        registrationIdMode: valid.regIdMode,
         slug: schoolSlug(valid.schoolName),
         contactEmail: valid.email,
         phone,

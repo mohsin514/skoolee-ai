@@ -1,5 +1,9 @@
 # First-login guide and campus launch
 
+For draft role job aids, recovery answers and the people-owned pilot handover, see
+[School onboarding and support academy](support-academy.md). Service commitments,
+native-language review and independent pilot evidence remain pending there.
+
 The shared guide introduces all eleven roles, explains preparation and review, and launches a permitted first workflow. Welcome acknowledgement is separate from institution/profile completion. Replay preserves saved setup.
 
 Each role has its own welcome, preparation, three-scene narrative and next-step framing in English, Arabic and Urdu. Students see learning, parents see linked family records, teachers see teaching preparation, and school leaders see their own operational or academic responsibilities. Finance, library, reception and platform roles have distinct narratives too. The shared animated character changes outfit, accessories and task props for the role, including its planning tablet and ready-state symbol. These are illustrations of the person's work, not inferred personal appearance or fabricated account progress.

@@ -20,6 +20,7 @@ import { ViewTabs } from "@/components/ui/view-tabs";
 import { AccessNotice } from "@/components/ui/access-notice";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { RequestFailure } from "@/lib/http/request-state";
 
 /** `?tab=report` is the Help menu's "Record a concern" deep link (role-ux §4.2); other tabs open by id. */
 function careTabFromUrl(): string | null {
@@ -69,16 +70,16 @@ function useHidden() {
 
 function StudentPicker({ value, onChange, label }: { value: Student | null; onChange: (s: Student | null) => void; label: string }) {
   const ui = useUiText();
-  const [q, setQ] = useState(""), [results, setResults] = useState<Student[]>([]);
+  const [q, setQ] = useState(""), [results, setResults] = useState<Student[]>([]), [failure, setFailure] = useState<RequestFailure | null>(null);
   useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return; }
-    const t = setTimeout(() => { call(`/api/care?view=students&q=${encodeURIComponent(q.trim())}`).then(setResults).catch(() => setResults([])); }, 250);
+    const t = setTimeout(() => { call(`/api/care?view=students&q=${encodeURIComponent(q.trim())}`).then(rows => { setResults(rows); setFailure(null); }).catch(() => { setResults([]); setFailure(new RequestFailure("provider")); }); }, 250);
     return () => clearTimeout(t);
   }, [q]);
   if (value) return <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" data-care-student={value.id}><span><bdi>{value.fullName}</bdi>{className(value) ? <> · <bdi>{className(value)}</bdi></> : null}</span><Button size="sm" variant="ghost" onClick={() => onChange(null)}>{ui("Change student")}</Button></div>;
   return <div className="space-y-2">
     <FormField name="care-student" label={label}><Input value={q} onChange={e => setQ(e.target.value)} placeholder={ui("Type at least two letters of a name or roll number")} data-care-student-search /></FormField>
-    {results.length ? <ul className="max-h-48 space-y-1 overflow-auto">{results.map(s => <li key={s.id}><Button variant="ghost" className="w-full justify-start" onClick={() => { onChange(s); setQ(""); }} data-care-pick={s.id}><bdi>{s.fullName}</bdi>{className(s) ? <span className="text-ink-muted"> · <bdi>{className(s)}</bdi></span> : null}</Button></li>)}</ul> : null}
+    {failure ? <ErrorState error={failure} variant="panel" /> : results.length ? <ul className="max-h-48 space-y-1 overflow-auto">{results.map(s => <li key={s.id}><Button variant="ghost" className="w-full justify-start" onClick={() => { onChange(s); setQ(""); }} data-care-pick={s.id}><bdi>{s.fullName}</bdi>{className(s) ? <span className="text-ink-muted"> · <bdi>{className(s)}</bdi></span> : null}</Button></li>)}</ul> : null}
   </div>;
 }
 
@@ -124,12 +125,12 @@ function ConcernIntake() {
 
 function CareSummaryLookup() {
   const ui = useUiText();
-  const [student, setStudent] = useState<Student | null>(null), [summary, setSummary] = useState<{ summary: string | null } | null>(null);
-  useEffect(() => { setSummary(null); if (student) call(`/api/care?view=summary&studentId=${student.id}`).then(setSummary).catch(() => setSummary({ summary: null })); }, [student]);
+  const [student, setStudent] = useState<Student | null>(null), [summary, setSummary] = useState<{ summary: string | null } | null>(null), [failure, setFailure] = useState<RequestFailure | null>(null);
+  useEffect(() => { setSummary(null); setFailure(null); if (student) call(`/api/care?view=summary&studentId=${student.id}`).then(setSummary).catch(() => setFailure(new RequestFailure("provider"))); }, [student]);
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-summary-lookup>
     <header><h2 className="text-base font-bold text-ink-strong">{ui("Care summary for teachers")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("The accommodation the clinic asks staff to know about. Clinical detail stays with the clinic.")}</p></header>
     <StudentPicker value={student} onChange={setStudent} label={ui("Student")} />
-    {student && summary ? <p className="rounded-xl border px-3 py-2 text-sm" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
+    {failure ? <ErrorState error={failure} variant="panel" /> : student && summary ? <p className="rounded-xl border px-3 py-2 text-sm" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
   </section>;
 }
 
@@ -496,9 +497,8 @@ export function FamilyCareMessages() { return <MessagesToMe family />; }
 export function CareDesk() {
   const ui = useUiText();
   const hidden = useHidden();
-  const [me, setMe] = useState<Me | null>(null), [error, setError] = useState<string | null>(null), [tab, setTabState] = useState("report"), [grant, setGrant] = useState<Me["grants"][number] | null>(null);
-  const load = useCallback(() => call("/api/care?view=me").then(m => { setMe(m); setError(null); }).catch(e => setError(e.message)), []);
-  useEffect(() => { void load(); }, [load]);
+  const { data: me, failure, isLoading, refetch } = useFetch<Me>("/api/care?view=me");
+  const [tab, setTabState] = useState("report"), [grant, setGrant] = useState<Me["grants"][number] | null>(null);
   useEffect(() => { const wanted = careTabFromUrl(); if (wanted) setTabState(wanted); }, []);
   const setTab = (next: string) => { setTabState(next); setGrant(null); writeCareTab(next); };
   // Labels are EN UI keys (ViewTabs translates them). Emergency access is offered to workspace members only, plus
@@ -513,8 +513,9 @@ export function CareDesk() {
     ...(me.canConfigure ? [{ id: "settings", label: "Settings" }] : []),
   ], [me]);
   const current = tabs.some(t => t.id === tab) ? tab : "report";
-  if (error) return <div data-care-denied><AccessNotice reason="You do not have access to this confidential workspace." /></div>;
-  if (!me) return <SkeletonList rows={3} label={ui("Verifying confidential access before loading records.")} />;
+  if (isLoading) return <SkeletonList rows={3} label={ui("Verifying confidential access before loading records.")} />;
+  if (failure) return <div data-care-request-state><ErrorState error={failure} onRetry={refetch} /></div>;
+  if (!me) return null;
   if (!me.canReport) return <div data-care-denied><AccessNotice reason="You do not have access to this confidential workspace." /></div>;
   return <div className={cn("min-w-0 space-y-4 transition", hidden && "blur-md")} data-care-desk>
     <PageHeader
@@ -528,7 +529,7 @@ export function CareDesk() {
     {current === "clinic" ? (me.CLINIC?.enabled ? <ClinicWorkspace /> : <p className="sk-panel p-4 text-sm" data-care-disabled>{ui("This confidential workspace has not been enabled for your campus.")}</p>) : null}
     {current === "safeguarding" ? (me.SAFEGUARDING?.enabled ? <SafeguardingWorkspace /> : <p className="sk-panel p-4 text-sm" data-care-disabled>{ui("This confidential workspace has not been enabled for your campus.")}</p>) : null}
     {current === "oversight" ? <div className="space-y-4">{me.CLINIC?.role === "LEAD" ? <Oversight domain="CLINIC" /> : null}{me.SAFEGUARDING?.role === "LEAD" ? <Oversight domain="SAFEGUARDING" /> : null}</div> : null}
-    {current === "emergency" ? (grant ? <EmergencyRecord grant={grant} onClose={() => { setGrant(null); void load(); }} /> : <EmergencyPanel me={me} reload={() => void load()} onOpen={setGrant} />) : null}
+    {current === "emergency" ? (grant ? <EmergencyRecord grant={grant} onClose={() => { setGrant(null); void refetch(); }} /> : <EmergencyPanel me={me} reload={() => void refetch()} onOpen={setGrant} />) : null}
     {current === "settings" ? <CareSettings /> : null}
   </div>;
 }
