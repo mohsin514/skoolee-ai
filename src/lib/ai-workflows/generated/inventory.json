@@ -1373,6 +1373,19 @@
   "source": "appendix-a"
  },
  {
+  "key": "auth.login_fallback",
+  "cluster": "C2 People, staff and access",
+  "method": "POST",
+  "route": "/api/auth/login/fallback",
+  "roles": [],
+  "risk": "READ",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "auth.logout",
   "cluster": "C2 People, staff and access",
   "method": "POST",

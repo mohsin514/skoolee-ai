@@ -174,6 +174,7 @@ _Verifier: Nearly complete. I checked 42 route.ts files (the 11 listed dirs plus
 | `auth.acknowledge_welcome` | `POST /api/auth/welcome` | any signed-in user | UPDATE | none | yes | none | inline-prisma | CAS on welcomeCompletedAt=null and mustChangePassword=false. |
 | `auth.mfa_challenge` | `POST /api/auth/mfa` | user mid-sign-in holding a ticket | ACCESS_GRANT | none | no | none | wrapper | Credential flow; never automate. |
 | `auth.logout` | `POST /api/auth/logout` | any signed-in user | UPDATE | none | yes | none | wrapper | Not an AI action. |
+| `auth.login_fallback` | `POST /api/auth/login/fallback` | anyone (pre-hydration form target) | READ | none | yes | none | wrapper | Not an AI action. SKAI-1033: discards the body and redirects to /login; signs nobody in. |
 | `auth.record_tour_progress` | `POST /api/auth/tour` | any signed-in user | UPDATE | none | yes | none | inline-prisma | Compare-and-swap loop, max 4 attempts. |
 | `auth.sso_callback` | `POST /api/auth/sso/callback` | unauthenticated (linked provider subject) | ACCESS_GRANT | none | no | none | wrapper | Credential flow; never automate. |
 | `auth.revoke_session` | `DELETE /api/auth/sessions` | any signed-in user | ACCESS_GRANT | none | yes | none | inline-prisma | updateMany guarded by isActive; replay returns 404. Audited. |
