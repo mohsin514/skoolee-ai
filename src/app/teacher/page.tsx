@@ -23,6 +23,7 @@ import { TeachingInsights } from "@/components/insights";
 import { ScheduleConflictsBanner } from "@/components/teacher/schedule-conflicts-banner";
 import { TodaySchedule, type TimetableSlot } from "@/components/teacher/today-schedule";
 import { clashingSlotIds } from "@/lib/timetable/clashes";
+import { readTeacherSchedule, scheduleAvailability as availabilityOf } from "@/lib/timetable/teacher-schedule-read";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
@@ -104,19 +105,17 @@ export default function TeacherToday() {
 
   useEffect(() => {
     (async () => {
+      // SKAI-1024: the same read and empty-state rule as /teacher/timetable (an empty week is "unpublished").
       try {
-        const res = await fetch("/api/timetable/teacher");
-        const json = await res.json();
-        if (json.success) {
-          setScheduleAvailability(json.data.length ? "published" : "unpublished");
-          const weekday = new Intl.DateTimeFormat("en", { timeZone: locale.timezone, weekday: "short" }).format(new Date());
-          const dayNum = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday) + 1;
-          setTodaySlots(
-            (json.data as TimetableSlot[])
-              .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
-              .sort((a, b) => a.periodNumber - b.periodNumber)
-          );
-        } else { setScheduleAvailability("failed"); }
+        const slots = await readTeacherSchedule<TimetableSlot>();
+        setScheduleAvailability(availabilityOf(slots, null));
+        const weekday = new Intl.DateTimeFormat("en", { timeZone: locale.timezone, weekday: "short" }).format(new Date());
+        const dayNum = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekday) + 1;
+        setTodaySlots(
+          slots
+            .filter((s) => s.dayOfWeek === dayNum && s.slotType === "CLASS" && s.subject)
+            .sort((a, b) => a.periodNumber - b.periodNumber)
+        );
       } catch { setScheduleAvailability("failed"); }
       finally { setSlotsLoading(false); }
     })();

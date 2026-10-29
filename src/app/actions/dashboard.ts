@@ -749,25 +749,30 @@ async function loadCampusDashboardData() {
   };
 }
 
-export const getTeacherDashboardData = cache(boundToSession(async function getTeacherDashboardData() {
+export const getTeacherDashboardData = cache(async function getTeacherDashboardData() {
+  return logConsoleFailure("teacher-dashboard", loadTeacherDashboardData);
+});
+
+async function loadTeacherDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "TEACHER") throw new Error("Unauthorized");
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
+  const L = createWidgetLoader("teacher-dashboard");
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const [subjects, ledClasses, aiInsights, teacherCampus] = await Promise.all([
-    prisma.subject.findMany({
+    L.required("subjects", () => prisma.subject.findMany({
       where: { campusId, teacherId: session.userId, campus: { schoolId: session.schoolId } },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
         _count: { select: { marks: true } },
       },
       orderBy: { name: "asc" },
-    }),
-    prisma.class.findMany({
+    })),
+    L.required("ledClasses", () => prisma.class.findMany({
       where: { campusId, classTeacherId: session.userId, campus: { schoolId: session.schoolId } },
       include: {
         _count: { select: { students: true, subjects: true } },
@@ -783,14 +788,14 @@ export const getTeacherDashboardData = cache(boundToSession(async function getTe
         },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }],
-    }),
-    prisma.aIInsight.findMany({
+    })),
+    L.widget("aiInsights", () => prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId, campusId, userId: session.userId },
       select: aiInsightSelect(),
       orderBy: { createdAt: "desc" },
       take: 4,
-    }),
-    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { logoUrl: true, school: { select: { logoUrl: true } } } }),
+    }), []),
+    L.widget("teacherCampus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { logoUrl: true, school: { select: { logoUrl: true } } } }), null),
   ]);
 
   const classIds = [...new Set([...subjects.map((subject) => subject.classId), ...ledClasses.map((cls) => cls.id)])];
@@ -798,7 +803,7 @@ export const getTeacherDashboardData = cache(boundToSession(async function getTe
 
   const [students, exams, attendanceToday, recentReportCards] = classIds.length
     ? await Promise.all([
-        prisma.student.findMany({
+        L.required("students", () => prisma.student.findMany({
           where: { campusId, classId: { in: classIds }, campus: { schoolId: session.schoolId } },
           select: {
             id: true,
@@ -847,8 +852,8 @@ export const getTeacherDashboardData = cache(boundToSession(async function getTe
             },
           },
           orderBy: { rollNo: "asc" },
-        }),
-        prisma.exam.findMany({
+        })),
+        L.widget("exams", () => prisma.exam.findMany({
           where: {
             campusId,
             classId: { in: classIds },
@@ -876,12 +881,12 @@ export const getTeacherDashboardData = cache(boundToSession(async function getTe
           },
           orderBy: [{ academicYear: "desc" }, { title: "asc" }],
           take: 24,
-        }),
-        prisma.attendance.findMany({
+        }), []),
+        L.widget("attendanceToday", () => prisma.attendance.findMany({
           where: { campusId, date: today, student: { classId: { in: classIds } } },
           select: { id: true, studentId: true, status: true, student: { select: { classId: true } } },
-        }),
-        prisma.reportCard.findMany({
+        }), []),
+        L.widget("recentReportCards", () => prisma.reportCard.findMany({
           where: { campusId, student: { classId: { in: classIds } }, campus: { schoolId: session.schoolId } },
           include: {
             student: { select: { id: true, fullName: true, rollNo: true, class: { select: { id: true, name: true, section: true, academicYear: true } } } },
@@ -889,7 +894,7 @@ export const getTeacherDashboardData = cache(boundToSession(async function getTe
           },
           orderBy: { generatedAt: "desc" },
           take: 18,
-        }),
+        }), []),
       ])
     : [[], [], [], []];
 
@@ -924,7 +929,7 @@ export const getTeacherDashboardData = cache(boundToSession(async function getTe
   // *newest* class first, which is typically a future year the admin has not
   // activated yet — an empty roster with no explanation. Classes in the admin's
   // ACTIVE cycle come first instead; the rest keep year-descending order.
-  const activeAcademicYear = await getActiveAcademicYear(campusId);
+  const activeAcademicYear = await L.widget("activeAcademicYear", () => getActiveAcademicYear(campusId), null);
   const classHubs = [...classHubsMap.values()]
     .map((cls) => ({ ...cls, inActiveCycle: Number(cls.academicYear) === activeAcademicYear }))
     .sort(
@@ -1006,8 +1011,10 @@ export const getTeacherDashboardData = cache(boundToSession(async function getTe
     recentReportCards,
     totalStudents: students.length,
     aiInsights,
+    /** Widgets whose read failed and answered their empty fallback (SKAI-1024). */
+    degraded: L.degraded,
   };
-}));
+}
 
 export const getPrincipalDashboardData = cache(async function getPrincipalDashboardData() {
   return logConsoleFailure("principal-dashboard", loadPrincipalDashboardData);
