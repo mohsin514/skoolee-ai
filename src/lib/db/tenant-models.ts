@@ -23,6 +23,7 @@ export const TENANT_MODELS = new Set<string>([
   "activitySession",
   "admissionApplication",
   "admissionApplicationEvent",
+  "admissionAssessment",
   "admissionDocument",
   "admissionForm",
   "admissionFormVersion",

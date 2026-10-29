@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 type PublicForm = { formName: string; schoolName: string; campusName: string; isOpen: boolean; version: number; definition: FormDefinition };
 type Document = { id: string; key: string; fileName: string; sizeBytes: number };
-type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null };
+type View = { reference: string; stage: string; editable: boolean; schoolName: string; campusName: string; formVersion: number; definition: FormDefinition; answers: Answers; documents: Document[]; missing: string[]; messages: { message: string; at: string }[]; submittedAt: string | null; offerExpiresAt?: string | null };
 type Saved = { reference: string; resumeKey: string };
 const storageKey = (token: string) => `skoolee:application:${token}`;
 type PendingAction = "save" | "submit" | "accept" | "decline";
@@ -182,6 +182,7 @@ export default function ApplyPage() {
         </Alert>
       </section> : null}
       {!formVisible && error ? <Alert tone="danger" compact data-apply-error>{error}</Alert> : null}
+      {view?.stage === "OFFERED" && view.offerExpiresAt ? <p className="text-sm font-semibold" data-apply-respond-by>{ui("Please respond by {0}.", [new Date(view.offerExpiresAt).toLocaleString(language === "en" ? "en-GB" : language)])}</p> : null}
       {view?.stage === "OFFERED" ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="ghost" onClick={() => setConfirmDecline(true)} disabled={busy}>{ui("Decline")}</Button>
         <Button onClick={() => void track("accept", () => respond(true))} disabled={busy} loading={pendingAction === "accept"}>{ui("Accept the offered place")}</Button>

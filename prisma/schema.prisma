@@ -232,6 +232,7 @@ model School {
   admissionSubmissions    AdmissionSubmission[]
   admissionEvents         AdmissionApplicationEvent[]
   admissionDocuments      AdmissionDocument[]
+  admissionAssessments    AdmissionAssessment[]
   attendanceRegisters     AttendanceRegister[]
   attendanceRuleVersions  AttendanceRuleVersion[]
   attendanceExplanations  AttendanceExplanation[]
@@ -849,6 +850,7 @@ model User {
   ownedCallbacks  PhoneCallback[] @relation("PhoneCallbackOwner")
   ownedPostal     PostalRecord[]  @relation("PostalOwner")
   ownedApplications AdmissionApplication[] @relation("ApplicationOwner")
+  admissionAssessments AdmissionAssessment[] @relation("AssessmentStaff")
 }
 
 // Staff records depth: payroll, bank, documents and timeline for faculty.
@@ -1709,6 +1711,9 @@ model AdmissionApplication {
   owner              User?                       @relation("ApplicationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   nextContactAt      DateTime?                   @map("next_contact_at")
   intakeClassId      String?                     @map("intake_class_id")
+  // SKAI-1142: an offer's respond-by date (families cannot accept after it) and the waitlist order.
+  offerExpiresAt     DateTime?                   @map("offer_expires_at")
+  waitlistRank       Int?                        @map("waitlist_rank")
   submittedAt        DateTime?                   @map("submitted_at")
   consentAt          DateTime?                   @map("consent_at")
   consentText        String?                     @map("consent_text") @db.Text
@@ -1723,6 +1728,7 @@ model AdmissionApplication {
   submissions        AdmissionSubmission[]
   events             AdmissionApplicationEvent[]
   documents          AdmissionDocument[]
+  assessments        AdmissionAssessment[]
 
   @@unique([schoolId, reference])
   @@index([campusId, status])
@@ -1768,6 +1774,32 @@ model AdmissionApplicationEvent {
   @@index([applicationId, createdAt])
   @@index([schoolId])
   @@map("admission_application_events")
+}
+
+/// SKAI-1142: an interview, entrance assessment, tour or taster day booked against an application.
+model AdmissionAssessment {
+  id             String               @id @default(uuid())
+  schoolId       String               @default("") @map("school_id")
+  school         School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  applicationId  String               @map("application_id")
+  application    AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind           String // INTERVIEW | ASSESSMENT | TOUR | TASTER_DAY
+  scheduledAt    DateTime             @map("scheduled_at")
+  durationMin    Int                  @default(30) @map("duration_min")
+  location       String?
+  staffId        String?              @map("staff_id")
+  staff          User?                @relation("AssessmentStaff", fields: [staffId], references: [id], onDelete: SetNull)
+  status         String               @default("SCHEDULED") // SCHEDULED | COMPLETED | NO_SHOW | CANCELLED
+  recommendation String? // RECOMMEND | CONSIDER | NOT_RECOMMENDED, set when completed
+  score          Int?
+  outcomeNote    String?              @map("outcome_note") @db.Text
+  createdById    String               @map("created_by_id")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  @@index([applicationId, scheduledAt])
+  @@index([schoolId, scheduledAt])
+  @@map("admission_assessments")
 }
 
 /// A file a family or staff member attached to an application. Small (≤5 MB) and kept with the application.
