@@ -15,6 +15,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
+import { AssessmentsPanel, kindLabel, type Assessment } from "./assessments-panel";
 
 // SKO-398: the admissions desk. Work starts from ownership and the next action; the review shows the exact
 // form version an application was answered on, keeps office notes apart from messages to the family, lists
@@ -22,15 +23,15 @@ import { SkeletonList } from "@/components/ui/skeleton";
 
 type Ui = ReturnType<typeof useUiText>;
 type Status = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "INFO_REQUESTED" | "OFFERED" | "WAITLISTED" | "ACCEPTED" | "DECLINED" | "REJECTED" | "WITHDRAWN" | "ENROLLED";
-type Row = { id: string; reference: string; status: Status; channel: string; childName: string; submittedAt: string | null; nextContactAt: string | null; version: number; owner: { id: string; fullName: string } | null; formVersion: { version: number; form: { name: string } }; lastFamilyContact: string | null; overdue: boolean };
+type Row = { id: string; reference: string; status: Status; channel: string; childName: string; submittedAt: string | null; nextContactAt: string | null; version: number; owner: { id: string; fullName: string } | null; formVersion: { version: number; form: { name: string } }; lastFamilyContact: string | null; overdue: boolean; offerExpiresAt: string | null; offerLapsed: boolean; waitlistRank: number | null };
 type Person = { id: string; fullName: string };
 type ClassOption = { id: string; name: string; section: string | null };
 type Form = { id: string; name: string; draft: FormDefinition; currentVersion: number; publicToken: string; isOpen: boolean; published: { version: number; publishedAt: string } | null };
-type Event = { id: string; kind: string; fromStatus: string | null; toStatus: string | null; officeNote: string | null; familyMessage: string | null; actorName: string | null; createdAt: string };
-type Detail = { id: string; reference: string; status: Status; channel: string; version: number; answers: Answers; childName: string; intakeClassId: string | null; nextContactAt: string | null; owner: Person | null; enquiry: { id: string; name: string; source: string } | null; convertedStudent: { id: string; fullName: string; rollNo: string } | null; formVersion: { version: number; definition: FormDefinition; form: { name: string } }; missing: string[]; submissions: { id: string; submittedAt: string; submittedBy: string; formVersion: { version: number } }[]; documents: { id: string; key: string; fileName: string; sizeBytes: number; uploadedBy: string; uploadedAt: string }[]; duplicates: { applications: { id: string; reference: string; status: string; childName: string }[]; students: { id: string; fullName: string; rollNo: string; admissionNo: string | null; className: string; archived: boolean; dateOfBirth: string | null }[] }; events: Event[] };
+type Event = { id: string; kind: string; fromStatus: string | null; toStatus: string | null; detail: Record<string, unknown> | null; officeNote: string | null; familyMessage: string | null; actorName: string | null; createdAt: string };
+type Detail = { id: string; reference: string; status: Status; channel: string; version: number; answers: Answers; childName: string; intakeClassId: string | null; nextContactAt: string | null; owner: Person | null; enquiry: { id: string; name: string; source: string } | null; convertedStudent: { id: string; fullName: string; rollNo: string } | null; formVersion: { version: number; definition: FormDefinition; form: { name: string } }; missing: string[]; submissions: { id: string; submittedAt: string; submittedBy: string; formVersion: { version: number } }[]; documents: { id: string; key: string; fileName: string; sizeBytes: number; uploadedBy: string; uploadedAt: string }[]; duplicates: { applications: { id: string; reference: string; status: string; childName: string }[]; students: { id: string; fullName: string; rollNo: string; admissionNo: string | null; className: string; archived: boolean; dateOfBirth: string | null }[] }; events: Event[]; assessments: Assessment[]; offerExpiresAt: string | null; offerLapsed: boolean; waitlistRank: number | null };
 
 const statusLabel = (ui: Ui, status: string) => ({ DRAFT: ui("Draft"), SUBMITTED: ui("New"), UNDER_REVIEW: ui("In review"), INFO_REQUESTED: ui("Waiting for family"), OFFERED: ui("Offered"), WAITLISTED: ui("Waitlisted"), ACCEPTED: ui("Accepted — ready to enrol"), DECLINED: ui("Declined"), REJECTED: ui("Not offered"), WITHDRAWN: ui("Withdrawn"), ENROLLED: ui("Enrolled") } as Record<string, string>)[status] ?? status;
-const eventLabel = (ui: Ui, kind: string) => ({ CREATED: ui("Started"), SUBMITTED: ui("Sent"), ASSIGNED: ui("Owner or next contact set"), STAGE: ui("Stage changed"), INFO_REQUESTED: ui("Information requested"), NOTE: ui("Office note"), ACCEPTED: ui("Offer accepted"), DUPLICATE_DECISION: ui("Duplicate decision"), ENROLLED: ui("Enrolled"), WITHDRAWN: ui("Withdrawn") } as Record<string, string>)[kind] ?? kind;
+const eventLabel = (ui: Ui, kind: string) => ({ CREATED: ui("Started"), SUBMITTED: ui("Sent"), ASSIGNED: ui("Owner or next contact set"), STAGE: ui("Stage changed"), INFO_REQUESTED: ui("Information requested"), NOTE: ui("Office note"), ACCEPTED: ui("Offer accepted"), DUPLICATE_DECISION: ui("Duplicate decision"), ENROLLED: ui("Enrolled"), WITHDRAWN: ui("Withdrawn"), ASSESSMENT_SCHEDULED: ui("Booked"), ASSESSMENT_RECORDED: ui("Outcome recorded"), ASSESSMENT_CANCELLED: ui("Booking cancelled"), WAITLIST_MOVED: ui("Waitlist place changed") } as Record<string, string>)[kind] ?? kind;
 const className = (cls: ClassOption) => [cls.name, cls.section].filter(Boolean).join(" ");
 
 async function send(method: string, body: Record<string, unknown>) {
@@ -135,7 +136,8 @@ function Pipeline({ forms, owners, classes, canDecide, entryInHeader, command }:
           <p className="text-xs text-ink-muted"><bdi>{row.formVersion.form.name}</bdi> · {ui("Form version {0}", [row.formVersion.version])}{row.channel === "STAFF" ? ` · ${ui("Entered by staff")}` : ""}{row.lastFamilyContact ? <> · {ui("Last family contact")} <bdi>{dateTime(row.lastFamilyContact)}</bdi></> : null}</p>
           <p className="text-xs text-ink-muted">{row.owner ? <>{ui("Owner")}: <bdi>{row.owner.fullName}</bdi></> : <span className="font-bold text-status-warning-text">{ui("Unassigned")}</span>}{row.nextContactAt ? <> · <span className={row.overdue ? "font-bold text-status-error-text" : ""}>{ui("Next contact")} <bdi>{dateTime(row.nextContactAt)}</bdi></span></> : null}</p>
         </div>
-        <span className="rounded-lg bg-muted px-2 py-0.5 text-2xs font-bold">{statusLabel(ui, row.status)}</span>
+        <span className="rounded-lg bg-muted px-2 py-0.5 text-2xs font-bold">{statusLabel(ui, row.status)}{row.status === "WAITLISTED" && row.waitlistRank ? ` · #${row.waitlistRank}` : ""}</span>
+        {row.status === "OFFERED" && row.offerExpiresAt ? <span className={`rounded-lg px-2 py-0.5 text-2xs font-bold ${row.offerLapsed ? "bg-status-error-surface text-status-error-text" : "bg-muted"}`} data-offer-deadline={row.offerLapsed ? "lapsed" : "open"}>{row.offerLapsed ? ui("Offer lapsed") : ui("Respond by {0}", [dateTime(row.offerExpiresAt)])}</span> : null}
         <Button size="sm" variant="secondary" onClick={() => setOpenId(row.id)} aria-label={ui("Review application {0}", [row.reference])}>{ui("Review")}</Button>
       </li>)}</ul>}
     {openId ? <ReviewDialog id={openId} owners={owners} classes={classes} canDecide={canDecide} onClose={() => { setOpenId(null); void load(); }} /> : null}
@@ -183,7 +185,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [ownerId, setOwnerId] = useState(""), [nextContact, setNextContact] = useState(""), [officeNote, setOfficeNote] = useState(""), [familyMessage, setFamilyMessage] = useState("");
   const [intakeClassId, setIntakeClassId] = useState(""), [rollNo, setRollNo] = useState(""), [choice, setChoice] = useState<"new" | "existing" | "">(""), [matchId, setMatchId] = useState(""), [reason, setReason] = useState("");
-  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false);
+  const [answers, setAnswers] = useState<Answers>({}), [consent, setConsent] = useState(false), [respondBy, setRespondBy] = useState("");
   const load = useCallback(async () => {
     const response = await fetch(`/api/admissions?id=${encodeURIComponent(id)}`, { cache: "no-store" });
     const json = await response.json().catch(() => ({}));
@@ -217,6 +219,11 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
     {loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => { setLoadError(""); void load(); }} /> : !detail || !definition ? <SkeletonList rows={4} label={ui("Loading application…")} /> : <div className="space-y-4" data-application-review={detail.reference}>
       {error ? <Alert tone="danger" compact data-review-error>{error}</Alert> : null}
       <p className="text-sm font-bold" data-review-status={detail.status}>{statusLabel(ui, detail.status)} · <bdi>{detail.formVersion.form.name}</bdi> · {ui("Form version {0}", [detail.formVersion.version])}{detail.enquiry ? <> · {ui("From enquiry")} <bdi>{detail.enquiry.name}</bdi> ({detail.enquiry.source})</> : null}</p>
+      {detail.status === "OFFERED" && detail.offerExpiresAt ? <Alert tone={detail.offerLapsed ? "danger" : "info"} compact live="off" data-offer-deadline={detail.offerLapsed ? "lapsed" : "open"}>{detail.offerLapsed ? ui("The respond-by date ({0}) has passed; the family can no longer accept online. Record their answer or waitlist the place.", [dateTime(detail.offerExpiresAt)]) : ui("The family must respond by {0}.", [dateTime(detail.offerExpiresAt)])}</Alert> : null}
+      {detail.status === "WAITLISTED" && detail.waitlistRank ? <div className="flex flex-wrap items-center gap-2 text-sm" data-waitlist-rank={detail.waitlistRank}>
+        <span className="font-bold">{ui("Waitlist place #{0}", [detail.waitlistRank])}</span>
+        {canDecide ? <><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run({ action: "waitlist-move", direction: "up" }, ui("Moved up."))}>{ui("Move up")}</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => void run({ action: "waitlist-move", direction: "down" }, ui("Moved down."))}>{ui("Move down")}</Button></> : null}
+      </div> : null}
       {detail.convertedStudent ? <Alert tone="success" compact live="off" data-converted>{ui("Enrolled as {0}, roll {1}.", [detail.convertedStudent.fullName, detail.convertedStudent.rollNo])}</Alert> : null}
 
       {staffDraft ? <section className="space-y-2 rounded-xl border border-border p-3" aria-label={ui("Answers")}>
@@ -245,6 +252,8 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
         <Button disabled={busy || !consent} onClick={() => void run({ action: "staff-submit", consent: true }, ui("Application sent."))}>{ui("Send on the family's behalf")}</Button>
       </div> : null}
 
+      {!staffDraft && detail.status !== "DRAFT" ? <AssessmentsPanel assessments={detail.assessments} staff={owners} canBook={["SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "WAITLISTED"].includes(detail.status)} busy={busy} officeNote={officeNote} run={(body, message) => run(body, message)} /> : null}
+
       {hasDuplicates ? <section className="space-y-1 rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm" aria-label={ui("Possible duplicates")} data-duplicates>
         <p className="font-bold">{ui("Possible duplicates")}</p>
         {detail.duplicates.students.map(student => <p key={student.id} data-duplicate-student={student.id}>{ui("Pupil")}: <bdi>{student.fullName}</bdi> · <bdi dir="ltr">{student.rollNo}</bdi> · <bdi>{student.className}</bdi>{student.dateOfBirth ? <> · <bdi dir="ltr">{student.dateOfBirth}</bdi></> : null}{student.archived ? ` · ${ui("archived")}` : ""}</p>)}
@@ -261,9 +270,10 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
         <FormField name="review-office-note" label={ui("Office note (staff only)")}><Textarea value={officeNote} rows={2} maxLength={2000} onChange={event => setOfficeNote(event.target.value)} /></FormField>
         <FormField name="review-family-message" label={ui("Message to the family (they will see this)")}><Textarea value={familyMessage} rows={2} maxLength={2000} onChange={event => setFamilyMessage(event.target.value)} /></FormField>
         {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-intake" label={ui("Class offered")}><Select value={intakeClassId} onChange={event => setIntakeClassId(event.target.value)}>{classes.map(cls => <option key={cls.id} value={cls.id}>{className(cls)}</option>)}</Select></FormField> : null}
+        {stageButtons.some(([action]) => action === "offer") ? <FormField name="review-respond-by" label={ui("Family must respond by (optional)")}><Input type="datetime-local" value={respondBy} onChange={event => setRespondBy(event.target.value)} /></FormField> : null}
         <div className="flex flex-wrap gap-2">
           {["SUBMITTED", "UNDER_REVIEW"].includes(detail.status) ? <Button size="sm" variant="secondary" disabled={busy || familyMessage.trim().length < 2} onClick={() => void run({ action: "request-info", familyMessage, officeNote: officeNote || undefined }, ui("Request sent to the family."))}>{ui("Request information")}</Button> : null}
-          {stageButtons.map(([action, text]) => <Button key={action} size="sm" variant={action === "offer" || action === "record-acceptance" ? "default" : "secondary"} disabled={busy} onClick={() => void run({ action, officeNote: officeNote || undefined, familyMessage: familyMessage || undefined, intakeClassId: action === "offer" ? intakeClassId : undefined }, ui("Saved."))}>{text}</Button>)}
+          {stageButtons.map(([action, text]) => <Button key={action} size="sm" variant={action === "offer" || action === "record-acceptance" ? "default" : "secondary"} disabled={busy} onClick={() => void run({ action, officeNote: officeNote || undefined, familyMessage: familyMessage || undefined, intakeClassId: action === "offer" ? intakeClassId : undefined, offerExpiresAt: action === "offer" && respondBy ? new Date(respondBy).toISOString() : undefined }, ui("Saved."))}>{text}</Button>)}
           <Button size="sm" variant="ghost" disabled={busy || officeNote.trim().length < 2} onClick={() => void run({ action: "note", officeNote }, ui("Note added."))}>{ui("Add office note")}</Button>
         </div>
       </section> : null}
@@ -288,6 +298,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
         <p className="mb-2 text-xs font-semibold ltr:uppercase text-ink-subtle">{ui("History")}</p>
         <ol className="space-y-1.5 text-xs" data-application-history>{detail.events.map(event => <li key={event.id} className="rounded-lg bg-muted/60 px-3 py-2" data-event={event.kind}>
           <p className="font-bold">{eventLabel(ui, event.kind)}{event.toStatus ? <> <span aria-hidden="true" className="inline-block rtl:rotate-180">→</span> {statusLabel(ui, event.toStatus)}</> : null} · <bdi>{dateTime(event.createdAt)}</bdi> · {event.actorName ? <bdi>{event.actorName}</bdi> : ui("Family")}</p>
+          {event.kind.startsWith("ASSESSMENT_") && typeof event.detail?.kind === "string" ? <p>{kindLabel(ui, event.detail.kind)}</p> : null}
           {event.officeNote ? <p className="whitespace-pre-wrap"><span className="font-bold">{ui("Office note")}:</span> <bdi>{event.officeNote}</bdi></p> : null}
           {event.familyMessage ? <p className="whitespace-pre-wrap text-primary"><span className="font-bold">{ui("To family")}:</span> <bdi>{event.familyMessage}</bdi></p> : null}
         </li>)}</ol>
