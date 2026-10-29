@@ -155,8 +155,11 @@ async function proxyImpl(req: NextRequest, nonce: string) {
           response.headers.set("Cache-Control", "private, no-store");
           return response;
         }
-      } catch {
-        // Never fail open into unrelated tasks when current exam state is unknown.
+      } catch (error) {
+        // Never fail open into unrelated tasks when current exam state is unknown —
+        // and never sign the learner out for it either (SKAI-1063): this is "retry",
+        // the cookie stays. Logged so a persistent failure is visible in the platform logs.
+        console.error("[proxy] candidate exam boundary unavailable", error);
         return NextResponse.json({ error: "Exam session status is unavailable. Retry to continue safely.", code: "EXAM_SESSION_UNAVAILABLE" }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
       }
     }
