@@ -38,3 +38,11 @@ export function readApiData<T>(body: unknown, fallback: T): T {
   if ((body as { success?: unknown }).success === false) return fallback;
   return "data" in body && (body as { data?: unknown }).data !== undefined ? (body as { data: T }).data : fallback;
 }
+
+/** True for a success body in either shape: `{ data }` or legacy `{ success: true }`. */
+export function isApiOk(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  if ("error" in body && (body as { error?: unknown }).error) return false;
+  const success = (body as { success?: unknown }).success;
+  return success === true || (success === undefined && "data" in body);
+}
