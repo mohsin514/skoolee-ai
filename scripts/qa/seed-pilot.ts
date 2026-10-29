@@ -1,8 +1,10 @@
 /**
  * SKAI-999 / QA-01 — synthetic pilot test data + QA accounts.
  *
- * Creates TWO synthetic schools (tenants) on a LOCAL/DEV database, each with two
- * campuses and one QA account per role, plus a no-access account for denied-role
+ * Creates THREE synthetic schools (tenants) on a LOCAL/DEV database: two GROUP
+ * schools (qa-alpha, qa-beta) with two campuses each, and one STANDALONE school
+ * (qa-solo, SKAI-1066) with one campus whose ADMIN is the institution owner.
+ * Each gets one QA account per role, plus a no-access account for denied-role
  * tests. Names are in EN / UR / AR (RTL) with long and mixed-script samples.
  *
  * Safety (G-01 / NFR-SEC-09):
@@ -14,12 +16,13 @@
  *     never printed in full to the console.
  *
  * Run:  pnpm run qa:seed            (seed/refresh)
- *       pnpm run qa:seed -- --reset (drop the two QA schools first, then seed)
+ *       pnpm run qa:seed -- --reset (drop the QA schools first, then seed)
  */
-import { PrismaClient, type UserRole } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { writeFileSync } from "node:fs";
+import { SCHOOLS, rolesFor } from "./pilot-seed-plan";
 
 const prisma = new PrismaClient();
 
@@ -63,29 +66,7 @@ function strongPassword(): string {
   return a.join("");
 }
 
-// ─── synthetic tenants (EN / UR / AR names, incl. long + mixed script) ───────
-type RoleDef = { role: UserRole; key: string; fullName: string };
-const ROLES: RoleDef[] = [
-  { role: "SUPER_ADMIN", key: "owner", fullName: "QA Owner / مالک الحساب" },
-  { role: "CAMPUS_ADMIN", key: "admin", fullName: "QA Admin عبد الرحمٰن الإداري" },
-  { role: "PRINCIPAL", key: "principal", fullName: "QA Principal مدیر المدرسة الطويل الاسم" },
-  { role: "TEACHER", key: "teacher", fullName: "QA Teacher محمد استاد" },
-  { role: "ACCOUNTANT", key: "accountant", fullName: "QA Accountant محاسب" },
-  { role: "PARENT", key: "guardian", fullName: "QA Guardian ولی أمر الطفلين" },
-  { role: "STUDENT", key: "student", fullName: "QA Student طالب علم" },
-];
-// A real role that is given NO campus/scope, for denied-role tests.
-const NO_ACCESS: RoleDef = { role: "RECEPTIONIST", key: "noaccess", fullName: "QA No-Access بدون صلاحية" };
-
-const SCHOOLS = [
-  { slug: "qa-alpha", name: "QA Alpha School / مدرسة ألفا", city: "Lahore",
-    campuses: [{ regId: "QA-A-C1", name: "Alpha Main / الحرم الرئيسي", city: "Lahore", board: "Lahore Board" },
-               { regId: "QA-A-C2", name: "Alpha North / الحرم الشمالي", city: "Lahore", board: "Lahore Board" }] },
-  { slug: "qa-beta", name: "QA Beta School / مدرسة بيتا", city: "Karachi",
-    campuses: [{ regId: "QA-B-C1", name: "Beta Main / بيتا الرئيسي", city: "Karachi", board: "Sindh Board" },
-               { regId: "QA-B-C2", name: "Beta South / بيتا الجنوبي", city: "Karachi", board: "Sindh Board" }] },
-];
-
+// ─── synthetic tenants: see ./pilot-seed-plan (GROUP x2 + STANDALONE x1) ─────
 const PHONE_BASE = 92300_0000000; // synthetic +92-300 test range
 
 async function main() {
@@ -103,8 +84,8 @@ async function main() {
     }
     const school = await prisma.school.upsert({
       where: { slug: s.slug },
-      update: { name: s.name, city: s.city, status: "ACTIVE" },
-      create: { name: s.name, slug: s.slug, city: s.city, regId: `SCH-${s.slug.toUpperCase()}`,
+      update: { name: s.name, city: s.city, status: "ACTIVE", registrationKind: s.kind },
+      create: { name: s.name, slug: s.slug, city: s.city, regId: `SCH-${s.slug.toUpperCase()}`, registrationKind: s.kind,
         contactEmail: `admin@${s.slug}.qa.local`, plan: "PRO", status: "ACTIVE", aiCreditsLimit: 1000 },
     });
     const campuses = [];
@@ -117,17 +98,18 @@ async function main() {
     }
     console.log(`  ✓ ${school.name} (${campuses.length} campuses)`);
 
-    for (const def of [...ROLES, NO_ACCESS]) {
+    for (const def of rolesFor(s.kind)) {
       const email = `${def.key}@${s.slug}.qa.local`;
       const password = strongPassword();
       const hash = await bcrypt.hash(password, 10);
-      const scoped = def.key !== "owner" && def.key !== "noaccess";
+      // STANDALONE admin = registering owner (register.ts): owner + purchase + membership flags.
+      const ownerFlags = { isInstitutionOwner: def.owner === true, canPurchaseSubscription: def.owner === true, canManageMemberships: def.owner === true };
       await prisma.user.upsert({
         where: { schoolId_email: { schoolId: school.id, email } },
-        update: { password: hash, role: def.role, isActive: true },
+        update: { password: hash, role: def.role, isActive: true, ...ownerFlags },
         create: {
           email, fullName: def.fullName, role: def.role, password: hash,
-          schoolId: school.id, campusId: scoped ? campuses[0].id : undefined,
+          schoolId: school.id, campusId: def.scoped ? campuses[0].id : undefined, ...ownerFlags,
           isActive: true, onboardingComplete: true,
           phone: `+${String(++phone)}`,
         },

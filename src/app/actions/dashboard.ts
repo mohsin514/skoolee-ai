@@ -9,6 +9,7 @@ import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { runAsUser } from "@/lib/db/tenant-context";
 import { describeError, loadWidget } from "@/lib/dashboard/widget";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isCampusAdminRole, roleLabel, roleLabelFor } from "@/lib/roles";
@@ -122,6 +123,16 @@ async function campusWaitingCounts(schoolId: string): Promise<Map<string, Campus
       prisma.admissionApplication.groupBy({ by: ["campusId"], where: { schoolId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } }, _count: { _all: true } }),
       prisma.leaveRequest.groupBy({ by: ["campusId"], where: { schoolId, status: "PENDING", user: { role: { not: "TEACHER" } } }, _count: { _all: true } }),
     ]);
+    // SKAI-1026: a campus with no principal hands teachers' leave to its operator (`canLeadAcademics`), so those
+    // pending requests wait on the operator too.
+    const [teacherLeave, principals] = await Promise.all([
+      prisma.leaveRequest.groupBy({ by: ["campusId"], where: { schoolId, status: "PENDING", user: { role: "TEACHER" } }, _count: { _all: true } }),
+      prisma.user.groupBy({ by: ["campusId"], where: { schoolId, role: "PRINCIPAL", isActive: true }, _count: { _all: true } }),
+    ]);
+    const led = new Set(principals.map((row) => row.campusId));
+    const leaveByCampus = new Map<string, number>();
+    for (const row of leave) leaveByCampus.set(row.campusId, row._count._all);
+    for (const row of teacherLeave) if (!led.has(row.campusId)) leaveByCampus.set(row.campusId, (leaveByCampus.get(row.campusId) ?? 0) + row._count._all);
     const waiting = new Map<string, CampusWaiting>();
     const at = (campusId: string) => {
       const row = waiting.get(campusId) ?? { adjustments: 0, applications: 0, leave: 0 };
@@ -130,7 +141,7 @@ async function campusWaitingCounts(schoolId: string): Promise<Map<string, Campus
     };
     for (const row of adjustments) at(row.campusId).adjustments = row._count._all;
     for (const row of applications) at(row.campusId).applications = row._count._all;
-    for (const row of leave) at(row.campusId).leave = row._count._all;
+    for (const [campusId, count] of leaveByCampus) at(campusId).leave = count;
     return waiting;
   } catch (error) {
     console.warn("[dashboard] campus waiting counts unavailable", { error: error instanceof Error ? error.message : String(error) });
@@ -138,7 +149,19 @@ async function campusWaitingCounts(schoolId: string): Promise<Map<string, Campus
   }
 }
 
-export const getSuperAdminDashboardData = cache(async function getSuperAdminDashboardData() {
+/**
+ * SKAI-1034 audit: every dashboard loader runs bound to the signed-in user's school instead of leaving each of
+ * its parallel queries to re-derive the tenant from the session cookie. Without a session the loader runs as
+ * before and its own auth check refuses.
+ */
+function boundToSession<T>(load: () => Promise<T>): () => Promise<T> {
+  return async () => {
+    const session = await getAuthUser();
+    return session ? runAsUser(session, load) : load();
+  };
+}
+
+export const getSuperAdminDashboardData = cache(boundToSession(async function getSuperAdminDashboardData() {
   try {
     return await loadSuperAdminDashboardData();
   } catch (error) {
@@ -146,7 +169,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     console.error("[super-dashboard] load failed", describeError(error));
     throw error;
   }
-});
+}));
 
 async function loadSuperAdminDashboardData() {
   const degraded: string[] = [];
@@ -390,7 +413,7 @@ async function loadSuperAdminDashboardData() {
   };
 }
 
-export const getCampusDashboardData = cache(async function getCampusDashboardData() {
+export const getCampusDashboardData = cache(boundToSession(async function getCampusDashboardData() {
   const session = await getAuthUser();
   if (!session || !isCampusAdminRole(session.role)) throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
@@ -713,9 +736,9 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     role: session.role,
     roleLabel: roleLabelFor(session),
   };
-});
+}));
 
-export const getTeacherDashboardData = cache(async function getTeacherDashboardData() {
+export const getTeacherDashboardData = cache(boundToSession(async function getTeacherDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "TEACHER") throw new Error("Unauthorized");
   await assertSchoolOperational(session.schoolId);
@@ -973,9 +996,9 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
     totalStudents: students.length,
     aiInsights,
   };
-});
+}));
 
-export const getPrincipalDashboardData = cache(async function getPrincipalDashboardData() {
+export const getPrincipalDashboardData = cache(boundToSession(async function getPrincipalDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "PRINCIPAL") throw new Error("Unauthorized");
   await assertSchoolOperational(session.schoolId);
@@ -1349,9 +1372,9 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     adminEmail: session.email,
     roleLabel: "Principal",
   };
-});
+}));
 
-export const getStudentDashboardData = cache(async function getStudentDashboardData() {
+export const getStudentDashboardData = cache(boundToSession(async function getStudentDashboardData() {
   const session = await getAuthUser();
   // G44: the learner dashboard is for learners. Guardians read their children through the family portal, whose
   // data path applies guardian permissions per child (this loader would have shown one child unfiltered).
@@ -1474,7 +1497,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       aiInsights,
     },
   };
-});
+}));
 
 const OPS_ROLES = ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] as const;
 
@@ -1484,6 +1507,9 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
   await assertSchoolOperational(session.schoolId);
   const campusId = requireCampusId(session);
 
+  // SKAI-1034: bound explicitly to the signed-in operator's school (standalone or a campus of a group) so these
+  // queries never fall back to per-query cookie resolution.
+  return runAsUser(session, async () => {
   const [school, campus] = await Promise.all([
     prisma.school.findUnique({ where: { id: session.schoolId }, select: { name: true, logoUrl: true } }),
     prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true, logoUrl: true } }),
@@ -1510,6 +1536,7 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
     campusId,
     summary,
   };
+  });
 });
 
 /** Start of today, in the server's zone — the boundary every "today" count uses. */
