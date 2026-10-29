@@ -104,13 +104,16 @@ async function main() {
       const hash = await bcrypt.hash(password, 10);
       // STANDALONE admin = registering owner (register.ts): owner + purchase + membership flags.
       const ownerFlags = { isInstitutionOwner: def.owner === true, canPurchaseSubscription: def.owner === true, canManageMemberships: def.owner === true };
+      // QA accounts skip the inbox and the factor: email already verified, no password change forced, and no
+      // factor enrolled, so privileged roles sign in through the existing "Do it later" MFA deferral.
+      const readyFlags = { emailVerifiedAt: new Date(), mustChangePassword: false, onboardingComplete: true, mfaEnabled: false, mfaSecret: null, mfaPendingSecret: null, mfaPendingTicket: null, mfaPendingExpiresAt: null, mfaPendingVerified: false, mfaEnrolledAt: null };
       await prisma.user.upsert({
         where: { schoolId_email: { schoolId: school.id, email } },
-        update: { password: hash, role: def.role, isActive: true, ...ownerFlags },
+        update: { password: hash, role: def.role, isActive: true, ...ownerFlags, ...readyFlags },
         create: {
           email, fullName: def.fullName, role: def.role, password: hash,
-          schoolId: school.id, campusId: def.scoped ? campuses[0].id : undefined, ...ownerFlags,
-          isActive: true, onboardingComplete: true,
+          schoolId: school.id, campusId: def.scoped ? campuses[0].id : undefined, ...ownerFlags, ...readyFlags,
+          isActive: true,
           phone: `+${String(++phone)}`,
         },
       });

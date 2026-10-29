@@ -20,6 +20,7 @@ import {
   getUploadUrl,
 } from "@/lib/storage/s3";
 import { randomUUID } from "crypto";
+import { LOGO_CONTENT_TYPES, LOGO_MAX_BYTES } from "@/lib/school/logo-policy";
 
 // POST /api/uploads/presign
 // body: { studentId, fileName, contentType, kind? } — admission documents
@@ -39,15 +40,10 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
-const IMAGE_CONTENT_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-]);
+const IMAGE_CONTENT_TYPES = new Set<string>(LOGO_CONTENT_TYPES);
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-const MAX_IMAGE_BYTES = 1_500_000; // 1.5 MB
+const MAX_IMAGE_BYTES = LOGO_MAX_BYTES;
 
 function isCampusAdminLike(role: string) {
   return role === "SUPER_ADMIN" || role === "CAMPUS_ADMIN" || role === "ADMIN";
@@ -60,13 +56,13 @@ export async function POST(req: NextRequest) {
     const kind = String(body.kind ?? "");
 
     if (kind === "profile") {
-      return presignProfileImage(user, body);
+      return await presignProfileImage(user, body);
     }
     if (kind === "school-logo") {
-      return presignSchoolLogo(user, body);
+      return await presignSchoolLogo(user, body);
     }
     if (kind === "campus-logo") {
-      return presignCampusLogo(user, body);
+      return await presignCampusLogo(user, body);
     }
 
     // Legacy document presign — staff-only, gated by the documents permission.
@@ -147,9 +143,10 @@ async function presignSchoolLogo(user: Awaited<ReturnType<typeof requireAuthUser
   if (!isInstitutionAuthority(user)) {
     throw new ApiError("Only the institution administrator can change the school logo", 403);
   }
-  const { fileName, contentType } = validateImageUpload(body);
+  const { fileName, contentType, sizeBytes } = validateImageUpload(body);
   const key = schoolLogoKey(user.schoolId, fileName);
-  const uploadUrl = await getUploadUrl(key, contentType);
+  // The signed length means the PUT cannot carry a bigger file than the one validated here.
+  const uploadUrl = await getUploadUrl(key, contentType, 900, sizeBytes);
   return Response.json({ success: true, data: { key, uploadUrl } });
 }
 
@@ -170,8 +167,8 @@ async function presignCampusLogo(user: Awaited<ReturnType<typeof requireAuthUser
     throw new ApiError("You can only change the logo of your own campus", 403);
   }
 
-  const { fileName, contentType } = validateImageUpload(body);
+  const { fileName, contentType, sizeBytes } = validateImageUpload(body);
   const key = campusLogoKey(user.schoolId, campusId, fileName);
-  const uploadUrl = await getUploadUrl(key, contentType);
+  const uploadUrl = await getUploadUrl(key, contentType, 900, sizeBytes);
   return Response.json({ success: true, data: { key, uploadUrl } });
 }
