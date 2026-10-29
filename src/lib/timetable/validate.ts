@@ -27,6 +27,7 @@ export type ConflictType =
   | "TEACHER_DOUBLE_BOOKED"
   | "ROOM_DOUBLE_BOOKED"
   | "ROOM_CAPACITY"
+  | "ROOM_ARCHIVED"
   | "MISSING_TEACHER"
   | "MISSING_ROOM";
 
@@ -183,7 +184,7 @@ export async function validateTimetableSlots(opts: {
     roomIds.length
       ? db.classRoom.findMany({
           where: { id: { in: roomIds }, campusId },
-          select: { id: true, roomNumber: true, capacity: true },
+          select: { id: true, roomNumber: true, capacity: true, archivedAt: true },
         })
       : Promise.resolve([]),
   ]);
@@ -293,6 +294,7 @@ export async function validateTimetableSlots(opts: {
 
       // capacity 0 means the school has not recorded it — not a violation.
       const room = roomById.get(slot.roomId);
+      if (room?.archivedAt) conflicts.push({ type: "ROOM_ARCHIVED", severity: "WARNING", message: `Room ${room.roomNumber} is archived. Move this lesson to an active room.`, dayOfWeek: slot.dayOfWeek, periodNumber: slot.periodNumber, slotId: slot.id, roomNumber: room.roomNumber });
       if (room && room.capacity > 0 && classSize > room.capacity) {
         conflicts.push({
           type: "ROOM_CAPACITY",

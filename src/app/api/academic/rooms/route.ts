@@ -6,11 +6,15 @@ import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireA
 import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { BULK_ROOM_LIMIT, cleanRoomName, parseBulkRooms } from "@/lib/academic/room-setup";
+import type { TxClient } from "@/lib/db/prisma";
 
 // GET /api/academic/rooms?campusId= — list class rooms with exam-day capacity
 // POST /api/academic/rooms {campusId, roomNumber, ...layout}
 // PATCH /api/academic/rooms {id, ...}
-// DELETE /api/academic/rooms?id=
+// DELETE /api/academic/rooms?id=  (blocked while booked — archive instead)
+// POST {campusId, rooms: "<pasted lines>"} bulk-adds all rows or none (SKAI-147)
+// PATCH {id, archived: true|false} archives/restores; archived rooms keep history
 //
 // Rooms carry two capacities (§79): the teaching figure everyone already knew
 // about, and the exam figure derived from the bench layout. Both are returned
@@ -39,6 +43,15 @@ function text(value: unknown, limit = 120): string | null {
  * with two contradictory answers, and the layout is the one an invigilator can
  * verify by walking in.
  */
+/** Names are unique per campus regardless of case (SKAI-147). */
+async function assertNameFree(tx: TxClient, schoolId: string, campusId: string, roomNumber: string, exceptId?: string) {
+  const dup = await tx.classRoom.findFirst({
+    where: { schoolId, campusId, roomNumber: { equals: roomNumber, mode: "insensitive" }, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+    select: { roomNumber: true, archivedAt: true },
+  });
+  if (dup) throw new ApiError(dup.archivedAt ? `Room "${dup.roomNumber}" already exists in the archive. Restore it instead.` : `Room "${dup.roomNumber}" already exists`, 409);
+}
+
 function layoutFrom(body: Record<string, unknown>, current?: {
   capacity: number;
   rows: number;
@@ -80,9 +93,10 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthUser();
     const { searchParams } = new URL(req.url);
     const campusId = await resolveCampusId(user, searchParams.get("campusId"));
+    const includeArchived = searchParams.get("includeArchived") === "1";
 
     const rooms = await prisma.classRoom.findMany({
-      where: { campusId },
+      where: { campusId, ...(includeArchived ? {} : { archivedAt: null }) },
       orderBy: [{ building: "asc" }, { floor: "asc" }, { roomNumber: "asc" }],
       // Exam usage matters as much as timetable usage when deciding whether a
       // room can be renamed or removed.
@@ -103,14 +117,28 @@ export async function POST(req: NextRequest) {
 
     const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
-    const roomNumber = String(body.roomNumber ?? "").trim();
+    if (body.rooms !== undefined) {
+      // Bulk add: every line validated first, then all rows created in one
+      // transaction, so a retry or a bad line never leaves half a list behind.
+      const { rows, errors } = parseBulkRooms(String(body.rooms));
+      if (errors.length) return Response.json({ success: false, error: "Some lines need fixing", errors }, { status: 400 });
+      if (!rows.length) throw new ApiError("Add at least one room", 400);
+      if (rows.length > BULK_ROOM_LIMIT) throw new ApiError(`Add up to ${BULK_ROOM_LIMIT} rooms at a time`, 400);
+      return await withSchedulingResourceWrite(user, campusId, "timetable", "add", async tx => {
+        const existing = await tx.classRoom.findMany({ where: { schoolId: user.schoolId, campusId }, select: { roomNumber: true } });
+        const taken = new Set(existing.map(r => r.roomNumber.toLocaleLowerCase("en")));
+        const clashes = rows.filter(r => taken.has(r.roomNumber.toLocaleLowerCase("en")));
+        if (clashes.length) return Response.json({ success: false, error: "Some rooms already exist", errors: clashes.map(r => ({ line: r.line, code: "ALREADY_EXISTS", value: r.roomNumber })) }, { status: 409 });
+        await tx.classRoom.createMany({ data: rows.map(r => ({ schoolId: user.schoolId, campusId, roomNumber: r.roomNumber, capacity: r.capacity, roomType: r.roomType, building: r.building, floor: r.floor, isExamHall: r.roomType === "HALL" })) });
+        return Response.json({ success: true, data: { created: rows.length } });
+      });
+    }
+
+    const roomNumber = cleanRoomName(body.roomNumber);
     if (!roomNumber) throw new ApiError("roomNumber is required", 400);
 
     return await withSchedulingResourceWrite(user, campusId, "timetable", "add", async tx => {
-      const existing = await tx.classRoom.findUnique({
-        where: { campusId_roomNumber: { campusId, roomNumber } },
-      });
-      if (existing) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
+      await assertNameFree(tx, user.schoolId, campusId, roomNumber);
 
       const roomType = String(body.roomType ?? "CLASSROOM");
       if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
@@ -154,14 +182,18 @@ export async function PATCH(req: NextRequest) {
       });
       if (!room) throw new ApiError("Room not found", 404);
 
-      const roomNumber = body.roomNumber !== undefined ? String(body.roomNumber).trim() : room.roomNumber;
-      if (!roomNumber) throw new ApiError("roomNumber cannot be empty", 400);
-      if (roomNumber !== room.roomNumber) {
-        const dup = await tx.classRoom.findUnique({
-          where: { campusId_roomNumber: { campusId: room.campusId, roomNumber } },
-        });
-        if (dup) throw new ApiError(`Room "${roomNumber}" already exists`, 409);
+      if (typeof body.archived === "boolean") {
+        // Archive keeps every timetable and exam booking intact; the room only
+        // stops being offered for new ones. Restoring re-checks the name.
+        if (!body.archived) await assertNameFree(tx, user.schoolId, room.campusId, room.roomNumber, id);
+        const updated = await tx.classRoom.update({ where: { id }, data: { archivedAt: body.archived ? room.archivedAt ?? new Date() : null } });
+        return Response.json({ success: true, data: decorate(updated) });
       }
+      if (room.archivedAt) throw new ApiError("Restore this room before editing it", 409);
+
+      const roomNumber = body.roomNumber !== undefined ? cleanRoomName(body.roomNumber) : room.roomNumber;
+      if (!roomNumber) throw new ApiError("roomNumber cannot be empty", 400);
+      if (roomNumber !== room.roomNumber) await assertNameFree(tx, user.schoolId, room.campusId, roomNumber, id);
 
       const roomType = body.roomType !== undefined ? String(body.roomType) : room.roomType;
       if (!ROOM_TYPES.has(roomType)) throw new ApiError("Unknown room type", 400);
