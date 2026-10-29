@@ -565,11 +565,10 @@ function StepPersonalInfo({
             placeholder={ui("Ali Ahmed Khan")}
           />
         </FieldGroup>
-        <FieldGroup label={ui("Full name (Urdu)")} hint={ui("Filled in from the English name as you type. Check the spelling.")}>
+        <FieldGroup label={ui("Full name (Urdu)")} hint={ui("Type the name in Urdu, or use the Urdu keyboard.")}>
           <UrduInput
             value={form.nameUr}
             onChange={(val) => onUpdate("nameUr", val)}
-            placeholder="علی احمد خان"
           />
         </FieldGroup>
       </div>
@@ -945,11 +944,10 @@ function StepGuardianDetails({
             placeholder={ui("Ahmed Khan")}
           />
         </FieldGroup>
-        <FieldGroup label={ui("Guardian full name (Urdu)")} hint={ui("Filled in from the English name as you type. Check the spelling.")}>
+        <FieldGroup label={ui("Guardian full name (Urdu)")} hint={ui("Type the name in Urdu, or use the Urdu keyboard.")}>
           <UrduInput
             value={form.guardianNameUr}
             onChange={(val) => onUpdate("guardianNameUr", val)}
-            placeholder="احمد خان"
           />
         </FieldGroup>
       </div>
