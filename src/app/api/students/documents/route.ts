@@ -13,6 +13,8 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Student admission documents.
 // GET  /api/students/documents?studentId=    — list (campus-scoped)
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     assertStaffRole(user);
     await assertPermission(user, "students", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { studentId, kind, fileKey, fileName } = body as {
       studentId?: string;
       kind?: string;

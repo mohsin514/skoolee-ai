@@ -9,6 +9,8 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Student life-cycle timeline.
 // GET  /api/students/timeline?studentId=   — events (campus-scoped)
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     assertStaffRole(user);
     await assertPermission(user, "students", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { studentId, kind, title, detail } = body as {
       studentId?: string;
       kind?: string;

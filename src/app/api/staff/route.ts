@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import { inviteStaff, removeStaff, cancelInvitation, resendInvitation } from "@/app/actions/invite";
 import { ApiError, assertModuleRead, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody, requiredIdBody } from "@/lib/validators/route-bodies";
 
 const STAFF_ROLES = new Set(["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER"]);
 
@@ -75,7 +77,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     await assertStaffWriter();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const result = await inviteStaff(body);
     return Response.json(result, { status: 201 });
   } catch (error) {
@@ -86,8 +88,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     await assertStaffWriter();
-    const body = await req.json();
-    if (!body.userId) throw new ApiError("userId is required", 400);
+    const body = await parseBody(req, requiredIdBody("userId"));
     const result = await removeStaff(body.userId);
     return Response.json(result);
   } catch (error) {
@@ -98,8 +99,7 @@ export async function PATCH(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     await assertStaffWriter();
-    const body = await req.json();
-    if (!body.inviteId) throw new ApiError("inviteId is required", 400);
+    const body = await parseBody(req, requiredIdBody("inviteId"));
     const result = await resendInvitation(body.inviteId);
     return Response.json(result);
   } catch (error) {
