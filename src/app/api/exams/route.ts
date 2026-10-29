@@ -5,7 +5,8 @@ import { reviewExam, publishExam } from "@/lib/academic/report-versions";
 import { assertSharedModuleRead } from "@/lib/api/scope";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, type AuthUser } from "@/lib/auth";
+import { diffExamDetails, examDetailsEditSchema, isExamDetailsEdit } from "@/lib/exams/edit-details";
 import { studentScope } from "@/lib/auth/policy";
 import { billingAccessResponse } from "@/lib/billing/response";
 import { isCampusAdminRole } from "@/lib/roles";
@@ -38,6 +39,34 @@ function permissionAwareError(error: unknown) {
  *  reads results but no longer runs campus exams (§7.6, G31). */
 function canManageExams(role: string) {
   return role === "PRINCIPAL" || role === "TEACHER" || isCampusAdminRole(role);
+}
+
+/** SKAI-1120: edit title / term / examType of a non-locked exam, audited. */
+async function editExamDetails(user: AuthUser, body: unknown) {
+  const parsed = examDetailsEditSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+  }
+  const edit = parsed.data;
+  const updated = await prisma.$transaction(async (tx) => {
+    const current = await tx.exam.findFirst({ where: { id: edit.id, schoolId: user.schoolId } });
+    if (!current) throw new ApiError("Exam not found", 404);
+    if (user.campusId && current.campusId !== user.campusId) throw new ApiError("Exam is outside your campus", 403);
+    if (!canManageExamType(user.role, current.examType)) throw new ApiError(TERM_EXAM_DENIED_MESSAGE, 403);
+    if (edit.examType && !canManageExamType(user.role, edit.examType)) throw new ApiError(TERM_EXAM_DENIED_MESSAGE, 403);
+    if (current.isLocked) throw new ApiError("Locked exams cannot be edited", 409);
+    if (user.role === "TEACHER" && !await tx.class.findFirst({ where: { id: current.classId, schoolId: user.schoolId, campusId: current.campusId, OR: [{ classTeacherId: user.userId }, { subjects: { some: { teacherId: user.userId } } }] }, select: { id: true } })) {
+      throw new ApiError("You are not assigned to this class", 403);
+    }
+    const diff = diffExamDetails(current, edit);
+    if (!diff.changed) return current;
+    // Guarded on isLocked so a lock that lands between read and write still wins.
+    const result = await tx.exam.updateMany({ where: { id: current.id, schoolId: user.schoolId, isLocked: false }, data: diff.after });
+    if (result.count !== 1) throw new ApiError("Locked exams cannot be edited", 409);
+    await writeAuditEvent(tx, user, { table: "exams", recordId: current.id, action: "UPDATE", campusId: current.campusId, before: diff.before, after: diff.after });
+    return tx.exam.findFirst({ where: { id: current.id, schoolId: user.schoolId } });
+  });
+  return Response.json({ success: true, exam: updated });
 }
 
 export async function GET(req: NextRequest) {
@@ -181,6 +210,7 @@ export async function PATCH(req: NextRequest) {
     await assertPermission(user, "exams", "edit");
 
     const body = await req.json();
+    if (isExamDetailsEdit(body)) return await editExamDetails(user, body);
     const parsed = examStatusSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
