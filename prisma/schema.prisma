@@ -296,6 +296,9 @@ model School {
   taxDocuments TaxDocument[]
   taxSubmissionAttempts TaxSubmissionAttempt[]
   integrationConnections IntegrationConnection[]
+  whatsAppConnection WhatsAppConnection?
+  whatsAppManagedSending WhatsAppManagedSending?
+  whatsAppUsageEntries WhatsAppUsageEntry[]
   integrationCredentials IntegrationCredential[]
   integrationEvents IntegrationEvent[]
   integrationDeliveries IntegrationDelivery[]
@@ -10304,4 +10307,63 @@ model PilotReadinessRecord {
   @@unique([schoolId, version])
   @@index([pilotId])
   @@map("pilot_readiness_records")
+}
+
+/// SKAI-1045 (D3-01): the school's own WhatsApp Business Account, connected through Meta Embedded Signup.
+/// Meta bills the school directly. The access token is AES-256-GCM encrypted at rest (protectSecret).
+model WhatsAppConnection {
+  id                 String    @id @default(uuid())
+  schoolId           String    @unique @map("school_id")
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  status             String    @default("CONNECTED") // CONNECTED | DISCONNECTED
+  wabaId             String    @map("waba_id")
+  phoneNumberId      String    @map("phone_number_id")
+  businessId         String?   @map("business_id")
+  displayPhoneNumber String?   @map("display_phone_number")
+  verifiedName       String?   @map("verified_name")
+  accessTokenEnc     String?   @map("access_token_enc") // encrypted; cleared on disconnect
+  tokenExpiresAt     DateTime? @map("token_expires_at")
+  connectedById      String    @map("connected_by_id")
+  connectedAt        DateTime  @default(now()) @map("connected_at")
+  disconnectedAt     DateTime? @map("disconnected_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([phoneNumberId])
+  @@map("whatsapp_connections")
+}
+
+/// SKAI-1046 (D3-03): optional Skoolee-managed sending for schools that cannot complete Meta verification.
+/// One number per tenant (never shared), prepaid credit in micro-USD; sending stops when credit runs out.
+model WhatsAppManagedSending {
+  id              String   @id @default(uuid())
+  schoolId        String   @unique @map("school_id")
+  school          School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  enabled         Boolean  @default(false)
+  phoneNumberId   String?  @map("phone_number_id") // provisioned by the platform owner
+  balanceMicroUsd BigInt   @default(0) @map("balance_micro_usd")
+  updatedById     String   @map("updated_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_managed_sending")
+}
+
+/// SKAI-1046: managed-sending ledger. MESSAGE rows charge Meta's rate plus margin; TOP_UP rows add credit.
+model WhatsAppUsageEntry {
+  id                String   @id @default(uuid())
+  schoolId          String   @map("school_id")
+  school            School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  kind              String   // MESSAGE | TOP_UP
+  category          String?  // UTILITY | MARKETING | AUTHENTICATION | SERVICE
+  country           String?
+  metaRateMicroUsd  BigInt   @default(0) @map("meta_rate_micro_usd")
+  marginMicroUsd    BigInt   @default(0) @map("margin_micro_usd")
+  amountMicroUsd    BigInt   @map("amount_micro_usd") // charged (MESSAGE) or credited (TOP_UP)
+  providerMessageId String?  @map("provider_message_id")
+  reference         String?
+  createdById       String?  @map("created_by_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([schoolId, createdAt])
+  @@map("whatsapp_usage_entries")
 }

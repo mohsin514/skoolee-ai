@@ -87,6 +87,7 @@ async function processNotification(job: Job<NotificationJobData>) {
     const result =
       legacyData.type === "WHATSAPP"
         ? await sendWhatsAppMessage({
+            schoolId: legacyData.tenantId,
             to: legacyData.recipient,
             text: legacyData.message,
             pdfUrl: legacyData.attachmentUrl,

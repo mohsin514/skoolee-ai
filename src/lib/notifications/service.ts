@@ -369,6 +369,7 @@ export async function sendTemplatedCommunication(input: SendTemplateInput) {
   const result =
     input.channel === "WHATSAPP"
       ? await sendWhatsAppMessage({
+          schoolId: input.target.schoolId,
           to: recipient,
           text: rendered.body,
           pdfUrl: input.attachmentUrl || undefined,
