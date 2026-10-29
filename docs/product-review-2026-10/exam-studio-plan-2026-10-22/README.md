@@ -1,3 +1,5 @@
+> **Archived tracker note (29 October 2026):** Linear (SKO-) is now a read-only archive; Jira SKAI is the tracker of record (decision D6, `docs/product-review-2026-10/d6-tracker-of-record.md`). SKO references and Linear statuses below are historical. See `docs/archive/linear/` for the export and open-item crosswalk.
+
 # Exam Studio flagship plan — version 2, 23 October 2026
 
 Owner ticket: [SKO-408](https://linear.app/skoolee-ai-app/issue/SKO-408). Sub-issues: SKO-500 to SKO-507 (one per build slice, §11). Target: LEAP 2027, Riyadh, 12–15 April 2027 (recheck the official site before booking). Funding target: at least USD 1M (always "target", never a commitment).

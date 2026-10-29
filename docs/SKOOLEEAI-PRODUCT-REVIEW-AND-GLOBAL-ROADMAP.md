@@ -1,3 +1,5 @@
+> **Archived tracker note (29 October 2026):** Linear (SKO-) is now a read-only archive; Jira SKAI is the tracker of record (decision D6, `docs/product-review-2026-10/d6-tracker-of-record.md`). SKO references and Linear statuses below are historical. See `docs/archive/linear/` for the export and open-item crosswalk.
+
 # SkooleeAI product review and global roadmap
 
 Prepared for the founder on 7 October 2026. This is a product and engineering proposal for worldwide K–12 schools and school groups, with LEAP Riyadh 2027 as the next commercial milestone. The founder reports no current school users and wants customers, investors and a Saudi partner. The roadmap follows the latest instruction to plan for scale without using the present budget as a constraint.
