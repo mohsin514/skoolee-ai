@@ -16,6 +16,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { ShieldCheck } from "lucide-react";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-443: campus policy shows each effective value with where it comes from — inherited, locked, a reviewed
 // campus override (with its expiry) or a campus setting — never a value the reader has to work out. Group policy
@@ -26,7 +27,7 @@ type Domain = "GRADING" | "CALENDAR";
 async function call(url: string, method = "GET", body?: Record<string, unknown>) {
   const response = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const json = await response.json().catch(() => ({}));
-  if (!response.ok || !json.success) throw new Error(json.error || "The change was not saved.");
+  if (!response.ok || !isApiOk(json)) throw new Error(readApiError(json, "The change was not saved."));
   return json.data;
 }
 const LABELS: Record<string, string> = { passingPercentage: "Pass mark (%)", gradeAplus: "A+ starts at (%)", gradeA: "A starts at (%)", gradeB: "B starts at (%)", gradeC: "C starts at (%)", gradeD: "D starts at (%)", roundingRule: "Rounding", missingMarkPolicy: "Missing marks", absentMarkPolicy: "Absent marks", weekStartsOn: "Week starts on", weekend: "Weekend days", termCount: "Terms per year", schoolDayStart: "School day starts" };
