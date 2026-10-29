@@ -1,5 +1,7 @@
 import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { assertHolidayWritable, inspectWeekendChange } from "@/lib/academic/calendar-write";
+import { assertWeekendCurrent, parseWeekendDays, previewWindow, weekendImpact } from "@/lib/academic/weekend-rules";
+import { calendarDateIn } from "@/lib/datetime";
 import { expandRecurring, isoDay, parseHolidayInput } from "@/lib/academic/holiday-rules";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { withSchedulingResourceWrite } from "@/lib/academic/resource-write";
@@ -11,14 +13,12 @@ import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET    /api/academic/calendar?campusId=            → { weekends: number[], holidays: [...] }
-// PATCH  /api/academic/calendar { days: [1..7] }     → replace the campus weekend set
+// PATCH  /api/academic/calendar { days: [1..7], expected?, preview? } → preview or replace the campus weekend set
 // POST   /api/academic/calendar { name, fromDate, toDate, repeatYears?, allCampuses? } → add a holiday
 // DELETE /api/academic/calendar?id=<holidayId>       → remove a holiday
 //
 // Module 13: weekend/holiday awareness — grids grey these out and exam
 // scheduling refuses campus weekend days.
-
-const DAYS = new Set([1, 2, 3, 4, 5, 6, 7]);
 
 export async function GET(req: NextRequest) {
   try {
@@ -51,16 +51,23 @@ export async function PATCH(req: NextRequest) {
 
     const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
-    const days = body.days;
-    if (!Array.isArray(days) || days.length === 0 || !days.every((d: number) => DAYS.has(Number(d)))) {
-      throw new ApiError("days must be a non-empty array of 1-7 (Mon..Sun)", 400);
-    }
+    // SKAI-118: validated set, optional stale guard (`expected`), and a read-only `preview` of the affected dates.
+    const uniqueDays = parseWeekendDays(body.days);
 
     return await withSchedulingResourceWrite(user, campusId, "timetable", "edit", async tx => {
-      const uniqueDays = [...new Set(days.map((day) => Number(day)))];
-      await inspectWeekendChange(tx, { schoolId: user.schoolId, campusId }, uniqueDays);
+      const { currentDays } = await inspectWeekendChange(tx, { schoolId: user.schoolId, campusId }, uniqueDays);
+      assertWeekendCurrent(body.expected, currentDays);
+      if (body.preview === true) {
+        const locale = await getLocalePackage(user.schoolId, campusId, new Date(), undefined, tx);
+        const cycle = await tx.academicCycle.findFirst({ where: { schoolId: user.schoolId, campusId, status: "ACTIVE" }, select: { endDate: true }, orderBy: { startDate: "desc" } });
+        const window = previewWindow(calendarDateIn(locale.timezone), cycle?.endDate);
+        const holidays = await tx.holiday.findMany({ where: { schoolId: user.schoolId, campusId, fromDate: { lte: new Date(`${window.to}T00:00:00Z`) }, toDate: { gte: new Date(`${window.from}T00:00:00Z`) } }, select: { fromDate: true, toDate: true }, take: 500 });
+        return Response.json({ success: true, data: { preview: true, current: currentDays, proposed: uniqueDays, impact: weekendImpact(currentDays, uniqueDays, window.from, window.to, holidays) } });
+      }
       await tx.weekend.deleteMany({ where: { campusId } });
       await tx.weekend.createMany({ data: uniqueDays.map(dayOfWeek => ({ schoolId: user.schoolId, campusId, dayOfWeek })) });
+      if (currentDays.join() !== uniqueDays.join())
+        await tx.auditLog.create({ data: { schoolId: user.schoolId, campusId, userId: user.userId, tableName: "campus_weekends", recordId: campusId, oldValue: { days: currentDays }, newValue: { action: "UPDATE", days: uniqueDays } } });
 
       const weekends = await tx.weekend.findMany({ where: { campusId }, select: { dayOfWeek: true } });
       return Response.json({ success: true, data: { weekends: weekends.map((w) => w.dayOfWeek).sort() } });

@@ -1,4 +1,5 @@
 import type { ImportRow } from "@/lib/imports/batch";
+import { studentSchema } from "@/lib/validators/schemas";
 
 /**
  * SKAI-913 migration rehearsal helpers. Pure functions shared by staging (server) and the review dialog
@@ -115,4 +116,34 @@ export function reconciliationSheet(rows: ImportRow[]): Array<Array<string | num
       return [row.rowNumber, rowOutcome(row), String(row.proposal?.fullName ?? pick("fullname")), String(row.proposal?.rollNo ?? pick("rollno")), pick("classname"), pick("classsection"), row.matchKey || "", row.errors.join("; "), (row.notes || []).join("; ")];
     }),
   ];
+}
+
+/** Pilot columns offered even when optional; everything else optional is left out of the template. */
+const TEMPLATE_OPTIONAL = ["className", "classSection", "gender", "dateOfBirth", "guardianRelationship"];
+const TEMPLATE_SAMPLE: Record<string, string> = {
+  fullName: "Sample Pupil One", rollNo: "QA-001", className: "", classSection: "", gender: "FEMALE", dateOfBirth: "2015-04-12",
+  guardianName: "Sample Guardian", guardianPhone: "+92 3000000001", guardianRelationship: "mother", address: "1 Sample Street", city: "Lahore", medicalNotes: "None",
+};
+
+/**
+ * The roster template: every column the admission validator requires (so a template-built file is never
+ * rejected for a missing column) plus the minimal pilot extras. Required columns come from `studentSchema`
+ * itself; the class comes from the dialog's chosen class, so `classId` is not a column.
+ */
+export function rosterTemplateColumns() {
+  // Refinements run only once the base shape parses, so fill each reported field and parse again.
+  const probe: Record<string, string> = {};
+  for (let pass = 0; pass < 10; pass++) {
+    const parsed = studentSchema.safeParse(probe);
+    if (parsed.success) break;
+    for (const issue of parsed.error.issues) probe[String(issue.path[0])] = "x";
+  }
+  const required = Object.keys(probe).filter((field) => field && field !== "classId");
+  const ordered = Object.keys(TEMPLATE_SAMPLE).filter((field) => required.includes(field) || TEMPLATE_OPTIONAL.includes(field));
+  return [...ordered, ...required.filter((field) => !ordered.includes(field))];
+}
+
+export function rosterTemplateCsv() {
+  const columns = rosterTemplateColumns();
+  return `${columns.join(",")}\n${columns.map((column) => TEMPLATE_SAMPLE[column] ?? "").join(",")}`;
 }
