@@ -54,6 +54,8 @@ model School {
   activityJobs ActivityJob[]
   deliveryReceipts DeliveryReceipt[]
   correctionSeparateApprover Boolean @default(true) @map("correction_separate_approver")
+  /// SKAI-1151: UAE report-card template (mandatory Arabic + Islamic Education, bilingual EN+AR print). Off by default.
+  uaeReportTemplate Boolean @default(false) @map("uae_report_template")
   corrections Correction[]
   studentEnrollments StudentEnrollment[]
   enrollmentProposals EnrollmentProposal[]
