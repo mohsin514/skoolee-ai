@@ -20,6 +20,10 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input as SystemInput } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ReviewedDelete } from "@/components/ui/reviewed-delete";
+import { useShellSession } from "@/components/role-dashboard/ScopeBadge";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
@@ -558,6 +562,11 @@ function DayPopover({
   const [fromDate, setFromDate] = useState(popover.iso);
   const [toDate, setToDate] = useState(popover.iso);
   const [saving, setSaving] = useState(false);
+  const [repeatYears, setRepeatYears] = useState(0);
+  const [allCampuses, setAllCampuses] = useState(false);
+  // SKAI-145: editing reuses this form; `editing` is the holiday as last read, so the server can spot a stale edit.
+  const [editing, setEditing] = useState<UnifiedHoliday | null>(null);
+  const isOwner = useShellSession()?.role === "SUPER_ADMIN";
   const dirty = canEdit && name.trim().length > 0;
 
   const datesReversed = fromDate > toDate;
@@ -565,21 +574,26 @@ function DayPopover({
      button looked ready and the failure arrived after the click. */
   const blockedReason = !name.trim()
     ? "Name this holiday to add it."
-    : datesReversed
-      ? "The end date is before the start date."
-      : null;
+    : name.trim().length > 120
+      ? "Keep the holiday name to 120 characters."
+      : datesReversed
+        ? "The end date is before the start date."
+        : null;
 
   const addHoliday = async () => {
     if (blockedReason) return;
     setSaving(true);
     try {
+      const day = (iso: string) => iso.slice(0, 10);
       const res = await fetch(`/api/academic/calendar${campusId ? `?campusId=${encodeURIComponent(campusId)}` : ""}`, {
-        method: "POST",
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), fromDate, toDate }),
+        body: JSON.stringify(editing
+          ? { id: editing.id, name: name.trim(), fromDate, toDate, version: `${editing.name}|${day(editing.fromDate)}|${day(editing.toDate)}` }
+          : { name: name.trim(), fromDate, toDate, repeatYears, allCampuses }),
       });
       const json = await res.json();
-      if (json.success) { toast.success(tr("Holiday added")); onHolidayAdded(); }
+      if (json.success) { toast.success(tr(editing ? "Holiday updated" : "Holiday added")); onHolidayAdded(); }
       else toast.error(tr(json.error || "Failed to add holiday"));
     } catch {
       toast.error(tr("Failed to add holiday"));
@@ -590,10 +604,10 @@ function DayPopover({
 
   const dayLabel = new Date(`${popover.iso}T00:00:00Z`).toLocaleDateString(localeTag(locale), { timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
-  const events: { kind: string; color: string; text: string }[] = [];
+  const events: { kind: string; color: string; text: string; holiday?: UnifiedHoliday }[] = [];
   if (day) {
     // R7/R11: event kinds are translated words, never raw enum text (exam types read as sentence-case words).
-    if (layers.holidays) day.holidays.forEach((h) => events.push({ kind: tr("Holiday"), color: "#0d9488", text: h.name }));
+    if (layers.holidays) day.holidays.forEach((h) => events.push({ kind: tr("Holiday"), color: "#0d9488", text: h.name, holiday: h }));
     if (layers.exams) day.exams.forEach((e) => events.push({ kind: `${tr("Exam")} · ${tr(sentenceCase(e.examType))}`, color: "#8127cf", text: `${e.title} (${e.className})` }));
     if (layers.deadlines) day.deadlines.forEach((e) => events.push({ kind: tr("Deadline"), color: "#f43f5e", text: `${e.title} — ${tr(sentenceCase(e.status))}` }));
     if (layers.terms) day.terms.forEach((t) => events.push({ kind: tr(t.type === "start" ? "Term starts" : "Term ends"), color: "#d97706", text: `${t.term.label} (${t.term.academicYear})` }));
@@ -616,10 +630,20 @@ function DayPopover({
           {events.map((ev, i) => (
             <li key={i} className="flex items-start gap-2">
               <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: ev.color }} />
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-2xs font-semibold" style={{ color: ev.color }}>{ev.kind}</p>
                 <p className="text-xs font-semibold text-ink-strong">{ev.text}</p>
               </div>
+              {canEdit && ev.holiday ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="ghost" size="sm" type="button" disabled={saving}
+                    aria-label={tr("Edit {0}", [ev.holiday.name])}
+                    onClick={() => { const h = ev.holiday!; setEditing(h); setName(h.name); setFromDate(h.fromDate.slice(0, 10)); setToDate(h.toDate.slice(0, 10)); }}>
+                    <UiText>{"Edit"}</UiText>
+                  </Button>
+                  <ReviewedDelete endpoint="academic/calendar" record={{ id: ev.holiday.id, campusId }} label={ev.holiday.name} onDeleted={onHolidayAdded} />
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -648,8 +672,24 @@ function DayPopover({
             aria-label={tr("Holiday name for {0}", [dayLabel])}
             className="w-full"
           />
+          {editing ? null : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-2xs font-semibold text-ink-muted"><UiText>{"Repeat every year"}</UiText></span>
+                <Select value={repeatYears} disabled={saving} onChange={(e) => setRepeatYears(Number(e.target.value))}>
+                  {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n === 0 ? tr("This year only") : tr("For {0} more years", [String(n)])}</option>)}
+                </Select>
+              </label>
+              {isOwner ? (
+                <label className="flex items-center gap-2 self-end pb-3 text-xs font-semibold text-ink-strong">
+                  <Checkbox checked={allCampuses} disabled={saving} onChange={(e) => setAllCampuses(e.target.checked)} />
+                  <UiText>{"All campuses"}</UiText>
+                </label>
+              ) : null}
+            </div>
+          )}
           {blockedReason ? (
-            <p className="text-2xs font-semibold text-status-warning-text">{blockedReason}</p>
+            <p role="status" className="text-2xs font-semibold text-status-warning-text">{tr(blockedReason)}</p>
           ) : null}
           <div className="flex gap-2">
             <Button variant="default"
@@ -659,7 +699,7 @@ function DayPopover({
               title={blockedReason || tr("Add a holiday from {0} to {1}", [fromDate, toDate])}
               className="flex flex-1 items-center justify-center gap-1 px-3 py-2"
             >
-              <PartyPopper className="h-3.5 w-3.5" /><UiText>{"Add holiday"}</UiText></Button>
+              <PartyPopper className="h-3.5 w-3.5" /><UiText>{editing ? "Save changes" : "Add holiday"}</UiText></Button>
             <Button variant="default"
               type="button"
               disabled={saving}
