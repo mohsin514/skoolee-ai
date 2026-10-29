@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createAssignment, listAssignments } from "@/lib/assignments/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    return Response.json({ success: true, assignment: await createAssignment(user, await req.json()) }, { status: 201, headers: noStore });
+    return Response.json({ success: true, assignment: await createAssignment(user, await readJsonBody(req)) }, { status: 201, headers: noStore });
   } catch (error) {
     return error instanceof ZodError ? invalid(error) : errorResponse(error, "[assignments] POST failed");
   }

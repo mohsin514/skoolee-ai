@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { act, assertQueueAccess, history, loadQueue } from "@/lib/principal/queue";
 import { prisma } from "@/lib/db/prisma";
 import { errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-417 principal action queue.
 // GET  ?campusId=           → active items (source-derived), counts, resolved history, failed sources, sorting rule
@@ -29,9 +31,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
-    return Response.json({ success: true, data: await act(user, campusId, body) });
+    return Response.json({ success: true, data: await act(user, campusId, body as Parameters<typeof act>[2]) });
   } catch (error) {
     return errorResponse(error, "[principal/queue] POST failed");
   }
