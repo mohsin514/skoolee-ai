@@ -78,6 +78,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { useIsSingular } from "@/components/locale/use-count-label";
 import { resultGradeLabel } from "@/lib/locale/result-grade";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +97,7 @@ interface AcademicOverviewProps {
 
 export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent, variant = "admin", canOpen }: AcademicOverviewProps) {
   const ui = useUiText();
+  const singular = useIsSingular();
   const gradeLabel = resultGradeLabel(useLocale().language);
   const { number } = useLocaleFormat();
   const principal = variant === "principal";
@@ -273,9 +275,9 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent, v
       />
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
-        <StatTile icon={GraduationCap} label={ui("Students")} value={data?.totalStudents ?? 0} sub={ui("On roll")} tone="good" onClick={go("students")} delay={80} />
-        <StatTile icon={Users} label={ui("Teachers")} value={data?.totalTeachers ?? 0} sub={ui("{0} students", [ratio(data?.totalStudents ?? 0, data?.totalTeachers ?? 0)])} onClick={go("teachers")} delay={140} />
-        <StatTile icon={School} label={ui("Classes")} value={data?.totalClasses ?? 0} sub={ui("{0} with results", [number(derived.graded.length, 0)])} onClick={go("classes")} delay={200} />
+        <StatTile icon={GraduationCap} label={singular(data?.totalStudents ?? 0) ? ui("Student") : ui("Students")} value={data?.totalStudents ?? 0} sub={ui("On roll")} tone="good" onClick={go("students")} delay={80} />
+        <StatTile icon={Users} label={singular(data?.totalTeachers ?? 0) ? ui("Teacher") : ui("Teachers")} value={data?.totalTeachers ?? 0} sub={ui("{0} students", [ratio(data?.totalStudents ?? 0, data?.totalTeachers ?? 0)])} onClick={go("teachers")} delay={140} />
+        <StatTile icon={School} label={singular(data?.totalClasses ?? 0) ? ui("Class") : ui("Classes")} value={data?.totalClasses ?? 0} sub={ui("{0} with results", [number(derived.graded.length, 0)])} onClick={go("classes")} delay={200} />
         <StatTile
           icon={CalendarCheck}
           label={ui("Attendance")}

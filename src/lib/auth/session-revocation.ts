@@ -71,6 +71,25 @@ export async function checkRevocation(
 }
 
 /**
+ * SKAI-1063: the same decision, but an unavailable store is an error rather than
+ * "revoked". The proxy's candidate-exam boundary treated "revoked" as "sign the
+ * learner out and clear the cookie", so a transient lookup failure there turned a
+ * fresh, valid STUDENT sign-in into an immediate bounce back to /login. Callers
+ * that can answer "try again" (503) instead of "you are signed out" use this one.
+ * One retry absorbs a cold connection.
+ */
+export async function checkRevocationStrict(
+  tokenHash: string,
+  lookup: SessionLookup = lookupSessionRows
+): Promise<boolean> {
+  try {
+    return decideRevocation(await lookup(tokenHash));
+  } catch {
+    return decideRevocation(await lookup(tokenHash));
+  }
+}
+
+/**
  * Production entry point, memoised for the duration of one request.
  *
  * React's `cache` is what the Next authentication guide prescribes for a data

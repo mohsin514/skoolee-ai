@@ -10,6 +10,7 @@
  */
 
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { useCountLabel, useIsSingular } from "@/components/locale/use-count-label";
 import { localeTag, minorUnits } from "@/lib/locale/package";
 import { useMemo } from "react";
 import { CalendarCheck, ClipboardList, GraduationCap, Layers, Receipt, Users } from "lucide-react";
@@ -56,6 +57,8 @@ interface CampusOverviewProps {
 export function CampusOverview({ data, onNavigate, showFinance = true }: CampusOverviewProps) {
   const locale = useLocale();
   const ui = useUiText();
+  const count = useCountLabel();
+  const singular = useIsSingular();
   // R7: the school's own currency from the locale package when the summary does not carry one.
   const currency = data?.invoiceSummary?.currency ?? locale.currency;
   const money = (value: number) =>
@@ -97,7 +100,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
           icon={GraduationCap}
           label={ui("Students on roll")}
           value={studentCount}
-          sub={derived.unplaced > 0 ? ui("{0} not yet placed in a class", [derived.unplaced]) : ui("Across {0} classes", [derived.strengths.length])}
+          sub={derived.unplaced > 0 ? ui("{0} not yet placed in a class", [derived.unplaced]) : ui("Across {0}", [count(derived.strengths.length, "class")])}
           tone={derived.unplaced > 0 ? "warning" : "good"}
           onClick={() => onNavigate("students")}
           delay={60}
@@ -106,7 +109,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
           icon={CalendarCheck}
           label={ui("Present today")}
           value={derived.todayRate !== null ? `${derived.todayRate}%` : "—"}
-          sub={markedToday > 0 ? ui("{0} students marked", [markedToday]) : ui("Not marked yet")}
+          sub={markedToday > 0 ? ui("{0} marked", [count(markedToday, "student")]) : ui("Not marked yet")}
           tone={derived.todayRate !== null && derived.todayRate < 85 ? "warning" : "good"}
           trend={attendanceSeries.length > 1 ? attendanceSeries.slice(-12) : undefined}
           trendColor={STATUS.good}
@@ -126,7 +129,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
         ) : (
           <StatTile
             icon={Users}
-            label={ui("Teachers")}
+            label={singular(teacherCount) ? ui("Teacher") : ui("Teachers")}
             value={teacherCount}
             sub={ui("{0} students per teacher", [ratio(studentCount, teacherCount)])}
             onClick={() => onNavigate("teachers")}
@@ -187,7 +190,7 @@ export function CampusOverview({ data, onNavigate, showFinance = true }: CampusO
         <InsightCard
           icon={CalendarCheck}
           title={ui("Today's register")}
-          subtitle={markedToday > 0 ? ui("{0} students marked", [markedToday]) : ui("Not marked yet")}
+          subtitle={markedToday > 0 ? ui("{0} marked", [count(markedToday, "student")]) : ui("Not marked yet")}
           delay={180}
           table={{
             columns: [ui("Status"), ui("Students")],

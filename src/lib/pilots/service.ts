@@ -8,6 +8,7 @@ import {
   claimSupport, findingFor, findingHash, limitations, measureFinding, timeFinding,
   type Finding, type MeasureRow, type ObservationRow,
 } from "./findings";
+import { pilotActivationGate } from "./readiness-service";
 
 /**
  * SKO-430 pilot measurement. Platform-operator records (owner-only routes): a pilot charter,
@@ -143,11 +144,17 @@ export async function updateCharter(id: string, input: unknown, actorId?: string
     else if (!commercial.providerReference) status = "WAITING_PROVIDER";
     else if (!commercial.authorityReference || !commercial.privacyReference || !commercial.deploymentReference) status = "WAITING_READINESS";
   }
+  // SKAI-1018 + SKAI-1016: a real pilot only becomes active when the school's readiness record and the market trust gate pass.
+  let gateBlockers: { item: string; reason: string }[] = [];
+  if (status === "ACTIVE") {
+    const gate = await pilotActivationGate(pilot.targetSchoolId);
+    if (!gate.allowed) { status = "WAITING_PILOT_GATE"; gateBlockers = gate.blockers; }
+  }
   if (status === "CLOSED" && !pilot.synthetic && !commercial?.closure) throw new PilotError("Record the closure outcome, source, date and exit evidence.", 409);
   const workflows = data.workflows ?? pilot.workflows;
   if (data.workflows && JSON.stringify(data.workflows.map(w => w.key).sort()) !== JSON.stringify(workflowKeys(pilot).sort())) throw new PilotError("Preserve the agreed workflow keys when revising definitions.", 409);
   if (commercial?.cycles.some(c => !workflowKeys({ workflows }).includes(c.workflow))) throw new PilotError("That workflow is not defined in this pilot's charter.");
-  const snapshot = { recordedById: actorId ?? null, original: history.length ? null : { workflows: pilot.workflows, consentReference: pilot.consentReference, startsOn: pilot.startsOn.toISOString(), endsOn: pilot.endsOn?.toISOString() ?? null }, at: new Date().toISOString(), commercial, workflows, championName: pilot.championName, startsOn: pilot.startsOn.toISOString(), endsOn: data.endsOn === undefined ? pilot.endsOn?.toISOString() ?? null : data.endsOn, consentReference: consent, caseStudyPermission: permission, permissionReference, status };
+  const snapshot = { recordedById: actorId ?? null, original: history.length ? null : { workflows: pilot.workflows, consentReference: pilot.consentReference, startsOn: pilot.startsOn.toISOString(), endsOn: pilot.endsOn?.toISOString() ?? null }, at: new Date().toISOString(), commercial, workflows, championName: pilot.championName, startsOn: pilot.startsOn.toISOString(), endsOn: data.endsOn === undefined ? pilot.endsOn?.toISOString() ?? null : data.endsOn, consentReference: consent, caseStudyPermission: permission, permissionReference, status, gateBlockers };
   const updated = await prisma.pilot.updateMany({ where: { id, updatedAt: pilot.updatedAt, charterHistory: { equals: history as Prisma.InputJsonValue } }, data: {
     ...(data.consentReference !== undefined ? { consentReference: data.consentReference, consentRecordedAt: data.consentReference ? new Date() : null } : {}),
     ...(data.caseStudyPermission ? { caseStudyPermission: data.caseStudyPermission } : {}),
@@ -247,7 +254,8 @@ export async function pilotDetail(id: string) {
     const stale = claim.status === "APPROVED" && claim.snapshotHash !== findingHash(finding);
     return { ...claim, stale, support: claimSupport(finding), exportBlockedBy: claim.status === "APPROVED" ? exportBlock(pilot, claim, finding) : null };
   });
-  return { pilot, observations, measures, findings, claims: claimViews };
+  const activationGate = pilot.synthetic ? null : await pilotActivationGate(pilot.targetSchoolId);
+  return { pilot, observations, measures, findings, claims: claimViews, activationGate };
 }
 
 export async function listPilots() {

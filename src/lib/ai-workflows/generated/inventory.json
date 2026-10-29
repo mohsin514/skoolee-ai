@@ -11204,6 +11204,19 @@
   "source": "appendix-a"
  },
  {
+  "key": "auth.login_fallback",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/auth/login/fallback",
+  "roles": [],
+  "risk": "UPDATE",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "campus.create",
   "cluster": "C8 Platform, group governance and onboarding",
   "route": "server action src/app/actions/addCampus.ts",
@@ -11233,6 +11246,61 @@
   "reuse": "direct",
   "addedByVerifier": false,
   "source": "existing-tool"
+ },
+ {
+  "key": "curriculum.record_pack_evidence",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/school-ai/curriculum-packs/[id]/evidence",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "curriculum.request_pack",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/school-ai/curriculum-packs",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL"
+  ],
+  "risk": "CREATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "curriculum.transition_pack",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/school-ai/curriculum-packs/[id]/transition",
+  "roles": [
+   "SUPER_ADMIN",
+   "CAMPUS_ADMIN",
+   "ADMIN",
+   "PRINCIPAL",
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
  },
  {
   "key": "governance.reset_user_password",
@@ -11700,6 +11768,21 @@
   "idempotent": "no",
   "aiToday": "none",
   "reuse": "inline-prisma",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "platform.record_pilot_readiness",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/owner/pilot-readiness",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
   "addedByVerifier": false,
   "source": "appendix-a"
  },
