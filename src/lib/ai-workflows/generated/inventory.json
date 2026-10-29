@@ -12408,6 +12408,19 @@
   "source": "appendix-a"
  },
  {
+  "key": "system.notification_automation_sweep",
+  "cluster": "C8 Platform, group governance and onboarding",
+  "method": "POST",
+  "route": "/api/cron/notification-automation",
+  "roles": [],
+  "risk": "COMMUNICATION",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "system.risk_digest",
   "cluster": "C8 Platform, group governance and onboarding",
   "method": "POST",
