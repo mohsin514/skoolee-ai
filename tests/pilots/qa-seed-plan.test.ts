@@ -19,7 +19,7 @@ test("seed has two GROUP schools and one STANDALONE school", () => {
 test("standalone admin resolves as owner/authority (SKAI-1066)", () => {
   const s = sessionFor("STANDALONE", "admin");
   assert.equal(s.def.role, "ADMIN");
-  assert.equal(s.def.scoped, false);
+  assert.equal(s.def.scoped, true, "pinned to the school campus like an onboarded owner");
   assert.deepEqual([s.kind, s.isAuthority, s.standaloneOwner, s.isOwner], ["STANDALONE", true, true, true]);
 });
 
