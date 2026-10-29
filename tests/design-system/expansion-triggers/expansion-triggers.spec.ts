@@ -7,7 +7,7 @@ import { evaluateExpansionTriggers } from "../../../src/lib/expansion/triggers";
 // SKAI-1108 owner expansion-trigger tracker: synthetic observations through the real evaluator, EN/AR/UR, desktop and phone.
 const requireTool = createRequire(createRequire(path.join(process.cwd(), "package.json")).resolve("tsx"));
 const { build } = requireTool("esbuild"), { compile } = requireTool("@tailwindcss/node"), { Scanner } = requireTool("@tailwindcss/oxide");
-const shots = process.env.SCREENSHOT_DIR;
+const shots = process.env.SCREENSHOT_DIR, key = process.env.SHOT_KEY ?? "SKAI-1108";
 let js: string, css: string;
 test.beforeAll(async () => {
   const root = process.cwd();
@@ -34,9 +34,14 @@ for (const language of ["en", "ar", "ur"] as const) {
     await expect(page.locator("tbody tr")).toHaveCount(9);
     expect(data.triggers.map((t) => t.met)).toEqual([true, false, true, false]);
     expect(await page.evaluate(() => document.documentElement.dir)).toBe(language === "en" ? "ltr" : "rtl");
-    if (shots) await page.screenshot({ path: `${shots}/SKAI-1108_01_triggers_${language.toUpperCase()}_desktop.png`, fullPage: true });
+    if (shots) await page.screenshot({ path: `${shots}/${key}_01_triggers_${language.toUpperCase()}_desktop.png`, fullPage: true });
+    await expect(page.locator("[data-testid=trigger-condition-card]:visible")).toHaveCount(0);
     await page.setViewportSize({ width: 360, height: 800 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (shots) await page.screenshot({ path: `${shots}/SKAI-1108_02_triggers_${language.toUpperCase()}_phone.png`, fullPage: true });
+    // SKAI-1172: phone stacks each condition as a card; the table and its own sideways scroll are gone.
+    await expect(page.locator("[data-testid=trigger-condition-card]:visible")).toHaveCount(9);
+    await expect(page.locator("table").first()).toBeHidden();
+    expect(await page.evaluate(() => [...document.querySelectorAll("li, ul")].every((el) => el.scrollWidth <= el.clientWidth + 1))).toBe(true);
+    if (shots) await page.screenshot({ path: `${shots}/${key}_02_triggers_${language.toUpperCase()}_phone.png`, fullPage: true });
   });
 }
