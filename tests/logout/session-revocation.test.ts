@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 
 import {
   checkRevocation,
+  checkRevocationStrict,
   decideRevocation,
   type SessionLookup,
 } from "@/lib/auth/session-revocation";
@@ -111,5 +112,24 @@ describe("checkRevocation", () => {
       /session verification/i,
       "the warning says what could not be determined"
     );
+  });
+});
+
+describe("checkRevocationStrict (SKAI-1063)", () => {
+  it("answers like checkRevocation when the store responds", async () => {
+    assert.equal(await checkRevocationStrict("h", async () => [{ isActive: true }]), false);
+    assert.equal(await checkRevocationStrict("h", async () => []), true);
+  });
+
+  it("retries once, then throws instead of reporting a live session as revoked", async () => {
+    let calls = 0;
+    const flaky: SessionLookup = async () => {
+      calls++;
+      if (calls === 1) throw new Error("cold connection");
+      return [{ isActive: true }];
+    };
+    assert.equal(await checkRevocationStrict("h", flaky), false);
+    assert.equal(calls, 2);
+    await assert.rejects(checkRevocationStrict("h", async () => { throw new Error("db down"); }), /db down/);
   });
 });
