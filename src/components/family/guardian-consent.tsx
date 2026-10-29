@@ -145,7 +145,7 @@ export function ConsentStatusPanel() {
           <TableBody>
             {data.map(row => (
               <TableRow key={row.studentId}>
-                <TableCell><bdi className="font-medium">{row.fullName}</bdi> <span className="text-xs text-ink-muted">#{row.rollNo}</span></TableCell>
+                <TableCell><bdi className="font-medium">{row.fullName}</bdi> <bdi dir="ltr" className="text-xs text-ink-muted">#{row.rollNo}</bdi></TableCell>
                 <TableCell>{row.className}</TableCell>
                 <TableCell><Badge variant={stateVariant(row.state)} dot>{stateLabel(ui, row.state)}</Badge></TableCell>
                 <TableCell>

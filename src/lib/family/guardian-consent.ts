@@ -87,16 +87,16 @@ export async function recordGuardianConsent(user: AuthUser, body: Record<string,
 export async function campusConsentStatus(user: AuthUser, params: { campusId?: string | null; classId?: string | null }) {
   if (!canManageCampusOps(user)) throw new ApiError("Only campus administrators can view consent records.", 403);
   const campusId = await resolveCampusId(user, params.campusId);
-  const students = await prisma.student.findMany({
-    where: { schoolId: user.schoolId, campusId, archivedAt: null, consolidatedIntoId: null, status: { equals: "active", mode: "insensitive" }, ...(params.classId ? { classId: params.classId } : {}) },
-    select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } },
-    orderBy: [{ fullName: "asc" }], take: 500,
-  });
-  const ids = students.map(s => s.id);
-  const [links, rows] = ids.length ? await Promise.all([
-    prisma.guardianRelationship.findMany({ where: { ...guardianRelationshipAuthorityWhere(null, new Date(), user.schoolId), studentId: { in: ids } }, select: { studentId: true, guardianUserId: true, fullName: true } }),
-    prisma.guardianConsent.findMany({ where: { schoolId: user.schoolId, campusId, studentId: { in: ids } }, orderBy: { createdAt: "desc" } }),
-  ]) : [[], []];
+  // One round trip: the three reads are independent once the campus is known.
+  const [students, links, rows] = await Promise.all([
+    prisma.student.findMany({
+      where: { schoolId: user.schoolId, campusId, archivedAt: null, consolidatedIntoId: null, status: { equals: "active", mode: "insensitive" }, ...(params.classId ? { classId: params.classId } : {}) },
+      select: { id: true, fullName: true, rollNo: true, class: { select: { name: true, section: true } } },
+      orderBy: [{ fullName: "asc" }], take: 500,
+    }),
+    prisma.guardianRelationship.findMany({ where: { ...guardianRelationshipAuthorityWhere(null, new Date(), user.schoolId), campusId }, select: { studentId: true, guardianUserId: true, fullName: true } }),
+    prisma.guardianConsent.findMany({ where: { schoolId: user.schoolId, campusId }, orderBy: { createdAt: "desc" } }),
+  ]);
   const latest = new Map<string, ConsentRow>();
   for (const row of rows) { const k = `${row.studentId}:${row.guardianUserId}`; if (!latest.has(k)) latest.set(k, row); }
   return students.map(student => {
