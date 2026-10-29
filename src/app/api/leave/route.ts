@@ -78,11 +78,16 @@ export async function GET(req: NextRequest) {
 
     if (mode === "all") {
       if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
-      const roles = await leaveApplicantRoles(user, campusId, "decide");
-      const [requests, users] = await Promise.all([
+      const decideRoles = await leaveApplicantRoles(user, campusId, "decide");
+      // SKAI-1026: the campus operator's queue lists every member of staff's leave, teachers included, so a
+      // teacher's pending request is visible on the campus desk even when a principal decides it. Each row says
+      // whether this reviewer decides it (`canDecide`); the decision itself stays with `api/leave/review` (§7.6).
+      const roles = isCampusOperator(user) ? LEAVE_STAFF_ROLES : decideRoles;
+      const [rows, users] = await Promise.all([
         prisma.leaveRequest.findMany({
           where: {
             campusId,
+            schoolId: user.schoolId,
             user: { role: { in: roles as any } },
             ...(statusFilter ? { status: String(statusFilter).toUpperCase() } : {}),
             fromDate: { gte: yearStart, lt: yearEnd },
@@ -100,6 +105,8 @@ export async function GET(req: NextRequest) {
           orderBy: { fullName: "asc" },
         }),
       ]);
+      const decides = new Set(user.role === "SUPER_ADMIN" ? [] : decideRoles);
+      const requests = rows.map((row) => ({ ...row, canDecide: decides.has(row.user.role) }));
       return Response.json({ success: true, data: { requests, users } });
     }
 

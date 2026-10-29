@@ -14,7 +14,7 @@ import { translateUi } from "@/lib/locale/ui-messages";
 type Message = Parameters<typeof sonner.error>[0];
 
 const NETWORK = /failed to fetch|networkerror|network request failed|load failed|fetch failed|err_internet|err_network|net::/i;
-const TECHNICAL = /unexpected token|is not valid json|json\.parse|unexpected end of json|\bprisma\b|\bP\d{4}\b|ECONN\w+|ETIMEDOUT|ENOTFOUND|typeerror|referenceerror|syntaxerror|cannot read propert|undefined is not|null is not|is not a function|at \w+ \(|^\s*<!doctype|<html/i;
+const TECHNICAL = /tenant context|tenant registry|tenantcontexterror|runwithtenantcontext|rununscoped|^\s*\[[\w.-]+\]|unexpected token|is not valid json|json\.parse|unexpected end of json|\bprisma\b|\bP\d{4}\b|ECONN\w+|ETIMEDOUT|ENOTFOUND|typeerror|referenceerror|syntaxerror|cannot read propert|undefined is not|null is not|is not a function|at \w+ \(|^\s*<!doctype|<html/i;
 const STATUS_LINE = /^(?:\d{3}\b.*|internal server error|bad gateway|service unavailable|gateway timeout|bad request|not found|forbidden|unauthorized|request failed(?: with status code \d+)?|error)$/i;
 
 function language(): "en" | "ar" | "ur" {

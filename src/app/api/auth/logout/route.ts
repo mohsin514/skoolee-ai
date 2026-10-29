@@ -86,5 +86,10 @@ export async function POST(req: NextRequest) {
   // Mirrors the attributes login sets, from the one definition of them.
   cookieStore.set(SESSION_COOKIE_NAME, "", clearedSessionCookieAttributes());
 
-  return NextResponse.json({ success: true, message: "Logged out successfully" });
+  // SKAI-1021: nothing rendered for the signed-out identity may be reused by the
+  // browser (HTTP cache entries for console documents and RSC payloads).
+  return NextResponse.json(
+    { success: true, message: "Logged out successfully" },
+    { headers: { "Cache-Control": "no-store", "Clear-Site-Data": '"cache"' } }
+  );
 }

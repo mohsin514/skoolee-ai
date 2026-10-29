@@ -8,7 +8,7 @@ import { ApiError } from "@/lib/api/scope";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { schoolAiTransaction } from "./transaction";
 import { resultDecisionAccess, scopedAssignment, staffExamAccess } from "./exam-service";
-import { examReviewSchema, responsesSchema, validateExamReview } from "./exam";
+import { examReviewSchema, objectiveOverrides, responsesSchema, validateExamReview } from "./exam";
 import { applyResultRevision } from "./exam-results";
 
 /**
@@ -55,6 +55,9 @@ async function proposeIn(tx: TxClient, user: AuthUser, assignmentId: string, inp
   if (!attempt) throw new ApiError("The result changed. Reload its current version before proposing a correction.", 409);
   const issues = validateExamReview(paper, responsesSchema.parse(attempt.responses), input.review);
   if (issues.length) throw new ApiError(issues.join(" "), 422);
+  // SKAI-1014: refused here too, so a silent objective change never waits in the approval queue.
+  const { errors: overrideErrors } = objectiveOverrides(paper, responsesSchema.parse(attempt.responses), input.review, attempt.review as { marks?: { questionId: string; marks: number }[] } | null);
+  if (overrideErrors.length) throw new ApiError(overrideErrors.join(" "), 422);
   if (input.appealId && !(await tx.schoolAiExamAppeal.findFirst({ where: { id: input.appealId, attemptId: attempt.id, schoolId: user.schoolId, resultVersion: input.version }, select: { id: true } }))) throw new ApiError("That review request belongs to another result.", 400);
   const pending = await tx.schoolAiResultCorrection.findFirst({ where: { schoolId: user.schoolId, attemptId: attempt.id, fromVersion: input.version, status: "PENDING" } });
   if (pending) {

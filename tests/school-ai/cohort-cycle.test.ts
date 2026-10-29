@@ -3,7 +3,7 @@
 // database suites listed in the PR (exam-release, assessment-repair, exam-incidents, runs-access).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { correctedExamPaper, examSaveDecision, scoreObjectiveResponses, validateExamReview, type ExamResponses } from "../../src/lib/school-ai/exam";
+import { correctedExamPaper, examSaveDecision, objectiveOverrides, scoreObjectiveResponses, validateExamReview, type ExamResponses } from "../../src/lib/school-ai/exam";
 import { validatePaperApproval, type PaperData } from "../../src/lib/school-ai/assessment";
 import { assessmentFixture } from "./assessment-fixture";
 
@@ -77,4 +77,20 @@ test("duplicate, stale, late and post-submit saves never overwrite work or doubl
   assert.equal(decide({ sequence: 3 }), "STALE", "an older tab cannot overwrite newer work");
   assert.equal(decide({ now: deadlineAt }), "EXPIRED");
   assert.equal(decide({ status: "SUBMITTED", submit: true }), "FINISHED", "a duplicate submit after submission changes nothing");
+});
+
+test("SKAI-1014: an auto-scored objective item is never changed silently; overrides need a reason; key correction stays the normal path", () => {
+  const paper = cohortPaper();
+  const marks = (q1: number, override?: string) => [{ questionId: "q1", marks: q1, feedback: "Checked.", ...(override ? { override: { reason: override } } : {}) }, { questionId: "q2", marks: 1.1, feedback: "Checked." }, { questionId: "q3", marks: 1, feedback: "Checked." }];
+  // The victim chose a2 under the (wrong) key a1: auto score 0.
+  assert.deepEqual(objectiveOverrides(paper, cohort.wrongKeyVictim, { note: "Agreed with auto score.", marks: marks(0) }), { errors: [], overrides: [] });
+  assert.match(objectiveOverrides(paper, cohort.wrongKeyVictim, { note: "Silent change.", marks: marks(1.1) }).errors.join(" "), /q1 is auto-scored at 0\. Correct the answer key, or record an override reason/);
+  assert.deepEqual(objectiveOverrides(paper, cohort.wrongKeyVictim, { note: "Reasoned.", marks: marks(1.1, "Printed option labels were swapped for this candidate") }).overrides, [{ questionId: "q1", autoMarks: 0, marks: 1.1, reason: "Printed option labels were swapped for this candidate" }]);
+  // The key correction path re-scores without any override.
+  assert.deepEqual(objectiveOverrides(paper, cohort.wrongKeyVictim, { note: "Key fixed.", keyCorrections: [{ questionId: "q1", correctOptionId: "a2" }], marks: marks(1.1) }), { errors: [], overrides: [] });
+  // Overrides apply only to auto-scored items.
+  assert.match(objectiveOverrides(paper, cohort.full, { note: "x", marks: [{ questionId: "q3", marks: 1, feedback: "x", override: { reason: "not needed" } }] }).errors.join(" "), /not auto-scored/);
+  // A mark carried forward unchanged from the previous stored review is not a new change; a new change is.
+  assert.deepEqual(objectiveOverrides(paper, cohort.wrongKeyVictim, { note: "Revision.", marks: marks(1.1) }, { marks: [{ questionId: "q1", marks: 1.1 }] }).errors, []);
+  assert.match(objectiveOverrides(paper, cohort.wrongKeyVictim, { note: "Revision.", marks: marks(0.5) }, { marks: [{ questionId: "q1", marks: 1.1 }] }).errors.join(" "), /auto-scored/);
 });

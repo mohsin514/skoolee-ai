@@ -25,6 +25,7 @@ import { TodaySchedule, type TimetableSlot } from "@/components/teacher/today-sc
 import { clashingSlotIds } from "@/lib/timetable/clashes";
 import { readTeacherSchedule, scheduleAvailability as availabilityOf } from "@/lib/timetable/teacher-schedule-read";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { useCountLabel, useIsSingular } from "@/components/locale/use-count-label";
 import { localeTag } from "@/lib/locale/package";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
 import { FlagshipCard } from "@/components/ui/flagship";
@@ -49,6 +50,8 @@ import { TeachingLinePrompt } from "@/components/school-ai/exam-studio/teaching-
 export default function TeacherToday() {
   const router = useRouter();
   const ui = useUiText();
+  const count = useCountLabel();
+  const singular = useIsSingular();
   const locale = useLocale();
   const { data, loading, error, refetch } = useTeacherData();
   const access = useConsoleAccess();
@@ -211,7 +214,7 @@ export default function TeacherToday() {
                 tone="warning"
                 icon={CalendarCheck}
                 title={ui("Unmarked attendance")}
-                detail={ui("{0} pupils not marked today", [attendanceStats.unmarked])}
+                detail={ui("{0} not marked today", [count(attendanceStats.unmarked, "pupil")])}
                 onClick={() => router.push(nextRegisterClassId ? `/teacher/attendance?classId=${encodeURIComponent(nextRegisterClassId)}` : "/teacher/attendance")}
               />
             )}
@@ -260,8 +263,8 @@ export default function TeacherToday() {
         <StatTiles
           columns={4}
           tiles={[
-            { key: "classes", icon: GraduationCap, label: ui("Classes"), value: classHubs.length, tone: "violet" },
-            { key: "students", icon: Users, label: ui("Pupils"), value: data.totalStudents, tone: "emerald" },
+            { key: "classes", icon: GraduationCap, label: singular(classHubs.length) ? ui("Class") : ui("Classes"), value: classHubs.length, tone: "violet" },
+            { key: "students", icon: Users, label: singular(data.totalStudents) ? ui("Pupil") : ui("Pupils"), value: data.totalStudents, tone: "emerald" },
             { key: "present", icon: CheckCircle2, label: ui("Present today"), value: attendanceStats.present, tone: "emerald" },
             { key: "tests", icon: ClipboardList, label: ui("Open tests"), value: activeExamCount, tone: "violet" },
           ]}
