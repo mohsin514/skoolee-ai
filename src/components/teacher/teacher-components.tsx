@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { useCountLabel } from "@/components/locale/use-count-label";
 import { toast } from "@/components/ui/toast";
 import {
   AlertCircle, BarChart3, BrainCircuit, CalendarCheck, CheckCircle2, Download, FileText, Languages, Loader2, MessageCircle, Phone, RefreshCw, Save, Send, Star, Users,
@@ -253,6 +254,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
 }) {
   const router = useRouter();
   const ui = useUiText();
+  const count = useCountLabel();
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const handleDownloadPdf = async () => {
@@ -292,7 +294,7 @@ export function FinalGradesModal({ open, classHubs, selectedGradeClassId, weight
       footer={
         weightedGradeResult?.length ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs font-bold text-ink-muted">{ui("{0} pupils", [weightedGradeResult.length])}</p>
+            <p className="text-xs font-bold text-ink-muted">{count(weightedGradeResult.length, "pupil")}</p>
             <Button variant="outline" type="button" onClick={handleDownloadPdf} loading={downloadingPdf}>
               {downloadingPdf ? null : <Download aria-hidden="true" />}
               {ui("Download PDF")}

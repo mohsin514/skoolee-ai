@@ -104,6 +104,14 @@ export async function requirePlatformOwner(options: { allowSupportAccess?: boole
   return user;
 }
 
+/** Shown when a request fails for an internal reason; the detail stays in the server log. */
+export const GENERIC_FAILURE = "Something went wrong. Please try again.";
+
+/** A fallback written as a log tag ("[tax] GET failed") is for the log, not the reader. */
+function publicFallback(fallback: string) {
+  return /^\s*\[/.test(fallback) ? GENERIC_FAILURE : fallback;
+}
+
 export function errorResponse(error: unknown, fallback = "Request failed") {
   const requestId = crypto.randomUUID();
   const respond = (body: unknown, init: ResponseInit) => Response.json(body, {
@@ -138,13 +146,19 @@ export function errorResponse(error: unknown, fallback = "Request failed") {
     return respond({ error: error.message, code: error.code }, { status: error.status });
   }
 
-  if (error instanceof Error && "status" in error && typeof error.status === "number") {
+  // SKAI-1028: only client-facing (4xx) messages are shown. A 5xx-status error — TenantContextError among them —
+  // carries internal wording (guard messages, registry hints) that must never reach the reader.
+  if (error instanceof Error && "status" in error && typeof error.status === "number" && error.status < 500) {
     return respond({ error: error.message }, { status: error.status });
+  }
+  if (error instanceof Error && "status" in error && typeof error.status === "number") {
+    console.error("[api.failure]", { requestId, status: error.status, name: error.name, where: fallback });
+    return respond({ error: publicFallback(fallback) }, { status: error.status });
   }
 
   // Correlation without request bodies, record identifiers, database errors or secrets.
-  console.error("[api.failure]", { requestId, status: 500 });
-  return respond({ error: fallback }, { status: 500 });
+  console.error("[api.failure]", { requestId, status: 500, name: error instanceof Error ? error.name : typeof error, where: fallback });
+  return respond({ error: publicFallback(fallback) }, { status: 500 });
 }
 
 /**

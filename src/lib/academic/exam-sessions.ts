@@ -150,6 +150,19 @@ export async function createExamSession(opts: {
 
   const toCreate = classes.filter((c) => !alreadyHas.has(c.id) && c.subjects.length > 0);
 
+  // SKAI-1040: if nothing would be created, refuse instead of opening an empty session.
+  if (toCreate.length === 0) {
+    const label = (c: { name: string; section: string | null }) => `${c.name}${c.section ? ` ${c.section}` : ""}`;
+    const already = classes.filter((c) => alreadyHas.has(c.id)).map(label);
+    throw new ApiError(
+      already.length === classes.length
+        ? `Every selected class already has this exam for ${opts.term} ${opts.academicYear} (${already.join(", ")}). Nothing was created.`
+        : `None of the selected classes can get this exam: ${already.length ? `${already.join(", ")} already ${already.length === 1 ? "has" : "have"} it` : ""}${already.length && withoutSubjects.length ? "; " : ""}${withoutSubjects.length ? `${withoutSubjects.map(label).join(", ")} ${withoutSubjects.length === 1 ? "has" : "have"} no subjects` : ""}. Nothing was created.`,
+      409,
+      already.length === classes.length ? "EXAM_SESSION_ALL_CLASSES_HAVE_EXAM" : "EXAM_SESSION_NOTHING_TO_CREATE",
+    );
+  }
+
   const session = await transaction(opts.db, async (tx) => {
     const created = await tx.examSession.create({
       data: {
