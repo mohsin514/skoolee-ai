@@ -2,13 +2,15 @@ import { writeObservedAttendance } from "@/lib/school-ai/school-operations-regis
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canMarkAttendance, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     if (!canMarkAttendance(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { classId, fromDate, toDate } = body;
     if (!classId || !fromDate || !toDate) throw new ApiError("classId, fromDate, and toDate are required", 400);
 
