@@ -7,10 +7,10 @@
 // tenant-owned model, from one place, carrying the school and the actor
 // from the tenant context the guard already resolves.
 //
-// Routes that already write their own, richer row keep working and do not
-// produce a second one: when a hand-written audit row arrives for a record
-// this extension just logged, it replaces the automatic row instead of
-// adding another (see claimAutoRow).
+// Routes that already write their own, richer row keep working. audit_logs is
+// append-only, so when a hand-written row arrives for a record this extension
+// just logged, it is appended with `supersedesAuditId` naming the automatic
+// row (see claimAutoRow), so readers can collapse the pair.
 // ─────────────────────────────────────────────────────────────────
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Prisma } from "@prisma/client";
@@ -141,7 +141,7 @@ export interface AuditedOperation {
 }
 
 export async function auditedOperation({ delegate, operation, args, query, client }: AuditedOperation): Promise<unknown> {
-  // Hand-written audit rows: replace the automatic one rather than add a second.
+  // Hand-written audit rows: appended, linked to the automatic row they supersede.
   if (delegate === "auditLog" && (operation === "create" || operation === "createMany")) {
     return mergeManualAudit(operation, args, query, client);
   }
@@ -198,31 +198,22 @@ async function mergeManualAudit(
   operation: string,
   args: unknown,
   query: (args: unknown) => Promise<unknown>,
-  client: AuditClient
+  _client: AuditClient
 ): Promise<unknown> {
+  // audit_logs is append-only (SKO-476 trigger refuses UPDATE), so a route's own row cannot
+  // overwrite the automatic one. It is appended as the newer event and names the row it supersedes.
   const input = (args ?? {}) as { data?: unknown };
   const context = getTenantContext() ?? (await resolveTenantFromRequest());
-  const entries = Array.isArray(input.data) ? input.data : [input.data];
-  const remaining: unknown[] = [];
-  let merged: unknown = null;
-
-  for (const entry of entries) {
-    const data = entry as { schoolId?: string; recordId?: string } | undefined;
+  const link = (entry: unknown) => {
+    const data = entry as { schoolId?: string; recordId?: string; newValue?: unknown } | undefined;
     const schoolId = data?.schoolId || context?.schoolId;
     const autoId = schoolId && data?.recordId ? claimAutoRow(schoolId, data.recordId) : null;
-    if (!autoId) {
-      remaining.push(entry);
-      continue;
-    }
-    merged = await client.auditLog.update({ where: { id: autoId }, data: entry });
-  }
-
-  if (operation === "create") return remaining.length ? query(args) : merged;
-  if (remaining.length === entries.length) return query(args);
-  const created = remaining.length
-    ? ((await query({ ...(args as object), data: remaining })) as { count: number })
-    : { count: 0 };
-  return { count: created.count + (entries.length - remaining.length) };
+    if (!autoId) return entry;
+    const newValue = data!.newValue;
+    return { ...data, newValue: newValue && typeof newValue === "object" && !Array.isArray(newValue) ? { ...newValue, supersedesAuditId: autoId } : { value: newValue ?? null, supersedesAuditId: autoId } };
+  };
+  const data = Array.isArray(input.data) ? input.data.map(link) : link(input.data);
+  return query({ ...(args as object), data });
 }
 
 export function auditTrail() {
