@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { verifySafePayNotification } from "@/lib/payments/safepay";
+import { z } from "zod";
+import { resolvePaymentProvider } from "@/lib/payments/provider";
+import { fieldErrorsOf } from "@/lib/api/validate";
 import { activatePlan, getBillingSnapshot } from "@/lib/billing/entitlements";
 import { ANNUAL_DISCOUNT, normalizePlan } from "@/config/plans";
 import { recordPayment } from "@/lib/fees/payment";
@@ -10,6 +12,21 @@ import { settleVerifiedCheckoutIntent } from "@/lib/billing/checkout-intents";
 import { claimProviderEvent, finishProviderEvent, NeedsReview } from "@/lib/billing/provider-events";
 
 const ANNUAL_PERIOD_DAYS = 365;
+
+// SKAI-1195: SafePay notifications are small; anything larger is refused unread.
+const MAX_WEBHOOK_BYTES = 64 * 1024;
+const text = (max: number) => z.string().max(max);
+const amount = z.union([z.number(), text(32)]);
+/** Shape of the fields this handler reads. Unknown fields pass through so the signed payload is untouched. */
+const notificationSchema = z.object({
+  event: text(64).min(1),
+  data: z.object({
+    order_ref: text(200).optional(),
+    amount: amount.nullish(),
+    order: z.object({ amount: amount.nullish() }).passthrough().nullish(),
+    metadata: z.record(z.string(), text(16_000)).optional(),
+  }).passthrough().optional(),
+}).passthrough();
 
 // SafePay may report the order amount in PKR (4000) or paisa (400000);
 // tolerate both when validating that the paid amount matches the plan price.
@@ -39,11 +56,24 @@ async function handleNotification(req: NextRequest) {
       return Response.json({ error: "SafePay not configured" }, { status: 503 });
     }
 
-    const body = await req.json();
-    const isValid = verifySafePayNotification(body, secretKey);
-    if (!isValid) {
+    // SKAI-1195: read the raw body, verify the signature over it, and only then parse and validate.
+    // Every rejection here happens before any read or write.
+    if (Number(req.headers.get("content-length") ?? 0) > MAX_WEBHOOK_BYTES) {
+      return Response.json({ error: "Notification too large" }, { status: 413 });
+    }
+    const rawBody = await req.text();
+    if (Buffer.byteLength(rawBody) > MAX_WEBHOOK_BYTES) {
+      return Response.json({ error: "Notification too large" }, { status: 413 });
+    }
+    const provider = resolvePaymentProvider("PKR")!;
+    if (!provider.verifyWebhook({ rawBody, headers: Object.fromEntries(req.headers) })) {
       return Response.json({ error: "Invalid signature" }, { status: 400 });
     }
+    const parsed = notificationSchema.safeParse(JSON.parse(rawBody));
+    if (!parsed.success) {
+      return Response.json({ error: "Invalid notification", details: fieldErrorsOf(parsed.error) }, { status: 400 });
+    }
+    const body = parsed.data;
 
     const event = body.event as string;
     const data = body.data as Record<string, any> | undefined;
