@@ -64,7 +64,8 @@ export async function resetPassword(token: string, newPassword: string): Promise
       await tx.passwordReset.deleteMany({ where: { userId: user.id } });
       await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.completed", sessionsRevoked: true } } });
       return true;
-    });
+      // SKAI-85: five writes against a remote pool overran Prisma's 5 s default and lost the reset.
+    }, { maxWait: 10_000, timeout: 20_000 });
     return claimed ? { success: true } : expired;
   });
 }
