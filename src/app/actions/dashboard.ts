@@ -772,9 +772,9 @@ async function loadCampusDashboardData() {
   };
 }
 
-export const getTeacherDashboardData = cache(async function getTeacherDashboardData() {
+export const getTeacherDashboardData = cache(boundToSession(async function getTeacherDashboardData() {
   return logConsoleFailure("teacher-dashboard", loadTeacherDashboardData);
-});
+}));
 
 async function loadTeacherDashboardData() {
   const session = await getAuthUser();
