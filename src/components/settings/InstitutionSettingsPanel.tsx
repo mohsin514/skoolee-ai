@@ -50,6 +50,7 @@ import {
 import { resolveMediaUrl } from "@/lib/storage/s3";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { phoneProblem } from "@/lib/school/details";
+import { LOGO_ACCEPT, logoFileProblem } from "@/lib/school/logo-policy";
 import { UaeReportTemplateToggle } from "./UaeReportTemplateToggle";
 
 /** Offered zones. Anything already stored is added so it is never silently lost. */
@@ -656,8 +657,9 @@ function LogoPicker({
 
   const handleFile = async (file?: File) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error(tr("Please choose an image file."));
-    if (file.size > 1_500_000) return toast.error(tr("Use a logo image under 1.5 MB."));
+    const problem = logoFileProblem(file.type, file.size);
+    if (problem === "type") return toast.error(tr("Use a PNG, JPEG, WebP or GIF image for the logo."));
+    if (problem === "size") return toast.error(tr("Use a logo image under 1.5 MB."));
 
     setUploading(true);
     const blobUrl = URL.createObjectURL(file);
@@ -725,7 +727,7 @@ function LogoPicker({
             </Button>
           ) : null}
         </div>
-        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+        <input ref={inputRef} type="file" accept={LOGO_ACCEPT} className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
       </div>
     </div>
   );

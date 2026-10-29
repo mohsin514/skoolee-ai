@@ -3231,6 +3231,9 @@ model ClassRoom {
   seatsPerBench     Int     @default(1) // pupils per bench in a lesson
   examSeatsPerBench Int     @default(1) @map("exam_seats_per_bench") // pupils per bench in an exam
   isExamHall        Boolean @default(false) @map("is_exam_hall") // prefer this room when auto-allocating
+  // Archived rooms keep their timetable and exam history but are offered for no
+  // new booking (SKAI-147: a room in use is archived, never deleted).
+  archivedAt        DateTime? @map("archived_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

@@ -6,11 +6,14 @@ import { InputGroup } from "@/components/ui/input-group";
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import {
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
   ArmchairIcon,
   Building2,
   Check,
   DoorOpen,
   Layers,
+  ListPlus,
   Loader2,
   Pencil,
   Plus,
@@ -31,6 +34,8 @@ import { Input as SystemInput } from "@/components/ui/input";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { useUiText } from "@/components/locale/LocaleProvider";
+import { Textarea } from "@/components/ui/textarea";
+import { BULK_ROOM_LIMIT, parseBulkRooms, type BulkRoomError } from "@/lib/academic/room-setup";
 
 /**
  * Rooms, with the two facts a seating plan needs (§79).
@@ -72,6 +77,7 @@ interface Room {
   spacingLoss: number;
   hasLayout: boolean;
   unmeasured: boolean;
+  archivedAt: string | null;
   _count?: { slots: number; examSchedules: number; examRooms: number };
 }
 
@@ -111,6 +117,8 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Room | "new" | null>(null);
   const [deleting, setDeleting] = useState<Room | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
   const sequence = useRef(0);
@@ -119,7 +127,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
     const version = ++sequence.current;
     setLoading(true); setLoadFailed(null);
     try {
-      const json = await checkedListJson(await readRequest(`/api/academic/rooms${campusId ? `?campusId=${campusId}` : ""}`));
+      const json = await checkedListJson(await readRequest(`/api/academic/rooms?includeArchived=1${campusId ? `&campusId=${campusId}` : ""}`));
       if (version !== sequence.current) return;
       setRooms(json.data);
     } catch (failure) { if (version === sequence.current) { setRooms([]); setLoadFailed(requestFailure(failure)); } }
@@ -131,29 +139,49 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
     return () => { sequence.current++; };
   }, [load]);
 
+  // Archived rooms keep their history but sit outside every total and picker.
+  const active = useMemo(() => rooms.filter((r) => !r.archivedAt), [rooms]);
+  const archived = useMemo(() => rooms.filter((r) => r.archivedAt), [rooms]);
+
+  const setArchivedState = async (room: Room, archive: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/academic/rooms", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: room.id, archived: archive }) });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "");
+      toast.success(ui(archive ? "Room {0} archived" : "Room {0} restored", [room.roomNumber]));
+      await load();
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not update the room")));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const totals = useMemo(() => {
-    const exam = rooms.reduce((n, r) => n + r.examCapacity, 0);
-    const teaching = rooms.reduce((n, r) => n + r.teachingCapacity, 0);
+    const exam = active.reduce((n, r) => n + r.examCapacity, 0);
+    const teaching = active.reduce((n, r) => n + r.teachingCapacity, 0);
     return {
-      rooms: rooms.length,
+      rooms: active.length,
       exam,
       teaching,
-      unmeasured: rooms.filter((r) => r.unmeasured).length,
-      halls: rooms.filter((r) => r.isExamHall).length,
+      unmeasured: active.filter((r) => r.unmeasured).length,
+      halls: active.filter((r) => r.isExamHall).length,
     };
-  }, [rooms]);
+  }, [active]);
 
   /** Grouped by building then floor, which is how anyone walking the campus
    *  thinks about them. */
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase();
     const visible = q
-      ? rooms.filter((r) =>
+      ? active.filter((r) =>
           `${r.roomNumber} ${r.building ?? ""} ${r.wing ?? ""} ${r.note ?? ""}`
             .toLowerCase()
             .includes(q),
         )
-      : rooms;
+      : active;
 
     const map = new Map<string, Room[]>();
     visible.forEach((r) => {
@@ -168,7 +196,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
           (a, b) => a.floor - b.floor || a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true }),
         ),
       }));
-  }, [rooms, query, ui]);
+  }, [active, query, ui]);
 
 
   return (
@@ -194,13 +222,18 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
             </p>
           </div>
           {readOnly ? null : (
-            <BrandButton
-              variant="dark"
-              icon={<Plus aria-hidden="true" className="h-4 w-4" />}
-              onClick={() => setEditing("new")}
-            >
-              {ui("Add room")}
-            </BrandButton>
+            <div className="flex flex-wrap gap-2">
+              <BrandButton variant="dark" icon={<ListPlus aria-hidden="true" className="h-4 w-4" />} onClick={() => setBulkOpen(true)}>
+                {ui("Add several")}
+              </BrandButton>
+              <BrandButton
+                variant="dark"
+                icon={<Plus aria-hidden="true" className="h-4 w-4" />}
+                onClick={() => setEditing("new")}
+              >
+                {ui("Add room")}
+              </BrandButton>
+            </div>
           )}
         </div>
       </header>
@@ -223,7 +256,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
       </div>
 
       {/* ── Search ──────────────────────────────────────────────────────── */}
-      {rooms.length > 6 ? (
+      {active.length > 6 ? (
         <InputGroup className="relative max-w-sm">
           <Search aria-hidden="true" data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
           <SystemInput
@@ -244,7 +277,7 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
         </div>
       ) : loadFailed ? (
         <ErrorState error={loadFailed} title={ui("Rooms could not be loaded")} description={ui("Check your connection and try again.")} onRetry={load} />
-      ) : rooms.length === 0 ? (
+      ) : active.length === 0 ? (
         <StepEmpty
           icon={DoorOpen}
           title="No rooms yet"
@@ -277,12 +310,35 @@ export function RoomsManager({ campusId, readOnly = false }: { campusId?: string
                   room={room}
                   onEdit={readOnly ? undefined : () => setEditing(room)}
                   onDelete={readOnly ? undefined : () => setDeleting(room)}
+                  onArchive={readOnly || busy ? undefined : () => void setArchivedState(room, true)}
                 />
               ))}
             </div>
           </Panel>
         ))
       )}
+
+      {!loading && !loadFailed && archived.length > 0 ? (
+        <div className="space-y-2">
+          <Button type="button" variant="secondary" aria-expanded={showArchived} onClick={() => setShowArchived((v) => !v)}>
+            <Archive aria-hidden="true" className="h-4 w-4" />
+            {ui(showArchived ? "Hide archived rooms ({0})" : "Show archived rooms ({0})", [archived.length])}
+          </Button>
+          {showArchived ? (
+            <Panel title={ui("Archived rooms")} subtitle={ui("Kept for timetable and exam history. Not offered for new bookings.")} icon={Archive} bodyClassName="p-3">
+              <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                {archived.map((room) => (
+                  <RoomCard key={room.id} room={room} onRestore={readOnly || busy ? undefined : () => void setArchivedState(room, false)} />
+                ))}
+              </div>
+            </Panel>
+          ) : null}
+        </div>
+      ) : null}
+
+      {bulkOpen && !readOnly ? (
+        <BulkRoomsDialog campusId={campusId} onClose={() => setBulkOpen(false)} onSaved={async () => { setBulkOpen(false); await load(); }} />
+      ) : null}
 
       {editing && !readOnly ? (
         <RoomEditor
@@ -309,15 +365,23 @@ function RoomCard({
   room,
   onEdit,
   onDelete,
+  onArchive,
+  onRestore,
 }: {
   room: Room;
   /** Omitted for read-only viewers: the edit and remove controls are not rendered. */
   onEdit?: () => void;
   onDelete?: () => void;
+  /** A booked room is archived, never deleted (SKAI-147). */
+  onArchive?: () => void;
+  onRestore?: () => void;
 }) {
   const ui = useUiText();
   const bookings =
     (room._count?.slots ?? 0) + (room._count?.examSchedules ?? 0) + (room._count?.examRooms ?? 0);
+  if (room.archivedAt) onEdit = onDelete = onArchive = undefined;
+  else if (bookings > 0) onDelete = undefined;
+  else onArchive = undefined;
 
   return (
     <div className="sk-panel group relative overflow-hidden p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_14px_32px_-20px_rgba(129,39,207,0.5)]">
@@ -344,6 +408,11 @@ function RoomCard({
                 {ui("Hall")}
               </span>
             ) : null}
+            {room.archivedAt ? (
+              <span className="shrink-0 rounded bg-surface-subtle px-1 py-px text-2xs font-semibold text-ink-subtle">
+                {ui("Archived")}
+              </span>
+            ) : null}
           </div>
           <p className="truncate text-2xs font-bold text-ink-subtle">
             {ui(ROOM_TYPES.find((t) => t.value === room.roomType)?.label ?? room.roomType)}
@@ -352,8 +421,8 @@ function RoomCard({
           </p>
         </div>
 
-        {onEdit || onDelete ? (
-          <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        {onEdit || onDelete || onArchive || onRestore ? (
+          <div className={cn("flex shrink-0 gap-0.5 transition-opacity focus-within:opacity-100 group-hover:opacity-100", onRestore ? "" : "[@media(hover:hover)]:opacity-0")}>
             {onEdit ? (
               <Button variant="secondary" size="icon"
                 type="button"
@@ -372,6 +441,19 @@ function RoomCard({
                 className="flex items-center justify-center"
               >
                 <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+            {onArchive ? (
+              <Button variant="secondary" size="icon" type="button" onClick={onArchive}
+                aria-label={ui("Archive room {0}", [room.roomNumber])} title={ui("In use, so it can be archived but not removed")}
+                className="flex items-center justify-center">
+                <Archive aria-hidden="true" className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+            {onRestore ? (
+              <Button variant="secondary" size="icon" type="button" onClick={onRestore}
+                aria-label={ui("Restore room {0}", [room.roomNumber])} className="flex items-center justify-center">
+                <ArchiveRestore aria-hidden="true" className="h-3.5 w-3.5" />
               </Button>
             ) : null}
           </div>
@@ -723,6 +805,71 @@ function RoomEditor({
               </p>
             </div>
           ) : null}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+
+const BULK_ERROR_TEXT: Record<BulkRoomError["code"] | "ALREADY_EXISTS", string> = {
+  NAME_REQUIRED: "Line {0}: give the room a name.",
+  DUPLICATE_IN_LIST: "Line {0}: “{1}” is listed twice.",
+  BAD_CAPACITY: "Line {0}: capacity “{1}” must be a whole number from 0 to 2000.",
+  BAD_TYPE: "Line {0}: unknown room type “{1}”.",
+  BAD_FLOOR: "Line {0}: floor “{1}” must be a whole number from -5 to 60.",
+  ALREADY_EXISTS: "Line {0}: “{1}” already exists on this campus.",
+};
+
+/** Paste a list (or spreadsheet columns) and add every room at once — all or none. */
+function BulkRoomsDialog({ campusId, onClose, onSaved }: { campusId?: string; onClose: () => void; onSaved: () => void | Promise<void> }) {
+  const ui = useUiText();
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [serverErrors, setServerErrors] = useState<Array<{ line: number; code: keyof typeof BULK_ERROR_TEXT; value: string }>>([]);
+  const parsed = useMemo(() => parseBulkRooms(text), [text]);
+  const errors = parsed.errors.length ? parsed.errors : serverErrors;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/academic/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, rooms: text }) });
+      const json = await res.json();
+      if (Array.isArray(json.errors)) { setServerErrors(json.errors); return; }
+      if (!res.ok || !json.success) throw new Error(json.error || "");
+      toast.success(ui(json.data.created === 1 ? "1 room added" : "{0} rooms added", [json.data.created]));
+      await onSaved();
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not add the rooms")));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const count = parsed.rows.length;
+  return (
+    <Modal title={ui("Add several rooms")} eyebrow={ui("Rooms")} subtitle={ui("One room per line: name, capacity, type, building, floor. Only the name is required; you can paste columns from a spreadsheet.")}
+      icon={ListPlus} tone="violet" size="lg" dirty={text.trim().length > 0} onClose={onClose}
+      footer={
+        <ModalActions busy={saving} busyLabel={ui("Saving…")} actionLabel={ui(count === 1 ? "Add 1 room" : "Add {0} rooms", [count])} cancelLabel={ui("Cancel")}
+          onCancel={onClose} onAction={save}
+          blockedReason={!count ? ui("Add at least one room.") : count > BULK_ROOM_LIMIT ? ui("Add up to {0} rooms at a time.", [BULK_ROOM_LIMIT]) : parsed.errors.length ? ui("Fix the lines listed below first.") : null} />
+      }>
+      <div className="space-y-3">
+        <Field label="Rooms">
+          <Textarea value={text} rows={8} dir="auto" className="font-mono text-sm" aria-describedby="bulk-room-status"
+            placeholder={"R-101, 30\nChemistry Lab, 24, lab, Science Wing, 1\nHall A, 120, hall"}
+            onChange={(e) => { setText(e.target.value); setServerErrors([]); }} />
+        </Field>
+        <div id="bulk-room-status" role="status" aria-live="polite" className="space-y-1 text-xs font-semibold">
+          {count > 0 ? <p className="text-ink-muted">{ui(count === 1 ? "1 room ready to add." : "{0} rooms ready to add.", [count])}</p> : null}
+          {errors.map((error) => (
+            <p key={`${error.line}-${error.code}`} className="flex items-start gap-1.5 text-status-error-text">
+              <AlertTriangle aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <bdi>{ui(BULK_ERROR_TEXT[error.code], [error.line, error.value])}</bdi>
+            </p>
+          ))}
         </div>
       </div>
     </Modal>

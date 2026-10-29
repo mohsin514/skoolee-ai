@@ -137,7 +137,7 @@ export async function getAvailableRooms(
   });
   const busyIds = busy.map((b) => b.roomId as string);
   const rooms = await prisma.classRoom.findMany({
-    where: { campusId, id: { notIn: busyIds } },
+    where: { campusId, archivedAt: null, id: { notIn: busyIds } },
     select: ROOM_SELECT,
     orderBy: { roomNumber: "asc" },
   });
@@ -173,7 +173,7 @@ export async function getAvailableExamRooms(
   });
   const busyIds = busy.map((b) => b.roomId);
   const rooms = await prisma.classRoom.findMany({
-    where: { campusId, id: { notIn: busyIds } },
+    where: { campusId, archivedAt: null, id: { notIn: busyIds } },
     select: ROOM_SELECT,
     orderBy: { roomNumber: "asc" },
   });

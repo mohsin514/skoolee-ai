@@ -1,5 +1,5 @@
 /** Strings for the readiness "launch control" layout (ReadinessHome); the base copy lives in readiness-copy.ts. */
-type CheckKey = "campus" | "locale" | "academic" | "staff" | "roster" | "imports" | "guardians" | "fees" | "rehearsal";
+type CheckKey = "campus" | "locale" | "academic" | "staff" | "roster" | "campusCoverage" | "imports" | "guardians" | "fees" | "rehearsal";
 type PhaseKey = "foundation" | "people" | "money" | "rehearse";
 
 export type LaunchCopy = {
@@ -33,6 +33,7 @@ const en: LaunchCopy = {
   goApprove: "Approve go-live",
   phases: { foundation: "Foundation", people: "People", money: "Money & data", rehearse: "Rehearse" },
   why: {
+    campusCoverage: "A campus with no class or pupils cannot take attendance or run exams on day one.",
     campus: "Every class, pupil and fee belongs to a campus.",
     locale: "Dates, report cards and receipts follow the school's language, timezone and currency.",
     academic: "Attendance and marks are filed under an active session and a class.",
@@ -65,6 +66,7 @@ const ar: LaunchCopy = {
   goApprove: "اعتماد التشغيل",
   phases: { foundation: "الأساس", people: "الأشخاص", money: "المال والبيانات", rehearse: "التدريب" },
   why: {
+    campusCoverage: "الفرع بلا صف أو طلاب لا يستطيع تسجيل الحضور أو إجراء الاختبارات في اليوم الأول.",
     campus: "كل صف وطالب ورسوم ينتمي إلى فرع.",
     locale: "التواريخ والشهادات والإيصالات تتبع لغة المدرسة ومنطقتها الزمنية وعملتها.",
     academic: "يُسجّل الحضور والدرجات ضمن دورة نشطة وصف.",
@@ -97,6 +99,7 @@ const ur: LaunchCopy = {
   goApprove: "گو لائیو کی منظوری",
   phases: { foundation: "بنیاد", people: "لوگ", money: "رقم اور ڈیٹا", rehearse: "مشق" },
   why: {
+    campusCoverage: "جس کیمپس میں کوئی جماعت یا طالب علم نہ ہو وہ پہلے دن حاضری یا امتحان نہیں لے سکتا۔",
     campus: "ہر جماعت، طالب علم اور فیس کسی کیمپس سے متعلق ہوتی ہے۔",
     locale: "تاریخیں، رپورٹ کارڈ اور رسیدیں اسکول کی زبان، ٹائم زون اور کرنسی پر چلتی ہیں۔",
     academic: "حاضری اور نمبر فعال سیشن اور جماعت میں درج ہوتے ہیں۔",

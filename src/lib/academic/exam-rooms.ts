@@ -184,7 +184,7 @@ export async function findAvailableRooms(opts: {
   const { campusId, date, periodDefinitionId, excludeScheduleId } = opts;
 
   const rooms = await db.classRoom.findMany({
-    where: { campusId },
+    where: { campusId, archivedAt: null },
     select: ROOM_SELECT,
     orderBy: [{ roomNumber: "asc" }],
   });

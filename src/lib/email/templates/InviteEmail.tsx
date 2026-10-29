@@ -14,21 +14,21 @@ export const InviteEmail = ({ role, campusName, actionUrl, logoUrl }: InviteEmai
   
   return (
     <SkooleeEmail
-      preview={`You have been invited to join ${campusName}`}
-      eyebrow={isParent ? "Parent Portal Access" : "Campus Invitation"}
-      title={isParent ? `Welcome to ${campusName}` : `Join ${campusName}`}
-      action={{ label: isParent ? "Access Parent Portal" : "Accept Invitation", href: actionUrl }}
+      preview={isParent ? `${campusName} has set up a parent account for you` : `${campusName} has set up a ${role} account for you`}
+      eyebrow={isParent ? "Parent account" : "Staff account"}
+      title={`Welcome to ${campusName}`}
+      action={{ label: "Set up your account", href: actionUrl }}
       logoUrl={logoUrl}
       footerText={isParent ? `This invitation was sent by ${campusName}. If you believe you received this email in error, please contact your school directly.` : undefined}
     >
       <Text style={paragraph}>
         {isParent ? (
           <>
-            You have received an invitation to access the <strong>{campusName}</strong> Parent Portal.
+            <strong>{campusName}</strong> has set up a parent account for you on Skoolee AI.
           </>
         ) : (
           <>
-            You have received an invitation to join the {campusName} portal as a <strong>{role}</strong>.
+            <strong>{campusName}</strong> has set up a <strong>{role}</strong> account for you on Skoolee AI.
           </>
         )}
       </Text>
@@ -40,12 +40,12 @@ export const InviteEmail = ({ role, campusName, actionUrl, logoUrl }: InviteEmai
           </>
         ) : (
           <>
-            Accept the invitation to set up your profile and access your protected dashboard.
+            Use the button below to choose your password and sign in to your dashboard.
           </>
         )}
       </Text>
       <Text style={mutedParagraph}>
-        This activation link will expire in 48 hours. For security, please do not share this link with anyone.
+        The link works for 48 hours. Please do not share it.
       </Text>
       {isParent && (
         <Text style={mutedParagraph}>

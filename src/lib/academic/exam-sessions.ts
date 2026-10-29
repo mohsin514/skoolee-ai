@@ -435,7 +435,7 @@ export async function autoSeatSession(opts: {
 /** Campus-wide exam seat supply, for the "can we even fit everyone?" panel. */
 export async function campusSeatingCapacity(campusId: string) {
   const rooms = await prisma.classRoom.findMany({
-    where: { campusId },
+    where: { campusId, archivedAt: null },
     select: {
       id: true,
       roomNumber: true,

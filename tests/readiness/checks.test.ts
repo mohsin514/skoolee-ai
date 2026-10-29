@@ -129,3 +129,26 @@ test("evaluateReadiness resolves every check href for the viewer", () => {
   const school = evaluateReadiness(ready, { role: "ADMIN", institutionKind: "STANDALONE" });
   assert.equal(school.checks.find((check) => check.id === "campus")!.href, "/admin?view=school-settings&tab=profile");
 });
+
+test("SKAI-154: a group campus with no class or pupils blocks full operations, not Exam Studio", () => {
+  const campusBreakdown = [{ id: "c1", name: "North", classes: 3, students: 40 }, { id: "c2", name: "South", classes: 0, students: 0 }];
+  const full = evaluateReadiness({ ...ready, campusBreakdown });
+  assert.equal(full.ready, false, "the school-wide counts pass, but South has nothing to run");
+  assert.equal(full.nextRequired, "campusCoverage");
+  assert.deepEqual(full.checks.find(check => check.id === "campusCoverage")!.evidence, { campusesReady: 1, campusesTotal: 2 });
+  assert.deepEqual(full.campuses.map(campus => [campus.name, campus.ready]), [["North", true], ["South", false]]);
+  const exam = evaluateReadiness({ ...ready, adoptionMode: "EXAM_STUDIO", campusBreakdown });
+  assert.equal(exam.ready, true);
+  assert.equal(exam.checks.find(check => check.id === "campusCoverage")!.required, false);
+  const pupilsOnly = evaluateReadiness({ ...ready, campusBreakdown: [{ id: "c1", name: "North", classes: 0, students: 5 }] });
+  assert.equal(pupilsOnly.nextRequired, "campusCoverage", "a campus needs a class as well as pupils");
+});
+
+test("SKAI-154: the campus coverage link lands where each viewer can act", () => {
+  const facts = { ...ready, campusBreakdown: [{ id: "c2", name: "South", classes: 0, students: 0 }] };
+  const coverage = (viewer: Parameters<typeof evaluateReadiness>[1]) => evaluateReadiness(facts, viewer).checks.find(check => check.id === "campusCoverage")!;
+  assert.deepEqual([coverage({ role: "SUPER_ADMIN" }).href, coverage({ role: "SUPER_ADMIN" }).delegated], ["/super?view=campuses", true]);
+  assert.equal(coverage({ role: "CAMPUS_ADMIN" }).href, "/admin?view=academic-hub");
+  assert.equal(coverage({ role: "PRINCIPAL" }).href, "/principal?view=classes");
+  assert.equal(coverage({ role: "TEACHER" }).href, null);
+});

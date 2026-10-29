@@ -24,7 +24,7 @@ async function school(mode: "FULL_OPERATIONS" | "EXAM_STUDIO") {
   };
   const owner = await person("ADMIN", { owner: true }), delegate = await person("PRINCIPAL"), teacher = await person("TEACHER"), accountant = await person("ACCOUNTANT");
   await db.institutionSetup.create({ data: { schoolId, institutionType: "STANDALONE", adoptionMode: mode, status: "COMPLETED", draft: { school: {}, campuses: [] }, delegateUserId: delegate.userId } });
-  return { schoolId, campusId, classId, owner, delegate, teacher, accountant };
+  return { schoolId, campusId, classId, owner, delegate, teacher, accountant, person };
 }
 type School = Awaited<ReturnType<typeof school>>;
 
@@ -128,4 +128,26 @@ test("an Exam Studio school can go live without fees or verified guardians", asy
   if (!view.lead) return;
   assert.equal(view.ready, true);
   assert.equal((await approveReadiness(s.delegate, { expectedVersion: view.readiness.version })).status, "READY");
+});
+
+test("SKAI-154: an empty second campus blocks full-operations approval; campus and school scope hold", async () => {
+  const s = await school("FULL_OPERATIONS"), other = await school("FULL_OPERATIONS");
+  await configure(s); await rehearse(s.owner); await configure(other);
+  // The group admin is not bound to one campus, so their readiness view covers every campus of this school.
+  const lead: AuthUser = { ...(await s.person("SUPER_ADMIN", { campus: false })), institutionKind: "GROUP" };
+  const south = randomUUID();
+  await db.campus.create({ data: { id: south, schoolId: s.schoolId, name: "Synthetic south campus", regId: south, city: "Synthetic" } });
+  const blocked = await readinessView(lead);
+  if (!blocked.lead) return;
+  assert.equal(blocked.nextRequired, "campusCoverage");
+  assert.deepEqual(blocked.campuses.map(campus => [campus.name, campus.classes, campus.students, campus.ready]),
+    [["Synthetic campus", 1, 1, true], ["Synthetic south campus", 0, 0, false]], "only this school's campuses, each with its own counts");
+  await assert.rejects(() => approveReadiness(lead, { expectedVersion: blocked.readiness.version }), { status: 409 }, "approval re-checks every campus");
+  const campusBound = await readinessView(s.owner);
+  if (!campusBound.lead) return;
+  assert.deepEqual(campusBound.campuses.map(campus => campus.id), [s.campusId], "a campus-bound lead sees only their own campus");
+  await db.campus.update({ where: { id: south }, data: { archivedAt: new Date() } });
+  const ready = await readinessView(lead);
+  if (!ready.lead) return;
+  assert.equal(ready.ready, true, "an archived campus no longer blocks go-live");
 });

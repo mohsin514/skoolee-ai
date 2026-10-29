@@ -1,3 +1,4 @@
+import { parseTeachingMode } from "@/lib/academic/teaching-mode";
 import type { Prisma } from "@prisma/client";
 import type { AuthUser } from "@/lib/auth";
 import { prisma, type TxClient } from "@/lib/db/prisma";
@@ -87,10 +88,12 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
   if (teacherProvided) data.classTeacherId = classTeacherId;
   let effectiveMode = existing.teachingMode;
   if (body.teachingMode !== undefined) {
-    const mode = String(body.teachingMode).toUpperCase();
-    if (mode !== "SINGLE" && mode !== "SUBJECT") throw new ApiError("teachingMode must be SINGLE or SUBJECT", 400);
-    data.teachingMode = mode; effectiveMode = mode;
+    if (body.teachingMode === null) throw new ApiError("teachingMode must be SINGLE or SUBJECT", 400);
+    effectiveMode = parseTeachingMode(body.teachingMode, "SINGLE");
+    data.teachingMode = effectiveMode;
   }
+  // SKAI-197: a mode switch is a staffing decision, so it lands in the class history like a teacher change.
+  const modeChanged = effectiveMode !== existing.teachingMode;
   const cls = await tx.class.update({ where: { id }, data, include: { classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } }, _count: { select: { students: true, subjects: true } } } });
   // A mode-only change must preserve individually assigned subject teachers.
   if (effectiveMode === "SINGLE" && teacherProvided && classTeacherId !== existing.classTeacherId) {
@@ -103,7 +106,7 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
     await syncTimetableSlotsForSubjects(tx, { schoolId: user.schoolId, campusId: existing.campusId }, ids, classTeacherId);
   }
   if (teacherProvided) await recordTeachingAssignment(tx, user, { campusId: existing.campusId, classId: id, subjectId: null, teacherId: classTeacherId, from });
-  if (teacherProvided || data.name !== undefined || data.section !== undefined || data.academicYear !== undefined) await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { classTeacherId: existing.classTeacherId, name: existing.name, section: existing.section, academicYear: existing.academicYear }, newValue: { classTeacherId, name: cls.name, section: cls.section, academicYear: cls.academicYear, effectiveFrom: from.toISOString().slice(0, 10) }, userId: user.userId } });
+  if (teacherProvided || modeChanged || data.name !== undefined || data.section !== undefined || data.academicYear !== undefined) await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { classTeacherId: existing.classTeacherId, teachingMode: existing.teachingMode, name: existing.name, section: existing.section, academicYear: existing.academicYear }, newValue: { classTeacherId, teachingMode: effectiveMode, name: cls.name, section: cls.section, academicYear: cls.academicYear, effectiveFrom: from.toISOString().slice(0, 10) }, userId: user.userId } });
   return { existing, cls, clashes: [] as TimetableClash[] };
 }
 
