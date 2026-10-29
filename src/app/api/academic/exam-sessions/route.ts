@@ -13,6 +13,8 @@ import {
 import { createExamSession, listSessions } from "@/lib/academic/exam-sessions";
 import { notify } from "@/lib/notifications/in-app";
 import { normaliseExamTerm } from "@/lib/academic/exam-terms";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET    /api/academic/exam-sessions?campusId=&academicYear=
 // POST   /api/academic/exam-sessions { title, term, academicYear, examType, classIds[], startDate?, endDate?, notes? }
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "exams", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const created = await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
 
@@ -86,7 +88,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageOperations, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { academicModelConfigurationSchema, changedConfigurationSections, simulateAcademicResult, validateAcademicModel, type AcademicModelConfiguration, type SimulatedComponent } from "@/lib/academic/model-config";
 import { Prisma } from "@prisma/client";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 type Context = { params: Promise<{ id: string }> };
 function overlap(aStart: Date, aEnd: Date | null, bStart: Date, bEnd: Date | null) {
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest, context: Context) {
     if (!canManageOperations(user)) throw new ApiError("Academic configuration approval is required", 403);
     await assertPermission(user, "exams", "edit");
     const { id } = await context.params;
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const model = await prisma.academicModelVersion.findFirst({ where: { id } });
     if (!model || model.schoolId !== user.schoolId) throw new ApiError("Academic model version not found", 404);
     if (model.isSharedTemplate) {

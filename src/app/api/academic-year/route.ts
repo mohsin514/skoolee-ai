@@ -12,6 +12,8 @@ import {
   resolveCampusId,
 } from "@/lib/api/scope";
 import { getYearClosureReport } from "@/lib/academic/year-closure";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageAcademics(user)) throw new ApiError("Forbidden", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { action, campusId: rawCampusId } = body;
     const campusId = await resolveCampusId(user, rawCampusId);
     // §0.3 rule 5: promotion batches are campus operations (§2.2 #30 "run batches": PR —, G23); closing a ready

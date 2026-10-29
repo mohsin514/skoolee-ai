@@ -6,6 +6,8 @@ import {
   errorResponse,
   requireAuthUser,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 const TOPIC_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"];
 
@@ -54,7 +56,7 @@ export async function POST(
     const { subjectId } = await params;
     const subject = await getScopedSubject(subjectId, user.campusId, user.schoolId);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const title = String(body.title ?? "").trim();
     if (!title) throw new ApiError("Topic title is required", 400);
 
@@ -85,7 +87,7 @@ export async function PATCH(
     const { subjectId } = await params;
     await getScopedSubject(subjectId, user.campusId, user.schoolId);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     if (!body.id) throw new ApiError("Topic id is required", 400);
 
     const existing = await prisma.syllabusTopic.findFirst({

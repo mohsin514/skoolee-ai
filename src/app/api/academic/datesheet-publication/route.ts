@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { publicationStatus, publishDatesheet } from "@/lib/academic/datesheet-publication";
+import { readJsonBody } from "@/lib/api/validate";
 
 // SKO-413: the examination office reviews live checks and pending changes, then
 // publishes an exact datesheet version. A blocked publication returns its issues.
@@ -21,7 +22,7 @@ const Publish = z.object({ sessionId: z.string().min(1).max(100), expectedVersio
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const parsed = Publish.safeParse(await req.json().catch(() => null));
+    const parsed = Publish.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError("Invalid publication request", 400);
     const result = await publishDatesheet(user, parsed.data.sessionId, parsed.data.expectedVersion, parsed.data.reason);
     return Response.json({ success: true, data: result }, { status: 201 });

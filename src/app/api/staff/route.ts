@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   try {
     await assertStaffWriter();
     const body = await parseBody(req, jsonObjectBody);
-    const result = await inviteStaff(body);
+    const result = await inviteStaff(body as Parameters<typeof inviteStaff>[0]);
     return Response.json(result, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[staff] POST failed");
