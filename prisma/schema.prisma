@@ -78,6 +78,8 @@ model School {
   // Defaults to Asia/Karachi: the product ships Urdu report cards, PKR fees and
   // CNIC/board fields, so UTC was never the right assumption for a real tenant.
   timezone             String    @default("Asia/Karachi")
+  // SKAI-1143: hosting region for later tenant routing (src/lib/school/data-region.ts). DEFAULT = the shared region.
+  dataRegion           String    @default("DEFAULT") @map("data_region")
   plan                 String    @default("FREE") // FREE, BASIC, PRO
   planStartedAt        DateTime? @map("plan_started_at") // first paid activation
   planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
