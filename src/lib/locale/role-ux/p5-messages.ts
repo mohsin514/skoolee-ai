@@ -662,7 +662,6 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["of {0} on roll", "من {0} مسجلين", "{0} میں سے زیرِ اندراج"],
   ["Onboarding pending", "الإعداد معلّق", "آغاز زیر التوا"],
   ["Out of school today", "غائبون عن المدرسة اليوم", "آج اسکول سے باہر"],
-  ["Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and leaves existing slots untouched.", "تُرفض الأوقات المتداخلة ضمن النوع نفسه. تغيير وقت حصة بعد وجود جدول ينبّهك ويترك الحصص الحالية كما هي.", "ایک ہی قسم میں متداخل اوقات قبول نہیں ہوتے۔ ٹائم ٹیبل بننے کے بعد پیریڈ کا وقت بدلنے پر انتباہ ملتا ہے اور موجودہ خانے نہیں بدلتے۔"],
   ["Override balance", "تجاوز الرصيد", "بقایا کو نظرانداز کریں"],
   ["Waiting for the principal", "بانتظار المدير", "پرنسپل کے فیصلے کا انتظار"],
   ["Waiting for the campus admin", "بانتظار مدير الفرع", "کیمپس منتظم کے فیصلے کا انتظار"],
@@ -1097,7 +1096,6 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Select all {0}", "تحديد الكل ({0})", "تمام {0} منتخب کریں"],
   ["Set up staff record", "إعداد سجل الموظف", "عملے کا ریکارڈ ترتیب دیں"],
   ["Tap to filter", "انقر للتصفية", "فلٹر کے لیے ٹیپ کریں"],
-  ["The {0}–{1} slot disappears from every class timetable row on this campus. Lessons already placed in it are not moved anywhere — they stop being shown.", "تختفي الفترة {0}–{1} من كل صف في جداول الحصص في هذا الفرع. لا تُنقل الحصص الموضوعة فيها إلى أي مكان — بل تتوقف عن الظهور.", "{0}–{1} کا وقفہ اس کیمپس کی ہر جماعتی ٹائم ٹیبل قطار سے ہٹ جائے گا۔ اس میں رکھے گئے اسباق کہیں منتقل نہیں ہوں گے — بس دکھائی دینا بند ہو جائیں گے۔"],
   ["The {0}–{1} slot disappears from every exam date sheet row on this campus. Nothing already placed in it is moved anywhere — it stops being shown.", "تختفي الفترة {0}–{1} من كل صف في جداول الامتحانات في هذا الفرع. لا يُنقل ما وُضع فيها إلى أي مكان — بل يتوقف عن الظهور.", "{0}–{1} کا وقفہ اس کیمپس کی ہر امتحانی ڈیٹ شیٹ قطار سے ہٹ جائے گا۔ اس میں رکھی گئی کوئی چیز کہیں منتقل نہیں ہوگی — بس دکھائی دینا بند ہو جائے گی۔"],
   ["Upload (max 10 MB)", "رفع (بحد أقصى 10 ميغابايت)", "اپ لوڈ کریں (زیادہ سے زیادہ 10 MB)"],
   ["Upload document", "رفع مستند", "دستاویز اپ لوڈ کریں"],
@@ -1365,6 +1363,16 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Their record in this unit is kept, and you can add them back at any time. Their rank and salary do not change.", "يبقى سجله في هذه الوحدة محفوظًا، ويمكنك إعادته في أي وقت، ولا تتغير رتبته ولا راتبه.", "اس شعبے میں ان کا ریکارڈ محفوظ رہتا ہے اور آپ انہیں کسی بھی وقت دوبارہ شامل کر سکتے ہیں۔ ان کا عہدہ اور تنخواہ نہیں بدلتی۔"],
   // Integration round 1: the admin Classes & subjects view's one-sentence description (§4.3).
   ["Create classes and sections, and choose who teaches each class and subject.", "أنشئ الصفوف والشُّعب، واختر من يُدرّس كل صف وكل مادة.", "جماعتیں اور سیکشن بنائیں، اور طے کریں کہ ہر جماعت اور ہر مضمون کون پڑھائے گا۔"],
+  // SKAI-146 period setup
+  ["Overlapping times within a type are rejected. Changing the time of a period that timetables use asks first, then moves those lessons; a period in use cannot be renumbered or deleted.", "تُرفض الأوقات المتداخلة ضمن النوع نفسه. تغيير وقت حصة تستخدمها الجداول يطلب التأكيد أولًا ثم ينقل تلك الدروس؛ ولا يمكن إعادة ترقيم حصة مستخدمة أو حذفها.", "ایک ہی قسم میں متداخل اوقات قبول نہیں ہوتے۔ جس پیریڈ کو ٹائم ٹیبل استعمال کرتے ہیں اس کا وقت بدلنے سے پہلے تصدیق مانگی جاتی ہے، پھر وہ اسباق منتقل ہوتے ہیں؛ زیرِ استعمال پیریڈ کا نمبر بدلا یا حذف نہیں کیا جا سکتا۔"],
+  ["The {0}–{1} period is removed from this campus's bell schedule. If any timetable still has lessons in it, the delete is refused until they are cleared.", "تُزال الحصة {0}–{1} من جدول الحصص في هذا الفرع. إذا كان أي جدول لا يزال يحتوي على دروس فيها، يُرفض الحذف حتى تُفرَّغ.", "پیریڈ {0}–{1} اس کیمپس کے گھنٹی شیڈول سے ہٹا دیا جاتا ہے۔ اگر کسی ٹائم ٹیبل میں اب بھی اس میں اسباق ہوں تو انہیں خالی کرنے تک حذف قبول نہیں ہوگا۔"],
+  ["Move timetable lessons to the new time?", "نقل دروس الجدول إلى الوقت الجديد؟", "ٹائم ٹیبل کے اسباق نئے وقت پر منتقل کریں؟"],
+  ["Timetables already have lessons in this period. Confirming moves those lessons to the new time in every draft; published timetables keep the old time until you republish them.", "تحتوي الجداول بالفعل على دروس في هذه الحصة. التأكيد ينقل تلك الدروس إلى الوقت الجديد في كل مسودة؛ وتحتفظ الجداول المنشورة بالوقت القديم حتى تعيد نشرها.", "ٹائم ٹیبلز میں اس پیریڈ میں پہلے سے اسباق موجود ہیں۔ تصدیق کرنے سے وہ اسباق ہر مسودے میں نئے وقت پر منتقل ہو جائیں گے؛ شائع شدہ ٹائم ٹیبل دوبارہ شائع کرنے تک پرانا وقت رکھیں گے۔"],
+  ["Move lessons", "نقل الدروس", "اسباق منتقل کریں"],
+  ["Keep current time", "الإبقاء على الوقت الحالي", "موجودہ وقت رکھیں"],
+  ["Timetables still have lessons in this period. Clear them first, then remove it.", "لا تزال الجداول تحتوي على دروس في هذه الحصة. فرّغها أولًا ثم أزلها.", "ٹائم ٹیبلز میں اب بھی اس پیریڈ میں اسباق ہیں۔ پہلے انہیں خالی کریں، پھر اسے ہٹائیں۔"],
+  ["Remove period {0}?", "إزالة الحصة {0}؟", "پیریڈ {0} ہٹائیں؟"],
+  ["{0}–{1} is removed from this campus's bell schedule.", "تُزال {0}–{1} من جدول الحصص في هذا الفرع.", "{0}–{1} اس کیمپس کے گھنٹی شیڈول سے ہٹا دیا جاتا ہے۔"],
 ];
 
 export const arabicP5Ui: Record<string, string> = Object.fromEntries(P5_COPY.map(([en, ar]) => [en, ar]));

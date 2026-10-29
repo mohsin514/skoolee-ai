@@ -6844,6 +6844,8 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
    */
   const [drafts, setDrafts] = useState<Record<string, { startTime: string; endTime: string }>>({});
   const [confirmPeriod, setConfirmPeriod] = useState<any>(null);
+  // SKAI-146: a time change on a period that timetables already use waits for this confirmation before slots move.
+  const [confirmRetime, setConfirmRetime] = useState<{ id: string; field: "startTime" | "endTime" | "periodNumber"; value: string } | null>(null);
   // R4: a load failure is an inline ErrorState with retry, never an empty list that looks like "no periods".
   const [loadFailed, setLoadFailed] = useState(false);
 
@@ -6898,20 +6900,26 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
     }
   };
 
-  const updatePeriod = async (id: string, field: "startTime" | "endTime" | "periodNumber", value: string) => {
+  const updatePeriod = async (id: string, field: "startTime" | "endTime" | "periodNumber", value: string, applyToTimetables = false) => {
     try {
       const res = await fetch("/api/academic/periods", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, [field]: value }),
+        body: JSON.stringify({ id, [field]: value, ...(applyToTimetables ? { applyToTimetables: true } : {}) }),
       });
       const json = await res.json();
+      if (json.code === "PERIOD_TIMETABLE_CONFIRM") {
+        setConfirmRetime({ id, field, value });
+        return;
+      }
       if (!json.success) throw new Error(json.error || "");
       if (json.warning) toast.warning(json.warning);
       else toast.success(ui("Period updated"));
       setReloadTick((t) => t + 1);
     } catch (error) {
       toast.error(friendlyErrorMessage(error, ui("Could not update the period. Please try again.")));
+      // Put the saved times back in the inputs so the row never shows a value the server refused.
+      setReloadTick((t) => t + 1);
     }
   };
 
@@ -7130,7 +7138,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
             );
           })}
           <p className="pt-2 text-xs font-bold text-ink-subtle">
-            {ui("Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and leaves existing slots untouched.")}
+            {ui("Overlapping times within a type are rejected. Changing the time of a period that timetables use asks first, then moves those lessons; a period in use cannot be renumbered or deleted.")}
           </p>
         </div>
       )}
@@ -7141,7 +7149,7 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
         description={
           confirmPeriod
             ? ui(timeType === "CLASS"
-              ? "The {0}–{1} slot disappears from every class timetable row on this campus. Lessons already placed in it are not moved anywhere — they stop being shown."
+              ? "The {0}–{1} period is removed from this campus's bell schedule. If any timetable still has lessons in it, the delete is refused until they are cleared."
               : "The {0}–{1} slot disappears from every exam date sheet row on this campus. Nothing already placed in it is moved anywhere — it stops being shown.", [confirmPeriod.startTime, confirmPeriod.endTime])
             : ""
         }
@@ -7152,6 +7160,20 @@ export function PeriodsPanel({ campusId }: { campusId?: string }) {
           const target = confirmPeriod;
           setConfirmPeriod(null);
           if (target) await deletePeriod(target.id);
+        }}
+      />
+      <ConfirmAction
+        open={Boolean(confirmRetime)}
+        title={ui("Move timetable lessons to the new time?")}
+        description={ui("Timetables already have lessons in this period. Confirming moves those lessons to the new time in every draft; published timetables keep the old time until you republish them.")}
+        confirmLabel={ui("Move lessons")}
+        cancelLabel={ui("Keep current time")}
+        tone="warning"
+        onCancel={() => { setConfirmRetime(null); setReloadTick((t) => t + 1); }}
+        onConfirm={async () => {
+          const target = confirmRetime;
+          setConfirmRetime(null);
+          if (target) await updatePeriod(target.id, target.field, target.value, true);
         }}
       />
     </div>
