@@ -5,34 +5,27 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import type { Prisma } from "@prisma/client";
+import { classPeriodEditDecision, findPeriodOverlap, periodImpactMessage, periodInputProblem, type PeriodTimetableImpact } from "@/lib/academic/period-rules";
 
 // GET /api/academic/periods?campusId=&timeType=CLASS|EXAM — list period definitions
 // POST /api/academic/periods {campusId, timeType?, periodNumber, startTime, endTime}
-// PATCH /api/academic/periods {id, periodNumber?, startTime?, endTime?}
+// PATCH /api/academic/periods {id, periodNumber?, startTime?, endTime?, applyToTimetables?}
 // DELETE /api/academic/periods?id=
 //
 // Edge cases: overlapping period times within a timeType are rejected (409);
-// PATCH warns (via response field) when a timetable already exists and times
-// shift — the caller surfaces the warning rather than silently shifting.
+// SKAI-146: class slots reference periods by number, so renumbering or deleting a
+// period in use is refused (409 PERIOD_IN_USE); a time change on a period in use
+// needs applyToTimetables=true (else 409 PERIOD_TIMETABLE_CONFIRM) and then moves
+// the draft slots to the new times. Published versions stay until republished.
 
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const findOverlap = findPeriodOverlap;
 
-function minutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
-
-function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
-  return minutes(aStart) < minutes(bEnd) && minutes(bStart) < minutes(aEnd);
-}
-
-function findOverlap(
-  rows: { id: string; periodNumber: number; startTime: string; endTime: string }[],
-  start: string,
-  end: string,
-  excludeId?: string
-) {
-  return rows.find((r) => r.id !== excludeId && overlaps(r.startTime, r.endTime, start, end));
+/** Class timetable slots in this campus that sit on the given period number (slots reference periods by number). */
+async function classPeriodImpact(tx: Prisma.TransactionClient, schoolId: string, campusId: string, periodNumber: number): Promise<PeriodTimetableImpact> {
+  const slots = await tx.timetableSlot.findMany({ where: { schoolId, periodNumber, timetable: { schoolId, campusId } }, select: { timetableId: true, timetable: { select: { status: true } } } });
+  const timetables = new Map(slots.map((slot) => [slot.timetableId, slot.timetable.status]));
+  return { slots: slots.length, timetables: timetables.size, published: [...timetables.values()].filter((status) => status === "PUBLISHED").length };
 }
 
 export async function GET(req: NextRequest) {
@@ -66,9 +59,8 @@ export async function POST(req: NextRequest) {
     const startTime = String(body.startTime ?? "").trim();
     const endTime = String(body.endTime ?? "").trim();
 
-    if (!Number.isFinite(periodNumber) || periodNumber < 1) throw new ApiError("periodNumber must be >= 1", 400);
-    if (!TIME_RE.test(startTime) || !TIME_RE.test(endTime)) throw new ApiError("startTime/endTime must be HH:mm", 400);
-    if (minutes(startTime) >= minutes(endTime)) throw new ApiError("endTime must be after startTime", 400);
+    const problem = periodInputProblem(periodNumber, startTime, endTime);
+    if (problem) throw new ApiError(problem, 400);
 
     return await withSchedulingResourceWrite(user, campusId, "timetable", "add", async tx => {
       const dup = await tx.periodDefinition.findUnique({
@@ -119,9 +111,8 @@ export async function PATCH(req: NextRequest) {
       const startTime = body.startTime !== undefined ? String(body.startTime).trim() : period.startTime;
       const endTime = body.endTime !== undefined ? String(body.endTime).trim() : period.endTime;
 
-      if (!Number.isFinite(periodNumber) || periodNumber < 1) throw new ApiError("periodNumber must be >= 1", 400);
-      if (!TIME_RE.test(startTime) || !TIME_RE.test(endTime)) throw new ApiError("startTime/endTime must be HH:mm", 400);
-      if (minutes(startTime) >= minutes(endTime)) throw new ApiError("endTime must be after startTime", 400);
+      const problem = periodInputProblem(periodNumber, startTime, endTime);
+      if (problem) throw new ApiError(problem, 400);
 
       if (periodNumber !== period.periodNumber) {
         const dup = await tx.periodDefinition.findUnique({
@@ -144,14 +135,23 @@ export async function PATCH(req: NextRequest) {
 
       const timesShifted = startTime !== period.startTime || endTime !== period.endTime;
       if (period.timeType === "EXAM" && (timesShifted || periodNumber !== period.periodNumber) && await tx.examSchedule.count({ where: { schoolId: user.schoolId, campusId: period.campusId, periodDefinitionId: id, OR: [{ exam: { isLocked: true } }, { exam: { status: { notIn: ["DRAFT", "ACTIVE"] } } }, { exam: { class: { archivedAt: { not: null } } } }] } })) throw new ApiError("This period belongs to an exam whose datesheet is closed. Create a new exam period for future papers to preserve its recorded timing.", 409);
-      const timetableCount = timesShifted
-        ? await tx.timetableSlot.count({ where: { timetable: { campusId: period.campusId }, periodNumber } })
-        : 0;
+      const impact = period.timeType === "CLASS" ? await classPeriodImpact(tx, user.schoolId, period.campusId, period.periodNumber) : { slots: 0, timetables: 0, published: 0 };
+      const decision = classPeriodEditDecision({ impact, renumbered: periodNumber !== period.periodNumber, timesShifted, applyToTimetables: body.applyToTimetables === true });
+      if (decision === "blocked-renumber") throw new ApiError(`Period ${period.periodNumber} is used by ${impact.slots} timetable slot(s). Move those lessons first, or add a new period number instead.`, 409, "PERIOD_IN_USE");
+      if (decision === "confirm") throw new ApiError(periodImpactMessage(period.periodNumber, impact), 409, "PERIOD_TIMETABLE_CONFIRM");
 
       const updated = await tx.periodDefinition.update({
         where: { id },
         data: { periodNumber, startTime, endTime },
       });
+
+      if (decision === "apply") {
+        const scope = { schoolId: user.schoolId, campusId: period.campusId };
+        const affected = await tx.timetableSlot.findMany({ where: { schoolId: user.schoolId, periodNumber, timetable: scope }, select: { timetableId: true } });
+        await tx.timetableSlot.updateMany({ where: { schoolId: user.schoolId, periodNumber, timetable: scope }, data: { startTime, endTime } });
+        // A draft edit: bump the revision so a published timetable shows unpublished changes until it is republished.
+        await tx.timetable.updateMany({ where: { id: { in: [...new Set(affected.map((slot) => slot.timetableId))] }, ...scope }, data: { draftRevision: { increment: 1 } } });
+      }
 
       if (period.timeType === "EXAM" && (timesShifted || periodNumber !== period.periodNumber)) {
         const schedules = await tx.examSchedule.findMany({ where: { schoolId: user.schoolId, campusId: period.campusId, periodDefinitionId: id }, select: { id: true } });
@@ -162,8 +162,8 @@ export async function PATCH(req: NextRequest) {
         success: true,
         data: updated,
         warning:
-          timetableCount > 0
-            ? `This time change affects ${timetableCount} existing timetable slot(s) for period ${periodNumber}. Existing slots were not modified.`
+          decision === "apply"
+            ? `Moved ${impact.slots} timetable slot(s) to ${startTime}–${endTime}.${impact.published ? ` Republish ${impact.published} timetable(s) so families see the new times.` : ""}`
             : undefined,
       });
     });
@@ -190,13 +190,14 @@ export async function DELETE(req: NextRequest) {
       });
       if (!period) throw new ApiError("Period not found", 404);
 
-      const slotCount = await tx.timetableSlot.count({
-        where: { timetable: { campusId: period.campusId }, periodNumber: period.periodNumber },
-      });
+      if (period.timeType === "CLASS") {
+        const impact = await classPeriodImpact(tx, user.schoolId, period.campusId, period.periodNumber);
+        if (impact.slots > 0) throw new ApiError(`Period ${period.periodNumber} is used by ${impact.slots} slot(s) in ${impact.timetables} timetable(s). Clear those lessons first, then remove the period.`, 409, "PERIOD_IN_USE");
+      }
 
       if (await tx.examSchedule.count({ where: { schoolId: user.schoolId, campusId: period.campusId, periodDefinitionId: id } })) throw new ApiError("This period is used by an exam datesheet. Move its papers to another period first.", 409);
       await tx.periodDefinition.delete({ where: { id } });
-      return Response.json({ success: true, data: { id }, warning: slotCount > 0 ? `Removed — ${slotCount} timetable slot(s) still reference period ${period.periodNumber}.` : undefined });
+      return Response.json({ success: true, data: { id } });
     });
   } catch (error) {
     return errorResponse(error, "[academic/periods] DELETE failed");

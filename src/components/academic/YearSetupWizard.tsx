@@ -1,6 +1,7 @@
 "use client";
 
 import { ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Button } from "@/components/ui/button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -265,14 +266,18 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
       } else toast.error(friendlyErrorMessage(new Error(typeof json.error === "string" ? json.error : ""), ui("The period could not be added. Try again.")));
     } finally { setSaving(false); }
   };
+  // SKAI-146: removal is confirmed first, and a refusal (for example a period timetables still use) is shown, not swallowed.
+  const [removingPeriod, setRemovingPeriod] = useState<PeriodDef | null>(null);
   const deletePeriod = async (id: string) => {
     try {
       const sp = new URLSearchParams({ id });
       if (campusId) sp.set("campusId", campusId);
       const res = await fetch(`/api/academic/periods?${sp.toString()}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) setActivePeriods((p) => p.filter((x) => x.id !== id));
-    } catch { toast.error(ui("The period could not be removed")); }
+      if (!json.success) throw new Error(json.code === "PERIOD_IN_USE" ? ui("Timetables still have lessons in this period. Clear them first, then remove it.") : typeof json.error === "string" ? json.error : "");
+      setActivePeriods((p) => p.filter((x) => x.id !== id));
+      toast.success(ui("Period removed"));
+    } catch (error) { toast.error(friendlyErrorMessage(error, ui("The period could not be removed"))); }
   };
 
   // ── Step 4: rooms ─────────────────────────────────────────────────────
@@ -366,6 +371,10 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
 
   return (
     <div className="space-y-6">
+      <ConfirmAction open={Boolean(removingPeriod)} title={ui("Remove period {0}?", [removingPeriod?.periodNumber ?? ""])}
+        description={removingPeriod ? ui("{0}–{1} is removed from this campus's bell schedule.", [removingPeriod.startTime, removingPeriod.endTime]) : ""}
+        confirmLabel={ui("Remove period")} cancelLabel={ui("Cancel")} tone="danger" onCancel={() => setRemovingPeriod(null)}
+        onConfirm={async () => { const target = removingPeriod; setRemovingPeriod(null); if (target) await deletePeriod(target.id); }} />
       {removingHoliday ? <ReviewedDeleteDialog endpoint="academic/calendar" record={{ id: removingHoliday.id, campusId }} label={removingHoliday.name}
         onCancel={() => setRemovingHoliday(null)} onDeleted={() => setHolidays(rows => rows.filter(row => row.id !== removingHoliday.id))} /> : null}
       {/* Stepper */}
@@ -491,7 +500,7 @@ export function YearSetupWizard({ campusId, onComplete, hideSave = false, comman
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100 text-sm font-bold text-primary">P{p.periodNumber}</span>
                     <span className="text-sm font-semibold text-ink">{p.startTime} – {p.endTime}</span>
                   </div>
-                  <IconButton label={ui("Remove period {0}", [p.periodNumber])} variant="ghost" onClick={() => deletePeriod(p.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
+                  <IconButton label={ui("Remove period {0}", [p.periodNumber])} variant="ghost" onClick={() => setRemovingPeriod(p)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
                 </div>
               ))}
             </div>
