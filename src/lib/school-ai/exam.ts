@@ -36,7 +36,9 @@ export const markingEvidenceSchema = z.object({ criterionId: id, quote: z.string
 export const examKeyCorrectionSchema = z.object({ questionId: id, correctOptionId: id.optional(), correctOptionIds: z.array(id).min(1).max(8).optional(), numericKey: z.object({ value: z.number().finite(), tolerance: z.number().finite().min(0).max(1000000) }).strict().optional() }).strict();
 export const examReviewSchema = z.object({
   keyCorrections: z.array(examKeyCorrectionSchema).max(100).optional(),
-  marks: z.array(z.object({ questionId: id, marks: z.number().min(0).max(100), feedback: z.string().trim().min(1).max(4000), evidence: z.array(markingEvidenceSchema).max(30).optional() }).strict()).max(100),
+  marks: z.array(z.object({ questionId: id, marks: z.number().min(0).max(100), feedback: z.string().trim().min(1).max(4000), evidence: z.array(markingEvidenceSchema).max(30).optional(),
+    // SKAI-1014: a marker who departs from an auto-scored objective item records why; it is audit-logged.
+    override: z.object({ reason: z.string().trim().min(3).max(1000) }).strict().optional() }).strict()).max(100),
   note: z.string().trim().min(1).max(4000),
 }).strict();
 
@@ -134,6 +136,35 @@ export function validateExamReview(paper: PaperData, responses: ExamResponses, r
   // SKAI-1014: decimal marks (e.g. 3 × 1.1) must not trip binary rounding; same tolerance as paper validation.
   if (review.marks.reduce((sum, mark) => sum + mark.marks, 0) > paper.blueprint.totalMarks + 0.00001) errors.push("Reviewed marks exceed the paper total.");
   return errors;
+}
+
+export type ObjectiveOverride = { questionId: string; autoMarks: number; marks: number; reason: string };
+
+/**
+ * SKAI-1014 owner decision: an auto-scored objective item is never changed silently. A mark that differs
+ * from the auto score (after this review's key corrections) needs an override reason; the caller audit-logs
+ * each override. A key correction remains the normal path for a wrong key. A mark carried forward unchanged
+ * from the previous stored review is not a new change.
+ */
+export function objectiveOverrides(paper: PaperData, responses: ExamResponses, review: ExamReview, previous?: { marks?: { questionId: string; marks: number }[] } | null): { errors: string[]; overrides: ObjectiveOverride[] } {
+  const errors: string[] = [], overrides: ObjectiveOverride[] = [];
+  let scored: PaperData;
+  try { scored = review.keyCorrections?.length ? correctedExamPaper(paper, review.keyCorrections) : paper; } catch { return { errors, overrides }; }
+  const auto = new Map(scoreObjectiveResponses(scored, responses).questions.filter(row => row.state === "OBJECTIVE").map(row => [row.questionId, row.marks ?? 0]));
+  const before = new Map((previous?.marks ?? []).map(mark => [mark.questionId, mark.marks]));
+  for (const mark of review.marks) {
+    const autoMarks = auto.get(mark.questionId);
+    if (autoMarks === undefined) {
+      if (mark.override) errors.push(`Question ${mark.questionId} is not auto-scored; an override applies only to objective items.`);
+      continue;
+    }
+    if (Math.abs(mark.marks - autoMarks) <= 0.00001) continue;
+    const carried = !review.keyCorrections?.length && before.has(mark.questionId) && Math.abs((before.get(mark.questionId) ?? 0) - mark.marks) <= 0.00001;
+    if (carried && !mark.override) continue;
+    if (!mark.override) { errors.push(`Question ${mark.questionId} is auto-scored at ${autoMarks}. Correct the answer key, or record an override reason to award ${mark.marks}.`); continue; }
+    overrides.push({ questionId: mark.questionId, autoMarks, marks: mark.marks, reason: mark.override.reason });
+  }
+  return { errors, overrides };
 }
 
 export const DELIVERED_EXAM_MODES = ["STANDARD", "SECURE_BROWSER"];
