@@ -10,6 +10,8 @@ import {
 } from "@/lib/api/scope";
 import { runNotificationAutomationSweep } from "@/lib/notifications/automation";
 import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,7 +103,7 @@ export async function POST(req: NextRequest) {
     // The manual reminder run (fees, marks deadlines, report notices) is a campus-operations act (M46).
     if (!canManageCampusOps(user)) throw new ApiError("Reminders are run by your campus admin.", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = automationSchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 

@@ -50,6 +50,7 @@ import {
 import { resolveMediaUrl } from "@/lib/storage/s3";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { phoneProblem } from "@/lib/school/details";
+import { UaeReportTemplateToggle } from "./UaeReportTemplateToggle";
 
 /** Offered zones. Anything already stored is added so it is never silently lost. */
 const TIMEZONES = [
@@ -314,6 +315,8 @@ export function InstitutionSettingsPanel({
           <ReadRow icon={Clock} label={tr("Time Zone")} value={data.school.timezone} />
           <ReadRow icon={MapPin} label={tr("Address")} value={data.school.address} />
         </div>
+
+        <UaeReportTemplateToggle initial={data.school.uaeReportTemplate} canEdit={data.canEditSchool && !readOnly} />
 
         {!data.canEditSchool && section !== "school-and-campus" ? (
           <p className="mt-5 flex items-start gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-2xs font-bold leading-snug text-ink-muted">

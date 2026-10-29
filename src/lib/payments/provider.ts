@@ -2,13 +2,13 @@ import { createSafePayOrder, verifySafePayNotification } from "./safepay";
 
 /**
  * SKAI-1107 (spike): one interface for hosted-checkout payment rails, so a GCC provider can be added
- * as an adapter without touching fee or onboarding routes. Nothing here is wired into a route yet;
- * existing SafePay callers are unchanged. GCC adapters are skeletons behind PAYMENT_GCC_RAILS_ENABLED
+ * as an adapter without touching fee or onboarding routes. SKAI-1168: the checkout routes call
+ * resolvePaymentProvider("PKR") instead of SafePay directly; SafePay behaviour is unchanged. GCC adapters are skeletons behind PAYMENT_GCC_RAILS_ENABLED
  * and refuse to run: there are no keys, sandbox or live, in this module.
  */
 export type ProviderId = "safepay" | "stripe_uae" | "checkout_com" | "telr" | "paytabs" | "network_international" | "tap";
 
-export type CheckoutRequest = { amountMinor: number; currency: string; orderRef: string; description: string; returnUrl: string; metadata?: Record<string, string> };
+export type CheckoutRequest = { amountMinor: number; currency: string; orderRef: string; description: string; returnUrl: string; metadata?: Record<string, string>; customer?: { email?: string; name?: string } };
 export type CheckoutResult = { ok: true; redirectUrl: string; providerRef?: string } | { ok: false; code: "NOT_IMPLEMENTED" | "PROVIDER_ERROR" | "CURRENCY_UNSUPPORTED"; message: string };
 export type WebhookInput = { rawBody: string; headers: Record<string, string | undefined> };
 
@@ -36,7 +36,7 @@ export function safePayProvider(env: Env = process.env): PaymentProvider {
       if (request.currency !== "PKR") return { ok: false, code: "CURRENCY_UNSUPPORTED", message: "SafePay settles PKR only." };
       const result = await createSafePayOrder(
         { merchantId: env.SAFEPAY_MERCHANT_ID ?? "", apiKey: env.SAFEPAY_API_KEY ?? "", secretKey: env.SAFEPAY_SECRET_KEY ?? "", returnUrl: request.returnUrl, sandbox: env.SAFEPAY_PRODUCTION !== "true" },
-        { amount: request.amountMinor / 100, orderRef: request.orderRef, description: request.description, metadata: request.metadata },
+        { amount: request.amountMinor / 100, orderRef: request.orderRef, description: request.description, customerEmail: request.customer?.email, customerName: request.customer?.name, metadata: request.metadata },
       );
       return result.success && result.redirectUrl ? { ok: true, redirectUrl: result.redirectUrl, providerRef: result.token } : { ok: false, code: "PROVIDER_ERROR", message: result.error ?? "SafePay did not return a checkout URL." };
     },

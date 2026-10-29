@@ -1,9 +1,12 @@
 import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { ApiError, assertPermission, canManageCampusOps, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { created, failFrom, ok } from "@/lib/api/envelope";
 import { daysToTenths, tenthsToDays } from "@/lib/leave";
 import { createLeaveAllocation } from "@/lib/leave/create-allocation-command";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Leave allocations — role-wide rows (role set, userId null) or per-user
 // overrides (userId set, role null).
@@ -30,12 +33,9 @@ export async function GET(req: NextRequest) {
       orderBy: [{ role: "asc" }, { userId: "asc" }, { leaveType: { name: "asc" } }],
     });
 
-    return Response.json({
-      success: true,
-      data: allocations.map((a) => ({ ...a, daysDisplay: tenthsToDays(a.days) })),
-    });
+    return ok(allocations.map((a) => ({ ...a, daysDisplay: tenthsToDays(a.days) })));
   } catch (error) {
-    return errorResponse(error, "[leave/allocations] GET failed");
+    return failFrom(error, "[leave/allocations] GET failed");
   }
 }
 
@@ -44,11 +44,11 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const allocation = await createLeaveAllocation(user, body);
-    return Response.json({ success: true, data: allocation }, { status: 201 });
+    return created(allocation);
   } catch (error) {
-    return errorResponse(error, "[leave/allocations] POST failed");
+    return failFrom(error, "[leave/allocations] POST failed");
   }
 }
 
@@ -57,8 +57,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "leave", "edit");
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const allocation = await prisma.leaveAllocation.findFirst({
       where: { id: body.id, campus: { schoolId: user.schoolId } },
@@ -72,9 +71,9 @@ export async function PATCH(req: NextRequest) {
     if (body.userId !== undefined) data.userId = body.userId ? String(body.userId) : null;
 
     const updated = await prisma.leaveAllocation.update({ where: { id: allocation.id }, data });
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[leave/allocations] PATCH failed");
+    return failFrom(error, "[leave/allocations] PATCH failed");
   }
 }
 

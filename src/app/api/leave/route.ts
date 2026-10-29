@@ -5,16 +5,18 @@ import {
   assertModuleRead,
   canLeadAcademics,
   canManageAcademics,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { created, failFrom, ok } from "@/lib/api/envelope";
 import { getBatchLeaveBalances, getLeaveBalances } from "@/lib/leave";
 import { applyLeave } from "@/lib/leave/apply-command";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
 import { resolveSourceActions } from "@/lib/notifications/actions";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { isStaffRole } from "@/lib/roles";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 const LEAVE_STAFF_ROLES = ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN"];
 
@@ -73,7 +75,7 @@ export async function GET(req: NextRequest) {
         user: s,
         balances: balancesMap.get(s.id) || [],
       }));
-      return Response.json({ success: true, data: { staff: balancesAll, academicYear } });
+      return ok({ staff: balancesAll, academicYear });
     }
 
     if (mode === "all") {
@@ -107,7 +109,7 @@ export async function GET(req: NextRequest) {
       ]);
       const decides = new Set(user.role === "SUPER_ADMIN" ? [] : decideRoles);
       const requests = rows.map((row) => ({ ...row, canDecide: decides.has(row.user.role) }));
-      return Response.json({ success: true, data: { requests, users } });
+      return ok({ requests, users });
     }
 
     // "my" — any signed-in staff sees their own requests and balances
@@ -129,9 +131,9 @@ export async function GET(req: NextRequest) {
       prisma.leaveType.findMany({ where: { campusId }, orderBy: { name: "asc" } }),
     ]);
 
-    return Response.json({ success: true, data: { requests, balances, types, academicYear } });
+    return ok({ requests, balances, types, academicYear });
   } catch (error) {
-    return errorResponse(error, "[leave] GET failed");
+    return failFrom(error, "[leave] GET failed");
   }
 }
 
@@ -140,12 +142,12 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     // Leave is for members of staff; families and the platform operator have no leave record.
     if (!isStaffRole(user.role)) throw new ApiError("Leave applications are for school staff.", 403);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const request = await applyLeave(user, body);
 
-    return Response.json({ success: true, data: request }, { status: 201 });
+    return created(request);
   } catch (error) {
-    return errorResponse(error, "[leave] POST failed");
+    return failFrom(error, "[leave] POST failed");
   }
 }
 
@@ -153,7 +155,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
@@ -173,8 +175,8 @@ export async function PATCH(req: NextRequest) {
     // SKO-416: reviewers' "review this leave" actions close because the request was withdrawn.
     await resolveSourceActions({ schoolId: user.schoolId, sourceType: "leave", sourceId: id, resolution: "CANCELLED" });
     const updated = await prisma.leaveRequest.findFirstOrThrow({ where: { id, schoolId: user.schoolId, userId: user.userId } });
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[leave] PATCH failed");
+    return failFrom(error, "[leave] PATCH failed");
   }
 }

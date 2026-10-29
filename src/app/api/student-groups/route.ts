@@ -4,11 +4,13 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   canManageCampusOps,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { created, fail, failFrom, ok } from "@/lib/api/envelope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,9 +46,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return Response.json({ success: true, data: groups });
+    return ok(groups);
   } catch (error) {
-    return errorResponse(error, "[student-groups] GET failed");
+    return failFrom(error, "[student-groups] GET failed");
   }
 }
 
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const name = String(body.name || "").trim();
     if (!name) throw new ApiError("Group name is required", 400);
 
@@ -70,12 +72,12 @@ export async function POST(req: NextRequest) {
       include: { _count: { select: { students: true } } },
     });
 
-    return Response.json({ success: true, data: group }, { status: 201 });
+    return created(group);
   } catch (error: any) {
     if (error?.code === "P2002") {
-      return Response.json({ error: "A group with this name already exists in this campus" }, { status: 409 });
+      return fail("CONFLICT", "A group with this name already exists in this campus");
     }
-    return errorResponse(error, "[student-groups] POST failed");
+    return failFrom(error, "[student-groups] POST failed");
   }
 }
 
@@ -84,7 +86,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     if (!body.id) throw new ApiError("Group id is required", 400);
 
     const existing = await prisma.studentGroup.findFirst({
@@ -107,12 +109,12 @@ export async function PATCH(req: NextRequest) {
       include: { _count: { select: { students: true } } },
     });
 
-    return Response.json({ success: true, data: group });
+    return ok(group);
   } catch (error: any) {
     if (error?.code === "P2002") {
-      return Response.json({ error: "A group with this name already exists in this campus" }, { status: 409 });
+      return fail("CONFLICT", "A group with this name already exists in this campus");
     }
-    return errorResponse(error, "[student-groups] PATCH failed");
+    return failFrom(error, "[student-groups] PATCH failed");
   }
 }
 

@@ -1,6 +1,7 @@
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { buildCostReport, costReportCsv, saveCostRates } from "@/lib/owner/ai-cost-report";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export async function PUT(request: Request) {
   try {
     assertSameOrigin(request);
     const owner = await requirePlatformOwner();
-    const body = await request.json().catch(() => { throw new ApiError("Send JSON", 400); });
+    const body = await readJsonBody(request);
     return Response.json({ success: true, data: await saveCostRates(owner.userId, body) }, { headers: noStore });
   } catch (error) { return errorResponse(error, "[owner/ai-cost-report] PUT failed"); }
 }

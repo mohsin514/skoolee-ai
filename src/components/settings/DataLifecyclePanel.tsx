@@ -13,7 +13,7 @@ import { usePanelCommand } from "@/components/fees/fee-utils";
 type Placement = { service: string; provider: string; location: string | null; state: "verified" | "configured" | "unsupported" | "not_configured"; note: string };
 type PlanItem = { service: string; from: string | null; to: string | null; outcome: "stays" | "moves" | "outside_region" | "unsupported" };
 type LifecycleRequest = {
-  id: string; kind: "EXPORT" | "RETENTION_DELETION" | "MIGRATION"; status: string; category: string | null; studentId: string | null; targetRegion: string | null;
+  id: string; kind: "EXPORT" | "RETENTION_DELETION" | "MIGRATION" | "GUARDIAN_EXPORT" | "CORRECTION" | "SUBJECT_DELETION"; status: string; category: string | null; studentId: string | null; targetRegion: string | null;
   reason: string; requestedBy: string; requestedAt: string; version: number; plan: { items?: PlanItem[]; blockers?: string[]; eligible?: number; held?: number } | null;
   receipt: Record<string, unknown> | null; downloadExpiresAt: string | null; downloadToken: string | null;
 };
@@ -25,6 +25,20 @@ type Overview = {
   learners: Array<{ id: string; fullName: string }>;
   categories: Record<string, { label: string; minimumDays: number }>; regions: Record<string, string>;
 };
+type DsrAction = "GUARDIAN_EXPORT" | "EXPORT" | "CORRECTION" | "SUBJECT_DELETION";
+type DsrSubject = "STUDENT" | "GUARDIAN";
+// Mirrors CORRECTABLE_FIELDS in src/lib/data-lifecycle/subject-requests.ts; the server is the authority.
+const dsrFields: Record<DsrSubject, Array<"fullName" | "nameUr" | "phone" | "address" | "city" | "guardianName" | "guardianPhone" | "guardianEmail" | "relationship">> = {
+  STUDENT: ["fullName", "nameUr", "phone", "address", "city", "guardianName", "guardianPhone", "guardianEmail"],
+  GUARDIAN: ["fullName", "phone", "relationship"],
+};
+function dsrBody(form: { action: DsrAction; subject: DsrSubject; subjectId: string; field: string; value: string; reason: string }) {
+  const subjectId = form.subjectId.trim(), reason = form.reason;
+  if (form.action === "EXPORT") return { kind: "EXPORT", studentId: subjectId, reason };
+  if (form.action === "GUARDIAN_EXPORT") return { kind: "GUARDIAN_EXPORT", guardianId: subjectId, reason };
+  if (form.action === "CORRECTION") return { kind: "CORRECTION", subject: form.subject, subjectId, changes: { [form.field]: form.value }, reason };
+  return { kind: "SUBJECT_DELETION", subject: form.subject, subjectId, reason };
+}
 type Preview = { category: string; eligible: number; held: number; categoryHeld: boolean };
 
 const stateTone: Record<Placement["state"], string> = {
@@ -67,6 +81,7 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
   const [plan, setPlan] = useState({ targetRegion: "ap-south-1", reason: "" });
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [exportForm, setExportForm] = useState({ studentId: "", reason: "" });
+  const [dsr, setDsr] = useState<{ action: DsrAction; subject: DsrSubject; subjectId: string; field: string; value: string; reason: string }>({ action: "GUARDIAN_EXPORT", subject: "GUARDIAN", subjectId: "", field: "fullName", value: "", reason: "" });
   // Set once after mount: Date.now() is impure and the React Compiler forbids
   // it during render (even inside useMemo). An effect runs post-commit.
   const [minHoldDate, setMinHoldDate] = useState("");
@@ -86,7 +101,7 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
       const response = await fetch(`/api/data-lifecycle/requests/${encodeURIComponent(request.id)}/download`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: request.downloadToken }) });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || t.failed);
       const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a"); link.href = url; link.download = `learner-export-${request.id}.json`; link.click(); URL.revokeObjectURL(url);
+      const link = document.createElement("a"); link.href = url; link.download = `${request.kind === "GUARDIAN_EXPORT" ? "guardian" : "learner"}-export-${request.id}.json`; link.click(); URL.revokeObjectURL(url);
     });
   }
 
@@ -184,6 +199,21 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
       </li>)}</ul>}
     </section>}
 
+    {data?.admin && <form aria-labelledby="dsr-heading" className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2 lg:grid-cols-3 lg:items-end" onSubmit={event => { event.preventDefault(); run(() => call("/api/data-lifecycle/requests", { method: "POST", body: JSON.stringify(dsrBody(dsr)) })); }}>
+      <p className="sm:col-span-2 lg:col-span-3"><span id="dsr-heading" className="block text-lg font-bold">{t.dsr.title}</span><span className="text-sm text-ink-muted">{t.dsr.help}</span></p>
+      <label className="grid gap-1 text-sm font-semibold">{t.dsr.action}<Select value={dsr.action} onChange={event => { const action = event.target.value as DsrAction; setDsr({ ...dsr, action, subject: action === "GUARDIAN_EXPORT" ? "GUARDIAN" : action === "EXPORT" ? "STUDENT" : dsr.subject }); }}>
+        {(Object.keys(t.dsr.actions) as DsrAction[]).map(id => <option key={id} value={id}>{t.dsr.actions[id]}</option>)}</Select></label>
+      <label className="grid gap-1 text-sm font-semibold">{t.dsr.subject}<Select value={dsr.subject} disabled={dsr.action === "EXPORT" || dsr.action === "GUARDIAN_EXPORT"} onChange={event => { const subject = event.target.value as DsrSubject; setDsr({ ...dsr, subject, field: dsrFields[subject][0] }); }}>
+        {(["STUDENT", "GUARDIAN"] as const).map(id => <option key={id} value={id}>{t.dsr.subjects[id]}</option>)}</Select></label>
+      <label className="grid gap-1 text-sm font-semibold">{t.dsr.recordId}<Input required dir="ltr" value={dsr.subjectId} onChange={event => setDsr({ ...dsr, subjectId: event.target.value })} /></label>
+      {dsr.action === "CORRECTION" && <>
+        <label className="grid gap-1 text-sm font-semibold">{t.dsr.field}<Select value={dsr.field} onChange={event => setDsr({ ...dsr, field: event.target.value })}>{dsrFields[dsr.subject].map(id => <option key={id} value={id}>{t.dsr.fields[id]}</option>)}</Select></label>
+        <label className="grid gap-1 text-sm font-semibold">{t.dsr.newValue}<Input value={dsr.value} onChange={event => setDsr({ ...dsr, value: event.target.value })} /></label>
+      </>}
+      <label className="grid gap-1 text-sm font-semibold">{t.reason}<Input required minLength={5} value={dsr.reason} onChange={event => setDsr({ ...dsr, reason: event.target.value })} /></label>
+      <Button type="submit" variant={dsr.action === "SUBJECT_DELETION" ? "destructive" : "default"} disabled={busy}>{t.dsr.submit}</Button>
+    </form>}
+
     {data && (!data.admin || data.learners.length > 0) && <form aria-labelledby="export-heading" className="grid gap-3 rounded-xl border p-4 sm:grid-cols-[1fr_2fr_auto] sm:items-end" onSubmit={event => { event.preventDefault(); run(() => call("/api/data-lifecycle/requests", { method: "POST", body: JSON.stringify({ kind: "EXPORT", ...exportForm }) })); }}>
       <p className="sm:col-span-3"><span id="export-heading" className="block text-lg font-bold">{t.exportTitle}</span><span className="text-sm text-ink-muted">{t.exportHelp}</span></p>
       {data.learners.length ? <label className="grid gap-1 text-sm font-semibold">{t.learner}<Select required value={exportForm.studentId} onChange={event => setExportForm({ ...exportForm, studentId: event.target.value })}><option value="">{t.chooseLearner}</option>{data.learners.map(item => <option key={item.id} value={item.id}>{item.fullName}</option>)}</Select></label>
@@ -204,7 +234,8 @@ export function DataLifecyclePanel({ userId, hideSave = false, command, onDirtyC
             ? <ul role="alert" className="list-inside list-disc text-sm text-status-error-text">{request.plan.blockers.map(item => <li key={item}>{item}</li>)}</ul>
             : <p role="alert" className="text-sm text-status-error-text">{t.blockedBy} {request.plan.items?.filter(item => item.outcome === "unsupported").map(item => t.services[item.service as keyof typeof t.services] ?? item.service).join("، ")}</p>) : null}
           {request.kind === "RETENTION_DELETION" && request.receipt && <p className="text-sm"><bdi dir="ltr">{String(request.receipt.deleted)}</bdi> {t.deleted} · <bdi dir="ltr">{String(request.receipt.held)}</bdi> {t.held}<span className="block text-xs text-ink-muted">{t.backupsNote}: {t.backupsText}</span></p>}
-          {request.kind === "EXPORT" && request.status === "COMPLETED" && request.downloadToken && (expired ? <p className="text-sm text-ink-muted">{t.expired}</p> : <Button type="button" variant="outline" disabled={busy} onClick={() => download(request)}>{t.download}</Button>)}
+          {(request.kind === "CORRECTION" || request.kind === "SUBJECT_DELETION") && request.receipt && <p className="text-sm">{request.receipt.action === "CORRECTED" ? <>{t.dsr.corrected}: {(request.receipt.fields as string[]).map(field => t.dsr.fields[field as keyof typeof t.dsr.fields] ?? field).join(" · ")}</> : request.receipt.action === "REVOKED" ? t.dsr.revoked : t.dsr.archived}</p>}
+          {(request.kind === "EXPORT" || request.kind === "GUARDIAN_EXPORT") && request.status === "COMPLETED" && request.downloadToken && (expired ? <p className="text-sm text-ink-muted">{t.expired}</p> : <Button type="button" variant="outline" disabled={busy} onClick={() => download(request)}>{t.download}</Button>)}
           {data.admin && request.status === "REQUESTED" && (request.requestedBy === userId ? <p className="text-sm text-ink-muted">{t.ownRequest}</p> : <div className="grid gap-2 sm:grid-cols-[2fr_auto_auto] sm:items-end">
             <label className="grid gap-1 text-sm font-semibold">{t.reviewNote}<Input value={notes[request.id] ?? ""} onChange={event => setNotes({ ...notes, [request.id]: event.target.value })} /></label>
             {(["APPROVE", "REJECT"] as const).map(decision => <Button key={decision} type="button" variant={decision === "APPROVE" ? "default" : "outline"} disabled={busy || (notes[request.id] ?? "").trim().length < 3}

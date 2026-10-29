@@ -8,6 +8,8 @@ import {
   requireAuthUser,
 } from "@/lib/api/scope";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +52,7 @@ export async function DELETE(req: NextRequest) {
     // G12: the institution authority (group admin, or the school admin of a single school), school-scoped.
     if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator can open this.", 403);
 
-    const { sessionId } = await req.json();
+    const { sessionId } = await parseBody(req, jsonObjectBody);
     if (!sessionId) throw new ApiError("sessionId required", 400);
 
     // Only a session that belongs to someone in this school.

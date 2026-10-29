@@ -2784,6 +2784,21 @@
   "source": "appendix-a"
  },
  {
+  "key": "family.guardian_consent",
+  "cluster": "C3 Students, admissions and family",
+  "method": "POST",
+  "route": "/api/family/consent",
+  "roles": [
+   "PARENT"
+  ],
+  "risk": "APPROVAL_DECISION",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "family.meeting",
   "cluster": "C3 Students, admissions and family",
   "method": "POST",
@@ -8165,6 +8180,22 @@
   "idempotent": "yes",
   "aiToday": "none",
   "reuse": "wrapper",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "fees.set_fee_cap_policy",
+  "cluster": "C6 Finance, payroll, purchasing and inventory",
+  "method": "PUT",
+  "route": "/api/fees/fee-cap-policy",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "inline-prisma",
   "addedByVerifier": false,
   "source": "appendix-a"
  },

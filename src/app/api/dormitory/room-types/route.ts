@@ -9,6 +9,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const name = String(body.name || "").trim();
     if (!name) throw new ApiError("name is required", 400);
@@ -65,7 +67,7 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const { id, ...updates } = body;
     if (!id) throw new ApiError("id is required", 400);
 

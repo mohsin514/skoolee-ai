@@ -8,6 +8,7 @@ import {
   updateConversation,
   updateMemberPreferences,
 } from "@/lib/chat/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const user = await requireChatUser();
     const { id } = await ctx.params;
 
-    const parsed = patchSchema.safeParse(await req.json());
+    const parsed = patchSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid request", 400);
 
     const { isMuted, isPinned, isArchived, ...settings } = parsed.data;

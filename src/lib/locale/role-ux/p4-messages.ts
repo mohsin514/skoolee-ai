@@ -9,6 +9,31 @@
  * subscription = الاشتراك / سبسکرپشن, two-step sign-in = التحقق بخطوتين / دو مرحلہ سائن اِن.
  */
 const ROWS: ReadonlyArray<readonly [string, string, string]> = [
+  // SKAI-1153: regulator attendance codes on the school dialog and the class register.
+  ["Attendance regulator", "جهة تنظيم الحضور", "حاضری ریگولیٹر"],
+  ["Attendance codes and calendar", "رموز الحضور والتقويم", "حاضری کوڈز اور کیلنڈر"],
+  ["The register shows this regulator's codes and flags its weekend. Existing marks are not changed.", "يعرض السجل رموز هذه الجهة وينبّه إلى عطلتها الأسبوعية. لا تتغير العلامات المسجلة.", "رجسٹر اس ریگولیٹر کے کوڈز دکھاتا ہے اور اس کی ہفتہ وار چھٹی کی نشاندہی کرتا ہے۔ موجودہ اندراجات تبدیل نہیں ہوتے۔"],
+  ["No regulator (school's own codes)", "بلا جهة تنظيمية (رموز المدرسة)", "کوئی ریگولیٹر نہیں (اسکول کے اپنے کوڈز)"],
+  ["KHDA (Dubai)", "هيئة المعرفة والتنمية البشرية (دبي)", "KHDA (دبئی)"],
+  ["ADEK (Abu Dhabi)", "دائرة التعليم والمعرفة (أبوظبي)", "ADEK (ابوظہبی)"],
+  ["SPEA (Sharjah)", "هيئة الشارقة للتعليم الخاص", "SPEA (شارجہ)"],
+  ["MOE (northern emirates)", "وزارة التربية والتعليم (الإمارات الشمالية)", "MOE (شمالی امارات)"],
+  ["Save regulator", "حفظ الجهة التنظيمية", "ریگولیٹر محفوظ کریں"],
+  ["Attendance regulator updated.", "تم تحديث جهة تنظيم الحضور.", "حاضری ریگولیٹر اپ ڈیٹ ہو گیا۔"],
+  ["The attendance regulator could not be changed. Try again.", "تعذّر تغيير جهة تنظيم الحضور. حاول مرة أخرى.", "حاضری ریگولیٹر تبدیل نہیں ہو سکا۔ دوبارہ کوشش کریں۔"],
+  ["Reporting in {0} codes", "التسجيل برموز {0}", "{0} کوڈز میں رپورٹنگ"],
+  ["This day is a weekend in the regulator's calendar.", "هذا اليوم عطلة أسبوعية في تقويم الجهة التنظيمية.", "یہ دن ریگولیٹر کے کیلنڈر میں ہفتہ وار چھٹی ہے۔"],
+  ["This code set is provisional until it is checked against the regulator's guidance.", "مجموعة الرموز هذه مؤقتة إلى أن تُطابق مع إرشادات الجهة التنظيمية.", "یہ کوڈ سیٹ عارضی ہے جب تک اسے ریگولیٹر کی ہدایات سے جانچا نہ جائے۔"],
+  // SKAI-1143: data region on the platform console's school dialog.
+  ["Data region", "منطقة البيانات", "ڈیٹا ریجن"],
+  ["Hosting region", "منطقة الاستضافة", "ہوسٹنگ ریجن"],
+  ["Records where this school's data should live. Saving does not move any data.", "يسجّل المكان الذي يجب أن تُحفظ فيه بيانات هذه المدرسة. الحفظ لا ينقل أي بيانات.", "درج کرتا ہے کہ اس اسکول کا ڈیٹا کہاں رکھا جائے۔ محفوظ کرنے سے کوئی ڈیٹا منتقل نہیں ہوتا۔"],
+  ["Shared region (current)", "المنطقة المشتركة (الحالية)", "مشترکہ ریجن (موجودہ)"],
+  ["United Arab Emirates", "الإمارات العربية المتحدة", "متحدہ عرب امارات"],
+  ["Saudi Arabia", "المملكة العربية السعودية", "سعودی عرب"],
+  ["Save region", "حفظ المنطقة", "ریجن محفوظ کریں"],
+  ["Data region updated.", "تم تحديث منطقة البيانات.", "ڈیٹا ریجن اپ ڈیٹ ہو گیا۔"],
+  ["The data region could not be changed. Try again.", "تعذّر تغيير منطقة البيانات. حاول مرة أخرى.", "ڈیٹا ریجن تبدیل نہیں ہو سکا۔ دوبارہ کوشش کریں۔"],
   ["Ask a school's admin for temporary access. Everything you view or change is logged.", "اطلب وصولًا مؤقتًا من مدير المدرسة. يُسجّل كل ما تعرضه أو تغيّره.", "عارضی رسائی کے لیے اسکول کے منتظم سے درخواست کریں۔ آپ جو کچھ دیکھیں یا تبدیل کریں اس کا ریکارڈ رکھا جاتا ہے۔"],
   ["What you can see", "ما يمكنك الاطلاع عليه", "آپ کیا دیکھ سکتے ہیں"],
   ["Could not open the prepared school request. Open it again from AI Workflows.", "تعذّر فتح طلب المدرسة المُعدّ. افتحه مجددًا من مهام الذكاء الاصطناعي.", "تیار شدہ اسکول درخواست نہیں کھل سکی۔ اسے AI ورک فلوز سے دوبارہ کھولیں۔"],

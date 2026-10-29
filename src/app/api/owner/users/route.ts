@@ -13,6 +13,8 @@ import {
   isValidEmail,
   OWNER_CREATABLE_ROLES,
 } from "@/lib/owner/provisioning";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     const schoolId = String(body.schoolId || "").trim();
     const campusIdRaw = String(body.campusId || "").trim();

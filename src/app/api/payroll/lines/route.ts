@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { getLocalePackage } from "@/lib/locale/store";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // PATCH /api/payroll/lines
 // body (edit): { id, basic?, allowances?, deductions?, bonus? } — DRAFT lines only, net recomputed
@@ -15,7 +17,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "payroll", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);

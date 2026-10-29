@@ -7,6 +7,7 @@ import {
   listConversations,
   requireChatUser,
 } from "@/lib/chat/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireChatUser();
-    const parsed = createSchema.safeParse(await req.json());
+    const parsed = createSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid request", 400);
 
     const conversation =

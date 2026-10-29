@@ -13,6 +13,8 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Chart of Accounts CRUD
 // GET /api/accounts/chart?campusId=        → list (campus-scoped)
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const account = await createChartAccount(user, body);
 
     return Response.json({ success: true, data: account }, { status: 201 });
@@ -63,8 +65,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "accounts", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const account = await prisma.chartOfAccount.findFirst({
       where: { id: body.id, ...campusFence(user) },

@@ -3,13 +3,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { createStripeCustomer, getPriceId, createCheckoutSessionWithTransfer, verifyStripePrice } from "@/lib/stripe/server";
-import { createSafePayOrder } from "@/lib/payments/safepay";
+import { resolvePaymentProvider } from "@/lib/payments/provider";
 import { ANNUAL_DISCOUNT, getPlanLimits, type BillingPeriod } from "@/config/plans";
 import type { PlanDetails } from "@/types";
 import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { COMMERCIAL_CONTRACT, createPlanContract, encodePlanContractMetadata } from "@/config/commercial-contract";
 import { findApprovedPlanChange, markPlanChangeCheckoutStarted, restorePlanChangeApproval } from "@/lib/billing/lifecycle";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser({ allowSuspended: true });
     if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
 
-    const parsed = checkoutSchema.safeParse(await req.json());
+    const parsed = checkoutSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
@@ -146,26 +147,19 @@ export async function POST(req: NextRequest) {
         // §6.2: the provider returns to /billing, which resolves the payer's own Billing & plan view. One query
         // string built with URLSearchParams (the old hub path already carried "?view=billing", so appending
         // "?safepay_status=…" produced a second "?").
-        const result = await createSafePayOrder(
-          {
-            merchantId,
-            apiKey,
-            secretKey,
-            returnUrl: `${appBase}/billing?${new URLSearchParams({ safepay_status: "completed", ref: orderRef })}`,
-            sandbox: process.env.SAFEPAY_PRODUCTION !== "true",
-          },
-          {
-            amount: amountInPaisa,
-            orderRef,
-            description: `SkooleeAI ${planDetail.name} plan (${parsed.data.billingPeriod})`,
-            customerEmail: user.email,
-            customerName: user.fullName,
-            metadata: { schoolId: school.id, plan: parsed.data.plan, billingPeriod: parsed.data.billingPeriod, commercialContract: encodedContract },
-          }
-        );
+        // SafePay receives the same paisa amount as before; the adapter divides minor units by 100.
+        const result = await resolvePaymentProvider("PKR")!.createCheckout({
+          amountMinor: Math.round(amountInPaisa * 100),
+          currency: "PKR",
+          orderRef,
+          description: `SkooleeAI ${planDetail.name} plan (${parsed.data.billingPeriod})`,
+          returnUrl: `${appBase}/billing?${new URLSearchParams({ safepay_status: "completed", ref: orderRef })}`,
+          customer: { email: user.email, name: user.fullName },
+          metadata: { schoolId: school.id, plan: parsed.data.plan, billingPeriod: parsed.data.billingPeriod, commercialContract: encodedContract },
+        });
 
-        if (!result.success || !result.redirectUrl) {
-          throw new ApiError(result.error || "SafePay payment initiation failed", 502);
+        if (!result.ok) {
+          throw new ApiError(result.message || "SafePay payment initiation failed", 502);
         }
 
         return Response.json({ success: true, method: "safepay", url: result.redirectUrl });

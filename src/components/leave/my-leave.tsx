@@ -19,6 +19,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 /**
  * My leave — the member of staff's own leave: balances, the next time off, and request history,
@@ -174,9 +175,9 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) {
+      if (!res.ok || !isApiOk(json)) {
         // A refused request is a form problem the member of staff can fix: it stays in the dialog.
-        setApplyError(json.error ? ui(json.error) : ui("Could not send your leave request. Please try again."));
+        setApplyError(ui(readApiError(json, "Could not send your leave request. Please try again.")));
         return;
       }
       toast.success(ui("Leave request sent for approval."));
@@ -199,7 +200,7 @@ export function MyLeavePanel({ hideApply = false, applyRequest, onApplyState }: 
         body: JSON.stringify({ id }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || ui("Could not withdraw the request. Please try again."));
+      if (!res.ok || !isApiOk(json)) throw new Error(readApiError(json, ui("Could not withdraw the request. Please try again.")));
       toast.success(ui("Leave request withdrawn."));
       await load();
     } catch (error) {

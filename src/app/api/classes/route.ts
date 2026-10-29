@@ -16,6 +16,8 @@ import { authorizeAssignment, updateClassWithTeacherAssignment } from "@/lib/api
 import { effectiveDate, findDuplicateClass, isIdentityConflict, recordTeachingAssignment } from "@/lib/academic/structure";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 /** Fields of a class PATCH that are academic staffing decisions (the principal's job); everything else
  *  (name, section, year, capacity, room, restore) is campus operations (§7.6). */
@@ -89,7 +91,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Classes are set up by your campus admin.", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = classSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
@@ -169,7 +171,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     // Class and subject teachers and the teaching mode are academic staffing — the academic lead's (§2.2 #26:
     // PR O, a campus operator only while the campus has no principal, SA —; §0.3 rule 4). Renaming, re-sectioning,
     // re-yearing or restoring a class is campus operations.

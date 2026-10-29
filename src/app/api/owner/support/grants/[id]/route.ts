@@ -3,6 +3,8 @@ import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { requireSupportGrant, stopSupportGrant, SUPPORT_COOKIE } from "@/lib/owner/support-access";
 import { cookies } from "next/headers";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +28,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const actor = await requirePlatformOwner({ allowSupportAccess: true });
     const { id } = await context.params;
     if ((await cookies()).get(SUPPORT_COOKIE)?.value) await requireSupportGrant(actor, id);
-    const { status, closureEvidence } = await req.json();
+    const { status, closureEvidence } = await parseBody(req, jsonObjectBody);
     if (status !== "closed" || typeof closureEvidence !== "string" || closureEvidence.trim().length < 12) throw new ApiError("Closure evidence is required", 400);
     const incident = await prisma.$transaction(async (tx) => {
       const grant = await tx.supportGrant.findUnique({ where: { id } });

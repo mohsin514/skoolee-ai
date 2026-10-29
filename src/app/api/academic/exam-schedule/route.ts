@@ -7,6 +7,8 @@ import { studentScope } from "@/lib/auth/policy";
 import { ApiError, assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
 import { roomCapacity } from "@/lib/academic/room-capacity";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET  /api/academic/exam-schedule?examId=&campusId=
 // POST /api/academic/exam-schedule { examId, subjectId, date, periodDefinitionId?, roomId? }
@@ -145,7 +147,7 @@ export async function POST(req: NextRequest) {
     }
     await assertPermission(user, "exams", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const examId = String(body.examId ?? "");
     const subjectId = String(body.subjectId ?? "");
     const date = String(body.date ?? "");
@@ -193,7 +195,7 @@ export async function PATCH(req: NextRequest) {
     }
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) return Response.json({ error: "id is required" }, { status: 400 });
 

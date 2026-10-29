@@ -15,6 +15,7 @@ const RULES: Rule[] = [
     match: key => key.startsWith("auth.") || ["account.manage_mfa", "onboarding.self_serve_signup", "governance.reset_user_password", "platform.reset_user_password", "governance.set_active_campus"].includes(key) },
   { category: "webhook", reason: "Provider callbacks are verified machine-to-machine requests, not user actions.",
     match: key => /webhook|safepay_notification|safepay_simulate/.test(key) },
+  { category: "internal", reason: "Guardian consent (SKAI-1157) is the guardian's own legal decision; an assistant must never answer it for them.", match: key => key === "family.guardian_consent", link: "/parent/consent" },
   { category: "cron", reason: "The scheduled notification sweep (SKAI-1128) runs under CRON_SECRET system authority, never as an assistant action.", match: key => key === "system.notification_automation_sweep" },
   { category: "cron", reason: "Scheduled system jobs run on their own schedule under system authority.", match: key => key.startsWith("system.") },
   { category: "candidate-only", reason: "A candidate starts, answers and submits their own exam attempt; secure-browser evidence comes from their device.",
@@ -31,6 +32,8 @@ const RULES: Rule[] = [
     match: key => key === "curriculum.record_pack_evidence" || key === "curriculum.transition_pack" || key === "curriculum.request_pack" },
   { category: "auth", reason: "Connecting the school's own WhatsApp Business Account is a Meta login in the administrator's browser and grants Meta-billed sending; buying managed-sending credit is a payment decision. Both stay with a person.",
     match: key => ["whatsapp.connect_waba", "whatsapp.disconnect_waba", "whatsapp.managed_settings", "whatsapp.managed_provision", "whatsapp.managed_top_up"].includes(key), link: "/admin" },
+  { category: "internal", reason: "The regulator fee cap is a school-wide compliance setting an administrator owns; the AI must never loosen the cap that limits the fees it can set.",
+    match: key => key === "fees.set_fee_cap_policy" },
   { category: "internal", reason: "Unauthenticated public forms are completed by families on the public page, not from a signed-in assistant.",
     match: key => key.startsWith("public.") },
 ];

@@ -22,6 +22,8 @@ import {
   SESSION_DAYS,
   sessionCookieAttributes,
 } from "@/lib/auth/session-cookie";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -32,7 +34,7 @@ export async function PUT(req: NextRequest) {
     // the token being replaced can be closed rather than orphaned.
     const previousToken = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
 
-    const { newPassword } = await req.json();
+    const { newPassword } = await parseBody(req, jsonObjectBody, { preserve: ["newPassword"] });
     if (typeof newPassword !== "string" || newPassword.length < 8) {
       return Response.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }

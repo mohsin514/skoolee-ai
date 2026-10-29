@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ const reviewSchema = z.object({
 export async function POST(request: Request) {
   try {
     const reviewer = await requirePlatformOwner();
-    const parsed = reviewSchema.safeParse(await request.json());
+    const parsed = reviewSchema.safeParse(await readJsonBody(request));
     if (!parsed.success) throw new ApiError("Provide a review decision and reason", 400);
     const input = parsed.data;
     const current = await prisma.subscriptionRequest.findUnique({ where: { id: input.requestId } });

@@ -1,5 +1,10 @@
 /** Static interface copy only. Authored names, comments and identifiers bypass this catalog. */
 const entries: [string, string, string][] = [
+["UAE report-card template", "قالب بطاقة التقرير الإماراتي", "متحدہ عرب امارات کا رپورٹ کارڈ سانچہ"],
+["Prints Arabic Language and Islamic Education as mandatory subjects, with English and Arabic side by side. Applies to report cards generated after you change it.", "يطبع اللغة العربية والتربية الإسلامية كمواد إلزامية، مع الإنجليزية والعربية جنبًا إلى جنب. يسري على بطاقات التقارير المُنشأة بعد التغيير.", "عربی زبان اور اسلامیات کو لازمی مضامین کے طور پر، انگریزی اور عربی ساتھ ساتھ چھاپتا ہے۔ تبدیلی کے بعد تیار ہونے والے رپورٹ کارڈز پر لاگو ہوتا ہے۔"],
+["UAE report-card template turned on", "تم تفعيل قالب بطاقة التقرير الإماراتي", "متحدہ عرب امارات کا رپورٹ کارڈ سانچہ فعال کر دیا گیا"],
+["UAE report-card template turned off", "تم إيقاف قالب بطاقة التقرير الإماراتي", "متحدہ عرب امارات کا رپورٹ کارڈ سانچہ بند کر دیا گیا"],
+["Could not save this setting.", "تعذّر حفظ هذا الإعداد.", "یہ ترتیب محفوظ نہیں ہو سکی۔"],
 ["Payment status", "\u062d\u0627\u0644\u0629 \u0627\u0644\u062f\u0641\u0639", "\u0627\u062f\u0627\u0626\u06cc\u06af\u06cc \u06a9\u06cc \u062d\u0627\u0644\u062a"],
 ["Renewed", "\u062a\u0645 \u0627\u0644\u062a\u062c\u062f\u064a\u062f", "\u062a\u062c\u062f\u06cc\u062f \u0634\u062f\u06c1"],
 ["Stopped", "\u0645\u062a\u0648\u0642\u0641", "\u0631\u0648\u06a9\u0627 \u06af\u06cc\u0627"],

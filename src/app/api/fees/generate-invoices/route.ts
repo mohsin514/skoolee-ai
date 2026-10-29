@@ -121,6 +121,9 @@ export async function POST(req: NextRequest) {
       let discountAmount = 0;
       let taxAmount = 0;
       let lateFeeAmount = 0;
+      // SKAI-1154: the regulator-approved fee printed on the invoice (legacy fee structures only).
+      let approvedFee: number | null = null;
+      let approvedFeeReference: string | null = null;
       // SKO-444: the fee lines this invoice charges, for an approved country package to tax.
       let taxLines: { code: string; name: string; amount: number }[] = [];
 
@@ -184,6 +187,8 @@ export async function POST(req: NextRequest) {
         const discountPct = Object.values(grossDues).reduce((sum, v) => sum + (typeof v === "number" ? v : 0), 0);
 
         monthlyFee = feeStructure.monthlyFee;
+        approvedFee = feeStructure.approvedFee ?? null;
+        approvedFeeReference = feeStructure.approvedFeeReference ?? null;
         subtotal = monthlyFee + oneTimeTotal;
         discountAmount = Math.round(subtotal * Math.min(discountPct, 100) / 100);
 
@@ -236,6 +241,8 @@ export async function POST(req: NextRequest) {
           enrollmentId: invoiceContext.enrollmentId,
           dueDate,
           monthlyFee,
+          approvedFee,
+          approvedFeeReference,
           oneTimeFees: oneTimeTotal,
           subtotal,
           discountAmount,

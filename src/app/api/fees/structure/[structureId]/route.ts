@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -37,6 +38,14 @@ export async function PUT(
       return Response.json({ error: msg || "Validation failed" }, { status: 400 });
     }
 
+
+    // SKAI-1154: the school's opt-in regulator fee cap.
+    const capSchool = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { feeCapMode: true } });
+    const capMode = capSchool?.feeCapMode ?? "OFF";
+    const approvedFee = parsed.data.approvedFee !== undefined ? parsed.data.approvedFee : existing.approvedFee;
+    const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: parsed.data.monthlyFee, approvedFee }), capMode);
+    if (cap.error) return Response.json({ error: cap.error, feeCap: "blocked" }, { status: 422 });
+
     const oneTimeFeesJson = parsed.data.oneTimeFeesJson ? JSON.parse(parsed.data.oneTimeFeesJson) : undefined;
     const discountRulesJson = parsed.data.discountRulesJson ? JSON.parse(parsed.data.discountRulesJson) : undefined;
 
@@ -51,6 +60,8 @@ export async function PUT(
         academicYearId,
         classId: parsed.data.classId,
         monthlyFee: parsed.data.monthlyFee,
+        approvedFee,
+        approvedFeeReference: parsed.data.approvedFeeReference !== undefined ? parsed.data.approvedFeeReference || null : undefined,
         oneTimeFeesJson: oneTimeFeesJson as any,
         installmentType: parsed.data.installmentType ?? undefined,
         discountRulesJson: discountRulesJson as any,
@@ -73,7 +84,7 @@ export async function PUT(
         tableName: "fee_structure",
         recordId: structure.id,
         oldValue: { classId: existing.classId, monthlyFee: existing.monthlyFee, academicYearId: existing.academicYearId },
-        newValue: { action: "update", classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee, academicYearId, invoicesRecomputed: recomputed.updated },
+        newValue: { action: "update", classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee, approvedFee, feeCapMode: capMode, academicYearId, invoicesRecomputed: recomputed.updated },
         userId: user.userId,
       },
     });
@@ -92,6 +103,7 @@ export async function PUT(
       success: true,
       data: structure,
       invoicesRecomputed: recomputed.updated,
+      ...(cap.warning ? { feeCapWarning: cap.warning } : {}),
       message: `Fee structure updated for ${structure.class.name}`,
     });
   } catch (error) {

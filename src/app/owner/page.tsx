@@ -99,6 +99,8 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { SubscriptionRequestReview } from "@/components/owner/SubscriptionRequestReview";
 import { PilotEvidence } from "@/components/owner/PilotEvidence";
+import { DataRegionPanel } from "@/components/owner/DataRegionPanel";
+import { AttendanceRegulatorPanel } from "@/components/owner/AttendanceRegulatorPanel";
 import { PilotReadinessConsole } from "@/components/owner/PilotReadinessConsole";
 import { PilotGoNoGoBoard } from "@/components/owner/PilotGoNoGoBoard";
 import { CurriculumCatalogue } from "@/components/owner/CurriculumCatalogue";
@@ -182,6 +184,10 @@ interface SchoolRow {
   establishedYear: number | null;
   status: string;
   plan: string;
+  /** SKAI-1143: hosting region (src/lib/school/data-region.ts). */
+  dataRegion: string;
+  /** SKAI-1153: regulator attendance codes and calendar (src/lib/attendance/regulator.ts). */
+  attendanceRegulator: string;
   aiCreditsUsed: number;
   aiCreditsLimit: number;
   /** Set when an APP_OWNER switched AI Workflows live: AI may save this school's real records (practice.ts). */
@@ -1271,6 +1277,14 @@ function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats,
           onAiWorkflowsLiveChange={(schoolId, aiWorkflowsLiveAt) => {
             setSchools((rows) => rows.map((row) => row.id === schoolId ? { ...row, aiWorkflowsLiveAt } : row));
             setDetailSchool((row) => row && row.id === schoolId ? { ...row, aiWorkflowsLiveAt } : row);
+          }}
+          onDataRegionChange={(schoolId, dataRegion) => {
+            setSchools((rows) => rows.map((row) => row.id === schoolId ? { ...row, dataRegion } : row));
+            setDetailSchool((row) => row && row.id === schoolId ? { ...row, dataRegion } : row);
+          }}
+          onAttendanceRegulatorChange={(schoolId, attendanceRegulator) => {
+            setSchools((rows) => rows.map((row) => row.id === schoolId ? { ...row, attendanceRegulator } : row));
+            setDetailSchool((row) => row && row.id === schoolId ? { ...row, attendanceRegulator } : row);
           }}
         />
       )}
@@ -2700,6 +2714,8 @@ function SchoolDetailModal({
   onClose,
   onPlanChange,
   onAiWorkflowsLiveChange,
+  onDataRegionChange,
+  onAttendanceRegulatorChange,
   onStatusChange,
 }: {
   school: SchoolRow;
@@ -2707,6 +2723,8 @@ function SchoolDetailModal({
   onClose: () => void;
   onPlanChange: (schoolId: string, newPlan: string) => Promise<void>;
   onAiWorkflowsLiveChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void;
+  onDataRegionChange: (schoolId: string, dataRegion: string) => void;
+  onAttendanceRegulatorChange: (schoolId: string, attendanceRegulator: string) => void;
 }) {
   const t = useUiText();
   const dates = useOwnerDates();
@@ -2815,6 +2833,8 @@ function SchoolDetailModal({
                 </div>
               </div>
               <AiWorkflowsLivePanel school={school} onChange={onAiWorkflowsLiveChange} />
+              <DataRegionPanel schoolId={school.id} value={school.dataRegion} onChange={onDataRegionChange} />
+              <AttendanceRegulatorPanel schoolId={school.id} value={school.attendanceRegulator} onChange={onAttendanceRegulatorChange} />
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
                 <div>
                   <p className="text-xs font-medium text-ink-subtle">{t("Plan")}</p>

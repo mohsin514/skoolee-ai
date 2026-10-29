@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 import { createPlanContract } from "@/config/commercial-contract";
+import { parseDataRegion } from "@/lib/school/data-region";
+import { parseAttendanceRegulator } from "@/lib/attendance/regulator";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(
   _req: NextRequest,
@@ -51,12 +55,12 @@ export async function PATCH(
     const user = await requirePlatformOwner();
 
     const { id } = await params;
-    const body = await req.json();
-    const { plan, status } = body;
+    const body = await parseBody(req, jsonObjectBody);
+    const { plan, status, dataRegion, attendanceRegulator } = body;
 
     const school = await prisma.school.findUnique({
       where: { id },
-      select: { id: true, name: true, status: true, plan: true },
+      select: { id: true, name: true, status: true, plan: true, dataRegion: true, attendanceRegulator: true },
     });
 
     if (!school) throw new ApiError("School not found", 404);
@@ -86,8 +90,20 @@ export async function PATCH(
       if (school.status === "DELETED") updateData.deletedAt = null;
     }
 
+    // SKAI-1143: recording the region moves no data; routing on it comes later.
+    if (dataRegion !== undefined) {
+      try { updateData.dataRegion = parseDataRegion(dataRegion); }
+      catch (error) { throw new ApiError((error as Error).message, 400); }
+    }
+
+    // SKAI-1153: which regulator's attendance codes and calendar the register shows; NONE keeps today's register.
+    if (attendanceRegulator !== undefined) {
+      try { updateData.attendanceRegulator = parseAttendanceRegulator(attendanceRegulator); }
+      catch (error) { throw new ApiError((error as Error).message, 400); }
+    }
+
     if (Object.keys(updateData).length === 0) {
-      throw new ApiError("No valid fields to update (plan or status)", 400);
+      throw new ApiError("No valid fields to update (plan, status, dataRegion or attendanceRegulator)", 400);
     }
 
     await prisma.school.update({
@@ -98,16 +114,18 @@ export async function PATCH(
     const changedFields: string[] = [];
     if (plan && plan !== school.plan) changedFields.push("plan");
     if (status && status !== school.status) changedFields.push("status");
+    if (updateData.dataRegion && updateData.dataRegion !== school.dataRegion) changedFields.push("dataRegion");
+    if (updateData.attendanceRegulator && updateData.attendanceRegulator !== school.attendanceRegulator) changedFields.push("attendanceRegulator");
 
     if (changedFields.length > 0) {
       await logSuperAdminAction({
         userId: user.userId,
-        action: status && status !== school.status ? (status === "SUSPENDED" ? "school_suspended" : "school_activated") : "plan_changed",
+        action: status && status !== school.status ? (status === "SUSPENDED" ? "school_suspended" : "school_activated") : plan && plan !== school.plan ? "plan_changed" : changedFields.includes("dataRegion") ? "data_region_changed" : "attendance_regulator_changed",
         targetType: "school",
         targetId: id,
         targetName: school.name,
-        oldValues: { plan: school.plan, status: school.status },
-        newValues: { plan: plan || school.plan, status: status || school.status },
+        oldValues: { plan: school.plan, status: school.status, dataRegion: school.dataRegion, attendanceRegulator: school.attendanceRegulator },
+        newValues: { plan: plan || school.plan, status: status || school.status, dataRegion: updateData.dataRegion || school.dataRegion, attendanceRegulator: updateData.attendanceRegulator || school.attendanceRegulator },
       }).catch(error => console.error("[owner/schools] audit write failed", error));
     }
 

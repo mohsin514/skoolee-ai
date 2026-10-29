@@ -12,6 +12,7 @@ import {
 } from "./tenant-context";
 import { GLOBAL_MODELS, TENANT_MODELS } from "./tenant-models";
 import { pooledDatabaseUrl } from "./pool-url";
+import { auditTrail } from "./audit-trail";
 
 // ─────────────────────────────────────────────────────────────────
 // Tenant guard
@@ -437,7 +438,10 @@ const prismaClientSingleton = () => {
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     // SKAI-1038: pgbouncer + a small per-instance pool, so serverless instances cannot exhaust the pooler.
     datasourceUrl: pooledDatabaseUrl(process.env.DATABASE_URL),
-  }).$extends(tenantGuard());
+  })
+    .$extends(tenantGuard())
+    // SKAI-1162: one audit row per create/update/delete, written through the guarded client.
+    .$extends(auditTrail());
 };
 
 declare global {
