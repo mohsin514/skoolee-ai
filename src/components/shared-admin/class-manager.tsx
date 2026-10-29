@@ -1171,7 +1171,7 @@ function SectionDetailView({
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <p className="min-w-0 max-w-full truncate text-sm font-bold text-ink-strong">
@@ -1212,7 +1212,7 @@ function SectionDetailView({
                             )}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/card:opacity-100">
+                        <div className="flex shrink-0 items-center gap-1 transition-opacity sm:opacity-0 sm:group-hover/card:opacity-100 sm:group-focus-within/card:opacity-100">
                           {/* Syllabus chip */}
                           <SystemButton variant="ghost"
                             type="button"
