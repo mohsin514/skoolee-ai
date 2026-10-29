@@ -12,7 +12,7 @@ const RULES: Rule[] = [
   { category: "internal", reason: "Knowledge authoring, audience changes and publication require a human review; the assistant cannot publish its own evidence.", match: key => ["knowledge.create", "knowledge.manage"].includes(key), link: "/ai/knowledge" },
   { category: "file-upload", reason: "Knowledge file extraction is user-initiated intake and must be reviewed before publication.", match: key => key === "knowledge.extract", link: "/ai/knowledge" },
   { category: "auth", reason: "Sign-in, sign-up, passwords, MFA and sessions belong to the person, never to an assistant acting for them.",
-    match: key => key.startsWith("auth.") || ["account.manage_mfa", "onboarding.self_serve_signup", "governance.reset_user_password", "platform.reset_user_password"].includes(key) },
+    match: key => key.startsWith("auth.") || ["account.manage_mfa", "onboarding.self_serve_signup", "governance.reset_user_password", "platform.reset_user_password", "governance.set_active_campus"].includes(key) },
   { category: "webhook", reason: "Provider callbacks are verified machine-to-machine requests, not user actions.",
     match: key => /webhook|safepay_notification|safepay_simulate/.test(key) },
   { category: "cron", reason: "The scheduled notification sweep (SKAI-1128) runs under CRON_SECRET system authority, never as an assistant action.", match: key => key === "system.notification_automation_sweep" },
