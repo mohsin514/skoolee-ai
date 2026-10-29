@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertSharedModuleRead, errorResponse, requireAuthUser } from "@/lib/api/scope";
-import { createSafePayOrder } from "@/lib/payments/safepay";
+import { resolvePaymentProvider } from "@/lib/payments/provider";
 import { studentScope } from "@/lib/auth/policy";
 import { ONLINE_PAYMENT_STAFF, onlinePaymentAvailability, paymentReturnPath, publicOrderStatus } from "@/lib/fees/online-payment";
 import { randomUUID } from "node:crypto";
@@ -81,25 +81,17 @@ export async function POST(req: NextRequest) {
     const secretKey = process.env.SAFEPAY_SECRET_KEY;
 
     if (availability.mode === "PROVIDER" && merchantId && apiKey && secretKey) {
-      const result = await createSafePayOrder(
-        {
-          merchantId,
-          apiKey,
-          secretKey,
-          returnUrl: `${appBase}${returnPath}`,
-          sandbox: process.env.SAFEPAY_PRODUCTION !== "true",
-        },
-        {
-          amount: invoice.balanceDue,
-          orderRef,
-          description: `Fee payment — ${invoice.student.fullName}`,
-          customerEmail: user.email,
-          customerName: user.fullName,
-          metadata: { orderRef, kind: "FEE" },
-        }
-      );
+      const result = await resolvePaymentProvider("PKR")!.createCheckout({
+        amountMinor: Math.round(invoice.balanceDue * 100),
+        currency: "PKR",
+        orderRef,
+        description: `Fee payment — ${invoice.student.fullName}`,
+        returnUrl: `${appBase}${returnPath}`,
+        customer: { email: user.email, name: user.fullName },
+        metadata: { orderRef, kind: "FEE" },
+      });
 
-      if (!result.success || !result.redirectUrl) {
+      if (!result.ok) {
         await prisma.$transaction(async (tx) => {
           await tx.onlinePaymentOrder.update({
             where: { id: order.id },
@@ -107,7 +99,7 @@ export async function POST(req: NextRequest) {
           });
           await writeAuditEvent(tx, user, { table: "online_payment_orders", recordId: order.id, action: "UPDATE", campusId: order.campusId, before: { status: order.status }, after: { status: "FAILED" } });
         });
-        throw new ApiError(result.error || "SafePay order creation failed", 502);
+        throw new ApiError(result.message || "SafePay order creation failed", 502);
       }
       return Response.json({ success: true, method: "safepay", url: result.redirectUrl, orderRef, returnPath });
     }
