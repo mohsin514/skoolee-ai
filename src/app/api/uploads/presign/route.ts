@@ -56,13 +56,13 @@ export async function POST(req: NextRequest) {
     const kind = String(body.kind ?? "");
 
     if (kind === "profile") {
-      return presignProfileImage(user, body);
+      return await presignProfileImage(user, body);
     }
     if (kind === "school-logo") {
-      return presignSchoolLogo(user, body);
+      return await presignSchoolLogo(user, body);
     }
     if (kind === "campus-logo") {
-      return presignCampusLogo(user, body);
+      return await presignCampusLogo(user, body);
     }
 
     // Legacy document presign — staff-only, gated by the documents permission.
