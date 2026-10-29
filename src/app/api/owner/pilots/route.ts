@@ -2,6 +2,7 @@ import { errorResponse, ApiError, requirePlatformOwner } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { createPilot, listPilots, PilotError } from "@/lib/pilots/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
@@ -27,7 +28,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const owner = await requirePlatformOwner();
-    const pilot = await createPilot(await request.json().catch(() => null), owner.userId).catch(rethrow);
+    const pilot = await createPilot(await readJsonBody(request), owner.userId).catch(rethrow);
     return Response.json({ success: true, data: pilot }, { status: 201, headers: noStore });
   } catch (error) {
     return errorResponse(error, "[owner/pilots] POST failed");

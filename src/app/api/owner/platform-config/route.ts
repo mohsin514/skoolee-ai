@@ -3,6 +3,8 @@ import { saveDefaultPlanPrices } from "@/lib/owner/default-pricing-service";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { clientIp } from "@/lib/http/client-ip";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,7 @@ export async function PUT(request: Request) {
   try {
     const user = await requirePlatformOwner();
 
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const parsed = defaultPricingSchema.safeParse(body?.pricing);
     if (!parsed.success) throw new ApiError("Provide valid plan prices: each price must be a finite non-negative number", 400);
     const pricing = parsed.data;

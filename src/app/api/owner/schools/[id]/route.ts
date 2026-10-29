@@ -4,6 +4,8 @@ import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
 import { createPlanContract } from "@/config/commercial-contract";
 import { parseDataRegion } from "@/lib/school/data-region";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(
   _req: NextRequest,
@@ -52,7 +54,7 @@ export async function PATCH(
     const user = await requirePlatformOwner();
 
     const { id } = await params;
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { plan, status, dataRegion } = body;
 
     const school = await prisma.school.findUnique({
