@@ -7101,6 +7101,52 @@
   "source": "appendix-a"
  },
  {
+  "key": "whatsapp.managed_provision",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/owner/whatsapp-managed",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "whatsapp.managed_settings",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/whatsapp/managed",
+  "roles": [
+   "SUPER_ADMIN",
+   "ADMIN"
+  ],
+  "risk": "UPDATE",
+  "idempotent": "yes",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
+  "key": "whatsapp.managed_top_up",
+  "cluster": "C5 Attendance, communication and engagement",
+  "method": "POST",
+  "route": "/api/owner/whatsapp-managed",
+  "roles": [
+   "APP_OWNER"
+  ],
+  "risk": "CREATE",
+  "idempotent": "no",
+  "aiToday": "none",
+  "reuse": "direct",
+  "addedByVerifier": false,
+  "source": "appendix-a"
+ },
+ {
   "key": "whatsapp.send_guardian_template",
   "cluster": "C5 Attendance, communication and engagement",
   "method": "POST",

@@ -372,6 +372,8 @@ export const TENANT_MODELS = new Set<string>([
   "visitorLog",
   "weekend",
   "whatsAppConnection",
+  "whatsAppManagedSending",
+  "whatsAppUsageEntry",
   "workflowEffect",
   "workflowEvent",
   "workflowJob",
