@@ -82,6 +82,8 @@ model School {
   timezone             String    @default("Asia/Karachi")
   // SKAI-1143: hosting region for later tenant routing (src/lib/school/data-region.ts). DEFAULT = the shared region.
   dataRegion           String    @default("DEFAULT") @map("data_region")
+  // SKAI-1153: regulator attendance code set and calendar (src/lib/attendance/regulator.ts). NONE = today's behaviour.
+  attendanceRegulator  String    @default("NONE") @map("attendance_regulator")
   plan                 String    @default("FREE") // FREE, BASIC, PRO
   planStartedAt        DateTime? @map("plan_started_at") // first paid activation
   planEndsAt           DateTime? @map("plan_ends_at") // paid-through date; null = no expiry tracked
