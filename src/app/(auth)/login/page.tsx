@@ -18,7 +18,7 @@ import { FieldError } from "@/components/ui/form-field";
 import { InfoTip } from "@/components/ui/tooltip";
 import {
   Loader2, Eye, EyeOff, ArrowRight, Mail, Lock,
-  AlertCircle, CheckCircle2, ChevronLeft,
+  AlertCircle, CheckCircle2, ChevronLeft, Phone,
 } from "lucide-react";
 import Link from "next/link";
 import { dashboardPathForRole, roleLabel } from "@/lib/roles";
@@ -36,6 +36,10 @@ import { stashAuthEmail, takeAuthEmail } from "@/lib/auth/auth-handoff";
 import { fillText } from "@/lib/auth/fill-nodes";
 import type { Language } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
+import { GuardianPhoneSignIn } from "@/components/auth/GuardianPhoneSignIn";
+
+/** SKAI-954: the guardian phone sign-in entry is shown only when the OTP service is switched on. */
+const PHONE_SIGN_IN = process.env.NEXT_PUBLIC_PHONE_OTP_ENABLED === "true";
 
 /**
  * Every login-only string, co-located like protect-account and accept-invite.
@@ -78,6 +82,7 @@ const en = {
   loginFailed: "Login failed",
   schoolFailed: "Could not sign in to that school.",
   resendNeedEmail: "Enter your email above, then send a new link.",
+  phoneSignIn: "Parent or guardian? Sign in with your phone",
   /** Known English messages (zod, verification redirect, /api/auth/login) → localized text. Unknown text passes through. */
   messages: {} as Record<string, string>,
 };
@@ -118,6 +123,7 @@ const copy: Record<Language, LoginCopy> = {
     loginFailed: "تعذر تسجيل الدخول",
     schoolFailed: "تعذر تسجيل الدخول إلى تلك المدرسة.",
     resendNeedEmail: "أدخل بريدك الإلكتروني أعلاه، ثم أرسل رابطاً جديداً.",
+    phoneSignIn: "ولي أمر؟ سجّل الدخول برقم هاتفك",
     messages: {
       "Valid email required": "أدخل بريداً إلكترونياً صالحاً",
       "Password required": "كلمة المرور مطلوبة",
@@ -164,6 +170,7 @@ const copy: Record<Language, LoginCopy> = {
     loginFailed: "سائن اِن نہیں ہو سکا",
     schoolFailed: "اس اسکول میں سائن اِن نہیں ہو سکا۔",
     resendNeedEmail: "اوپر اپنا ای میل درج کریں، پھر نیا لنک بھیجیں۔",
+    phoneSignIn: "والدین یا سرپرست؟ اپنے فون سے سائن اِن کریں",
     messages: {
       "Valid email required": "درست ای میل درج کریں",
       "Password required": "پاس ورڈ درکار ہے",
@@ -270,6 +277,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [choices, setChoices] = useState<SchoolChoice[] | null>(null);
   const [choosing, setChoosing] = useState<string | null>(null);
+  const [phoneMode, setPhoneMode] = useState(false);
   // Seconds left on a 429. The button stays disabled and says so, rather than
   // letting people hammer a request that cannot succeed yet.
   const [cooldown, setCooldown] = useState(0);
@@ -584,7 +592,18 @@ export default function LoginPage() {
           <Alert id="login-resend-status" ref={resendStatusRef} tabIndex={-1} tone="success" title={ac.resend.sent} className="mb-5" />
         )}
 
-        {choices ? (
+        {phoneMode ? (
+          <GuardianPhoneSignIn
+            language={language}
+            rememberMe={remember}
+            extraBody={signInLanguage}
+            onSignedIn={async (json) => {
+              if (json.success === true && !json.mfaRequired) clearExplicit();
+              await landAfterLogin((json.mfaRequired ? { ...(json.user as object), mfaRequired: true } : json.user) as LoginUser);
+            }}
+            onBack={() => setPhoneMode(false)}
+          />
+        ) : choices ? (
           <div className="space-y-2.5">
             {choices.map((c, i) => {
               const busy = choosing === c.schoolId;
@@ -782,6 +801,12 @@ export default function LoginPage() {
                 </span>
               </Button>
             </form>
+
+            {PHONE_SIGN_IN && (
+              <Button type="button" variant="outline" onClick={() => { setFormError(null); setPhoneMode(true); }} className="mt-4 w-full">
+                <Phone aria-hidden="true" className="h-4 w-4" /> {t.phoneSignIn}
+              </Button>
+            )}
 
             <div className="mt-6 border-t border-border-subtle pt-5">
               <p className="text-center text-sm leading-relaxed text-ink-muted">

@@ -173,6 +173,12 @@ _Verifier: Nearly complete. I checked 42 route.ts files (the 11 listed dirs plus
 | `auth.resend_verification` | `POST /api/auth/verify/resend` | unauthenticated | COMMUNICATION | none | no | none | inline-prisma | Uniform response; work runs in after(). |
 | `auth.acknowledge_welcome` | `POST /api/auth/welcome` | any signed-in user | UPDATE | none | yes | none | inline-prisma | CAS on welcomeCompletedAt=null and mustChangePassword=false. |
 | `auth.mfa_challenge` | `POST /api/auth/mfa` | user mid-sign-in holding a ticket | ACCESS_GRANT | none | no | none | wrapper | Credential flow; never automate. |
+| `auth.otp_request` | `POST /api/auth/otp/request` | anonymous guardian (phone) | ACCESS_GRANT | none | no | none | wrapper | SKAI-954 phone sign-in step 1; rate-limited per phone/IP; credential flow, never automate. |
+| `auth.otp_status` | `POST /api/auth/otp/status` | browser holding the OTP flow cookie | READ | none | yes | none | wrapper | SKAI-954 delivery status poll for the WhatsApp→SMS fallback. |
+| `auth.otp_fallback` | `POST /api/auth/otp/fallback` | browser holding the OTP flow cookie | ACCESS_GRANT | none | no | none | wrapper | SKAI-954 one SMS fallback after 30 s or not-on-WhatsApp. |
+| `auth.otp_verify` | `POST /api/auth/otp/verify` | browser holding the OTP flow cookie | ACCESS_GRANT | none | no | none | wrapper | SKAI-954 issues a guardian session; single-use compare-and-set. |
+| `auth.otp_whatsapp_status` | `POST /api/auth/otp/whatsapp-status` |  | COMMUNICATION | none | yes | none | wrapper | System webhook (Meta HMAC); OTP delivery receipts only. Never an AI capability. |
+| `auth.otp_sms_status` | `POST /api/auth/otp/sms-status` |  | COMMUNICATION | none | yes | none | wrapper | System webhook (Twilio signature); OTP delivery receipts only. Never an AI capability. |
 | `auth.logout` | `POST /api/auth/logout` | any signed-in user | UPDATE | none | yes | none | wrapper | Not an AI action. |
 | `auth.record_tour_progress` | `POST /api/auth/tour` | any signed-in user | UPDATE | none | yes | none | inline-prisma | Compare-and-swap loop, max 4 attempts. |
 | `auth.sso_callback` | `POST /api/auth/sso/callback` | unauthenticated (linked provider subject) | ACCESS_GRANT | none | no | none | wrapper | Credential flow; never automate. |
