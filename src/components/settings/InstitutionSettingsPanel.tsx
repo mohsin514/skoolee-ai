@@ -49,6 +49,7 @@ import {
 } from "@/app/actions/settings";
 import { resolveMediaUrl } from "@/lib/storage/s3";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { phoneProblem } from "@/lib/school/details";
 
 /** Offered zones. Anything already stored is added so it is never silently lost. */
 const TIMEZONES = [
@@ -541,8 +542,9 @@ function CampusDialog({
     !form.name.trim() ? "Enter the campus name."
     : !form.city.trim() ? "Enter the city."
     : form.email && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) ? "Enter a valid email address."
-    : form.phone && form.phone.trim() && form.phone.replace(/\D/g, '').length < 7 ? "Phone number is too short to be valid."
-    : form.phone && form.phone.trim() && form.phone.replace(/\D/g, '').length > 15 ? "Phone number is too long to be valid."
+    : phoneProblem(form.phone) === "format" ? "Use only digits, spaces, dashes, brackets and a leading +."
+    : phoneProblem(form.phone) === "short" ? "Phone number is too short to be valid."
+    : phoneProblem(form.phone) === "long" ? "Phone number is too long to be valid."
     : null;
 
   const [reviewing, setReviewing] = useState(false);

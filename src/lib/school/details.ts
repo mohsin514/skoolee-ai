@@ -9,6 +9,24 @@
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * SKAI-934: a phone number may carry an optional leading "+" and the usual separators (spaces, dashes, dots,
+ * brackets), and nothing else, with 7 to 15 digits (E.164). Accepts local and international PK/SA/AE forms
+ * such as "0300 1234567", "+92 300 1234567", "+966 50 123 4567" and "+971 (4) 123-4567".
+ */
+const PHONE_CHARACTERS = /^\+?[\d\s().-]+$/;
+export type PhoneProblem = "format" | "short" | "long";
+export function phoneProblem(value: string | null | undefined): PhoneProblem | null {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return null;
+  if (!PHONE_CHARACTERS.test(trimmed)) return "format";
+  const digits = trimmed.replace(/\D/g, "").length;
+  if (digits < 7) return "short";
+  if (digits > 15) return "long";
+  return null;
+}
+export const isValidPhone = (value: string | null | undefined) => phoneProblem(value) === null;
+
 /** Roughly 1.5 MB of base64, matching what the upload controls accept. */
 const MAX_LOGO_CHARS = 2_000_000;
 
@@ -32,11 +50,10 @@ export function assertEmail(value: string | null, field: string) {
 }
 
 export function assertPhone(value: string | null, field: string) {
-  if (value) {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length < 7) throw new Error(`${field} is too short to be valid.`);
-    if (digits.length > 15) throw new Error(`${field} is too long to be valid.`);
-  }
+  const problem = phoneProblem(value);
+  if (problem === "format") throw new Error(`${field} can contain only digits, spaces, dashes, brackets and a leading +.`);
+  if (problem === "short") throw new Error(`${field} is too short to be valid.`);
+  if (problem === "long") throw new Error(`${field} is too long to be valid.`);
   return value;
 }
 

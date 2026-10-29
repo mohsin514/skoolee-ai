@@ -129,3 +129,19 @@ test("website validation covers institution, campus and final review without req
     for (const lang of ["en", "ar", "ur"] as const) assert.ok(onboardingCopy(lang).errors["website.invalid"]);
   }
 });
+
+test("SKAI-934: campus phone rejects letters and accepts PK/SA/AE formats on client and server", async () => {
+  const { assertPhone, isValidPhone, phoneProblem } = await import("@/lib/school/details");
+  for (const ok of ["0300 1234567", "+92 300 1234567", "+92-300-1234567", "+966 50 123 4567", "+971 (4) 123-4567", "050.123.4567"]) {
+    assert.equal(isValidPhone(ok), true, ok);
+    assert.equal(assertPhone(ok, "Phone number"), ok);
+  }
+  assert.equal(phoneProblem("abc1234567"), "format");
+  assert.equal(phoneProblem("0300-ABC-4567"), "format");
+  assert.equal(phoneProblem("92+3001234567"), "format");
+  assert.equal(phoneProblem("123"), "short");
+  assert.equal(phoneProblem("+1234567890123456"), "long");
+  assert.throws(() => assertPhone("phone 0300", "Phone number"), /only digits/);
+  const row = parseSetupDraft({ campuses: [campus("a", "BR-A", { phone: "0300-call-me", email: "office@school" })] }).campuses[0];
+  assert.deepEqual(validateCampusDraft(row), { campusEmail: "email.invalid", campusPhone: "phone.invalid" });
+});
