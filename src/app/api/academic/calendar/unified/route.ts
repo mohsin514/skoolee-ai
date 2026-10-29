@@ -50,7 +50,8 @@ export async function GET(req: NextRequest) {
         orderBy: { academicYear: "desc" },
       }),
       prisma.holiday.findMany({
-        where: { campusId, fromDate: { gte: new Date(`${year}-01-01`) }, toDate: { lte: new Date(`${year}-12-31`) } },
+        // Holidays that cross New Year still show in both years.
+        where: { campusId, fromDate: { lte: new Date(`${year}-12-31`) }, toDate: { gte: new Date(`${year}-01-01`) } },
         orderBy: { fromDate: "asc" },
       }),
       prisma.examSchedule.findMany({
