@@ -50,7 +50,25 @@ export default function ExpansionTriggersPage() {
               <Badge size="sm" variant={trigger.met ? "success" : "warning"}>{trigger.met ? t.met : t.notMet}</Badge>
             </div>
           </div>
-          <Table>
+          {/* SKAI-1172: on a phone each condition stacks as a card, so nothing scrolls sideways at 360px. */}
+          <ul className="flex flex-col gap-3 sm:hidden">
+            {trigger.conditions.map((c) => (
+              <li key={c.id} className="rounded-(--radius-table) border border-border-subtle bg-white p-4" data-testid="trigger-condition-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="break-words font-semibold" dir="ltr">{c.metric}</div>
+                    <div className="break-words text-xs text-ink-muted"><bdi dir="ltr">{c.source}</bdi></div>
+                  </div>
+                  <span className="shrink-0 whitespace-nowrap"><Badge size="sm" variant={c.met ? "success" : "neutral"}>{c.met ? t.met : t.notMet}</Badge></span>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div><dt className="text-xs text-ink-muted">{t.threshold}</dt><dd>{c.threshold === true ? t.yes : <bdi dir="ltr">≥ {c.threshold}</bdi>}</dd></div>
+                  <div><dt className="text-xs text-ink-muted">{t.value}</dt><dd>{show(c.value)}</dd></div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <Table containerClassName="hidden sm:block">
             <TableHeader><TableRow><TableHead>{t.metric}</TableHead><TableHead>{t.threshold}</TableHead><TableHead>{t.value}</TableHead><TableHead>{t.state}</TableHead></TableRow></TableHeader>
             <TableBody>
               {trigger.conditions.map((c) => (
