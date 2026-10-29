@@ -30,9 +30,15 @@ export interface ReadinessFacts {
   openingBalances: number;
   imports: ImportFacts;
   rehearsal: Partial<Record<RehearsalStep, string>>;
+  /** Per-campus setup (SKAI-154): a school-wide count can pass while a second campus has nothing to run. */
+  campusBreakdown?: CampusFacts[];
 }
 
-export type CheckId = "campus" | "locale" | "academic" | "staff" | "roster" | "imports" | "guardians" | "fees" | "rehearsal";
+export interface CampusFacts { id: string; name: string; classes: number; students: number }
+/** A campus is ready to run when it has at least one class and at least one pupil on the roll. */
+export const campusReady = (campus: CampusFacts) => campus.classes >= 1 && campus.students >= 1;
+
+export type CheckId = "campus" | "locale" | "academic" | "staff" | "roster" | "campusCoverage" | "imports" | "guardians" | "fees" | "rehearsal";
 /**
  * Where a check is fixed for the viewer. `delegated`: campus-level work the group admin hands to campus admins (the
  * link opens Campuses). `handledElsewhere`: someone else fixes it in their console and the viewer has no screen for it,
@@ -54,6 +60,7 @@ const OPERATOR_HREF: Partial<Record<CheckId, string>> = {
   academic: "/admin?view=academic-hub",
   staff: "/admin?view=teachers",
   roster: "/admin?view=students",
+  campusCoverage: "/admin?view=academic-hub",
   imports: "/admin?view=students",
   guardians: "/admin?view=guardians",
   fees: "/admin?view=fees",
@@ -63,6 +70,7 @@ const PRINCIPAL_HREF: Partial<Record<CheckId, string>> = {
   academic: "/principal?view=classes",
   staff: "/principal?view=teachers",
   roster: "/principal?view=students",
+  campusCoverage: "/principal?view=classes",
 };
 
 /**
@@ -98,6 +106,8 @@ export function checkHref(id: CheckId, viewer: CheckViewer | string): CheckTarge
 export function evaluateReadiness(facts: ReadinessFacts, viewer: CheckViewer | string = { role: "ADMIN" }) {
   const full = facts.adoptionMode === "FULL_OPERATIONS";
   const rehearsed = REHEARSAL_STEPS.filter(step => !!facts.rehearsal[step]).length;
+  const breakdown = facts.campusBreakdown ?? [];
+  const campusesWaiting = breakdown.filter(campus => !campusReady(campus)).length;
   const checks: ReadinessCheck[] = [
     { id: "campus", required: true, passed: facts.campuses >= 1, evidence: { campuses: facts.campuses }, href: "" },
     { id: "locale", required: true, passed: facts.localeConfirmed, evidence: { confirmed: facts.localeConfirmed }, href: "" },
@@ -105,6 +115,8 @@ export function evaluateReadiness(facts: ReadinessFacts, viewer: CheckViewer | s
     // Exam Studio needs someone to run the first class; full operations needs classes owned by teachers.
     { id: "staff", required: true, passed: full ? facts.classesWithTeacher >= 1 : facts.teachers >= 1, evidence: { teachers: facts.teachers, classesWithTeacher: facts.classesWithTeacher }, href: "" },
     { id: "roster", required: true, passed: facts.students >= 1, evidence: { students: facts.students }, href: "" },
+    // Full operations runs every campus, so each needs a class and pupils; Exam Studio may start on one campus.
+    { id: "campusCoverage", required: full, passed: campusesWaiting === 0, evidence: { campusesReady: breakdown.length - campusesWaiting, campusesTotal: breakdown.length }, href: "" },
     { id: "imports", required: true, passed: facts.imports.pendingBatches === 0, evidence: { pendingBatches: facts.imports.pendingBatches, rejectedRows: facts.imports.rejectedRows, unresolvedRows: facts.imports.unresolvedRows, unknownClassRows: facts.imports.unknownClassRows }, href: "" },
     { id: "guardians", required: full, passed: facts.studentsWithoutGuardian === 0 && facts.guardianReviewRequired === 0, evidence: { studentsWithoutGuardian: facts.studentsWithoutGuardian, reviewRequired: facts.guardianReviewRequired }, href: "" },
     { id: "fees", required: full, passed: facts.feeStructures >= 1, evidence: { feeStructures: facts.feeStructures, openingBalances: facts.openingBalances }, href: "" },
@@ -113,7 +125,7 @@ export function evaluateReadiness(facts: ReadinessFacts, viewer: CheckViewer | s
   // Every href comes from checkHref for this viewer; the list above never hard-codes a console.
   for (const check of checks) Object.assign(check, checkHref(check.id, viewer));
   const blocking = checks.filter(check => check.required && !check.passed);
-  return { checks, ready: blocking.length === 0, nextRequired: blocking[0]?.id ?? null };
+  return { checks, ready: blocking.length === 0, nextRequired: blocking[0]?.id ?? null, campuses: breakdown.map(campus => ({ ...campus, ready: campusReady(campus) })) };
 }
 
 /** "classId: Class is outside the selected campus or does not exist" is how roster staging rejects unknown classes. */

@@ -39,15 +39,16 @@ type Batch = { id: string; kind: string; state: string; sourceName: string; tota
 type LeadView = {
   lead: true; readiness: { status: "SETUP" | "READY"; version: number; approvedAt: string | null; rehearsal: Record<string, string> };
   facts: { adoptionMode: "EXAM_STUDIO" | "FULL_OPERATIONS"; students: number; studentsWithoutGuardian: number; openingBalances: number; imports: { batches: Batch[] } };
-  checks: Check[]; ready: boolean; nextRequired: string | null; tasks: Task[]; staff: Array<{ id: string; fullName: string; role: string }>;
+  checks: Check[]; ready: boolean; campuses: CampusStatus[]; nextRequired: string | null; tasks: Task[]; staff: Array<{ id: string; fullName: string; role: string }>;
   locale: { country: string; timezone: string; currency: string };
   aiSetup?: boolean;
 };
+type CampusStatus = { id: string; name: string; classes: number; students: number; ready: boolean };
 type StaffView = { lead: false; tasks: Task[] };
 type Preview = { step: "attendance" | "assessment" | "family"; className: string; campusName: string; timezone: string; currency: string; learners: Array<{ name: string; status: string }>; subjects: string[] };
 const STEPS = ["attendance", "assessment", "family"] as const;
 const PHASES: { key: "foundation" | "people" | "money" | "rehearse"; icon: LucideIcon; checks: string[] }[] = [
-  { key: "foundation", icon: Building2, checks: ["campus", "locale", "academic"] },
+  { key: "foundation", icon: Building2, checks: ["campus", "locale", "academic", "campusCoverage"] },
   { key: "people", icon: Users, checks: ["staff", "roster", "guardians"] },
   { key: "money", icon: Coins, checks: ["fees", "imports"] },
   { key: "rehearse", icon: FlaskConical, checks: ["rehearsal"] },
@@ -94,6 +95,25 @@ export function ReadinessHome() {
   const handoff = (check: Check) => check.delegated || check.handledElsewhere ? (
     <p className="flex items-start gap-1.5 text-xs font-semibold text-status-info-text"><Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />{check.delegated ? l.delegated : l.handledElsewhere}</p>
   ) : null;
+
+  /** Each campus with what it has, so a group sees which campus still blocks go-live (SKAI-154). */
+  const campusList = (campuses: CampusStatus[]) => (
+    <div className="space-y-1.5 pt-1">
+      <p className="text-xs font-semibold text-ink-strong">{t.campusesTitle}</p>
+      <p className="text-xs text-ink-muted">{t.campusesHelp}</p>
+      <ul className="grid gap-1.5 sm:grid-cols-2" aria-label={t.campusesTitle}>
+        {campuses.map(campus => (
+          <li key={campus.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-surface-subtle px-3 py-2" data-campus-ready={campus.ready || undefined}>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-ink-strong">{campus.name}</span>
+              <span className="text-xs text-ink-muted"><bdi dir="ltr">{campus.classes}</bdi> {t.campusClasses} · <bdi dir="ltr">{campus.students}</bdi> {t.campusPupils}</span>
+            </span>
+            <span className="sk-choice-tag" data-tone={campus.ready ? undefined : "info"}>{campus.ready ? t.campusReadyTag : t.campusWaitingTag}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
   const taskRow = (task: Task, lead: boolean) => (
     <li key={task.id} className="sk-launch-task" data-status={task.status}>
@@ -224,6 +244,7 @@ export function ReadinessHome() {
                             <span key={key} className="sk-launch-chip"><bdi dir="ltr" className="font-bold">{typeof value === "boolean" ? (value ? t.yes : t.no) : value}</bdi> {t.evidence[key as keyof typeof t.evidence] ?? key}</span>
                           ))}
                         </p>
+                        {check.id === "campusCoverage" && lead.campuses.length ? campusList(lead.campuses) : null}
                         {!check.passed ? handoff(check) : null}
                       </div>
                       <div className="sk-launch-check-action">

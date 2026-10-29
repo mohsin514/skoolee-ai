@@ -27,9 +27,10 @@ export async function isReadinessLead(tx: TxClient, user: AuthUser): Promise<boo
 
 async function gatherFacts(tx: TxClient, schoolId: string, rehearsal: ReadinessFacts["rehearsal"]): Promise<ReadinessFacts> {
   const school = { schoolId };
-  const [setup, campuses, localePolicy, activeCycles, classes, classesWithTeacher, teachers, students, withGuardian, reviewRequired, feeStructures, openingBalances, batches] = await Promise.all([
+  const [setup, campusRows, localePolicy, activeCycles, classes, classesWithTeacher, teachers, students, withGuardian, reviewRequired, feeStructures, openingBalances, batches] = await Promise.all([
     tx.institutionSetup.findUnique({ where: school, select: { adoptionMode: true, institutionType: true } }),
-    tx.campus.count({ where: school }),
+    // Every count stays scoped to this school; the per-campus counts reuse the same filters as the school-wide ones.
+    tx.campus.findMany({ where: { ...school, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, _count: { select: { classes: { where: { archivedAt: null } }, students: { where: { archivedAt: null } } } } } }),
     tx.localePolicy.count({ where: { ...school, campusId: null, status: "ACTIVE" } }),
     tx.academicCycle.count({ where: { ...school, status: "ACTIVE" } }),
     tx.class.count({ where: { ...school, archivedAt: null } }),
@@ -52,7 +53,10 @@ async function gatherFacts(tx: TxClient, schoolId: string, rehearsal: ReadinessF
     if (batch.state === "STAGED" || batch.state === "PARTIAL") imports.pendingBatches += 1;
     imports.rejectedRows += item.rejected; imports.unresolvedRows += item.unresolved; imports.unknownClassRows += unknownClass;
   }
+  const campuses = campusRows.length;
+  const campusBreakdown = campusRows.map(campus => ({ id: campus.id, name: campus.name, classes: campus._count.classes, students: campus._count.students }));
   return {
+    campusBreakdown,
     adoptionMode: (setup?.adoptionMode as AdoptionMode | null) ?? "FULL_OPERATIONS",
     institutionType: (setup?.institutionType as ReadinessFacts["institutionType"] | undefined) ?? "STANDALONE",
     campuses, localeConfirmed: localePolicy > 0, activeCycles, classes, classesWithTeacher, teachers, students,
