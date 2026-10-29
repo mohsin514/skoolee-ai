@@ -51,8 +51,18 @@ export function summarizeFieldErrors(fieldErrors: Record<string, string[]>): str
   return parts.join(" · ") || "Please check the highlighted fields";
 }
 
+/**
+ * Options for reading a body.
+ *
+ * `preserve` names top-level keys whose string values must reach the handler
+ * exactly as sent. `sanitizeDeep` trims and normalises whitespace, which is
+ * right for names and notes but would silently change a password — and lock
+ * out anyone whose password has a leading space or an unusual character.
+ */
+export type ReadBodyOptions = { preserve?: readonly string[] };
+
 /** Reads and sanitises a JSON body without yet validating its shape. */
-export async function readJsonBody(req: NextRequest | Request): Promise<unknown> {
+export async function readJsonBody(req: NextRequest | Request, options: ReadBodyOptions = {}): Promise<unknown> {
   const declared = req.headers.get("content-length");
   if (declared && Number(declared) > MAX_BODY_BYTES) {
     throw new ApiError("That request is too large to process", 413);
@@ -68,7 +78,15 @@ export async function readJsonBody(req: NextRequest | Request): Promise<unknown>
     throw new ApiError("Request body must be valid JSON", 400);
   }
 
-  return sanitizeDeep(raw);
+  const sanitized = sanitizeDeep(raw);
+  const { preserve = [] } = options;
+  if (preserve.length && raw && typeof raw === "object" && !Array.isArray(raw) && sanitized && typeof sanitized === "object") {
+    for (const key of preserve) {
+      const value = (raw as Record<string, unknown>)[key];
+      if (typeof value === "string") (sanitized as Record<string, unknown>)[key] = value;
+    }
+  }
+  return sanitized;
 }
 
 /**
@@ -77,9 +95,10 @@ export async function readJsonBody(req: NextRequest | Request): Promise<unknown>
  */
 export async function parseBody<S extends z.ZodType>(
   req: NextRequest | Request,
-  schema: S
+  schema: S,
+  options: ReadBodyOptions = {}
 ): Promise<z.output<S>> {
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, options);
   return parseWith(schema, body);
 }
 
