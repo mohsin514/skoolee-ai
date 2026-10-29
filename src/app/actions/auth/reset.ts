@@ -8,6 +8,7 @@ import { authRateLimit } from "@/lib/auth/rate-limit";
 import { headers } from "next/headers";
 import { runUnscoped } from "@/lib/db/tenant-context";
 import { clientIp } from "@/lib/http/client-ip";
+import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
 
 async function limit(kind: string, key = "") {
   const ip = clientIp(await headers());
@@ -22,10 +23,11 @@ export async function requestPasswordReset(email: string) {
   // Same response for unknown, inactive, throttled and delivery-failure cases.
   if (!await limit("reset", normalized) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) return { success: true };
   after(() => runUnscoped("password reset request before sign-in", async () => {
-    const users = await prisma.user.findMany({ where: { email: normalized, isActive: true }, select: { id: true, schoolId: true, preferredLanguage: true } });
+    const users = await prisma.user.findMany({ where: { email: normalized, isActive: true, school: { status: { not: "DELETED" } } }, select: { id: true, schoolId: true, preferredLanguage: true } });
     for (const user of users) {
       const token = randomBytes(32).toString("base64url");
       await prisma.passwordReset.create({ data: { email: normalized, userId: user.id, token: digest(token), expiresAt: new Date(Date.now() + 3600_000) } });
+      await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.requested" } } });
       try { await sendPasswordResetEmail(normalized, token, user.preferredLanguage); }
       catch {
         await prisma.passwordReset.deleteMany({ where: { token: digest(token) } });
@@ -35,16 +37,18 @@ export async function requestPasswordReset(email: string) {
   }).catch(() => { console.warn("[password-reset] delivery task failed"); }));
   return { success: true };
 }
-export async function verifyToken(token: string) {
+export async function verifyToken(token: string): Promise<{ valid: boolean; limited?: true }> {
   return runUnscoped("verify exact password reset token", async () => {
-    if (!await limit("reset-verify", token)) return { valid: false };
+    // Throttled is not "expired": the page offers a retry instead of sending the user for a new link.
+    if (!await limit("reset-verify", token)) return { valid: false, limited: true };
     const request = await prisma.passwordReset.findUnique({ where: { token: digest(token) } });
     return { valid: Boolean(request?.userId && request.expiresAt > new Date()) };
   });
 }
 export async function resetPassword(token: string, newPassword: string): Promise<ResetResult> {
   // Errors are returned, not thrown: production builds hide thrown server-action messages.
-  if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 72) return { success: false, error: "Use a password between 8 and 72 characters" };
+  const problem = resetPasswordProblem(newPassword);
+  if (problem) return { success: false, error: problem };
   if (!await limit("reset-accept", token)) return { success: false, error: "Wait five minutes before trying again" };
   const expired = { success: false, error: "Invalid or expired link. Request a new link." } as const;
   return runUnscoped("redeem single-use password reset token", async (): Promise<ResetResult> => {
@@ -60,7 +64,8 @@ export async function resetPassword(token: string, newPassword: string): Promise
       await tx.passwordReset.deleteMany({ where: { userId: user.id } });
       await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.completed", sessionsRevoked: true } } });
       return true;
-    });
+      // SKAI-85: five writes against a remote pool overran Prisma's 5 s default and lost the reset.
+    }, { maxWait: 10_000, timeout: 20_000 });
     return claimed ? { success: true } : expired;
   });
 }
