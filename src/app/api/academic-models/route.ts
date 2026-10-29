@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertModuleRead, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { assertAcademicModelDraftAccess, createAcademicModelDraft } from "@/lib/academic/model-draft-command";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthUser();
     await assertAcademicModelDraftAccess(user);
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const result = await createAcademicModelDraft(user, body);
     if (!result.ok) return Response.json({ error: result.fieldErrors, message: "Review the configuration fields" }, { status: 400 });
     return Response.json({ success: true, model: result.model }, { status: 201 });
