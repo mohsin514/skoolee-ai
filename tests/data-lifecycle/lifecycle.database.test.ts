@@ -28,7 +28,7 @@ async function fixture() {
     await db.user.create({ data: { id: userId, email, password: "x", fullName: `Synthetic ${role}`, role, schoolId, campusId: campus, isActive: true, onboardingComplete: true, isInstitutionOwner: !!extra.isInstitutionOwner } });
     return { userId, email, role, schoolId, campusId: campus, accessVersion: 0, ...extra };
   };
-  const owner = await person("SUPER_ADMIN", { isInstitutionOwner: true }, null), secondAdmin = await person("SUPER_ADMIN", {}, null);
+  const owner = await person("SUPER_ADMIN", { isInstitutionOwner: true }, null), secondAdmin = await person("SUPER_ADMIN", { institutionKind: "GROUP" }, null);
   const campusAdmin = await person("CAMPUS_ADMIN"), parent = await person("PARENT"), teacher = await person("TEACHER");
   const pupil = async (name: string) => { const id = randomUUID(); await db.student.create({ data: { id, schoolId, campusId, classId, fullName: name, rollNo: id.slice(0, 6), gender: "FEMALE", enrollmentDate: new Date("2026-09-01Z") } }); return id; };
   const child = await pupil("Synthetic child"), sibling = await pupil("Synthetic other learner");
