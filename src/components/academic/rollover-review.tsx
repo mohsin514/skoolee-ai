@@ -76,6 +76,7 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
   const ui = useUiText();
   const operate = mode === "operate";
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [approvalError, setApprovalError] = useState("");
   const { money, dateTime } = useLocaleFormat();
   const scope = campusId ? `campusId=${encodeURIComponent(campusId)}&` : "";
   const [year, setYear] = useState<number | null>(null), [view, setView] = useState<View | null>(null), [error, setError] = useState("");
@@ -98,14 +99,25 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
 
   const post = async (label: string, body: object, success?: string) => {
     setBusy(label);
+    if (label === "approve") setApprovalError("");
     try {
       const response = await fetch("/api/academic/rollover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campusId, ...body }) });
       const json = await response.json().catch(() => ({}));
-      if (!response.ok || !json.success) { toast.error(ui(json.error || "The change was not saved.")); await load(); return null; }
+      if (!response.ok || !json.success) {
+        const message = ui(json.error || "The change was not saved.");
+        if (label === "approve") setApprovalError(message);
+        else { toast.error(message); await load(); }
+        return null;
+      }
       if (success) toast.success(success);
       await load();
       return json.data;
-    } catch { toast.error(ui("The connection failed. Nothing was applied twice; reload and try again.")); return null; }
+    } catch {
+      const message = ui("The connection failed. Nothing was applied twice; reload and try again.");
+      if (label === "approve") setApprovalError(message);
+      else toast.error(message);
+      return null;
+    }
     finally { setBusy(""); }
   };
 
@@ -294,8 +306,9 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
       cancelLabel={ui("Keep editing")}
       tone="warning"
       busy={busy === "approve"}
-      onCancel={() => setConfirmApprove(false)}
-      onConfirm={async () => { await post("approve", { action: "approve", planId: plan.id, version: plan.version }, ui("Version {0} approved.", [plan.version])); setConfirmApprove(false); }}
+      detail={approvalError ? <p role="alert">{approvalError}</p> : undefined}
+      onCancel={() => { setConfirmApprove(false); setApprovalError(""); }}
+      onConfirm={async () => { if (await post("approve", { action: "approve", planId: plan.id, version: plan.version }, ui("Version {0} approved.", [plan.version]))) setConfirmApprove(false); }}
     /> : null}
   </section>;
 }

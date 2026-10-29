@@ -74,7 +74,7 @@ const en = {
   currentPackage: "Current package",
   covers: "Covers {0}",
   planned: "Planned campuses: {0}",
-  overLimit: "{0} campus drafts are beyond this package. They stay saved as drafts; change package when you are ready to activate them.",
+  overLimit: "{0} campus drafts exceed this package limit. They stay saved as drafts; upgrade your package to activate them.",
   comparePackages: "Compare packages",
   changePackage: "Change package",
   continueWith: "Continue with {0}",

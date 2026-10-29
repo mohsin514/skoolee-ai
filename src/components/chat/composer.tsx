@@ -93,16 +93,16 @@ export function Composer({
 
   async function uploadFile(file: File): Promise<PendingFile> {
     try {
-      const presign = await fetch("/api/chat/attachments", {
+      const request = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId,
-          fileName: file.name,
-          contentType: file.type || "application/octet-stream",
-          sizeBytes: file.size,
-        }),
-      });
+        body: JSON.stringify({ conversationId, fileName: file.name, contentType: file.type || "application/octet-stream", sizeBytes: file.size }),
+      };
+      let presign = await fetch("/api/chat/attachments", request);
+      if (!presign.ok && presign.status >= 500) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        presign = await fetch("/api/chat/attachments", request);
+      }
 
       if (!presign.ok) {
         const json = await presign.json().catch(() => ({}));
@@ -111,13 +111,20 @@ export function Composer({
 
       const { storageKey, uploadUrl } = await presign.json();
 
-      const put = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-      });
+      const putRequest = { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file };
+      let put = await fetch(uploadUrl, putRequest);
+      // A provider timeout can happen after the presign succeeds. Retrying the
+      // same signed request is safe: the server uses If-None-Match and rejects
+      // duplicate writes without changing the draft.
+      if (!put.ok && put.status >= 500) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        put = await fetch(uploadUrl, putRequest);
+      }
 
-      if (!put.ok) return { file, error: ui("Upload failed") };
+      if (!put.ok) {
+        const json = await put.json().catch(() => ({}));
+        return { file, error: json.error ? ui(json.error) : ui("Upload failed") };
+      }
 
       return {
         file,

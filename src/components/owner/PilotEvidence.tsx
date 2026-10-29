@@ -1,5 +1,7 @@
 "use client";
 
+import { PilotCharter } from "./PilotCharter";
+import type { PilotCommercialEvidence } from "@/lib/pilots/service";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ClipboardPlus, Download, FlaskConical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,7 +31,7 @@ import { DraftRecovery } from "@/components/ui/draft-recovery";
 
 type Workflow = { key: string; definition: string; successDefinition: string };
 type Pilot = { id: string; name: string; cohort?: string; country: string; curriculum: string; language: string; useCase: string; startsOn: string; endsOn: string | null; championName: string; measurementOwnerId: string;
-  workflows: Workflow[]; consentReference: string | null; caseStudyPermission: string; permissionReference: string | null; synthetic: boolean; status: string; targetSchoolId: string | null;
+  charterHistory?: { at: string; commercial: PilotCommercialEvidence | null }[]; workflows: Workflow[]; consentReference: string | null; caseStudyPermission: string; permissionReference: string | null; synthetic: boolean; status: string; targetSchoolId: string | null;
   _count?: { observations: number; measures: number; claims: number } };
 type TimeFinding = { key: string; workflow: string; counts: { baseline: number; followUp: number; paired: number }; excluded: { id: string; reason: string }[];
   missing: { baselineOnly: number; followUpOnly: number; noTaskTime: number; incomplete: number; difficultyChanged: number }; selfReported: number; assisted: number;
@@ -44,7 +46,7 @@ type Exported = { generatedAt: string; statements: { claimId: string; statement:
 
 const STATE_LABEL: Record<string, string> = { MEASURED: "Measured", SELF_REPORTED: "Self-reported", TARGET: "Target", VERBAL_INTENT: "Verbal intent", UNKNOWN: "Unknown" };
 const KIND_LABEL: Record<string, string> = { CORRECTNESS_EXTRACTION: "Extraction accuracy", CORRECTNESS_FINAL: "Final approved accuracy", WEEKLY_ACTIVE: "Weekly active users", SUPPORT_MINUTES: "Support effort", SERVING_COST: "Serving cost", AI_CREDITS: "AI credits used", SATISFACTION: "Satisfaction", PAID_CONVERSION: "Paid conversion", RENEWAL: "Renewal" };
-const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approved", RETURNED: "Returned", WITHDRAWN: "Withdrawn", STALE: "Stale", PLANNED: "Planned", ACTIVE: "Active", CLOSED: "Closed" };
+const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", APPROVED: "Approved", RETURNED: "Returned", WITHDRAWN: "Withdrawn", STALE: "Stale", WAITING_CHARTER: "Waiting for charter", WAITING_PAYMENT: "Waiting for payment", WAITING_PROVIDER: "Waiting for provider", WAITING_READINESS: "Waiting for readiness", PLANNED: "Planned", ACTIVE: "Active", CLOSED: "Closed" };
 const PERMISSION_LABEL: Record<string, string> = { NONE: "No case-study permission", AGGREGATE: "Anonymised figures only", NAMED: "School may be named" };
 const PHASE_LABEL: Record<string, string> = { BASELINE: "Baseline", FOLLOW_UP: "Follow-up" };
 
@@ -107,7 +109,7 @@ export function PilotEvidence() {
     if (!selected) return false;
     setError(null);
     try {
-      await call(`/api/owner/pilots/${selected}`, { method: "POST", body: JSON.stringify({ action, data }) });
+      await call(`/api/owner/pilots/${selected}`, { method: "POST", body: JSON.stringify({ action, data: action === "charter" ? { ...data, version: currentDetail?.pilot.charterHistory?.length ?? 0 } : data }) });
       // R4: the result of the operator's own action is one translated toast; a refusal stays inline.
       toast.success(ui(success)); setError(null);
       await Promise.all([loadDetail(selected), load()]);
@@ -250,6 +252,7 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
   const findingKeys = [...findings.time.map((f) => f.key), ...findings.correctness.flatMap((c) => [c.extraction.key, c.final.key]), ...findings.other.map((f) => f.key)];
   return (
     <section className="space-y-6" aria-labelledby="pilot-detail-heading">
+      <PilotCharter history={pilot.charterHistory ?? []} workflows={pilot.workflows} save={data => act("charter", data, "Charter updated.")} />
       <div className="sk-panel p-4 sm:p-6">
         <h2 id="pilot-detail-heading" className="text-base font-bold text-ink"><bdi>{pilot.name}</bdi></h2>
         {pilot.synthetic ? <p className="mt-1 text-sm font-semibold text-status-warning-text">{ui("Synthetic demonstration: excluded from every finding, claim and export.")}</p> : null}
@@ -267,7 +270,8 @@ function PilotDetail({ detail, owners, act }: { detail: Detail; owners: { id: st
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => act("charter", { consentReference: consent || null, caseStudyPermission: permission, permissionReference: permissionRef || null }, "Charter updated.")}>{ui("Save consent and permission")}</Button>
-          {pilot.status !== "ACTIVE" ? <Button variant="outline" onClick={() => act("charter", { status: "ACTIVE" }, "Pilot is active.")}>{ui("Start pilot")}</Button> : <Button variant="outline" onClick={() => act("charter", { status: "CLOSED" }, "Pilot closed.")}>{ui("Close pilot")}</Button>}
+          {pilot.status !== "ACTIVE" && pilot.status !== "CLOSED" ? <Button variant="outline" onClick={() => act("charter", { status: "ACTIVE" }, "Charter updated.")}>{ui("Start pilot")}</Button> : null}
+          {pilot.status !== "CLOSED" ? <Button variant="outline" onClick={() => act("charter", { status: "CLOSED" }, "Pilot closed.")}>{ui("Close pilot")}</Button> : null}
         </div>
       </div>
 

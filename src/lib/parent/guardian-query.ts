@@ -35,6 +35,12 @@ export function liveGuardianRelationshipWhere(guardianUserId: string | null, per
     } } };
 }
 
+/** A live relationship for any guardian, used when a staff roster expands to
+ * all guardians rather than checking one signed-in guardian. */
+export function anyLiveGuardianRelationshipWhere(permission: GuardianPermission, at = new Date(), schoolId?: string): Prisma.GuardianRelationshipWhereInput {
+  return liveGuardianRelationshipWhere(null, permission, at, schoolId);
+}
+
 export function guardianStudentWhere(user: AuthUser, permission: GuardianPermission | "any", at = new Date()): Prisma.StudentWhereInput {
   if (user.role !== "PARENT") return { schoolId: user.schoolId };
   const permissionFilters = permission === "any"

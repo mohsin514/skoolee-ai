@@ -22,7 +22,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const data = body?.data ?? {};
     const run = async () => {
       switch (body?.action) {
-        case "charter": return { status: 200, result: await updateCharter(id, data) };
+        case "charter": return { status: 200, result: await updateCharter(id, data, owner.userId) };
         case "observation": return { status: 201, result: await recordObservation(id, data, owner.userId) };
         case "exclude": return { status: 200, result: await excludeObservation(id, String(data.observationId ?? ""), data.reason) };
         case "measure": return { status: 201, result: await recordMeasure(id, data, owner.userId) };
