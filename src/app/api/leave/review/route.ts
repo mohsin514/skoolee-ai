@@ -1,7 +1,8 @@
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, assertPermission, canLeadAcademics, canManageAcademics, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { ApiError, assertPermission, canLeadAcademics, canManageAcademics, requireAuthUser } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 import { isCampusOperator } from "@/lib/auth/institution";
 import { getLeaveBalances, tenthsToDays } from "@/lib/leave";
 import { notify } from "@/lib/notifications/in-app";
@@ -107,8 +108,8 @@ export async function PATCH(req: NextRequest) {
     // SKO-420: meetings booked during approved leave need a new time; both sides are told.
     if (status === "APPROVED") await reconcileMeetings(user.schoolId, [request.userId], user.userId).catch(error => console.error("[leave/review] meeting recheck failed", error));
 
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[leave/review] PATCH failed");
+    return failFrom(error, "[leave/review] PATCH failed");
   }
 }

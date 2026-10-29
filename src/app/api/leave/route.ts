@@ -5,10 +5,10 @@ import {
   assertModuleRead,
   canLeadAcademics,
   canManageAcademics,
-  errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { created, failFrom, ok } from "@/lib/api/envelope";
 import { getBatchLeaveBalances, getLeaveBalances } from "@/lib/leave";
 import { applyLeave } from "@/lib/leave/apply-command";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         user: s,
         balances: balancesMap.get(s.id) || [],
       }));
-      return Response.json({ success: true, data: { staff: balancesAll, academicYear } });
+      return ok({ staff: balancesAll, academicYear });
     }
 
     if (mode === "all") {
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
       ]);
       const decides = new Set(user.role === "SUPER_ADMIN" ? [] : decideRoles);
       const requests = rows.map((row) => ({ ...row, canDecide: decides.has(row.user.role) }));
-      return Response.json({ success: true, data: { requests, users } });
+      return ok({ requests, users });
     }
 
     // "my" — any signed-in staff sees their own requests and balances
@@ -131,9 +131,9 @@ export async function GET(req: NextRequest) {
       prisma.leaveType.findMany({ where: { campusId }, orderBy: { name: "asc" } }),
     ]);
 
-    return Response.json({ success: true, data: { requests, balances, types, academicYear } });
+    return ok({ requests, balances, types, academicYear });
   } catch (error) {
-    return errorResponse(error, "[leave] GET failed");
+    return failFrom(error, "[leave] GET failed");
   }
 }
 
@@ -145,9 +145,9 @@ export async function POST(req: NextRequest) {
     const body = await parseBody(req, jsonObjectBody);
     const request = await applyLeave(user, body);
 
-    return Response.json({ success: true, data: request }, { status: 201 });
+    return created(request);
   } catch (error) {
-    return errorResponse(error, "[leave] POST failed");
+    return failFrom(error, "[leave] POST failed");
   }
 }
 
@@ -175,8 +175,8 @@ export async function PATCH(req: NextRequest) {
     // SKO-416: reviewers' "review this leave" actions close because the request was withdrawn.
     await resolveSourceActions({ schoolId: user.schoolId, sourceType: "leave", sourceId: id, resolution: "CANCELLED" });
     const updated = await prisma.leaveRequest.findFirstOrThrow({ where: { id, schoolId: user.schoolId, userId: user.userId } });
-    return Response.json({ success: true, data: updated });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[leave] PATCH failed");
+    return failFrom(error, "[leave] PATCH failed");
   }
 }

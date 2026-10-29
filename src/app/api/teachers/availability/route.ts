@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { assertStaffRole, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { assertStaffRole, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { failFrom, ok } from "@/lib/api/envelope";
 
 const DAY_LABELS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -123,8 +124,8 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return Response.json({ success: true, data });
+    return ok(data);
   } catch (error) {
-    return errorResponse(error, "[teachers/availability] GET failed");
+    return failFrom(error, "[teachers/availability] GET failed");
   }
 }

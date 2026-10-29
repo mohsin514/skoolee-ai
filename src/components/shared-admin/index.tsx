@@ -108,7 +108,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { csvCell, downloadCSV } from "@/lib/csv";
-import { readApiData, readApiError } from "@/lib/api/envelope-client";
+import { isApiOk, readApiData, readApiError } from "@/lib/api/envelope-client";
 import {
   DataTable,
   SearchField,
@@ -6026,14 +6026,14 @@ export function LeaveManagementPanel({
         read(`/api/leave?mode=all&academicYear=${academicYear}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ""}${scope}`),
       ]);
       // The queue is what this view is for: without it there is nothing honest to show.
-      if (!reqRes.ok || !reqRes.json.success) throw new Error(reqRes.json.error || "Leave requests could not be loaded.");
+      if (!reqRes.ok || !isApiOk(reqRes.json)) throw new Error(readApiError(reqRes.json, "Leave requests could not be loaded."));
       setRequests(reqRes.json.data.requests || []);
       setStaffUsers(reqRes.json.data.users || []);
-      if (typesRes?.json.success) setTypes(typesRes.json.data || []);
-      if (allocRes?.json.success) setAllocations(allocRes.json.data || []);
+      if (typesRes && isApiOk(typesRes.json)) setTypes(typesRes.json.data || []);
+      if (allocRes && isApiOk(allocRes.json)) setAllocations(allocRes.json.data || []);
       if (showsBalances) {
         const balRes = await read(`/api/leave?mode=balances&academicYear=${academicYear}${scope}`);
-        if (balRes.json.success) setStaffBalances(balRes.json.data.staff || []);
+        if (isApiOk(balRes.json)) setStaffBalances(balRes.json.data.staff || []);
       }
     } catch (error) {
       setLoadError(friendlyErrorMessage(error, ui("Leave requests could not be loaded.")));
@@ -6059,7 +6059,7 @@ export function LeaveManagementPanel({
         body: JSON.stringify({ name: typeForm.name, defaultDays: Number(typeForm.defaultDays) || 0, campusId }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || ui("Could not create the leave type. Please try again."));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ui("Could not create the leave type. Please try again.")));
       toast.success(ui("Leave type \"{0}\" created", [typeForm.name]));
       setShowAddType(false);
       setTypeForm({ name: "", defaultDays: "10" });
@@ -6079,7 +6079,7 @@ export function LeaveManagementPanel({
         body: JSON.stringify({ id, defaultDays: Number(defaultDays) || 0 }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || "");
+      if (!isApiOk(json)) throw new Error(readApiError(json, ""));
       toast.success(ui("Default days updated"));
       setReloadTick((t) => t + 1);
     } catch (error) {
@@ -6107,7 +6107,7 @@ export function LeaveManagementPanel({
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || ui("Could not create the allocation. Please try again."));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ui("Could not create the allocation. Please try again.")));
       toast.success(ui("Allocation created"));
       setShowAddAllocation(false);
       setReloadTick((t) => t + 1);
@@ -6132,7 +6132,7 @@ export function LeaveManagementPanel({
         }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || ui("Could not save the decision. Please try again."));
+      if (!isApiOk(json)) throw new Error(readApiError(json, ui("Could not save the decision. Please try again.")));
       toast.success(status === "APPROVED" ? ui("Leave approved for {0}", [request.user?.fullName || ui("this request")]) : ui("Leave declined for {0}", [request.user?.fullName || ui("this request")]));
       // Clear only this request's draft; the others are still being worked on.
       setReviewNotes((prev) => {

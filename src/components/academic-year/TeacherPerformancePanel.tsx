@@ -13,6 +13,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { Modal, ModalActions } from "@/components/ui/modal";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
 // SKO-461: "Teaching evidence" — bounded to the selected period, published
 // results only, every measure with its source, coverage and freshness, absent
@@ -61,7 +62,7 @@ export function TeacherPerformancePanel({ self = false, hideHeading = false, exp
     const response = await fetch(`/api/teachers/performance?academicYear=${year}`, { cache: "no-store" }).catch(() => null);
     const json = await response?.json().catch(() => ({}));
     if (ticket !== request.current) return;
-    if (!response?.ok || !json?.success) { setError({ message: ui(json?.error || "Teaching evidence could not be loaded."), denied: response?.status === 403 }); return; }
+    if (!response?.ok || !isApiOk(json)) { setError({ message: ui(readApiError(json, "Teaching evidence could not be loaded.")), denied: response?.status === 403 }); return; }
     setData(json.data);
   }, [year, ui]);
   useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
@@ -71,13 +72,13 @@ export function TeacherPerformancePanel({ self = false, hideHeading = false, exp
     setOpen(teacherId); setNotes(null); setDraft("");
     const response = await fetch(`/api/teachers/performance/notes?teacherId=${encodeURIComponent(teacherId)}&academicYear=${year}`, { cache: "no-store" }).catch(() => null);
     const json = await response?.json().catch(() => ({}));
-    setNotes(response?.ok && json?.success ? json.data : []);
+    setNotes(response?.ok && isApiOk(json) ? json.data : []);
   };
   // One POST for the row editor and the "Add note" composer; `draft` is the note text either one passes in.
   const postNote = async (teacherId: string, draft: string) => {
     const response = await fetch("/api/teachers/performance/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teacherId, academicYear: year, body: draft }) }).catch(() => null);
     const json = await response?.json().catch(() => ({}));
-    if (!response?.ok || !json?.success) { toast.error(ui(json?.error || "The note was not saved.")); return false; }
+    if (!response?.ok || !isApiOk(json)) { toast.error(ui(readApiError(json, "The note was not saved."))); return false; }
     toast.success(ui("Note saved."));
     return true;
   };
