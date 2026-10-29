@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
       status: school.status,
       plan: school.plan,
       dataRegion: school.dataRegion,
+      attendanceRegulator: school.attendanceRegulator,
       aiCreditsUsed: school.aiCreditsUsed,
       aiCreditsLimit: school.aiCreditsLimit,
       aiWorkflowsLiveAt: school.aiWorkflowsLiveAt,
