@@ -11,7 +11,16 @@ import { EXPANSION_CANDIDATES, evaluateExpansion, expansionAvailability, expansi
  * `evaluateExpansion`, so an ADOPT decision alone never activates a pack.
  */
 
-type Db = Pick<typeof prisma, "packExpansionDecision" | "superAdminAuditLog" | "$transaction">;
+type DecisionRow = { id: string; candidateId: string; outcome: string; record: unknown; boundedTicket: string | null; decidedById: string; createdAt: Date };
+type DecisionDelegate = {
+  findMany(args: { orderBy: { createdAt: "desc" }; take: number }): Promise<DecisionRow[]>;
+  create(args: { data: { candidateId: string; outcome: string; record: Prisma.InputJsonValue; boundedTicket: string | null; decidedById: string } }): Promise<DecisionRow>;
+};
+type AuditDelegate = { create(args: { data: Prisma.SuperAdminAuditLogUncheckedCreateInput }): Promise<unknown> };
+type Tx = { packExpansionDecision: DecisionDelegate; superAdminAuditLog: AuditDelegate };
+type Db = Tx & { $transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> };
+// Structural view of the Prisma client, so this module does not depend on a shared regenerated client's typings.
+const defaultDb = prisma as unknown as Db;
 
 export type ExpansionStatus = ExpansionCandidate & {
   outcome: "PENDING" | "ADOPT" | "DEFER" | "REJECT";
@@ -32,7 +41,7 @@ async function latestRecords(db: Pick<Db, "packExpansionDecision">) {
 }
 
 /** Founder-console listing: every candidate, its current decision and exactly which prerequisites block it. */
-export async function listExpansionStatus(verifiedMathPacks: ReadonlySet<string> = new Set(), db: Db = prisma): Promise<ExpansionStatus[]> {
+export async function listExpansionStatus(verifiedMathPacks: ReadonlySet<string> = new Set(), db: Db = defaultDb): Promise<ExpansionStatus[]> {
   const latest = await latestRecords(db);
   return EXPANSION_CANDIDATES.map((c) => {
     const row = latest.get(c.id);
@@ -47,7 +56,7 @@ export async function listExpansionStatus(verifiedMathPacks: ReadonlySet<string>
  * Public hook for the curriculum pack registry: the ids of deferred expansion packs that pass the gate.
  * Anything not returned here must be listed as unavailable. Fails closed (empty set) if the store cannot be read.
  */
-export async function availableExpansionPackIds(verifiedMathPacks: ReadonlySet<string> = new Set(), db: Pick<Db, "packExpansionDecision"> = prisma): Promise<ReadonlySet<string>> {
+export async function availableExpansionPackIds(verifiedMathPacks: ReadonlySet<string> = new Set(), db: Pick<Db, "packExpansionDecision"> = defaultDb): Promise<ReadonlySet<string>> {
   try {
     const latest = await latestRecords(db);
     return new Set(expansionAvailability([...latest.values()].map((r) => r.record), verifiedMathPacks).filter((a) => a.available).map((a) => a.id));
@@ -62,7 +71,7 @@ export function isExpansionCandidate(packId: string): boolean {
 }
 
 /** Records one ADOPT/DEFER/REJECT decision with its full gate evidence. */
-export async function recordExpansionDecision(actor: { userId: string; role: string }, raw: unknown, opts: { ipAddress?: string; userAgent?: string } = {}, db: Db = prisma) {
+export async function recordExpansionDecision(actor: { userId: string; role: string }, raw: unknown, opts: { ipAddress?: string; userAgent?: string } = {}, db: Db = defaultDb) {
   if (actor.role !== "APP_OWNER") throw new ApiError("Forbidden", 403);
   const parsed = expansionRecordSchema.safeParse(raw);
   if (!parsed.success) throw new ApiError(`Invalid expansion record: ${parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`, 400);
