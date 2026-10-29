@@ -2687,8 +2687,6 @@ export function TeacherDetailModal({
   const ui = useUiText();
   const { date: formatCalendarDate, money: formatStaffMoney } = useLocaleFormat();
   const { currency: schoolCurrency } = useLocale();
-  const ledClasses = teacher.ledClasses || [];
-  const taughtSubjects = teacher.taughtSubjects || [];
   const avatar = teacher.profileImageUrl;
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -2711,6 +2709,10 @@ export function TeacherDetailModal({
   const [uploading, setUploading] = useState(false);
   const [uploadKind, setUploadKind] = useState("CV");
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // SKAI-1117: prefer the assignments served by /api/staff/profile; fall back to the list row.
+  const ledClasses: any[] = staff?.ledClasses ?? teacher.ledClasses ?? [];
+  const taughtSubjects: any[] = staff?.taughtSubjects ?? teacher.taughtSubjects ?? [];
 
   const loadStaffRecords = useCallback(async () => {
     if (!isStaffAdmin) return;
