@@ -433,6 +433,7 @@ export const ROLE_NAV: Record<ConsoleId, ConsoleNav> = {
       group("insights", "Insights", Gauge, "primary", [
         leaf("pilots", "Pilot evidence", FlaskConical, v("pilots")),
         leaf("pilot-readiness", "Pilot readiness", ShieldCheck, v("pilot-readiness")),
+        leaf("pilot-go-no-go", "Pilot go/no-go", Gauge, v("pilot-go-no-go")),
         leaf("curriculum-packs", "Curriculum catalogue", BookCheck, v("curriculum-packs")),
         leaf("capacity", "Capacity", Gauge, v("capacity")),
         leaf("ai-cost", "AI cost per credit", Coins, v("ai-cost")),

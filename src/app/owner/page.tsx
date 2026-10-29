@@ -100,6 +100,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { SubscriptionRequestReview } from "@/components/owner/SubscriptionRequestReview";
 import { PilotEvidence } from "@/components/owner/PilotEvidence";
 import { PilotReadinessConsole } from "@/components/owner/PilotReadinessConsole";
+import { PilotGoNoGoBoard } from "@/components/owner/PilotGoNoGoBoard";
 import { CurriculumCatalogue } from "@/components/owner/CurriculumCatalogue";
 import { CapacityReport } from "@/components/owner/CapacityReport";
 import { AiCostReport } from "@/components/owner/AiCostReport";
@@ -469,6 +470,7 @@ export default function OwnerDashboard() {
         {view === "subscription-requests" && <SubscriptionRequestReview />}
         {view === "pilots" && <PilotEvidence />}
         {view === "pilot-readiness" && <PilotReadinessConsole />}
+        {view === "pilot-go-no-go" && <PilotGoNoGoBoard />}
         {view === "curriculum-packs" && <CurriculumCatalogue />}
         {view === "capacity" && <CapacityReport />}
         {view === "ai-cost" && <AiCostReport />}
