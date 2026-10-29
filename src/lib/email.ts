@@ -9,9 +9,10 @@ import { VerifyEmail } from "./email/templates/VerifyEmail";
 import { sendSmtpMail, verifySmtpConnection, type SmtpConfig } from "./email/smtp";
 import { roleLabel } from "@/lib/roles";
 import { emailProviderReadiness } from "./email/readiness";
+import { NOREPLY_EMAIL } from "@/lib/config/contact";
 export { emailProviderReadiness } from "./email/readiness";
 
-const DEFAULT_FROM_EMAIL = "mohsin@skooleeai.com";
+const DEFAULT_FROM_EMAIL = NOREPLY_EMAIL;
 
 const getBaseUrl = () => appUrl();
 
@@ -21,7 +22,8 @@ function normalizeBaseUrl(baseUrl?: string) {
 
 function getLogoUrl(baseUrl?: string) {
   if (process.env.EMAIL_LOGO_URL) return process.env.EMAIL_LOGO_URL;
-  return `${normalizeBaseUrl(baseUrl)}/favicon.svg`;
+    // SKAI-937/944: Gmail and Outlook block SVG images; a broken logo hurts the image/text score.
+  return `${normalizeBaseUrl(baseUrl)}/apple-icon.png`;
 }
 
 function getFromEmail() {
@@ -185,36 +187,41 @@ ${copy.note}`,
   }
 }
 
+export function buildInviteEmailCopy(role: string, campusName: string, actionUrl: string) {
+  const roleName = roleLabel(role);
+  const isParent = role === "PARENT";
+  return {
+    roleName,
+    // SKAI-937/944: the display name always names the platform, so it matches the sending
+    // domain instead of impersonating the school from a skooleeai.com address.
+    fromName: `${campusName} via Skoolee AI`,
+    subject: isParent ? `Your parent account for ${campusName}` : `Your ${roleName} account for ${campusName}`,
+    text: [
+      isParent
+        ? `${campusName} has set up a parent account for you on Skoolee AI.`
+        : `${campusName} has set up a ${roleName} account for you on Skoolee AI.`,
+      isParent
+        ? "With it you can see your child's attendance, results, report cards and fee statements, and get school notices."
+        : "Open the link below to choose your password and sign in to your dashboard.",
+      `Set up your account: ${actionUrl}`,
+      "The link works for 48 hours. Please do not share it.",
+      `If you were not expecting this, you can ignore this email or reply to let us know.\n\n--\n${campusName}\nSent with Skoolee AI`,
+    ].join("\n\n"),
+  };
+}
+
 export async function sendInviteEmail(email: string, role: string, campusName: string, token: string, baseUrl?: string) {
   try {
-    const roleName = roleLabel(role);
     const inviteBaseUrl = normalizeBaseUrl(baseUrl);
     const actionUrl = `${inviteBaseUrl}/accept-invite?token=${encodeURIComponent(token)}`;
+    const { roleName, fromName, subject, text } = buildInviteEmailCopy(role, campusName, actionUrl);
     const html = await renderTemplate(InviteEmail({ role: roleName, campusName, actionUrl, logoUrl: getLogoUrl(inviteBaseUrl) }));
-    
-    // Customize messaging based on role
-    const isParent = role === "PARENT";
-    
-    // Use the campus name in the from name to make it more legitimate and recognizable
-    const fromName = isParent 
-      ? `${campusName}` 
-      : `${campusName} via Skoolee AI`;
-    
-    // Make subject line more specific and less spammy
-    const subject = isParent
-      ? `Parent Portal Access for ${campusName}`
-      : `You've been invited to ${campusName}`;
-    
-    // Enhance text version for better spam score
-    const textContent = isParent
-      ? `Welcome to ${campusName} Parent Portal\n\nYou have been invited to access the parent portal for ${campusName}.\n\nThe parent portal allows you to:\n- View your child's attendance and academic progress\n- Check exam results and report cards\n- Monitor fee payments and invoices\n- Receive important school notifications\n\nActivate your account: ${actionUrl}\n\nThis activation link will expire in 48 hours.\n\nFor security, please do not share this link with anyone.\n\n---\n${campusName}\nPowered by Skoolee AI Campus Management System`
-      : `You have been invited to join ${campusName} as ${roleName}. Accept your invitation: ${actionUrl}`;
-    
+
     const result = await deliverEmail({
       to: email,
       subject,
       html,
-      text: textContent,
+      text,
       fromName,
     });
 
