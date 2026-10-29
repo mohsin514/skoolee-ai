@@ -275,6 +275,20 @@ export default function LoginPage() {
   // letting people hammer a request that cannot succeed yet.
   const [cooldown, setCooldown] = useState(0);
   const [cooldownTotal, setCooldownTotal] = useState(0);
+  // SKAI-1033: the server-rendered button is disabled until React owns the form,
+  // so an early press (or Enter) cannot fall back to a native submission.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+    // A credential that ever reached the address bar (an old bookmark, a stale
+    // tab from before this fix) is scrubbed from the visible URL and history entry.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("password") || url.searchParams.has("email")) {
+      url.searchParams.delete("password");
+      url.searchParams.delete("email");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    }
+  }, []);
   // Consecutive "Invalid email or password" answers. At two, the Forgot link
   // draws its underline twice and the mascot glances at it; the error text is untouched.
   const [invalidStreak, setInvalidStreak] = useState(0);
@@ -630,7 +644,9 @@ export default function LoginPage() {
           </div>
         ) : (
           <>
-            <form onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
+            {/* SKAI-1033: method/action make any native (pre-hydration) submission a POST to an
+                endpoint that discards the body, so credentials can never be serialized into a URL. */}
+            <form method="post" action="/api/auth/login/fallback" onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="ms-1 text-ink-strong">
                   {t.email}
@@ -726,7 +742,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 loading={isLoading && !success}
-                disabled={success || cooldown > 0}
+                disabled={!hydrated || success || cooldown > 0}
                 // Signed in: the locked button reads as a genuine success, not a greyed-out failure.
                 className={cn(
                   "sk-sweep-trigger group relative mt-1 min-h-12 w-full overflow-hidden",
