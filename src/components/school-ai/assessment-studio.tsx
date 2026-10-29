@@ -137,7 +137,7 @@ export function AssessmentStudio({ records, locale, onRefresh, subjects = [], ca
     setCancellable(true);
     try {
       const response = await fetch("/api/school-ai/generate-paper/stream", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), curriculumId: paper.curriculumId, curriculumVersion: paper.curriculumVersion, blueprint: paper.blueprint, language: paper.language, coverageSection: paper.coverageSection, lockedQuestions: paper.questions.filter((question) => question.locked) }) });
-      if (!response.ok || !response.body) { const payload = await response.json().catch(() => ({})); throw new Error(payload.code === "AI_QUOTA_EXHAUSTED" ? aiCopy.AI_QUOTA_EXHAUSTED : payload.code === "AI_SENSITIVE_CONTENT_BLOCKED" ? aiCopy.AI_SENSITIVE_CONTENT_BLOCKED : errorMessage(payload, t.failure)); }
+      if (!response.ok || !response.body) { const payload = await response.json().catch(() => ({})); throw new Error(payload.code === "AI_QUOTA_EXHAUSTED" ? aiCopy.AI_QUOTA_EXHAUSTED : payload.code === "AI_SENSITIVE_CONTENT_BLOCKED" ? aiCopy.AI_SENSITIVE_CONTENT_BLOCKED : payload.code === "CURRICULUM_PACK_NOT_ACTIVE" ? [aiCopy.CURRICULUM_PACK_NOT_ACTIVE, ...(Array.isArray(payload.details) ? payload.details.filter((item: unknown) => typeof item === "string").slice(0, 3) : [])].join(" ") : errorMessage(payload, t.failure)); }
       let produced = 0, settled = false;
       for await (const frame of decodeFrames(response.body)) {
         if (frame.type === "stage") setMessage(t.generatingProgress.replace("{0}", String(frame.produced)).replace("{1}", String(frame.requested)));

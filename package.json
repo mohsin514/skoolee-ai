@@ -65,7 +65,7 @@
     "calibrate:school-ai": "node --import tsx scripts/school-ai-calibration.ts",
     "seed:curriculum-packs": "node --import ./tests/support/server-only.mjs --import tsx scripts/seed-curriculum-packs.ts",
     "test:curriculum-packs": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/curriculum-pack-registry.test.ts tests/school-ai/curriculum-contract.test.ts",
-    "test:curriculum-packs:db": "node --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit --test-concurrency=1 tests/school-ai/curriculum-packs.database.test.ts",
+    "test:curriculum-packs:db": "node --import ./tests/support/server-only.mjs --import tsx --test --test-force-exit --test-concurrency=1 tests/school-ai/curriculum-packs.database.test.ts tests/school-ai/curriculum-pack-enforcement.database.test.ts",
     "qa:seed": "node --import ./tests/support/server-only.mjs --import tsx scripts/qa/seed-pilot.ts",
     "test:deployment": "node --test tests/deployment/*.test.mjs",
     "smoke:deployment": "node scripts/deployment/smoke.mjs"

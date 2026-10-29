@@ -99,6 +99,7 @@ import { Select as SystemSelect } from "@/components/ui/select";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { SubscriptionRequestReview } from "@/components/owner/SubscriptionRequestReview";
 import { PilotEvidence } from "@/components/owner/PilotEvidence";
+import { CurriculumCatalogue } from "@/components/owner/CurriculumCatalogue";
 import { CapacityReport } from "@/components/owner/CapacityReport";
 
 type Tr = ReturnType<typeof useUiText>;
@@ -465,6 +466,7 @@ export default function OwnerDashboard() {
         {view === "support" && <SupportAccessView schools={stats?.schools || []} />}
         {view === "subscription-requests" && <SubscriptionRequestReview />}
         {view === "pilots" && <PilotEvidence />}
+        {view === "curriculum-packs" && <CurriculumCatalogue />}
         {view === "capacity" && <CapacityReport />}
       </section>
     </RoleShell>
