@@ -44,7 +44,7 @@ test("mapped roster shows duplicates and correctable omissions, commits reviewed
 });
 
 test("stale review cannot change or commit a newer roster, and tenant access is denied", async ({ page, browser }) => {
-  const csv = `fullName,rollNo,guardianPhone,address,city,medicalNotes\nSynthetic Race,race-${Date.now()},03000000000,Street,City,None reported`;
+  const csv = `fullName,rollNo,guardianPhone,guardianName,address,city,medicalNotes\nSynthetic Race,race-${Date.now()},03000000000,Synthetic Guardian,Street,City,None reported`;
   const staged = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: classId, sourceName: "race.csv", csvText: csv } });
   expect(staged.ok(), await staged.text()).toBeTruthy(); const { data: batch } = await staged.json();
   const url = `/api/import-batches/${batch.id}?campusId=${campusId}`;
@@ -68,7 +68,7 @@ test("a revoked permission or archived destination cannot commit a previously re
   const key = { schoolId: school, role: "ADMIN" as const, module: "students" };
   const previous = await db.rolePermission.findUnique({ where: { schoolId_role_module: key } });
   try {
-    const staged = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: target.id, sourceName: "guards.csv", csvText: `fullName,rollNo,guardianPhone,address,city,medicalNotes\nGuard Learner,guard-${Date.now()},123,Street,City,None reported` } });
+    const staged = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: target.id, sourceName: "guards.csv", csvText: `fullName,rollNo,guardianPhone,guardianName,address,city,medicalNotes\nGuard Learner,guard-${Date.now()},123,Synthetic Guardian,Street,City,None reported` } });
     expect(staged.ok(), await staged.text()).toBeTruthy(); const { data: batch } = await staged.json();
     await db.rolePermission.upsert({ where: { schoolId_role_module: key }, create: { ...key, canView: true, canAdd: false, canEdit: true, canDelete: true }, update: { canAdd: false } });
     const commit = () => page.request.post(`/api/students?campusId=${campusId}`, { data: { _importBatchId: batch.id, _reviewToken: batch.reviewToken } });
@@ -88,7 +88,7 @@ test("a revoked permission or archived destination cannot commit a previously re
 test("concurrent previews with case-variant roll numbers create only one campus identity", async ({ page }) => {
   const roll = `case-${Date.now()}`;
   const batches = await Promise.all([roll, roll.toUpperCase()].map(async rollNo => {
-    const response = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: classId, sourceName: `${rollNo}.csv`, csvText: `fullName,rollNo,guardianPhone,address,city,medicalNotes\nCase Learner,${rollNo},123,Street,City,None reported` } });
+    const response = await page.request.post("/api/import-batches", { data: { kind: "STUDENT_ROSTER", campusId, defaultClassId: classId, sourceName: `${rollNo}.csv`, csvText: `fullName,rollNo,guardianPhone,guardianName,address,city,medicalNotes\nCase Learner,${rollNo},123,Synthetic Guardian,Street,City,None reported` } });
     expect(response.ok(), await response.text()).toBeTruthy(); return (await response.json()).data;
   }));
   const results = await Promise.all(batches.map(batch => page.request.post(`/api/students?campusId=${campusId}`, { data: { _importBatchId: batch.id, _reviewToken: batch.reviewToken } })));

@@ -161,7 +161,16 @@ export const studentSchema = z.object({
     });
   }
 
-  // Address is required
+  // SKAI-942: the guardian is the student's primary contact, so a name and phone are both required.
+  if (!data.guardianName || !data.guardianName.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["guardianName"],
+      message: "Guardian name is required",
+    });
+  }
+
+  // SKAI-943: address is required
   if (!data.address || !data.address.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

@@ -371,48 +371,51 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     const newErrors: FormErrors = {};
 
     if (stepIndex === 0) {
-      if (!form.fullName.trim()) newErrors.fullName = "Student name is required";
-      if (!form.rollNo.trim()) newErrors.rollNo = "Roll number is required";
-      if (!form.classId) newErrors.classId = "Class is required";
+      if (!form.fullName.trim()) newErrors.fullName = ui("Student name is required");
+      if (!form.rollNo.trim()) newErrors.rollNo = ui("Roll number is required");
+      if (!form.classId) newErrors.classId = ui("Class is required");
       if (form.dateOfBirth) {
         const studentAge = calculateAge(form.dateOfBirth);
         if (studentAge !== null && studentAge < 3) {
-          newErrors.dateOfBirth = "Student must be at least 3 years old";
+          newErrors.dateOfBirth = ui("Student must be at least 3 years old");
         }
       }
       if (form.studentEmail && !isValidEmail(form.studentEmail)) {
-        newErrors.studentEmail = "Enter a valid email address";
+        newErrors.studentEmail = ui("Enter a valid email address");
       }
     }
 
     if (stepIndex === 1) {
-      // Guardian phone is mandatory
+      // SKAI-942: guardian name and phone are mandatory
+      if (!form.guardianName.trim()) {
+        newErrors.guardianName = ui("Guardian name is required");
+      }
       if (!form.guardianPhone.trim()) {
-        newErrors.guardianPhone = "Guardian phone number is required";
+        newErrors.guardianPhone = ui("Guardian phone number is required");
       }
       if (form.guardianEmail && !isValidEmail(form.guardianEmail)) {
-        newErrors.guardianEmail = "Enter a valid email address";
+        newErrors.guardianEmail = ui("Enter a valid email address");
       }
       if (
         form.studentEmail &&
         form.guardianEmail &&
         form.studentEmail.toLowerCase() === form.guardianEmail.toLowerCase()
       ) {
-        newErrors.guardianEmail = "Must be different from student email";
+        newErrors.guardianEmail = ui("Must be different from student email");
       }
     }
 
     if (stepIndex === 2) {
       // Address information is mandatory
       if (!form.address.trim()) {
-        newErrors.address = "Street address is required";
+        newErrors.address = ui("Street address is required");
       }
       if (!form.city.trim()) {
-        newErrors.city = "City is required";
+        newErrors.city = ui("City is required");
       }
       // Medical information is mandatory
       if (!form.medicalNotes.trim()) {
-        newErrors.medicalNotes = "Medical notes are required (enter 'None' if not applicable)";
+        newErrors.medicalNotes = ui("Medical notes are required (enter 'None' if not applicable)");
       }
     }
 
@@ -491,7 +494,7 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
     >
           <DraftRecovery recordLabel="New admission" draft={draft} saving={isSubmitting} excluded="Health notes, allergies, medications, special needs and login emails are never stored in a device draft." />
           <FormErrorSummary errors={errors} onFocusField={(field) => {
-            const targetStep = ["guardianPhone", "guardianEmail"].includes(field) ? 1 : ["address", "city", "medicalNotes"].includes(field) ? 2 : 0;
+            const targetStep = ["guardianName", "guardianPhone", "guardianEmail"].includes(field) ? 1 : ["address", "city", "medicalNotes"].includes(field) ? 2 : 0;
             setStep(targetStep);
             requestAnimationFrame(() => document.getElementById(`field-${field}`)?.focus());
           }} />
@@ -937,7 +940,7 @@ function StepGuardianDetails({
 
       <FormSection icon={Users} title={ui("Guardian")} hint={ui("The primary contact for this student.")}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FieldGroup label={ui("Guardian full name (English)")}>
+        <FieldGroup name="guardianName" label={ui("Guardian full name (English)")} required error={errors.guardianName}>
           <Input
             value={form.guardianName}
             onChange={(e) => onUpdate("guardianName", e.target.value)}
@@ -1202,7 +1205,7 @@ function StepReview({
       >
         {form.guardianName ? (
           <>
-            <ReviewRow label={ui("Name")} value={form.guardianName} />
+            <ReviewRow label={ui("Name")} value={form.guardianName} required />
             {form.guardianRelationship && (
               <ReviewRow
                 label={ui("Relationship")}
@@ -1216,7 +1219,7 @@ function StepReview({
             )}
           </>
         ) : (
-          <p className="col-span-2 text-sm text-ink-subtle">{ui("No guardian details provided")}</p>
+          <Alert tone="danger" compact live="off" className="col-span-2" title={ui("Guardian name and phone are required. Use Edit to go back and fill them in.")} />
         )}
       </ReviewSection>
 

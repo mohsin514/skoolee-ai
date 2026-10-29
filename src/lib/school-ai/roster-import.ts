@@ -3,7 +3,7 @@ import { parseImportCsv } from "@/lib/imports/csv";
 export const ROSTER_FIELDS = ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes", "guardianName", "gender", "dateOfBirth", "phone", "guardianRelationship", "className", "classSection", "studentEmail", "guardianEmail"] as const;
 export type RosterField = typeof ROSTER_FIELDS[number];
 export type RosterMapping = Partial<Record<RosterField, number>>;
-export const ROSTER_REQUIRED_FIELDS: readonly RosterField[] = ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes"];
+export const ROSTER_REQUIRED_FIELDS: readonly RosterField[] = ["fullName", "rollNo", "guardianPhone", "address", "city", "medicalNotes", "guardianName"]; // SKAI-942: guardian name too
 export const MAX_ROSTER_BYTES = 5 * 1024 * 1024;
 export interface RosterSource { headers: string[]; rows: string[][] }
 export class RosterMappingError extends Error {
