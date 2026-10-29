@@ -7,6 +7,8 @@ import { studentScope } from "@/lib/auth/policy";
 import { ONLINE_PAYMENT_STAFF, onlinePaymentAvailability, paymentReturnPath, publicOrderStatus } from "@/lib/fees/online-payment";
 import { randomUUID } from "node:crypto";
 import { defaultLocale, formatMoney } from "@/lib/locale/package";
+import { parseBody } from "@/lib/api/validate";
+import { requiredIdBody } from "@/lib/validators/route-bodies";
 
 // GET /api/fees/pay-online?invoiceId=… → whether online payment is possible for that invoice now
 // GET /api/fees/pay-online?ref=…       → the server's status for one of the caller's orders
@@ -26,8 +28,7 @@ export async function POST(req: NextRequest) {
     // console the caller cannot open.
     if (user.role !== "PARENT" && !ONLINE_PAYMENT_STAFF.includes(user.role)) throw new ApiError("Online payment is for families. Payments at the counter are recorded by the finance desk.", 403);
     await assertSharedModuleRead(user, "fees");
-    const body = await req.json();
-    if (!body.invoiceId) throw new ApiError("invoiceId required", 400);
+    const body = await parseBody(req, requiredIdBody("invoiceId"));
 
     const invoice = await prisma.invoice.findFirst({
       where: {

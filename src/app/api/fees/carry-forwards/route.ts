@@ -4,6 +4,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { requiredIdBody } from "@/lib/validators/route-bodies";
 
 // FeeCarryForward: session-end balance moved to the next academic year.
 // Balance is paisa; positive = owed, negative = credit.
@@ -36,8 +38,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
-    if (!body.studentId) throw new ApiError("studentId required", 400);
+    const body = await parseBody(req, requiredIdBody("studentId"));
     const fromAcademicYear = Number(body.fromAcademicYear ?? new Date().getFullYear());
     const toAcademicYear = Number(body.toAcademicYear ?? fromAcademicYear + 1);
     const balance = Number(body.balance);

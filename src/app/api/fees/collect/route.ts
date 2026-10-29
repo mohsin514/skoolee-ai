@@ -9,6 +9,8 @@ import {
 } from "@/lib/api/scope";
 import { collectPaymentCore, collectReceipt } from "@/lib/fees/collect-command";
 import { notify } from "@/lib/notifications/in-app";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // POST /api/fees/collect
 // body: { studentId, invoiceId, amount (paisa), fineAmount?, discountAmount?,
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
     assertStaffRole(user);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     // Validation, replay, the RT6 hand-off rules and the transaction live in the shared collect command.
     const outcome = await collectPaymentCore(user, body);
 
