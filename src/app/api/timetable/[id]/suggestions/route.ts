@@ -3,6 +3,8 @@ import { canManageOperations, errorResponse, requireAuthUser } from "@/lib/api/s
 import { applySuggestion, buildSuggestions, type SuggestionAction } from "@/lib/timetable/suggest";
 import { prisma } from "@/lib/db/prisma";
 import { resolveTimetableCampus } from "@/lib/timetable/manual";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -46,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const campusId = await resolveTimetableCampus(user, id);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const action = body?.action as SuggestionAction | undefined;
     if (!action?.type || !action?.slotId) {
       return Response.json({ error: "action { type, slotId } is required" }, { status: 400 });

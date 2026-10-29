@@ -24,6 +24,7 @@ import { TEST_CHECKOUT_PROVIDER, safePaySandboxUrl, testCheckoutEnabled } from "
 import { saveSubscriptionRequest } from "@/lib/billing/lifecycle";
 import { getPackageCopy } from "@/app/onboarding/package/copy";
 import type { PlanType } from "@/types";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
     return await runWithTenantContext(setupTenantContext(user), async () => {
     await assertSetupPurchaser(user);
 
-    const parsed = onboardingCheckoutSchema.safeParse(await req.json());
+    const parsed = onboardingCheckoutSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }

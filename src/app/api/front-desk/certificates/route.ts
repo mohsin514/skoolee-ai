@@ -9,6 +9,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-469 certificates and ID cards.
 // GET    ?campusId=                          → templates (draft and approved version)
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     await assertModuleRead(user, "front-desk");
     await assertPermission(user, "front-desk", "add");
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     switch (body.action) {
       case "save-template": return Response.json({ success: true, data: await saveTemplate(user, campusId, body) });
@@ -76,8 +78,7 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuthUser();
     await assertModuleRead(user, "front-desk");
     await assertPermission(user, "front-desk", "edit");
-    const body = await request.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { requestHash: _hash, idempotencyKey: _key, pdf: _pdf, ...data } = await decide(user, campusId, body);
     return Response.json({ success: true, data });

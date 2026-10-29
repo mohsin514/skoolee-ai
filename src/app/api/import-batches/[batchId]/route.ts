@@ -7,6 +7,7 @@ import { isoDate } from "@/lib/imports/batch";
 import { studentSchema } from "@/lib/validators/schemas";
 import { importReviewToken } from "@/lib/imports/review-token";
 import { assertRosterPermission } from "@/lib/imports/roster-access";
+import { readJsonBody } from "@/lib/api/validate";
 
 type RouteContext = { params: Promise<{ batchId: string }> };
 type Batch = NonNullable<Awaited<ReturnType<typeof findBatch>>>;
@@ -91,7 +92,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { batchId } = await context.params;
     const { batch } = await authorizedBatch(batchId, request, "add");
     if (batch.state !== "STAGED" || batch.expiresAt <= new Date()) throw new ApiError("This staging batch is no longer available", 409);
-    const body = await request.json() as { reviewToken?: string; rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean; reason?: string }> };
+    const body = await readJsonBody(request) as { reviewToken?: string; rows?: Array<{ rowNumber?: number; selected?: boolean; matchedInvoiceId?: string | null; proposal?: Record<string, unknown>; skip?: boolean; reason?: string }> };
     if ((batch.kind === "STUDENT_ROSTER" || body.reviewToken !== undefined) && body.reviewToken !== importReviewToken(batch)) throw new ApiError("This import changed. Review its current rows before saving.", 409);
     if (!Array.isArray(body.rows) || body.rows.length < 1 || body.rows.length > 1000) throw new ApiError("Choose at least one row to update", 400);
     const { user } = await authorizedBatch(batchId, request, "add");
@@ -207,7 +208,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { batchId } = await context.params;
-    const body = await request.json() as { action?: string };
+    const body = await readJsonBody(request) as { action?: string };
     if (body.action === "commit") {
       const { user, batch } = await authorizedBatch(batchId, request, "add");
       if (batch.state === "COMMITTED" || batch.state === "PARTIAL" || batch.state === "REVERSED") return Response.json({ success: true, data: response(batch), idempotent: true });

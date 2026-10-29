@@ -10,6 +10,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-464 postal and courier register.
 // GET   ?campusId=&view=active|mine|closed|all&direction=RECEIVE|DISPATCH&q=   → items with counts
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
   try {
     const user = await frontDesk();
     await assertPermission(user, "front-desk", "add");
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { item, replayed } = await logItem(user, campusId, body);
     const { requestHash: _hash, idempotencyKey: _key, fileKey: _file, ...data } = item;
@@ -67,8 +69,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await frontDesk();
     await assertPermission(user, "front-desk", "edit");
-    const body = await request.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { requestHash: _hash, idempotencyKey: _key, fileKey: _file, ...data } = await actOnItem(user, campusId, body);
     return Response.json({ success: true, data });

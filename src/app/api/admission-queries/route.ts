@@ -13,6 +13,8 @@ import {
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Admission Query (Lead CRM).
 // GET    /api/admission-queries?status=&source=&search=&overdue=true
@@ -97,7 +99,7 @@ export async function POST(req: NextRequest) {
     assertStaffRole(user);
     await assertPermission(user, "admissions", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const query = await createEnquiry(user, body);
 
     return Response.json({ success: true, data: query }, { status: 201 });
@@ -114,7 +116,7 @@ export async function PATCH(req: NextRequest) {
     assertStaffRole(user);
     await assertPermission(user, "admissions", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const updated = await updateEnquiry(user, body);
     return Response.json({ success: true, data: updated });
   } catch (error) {

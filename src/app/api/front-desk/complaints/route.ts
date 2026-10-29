@@ -11,6 +11,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-467 complaint cases.
 // GET   ?campusId=&status=&owner=me|unassigned&overdue=1&q=   → queue (minimum metadata, no narrative)
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can record complaints.", 403);
     await assertPermission(user, "front-desk", "add");
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { complaint, replayed } = await intake(user, campusId, body);
     // Reception gets a receipt for a confidential concern, never a handle to read it back.
@@ -98,8 +100,7 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuthUser();
     await assertModuleRead(user, "front-desk");
     await assertPermission(user, "front-desk", "edit");
-    const body = await request.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const { requestHash: _hash, idempotencyKey: _key, ...data } = await act(user, campusId, body);
     return Response.json({ success: true, data });
