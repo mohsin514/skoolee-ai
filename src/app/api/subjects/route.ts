@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { subjectSchema } from "@/lib/validators/schemas";
 import { createCampusSubjects } from "@/lib/academic/subject-write";
+import { SUBJECT_PACKS } from "@/lib/academic/subject-catalogue";
 import { notify } from "@/lib/notifications/in-app";
 import {
   ApiError,
@@ -27,6 +28,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const requestedCampusId = searchParams.get("campusId");
     const classId = searchParams.get("classId");
+    // SKAI-149: archived subjects keep their history but leave pickers unless asked for.
+    const includeArchived = searchParams.get("includeArchived") === "true";
     const campusId = user.role === "SUPER_ADMIN" && !requestedCampusId
       ? null
       : await resolveCampusId(user, requestedCampusId);
@@ -35,6 +38,7 @@ export async function GET(req: NextRequest) {
       where: {
         ...scopedCampusWhere(user, campusId),
         ...(classId ? { classId } : {}),
+        ...(includeArchived ? {} : { archivedAt: null }),
       },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
@@ -55,12 +59,14 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
 
     const body = await parseBody(req, jsonObjectBody);
-    const parsed = subjectSchema.safeParse(body);
+    const pack = typeof body.packId === "string" ? SUBJECT_PACKS[body.packId] : undefined;
+    if (body.packId !== undefined && !pack) throw new ApiError("Choose a curriculum pack.", 400);
+    const parsed = subjectSchema.safeParse(pack ? { ...body, name: pack.label } : body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
 
-    const { subject, cls, createdCount } = await createCampusSubjects(user, { classId: parsed.data.classId, campusId: body.campusId, name: parsed.data.name, teacherId: parsed.data.teacherId, totalMarks: parsed.data.totalMarks || parsed.data.maxMarks || 100, applyToAllSections: body.applyToAllSections === true });
+    const { subject, cls, createdCount, skippedCount } = await createCampusSubjects(user, { classId: parsed.data.classId, campusId: body.campusId, name: parsed.data.name, code: parsed.data.code, isElective: parsed.data.isOptional, pack: pack?.subjects, teacherId: parsed.data.teacherId, totalMarks: parsed.data.totalMarks || parsed.data.maxMarks || 100, applyToAllSections: body.applyToAllSections === true });
 
     notify("SUBJECT_CREATED", {
       schoolId: user.schoolId,
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
     });
 
     return Response.json(
-      { success: true, data: subject, createdCount },
+      { success: true, data: subject, createdCount, skippedCount },
       { status: 201 }
     );
   } catch (error) {

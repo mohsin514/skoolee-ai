@@ -5,6 +5,7 @@ import { arabicRoleUxUi, urduRoleUxUi } from "./role-ux/index";
 import { arabicWhatsappUi, urduWhatsappUi } from "./whatsapp-ui-messages";
 import { arabicConsentUi, urduConsentUi } from "./consent-ui-messages";
 import { arabicImportRehearsalUi, urduImportRehearsalUi } from "./import-rehearsal-ui-messages";
+import { arabicSubjectSetupUi, urduSubjectSetupUi } from "./subject-setup-ui-messages";
 /**
  * The reviewed Arabic catalog (everything translated before the role re-architecture). It keeps precedence: a
  * role-ux package entry for the same key never changes a reviewed meaning (P9-01; tests/locale/catalog-conflicts.test.ts).
@@ -870,7 +871,7 @@ export function reviewedTranslation(source: string, language: "en" | "ar" | "ur"
   const catalog = language === "ar" ? arabicReviewedUi : urduReviewedUi;
   const workflow = language === "ar" ? arabicWorkflowUi : urduWorkflowUi;
   const navigation = language === "ar" ? arabicNavigationUi : urduNavigationUi;
-  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source];
+  return navigation[source] ?? catalog[source] ?? workflow[source] ?? academicModelUi[language][source] ?? academicModelUiExtra[language][source] ?? (language === "ar" ? arabicWhatsappUi : urduWhatsappUi)[source] ?? (language === "ar" ? arabicConsentUi : urduConsentUi)[source] ?? (language === "ar" ? arabicImportRehearsalUi : urduImportRehearsalUi)[source] ?? (language === "ar" ? arabicSubjectSetupUi : urduSubjectSetupUi)[source];
 }
 
 const reportedMissing = new Set<string>();

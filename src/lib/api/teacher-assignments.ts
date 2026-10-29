@@ -8,6 +8,7 @@ import { moduleFlags, type PermissionModule } from "@/lib/permissions";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { syncTimetableSlotsForSubjects, type TimetableClash } from "./timetable-sync";
+import { assertSubjectCodeFree, normalizeSubjectCode } from "@/lib/academic/subject-catalogue";
 import { effectiveDate, findDuplicateClass, findDuplicateSubject, recordTeachingAssignment } from "@/lib/academic/structure";
 
 type AssignmentInput = Record<string, unknown>;
@@ -124,7 +125,7 @@ export async function updateSubjectWithTeacherAssignment(user: AuthUser, body: A
 export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: AuthUser, body: AssignmentInput, campusId: string) {
   const id = recordId(body.id), scope = campusScope(user, campusId);
   const grants = await authorizeAssignment(tx, user, "exams");
-  const existing = await tx.subject.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, name: true, classId: true, teacherId: true, class: { select: { archivedAt: true } } } });
+  const existing = await tx.subject.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, name: true, code: true, classId: true, teacherId: true, archivedAt: true, class: { select: { archivedAt: true } } } });
   if (!existing) throw new ApiError("Subject not found", 404);
   if (existing.class.archivedAt) throw new ApiError("Restore this subject's class before editing it.", 409);
   const from = effectiveDate(body.effectiveFrom);
@@ -138,6 +139,13 @@ export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: A
     if (!Number.isInteger(totalMarks) || totalMarks < 1 || totalMarks > 1000) throw new ApiError("Maximum marks must be a whole number from 1 to 1000", 400);
     data.totalMarks = totalMarks;
   }
+  // SKAI-149: code, core/elective and archive. An archived subject only accepts a restore.
+  if (existing.archivedAt && body.archived !== false) throw new ApiError("Restore this subject before editing it.", 409);
+  if (body.code !== undefined) data.code = normalizeSubjectCode(body.code);
+  if (body.isElective !== undefined) data.isElective = body.isElective === true;
+  if (body.archived !== undefined) data.archivedAt = body.archived === true ? new Date() : null;
+  if (data.code !== undefined || data.name !== undefined) await assertSubjectCodeFree(tx, user.schoolId, (data.code as string | null | undefined) === undefined ? existing.code : data.code as string | null, (data.name as string | undefined) ?? existing.name, id);
+  if (data.code && await tx.subject.findFirst({ where: { schoolId: user.schoolId, classId: existing.classId, code: data.code as string, id: { not: id } }, select: { id: true } })) throw new ApiError(`Code ${data.code} is already used in this class.`, 409);
   const teacherProvided = body.teacherId !== undefined;
   if (teacherProvided) data.teacherId = await teacherInCampus(tx, body.teacherId, user.schoolId, existing.campusId);
   if (body.classId !== undefined) {
@@ -156,7 +164,7 @@ export async function updateSubjectWithTeacherAssignmentTx(tx: TxClient, user: A
     await syncTimetableSlotsForSubjects(tx, { schoolId: user.schoolId, campusId: existing.campusId }, [id], subject.teacherId);
     await recordTeachingAssignment(tx, user, { campusId: existing.campusId, classId: subject.classId, subjectId: id, teacherId: subject.teacherId, from });
   }
-  await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "subject", recordId: id, oldValue: { name: existing.name, teacherId: existing.teacherId }, newValue: { name: subject.name, teacherId: subject.teacherId, totalMarks: subject.totalMarks, effectiveFrom: from.toISOString().slice(0, 10) }, userId: user.userId } });
+  await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "subject", recordId: id, oldValue: { name: existing.name, code: existing.code, teacherId: existing.teacherId, archivedAt: existing.archivedAt }, newValue: { name: subject.name, code: subject.code, isElective: subject.isElective, archivedAt: subject.archivedAt, teacherId: subject.teacherId, totalMarks: subject.totalMarks, effectiveFrom: from.toISOString().slice(0, 10) }, userId: user.userId } });
   return { existing, subject, clashes: [] as TimetableClash[] };
 }
 
@@ -171,9 +179,9 @@ export async function deleteSubjectWithTimetableSync(user: AuthUser, id: string)
     const grants = await authorizeAssignment(tx, user, "exams", "delete");
     const subject = await tx.subject.findFirst({ where: { id, ...scope, campusId: located.campusId }, include: { _count: { select: { marks: true, exams: true, examSchedules: true } } } });
     if (!subject) throw new ApiError("Subject not found", 404);
-    if (subject._count.marks > 0) throw new ApiError("Subjects with marks cannot be deleted", 409);
+    if (subject._count.marks > 0) throw new ApiError("Subjects with marks cannot be deleted. Archive it instead to keep its history.", 409);
     // SKO-462: deleting would turn a single-subject exam into an all-subjects one and drop its schedule.
-    if (subject._count.exams > 0 || subject._count.examSchedules > 0) throw new ApiError(`This subject is used by ${subject._count.exams} exam(s) and ${subject._count.examSchedules} exam schedule(s). Remove or move them first.`, 409);
+    if (subject._count.exams > 0 || subject._count.examSchedules > 0) throw new ApiError(`This subject is used by ${subject._count.exams} exam(s) and ${subject._count.examSchedules} exam schedule(s). Archive it instead, or remove or move them first.`, 409);
     await requireScheduleEdit(tx, user, subject.campusId, [id], grants);
     const timetables = await tx.timetableSlot.findMany({ where: { subjectId: id, schoolId: user.schoolId }, select: { timetableId: true } });
     await recordTeachingAssignment(tx, user, { campusId: subject.campusId, classId: subject.classId, subjectId: id, teacherId: null, from: effectiveDate(undefined) });
