@@ -4,6 +4,8 @@ import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, assertPermission, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { Prisma } from "@prisma/client";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Consolidation keeps both immutable IDs and all source foreign keys. A source
 // with academic/financial obligations needs case-by-case reconciliation rather
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest) {
     // G19: the institution authority (group admin, or the school admin of a single school) consolidates duplicates.
     if (!isInstitutionAuthority(user)) throw new ApiError("Only the institution administrator may review or consolidate identities.", 403);
     await assertPermission(user, "students", "delete");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const sourceId = String(body.sourceId || ""), targetId = String(body.targetId || "");
     if (body.action === "preview") return Response.json(await preview(prisma, sourceId, targetId));
     if (body.action !== "confirm" || body.verifiedSourceId !== sourceId || body.verifiedTargetId !== targetId || String(body.reason || "").trim().length < 10) throw new ApiError("Verify both permanent IDs and record a reason of at least 10 characters", 400);

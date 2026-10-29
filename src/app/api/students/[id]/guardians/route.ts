@@ -6,6 +6,7 @@ import { ApiError, canManageAcademics, canManageCampusOps, errorResponse, requir
 import { studentScope } from "@/lib/auth/policy";
 import { assertPermission } from "@/lib/permissions";
 import { EMPTY_GUARDIAN_PERMISSIONS, parseGuardianPermissions } from "@/lib/parent/guardian-access";
+import { readJsonBody } from "@/lib/api/validate";
 
 const permissionsSchema = z.object({
   learningRecords: z.boolean(), attendance: z.boolean(), finances: z.boolean(),
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!canManageCampusOps(user)) throw new ApiError("Guardian access is managed by your campus admin.", 403);
     await assertPermission(user, "students", "edit");
     const { id: studentId } = await params;
-    const parsed = decisionSchema.safeParse(await req.json());
+    const parsed = decisionSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError("Please check the guardian details and try again", 400);
     const input = parsed.data;
     const student = await prisma.student.findFirst({

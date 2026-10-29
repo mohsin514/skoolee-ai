@@ -7,6 +7,8 @@ import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { isFamily, studentScope } from "@/lib/auth/policy";
 import { isInstitutionAuthority } from "@/lib/auth/institution";
 import { applyEnrollment, assertRegistrar, dateOnly, enrollmentHistoryWhere, enrollmentImpact, readPupil } from "@/lib/students/enrollment";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     await assertRegistrar(user);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.studentId || "");
     await readPupil(user, id);
     if (body.action === "confirm") {
