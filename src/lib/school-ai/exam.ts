@@ -155,7 +155,9 @@ export function parseMultipleChoice(raw: string): string[] | null {
   try { const value: unknown = JSON.parse(raw); return Array.isArray(value) && value.length > 0 && value.length <= 8 && value.every(item => typeof item === "string" && item.length > 0 && item.length <= 120) && new Set(value).size === value.length ? value : null; } catch { return null; }
 }
 export function parseNumericAnswer(raw: string): number | null {
-  const normalized = raw.trim().replace(/[٠-٩]/g, char => String(char.charCodeAt(0) - 1632)).replace(/[۰-۹]/g, char => String(char.charCodeAt(0) - 1776)).replace(/٫/g, ".");
+  // Bidi controls (LRM/RLM/ALM/isolates) and the Unicode minus arrive from RTL keyboards and pasted
+  // typeset maths; they must not turn a correct number into a zero.
+  const normalized = raw.replace(/[\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g, "").trim().replace(/^[\u2212\u2013]/, "-").replace(/[٠-٩]/g, char => String(char.charCodeAt(0) - 1632)).replace(/[۰-۹]/g, char => String(char.charCodeAt(0) - 1776)).replace(/٫/g, ".");
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d{1,3})?$/.test(normalized)) return null;
   const value = Number(normalized); return Number.isFinite(value) ? value : null;
 }
