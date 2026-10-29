@@ -6,6 +6,7 @@ import {
 } from "@/lib/api/scope";
 import { reportRemarkSchema } from "@/lib/validators/schemas";
 import { updateReportCardCommand } from "@/lib/reports/edit-remarks-command";
+import { readJsonBody } from "@/lib/api/validate";
 
 export async function PATCH(
   req: NextRequest,
@@ -15,7 +16,7 @@ export async function PATCH(
     const user = await requireAuthUser();
     await assertPermission(user, "reports", "edit");
     const { id } = await params;
-    const parsed = reportRemarkSchema.safeParse(await req.json());
+    const parsed = reportRemarkSchema.safeParse(await readJsonBody(req));
     if (!parsed.success)
       return Response.json(
         { error: parsed.error.flatten().fieldErrors },

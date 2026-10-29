@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { inboxCounts, listInbox, VIEWS, type InboxView } from "@/lib/notifications/actions";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-416: ?view=all|mentions|actions&status=open|resolved. Items carry their current source state
 // (open / resolved / unavailable) rechecked for this viewer; unavailable items show no stored text.
@@ -40,7 +42,7 @@ export async function PATCH(req: NextRequest) {
     const user = await getAuthUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const now = new Date();
 
     // Marking read is attention only: it never resolves an assigned action (SKO-416).
