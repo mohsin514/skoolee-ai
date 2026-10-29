@@ -92,6 +92,7 @@ export async function listAuditHistory(user: AuthUser, raw: unknown, db: TxClien
 
 // ─── Export ───────────────────────────────────────────────────────
 const EXPORT_LIMIT = 5000;
+const EXPORT_RECEIPT_TABLE = "audit_log_exports";
 export const auditExportQuery = z.object({
   requestKey: z.string().uuid(),
   tableName: z.string().regex(/^[a-z][a-z0-9_]{0,79}$/).optional(),
@@ -115,21 +116,31 @@ export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExp
   const input = auditExportQuery.parse(raw);
   const scope = auditHistoryScope(user, input.campusId);
   await assertExport(user);
+  const filters = { tableName: input.tableName ?? null, campusId: input.campusId ?? null, from: input.from ?? null, to: input.to ?? null };
+  // SKAI-1065: a retry with the same requestKey replays the stored export byte for byte.
+  const previous = await db.auditLog.findFirst({ where: { AND: [scope, { tableName: EXPORT_RECEIPT_TABLE, recordId: input.requestKey, userId: user.userId }] }, select: { id: true, newValue: true } });
+  if (previous) {
+    const stored = previous.newValue as { filters?: unknown; csv?: unknown; filename?: unknown; rows?: unknown; truncated?: unknown } | null;
+    if (JSON.stringify(stored?.filters ?? null) !== JSON.stringify(filters)) throw new ApiError("This export request key was already used with different filters.", 409);
+    if (typeof stored?.csv === "string" && typeof stored.filename === "string") {
+      return { csv: stored.csv, rows: Number(stored.rows) || 0, truncated: stored.truncated === true, filename: stored.filename };
+    }
+  }
   const rows: AuditHistoryEntry[] = [];
   let cursor: string | undefined;
   do {
     const page = await listAuditHistory(user, { limit: 100, tableName: input.tableName, campusId: input.campusId, from: input.from, to: input.to, cursor }, db, now);
-    rows.push(...page.data);
+    // The export never lists its own receipts, so a retry cannot change its own output.
+    rows.push(...page.data.filter(row => row.tableName !== EXPORT_RECEIPT_TABLE));
     cursor = page.nextCursor ?? undefined;
   } while (cursor && rows.length < EXPORT_LIMIT);
   const truncated = rows.length >= EXPORT_LIMIT && !!cursor;
-  const previous = await db.auditLog.findFirst({ where: { AND: [scope, { tableName: "audit_log_exports", recordId: input.requestKey, userId: user.userId }] }, select: { id: true } });
-  if (!previous) {
-    await db.auditLog.create({ data: { schoolId: user.schoolId, campusId: typeof scope.campusId === "string" ? scope.campusId : null, tableName: "audit_log_exports", recordId: input.requestKey, userId: user.userId,
-      newValue: { status: "COMPLETED", rows: rows.length, truncated, filters: { tableName: input.tableName ?? null, campusId: input.campusId ?? null, from: input.from ?? null, to: input.to ?? null } } } });
-  }
   const header = ["time", "action", "category", "record", "campus", "actor", "actor_role", "changes"];
   const lines = rows.slice(0, EXPORT_LIMIT).map(row => [row.createdAt, row.action, row.tableName, row.recordId, row.campusId, row.actor?.fullName, row.actor?.role,
     row.changes.map(change => `${change.field}: ${change.before ?? "—"} → ${change.after ?? "—"}`).join("; ")].map(csvCell).join(","));
-  return { csv: [header.join(","), ...lines].join("\r\n") + "\r\n", rows: rows.length, truncated, filename: `activity-history-${now.toISOString().slice(0, 10)}.csv` };
+  const result = { csv: [header.join(","), ...lines].join("\r\n") + "\r\n", rows: Math.min(rows.length, EXPORT_LIMIT), truncated, filename: `activity-history-${now.toISOString().slice(0, 10)}.csv` };
+  const receipt = { status: "COMPLETED", rows: result.rows, truncated, filters, filename: result.filename, csv: result.csv };
+  if (previous) await db.auditLog.update({ where: { id: previous.id }, data: { newValue: receipt } });
+  else await db.auditLog.create({ data: { schoolId: user.schoolId, campusId: typeof scope.campusId === "string" ? scope.campusId : null, tableName: EXPORT_RECEIPT_TABLE, recordId: input.requestKey, userId: user.userId, newValue: receipt } });
+  return result;
 }
