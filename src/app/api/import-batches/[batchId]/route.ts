@@ -128,7 +128,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         const targetClass = await prisma.class.findFirst({ where: { id: proposal.classId, campusId: batch.campusId, campus: { schoolId: user.schoolId }, status: "ACTIVE", archivedAt: null }, select: { id: true, name: true, section: true } });
         if (!targetClass) errors.push("classId: Class is outside the selected campus or does not exist");
         const matchKey = `class:${proposal.classId}/roll:${proposal.rollNo}`;
-        const existing = await prisma.student.findFirst({ where: { schoolId: user.schoolId, campusId: batch.campusId, archivedAt: null, rollNo: { equals: proposal.rollNo, mode: "insensitive" } }, select: { id: true, classId: true, fullName: true } });
+        // SKAI-1015: a roll number can exist in several classes; prefer the same-class pupil so an edit is SKIPPED like staging classifies it.
+        const rollMatches = await prisma.student.findMany({ where: { schoolId: user.schoolId, campusId: batch.campusId, archivedAt: null, rollNo: { equals: proposal.rollNo.trim(), mode: "insensitive" } }, select: { id: true, classId: true, fullName: true } });
+        const existing = rollMatches.find((student) => student.classId === proposal.classId) ?? rollMatches[0];
         const duplicateRow = rows.find((candidate) => candidate.rowNumber !== row.rowNumber && candidate.proposal && candidate.state !== "SKIPPED" && candidate.state !== "REJECTED" && String(candidate.proposal.classId) === proposal.classId && String(candidate.proposal.rollNo).trim().toLocaleLowerCase() === proposal.rollNo.trim().toLocaleLowerCase());
         row.proposal = proposal as unknown as Record<string, unknown>;
         row.matchKey = matchKey;
