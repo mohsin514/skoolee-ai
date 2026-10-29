@@ -7,7 +7,26 @@ import { evaluatePilotEligibility, type EligibilityResult, type PilotEligibility
  * This is the specification and verification layer that SKAI-958 board templates consume;
  * it does not generate papers. Each board keeps its own rules and is never mapped onto another.
  */
-export const contractBoards = ["FBISE", "BISE_LAHORE", "KSA_MOE", "CAMBRIDGE"] as const;
+export const contractBoards = ["FBISE", "BISE_LAHORE", "KSA_MOE", "CAMBRIDGE", "BRITISH_NATIONAL", "IB", "CBSE", "MOE_UAE"] as const;
+export type ContractBoard = (typeof contractBoards)[number];
+
+type BoardRule = { test: (c: { tier: string; term: string; examSession: string }) => boolean; error: string };
+const pakistanSession: BoardRule = { test: c => /annual/i.test(c.examSession), error: "Pakistan board contracts require a named annual examination session." };
+/**
+ * SKAI-1106: board-specific publication rules live in one table. A new board is one enum value plus
+ * an entry here (empty when it has no extra rule); its pack content is data. Boards never borrow
+ * another board's structure.
+ */
+export const boardPublicationRules: Record<ContractBoard, readonly BoardRule[]> = {
+  FBISE: [pakistanSession],
+  BISE_LAHORE: [pakistanSession],
+  KSA_MOE: [{ test: c => /term|فصل/i.test(c.term), error: "Saudi contracts require a named semester/term." }],
+  CAMBRIDGE: [{ test: c => /core|extended/i.test(c.tier), error: "Cambridge contracts require a Core or Extended tier." }],
+  BRITISH_NATIONAL: [{ test: c => /foundation|higher/i.test(c.tier), error: "GCSE contracts require a Foundation or Higher tier." }],
+  IB: [{ test: c => /\b(SL|HL)\b|standard level|higher level/i.test(c.tier), error: "IB contracts require a Standard Level (SL) or Higher Level (HL) tier." }],
+  CBSE: [],
+  MOE_UAE: [{ test: c => /term/i.test(c.term), error: "UAE Ministry of Education contracts require a named term." }],
+};
 export const contractStatuses = ["DRAFT", "IN_REVIEW", "APPROVED", "SUPERSEDED", "REVOKED"] as const;
 export type ContractStatus = (typeof contractStatuses)[number];
 
@@ -102,9 +121,7 @@ export function validateContractForPublication(raw: unknown, now = new Date()): 
   const sectionMarks = c.paper.sections.reduce((sum, section) => sum + section.marks, 0);
   if (c.paper.totalMarks && c.paper.sections.length && sectionMarks !== c.paper.totalMarks) errors.push(`Section marks (${sectionMarks}) do not equal the paper total (${c.paper.totalMarks}).`);
   if (c.paper.calculator === "UNVERIFIED") errors.push("Calculator rule is unverified.");
-  if (c.board === "CAMBRIDGE" && !/core|extended/i.test(c.tier)) errors.push("Cambridge contracts require a Core or Extended tier.");
-  if (c.board === "KSA_MOE" && !/term|فصل/i.test(c.term)) errors.push("Saudi contracts require a named semester/term.");
-  if ((c.board === "FBISE" || c.board === "BISE_LAHORE") && !/annual/i.test(c.examSession)) errors.push("Pakistan board contracts require a named annual examination session.");
+  for (const rule of boardPublicationRules[c.board]) if (!rule.test(c)) errors.push(rule.error);
   return errors;
 }
 
@@ -151,7 +168,7 @@ export function pinMatches(pin: ContractPin, contract: CurriculumContract): bool
   return pin.packId === contract.packId && pin.version === contract.version && pin.contentSha256 === contractContentSha256(contract);
 }
 
-export type ContractRequest = { board: (typeof contractBoards)[number]; schoolGrade: string; subject: string; examYear: string; tier?: string; language: "en" | "ar" | "ur" };
+export type ContractRequest = { board: ContractBoard; schoolGrade: string; subject: string; examYear: string; tier?: string; language: "en" | "ar" | "ur" };
 
 /** Exact match only: a request for one board, grade, year, tier or language is never served by another. */
 export function contractMismatches(contract: CurriculumContract, request: ContractRequest): string[] {
