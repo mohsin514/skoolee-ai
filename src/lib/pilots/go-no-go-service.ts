@@ -2,11 +2,12 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { measureFinding, timeFinding, type MeasureRow, type ObservationRow } from "./findings";
 import { evaluateGoNoGo, type GoNoGoResult } from "./go-no-go";
+import { papersPerTeacher, papersWindow } from "./papers-per-teacher";
 import { pilotActivationGate, schoolPilotRecords } from "./readiness-service";
 
 /**
  * SKAI-1102 read-only board: one row per measurement pilot linked to a school. Every figure comes from
- * the existing SKO-430 findings and SKAI-1017/1018 records; nothing is written. Platform owner only.
+ * the existing SKO-430 findings, SKAI-1017/1018 records and PAPER records (SKAI-1174); nothing is written. Platform owner only.
  */
 export type GoNoGoRow = { pilotId: string; pilotName: string; status: string; synthetic: boolean; schoolId: string; schoolName: string; result: GoNoGoResult };
 
@@ -22,11 +23,14 @@ export async function goNoGoBoard(now = new Date()): Promise<GoNoGoRow[]> {
   for (const pilot of pilots) {
     const schoolId = pilot.targetSchoolId!;
     if (!names.has(schoolId)) continue;
-    const [observations, measures, records, gate] = await Promise.all([
+    const window = papersWindow(pilot.startsOn, now);
+    const [observations, measures, records, gate, teachers, papers] = await Promise.all([
       prisma.pilotObservation.findMany({ where: { pilotId: pilot.id }, take: 2000 }),
       prisma.pilotMeasure.findMany({ where: { pilotId: pilot.id }, take: 2000 }),
       schoolPilotRecords(schoolId),
       pilotActivationGate(schoolId, now),
+      prisma.user.findMany({ where: { schoolId, role: "TEACHER", isActive: true }, select: { id: true }, take: 5000 }),
+      prisma.schoolAiRecord.findMany({ where: { schoolId, kind: "PAPER", createdAt: { gte: window.start, lt: window.end } }, select: { createdById: true, createdAt: true }, take: 20000 }),
     ]);
     const rate = (kind: string) => { const f = measureFinding(kind, null, measures as MeasureRow[]); return { value: f.rate, withheld: f.rateWithheld }; };
     const times = workflowKeys(pilot.workflows).map((w) => timeFinding(w, observations as ObservationRow[]));
@@ -38,7 +42,7 @@ export async function goNoGoBoard(now = new Date()): Promise<GoNoGoRow[]> {
       gate: records.readiness.length ? gate : null,
       decision: records.readiness[0]?.outcome ?? null,
       commercialStage: records.events[0]?.stage ?? null,
-      teacherUsage: rate("WEEKLY_ACTIVE"),
+      teacherUsage: papersPerTeacher(teachers.map((t) => t.id), papers, window),
       paperAcceptance: rate("CORRECTNESS_FINAL"),
       taskTimeChange,
     });
