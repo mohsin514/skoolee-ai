@@ -8,6 +8,7 @@ import { assertSetupPurchaser, setupTenantContext } from "@/lib/onboarding/setup
 import { TEST_CHECKOUT_PROVIDER, testCheckoutEnabled } from "@/lib/payments/test-checkout";
 import type { BillingPeriod } from "@/config/plans";
 import type { PlanType } from "@/types";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     if (!testCheckoutEnabled()) throw new ApiError("Not found", 404);
     const user = await requireAuthUser({ allowSuspended: true });
-    const parsed = schema.safeParse(await req.json());
+    const parsed = schema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError("Invalid test checkout request.", 400);
     const { intentId, outcome } = parsed.data;
 

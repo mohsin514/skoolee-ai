@@ -6,6 +6,7 @@ import { AccessDenied } from "@/lib/auth/policy";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { withParentScope } from "@/lib/parent/resolve-child";
 import { acknowledgeExamBrief, familyExamBrief } from "@/lib/academic/exam-brief";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   try {
     assertSameOrigin(req);
     const user = await requireAuthUser();
-    const { versionId } = z.strictObject({ versionId: z.string().min(1).max(120) }).parse(await req.json());
+    const { versionId } = z.strictObject({ versionId: z.string().min(1).max(120) }).parse(await readJsonBody(req));
     return await withParentScope(req, async ({ studentId, permissions, schoolId }) => {
       if (!permissions.learningRecords) throw new AccessDenied("exam schedule");
       return Response.json({ success: true, data: await acknowledgeExamBrief(schoolId, await childOf(schoolId, studentId!), user.userId, versionId) }, { headers });
