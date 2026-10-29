@@ -5,7 +5,8 @@
  * GROUP tenants mirror a "school_group" registration: SUPER_ADMIN owner, campus admins.
  * The STANDALONE tenant mirrors a "single school" registration (src/lib/auth/register.ts):
  * School.registrationKind = "STANDALONE" and the registering ADMIN carries
- * isInstitutionOwner / canPurchaseSubscription / canManageMemberships, no campus.
+ * isInstitutionOwner / canPurchaseSubscription / canManageMemberships. Onboarding then pins
+ * that admin to the school's campus, so the seed pins it too (the console loads campus data).
  */
 import type { UserRole } from "@prisma/client";
 
@@ -39,7 +40,7 @@ const GROUP_ROLES: RoleDef[] = [
 ];
 
 const STANDALONE_ROLES: RoleDef[] = [
-  { role: "ADMIN", key: "admin", fullName: "QA Standalone Admin / مدير المدرسة المستقلة", scoped: false, owner: true },
+  { role: "ADMIN", key: "admin", fullName: "QA Standalone Admin / مدير المدرسة المستقلة", scoped: true, owner: true },
   ...STAFF,
 ];
 
