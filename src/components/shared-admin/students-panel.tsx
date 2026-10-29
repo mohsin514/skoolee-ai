@@ -61,6 +61,7 @@ import {
 } from "@/components/shared-admin";
 import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
 import { Select as SystemSelect } from "@/components/ui/select";
+import { readApiData } from "@/lib/api/envelope-client";
 
 /* ────────────────────────── Sorting ────────────────────────── */
 
@@ -220,8 +221,8 @@ export function StudentsPanel({
           fetch("/api/student-groups").then((r) => r.json()),
         ]);
         if (cancelled) return;
-        setAllCategories(cats.success ? cats.data : []);
-        setAllGroups(grps.success ? grps.data : []);
+        setAllCategories(readApiData(cats, []));
+        setAllGroups(readApiData(grps, []));
       } catch {
         /* the roster still works without them; the bulk menu just stays empty */
       }

@@ -32,6 +32,7 @@ import type {
 import { API, classLabel, formatPKR, rupeesToPaisa, paisaToRupees, usePanelCommand } from "./fee-utils";
 import { Select as SystemSelect } from "@/components/ui/select";
 import { Input as SystemInput } from "@/components/ui/input";
+import { readApiData } from "@/lib/api/envelope-client";
 
 const inputClass = "w-full";
 const labelClass = "block mb-2 ps-2 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
@@ -674,7 +675,7 @@ function DiscountsPanel({ campusId, command, hideCreate = false }: FeeSetupPanel
       const [dJson, cJson] = await Promise.all([checkedJson(dRes), checkedJson(cRes)]);
       if (loadVersion !== loadSequence.current) return;
       if (dJson.success) setDiscounts(dJson.data);
-      if (cJson.success) setCategories(cJson.data);
+      setCategories(readApiData(cJson, []));
     } catch (error) {
       if (loadVersion !== loadSequence.current) return;
       setLoadFailed(requestFailure(error));

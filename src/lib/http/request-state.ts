@@ -33,7 +33,9 @@ export async function checkedJson<T = any>(response: Response, options: { envelo
   if (!response.ok) throw new RequestFailure(failureForStatus(response.status), response.status, digest);
   const body = await response.json().catch(() => { throw new RequestFailure("server", response.status, digest); });
   if (!body || typeof body !== "object") throw new RequestFailure("server", response.status, digest);
-  if (body?.success === false || (options.envelope !== false && body?.success !== true)) throw new RequestFailure("server", response.status, digest);
+  // SKAI-1163: a `{ data }` envelope with no error counts as success alongside the legacy `success: true`.
+  const enveloped = "data" in body && !("error" in body && body.error);
+  if (body?.success === false || (options.envelope !== false && body?.success !== true && !enveloped)) throw new RequestFailure("server", response.status, digest);
   return body as T;
 }
 /** Reads only: no automatic replay of mutations with uncertain outcomes. */

@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { readApiData } from "@/lib/api/envelope-client";
 import {
   FormSection,
   ReviewHero,
@@ -279,8 +280,8 @@ export function AdmissionForm({ classes, classGroups, onSuccess, onClose, initia
       .then(([cats, grps]) => {
         if (!active) return;
         setTags({
-          categories: cats.success ? cats.data : [],
-          groups: grps.success ? grps.data : [],
+          categories: readApiData(cats, []),
+          groups: readApiData(grps, []),
         });
       })
       .catch(() => {});

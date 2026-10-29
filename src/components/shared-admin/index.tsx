@@ -108,6 +108,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { csvCell, downloadCSV } from "@/lib/csv";
+import { readApiData, readApiError } from "@/lib/api/envelope-client";
 import {
   DataTable,
   SearchField,
@@ -1874,8 +1875,8 @@ export function StudentDetailModal({
       .then(([cats, grps]) => {
         if (!active) return;
         setTags({
-          categories: cats.success ? cats.data : [],
-          groups: grps.success ? grps.data : [],
+          categories: readApiData(cats, []),
+          groups: readApiData(grps, []),
         });
       })
       .catch(() => {})
@@ -4322,7 +4323,7 @@ export function StudentSetupPanel({
         fetch(STUDENT_TAG_API.category, { cache: "no-store" }).then((r) => r.json()),
         fetch(STUDENT_TAG_API.group, { cache: "no-store" }).then((r) => r.json()),
       ]);
-      if (!cats.success || !grps.success) throw new Error(cats.error || grps.error || "Categories could not be loaded.");
+      if (!Array.isArray(cats.data) || !Array.isArray(grps.data)) throw new Error(readApiError(cats.data ? grps : cats, "Categories could not be loaded."));
       setCategories(cats.data ?? []);
       setGroups(grps.data ?? []);
       setLoadFailed(false);
@@ -4350,7 +4351,7 @@ export function StudentSetupPanel({
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(apiErrorMessage(json.error, ui("The change could not be saved. Please try again.")));
+      if (!res.ok) throw new Error(readApiError(json, ui("The change could not be saved. Please try again.")));
       toast.success(ui(editing ? (kind === "category" ? "Category updated" : "Group updated") : (kind === "category" ? "Category created" : "Group created")));
       setEditing(null);
       setCreating(null);
