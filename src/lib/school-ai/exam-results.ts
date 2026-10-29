@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api/scope";
 import { proposeCorrectionIn } from "./exam-moderation-service";
 import { schoolAiTransaction } from "./transaction";
 import { resultDecisionAccess, scopedAssignment, staffExamAccess } from "./exam-service";
-import { examReviewSchema, responsesSchema, validateExamReview, examKeyCorrectionSchema, correctedExamPaper, scoreObjectiveResponses } from "./exam";
+import { examReviewSchema, responsesSchema, validateExamReview, examKeyCorrectionSchema, correctedExamPaper, scoreObjectiveResponses, objectiveOverrides, type ExamReview } from "./exam";
 import { membersHeadedBy, headsAuthorDepartment } from "./department-heads";
 
 const id = z.string().trim().min(1).max(120);
@@ -98,11 +98,21 @@ export async function reviseExamResult(user: AuthUser, assignmentId: string, raw
  return { attemptId: input.attemptId, version: input.version, correctionId: correction.id, pendingCorrection: true as const };
 }
 
+/** SKAI-1014: refuses a silent change to an auto-scored item and audit-logs every reasoned override. */
+export async function assertObjectiveOverrides(tx: TxClient, user: AuthUser, args: { paper: PaperData; responses: unknown; review: ExamReview; previous?: unknown; attemptId: string; campusId: string }) {
+  const previous = args.previous && typeof args.previous === "object" ? args.previous as { marks?: { questionId: string; marks: number }[] } : null;
+  const { errors, overrides } = objectiveOverrides(args.paper, responsesSchema.parse(args.responses), args.review, previous);
+  if (errors.length) throw new ApiError(errors.join(" "), 422);
+  for (const item of overrides) await writeAuditEvent(tx, user, { table: "school_ai_exam_attempts", recordId: args.attemptId, action: "UPDATE", campusId: args.campusId, before: { questionId: item.questionId, autoMarks: item.autoMarks }, after: { objectiveOverride: true, questionId: item.questionId, marks: item.marks, overrideReason: item.reason } });
+  return overrides;
+}
+
 /** Writes one result revision against an exact predecessor, with audit and appeal resolution. */
 export async function applyResultRevision(tx: TxClient, user: AuthUser, args: { assignmentId: string; campusId: string; paper: PaperData; attempt: { id: string; responses: unknown; review: unknown }; fromVersion: number; review: z.infer<typeof examReviewSchema>; reason: string; createdById?: string }) {
   const { assignmentId, campusId, paper, attempt, fromVersion, reason } = args;
   const issues = validateExamReview(paper, responsesSchema.parse(attempt.responses), args.review);
   if (issues.length) throw new ApiError(issues.join(" "), 422);
+  await assertObjectiveOverrides(tx, user, { paper, responses: attempt.responses, review: args.review, previous: attempt.review, attemptId: attempt.id, campusId });
   const review = { ...args.review, total: args.review.marks.reduce((sum, item) => sum + item.marks, 0) };
   const version = fromVersion + 1;
   const updated = await tx.schoolAiExamAttempt.updateMany({ where: { id: attempt.id, schoolId: user.schoolId, campusId, status: "REVIEWED", reviewVersion: fromVersion }, data: { review: json(review), reviewVersion: version, reviewedById: user.userId, reviewedAt: new Date() } });
