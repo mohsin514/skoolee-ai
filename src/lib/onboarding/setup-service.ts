@@ -376,7 +376,7 @@ export async function completeSetup(user: AuthUser, expectedVersion: number, fau
           regId: type === "GROUP" ? s.regId.trim() : current.regId,
           phone: s.phone.trim() || null,
           website: s.website.trim() || null,
-          logoUrl: parseLogo(s.logoUrl || null),
+          logoUrl: parseLogo(s.logoUrl || null, { schoolId: school.id }),
           establishedYear: s.establishedYear ? Number(s.establishedYear) : null,
           tagline: s.tagline.trim() || null,
           registrationKind: type,
