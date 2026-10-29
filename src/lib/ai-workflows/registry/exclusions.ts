@@ -15,6 +15,7 @@ const RULES: Rule[] = [
     match: key => key.startsWith("auth.") || ["account.manage_mfa", "onboarding.self_serve_signup", "governance.reset_user_password", "platform.reset_user_password", "governance.set_active_campus"].includes(key) },
   { category: "webhook", reason: "Provider callbacks are verified machine-to-machine requests, not user actions.",
     match: key => /webhook|safepay_notification|safepay_simulate/.test(key) },
+  { category: "internal", reason: "Guardian consent (SKAI-1157) is the guardian's own legal decision; an assistant must never answer it for them.", match: key => key === "family.guardian_consent", link: "/parent/consent" },
   { category: "cron", reason: "The scheduled notification sweep (SKAI-1128) runs under CRON_SECRET system authority, never as an assistant action.", match: key => key === "system.notification_automation_sweep" },
   { category: "cron", reason: "Scheduled system jobs run on their own schedule under system authority.", match: key => key.startsWith("system.") },
   { category: "candidate-only", reason: "A candidate starts, answers and submits their own exam attempt; secure-browser evidence comes from their device.",
