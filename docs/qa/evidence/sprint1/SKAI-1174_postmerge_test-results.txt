@@ -1,0 +1,18 @@
+SKAI-1174 post-merge verification on origin/dev e587417eb (2026-10-30)
+
+## Unit tests
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 264.636416
+
+## Playwright pilot-go-no-go
+  ✓  1 tests/design-system/pilot-go-no-go/pilot-go-no-go.spec.ts:42:7 › en: each pilot shows six criteria and its verdict, phone has no horizontal scroll (930ms)
+  ✓  2 tests/design-system/pilot-go-no-go/pilot-go-no-go.spec.ts:42:7 › ar: each pilot shows six criteria and its verdict, phone has no horizontal scroll (941ms)
+  ✓  3 tests/design-system/pilot-go-no-go/pilot-go-no-go.spec.ts:42:7 › ur: each pilot shows six criteria and its verdict, phone has no horizontal scroll (903ms)
+  ✓  4 tests/design-system/pilot-go-no-go/pilot-go-no-go.spec.ts:56:5 › en: empty board (734ms)
+  4 passed (4.7s)
