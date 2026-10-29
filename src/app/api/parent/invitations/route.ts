@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { prisma } from "@/lib/db/prisma";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET() {
   try {
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
   try {
     const user = await requireAuthUser();
     if (user.role !== "PARENT") throw new ApiError("Only a guardian account can accept this invitation", 403);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     if (!body || typeof body.relationshipId !== "string") throw new ApiError("Invitation is unavailable", 400);
     const now = new Date();
     const relation = await prisma.guardianRelationship.findFirst({

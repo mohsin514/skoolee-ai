@@ -10,6 +10,7 @@ import { getBillingSnapshot } from "@/lib/billing/entitlements";
 import { getPaymentConfig } from "@/lib/payments/gateway";
 import { COMMERCIAL_CONTRACT, createPlanContract, encodePlanContractMetadata } from "@/config/commercial-contract";
 import { findApprovedPlanChange, markPlanChangeCheckoutStarted, restorePlanChangeApproval } from "@/lib/billing/lifecycle";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser({ allowSuspended: true });
     if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
 
-    const parsed = checkoutSchema.safeParse(await req.json());
+    const parsed = checkoutSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }

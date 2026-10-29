@@ -17,6 +17,8 @@ import { notifyReportCardsGenerated } from "@/lib/notifications/automation";
 import { sendReportCardPublishedNotifications } from "@/lib/notifications/service";
 import { reportActionSchema } from "@/lib/validators/schemas";
 import { assertFeatureEnabled, assertSchoolOperational } from "@/lib/billing/entitlements";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -119,7 +121,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
-  const body = await req.json();
+  const body = await parseBody(req, jsonObjectBody);
   const parsed = reportActionSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });

@@ -5,6 +5,7 @@ import { parsePlan, previewCancellation, previewPlanChange, saveSubscriptionRequ
 import { stripe } from "@/lib/stripe/server";
 import { kindFor } from "@/lib/auth/institution";
 import { getSubscriptionOwners } from "@/lib/auth/institution-server";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireAuthUser({ allowSuspended: true });
     if (!canManageSubscription(user)) throw new ApiError("The SkooleeAI subscription is managed by the account owner.", 403);
-    const parsed = requestSchema.safeParse(await request.json());
+    const parsed = requestSchema.safeParse(await readJsonBody(request));
     if (!parsed.success) throw new ApiError("Choose a valid subscription action", 400);
     const input = parsed.data;
     // G6 / K-I5: cancelling, asking for a refund and changing the payment method need a verified second factor;

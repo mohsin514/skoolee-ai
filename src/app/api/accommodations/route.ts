@@ -3,6 +3,8 @@ import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { assertSameOrigin } from "@/lib/auth/same-origin";
 import { schoolAiError } from "@/lib/school-ai/http";
 import { coordinatorView, learnerView, recordRehearsal, revokePlan, savePlan, staffView } from "@/lib/accommodations/service";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" };
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     assertSameOrigin(req);
     const user = await requireAuthUser();
-    const { op, planId, ...input } = await req.json();
+    const { op, planId, ...input } = await parseBody(req, jsonObjectBody);
     const result = op === "plan" ? await savePlan(user, input)
       : op === "revoke" ? await revokePlan(user, String(planId ?? ""), input)
       : op === "rehearse" ? await recordRehearsal(user, { planId, ...input })
