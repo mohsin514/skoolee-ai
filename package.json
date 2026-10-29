@@ -58,7 +58,7 @@
     "test:locale": "node --import ./tests/support/server-only.mjs --import tsx --test tests/locale/package.test.ts",
     "test:locale:db": "node --import tsx --test tests/locale/database.test.ts",
     "test:cohort-cycle": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/cohort-cycle.test.ts",
-    "test:assessment-locale": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/mixed-math-locale.test.ts tests/school-ai/paper-print.test.ts",
+    "test:assessment-locale": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-ai/mixed-math-locale.test.ts tests/school-ai/paper-print.test.ts tests/school-ai/paper-accessibility.test.ts",
     "test:corrections": "node --import tsx --test tests/corrections/domain.test.ts tests/corrections/integration.test.ts",
     "test:support-access:local": "tsx scripts/sko-215-local-acceptance.ts",
     "test:support-ui:local": "tsx scripts/sko-215-ui-acceptance.ts",
