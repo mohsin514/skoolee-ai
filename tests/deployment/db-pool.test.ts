@@ -78,3 +78,15 @@ test("SKAI-1032: the widget loader runs reads within the pool budget and degrade
   assert.equal(dashboardConcurrency({ VERCEL: "1" }), 1);
   assert.equal(dashboardConcurrency({}), 5);
 });
+
+// SKAI-1029: with one pooled connection per instance, a top-level query inside an interactive transaction waits
+// for a connection the transaction itself holds (P2024). Publishing a trip read the campus clock that way.
+test("publishing a trip reads the campus clock through the transaction client", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../../src/lib/transport/service.ts", import.meta.url), "utf8");
+  assert.match(source, /async function today\(schoolId: string, campusId: string, db: TxClient \| typeof prisma = prisma\)/);
+  assert.match(source, /getLocalePackage\(schoolId, campusId, new Date\(\), null, db\)/);
+  const publish = source.slice(source.indexOf("export async function publishTrip"), source.indexOf("async function tripFor"));
+  assert.match(publish, /await today\(user\.schoolId, route\.campusId, tx\)/);
+  assert.doesNotMatch(publish.slice(publish.indexOf("schoolAiTransaction")), /\bprisma\./, "no top-level client inside the publish transaction");
+});

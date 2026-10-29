@@ -12,6 +12,7 @@
  * component renders no hero and no `<h1>`; ≤ 4 KPI tiles (§4.5.8).
  */
 
+import { useCountLabel, useIsSingular } from "@/components/locale/use-count-label";
 import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag, minorUnits } from "@/lib/locale/package";
 import { useMemo } from "react";
@@ -54,6 +55,8 @@ interface NetworkOverviewProps {
 
 export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) {
   const t = useUiText();
+  const count = useCountLabel();
+  const singular = useIsSingular();
   const campuses: any[] = data?.campuses ?? [];
   const summary = data?.networkSummary ?? {};
 
@@ -100,10 +103,10 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
   return (
     <div className="space-y-6" data-network-overview>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile icon={GraduationCap} label={t("Students")} value={summary.totalStudents ?? 0} sub={t("Average {0} per campus", [number.format(derived.averageRoll)])} tone="good" delay={80} />
-        <StatTile icon={Building2} label={t("Campuses")} value={campuses.length} sub={t("{0} needing leadership", [number.format(derived.gaps.length)])} tone={derived.gaps.length > 0 ? "warning" : "brand"} delay={140} />
-        <StatTile icon={Users} label={t("Teachers")} value={summary.totalTeachers ?? 0} sub={summary.totalTeachers ? t("≈{0} students per teacher", [number.format(Math.round((summary.totalStudents ?? 0) / summary.totalTeachers))]) : t("No teachers yet")} delay={200} />
-        <StatTile icon={School} label={t("Classes")} value={summary.totalClasses ?? 0} sub={t("{0} subjects", [number.format(summary.totalSubjects ?? 0)])} delay={260} />
+        <StatTile icon={GraduationCap} label={singular(summary.totalStudents ?? 0) ? t("Student") : t("Students")} value={summary.totalStudents ?? 0} sub={t("Average {0} per campus", [number.format(derived.averageRoll)])} tone="good" delay={80} />
+        <StatTile icon={Building2} label={singular(campuses.length) ? t("Campus") : t("Campuses")} value={campuses.length} sub={t("{0} needing leadership", [number.format(derived.gaps.length)])} tone={derived.gaps.length > 0 ? "warning" : "brand"} delay={140} />
+        <StatTile icon={Users} label={singular(summary.totalTeachers ?? 0) ? t("Teacher") : t("Teachers")} value={summary.totalTeachers ?? 0} sub={summary.totalTeachers ? t("≈{0} students per teacher", [number.format(Math.round((summary.totalStudents ?? 0) / summary.totalTeachers))]) : t("No teachers yet")} delay={200} />
+        <StatTile icon={School} label={singular(summary.totalClasses ?? 0) ? t("Class") : t("Classes")} value={summary.totalClasses ?? 0} sub={count(summary.totalSubjects ?? 0, "subject")} delay={260} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
@@ -159,7 +162,7 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-bold text-ink-strong"><bdi>{campus.name}</bdi></span>
                       <span className="block text-2xs font-semibold text-ink-subtle">
-                        <bdi>{campus.city || "—"}</bdi> · {t("{0} teachers", [number.format(campus.teachers)])}
+                        <bdi>{campus.city || "—"}</bdi> · {count(campus.teachers, "teacher")}
                       </span>
                     </span>
                     {/* Icon + word, never colour alone. */}

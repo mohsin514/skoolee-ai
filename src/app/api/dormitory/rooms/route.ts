@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       data: { campusId, roomTypeId, number, capacity },
     });
 
-    return Response.json({ success: true, data });
+    return Response.json({ success: true, data }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[dormitory] POST rooms failed");
   }

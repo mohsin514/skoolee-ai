@@ -653,6 +653,8 @@ const P5_COPY: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["Out of school today", "غائبون عن المدرسة اليوم", "آج اسکول سے باہر"],
   ["Overlapping times within a type are rejected. Changing a period's time after a timetable exists warns you and leaves existing slots untouched.", "تُرفض الأوقات المتداخلة ضمن النوع نفسه. تغيير وقت حصة بعد وجود جدول ينبّهك ويترك الحصص الحالية كما هي.", "ایک ہی قسم میں متداخل اوقات قبول نہیں ہوتے۔ ٹائم ٹیبل بننے کے بعد پیریڈ کا وقت بدلنے پر انتباہ ملتا ہے اور موجودہ خانے نہیں بدلتے۔"],
   ["Override balance", "تجاوز الرصيد", "بقایا کو نظرانداز کریں"],
+  ["Waiting for the principal", "بانتظار المدير", "پرنسپل کے فیصلے کا انتظار"],
+  ["Waiting for the campus admin", "بانتظار مدير الفرع", "کیمپس منتظم کے فیصلے کا انتظار"],
   ["Payroll · Bank · Documents · Timeline", "الرواتب · البنك · الوثائق · السجل", "تنخواہ · بینک · دستاویزات · ٹائم لائن"],
   ["Please select a different class or section to move the student.", "اختر صفاً أو شعبة مختلفة لنقل الطالب.", "طالب علم کو منتقل کرنے کے لیے کوئی دوسری جماعت یا سیکشن منتخب کریں۔"],
   ["Rename category", "إعادة تسمية الفئة", "زمرے کا نام بدلیں"],
