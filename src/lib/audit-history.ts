@@ -121,7 +121,9 @@ export async function exportAuditHistory(user: AuthUser, raw: unknown, assertExp
   const previous = await db.auditLog.findFirst({ where: { AND: [scope, { tableName: EXPORT_RECEIPT_TABLE, recordId: input.requestKey, userId: user.userId }] }, select: { id: true, newValue: true } });
   if (previous) {
     const stored = previous.newValue as { filters?: unknown; csv?: unknown; filename?: unknown; rows?: unknown; truncated?: unknown } | null;
-    if (JSON.stringify(stored?.filters ?? null) !== JSON.stringify(filters)) throw new ApiError("This export request key was already used with different filters.", 409);
+    // JSONB does not keep key order, so compare the stored filters field by field.
+    const storedFilters = (stored?.filters ?? {}) as Record<string, unknown>;
+    if ((Object.keys(filters) as (keyof typeof filters)[]).some(key => (storedFilters[key] ?? null) !== filters[key])) throw new ApiError("This export request key was already used with different filters.", 409);
     if (typeof stored?.csv === "string" && typeof stored.filename === "string") {
       return { csv: stored.csv, rows: Number(stored.rows) || 0, truncated: stored.truncated === true, filename: stored.filename };
     }
