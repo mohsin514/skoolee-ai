@@ -4,7 +4,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,14 +16,16 @@ import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "luc
 import { friendlyErrorMessage, toast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/csv";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { reconciliationSheet, rehearsalGroups } from "@/lib/imports/rehearsal";
 
 interface ClassRecord { id: string; name: string; section?: string | null; academicYear: number }
 interface Props { open: boolean; onOpenChange: (open: boolean) => void; classes: ClassRecord[]; defaultClassId: string; onSuccess: () => void }
-interface ImportRow { rowNumber: number; source: Record<string, string>; proposal: Record<string, unknown> | null; state: string; selected: boolean; matchKey: string | null; matchLabel?: string | null; errors: string[] }
-interface Batch { id: string; campusId: string; kind: string; state: string; expiresAt: string; reviewToken: string; summary: { total: number; accepted: number; rejected: number; skipped: number; unresolved: number }; rows?: ImportRow[]; receipt?: Record<string, any> | null }
+interface ImportRow { rowNumber: number; source: Record<string, string>; proposal: Record<string, unknown> | null; state: string; selected: boolean; matchKey: string | null; matchLabel?: string | null; errors: string[]; notes?: string[] }
+interface Batch { id: string; campusId: string; kind: string; state: string; sourceName?: string; createdAt?: string; expiresAt: string; reviewToken: string; summary: { total: number; accepted: number; rejected: number; skipped: number; unresolved: number }; rows?: ImportRow[]; receipt?: Record<string, any> | null }
 interface ReversalAnalysis { eligible: boolean; dependencies: Array<{ studentName: string; rollNo: string; references: string[] }>; missing: string[]; action: string }
 
-const CSV_TEMPLATE = "fullName,rollNo,classId,gender,dateOfBirth,phone,studentEmail,guardianName,guardianPhone,guardianWhatsapp,guardianEmail,address,city,medicalNotes\nAli Ahmed Khan,V-A-001,,MALE,2010-03-15,+92 3001234567,ali@example.com,Ahmed Khan,+92 3001234567,,ahmed@example.com,123 Mosque Lane,Lahore,None";
+// SKAI-913: the minimum pilot roster. Medical notes, addresses and pupil emails are left out on purpose.
+const CSV_TEMPLATE = "fullName,rollNo,className,classSection,gender,dateOfBirth,guardianName,guardianPhone,guardianRelationship\nSample Pupil One,QA-001,,,FEMALE,2015-04-12,Sample Guardian,+92 3000000001,MOTHER";
 
 const rowStateVariant = (state: string) => (state === "ACCEPTED" ? "success" : state === "SKIPPED" ? "neutral" : "danger");
 
@@ -38,10 +40,31 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
   const [checking, setChecking] = useState(false);
   const [analysis, setAnalysis] = useState<ReversalAnalysis | null>(null);
   const [confirmReverse, setConfirmReverse] = useState(false);
+  const [unfinished, setUnfinished] = useState<Batch | null>(null);
   const rows = batch?.rows || [];
   const committed = !!batch && ["COMMITTED", "PARTIAL", "REVERSED"].includes(batch.state);
   const batchUrl = (id: string) => "/api/import-batches/" + id + (batch?.campusId ? "?campusId=" + encodeURIComponent(batch.campusId) : "");
 
+  // SKAI-913: an interrupted rehearsal (closed tab, lost connection) is offered again instead of restaging.
+  useEffect(() => {
+    if (!open || batch) return;
+    let cancelled = false;
+    fetch("/api/import-batches?kind=STUDENT_ROSTER").then((response) => response.ok ? response.json() : null).then((result) => {
+      const staged = Array.isArray(result?.data) ? (result.data as Batch[]).find((item) => item.state === "STAGED") : undefined;
+      if (!cancelled) setUnfinished(staged || null);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [open, batch]);
+  const reopen = async (id: string) => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/import-batches/" + id);
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || t("Could not reopen this rehearsal"));
+      setBatch(result.data as Batch); setFileName(result.data.sourceName || ""); setUnfinished(null);
+    } catch (error) { toast.error(friendlyErrorMessage(error, t("Could not reopen this rehearsal"))); }
+    finally { setBusy(false); }
+  };
   const reset = () => { setFileName(""); setBatch(null); setAnalysis(null); setConfirmReverse(false); if (input.current) input.current.value = ""; };
   const changeFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = "";
@@ -133,7 +156,8 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
     const url = URL.createObjectURL(new Blob(["\uFEFF", CSV_TEMPLATE], { type: "text/csv;charset=utf-8;" }));
     const link = document.createElement("a"); link.href = url; link.download = "student_import_template.csv"; link.click(); URL.revokeObjectURL(url);
   };
-  const downloadErrors = () => batch && downloadCSV("student_import_" + batch.id + "_corrections.csv", [["row", "match_key", "validation_errors", "source_row"], ...rows.filter((row) => row.errors.length).map((row) => [row.rowNumber, row.matchKey || "", row.errors.join("; "), JSON.stringify(row.source)])]);
+  const downloadSheet = () => batch && downloadCSV("student_import_" + batch.id + "_reconciliation.csv", reconciliationSheet(rows as Parameters<typeof reconciliationSheet>[0]));
+  const groups = rehearsalGroups(rows as Parameters<typeof rehearsalGroups>[0]);
   const close = () => { if (committed) onSuccess(); reset(); onOpenChange(false); };
 
   const nothingSelected = !!batch && batch.summary.accepted === 0;
@@ -181,6 +205,9 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
           {analysis.missing.length > 0 && <p className="mt-2">{t("Some pupil records are no longer available in this campus.")}</p>}
         </Alert>}
       </section> : <>
+        {!batch && unfinished && <Alert tone="info" live="polite" title={t("Unfinished rehearsal")} actions={<Button size="sm" variant="outline" disabled={busy} onClick={() => void reopen(unfinished.id)}>{t("Reopen rehearsal")}</Button>}>
+          <p>{t("{0} was staged {1} and has not been committed.", [unfinished.sourceName || "CSV", unfinished.createdAt ? dateTime(unfinished.createdAt) : ""])}</p>
+        </Alert>}
         <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-edge/30 bg-brand-50/30 p-4 text-center sm:p-6">
           <input ref={input} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => void changeFile(event)} />
           {fileName ? <div className="flex min-w-0 max-w-full items-center gap-2"><FileSpreadsheet aria-hidden="true" className="h-5 w-5 shrink-0 text-primary" /><span className="min-w-0 truncate text-sm font-semibold text-ink-strong" dir="auto">{fileName}</span><IconButton label={t("Remove file")} disabled={busy} onClick={reset}><X aria-hidden="true" /></IconButton></div> : <><Upload aria-hidden="true" className="h-8 w-8 text-primary/50" /><p className="max-w-sm text-sm font-medium leading-relaxed text-ink">{t("Choose a CSV to stage a preview. Upload does not commit records.")}</p></>}
@@ -189,17 +216,14 @@ export function BulkImportDialog({ open, onOpenChange, classes, defaultClassId, 
         </div>
         {busy && !committing && <p role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-primary" />{batch ? t("Saving your review. Live records are unchanged.") : t("Validating rows. Live records are unchanged.")}</p>}
         {batch && <section className="space-y-3" aria-live="polite">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="success" dot data-numeric>{t("{0} selected", [batch.summary.accepted])}</Badge>
-            <Badge variant="danger" dot data-numeric>{t("{0} rejected", [batch.summary.rejected])}</Badge>
-            <Badge variant="neutral" dot data-numeric>{t("{0} skipped", [batch.summary.skipped])}</Badge>
-            <Badge variant="warning" dot data-numeric>{t("{0} unresolved", [batch.summary.unresolved])}</Badge>
-            <span data-numeric className="text-xs text-ink-muted">{t("{0} total rows", [batch.summary.total])}</span>
-          </div>
+          {batch.state === "STAGED" && <Alert tone="info" live="off" title={t("Rehearsal only")}><p>{t("Nothing has been saved. Pupil, guardian and enrollment records stay unchanged until you commit this reviewed batch.")}</p></Alert>}
+          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-numeric>
+            {([["Additions", groups.additions, "success"], ["Existing, unchanged", groups.existingUnchanged, "neutral"], ["Excluded", groups.excluded, "neutral"], ["Errors", groups.errors, "danger"], ["Unresolved", groups.unresolved, "warning"], ["Total rows", groups.total, "neutral"]] as const).map(([label, value, tone]) => <div key={label} className="rounded-xl border border-edge/20 bg-surface-subtle px-3 py-2"><dt className="text-xs text-ink-muted">{t(label)}</dt><dd><Badge variant={tone} dot>{value}</Badge></dd></div>)}
+          </dl>
           <p className="text-xs leading-relaxed text-ink-muted">{t("Match key: campus + class + roll number. Existing pupils are never overwritten. Staging expires {0}.", [dateTime(batch.expiresAt)])}</p>
-          {rows.some((row) => row.errors.length) && <Button size="sm" variant="outline" onClick={downloadErrors}><Download aria-hidden="true" className="h-4 w-4" />{t("Download corrections")}</Button>}
+          {rows.length > 0 && <Button size="sm" variant="outline" onClick={downloadSheet}><Download aria-hidden="true" className="h-4 w-4" />{t("Download reconciliation sheet")}</Button>}
           <Table containerClassName="max-h-80 overflow-auto" className="w-full text-sm"><TableHeader><TableRow><TableHead>{t("Include")}</TableHead><TableHead dir="ltr">{t("Row")}</TableHead><TableHead>{t("Name")}</TableHead><TableHead>{t("Roll No")}</TableHead><TableHead>{t("Match key")}</TableHead><TableHead>{t("Status")}</TableHead></TableRow></TableHeader><TableBody>
-            {rows.map((row) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox aria-label={t("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void selectRow(row, event.target.checked)} />}</TableCell><TableCell dir="ltr" data-numeric>{row.rowNumber}</TableCell><TableCell className="font-medium text-ink-strong">{String(row.proposal?.fullName || "—")}</TableCell><TableCell dir="ltr">{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") ? <Input key={String(row.proposal.rollNo)} aria-label={t("Roll number for row {0}", [row.rowNumber])} defaultValue={String(row.proposal.rollNo || "")} className={"w-24"} onBlur={(event) => { if (event.currentTarget.value !== String(row.proposal?.rollNo || "")) void updateProposal(row, { rollNo: event.currentTarget.value }); }} /> : String(row.proposal?.rollNo || "—")}</TableCell><TableCell dir="ltr">{row.matchKey || "—"}{row.matchLabel && <span className="block text-xs text-ink-muted" dir="auto">{row.matchLabel}</span>}{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") && <div className="mt-1 flex flex-wrap gap-1"><Select aria-label={t("Class for row {0}", [row.rowNumber])} className={"max-w-32"} value={String(row.proposal.classId || "")} onChange={(event) => void updateProposal(row, { classId: event.target.value })}>{classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}{cls.section ? " · " + cls.section : ""}</option>)}</Select><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void skipRow(row)}>{t("Skip row")}</Button></div>}</TableCell><TableCell><Badge size="sm" dot variant={rowStateVariant(row.state)}>{t(row.state)}</Badge>{row.errors.length > 0 && <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-error-text" role="note" dir="auto">{row.errors.map((error) => t(error)).join("; ")}</span>}</TableCell></TableRow>)}
+            {rows.map((row) => <TableRow key={row.rowNumber} className="border-t"><TableCell>{row.state === "ACCEPTED" && <Checkbox aria-label={t("Include row {0}", [row.rowNumber])} checked={row.selected} onChange={(event) => void selectRow(row, event.target.checked)} />}</TableCell><TableCell dir="ltr" data-numeric>{row.rowNumber}</TableCell><TableCell className="font-medium text-ink-strong">{String(row.proposal?.fullName || "—")}</TableCell><TableCell dir="ltr">{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") ? <Input key={String(row.proposal.rollNo)} aria-label={t("Roll number for row {0}", [row.rowNumber])} defaultValue={String(row.proposal.rollNo || "")} className={"w-24"} onBlur={(event) => { if (event.currentTarget.value !== String(row.proposal?.rollNo || "")) void updateProposal(row, { rollNo: event.currentTarget.value }); }} /> : String(row.proposal?.rollNo || "—")}</TableCell><TableCell dir="ltr">{row.matchKey || "—"}{row.matchLabel && <span className="block text-xs text-ink-muted" dir="auto">{row.matchLabel}</span>}{row.proposal && (row.state === "UNRESOLVED" || row.state === "REJECTED") && <div className="mt-1 flex flex-wrap gap-1"><Select aria-label={t("Class for row {0}", [row.rowNumber])} className={"max-w-32"} value={String(row.proposal.classId || "")} onChange={(event) => void updateProposal(row, { classId: event.target.value })}>{classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}{cls.section ? " · " + cls.section : ""}</option>)}</Select><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void skipRow(row)}>{t("Skip row")}</Button></div>}</TableCell><TableCell><Badge size="sm" dot variant={rowStateVariant(row.state)}>{t(row.state)}</Badge>{row.errors.length > 0 && <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-error-text" role="note" dir="auto">{row.errors.map((error) => t(error)).join("; ")}</span>}{row.notes?.length ? <span className="mt-1 block max-w-56 text-xs leading-relaxed text-status-warning-text" role="note" dir="auto">{row.notes.map((note) => t(note)).join(" ")}</span> : null}</TableCell></TableRow>)}
           </TableBody></Table>
         </section>}
       </>}
