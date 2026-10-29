@@ -3,6 +3,8 @@ import { errorResponse } from "@/lib/api/scope";
 import { requireChatUser } from "@/lib/chat/service";
 import { canManageChatSettings, getChatSettings } from "@/lib/chat/policy";
 import { assertChatSettingsManager, updateChatSettings } from "@/lib/chat/settings-command";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +29,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireChatUser();
     assertChatSettingsManager(user);
-    const saved = await updateChatSettings(user, await req.json());
+    const saved = await updateChatSettings(user, await parseBody(req, jsonObjectBody));
 
     return Response.json({ success: true, settings: saved });
   } catch (error) {
