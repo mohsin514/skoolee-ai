@@ -17,9 +17,9 @@ type Timetable = { id: string; schoolId: string; campusId: string; status: strin
 const db: { periods: Period[]; slots: Slot[]; timetables: Timetable[] } = { periods: [], slots: [], timetables: [] };
 let user = { userId: "u1", role: "PRINCIPAL", schoolId: "school-a", campusId: "campus-a" };
 
-const match = (row: Record<string, unknown>, where: Record<string, unknown> = {}) =>
+const match = (row: Record<string, unknown>, where: Record<string, unknown> = {}): boolean =>
   Object.entries(where).every(([key, value]) => {
-    if (key === "timetable") return db.timetables.some((t) => t.id === row.timetableId && match(t, value as Record<string, unknown>));
+    if (key === "timetable") return db.timetables.some((t): boolean => t.id === row.timetableId && match(t, value as Record<string, unknown>));
     if (value && typeof value === "object" && "in" in (value as object)) return (value as { in: unknown[] }).in.includes(row[key]);
     return row[key] === value;
   });

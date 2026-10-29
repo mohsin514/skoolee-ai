@@ -1,11 +1,10 @@
 import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
 import { withSchedulingResourceWrite, resourceScope } from "@/lib/academic/resource-write";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
+import { prisma, type TxClient } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
-import type { Prisma } from "@prisma/client";
 import { classPeriodEditDecision, findPeriodOverlap, periodImpactMessage, periodInputProblem, type PeriodTimetableImpact } from "@/lib/academic/period-rules";
 
 // GET /api/academic/periods?campusId=&timeType=CLASS|EXAM — list period definitions
@@ -22,7 +21,7 @@ import { classPeriodEditDecision, findPeriodOverlap, periodImpactMessage, period
 const findOverlap = findPeriodOverlap;
 
 /** Class timetable slots in this campus that sit on the given period number (slots reference periods by number). */
-async function classPeriodImpact(tx: Prisma.TransactionClient, schoolId: string, campusId: string, periodNumber: number): Promise<PeriodTimetableImpact> {
+async function classPeriodImpact(tx: TxClient, schoolId: string, campusId: string, periodNumber: number): Promise<PeriodTimetableImpact> {
   const slots = await tx.timetableSlot.findMany({ where: { schoolId, periodNumber, timetable: { schoolId, campusId } }, select: { timetableId: true, timetable: { select: { status: true } } } });
   const timetables = new Map(slots.map((slot) => [slot.timetableId, slot.timetable.status]));
   return { slots: slots.length, timetables: timetables.size, published: [...timetables.values()].filter((status) => status === "PUBLISHED").length };
