@@ -95,9 +95,9 @@ export function WhatsAppConnectionPanel() {
       {connection ? <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div><dt className="text-ink-muted">{ui("Status")}</dt><dd><Badge variant="success">{ui("Connected")}</Badge></dd></div>
         <div><dt className="text-ink-muted">{ui("Business name")}</dt><dd>{connection.verifiedName ?? "—"}</dd></div>
-        <div><dt className="text-ink-muted">{ui("Phone number")}</dt><dd dir="ltr" className="text-start">{connection.displayPhoneNumber ?? "—"}</dd></div>
+        <div><dt className="text-ink-muted">{ui("Phone number")}</dt><dd><bdi dir="ltr">{connection.displayPhoneNumber ?? "—"}</bdi></dd></div>
         <div><dt className="text-ink-muted">{ui("Connected on")}</dt><dd>{dateTime(connection.connectedAt)}</dd></div>
-        <div><dt className="text-ink-muted">{ui("WhatsApp Business Account ID")}</dt><dd dir="ltr" className="text-start font-mono text-xs">{connection.wabaId}</dd></div>
+        <div><dt className="text-ink-muted">{ui("WhatsApp Business Account ID")}</dt><dd className="font-mono text-xs"><bdi dir="ltr">{connection.wabaId}</bdi></dd></div>
       </dl> : <p className="text-sm"><Badge variant="neutral">{ui("Not connected")}</Badge></p>}
       <div className="flex flex-wrap gap-2">
         {connection
