@@ -17,6 +17,7 @@ import { effectiveDate, findDuplicateClass, isIdentityConflict, recordTeachingAs
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
 import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { parseBody } from "@/lib/api/validate";
+import { parseTeachingMode } from "@/lib/academic/teaching-mode";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 /** Fields of a class PATCH that are academic staffing decisions (the principal's job); everything else
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
       campusId,
       user.schoolId
     );
-    const teachingMode = String(body.teachingMode || "SINGLE").toUpperCase() === "SUBJECT" ? "SUBJECT" : "SINGLE";
+    const teachingMode = parseTeachingMode(body.teachingMode, "SINGLE");
 
     const className = parsed.data.name.trim();
     // SKO-462: create inside the campus fence with the actor re-authorized; the normalized duplicate
