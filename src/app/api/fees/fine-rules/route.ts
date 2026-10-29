@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { createFineRule } from "@/lib/fees/fine-rule-command";
 import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const rule = await createFineRule(user, body);
     return Response.json({ success: true, data: rule }, { status: 201 });
   } catch (error) {
@@ -41,8 +43,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id required", 400);
+    const body = await parseBody(req, idBody);
 
     const existing = await prisma.feeFineRule.findFirst({ where: { id: body.id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Fine rule not found", 404);

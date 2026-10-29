@@ -35,6 +35,20 @@ default; scripted via the Supabase Management API when `SUPABASE_ACCESS_TOKEN` i
 set). Create five projects — `skoolee-dev`, `skoolee-staging`, `skoolee-qa`,
 `skoolee-prod`, `skoolee-demo` — all in the same region.
 
+## Hosting region (SKAI-1146)
+
+Recorded 29 October 2026. Region names are not secrets; never copy URLs with credentials or project refs into this file.
+
+| Environment | Supabase region | AWS location | Evidence | Confidence |
+|-------------|-----------------|--------------|----------|------------|
+| Development (`skoolee-dev`) | `us-east-1` | US East (N. Virginia), USA | Pooler host `aws-0-us-east-1.pooler.supabase.com` in the local `.env` that points at the dev project | Verified |
+| Earlier shared project (pre per-env split) | `us-east-1` | US East (N. Virginia), USA | Same pooler host in the local `.env.supabase-backup` | Verified |
+| Staging, QA, Production, Demo | `us-east-1` intended ("all in the same region", above) | — | Not checked: no local config for these projects | **Unverified** — confirm in each project's dashboard (Settings → General → Region) |
+
+How to check: the pooler hostname carries the region (`aws-0-<region>.pooler.supabase.com`), and `src/lib/data-lifecycle/inventory.ts` reads it the same way. Test fixtures that mention `ap-south-1` are examples, not our region.
+
+Why it matters: hosting in the USA is a cross-border transfer for every Pakistan and GCC school. The DPA template (SKAI-1158), KSA addendum (SKAI-1144) and the residency decision (`docs/research/2026-10/SKAI-1101-ksa-data-residency-decision.md`, option A) rely on this row. Supabase has no Middle East region, so in-Kingdom hosting would need a separate stack (SKAI-1101 §5).
+
 For each project, collect:
 
 | Value                          | Where it goes                                   |

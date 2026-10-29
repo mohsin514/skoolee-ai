@@ -8,6 +8,7 @@ import { getChatSettings } from "@/lib/chat/policy";
 import { chatAttachmentKey } from "@/lib/storage/s3";
 import { createPrivateUploadUrl } from "@/lib/storage/private-upload";
 import { CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TYPES } from "@/lib/chat/attachment-rules";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireChatUser();
 
-    const parsed = schema.safeParse(await req.json());
+    const parsed = schema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError(parsed.error.issues[0]?.message ?? "Invalid request", 400);
 
     const { conversationId, fileName, sizeBytes } = parsed.data;

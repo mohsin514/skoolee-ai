@@ -11,6 +11,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // SKO-466 visitor register.
 // GET   ?campusId=&status=ON_SITE|LEFT|REFUSED|all&q=&date=YYYY-MM-DD[&format=csv] → campus-scoped list with
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can record visitors.", 403);
     await assertPermission(user, "front-desk", "add");
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     if (body.action && body.action !== "check-in" && body.action !== "refuse") throw new ApiError("Unknown action", 400);
     const campusId = await resolveCampusId(user, body.campusId);
     const { visit, replayed } = await checkIn(user, campusId, body);
@@ -84,8 +86,7 @@ export async function PATCH(request: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageFrontDesk(user)) throw new ApiError("Only front-desk staff and campus leaders can update visitors.", 403);
     await assertPermission(user, "front-desk", "edit");
-    const body = await request.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(request, idBody);
     const campusId = await resolveCampusId(user, body.campusId);
     // The old client sent {id, outTime} without an action; treat it as a check-out.
     const action = body.action ?? (body.outTime !== undefined ? "check-out" : null);

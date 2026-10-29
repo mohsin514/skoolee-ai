@@ -9,6 +9,16 @@
  * subscription = الاشتراك / سبسکرپشن, two-step sign-in = التحقق بخطوتين / دو مرحلہ سائن اِن.
  */
 const ROWS: ReadonlyArray<readonly [string, string, string]> = [
+  // SKAI-1143: data region on the platform console's school dialog.
+  ["Data region", "منطقة البيانات", "ڈیٹا ریجن"],
+  ["Hosting region", "منطقة الاستضافة", "ہوسٹنگ ریجن"],
+  ["Records where this school's data should live. Saving does not move any data.", "يسجّل المكان الذي يجب أن تُحفظ فيه بيانات هذه المدرسة. الحفظ لا ينقل أي بيانات.", "درج کرتا ہے کہ اس اسکول کا ڈیٹا کہاں رکھا جائے۔ محفوظ کرنے سے کوئی ڈیٹا منتقل نہیں ہوتا۔"],
+  ["Shared region (current)", "المنطقة المشتركة (الحالية)", "مشترکہ ریجن (موجودہ)"],
+  ["United Arab Emirates", "الإمارات العربية المتحدة", "متحدہ عرب امارات"],
+  ["Saudi Arabia", "المملكة العربية السعودية", "سعودی عرب"],
+  ["Save region", "حفظ المنطقة", "ریجن محفوظ کریں"],
+  ["Data region updated.", "تم تحديث منطقة البيانات.", "ڈیٹا ریجن اپ ڈیٹ ہو گیا۔"],
+  ["The data region could not be changed. Try again.", "تعذّر تغيير منطقة البيانات. حاول مرة أخرى.", "ڈیٹا ریجن تبدیل نہیں ہو سکا۔ دوبارہ کوشش کریں۔"],
   ["Ask a school's admin for temporary access. Everything you view or change is logged.", "اطلب وصولًا مؤقتًا من مدير المدرسة. يُسجّل كل ما تعرضه أو تغيّره.", "عارضی رسائی کے لیے اسکول کے منتظم سے درخواست کریں۔ آپ جو کچھ دیکھیں یا تبدیل کریں اس کا ریکارڈ رکھا جاتا ہے۔"],
   ["What you can see", "ما يمكنك الاطلاع عليه", "آپ کیا دیکھ سکتے ہیں"],
   ["Could not open the prepared school request. Open it again from AI Workflows.", "تعذّر فتح طلب المدرسة المُعدّ. افتحه مجددًا من مهام الذكاء الاصطناعي.", "تیار شدہ اسکول درخواست نہیں کھل سکی۔ اسے AI ورک فلوز سے دوبارہ کھولیں۔"],

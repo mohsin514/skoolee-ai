@@ -4,6 +4,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { roomCapacity, roomLocation } from "@/lib/academic/room-capacity";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET /api/academic/rooms?campusId= — list class rooms with exam-day capacity
 // POST /api/academic/rooms {campusId, roomNumber, ...layout}
@@ -99,7 +101,7 @@ export async function POST(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const roomNumber = String(body.roomNumber ?? "").trim();
     if (!roomNumber) throw new ApiError("roomNumber is required", 400);
@@ -140,7 +142,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 

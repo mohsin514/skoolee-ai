@@ -4,6 +4,8 @@ import { requireAuthUser, errorResponse, canLeadAcademics, canManageOperations }
 import { notify } from "@/lib/notifications/in-app";
 import { saveManualTimetable, changeManualTimetableStatus, deleteManualTimetable, TimetableValidationError, resolveTimetableCampus, previewTimetablePublish, publishTimetableVersion } from "@/lib/timetable/manual";
 import { notifyTimetableVersion } from "@/lib/timetable/notify";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -44,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const campusId = await resolveTimetableCampus(user, id);
     if (!campusId) return Response.json({ error: "No campus" }, { status: 400 });
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     // G35a: publishing or unpublishing a timetable is the academic lead's act — the principal, or a campus
     // operator only while the campus has no principal. Drafts stay open to the academic office.
     if ((body.action === "publish" || body.action === "unpublish") && !(await canLeadAcademics(user, campusId))) {

@@ -1,6 +1,7 @@
 import { ApiError, canManageSubscription, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { findApprovedPlanChange, saveSubscriptionRequest } from "@/lib/billing/lifecycle";
 import { z } from "zod";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     const user = await requireAuthUser({ allowSuspended: true });
     if (!canManageSubscription(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const parsed = bodySchema.safeParse(await req.json());
+    const parsed = bodySchema.safeParse(await readJsonBody(req));
     if (!parsed.success) throw new ApiError("Invalid payment report", 400);
     const { plan, receiptRef, billingPeriod, idempotencyKey } = parsed.data;
     const approved = await findApprovedPlanChange(user.schoolId, plan, billingPeriod);

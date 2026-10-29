@@ -4,6 +4,8 @@ import { getAuthUser } from "@/lib/auth";
 import { normalizeWeightMode } from "@/lib/academic/grade-calculator";
 import { ApiError, assertPermission, canLeadAcademics } from "@/lib/api/scope";
 import { assertWritable, recordProvenance } from "@/lib/group-policy/service";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 /**
  * Grading rules are a property of a CLASS, not of a section (§80).
@@ -225,7 +227,7 @@ export async function POST(request: NextRequest) {
     }
     await assertPermission(session, "exams", "edit");
 
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const academicYear = Number(body.academicYear);
     if (!academicYear) {
       return NextResponse.json({ error: "academicYear is required" }, { status: 400 });

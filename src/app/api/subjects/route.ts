@@ -15,6 +15,8 @@ import {
 import { deleteSubjectWithTimetableSync, updateSubjectWithTeacherAssignment } from "@/lib/api/teacher-assignments";
 import { academicImpact } from "@/lib/academic/structure";
 import { schoolAiTransaction } from "@/lib/school-ai/transaction";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = subjectSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
@@ -85,7 +87,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     if (!body.id) throw new ApiError("Subject id is required", 400);
 
     const { existing, subject, clashes } = await updateSubjectWithTeacherAssignment(user, body);

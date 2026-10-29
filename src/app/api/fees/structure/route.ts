@@ -12,6 +12,8 @@ import {
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
     if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = feeStructureSchema.safeParse(body);
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
 import { addResourceVersion, changeAudience, confirmResourceUpload, linkResourceObjectives, publishResource, retireResource } from "@/lib/resources/service";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const user = await requireAuthUser();
     const { id } = await params;
-    const { op, ...input } = await req.json();
+    const { op, ...input } = await parseBody(req, jsonObjectBody);
     const result = op === "version" ? await addResourceVersion(user, id, input)
       : op === "confirm" ? await confirmResourceUpload(user, id, Number(input.version))
       : op === "publish" ? await publishResource(user, id, input)

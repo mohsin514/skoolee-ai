@@ -6,6 +6,8 @@ import type { InstitutionKind } from "@/lib/auth/institution";
 import { getDisplayLocale } from "@/lib/locale/display";
 import type { Language } from "@/lib/locale/package";
 import { deleteFile } from "@/lib/storage/s3";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 function cleanOptionalText(value: unknown) {
   if (value === null) return null;
@@ -114,7 +116,7 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const currentUser = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { fullName: true, profileImageUrl: true },

@@ -11,6 +11,8 @@ import {
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
 import { recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(
   req: NextRequest,
@@ -27,7 +29,7 @@ export async function PUT(
     });
     if (!existing) throw new ApiError("Fee structure not found", 404);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = feeStructureSchema.safeParse(body);
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;

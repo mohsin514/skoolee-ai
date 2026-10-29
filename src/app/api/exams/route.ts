@@ -19,6 +19,8 @@ import {
   isOfficeRole,
   TERM_EXAM_DENIED_MESSAGE,
 } from "@/lib/academic/exam-permissions";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 /**
  * assertPermission throws an Error carrying a 403. Without this the caller sees
@@ -179,7 +181,7 @@ export async function POST(req: NextRequest) {
     }
     await assertPermission(user, "exams", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = examSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
@@ -209,7 +211,7 @@ export async function PATCH(req: NextRequest) {
     }
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     if (isExamDetailsEdit(body)) return await editExamDetails(user, body);
     const parsed = examStatusSchema.safeParse(body);
     if (!parsed.success) {

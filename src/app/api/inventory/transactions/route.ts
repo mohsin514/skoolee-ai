@@ -8,6 +8,8 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { itemId, storeId, kind, quantity, unitPrice, supplierId, issuedToUserId, note, idempotencyKey } = body;
 
     if (!itemId || !storeId || !kind) throw new ApiError("itemId, storeId and kind required", 400);

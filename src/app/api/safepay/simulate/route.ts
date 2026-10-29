@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { runUnscoped, runWithTenantContext } from "@/lib/db/tenant-context";
 import { recordPayment } from "@/lib/fees/payment";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +28,7 @@ async function handleWebhook(req: NextRequest) {
   }
 
   try {
-    const { orderRef, schoolId, plan } = await req.json();
+    const { orderRef, schoolId, plan } = await parseBody(req, jsonObjectBody);
     if (schoolId || plan) {
       return Response.json({ error: "Browser-submitted plan details cannot settle a subscription." }, { status: 403 });
     }

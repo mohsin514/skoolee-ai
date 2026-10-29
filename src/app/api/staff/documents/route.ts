@@ -6,6 +6,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Staff documents (CV, CNIC, degrees, contracts...).
 // GET    /api/staff/documents?userId= — list (admin only, school-scoped)
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { userId, kind, fileKey, fileName } = body as {
       userId?: string;
       kind?: string;

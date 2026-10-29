@@ -5,6 +5,8 @@ import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET    /api/academic/calendar?campusId=            → { weekends: number[], holidays: [...] }
 // PATCH  /api/academic/calendar { days: [1..7] }     → replace the campus weekend set
@@ -46,7 +48,7 @@ export async function PATCH(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const days = body.days;
     if (!Array.isArray(days) || days.length === 0 || !days.every((d: number) => DAYS.has(Number(d)))) {
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "timetable", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const campusId = await resolveCampusId(user, body.campusId);
     const name = String(body.name ?? "").trim();
     const fromDate = String(body.fromDate ?? "");

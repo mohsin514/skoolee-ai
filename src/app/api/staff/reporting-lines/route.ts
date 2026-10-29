@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { readJsonBody } from "@/lib/api/validate";
 
 // Secondary reporting lines (Module 8b).
 //
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const input = LineInput.parse(await req.json());
+    const input = LineInput.parse(await readJsonBody(req));
 
     if (input.userId === input.managerId) {
       throw new ApiError("A staff member cannot report to themselves", 400);

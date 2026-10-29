@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageCampusOps, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Staff payroll / bank records (Module 8).
 // GET  /api/staff/profile?userId= — full profile + documents + timeline (admin only).
@@ -81,7 +83,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const userId = String(body.userId ?? "");
     if (!userId) throw new ApiError("userId is required", 400);
 

@@ -5,6 +5,8 @@ import { writeAuditEvent } from "@/lib/audit-events";
 import { ApiError, assertPermission, canManageAcademics, canManageCampusOps, errorResponse, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
 import { applyInstitutionPreset } from "@/lib/staff/hierarchy";
 import { INSTITUTION_PRESETS, isInstitutionType } from "@/lib/staff/hierarchy-presets";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // The rank ladder (Module 8b).
 // GET    — every designation for the school, most senior first, with headcount.
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "add");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     // Seeding a whole ladder from a preset.
     if (body.preset !== undefined) {
@@ -120,7 +122,7 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageCampusOps(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "staff", "edit");
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
