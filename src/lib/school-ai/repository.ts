@@ -232,6 +232,10 @@ async function approvalIssues(user: AuthUser, record: StoredRecord, db: TxClient
       const { itemStateFor } = await import("./item-review");
       const allReady = paper.questions.length > 0 && paper.questions.every(question => ["READY_FOR_REVIEW", "APPROVED"].includes(itemStateFor(question)));
       issues.push(...(action === "review" && allReady ? found.filter(issue => !issue.startsWith("Approve every item before approving the paper")) : found));
+      // SKAI-1008..1012: a paper against a catalogue pack is reviewed and published only while that exact version is ACTIVE.
+      const { curriculumPackGateFor } = await import("./curriculum-pack-service");
+      const gate = await curriculumPackGateFor(db, user.schoolId, record.campusId, curriculumDataSchema.parse(curriculum.data).pack, paper.curriculumPackPin ?? null);
+      if (gate.gated && !gate.allowed) issues.push(...gate.reasons.map(reason => `Curriculum pack blocked: ${reason}`));
     }
   }
   return issues;

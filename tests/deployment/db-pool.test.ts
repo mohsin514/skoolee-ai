@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { describeDatabaseTarget, pooledDatabaseUrl } from "../../src/lib/db/pool-url";
-import { describeError, loadWidget } from "../../src/lib/dashboard/widget";
+import { createWidgetLoader, dashboardConcurrency, describeError, loadWidget } from "../../src/lib/dashboard/widget";
 
 const POOLER = "postgresql://u:p@aws-0-x.pooler.supabase.com:6543/postgres?sslmode=require";
 
@@ -49,4 +49,44 @@ test("a failing widget degrades to its fallback and is recorded, others still lo
   } finally {
     console.error = original;
   }
+});
+
+test("SKAI-1032: the widget loader runs reads within the pool budget and degrades failures", async () => {
+  const original = console.error;
+  console.error = () => {};
+  try {
+    const loader = createWidgetLoader("test", 2);
+    let active = 0;
+    let peak = 0;
+    const read = (value: number, fail = false) => async () => {
+      active += 1; peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active -= 1;
+      if (fail) throw Object.assign(new Error("Timed out fetching a new connection"), { code: "P2024" });
+      return value;
+    };
+    const results = await Promise.all([1, 2, 3, 4, 5].map((n) => loader.widget(`w${n}`, read(n, n === 3), 0)));
+    assert.deepEqual(results, [1, 2, 0, 4, 5]);
+    assert.equal(peak, 2);
+    assert.deepEqual(loader.degraded, ["w3"]);
+    await assert.rejects(() => loader.required("core", read(1, true)), /Timed out/);
+  } finally {
+    console.error = original;
+  }
+  assert.equal(dashboardConcurrency({ DATABASE_URL: "postgresql://u:p@h:6543/db?connection_limit=3" }), 3);
+  assert.equal(dashboardConcurrency({ PRISMA_CONNECTION_LIMIT: "2" }), 2);
+  assert.equal(dashboardConcurrency({ VERCEL: "1" }), 1);
+  assert.equal(dashboardConcurrency({}), 5);
+});
+
+// SKAI-1029: with one pooled connection per instance, a top-level query inside an interactive transaction waits
+// for a connection the transaction itself holds (P2024). Publishing a trip read the campus clock that way.
+test("publishing a trip reads the campus clock through the transaction client", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../../src/lib/transport/service.ts", import.meta.url), "utf8");
+  assert.match(source, /async function today\(schoolId: string, campusId: string, db: TxClient \| typeof prisma = prisma\)/);
+  assert.match(source, /getLocalePackage\(schoolId, campusId, new Date\(\), null, db\)/);
+  const publish = source.slice(source.indexOf("export async function publishTrip"), source.indexOf("async function tripFor"));
+  assert.match(publish, /await today\(user\.schoolId, route\.campusId, tx\)/);
+  assert.doesNotMatch(publish.slice(publish.indexOf("schoolAiTransaction")), /\bprisma\./, "no top-level client inside the publish transaction");
 });

@@ -200,7 +200,9 @@ export async function submitExplanation(user: AuthUser, body: Record<string, unk
 /** Staff decide an explanation. Accepting records a correction with the explanation as its reason. */
 export async function reviewExplanation(user: AuthUser, body: Record<string, unknown>) {
   if (!canMarkAttendance(user)) throw new ApiError("You cannot review explanations.", 403);
-  await assertPermission(user, "attendance", "edit");
+  // SKAI-1037: a teacher holds attendance `add` (their register), not campus-wide `edit`; deciding a guardian's
+  // explanation is allowed for the teacher's own assigned class only, checked inside the transaction below.
+  await assertPermission(user, "attendance", user.role === "TEACHER" ? "add" : "edit");
   const action = String(body.action ?? "");
   const note = body.note ? text(body.note, "Note", 2, 500) : null;
   const outcome = await schoolAiTransaction(user, async db => {

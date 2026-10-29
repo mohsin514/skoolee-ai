@@ -47,6 +47,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { RoleShell, useShellSession } from "@/components/role-dashboard";
+import { DegradedNotice } from "@/components/role-dashboard/DegradedNotice";
 import { useConsoleView } from "@/components/nav/useConsoleView";
 import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView";
 import { useConsoleAccess } from "@/components/nav/ViewGate";
@@ -431,6 +432,7 @@ function PrincipalWorkspace({
         status={opts.status}
         tabs={opts.tabs}
       />
+      <DegradedNotice degraded={data.degraded} onRetry={reload} />
       {node}
     </div>
   );

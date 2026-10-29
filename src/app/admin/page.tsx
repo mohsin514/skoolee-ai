@@ -80,6 +80,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { ErrorState } from "@/components/ui/error-state";
+import { DegradedNotice } from "@/components/role-dashboard/DegradedNotice";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Modal } from "@/components/ui/modal";
 import { FlagshipCard } from "@/components/ui/flagship";
@@ -945,6 +946,7 @@ export default function CampusConsolePage() {
       {/* Addendum 2026-10-22: RoleShell draws the one page card (and owns #workspace-content); the console only
           supplies the card's scrolling body with the shared padding, so nothing double-wraps. */}
       <div data-admin-workspace className={cn("custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto", PAGE_CARD_BODY)}>
+        {data?.degraded?.length ? <div className="mb-4"><DegradedNotice degraded={data.degraded} onRetry={() => void loadData()} /></div> : null}
         <AdminWorkspace ctx={ctx} />
       </div>
 

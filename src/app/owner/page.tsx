@@ -100,6 +100,7 @@ import { useUiText } from "@/components/locale/LocaleProvider";
 import { SubscriptionRequestReview } from "@/components/owner/SubscriptionRequestReview";
 import { PilotEvidence } from "@/components/owner/PilotEvidence";
 import { PilotReadinessConsole } from "@/components/owner/PilotReadinessConsole";
+import { CurriculumCatalogue } from "@/components/owner/CurriculumCatalogue";
 import { CapacityReport } from "@/components/owner/CapacityReport";
 
 type Tr = ReturnType<typeof useUiText>;
@@ -467,6 +468,7 @@ export default function OwnerDashboard() {
         {view === "subscription-requests" && <SubscriptionRequestReview />}
         {view === "pilots" && <PilotEvidence />}
         {view === "pilot-readiness" && <PilotReadinessConsole />}
+        {view === "curriculum-packs" && <CurriculumCatalogue />}
         {view === "capacity" && <CapacityReport />}
       </section>
     </RoleShell>

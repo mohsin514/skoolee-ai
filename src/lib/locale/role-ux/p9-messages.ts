@@ -30,6 +30,7 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["Check your connection and try again. Nothing you entered was lost.", "تحقق من اتصالك وحاول مرة أخرى. لم يُفقد أي شيء أدخلته.", "اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔ آپ کا درج کیا ہوا کچھ ضائع نہیں ہوا۔"],
   ["Try again", "حاول مجدداً", "دوبارہ کوشش کریں"],
   ["Retrying…", "جارٍ إعادة المحاولة…", "دوبارہ کوشش ہو رہی ہے…"],
+  ["Some parts of this page couldn't load and are shown as empty.", "تعذّر تحميل بعض أجزاء هذه الصفحة، وهي معروضة فارغة.", "اس صفحے کے کچھ حصے لوڈ نہیں ہو سکے اور خالی دکھائے جا رہے ہیں۔"],
 
   // Notifications (src/lib/notifications/events.ts, G41/G41b)
   ["Some actions are paused while the school's plan is renewed.", "بعض الإجراءات متوقفة مؤقتًا إلى أن تُجدَّد خطة المدرسة.", "اسکول کے پلان کی تجدید تک کچھ کام عارضی طور پر رکے ہوئے ہیں۔"],

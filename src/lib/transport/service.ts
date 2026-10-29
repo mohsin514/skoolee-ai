@@ -169,8 +169,10 @@ export async function findStudents(user: AuthUser, q: string) {
 
 // ─── Trips: publish, amend, coordinate ───────────────────────────────────
 
-async function today(schoolId: string, campusId: string) {
-  return calendarDateIn((await getLocalePackage(schoolId, campusId)).timezone, new Date());
+/** Inside a transaction, pass its client: a top-level query there waits for a second pooled connection, and with
+ *  one connection per serverless instance (SKAI-1038) it never gets one (SKAI-1029, P2024). */
+async function today(schoolId: string, campusId: string, db: TxClient | typeof prisma = prisma) {
+  return calendarDateIn((await getLocalePackage(schoolId, campusId, new Date(), null, db)).timezone, new Date());
 }
 
 export async function publishTrip(user: AuthUser, body: Record<string, unknown>) {
@@ -183,7 +185,7 @@ export async function publishTrip(user: AuthUser, body: Record<string, unknown>)
     return await schoolAiTransaction(user, async tx => {
       const route = await ownRoute(user, tx, String(body.routeId ?? ""));
       if (!route.active) throw new ApiError("This route is inactive.", 409);
-      if (serviceDate < await today(user.schoolId, route.campusId)) throw new ApiError("A trip cannot be published for a past day.", 400);
+      if (serviceDate < await today(user.schoolId, route.campusId, tx)) throw new ApiError("A trip cannot be published for a past day.", 400);
       const link = await tx.routeVehicle.findFirst({ where: { routeId: route.id, vehicleId: String(body.vehicleId ?? "") }, include: { vehicle: true } });
       if (!link || !link.vehicle.active || link.vehicle.campusId !== route.campusId) throw new ApiError("Choose an active vehicle assigned to this route.", 400);
       if (!link.vehicle.capacity) throw new ApiError("Record the vehicle's capacity before publishing a trip.", 400);

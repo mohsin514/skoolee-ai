@@ -95,6 +95,8 @@ export const TENANT_MODELS = new Set<string>([
   "counsellingNote",
   "coverHandover",
   "curriculumObjectiveMapping",
+  "curriculumPackActivation",
+  "curriculumPackActivationEvent",
   "dataLegalHold",
   "dataLifecycleRequest",
   "dataRetentionSchedule",
@@ -376,8 +378,10 @@ export const TENANT_MODELS = new Set<string>([
 
 export const GLOBAL_MODELS = new Set<string>([
   "authAttempt",
+  "curriculumPackVersion",
   "dataServiceVerification",
   "marketTrustReview",
+  "packExpansionDecision",
   "passwordReset",
   "pendingRegistration",
   "performanceRun",

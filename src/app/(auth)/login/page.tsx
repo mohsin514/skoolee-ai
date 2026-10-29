@@ -1,7 +1,7 @@
 "use client";
 import { FieldAction, InputGroup } from "@/components/ui/input-group";
 import { useState, useEffect, useEffectEvent, useRef, useCallback, type CSSProperties } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm, useWatch, type Control } from "react-hook-form";
 import { safeReturnPath } from "@/lib/auth/return-path";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -244,7 +244,6 @@ function EmailTypoRescue({ control, language, onApply }: { control: Control<Logi
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { language, setLanguage, signInLanguage, clearExplicit } = useAuthLanguage();
   const t = copy[language];
@@ -275,6 +274,20 @@ export default function LoginPage() {
   // letting people hammer a request that cannot succeed yet.
   const [cooldown, setCooldown] = useState(0);
   const [cooldownTotal, setCooldownTotal] = useState(0);
+  // SKAI-1033: the server-rendered button is disabled until React owns the form,
+  // so an early press (or Enter) cannot fall back to a native submission.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+    // A credential that ever reached the address bar (an old bookmark, a stale
+    // tab from before this fix) is scrubbed from the visible URL and history entry.
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("password") || url.searchParams.has("email")) {
+      url.searchParams.delete("password");
+      url.searchParams.delete("email");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    }
+  }, []);
   // Consecutive "Invalid email or password" answers. At two, the Forgot link
   // draws its underline twice and the mascot glances at it; the error text is untouched.
   const [invalidStreak, setInvalidStreak] = useState(0);
@@ -405,7 +418,7 @@ export default function LoginPage() {
     if ((user as LoginUser & { mfaRequired?: boolean }).mfaRequired) {
       // Carry the requested page through the second factor; it is validated again on landing.
       const requested = searchParams.get("redirect");
-      router.push(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
+      window.location.assign(requested ? `/protect-account?redirect=${encodeURIComponent(requested)}` : "/protect-account");
       return;
     }
     toast.success(fillText(t.welcomeToast, user.fullName));
@@ -415,15 +428,21 @@ export default function LoginPage() {
     // before navigating away — a beat of confirmation feels more deliberate.
     await new Promise((resolve) => setTimeout(resolve, 550));
 
+    // SKAI-1021 / SKAI-1063: a full-document navigation, not router.push. A soft
+    // navigation keeps every module-level client cache (shell session, access map,
+    // router segment cache) from whatever identity this tab held before, and turns
+    // a proxy redirect on the RSC request into "nothing happened, still on /login".
+    // A document load starts the new identity from a clean JavaScript heap and lets
+    // the server's answer (console, onboarding, or a visible error) be what shows.
     if (user.mustChangePassword) {
-      router.push("/first-login");
+      window.location.assign("/first-login");
     } else if (user.role === "TEACHER" && !user.onboardingComplete) {
-      router.push("/teacher-onboarding");
+      window.location.assign("/teacher-onboarding");
     } else {
       // A deep link that sent the user here is honoured only inside their own role's area.
-      router.push(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
+      window.location.assign(safeReturnPath(searchParams.get("redirect"), user.role) ?? dashboardPathForRole(user.role));
     }
-  }, [router, t, searchParams]);
+  }, [t, searchParams]);
 
   /**
    * One request shape for both passes. The second pass adds `schoolId`, which
@@ -630,7 +649,9 @@ export default function LoginPage() {
           </div>
         ) : (
           <>
-            <form onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
+            {/* SKAI-1033: method/action make any native (pre-hydration) submission a POST to an
+                endpoint that discards the body, so credentials can never be serialized into a URL. */}
+            <form method="post" action="/api/auth/login/fallback" onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading} className="space-y-4" noValidate>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="ms-1 text-ink-strong">
                   {t.email}
@@ -726,7 +747,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 loading={isLoading && !success}
-                disabled={success || cooldown > 0}
+                disabled={!hydrated || success || cooldown > 0}
                 // Signed in: the locked button reads as a genuine success, not a greyed-out failure.
                 className={cn(
                   "sk-sweep-trigger group relative mt-1 min-h-12 w-full overflow-hidden",

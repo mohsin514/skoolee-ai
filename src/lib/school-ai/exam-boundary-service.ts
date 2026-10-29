@@ -1,7 +1,7 @@
 import { prisma, type TxClient } from "@/lib/db/prisma";
 import { runWithTenantContext } from "@/lib/db/tenant-context";
 import { resolveCurrentPrincipal } from "@/lib/auth/principal";
-import { checkRevocation } from "@/lib/auth/session-revocation";
+import { checkRevocationStrict } from "@/lib/auth/session-revocation";
 import { hashSessionToken } from "@/lib/auth/session-cookie";
 import type { AuthUser } from "@/lib/auth";
 import type { CandidateExamBoundary } from "./exam-boundary";
@@ -25,7 +25,8 @@ export async function candidateExamBoundaryForSession(
   token: string,
   claims: CandidateSessionClaims,
   dependencies: CandidateSessionDependencies = {
-    isRevoked: checkRevocation,
+    // Strict: an unavailable store must surface as "retry", never as a sign-out (SKAI-1063).
+    isRevoked: checkRevocationStrict,
     resolvePrincipal: resolveCurrentPrincipal,
     lookupBoundary: candidateExamBoundary,
   },
