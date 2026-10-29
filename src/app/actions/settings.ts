@@ -231,7 +231,7 @@ export async function updateSchoolDetails(input: SchoolDetailsInput) {
     if (!timezone || timezone !== current.timezone) throw new Error("Preview timezone changes in Language and regional settings before applying them.");
   }
 
-  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
+  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl, { schoolId: session.schoolId });
   const result = await prisma.$transaction(async (tx) => {
     const current = await tx.school.findUnique({ where: { id: session.schoolId } });
     if (!current || (input.expectedRevision && input.expectedRevision !== recordRevision(current))) throw new Error("This record changed. Review your draft against the current values before saving.");

@@ -4,6 +4,7 @@ import { useState, type DragEvent, type ReactNode } from "react";
 import { ImageIcon, Loader2, Upload } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { LOGO_ACCEPT } from "@/lib/school/logo-policy";
 
 /**
  * The institution's crest (logo) well: one dashed card that is the file
@@ -65,7 +66,7 @@ export function CrestUpload({ preview, uploading, hasLogo, onFile, onRemove, lab
         </span>
         <input
           type="file"
-          accept="image/*"
+          accept={LOGO_ACCEPT}
           className="sr-only"
           disabled={uploading}
           onChange={(event) => {

@@ -7,6 +7,8 @@
 // cannot be rejected by the edit form, or vice versa.
 // ─────────────────────────────────────────────────────────────────
 
+import { logoKeyInScope, type LogoScope } from "@/lib/school/logo-policy";
+
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
@@ -92,21 +94,25 @@ export function parseEstablishedYear(value: unknown): number | null {
 }
 
 /**
- * An http(s) URL or an inline data image, or null.
+ * An uploaded logo key inside `scope`, an http(s) URL or an inline raster data
+ * image (never SVG — see logo-policy), or null.
  *
  * Logos reach the server as data URLs from the file pickers, so the size cap
  * lives here rather than at the network layer — a multi-megabyte logo would
  * otherwise be written straight into the row and re-read on every dashboard.
  */
-export function parseLogo(value: unknown): string | null {
+export function parseLogo(value: unknown, scope: LogoScope): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (/^logos\/(school|campus)\/\S+$/i.test(trimmed)) return trimmed;
+  if (/^logos\//i.test(trimmed)) {
+    if (logoKeyInScope(trimmed, scope)) return trimmed;
+    throw new Error("That logo upload does not belong to this school. Upload the image again.");
+  }
   if (trimmed.length > MAX_LOGO_CHARS) throw new Error("That logo image is too large — use one under 1.5 MB.");
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
-  if (/^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
   throw new Error("Use an uploaded image or a valid image URL for the logo.");
 }
 

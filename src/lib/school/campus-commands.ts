@@ -219,7 +219,7 @@ export async function updateCampusDetailsCommand(session: AuthUser, input: Campu
   const phone = input.phone === undefined ? undefined : assertPhone(optionalText(input.phone), "Phone number");
   const website = input.website === undefined ? undefined : assertWebsite(optionalText(input.website), "website");
 
-  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl);
+  const newLogoUrl = input.logoUrl === undefined ? undefined : parseLogo(input.logoUrl, { schoolId: session.schoolId, campusId });
   // A board is never left blank: clearing it falls back to the first board for the school's country.
   const board = input.board === undefined ? undefined : optionalText(input.board) || defaultBoardFor(await schoolCountry(session.schoolId));
   const result = await prisma.$transaction(async (tx) => {

@@ -98,11 +98,11 @@ const DIRECT_UPLOAD_PREFIXES = ["profile-images/", "logos/"];
  * (admission, staff, chat) must use the authenticated upload intent in
  * src/lib/storage/private-upload.ts, so this refuses any other key.
  */
-export async function getUploadUrl(key: string, contentType: string, expiresIn = 900): Promise<string> {
+export async function getUploadUrl(key: string, contentType: string, expiresIn = 900, contentLength?: number): Promise<string> {
   if (!DIRECT_UPLOAD_PREFIXES.some(prefix => key.startsWith(prefix)) || key.includes("..")) {
     throw new Error("Direct uploads are limited to profile pictures and logos");
   }
-  return getSignedUrl(s3, new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType }), { expiresIn });
+  return getSignedUrl(s3, new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType, ContentLength: contentLength }), { expiresIn });
 }
 
 /**
