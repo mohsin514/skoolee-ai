@@ -27,6 +27,7 @@ datasource db {
 
 // ─── 1. SCHOOLS (Central Registry) ────────────────────────
 model School {
+  curriculumPackActivations CurriculumPackActivation[]
   ragDocuments RagDocument[]
   aiWorkflowJobs AiWorkflowJob[]
   aiCapabilityGaps AiCapabilityGap[]
@@ -593,6 +594,7 @@ model RolePermission {
 
 // ─── 2. CAMPUSES ──────────────────────────────────────────
 model Campus {
+  curriculumPackActivations CurriculumPackActivation[]
   /// SKO-500: the exam coordinator (controller of examinations) seat; schedules and requests papers, never approves.
   examCoordinatorUserId String? @map("exam_coordinator_user_id")
   aiWorkflowJobs AiWorkflowJob[]
@@ -10152,6 +10154,79 @@ model PackExpansionDecision {
 
   @@index([candidateId, createdAt(sort: Desc)])
   @@map("pack_expansion_decisions")
+}
+
+/// SKAI-1008..1012: platform catalogue of curriculum contract versions. Global: no school data.
+/// A row is immutable once written; a content change is a new version with a new hash.
+model CurriculumPackVersion {
+  id            String   @id @default(uuid())
+  packId        String   @map("pack_id")
+  version       Int
+  board         String
+  subject       String
+  schoolGrade   String   @map("school_grade")
+  examYear      String   @map("exam_year")
+  language      String
+  /// Catalogue status of the shipped content (DRAFT until every unverified item is cleared).
+  status        String   @default("DRAFT")
+  content       Json
+  contentSha256 String   @map("content_sha256")
+  /// Copy of content.unverified for the catalogue screen.
+  unverified    Json     @default("[]")
+  createdAt     DateTime @default(now()) @map("created_at")
+  activations   CurriculumPackActivation[]
+  @@unique([packId, version])
+  @@index([board, examYear])
+  @@map("curriculum_pack_versions")
+}
+
+/// A school campus's request to use one catalogue version, with its evidence. Status moves
+/// DRAFT -> APPROVED -> ACTIVE, and any -> REVOKED (terminal; a new request is a new row).
+model CurriculumPackActivation {
+  id                  String    @id @default(uuid())
+  schoolId            String    @map("school_id")
+  school              School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  campusId            String    @map("campus_id")
+  campus              Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  packVersionId       String    @map("pack_version_id")
+  packVersion         CurriculumPackVersion @relation(fields: [packVersionId], references: [id], onDelete: Restrict)
+  /// Pinned at request time; enforcement compares it with the catalogue row.
+  contentSha256       String    @map("content_sha256")
+  status              String    @default("DRAFT")
+  geography           String
+  schoolGrade         String    @map("school_grade")
+  localBudgetApprover String?   @map("local_budget_approver")
+  /// [{ sourceId, rightsScope, permissionEvidence, documentKey?, documentSha256?, documentName? }]
+  sourceEvidence      Json      @default("[]") @map("source_evidence")
+  educatorApproverId  String?   @map("educator_approver_id")
+  educatorApprover    String?   @map("educator_approver")
+  approvedOn          DateTime? @map("approved_on") @db.Date
+  reviewDueOn         DateTime? @map("review_due_on") @db.Date
+  requestedById       String    @map("requested_by_id")
+  revokedReason       String?   @map("revoked_reason")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  events              CurriculumPackActivationEvent[]
+  @@index([schoolId, campusId, status])
+  @@index([schoolId, packVersionId])
+  @@map("curriculum_pack_activations")
+}
+
+/// Append-only status history. Rows are never updated or deleted by the service.
+model CurriculumPackActivationEvent {
+  id            String   @id @default(uuid())
+  schoolId      String   @map("school_id")
+  activationId  String   @map("activation_id")
+  activation    CurriculumPackActivation @relation(fields: [activationId], references: [id], onDelete: Cascade)
+  fromStatus    String?  @map("from_status")
+  toStatus      String   @map("to_status")
+  actorId       String   @map("actor_id")
+  actorRole     String   @map("actor_role")
+  reason        String?
+  contentSha256 String   @map("content_sha256")
+  at            DateTime @default(now())
+  @@index([schoolId, activationId, at])
+  @@map("curriculum_pack_activation_events")
 }
 
 /// SKAI-1016: one reviewed trust requirement for one market. Platform evidence, never school data;
