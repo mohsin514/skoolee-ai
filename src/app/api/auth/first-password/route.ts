@@ -22,6 +22,7 @@ import {
   SESSION_DAYS,
   sessionCookieAttributes,
 } from "@/lib/auth/session-cookie";
+import { ApiError, errorResponse } from "@/lib/api/scope";
 import { parseBody } from "@/lib/api/validate";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
@@ -131,6 +132,8 @@ export async function PUT(req: NextRequest) {
 
     return res;
   } catch (error) {
+    // Input rejected by the validation boundary keeps its 4xx instead of a generic 500.
+    if (error instanceof ApiError) return errorResponse(error);
     console.error("[auth/first-password]", error);
     return Response.json({ error: "Could not update password" }, { status: 500 });
   }

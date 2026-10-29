@@ -55,3 +55,10 @@ test("preserve never lets a non-string through unsanitised", async () => {
   const body = await parseBody(post(JSON.stringify({ password: { __proto__x: " y " } })), jsonObjectBody, { preserve: ["password"] });
   assert.equal(typeof body.password, "object");
 });
+
+test("login and first-password return the boundary's 400 instead of a generic 500", () => {
+  for (const file of ["src/app/api/auth/login/route.ts", "src/app/api/auth/first-password/route.ts"]) {
+    const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+    assert.match(source, /catch \(error\) \{\n\s*\/\/[^\n]*\n\s*if \(error instanceof ApiError\) return errorResponse\(error\);/, file);
+  }
+});
