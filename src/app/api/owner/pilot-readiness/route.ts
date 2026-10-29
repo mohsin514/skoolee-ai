@@ -4,6 +4,7 @@ import {
   marketTrustBoard, pilotActivationGate, PilotGateError, recordCommercialEvent, recordTrustReview,
   saveProposal, saveReadinessRecord, schoolPilotRecords,
 } from "@/lib/pilots/readiness-service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const owner = await requirePlatformOwner();
-    const body = (await request.json().catch(() => null)) as { action?: string; schoolId?: string; pilotId?: string; data?: unknown } | null;
+    const body = (await readJsonBody(request)) as { action?: string; schoolId?: string; pilotId?: string; data?: unknown } | null;
     const run = async () => {
       switch (body?.action) {
         case "trust": return recordTrustReview(body.data, owner.userId);

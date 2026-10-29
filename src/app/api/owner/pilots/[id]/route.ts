@@ -1,5 +1,6 @@
 import { errorResponse, ApiError, requirePlatformOwner } from "@/lib/api/scope";
 import { excludeObservation, pilotDetail, PilotError, proposeClaim, recordMeasure, recordObservation, reviewClaim, updateCharter } from "@/lib/pilots/service";
+import { readJsonBody } from "@/lib/api/validate";
 
 export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "no-store" };
@@ -18,7 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const owner = await requirePlatformOwner();
     const id = (await context.params).id;
-    const body = (await request.json().catch(() => null)) as { action?: string; data?: Record<string, unknown> } | null;
+    const body = (await readJsonBody(request)) as { action?: string; data?: Record<string, unknown> } | null;
     const data = body?.data ?? {};
     const run = async () => {
       switch (body?.action) {

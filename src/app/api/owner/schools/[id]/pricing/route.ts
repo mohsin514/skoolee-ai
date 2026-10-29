@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import { logSuperAdminAction } from "@/lib/audit";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(
   req: NextRequest,
@@ -12,7 +14,7 @@ export async function PUT(
     const user = await requirePlatformOwner();
 
     const { id } = await params;
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = schoolPricingSchema.safeParse(body?.pricing);
     if (!parsed.success) throw new ApiError("Provide valid plan prices: each price must be a finite non-negative number", 400);
     const pricing = parsed.data;

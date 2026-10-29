@@ -17,6 +17,8 @@ import {
   normalizePlan,
   uniqueSlug,
 } from "@/lib/owner/provisioning";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +140,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     const schoolName = String(body.schoolName || "").trim();
     const city = String(body.city || "").trim();
