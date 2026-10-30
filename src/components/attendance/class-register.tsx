@@ -242,13 +242,13 @@ export function GuardianAttendanceExplanations({ studentId }: { studentId: strin
       {row.explanation ? <span className="text-xs font-bold" data-explanation-state={row.explanation.status}>{explanationLabel(row.explanation.status)}{row.explanation.reviewNote ? <>: {row.explanation.reviewNote}</> : null}</span> : null}
       {canExplain ? <Button size="sm" variant="outline" onClick={() => setOpen(row)} data-explain>{ui("Explain")}</Button> : null}
     </li>; })}</ul>
-    {open ? <Modal size="sm" title={ui("Explain this day")} eyebrow={ui("Attendance")} subtitle={ui("The school reviews your explanation before the record changes.")} onClose={() => setOpen(null)}>
+    {open ? <Modal size="sm" icon={MessageSquareText} tone="sky" title={ui("Explain this day")} eyebrow={ui("Attendance")} subtitle={ui("The school reviews your explanation before the record changes.")} onClose={() => setOpen(null)}
+      footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(null)}>{ui("Cancel")}</Button><Button disabled={busy || form.reason.trim().length < 5 || form.proposedStatus === "LATE" && !form.arrivalTime} onClick={() => void send()} data-send-explanation>{ui("Send")}</Button></div>}>
       <div className="space-y-3" data-explain-dialog>
         {error ? <Alert tone="danger" compact>{error}</Alert> : null}
         <FormField name="explain-kind" label={ui("What happened")}><Select value={form.proposedStatus} onChange={event => setForm({ ...form, proposedStatus: event.target.value })}><option value="EXCUSED">{ui("My child was absent for a reason")}</option><option value="LATE">{ui("My child arrived late")}</option></Select></FormField>
         {form.proposedStatus === "LATE" ? <FormField name="explain-time" label={ui("Arrival time")}><Input type="time" value={form.arrivalTime} onChange={event => setForm({ ...form, arrivalTime: event.target.value })} /></FormField> : null}
         <FormField name="explain-reason" label={ui("Explanation")}><Textarea value={form.reason} maxLength={1000} onChange={event => setForm({ ...form, reason: event.target.value })} /></FormField>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(null)}>{ui("Cancel")}</Button><Button disabled={busy || form.reason.trim().length < 5 || form.proposedStatus === "LATE" && !form.arrivalTime} onClick={() => void send()} data-send-explanation>{ui("Send")}</Button></div>
       </div>
     </Modal> : null}
   </div>;
