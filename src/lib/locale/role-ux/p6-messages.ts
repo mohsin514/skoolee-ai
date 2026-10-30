@@ -1473,6 +1473,16 @@ const P6: ReadonlyArray<readonly [en: string, ar: string, ur: string]> = [
   ["{0} weekend days become school days — attendance and the timetable will expect them.", "{0} أيام عطلة تصبح أيامًا دراسية — سيتوقعها الحضور والجدول.", "{0} چھٹی کے دن اسکول کے دن بن جائیں گے — حاضری اور ٹائم ٹیبل ان کی توقع کریں گے۔"],
   ["{0} holiday days now fall on the weekend.", "{0} أيام عطلة رسمية تقع الآن في العطلة الأسبوعية.", "{0} تعطیلات کے دن اب ہفتہ وار چھٹی پر آتے ہیں۔"],
   ["Past attendance is unchanged; the change applies from today.", "لا يتغير الحضور السابق؛ يسري التغيير من اليوم.", "پچھلی حاضری میں کوئی تبدیلی نہیں؛ تبدیلی آج سے لاگو ہوگی۔"],
+  // SKAI-116 academic year setup
+  ["Next academic year drafted", "تمت صياغة مسودة العام الدراسي التالي", "اگلے تعلیمی سال کا مسودہ تیار ہو گیا"],
+  ["Enter the start and end dates", "أدخل تاريخي البداية والنهاية", "شروع اور اختتام کی تاریخیں درج کریں"],
+  ["Academic year dates saved", "حُفظت تواريخ العام الدراسي", "تعلیمی سال کی تاریخیں محفوظ ہو گئیں"],
+  ["Dates not set", "لم تُحدَّد التواريخ", "تاریخیں مقرر نہیں"],
+  ["Edit dates", "تعديل التواريخ", "تاریخیں تبدیل کریں"],
+  ["Prepare next year", "تجهيز العام التالي", "اگلا سال تیار کریں"],
+  ["Save dates", "حفظ التواريخ", "تاریخیں محفوظ کریں"],
+  ["Holidays fall outside the new dates", "عطلات تقع خارج التواريخ الجديدة", "کچھ تعطیلات نئی تاریخوں سے باہر ہیں"],
+  ["Save dates anyway", "حفظ التواريخ على أي حال", "پھر بھی تاریخیں محفوظ کریں"],
 ];
 
 export const arabicP6Ui: Record<string, string> = Object.fromEntries(P6.map(([en, ar]) => [en, ar]));
