@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { requireAuthUser, errorResponse, ApiError } from "@/lib/api/scope";
 import {
+  assertPackageFitsSchool,
   checkoutAmount,
   createCheckoutIntent,
   onboardingCheckoutSchema,
@@ -142,6 +143,8 @@ export async function POST(req: NextRequest) {
     const plan = parsed.data.plan;
     const planDetails = billing.plans[plan];
     const contract = packageContract(plan, planDetails);
+    const activeCampuses = await prisma.campus.count({ where: { schoolId: user.schoolId, archivedAt: null } });
+    assertPackageFitsSchool(plan, planDetails, { currentPlan: billing.school.plan, activeCampuses });
     let intent = await createCheckoutIntent(user, parsed.data, contract);
     activeIntentId = intent.id;
     if (["FAILED", "CANCELLED"].includes(intent.status)) {
