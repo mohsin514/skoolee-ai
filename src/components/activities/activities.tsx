@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Progress } from "@/components/ui/progress";
 import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, DeskStats, RelativeTime, StatTile, urgencyFirst, type DeskTone } from "@/components/ui/desk";
-import { Bus, CalendarDays, CheckCircle2, Clock3, MoreHorizontal, Plus, Ticket, Trophy, Users } from "lucide-react";
+import { Bus, CalendarDays, CheckCircle2, Clock3, MoreHorizontal, Plus, Sparkles, Ticket, Trophy, Users } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -89,14 +89,13 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
       }}
       onCancel={() => setReleasing(null)}
     />
-    {review ? <Modal title={review.title} eyebrow={kindLabel(ui, review.kind)} subtitle={data.child.name} onClose={() => setReview(null)}>
+    {review ? <Modal title={review.title} eyebrow={kindLabel(ui, review.kind)} subtitle={data.child.name} icon={review.kind === "TRIP" ? Bus : review.kind === "SPORT" ? Trophy : Ticket} tone="sky" onClose={() => setReview(null)} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} onClick={async () => { const r = review.place?.status === "OFFERED" ? await run({ action: "answer", placeId: review.place.id, knownVersion: review.place.version, accept: true }, "Place reserved. One or more requirements remain.") : await run({ action: "request", activityId: review.id, studentId }, "Request recorded."); if (r) setReview(null); }} data-activity-confirm>{review.place?.status === "OFFERED" ? ui("Accept place") : review.placesLeft > 0 ? ui("Reserve the place") : ui("Join the waitlist")}</Button></div>}>
       <div className="space-y-2 text-sm" data-activity-review>
         {review.description ? <p dir="auto">{review.description}</p> : null}
         <p><bdi>{dateTime(review.startsAt)}</bdi>–<bdi>{dateTime(review.endsAt)}</bdi> · <span dir="auto">{review.location}</span></p>
         <p className="font-bold">{review.costAmount ? <>{ui("Cost")}: <bdi>{money(review.costAmount, review.costCurrency)}</bdi></> : ui("Free")}</p>
         <div className="rounded-(--radius-control) border border-border-subtle bg-surface-subtle p-3 text-xs"><p className="font-bold text-ink-strong">{ui("Cancellation and refunds")}</p><p dir="auto">{review.cancellationTerms}</p></div>
         {review.kind === "TRIP" ? <p className="text-xs">{ui("Trip consent is requested separately; the place stays conditional until it is given.")}</p> : null}
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} onClick={async () => { const r = review.place?.status === "OFFERED" ? await run({ action: "answer", placeId: review.place.id, knownVersion: review.place.version, accept: true }, "Place reserved. One or more requirements remain.") : await run({ action: "request", activityId: review.id, studentId }, "Request recorded."); if (r) setReview(null); }} data-activity-confirm>{review.place?.status === "OFFERED" ? ui("Accept place") : review.placesLeft > 0 ? ui("Reserve the place") : ui("Join the waitlist")}</Button></div>
       </div>
     </Modal> : null}
   </section>;
@@ -189,7 +188,7 @@ export function ActivitiesDesk() {
       <p className="text-2xs text-ink-muted">{ui("Participant lists exclude private care narratives.")}{roster.activity.costAmount ? <> · {ui("Cost")}: <bdi>{money(roster.activity.costAmount, roster.activity.costCurrency)}</bdi></> : null}</p>
     </section> : null}
 
-    {creating ? <Modal title={ui("Publish activity")} onClose={() => setCreating(false)} wide>
+    {creating ? <Modal title={ui("Publish activity")} subtitle={ui("Families see the cost, timing and refund terms before they ask for a place.")} icon={Sparkles} onClose={() => setCreating(false)} wide footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setCreating(false)}>{ui("Back")}</Button><Button disabled={busy || !form.title || !form.startsAt || !form.endsAt} loading={busy} onClick={async () => { setBusy(true); try { await call("/api/activities", "POST", { action: "create", ...form, costCurrency: currency, startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(), capacity: Number(form.capacity), costAmount: Number(form.costAmount), tripId: form.tripId || undefined }); toast.success(ui("Activity published.")); setCreating(false); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-activity-publish>{ui("Publish")}</Button></div>}>
       <div className="space-y-2" data-activity-form>
         <div className="grid gap-2 sm:grid-cols-3">
           <FormField name="af-kind" label={ui("Kind")}><Select value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>{["CLUB", "SPORT", "TRIP"].map(k => <option key={k} value={k}>{kindLabel(ui, k)}</option>)}</Select></FormField>
@@ -204,7 +203,6 @@ export function ActivitiesDesk() {
         <FormField name="af-desc" label={ui("Description")}><Textarea rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></FormField>
         <FormField name="af-terms" label={ui("Cancellation and refunds")} hint={ui("Shown to families before they ask for a place.")}><Textarea rows={2} value={form.cancellationTerms} onChange={e => setForm({ ...form, cancellationTerms: e.target.value })} /></FormField>
         <fieldset className="flex flex-wrap gap-3 text-sm"><legend className="text-xs font-bold">{ui("Open to (none = every class)")}</legend>{list.classes.map(c => <label key={c.id} className="flex min-h-11 items-center gap-1"><Checkbox checked={form.classIds.includes(c.id)} onChange={e => setForm({ ...form, classIds: e.target.checked ? [...form.classIds, c.id] : form.classIds.filter(x => x !== c.id) })} /> <bdi>{c.name}</bdi></label>)}</fieldset>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setCreating(false)}>{ui("Back")}</Button><Button disabled={busy || !form.title || !form.startsAt || !form.endsAt} loading={busy} onClick={async () => { setBusy(true); try { await call("/api/activities", "POST", { action: "create", ...form, costCurrency: currency, startsAt: new Date(form.startsAt).toISOString(), endsAt: new Date(form.endsAt).toISOString(), capacity: Number(form.capacity), costAmount: Number(form.costAmount), tripId: form.tripId || undefined }); toast.success(ui("Activity published.")); setCreating(false); await load(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } }} data-activity-publish>{ui("Publish")}</Button></div>
       </div>
     </Modal> : null}
     <ConfirmAction

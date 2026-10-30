@@ -179,12 +179,11 @@ function EntryDialog({ forms, onClose, onCreated }: { forms: Form[]; onClose: ()
     try { const json = await send("POST", { action: "start", formId, answers: childName.trim() ? { childName: childName.trim() } : {} }); toast.success(ui("Application {0} started. Complete it, attach documents and send it for the family.", [json.data.reference])); onCreated(json.data.id); }
     catch (failure) { setError(errorText(ui, failure)); } finally { setBusy(false); }
   };
-  return <Modal title={ui("Enter an application")} eyebrow={ui("Admissions")} subtitle={ui("For a family applying in person or by phone. The same form version and rules apply.")} onClose={onClose}>
+  return <Modal title={ui("Enter an application")} eyebrow={ui("Admissions")} subtitle={ui("For a family applying in person or by phone. The same form version and rules apply.")} icon={Plus} onClose={onClose} footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose}>{ui("Cancel")}</Button><Button onClick={() => void create()} loading={busy}>{ui("Start application")}</Button></div>}>
     <div className="space-y-3">
       {error ? <Alert tone="danger" compact>{error}</Alert> : null}
       <FormField name="entry-form" label={ui("Form")}><Select value={formId} onChange={event => setFormId(event.target.value)}>{forms.map(form => <option key={form.id} value={form.id}>{form.name} · v{form.currentVersion}</option>)}</Select></FormField>
       <FormField name="entry-child" label={ui("Child's full name")}><Input value={childName} onChange={event => setChildName(event.target.value)} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>{ui("Cancel")}</Button><Button onClick={() => void create()} loading={busy}>{ui("Start application")}</Button></div>
     </div>
   </Modal>;
 }
@@ -226,7 +225,7 @@ function ReviewDialog({ id, owners, classes, canDecide, onClose }: { id: string;
   ] as [string, string, string][]).filter(([action, , from]) => from.split(",").includes(detail.status)
     // The front desk moves an application forward; offers, refusals and acceptances are the campus admin's (§2.2 #51).
     && (canDecide || ["review", "withdraw"].includes(action)));
-  return <Modal title={detail ? ui("Application {0}", [detail.reference]) : ui("Application")} eyebrow={ui("Admissions")} size="lg" onClose={onClose} dirty={Boolean(officeNote || familyMessage || reason)}>
+  return <Modal title={detail ? ui("Application {0}", [detail.reference]) : ui("Application")} eyebrow={ui("Admissions")} icon={ClipboardList} tone="sky" size="lg" onClose={onClose} dirty={Boolean(officeNote || familyMessage || reason)}>
     {loadError ? <ErrorState variant="panel" description={loadError} retryLabel={ui("Retry")} onRetry={() => { setLoadError(""); void load(); }} /> : !detail || !definition ? <SkeletonList rows={4} label={ui("Loading application…")} /> : <div className="space-y-4" data-application-review={detail.reference}>
       {error ? <Alert tone="danger" compact data-review-error>{error}</Alert> : null}
       <p className="text-sm font-bold" data-review-status={detail.status}>{statusLabel(ui, detail.status)} · <bdi>{detail.formVersion.form.name}</bdi> · {ui("Form version {0}", [detail.formVersion.version])}{detail.enquiry ? <> · {ui("From enquiry")} <bdi>{detail.enquiry.name}</bdi> ({detail.enquiry.source})</> : null}</p>
@@ -361,9 +360,9 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
     try { await send("POST", { action: "save-form", id: form?.id, name, definition }); toast.success(ui("Draft saved. Publish it when it is ready for families.")); onSaved(); }
     catch (failure) { setError(errorText(ui, failure)); } finally { setBusy(false); }
   };
-  return <Modal title={form ? ui("Edit application form") : ui("New application form")} eyebrow={ui("Admissions")} size="lg" onClose={onClose} dirty>
+  return <Modal title={form ? ui("Edit application form") : ui("New application form")} eyebrow={ui("Admissions")} icon={FileText} size="lg" onClose={onClose} dirty footer={<div className="flex flex-wrap justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} disabled={busy}>{busy ? ui("Saving…") : ui("Save draft")}</Button></div>}>
     <div className="space-y-4" data-form-editor>
-      {error ? <p role="alert" className="rounded-xl border border-status-error-border bg-status-error-surface px-3 py-2 text-xs font-bold text-status-error-text" data-form-error>{error}</p> : null}
+      {error ? <Alert tone="danger" compact data-form-error>{error}</Alert> : null}
       <FormField name="form-name" label={ui("Form name")}><Input value={name} maxLength={120} onChange={event => setName(event.target.value)} /></FormField>
       <p className="text-xs text-ink-muted">{ui("Write each question in English and, where families need it, in Arabic and Urdu. Publishing freezes a version; applications already started keep the version they began with.")}</p>
       <ol className="space-y-3">{definition.fields.map((field, index) => <li key={index} className="space-y-2 rounded-xl border border-border p-3" data-editor-field={field.key}>
@@ -400,7 +399,6 @@ function FormEditor({ form, onClose, onSaved }: { form: Form | null; onClose: ()
         {IDENTITY_KEYS.map(key => <label key={key} className="flex items-center gap-2"><Checkbox checked={definition.identityKeys.includes(key)} onChange={event => setDefinition(current => ({ ...current, identityKeys: event.target.checked ? [...current.identityKeys, key] : current.identityKeys.filter(k => k !== key) }))} />{key === "nationalId" ? ui("National ID / birth registration number") : key === "nameAndDob" ? ui("Child's name and date of birth") : ui("Guardian phone and child's name")}</label>)}
       </fieldset>
       <FormField name="form-consent" label={ui("Consent statement (English)")}><Textarea rows={2} value={definition.consent.en} onChange={event => setDefinition(current => ({ ...current, consent: { ...current.consent, en: event.target.value } }))} /></FormField>
-      <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>{ui("Cancel")}</Button><Button onClick={() => void save()} disabled={busy}>{busy ? ui("Saving…") : ui("Save draft")}</Button></div>
     </div>
   </Modal>;
 }
