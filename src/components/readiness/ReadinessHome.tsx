@@ -22,6 +22,7 @@ import { getLaunchCopy } from "./readiness-launch-copy";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { SetupAreasGuide, type SetupArea } from "./SetupAreasGuide";
 import { setupAreaFromTaskKey } from "@/lib/onboarding/setup-areas";
+import { rehearsalStepsFor } from "@/lib/readiness/checks";
 
 /**
  * School readiness as "launch control": a hero with the share of required checks done, a spotlight on the
@@ -35,7 +36,7 @@ import { setupAreaFromTaskKey } from "@/lib/onboarding/setup-areas";
  * hero heading drops to h2. Feedback follows R4: a load failure is an inline ErrorState with retry, an action
  * result is a toast, and go-live approval waits behind a ConfirmAction.
  */
-type Check = { id: string; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean };
+type Check = { id: string; required: boolean; later?: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean };
 type Task = { id: string; key: string; title: string; ownerId: string | null; status: "OPEN" | "DONE" | "DEFERRED" };
 type Batch = { id: string; kind: string; state: string; sourceName: string; total: number; accepted: number; rejected: number; unresolved: number; unknownClass: number };
 type LeadView = {
@@ -44,6 +45,7 @@ type LeadView = {
   checks: Check[]; ready: boolean; campuses: CampusStatus[]; nextRequired: string | null; tasks: Task[]; staff: Array<{ id: string; fullName: string; role: string }>;
   locale: { country: string; timezone: string; currency: string };
   aiSetup?: boolean;
+  canSwitchMode?: boolean;
   areas?: SetupArea[];
 };
 type CampusStatus = { id: string; name: string; classes: number; students: number; ready: boolean };
@@ -77,6 +79,7 @@ export function ReadinessHome() {
   const [loadFailed, setLoadFailed] = useState<"denied" | "error" | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingApproval, setConfirmingApproval] = useState(false);
+  const [confirmingSwitch, setConfirmingSwitch] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [newTask, setNewTask] = useState({ title: "", ownerId: "" });
 
@@ -145,6 +148,9 @@ export function ReadinessHome() {
   const percent = required.length ? Math.round((doneRequired / required.length) * 100) : 0;
   const next = lead?.nextRequired ? lead.checks.find(check => check.id === lead.nextRequired) ?? null : null;
   const live = lead?.readiness.status === "READY";
+  // SKAI-912: the mode decides which rehearsal steps gate go-live; the others stay runnable, tagged for later.
+  const modeSteps: readonly string[] = lead ? rehearsalStepsFor(lead.facts.adoptionMode) : STEPS;
+  const otherMode = lead?.facts.adoptionMode === "EXAM_STUDIO" ? "FULL_OPERATIONS" as const : "EXAM_STUDIO" as const;
 
   return (
     <div lang={language} dir={rtl ? "rtl" : "ltr"} className="sk-launch" data-readiness>
@@ -169,6 +175,7 @@ export function ReadinessHome() {
           ) : null}
           {/* Flagship (addendum 2026-10-22): the AI setup questionnaire drafts what these checks ask for; a secondary link
               here because the spotlight below carries this screen's one primary action. */}
+          {lead?.canSwitchMode ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setConfirmingSwitch(true)} data-switch-mode={otherMode}>{l.switchMode[otherMode]}</Button> : null}
           {lead?.aiSetup && !live ? <Link href="/ai?setup=1" data-flagship-link="ai-workflows" className={buttonVariants({ variant: "link", className: "h-auto gap-2 p-0" })}><FlagshipChip />{t.aiSetup}</Link> : null}
         </div>
         {lead ? (
@@ -243,7 +250,7 @@ export function ReadinessHome() {
                         <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong">
                           {checkTitle(check.id)}
                           <span className="sr-only"> — {check.passed ? t.passed : t.pending}</span>
-                          {!check.required ? <span className="sk-choice-tag" data-tone="brand">{l.optionalTag}</span> : null}
+                          {!check.required ? <span className="sk-choice-tag" data-tone="brand" data-later={check.later || undefined}>{check.later ? l.laterTag : l.optionalTag}</span> : null}
                         </p>
                         <p className="text-xs leading-relaxed text-ink-muted">{l.why[check.id as keyof typeof l.why]}</p>
                         <p className="flex flex-wrap gap-1.5">
@@ -278,7 +285,7 @@ export function ReadinessHome() {
             return (
               <li key={step} className="sk-launch-step" data-done={done || undefined}>
                 <span className="sk-launch-step-num" aria-hidden="true">{done ? <CheckCircle2 className="size-4" /> : index + 1}</span>
-                <p className="font-semibold text-ink-strong">{t.steps[step]}</p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong">{t.steps[step]}{modeSteps.includes(step) ? null : <span className="sk-choice-tag" data-tone="brand" data-later>{l.laterTag}</span>}</p>
                 {done ? <p className="text-xs text-status-success-text">{t.doneAt}: {date(lead.readiness.rehearsal[step])}</p> : null}
                 <Button type="button" size="sm" variant={done ? "outline" : "default"} disabled={busy}
                   onClick={() => run(async () => { const result = await call({ op: "rehearse", step }); setPreview(result.preview); }, true)}>{done ? t.rerun : t.run}</Button>
@@ -353,6 +360,15 @@ export function ReadinessHome() {
           busy={busy}
           onConfirm={async () => { if (await run(() => call({ op: "approve", expectedVersion: lead.readiness.version }))) setConfirmingApproval(false); }}
           onCancel={() => setConfirmingApproval(false)}
+        />
+        <ConfirmAction
+          open={confirmingSwitch}
+          title={l.switchTitle}
+          description={l.switchBody}
+          confirmLabel={l.switchMode[otherMode]}
+          busy={busy}
+          onConfirm={async () => { if (await run(() => call({ op: "mode", mode: otherMode, expectedVersion: lead.readiness.version }))) setConfirmingSwitch(false); }}
+          onCancel={() => setConfirmingSwitch(false)}
         />
       </> : null}
     </div>

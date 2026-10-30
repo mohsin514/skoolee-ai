@@ -14,6 +14,10 @@ export type LaunchCopy = {
   delegated: string;          // group admin: campus-level work done by each campus admin
   handledElsewhere: string;   // any other viewer without a screen for the check
   optionalTag: string;
+  laterTag: string;          // SKAI-912: not needed for this mode's first class, needed for full operations
+  switchMode: Record<"EXAM_STUDIO" | "FULL_OPERATIONS", string>;  // button: switch *to* this mode
+  switchTitle: string;
+  switchBody: string;
   doneTag: string;
   todoTag: string;
   liveTitle: string;
@@ -47,6 +51,10 @@ const en: LaunchCopy = {
   delegated: "Done by each campus admin in their campus console. Open a campus from Campuses.",
   handledElsewhere: "Your campus admin completes this step in their console. It turns green here once it is done.",
   optionalTag: "Optional",
+  laterTag: "Later — for full operations",
+  switchMode: { EXAM_STUDIO: "Start with Exam Studio only", FULL_OPERATIONS: "Switch to full operations" },
+  switchTitle: "Change how your school uses Skoolee?",
+  switchBody: "Only the checks for the first class change. Classes, pupils, follow-ups and rehearsal results are kept, and you can switch back before go-live.",
   doneTag: "Done",
   todoTag: "To do",
   liveTitle: "Your school is live",
@@ -80,6 +88,10 @@ const ar: LaunchCopy = {
   delegated: "يُنجزه مدير كل فرع في لوحة الفرع. افتح فرعاً من قائمة الفروع.",
   handledElsewhere: "يُكمل مدير الفرع هذه الخطوة في لوحته. تظهر هنا مكتملة بعد إنجازها.",
   optionalTag: "اختياري",
+  laterTag: "لاحقاً — للتشغيل الكامل",
+  switchMode: { EXAM_STUDIO: "البدء باستوديو الاختبارات فقط", FULL_OPERATIONS: "التحويل إلى التشغيل الكامل" },
+  switchTitle: "تغيير طريقة استخدام المدرسة لـ Skoolee؟",
+  switchBody: "تتغير فقط فحوص الصف الأول. تبقى الصفوف والطلاب والمتابعات ونتائج التدريب، ويمكنك العودة قبل التشغيل.",
   doneTag: "مكتمل",
   todoTag: "مطلوب",
   liveTitle: "مدرستك تعمل الآن",
@@ -113,6 +125,10 @@ const ur: LaunchCopy = {
   delegated: "ہر کیمپس منتظم اپنے کیمپس کنسول میں کرتا ہے۔ کیمپسز سے کیمپس کھولیں۔",
   handledElsewhere: "آپ کا کیمپس منتظم یہ مرحلہ اپنے کنسول میں مکمل کرتا ہے۔ مکمل ہونے پر یہ یہاں سبز ہو جاتا ہے۔",
   optionalTag: "اختیاری",
+  laterTag: "بعد میں — مکمل آپریشنز کے لیے",
+  switchMode: { EXAM_STUDIO: "صرف ایگزام اسٹوڈیو سے شروع کریں", FULL_OPERATIONS: "مکمل آپریشنز پر منتقل کریں" },
+  switchTitle: "اسکول کے Skoolee استعمال کا طریقہ بدلیں؟",
+  switchBody: "صرف پہلی کلاس کی جانچیں بدلتی ہیں۔ کلاسیں، طلبہ، فالو اپس اور مشق کے نتائج محفوظ رہتے ہیں، اور لائیو ہونے سے پہلے آپ واپس جا سکتے ہیں۔",
   doneTag: "مکمل",
   todoTag: "باقی",
   liveTitle: "آپ کا اسکول فعال ہے",
