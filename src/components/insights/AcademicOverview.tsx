@@ -51,6 +51,7 @@ import {
   ZAxis,
 } from "recharts";
 import { CommandHero } from "./CommandHero";
+import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import {
   EmptyChart,
   InsightCard,
@@ -76,7 +77,6 @@ import {
   ratio,
 } from "./metrics";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { useIsSingular } from "@/components/locale/use-count-label";
 import { resultGradeLabel } from "@/lib/locale/result-grade";
@@ -621,32 +621,38 @@ export function AcademicOverview({ data, onNavigate, onAddClass, onAddStudent, v
           }
         >
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {derived.atRisk.map((s, i) => (
-              <li
-                key={`${s.roll}-${i}`}
-                className="sk-rise flex items-center justify-between gap-3 rounded-2xl border border-edge/25 bg-gradient-to-br from-brand-50/50 via-card to-card px-4 py-3"
-                style={{ animationDelay: `${i * 50}ms` }}
-              >
-                <div className="min-w-0">
-                  <bdi className="block truncate text-xs font-bold text-ink-strong">{s.name}</bdi>
-                  <p className="text-2xs font-semibold text-ink-subtle">
-                    {ui("{0} · Roll {1}", [s.className, s.roll ?? "—"])}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-1.5">
-                  {s.percentage !== null ? (
-                    <Badge variant={s.percentage < 40 ? "danger" : "success"} dot size="sm" className="tabular-nums">
-                      {ui("{0}% marks", [s.percentage])}
-                    </Badge>
-                  ) : null}
-                  {s.attendance !== null ? (
-                    <Badge variant={s.attendance < 75 ? "warning" : "success"} dot size="sm" className="tabular-nums">
-                      {ui("{0}% present", [s.attendance])}
-                    </Badge>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+            {derived.atRisk.map((s, i) => {
+              // Failing marks outrank a thin register: the row's rail and icon say which lever is slipping.
+              const failing = s.percentage !== null && s.percentage < 40;
+              return (
+                <li
+                  key={`${s.roll}-${i}`}
+                  data-tone={failing ? "danger" : "warning"}
+                  className={cn(deskRow, "flex items-start gap-3")}
+                  style={{ animationDelay: `${i * 50}ms` }}
+                >
+                  <DeskRowIcon icon={failing ? AlertTriangle : CalendarCheck} />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <bdi className="block truncate text-sm font-bold text-ink-strong">{s.name}</bdi>
+                    <p className="text-xs font-medium text-ink-muted">
+                      {ui("{0} · Roll {1}", [s.className, s.roll ?? "—"])}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {s.percentage !== null ? (
+                        <DeskPill tone={s.percentage < 40 ? "danger" : "success"} className="tabular-nums">
+                          {ui("{0}% marks", [s.percentage])}
+                        </DeskPill>
+                      ) : null}
+                      {s.attendance !== null ? (
+                        <DeskPill tone={s.attendance < 75 ? "warning" : "success"} className="tabular-nums">
+                          {ui("{0}% present", [s.attendance])}
+                        </DeskPill>
+                      ) : null}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </InsightCard>
       ) : null}

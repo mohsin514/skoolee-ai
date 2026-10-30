@@ -30,12 +30,15 @@ import {
   Download,
   GraduationCap,
   History,
+  Layers,
+  LayoutDashboard,
   Mail,
   MapPin,
   MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
+  Settings as SettingsIcon,
   Shield,
   ShieldCheck,
   Sparkles,
@@ -60,6 +63,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { ErrorState } from "@/components/ui/error-state";
 import { FormField } from "@/components/ui/form-field";
 import { IconButton } from "@/components/ui/icon-button";
@@ -305,16 +309,11 @@ function SuspendedNotice({ onOpenBilling }: { onOpenBilling: () => void }) {
   );
 }
 
-function Stat({ label, value, tip }: { label: string; value: number; tip?: string }) {
+function Stat({ label, value, tip, icon, tone = "brand", index = 0 }: { label: string; value: number; tip?: string; icon: LucideIcon; tone?: DeskTone; index?: number }) {
   const formatNumber = useFormatNumber();
   return (
-    <div className="sk-panel p-4 sm:p-5">
-      <div className="mb-1 flex items-center gap-1">
-        <p className="text-xs font-semibold text-ink-muted">{label}</p>
-        {tip ? <InfoTip content={tip} /> : null}
-      </div>
-      <p className="text-2xl font-bold tracking-tight tabular-nums text-ink-strong"><bdi>{formatNumber(value ?? 0)}</bdi></p>
-    </div>
+    <StatTile icon={icon} tone={tone} index={index} value={<bdi>{formatNumber(value ?? 0)}</bdi>}
+      label={<span className="inline-flex items-center gap-1">{label}{tip ? <InfoTip content={tip} /> : null}</span>} />
   );
 }
 
@@ -449,6 +448,7 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
       <PageHeader
         title="Overview"
         description="Decisions waiting on you and how every campus is doing."
+        icon={LayoutDashboard}
         primaryAction={review}
         secondaryActions={[
           { id: "refresh-group", label: "Refresh", icon: RefreshCw, loading: refreshing, onClick: async () => { setRefreshing(true); try { await onRefresh(); } finally { setRefreshing(false); } } },
@@ -478,12 +478,11 @@ function OverviewView({ data, onOpenCampus, onNavigate, onAppoint, onPromote, on
           <EmptyState size="sm" icon={CheckCircle2} title={t("Nothing needs you right now")} description={t("Every campus has its leaders in post and no decisions are waiting.")} />
         ) : (
           <ul className="space-y-2">
-            {items.map((item) => (
-              <li key={item.id} className="flex flex-col gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4" data-attention={item.id}>
+            {/* Urgency first: a vacant admin seat (danger) leads, then sign-offs (warning), then pending invitations. */}
+            {urgencyFirst(items, (item) => (item.tone === "danger" ? 0 : item.tone === "warning" ? 1 : 2)).map((item) => (
+              <li key={item.id} data-tone={item.tone} className={cn(deskRow, "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between")} data-attention={item.id}>
                 <div className="flex min-w-0 items-start gap-3">
-                  <span aria-hidden="true" className={item.tone === "danger" ? "mt-0.5 text-status-error-text" : item.tone === "warning" ? "mt-0.5 text-status-warning-text" : "mt-0.5 text-primary"}>
-                    <item.icon className="size-5" />
-                  </span>
+                  <DeskRowIcon icon={item.icon} />
                   <div className="min-w-0">
                     <p className="font-semibold text-ink-strong">{item.title}</p>
                     <p className="mt-0.5 text-sm text-ink-muted">{item.body}</p>
@@ -554,13 +553,22 @@ function CampusesView({ campuses, onOpen, onAdd, onActivity, onAppoint, onPromot
     const matches = `${campus.name} ${campus.city ?? ""}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
     return matches && (leadership === "all" || leadership === "admin" && !seated(campus.admin) || leadership === "principal" && !seated(campus.principal));
   });
+  const needsAdmin = campuses.filter(campus => !seated(campus.admin)).length;
+  const needsPrincipal = campuses.filter(campus => !seated(campus.principal)).length;
   return (
     <>
       <PageHeader
         title="Campuses"
         description="Open a campus to see its numbers and the people who run it."
+        icon={Building2}
         primaryAction={{ id: "add-campus", label: "Add campus", icon: Plus, onClick: onAdd }}
       />
+      {/* The leadership counters are the coverage filter's toggles: press one to narrow the cards, press it again for all. */}
+      {campuses.length > 0 && <DeskStats>
+        <StatTile icon={Building2} label={t("All campuses")} value={formatNumber(campuses.length)} onSelect={() => setLeadership("all")} selected={leadership === "all"} />
+        <StatTile icon={Shield} index={1} tone={needsAdmin ? "danger" : "success"} label={t("Needs a campus admin")} value={formatNumber(needsAdmin)} onSelect={() => setLeadership(leadership === "admin" ? "all" : "admin")} selected={leadership === "admin"} />
+        <StatTile icon={GraduationCap} index={2} tone={needsPrincipal ? "warning" : "success"} label={t("Needs a principal")} value={formatNumber(needsPrincipal)} onSelect={() => setLeadership(leadership === "principal" ? "all" : "principal")} selected={leadership === "principal"} />
+      </DeskStats>}
       {campuses.length > 0 && <div className="grid gap-3 sm:grid-cols-2">
         <FormField name="campus-search" label={t("Search campuses")}><Input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder={t("Campus name or city")} /></FormField>
         <FormField name="campus-leadership" label={t("Leadership coverage")}><Select value={leadership} onChange={event => setLeadership(event.target.value)}>
@@ -657,6 +665,7 @@ function CampusDetail({ campus, onBack, onActivity, onAppoint, onPromote, onRese
         eyebrow="Campus"
         // The campus name is data, never a UI key (R7): rendered as given, isolated for RTL.
         title={<bdi>{campus.name}</bdi>}
+        icon={Building2}
         description={t("{0} · its record, its leaders and its numbers. Day-to-day work happens in the campus console.", [campus.city || "—"])}
         primaryAction={vacant ? { id: "appoint-admin", label: "Appoint campus admin", icon: UserPlus, onClick: () => onAppoint(campus.id, "CAMPUS_ADMIN") } : edit}
         // Activity log is reference, not work: it sits last so it falls into the overflow menu when the header is busy.
@@ -697,10 +706,10 @@ function CampusDetail({ campus, onBack, onActivity, onAppoint, onPromote, onRese
       </section>
 
       <section aria-label={t("Campus numbers")} className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label={t("Students")} value={campus.studentCount} />
-        <Stat label={t("Classes")} value={campus.classCount} />
-        <Stat label={t("Teachers")} value={campus.teacherCount} />
-        <Stat label={t("Pending invitations")} value={campus.pendingInvitations?.length ?? 0} tip={t("Staff invitations for this campus that have not been accepted yet. The campus admin manages staff invitations.")} />
+        <Stat icon={GraduationCap} label={t("Students")} value={campus.studentCount} />
+        <Stat icon={Layers} index={1} label={t("Classes")} value={campus.classCount} />
+        <Stat icon={Users} index={2} label={t("Teachers")} value={campus.teacherCount} />
+        <Stat icon={Mail} index={3} tone={campus.pendingInvitations?.length ? "warning" : "neutral"} label={t("Pending invitations")} value={campus.pendingInvitations?.length ?? 0} tip={t("Staff invitations for this campus that have not been accepted yet. The campus admin manages staff invitations.")} />
       </section>
 
       <section aria-labelledby="campus-record-title" className="space-y-3">
@@ -742,6 +751,7 @@ function ApprovalsView({ tab, onTab }: { tab: (typeof APPROVAL_TABS)[number]; on
       <PageHeader
         title="Approvals"
         description="Support access, tax sign-off and policy reviews waiting for you."
+        icon={ShieldCheck}
         secondaryActions={[{ id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => setRefreshKey((n) => n + 1) }]}
         tabs={<ViewTabs ariaLabel="Approvals" value={tab} onChange={onTab} items={[{ id: "support", label: "Support access" }, { id: "tax", label: "Tax sign-off" }, { id: "policy", label: "Policy reviews" }]} />}
       />
@@ -772,6 +782,7 @@ function AccessView({ tab, onTab, campuses, dataReady, dataGate, onAppoint, onPr
       <PageHeader
         title="People & access"
         description="Campus leaders, who may manage members, and role permissions."
+        icon={Users}
         primaryAction={tab === "leadership" && dataReady ? { id: "invite-leader", label: "Invite campus leader", icon: UserPlus, onClick: () => onAppoint(null, "CAMPUS_ADMIN") } : undefined}
         secondaryActions={tab === "members" ? [{ id: "export-members", label: "Export members", icon: Download, onClick: () => setExportRequest((n) => n + 1) }] : undefined}
         // §8.2: the staff concept is never "Members"; the tab lists everyone with an account (tab id stays `members`, §3.1).
@@ -816,6 +827,7 @@ function StandardsView({ tab, onTab }: { tab: (typeof STANDARD_TABS)[number]; on
       <PageHeader
         title="Group standards"
         description="Curriculum templates and group policy every campus follows."
+        icon={Shield}
         primaryAction={tab === "templates" ? { id: "new-template-version", label: "New template version", icon: Plus, onClick: () => setCreateRequest((n) => n + 1) } : undefined}
         tabs={<ViewTabs ariaLabel="Group standards" value={tab} onChange={onTab} items={[{ id: "templates", label: "Curriculum templates" }, { id: "policies", label: "Group policy" }]} />}
       />
@@ -875,6 +887,7 @@ function SettingsView({ tab, onTab, userId, onSaved }: { tab: string | null; onT
       <PageHeader
         title="Settings"
         description="School profile, language, sign-in, integrations, data and activity."
+        icon={SettingsIcon}
         secondaryActions={active === "activity" ? [{ id: "export-activity", label: "Export CSV", icon: Download, onClick: () => setExportRequest((n) => n + 1) }] : undefined}
         tabs={<ViewTabs ariaLabel="Settings" value={active} onChange={onTab} items={items} />}
       />
@@ -936,7 +949,7 @@ function AppointLeaderModal({ campuses, initial, onClose, onSent }: {
 
   if (link) {
     return (
-      <Modal title={t("Invitation saved")} icon={Mail} size="sm" onClose={onClose}
+      <Modal title={t("Invitation saved")} icon={Mail} tone={deliveryFailed ? "amber" : "emerald"} size="sm" onClose={onClose}
         footer={<div className="flex justify-end"><Button variant="outline" type="button" onClick={onClose}>{t("Close")}</Button></div>}>
         <div className="space-y-4">
           {deliveryFailed && <Alert tone="warning">{t("Invitation saved, but email was not delivered. Share the link or resend the invitation from the campus.")}</Alert>}
@@ -1112,7 +1125,7 @@ function AddCampusModal({ onClose, onCreated }: { onClose: () => void; onCreated
     </FormField>
   );
 
-  if (created) return <Modal title={t("Campus created")} icon={CheckCircle2} size="sm" onClose={onClose} footer={<Button onClick={onClose}>{t("Done")}</Button>}>
+  if (created) return <Modal title={t("Campus created")} icon={CheckCircle2} tone="emerald" size="sm" onClose={onClose} footer={<Button onClick={onClose}>{t("Done")}</Button>}>
     <div className="space-y-4">
       <p><bdi>{created.campus.name}</bdi></p>
       {created.invitation?.needsAttention ? <Alert tone="warning">{t("The campus was created, but its admin invitation needs attention. Open the campus to appoint the admin or resend the saved invitation.")}</Alert> : <Alert tone="success">{t("The campus is ready. Appoint its leaders and review campus readiness next.")}</Alert>}
