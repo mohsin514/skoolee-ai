@@ -6,7 +6,8 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ShieldCheck } from "lucide-react";
+import { ClipboardList, FileLock2, HeartPulse, KeyRound, Pill, ShieldAlert, ShieldCheck, Siren, Stethoscope, UserCheck } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst, type DeskTone } from "@/components/ui/desk";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -61,6 +62,7 @@ const roleLabel = (ui: Ui, r: string) => ({ NURSE: ui("Nurse"), CLINIC_STAFF: ui
 const outcomeLabel = (ui: Ui, o: string) => ({ RETURNED_TO_CLASS: ui("Returned to class"), SENT_HOME: ui("Sent home"), EMERGENCY_SERVICES: ui("Emergency services called"), STAYED_IN_CLINIC: ui("Stayed in clinic") } as Record<string, string>)[o] ?? o;
 const sourceLabel = (ui: Ui, s: string) => ({ STAFF_OBSERVATION: ui("Something I saw"), DISCLOSURE_BY_PUPIL: ui("The pupil told me"), THIRD_PARTY: ui("Someone else told me"), OTHER: ui("Other") } as Record<string, string>)[s] ?? s;
 const statusLabel = (ui: Ui, s: string) => ({ NEW: ui("New"), TRIAGED: ui("Triaged"), ESCALATED: ui("Escalated"), CLOSED: ui("Closed"), PROPOSED: ui("Awaiting review"), APPROVED: ui("Approved, not sent"), DECLINED: ui("Kept restricted"), RELEASED: ui("Released") } as Record<string, string>)[s] ?? s;
+const caseTone = (s: string): DeskTone => ({ NEW: "warning", TRIAGED: "info", ESCALATED: "danger", CLOSED: "neutral", PROPOSED: "warning", APPROVED: "info", DECLINED: "neutral", RELEASED: "success" } as Record<string, DeskTone>)[s] ?? "neutral";
 const domainLabel = (ui: Ui, d: Domain) => d === "CLINIC" ? ui("Clinic") : ui("Safeguarding");
 const className = (s: Student) => s.class ? `${s.class.name}${s.class.section ? ` ${s.class.section}` : ""}` : "";
 
@@ -78,7 +80,7 @@ function StudentPicker({ value, onChange, label }: { value: Student | null; onCh
     const t = setTimeout(() => { call(`/api/care?view=students&q=${encodeURIComponent(q.trim())}`).then(rows => { setResults(rows); setFailure(null); }).catch(() => { setResults([]); setFailure(new RequestFailure("provider")); }); }, 250);
     return () => clearTimeout(t);
   }, [q]);
-  if (value) return <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm" data-care-student={value.id}><span><bdi>{value.fullName}</bdi>{className(value) ? <> · <bdi>{className(value)}</bdi></> : null}</span><Button size="sm" variant="ghost" onClick={() => onChange(null)}>{ui("Change student")}</Button></div>;
+  if (value) return <div className={cn(deskRow, "flex flex-wrap items-center justify-between gap-2 text-sm")} data-care-student={value.id}><span className="flex min-w-0 items-center gap-3"><DeskRowIcon icon={UserCheck} /><span className="min-w-0"><bdi className="font-semibold text-ink-strong">{value.fullName}</bdi>{className(value) ? <> · <bdi>{className(value)}</bdi></> : null}</span></span><Button size="sm" variant="ghost" onClick={() => onChange(null)}>{ui("Change student")}</Button></div>;
   return <div className="space-y-2">
     <FormField name="care-student" label={label}><Input value={q} onChange={e => setQ(e.target.value)} placeholder={ui("Type at least two letters of a name or roll number")} data-care-student-search /></FormField>
     {failure ? <ErrorState error={failure} variant="panel" /> : results.length ? <ul className="max-h-48 space-y-1 overflow-auto">{results.map(s => <li key={s.id}><Button variant="ghost" className="w-full justify-start" onClick={() => { onChange(s); setQ(""); }} data-care-pick={s.id}><bdi>{s.fullName}</bdi>{className(s) ? <span className="text-ink-muted"> · <bdi>{className(s)}</bdi></span> : null}</Button></li>)}</ul> : null}
@@ -119,7 +121,7 @@ function ConcernIntake() {
       {error ? <Alert tone="danger" compact live="assertive" data-care-error>{ui(error)}</Alert> : null}
       <div className="flex justify-end"><Button loading={busy} disabled={busy || !student || !form.observation.trim()} onClick={() => void submit()} data-care-submit>{ui("Submit to the designated lead")}</Button></div>
     </div>}
-    {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className="mt-2 space-y-1">{mine.map(m => <li key={m.reference} data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul></details> : null}
+    {mine.length ? <details className="text-sm"><summary className="cursor-pointer text-ink-muted">{ui("Concerns I recorded")}</summary><ul className={cn(deskTimeline, "mt-3")}>{mine.map(m => <li key={m.reference} data-tone="success" data-care-mine={m.reference}><bdi>{m.reference}</bdi> · <bdi>{dateTime(m.createdAt)}</bdi> · {ui("Received by the designated lead")}</li>)}</ul></details> : null}
   </section>;
 }
 
@@ -132,7 +134,7 @@ function CareSummaryLookup() {
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-summary-lookup>
     <header><h2 className="text-base font-bold text-ink-strong">{ui("Care summary for teachers")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("The accommodation the clinic asks staff to know about. Clinical detail stays with the clinic.")}</p></header>
     <StudentPicker value={student} onChange={setStudent} label={ui("Student")} />
-    {failure ? <ErrorState error={failure} variant="panel" /> : student && summary ? <p className="rounded-xl border px-3 py-2 text-sm" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
+    {failure ? <ErrorState error={failure} variant="panel" /> : student && summary ? <p className="rounded-(--radius-control) border border-border-subtle bg-surface-subtle px-4 py-3 text-sm leading-relaxed text-ink-strong" dir="auto" data-care-summary>{summary.summary ?? ui("No care summary has been shared for this student.")}</p> : null}
   </section>;
 }
 
@@ -176,8 +178,7 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-record={data.student.id}>
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong"><bdi>{data.student.fullName}</bdi></h3><p className="text-xs text-ink-muted"><bdi>{data.student.className}</bdi> · {ui("Clinic record")}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?studentId=${data.student.id}`} data-clinic-export>{ui("Export")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
-    <div className="space-y-1 rounded-xl border p-3 text-sm" data-clinic-plan>
-      <h4 className="text-sm font-bold text-ink-strong">{ui("Allergies and action plan")}</h4>
+    <DeskSection title={ui("Allergies and action plan")} icon={ClipboardList} tone={data.plan?.allergies ? "warning" : "brand"} className="text-sm" data-clinic-plan>
       {editPlan ? <div className="space-y-2">
         <FormField name="cp-allergies" label={ui("Allergies")}><Textarea value={plan.allergies} onChange={e => setPlan({ ...plan, allergies: e.target.value })} rows={2} dir="auto" /></FormField>
         <FormField name="cp-action" label={ui("Action plan")}><Textarea value={plan.actionPlan} onChange={e => setPlan({ ...plan, actionPlan: e.target.value })} rows={3} dir="auto" /></FormField>
@@ -187,29 +188,28 @@ function ClinicRecord({ studentId, onClose }: { studentId: string; onClose: () =
         <p dir="auto"><span className="text-ink-muted">{ui("Allergies")}: </span>{data.plan?.allergies || ui("None recorded")}</p>
         <p dir="auto" className="whitespace-pre-wrap"><span className="text-ink-muted">{ui("Action plan")}: </span>{data.plan?.actionPlan || ui("None recorded")}</p>
         {data.plan ? <p className="text-xs text-ink-muted">{ui("Updated {0} by {1}", [dateTime(data.plan.updatedAt), data.plan.updatedBy])}</p> : null}
-        {canPlan ? <Button size="sm" variant="outline" onClick={() => setEditPlan(true)} data-clinic-plan-edit>{ui("Edit care plan")}</Button> : null}
+        {canPlan ? <Button size="sm" variant="outline" className="w-fit" onClick={() => setEditPlan(true)} data-clinic-plan-edit>{ui("Edit care plan")}</Button> : null}
       </>}
-    </div>
+    </DeskSection>
     <div className="space-y-2" data-clinic-instructions>
-      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Medication instructions")}</h4>{canPlan ? <Button size="sm" variant="outline" onClick={() => setIns({ medicine: "", dose: "", schedule: "", authorizedBy: "", authorizationRef: "", validFrom: localNow(), validUntil: "" })} data-clinic-instruction-new>{ui("Add approved instruction")}</Button> : null}</div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="flex items-center gap-2 text-sm font-bold text-ink-strong"><Pill aria-hidden="true" className="size-4 text-primary" />{ui("Medication instructions")}</h4>{canPlan ? <Button size="sm" variant="outline" onClick={() => setIns({ medicine: "", dose: "", schedule: "", authorizedBy: "", authorizationRef: "", validFrom: localNow(), validUntil: "" })} data-clinic-instruction-new>{ui("Add approved instruction")}</Button> : null}</div>
       <p className="text-xs text-ink-muted">{ui("The clinic records doses only against an approved, in-date instruction and never changes a dose.")}</p>
-      {data.instructions.length ? <ul className="space-y-2">{data.instructions.map(i => <li key={i.id} className={cn("rounded-xl border px-3 py-2 text-sm", !i.active && "opacity-70")} data-clinic-instruction={i.id} data-active={i.active}>
-        <p><span dir="auto" className="font-bold">{i.medicine}</span> · <span dir="auto">{i.dose}</span> · <span dir="auto">{i.schedule}</span></p>
+      {data.instructions.length ? <ul className="space-y-2">{data.instructions.map(i => <li key={i.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={i.active ? "success" : "muted"} data-clinic-instruction={i.id} data-active={i.active}>
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={i.active ? "success" : "neutral"}>{i.active ? ui("Active") : i.endedAt ? ui("Ended") : ui("Not in effect")}</DeskPill><span dir="auto" className="font-bold text-ink-strong">{i.medicine}</span> · <span dir="auto">{i.dose}</span> · <span dir="auto">{i.schedule}</span></p>
         <p className="text-xs text-ink-muted">{ui("Authorized by {0} · ref {1} · {2}–{3}", [i.authorizedBy, i.authorizationRef, dateTime(i.validFrom), dateTime(i.validUntil)])}{i.endedAt ? <> · {ui("Ended")}</> : !i.active ? <> · {ui("Not in effect")}</> : null}</p>
         {i.active && canRecord ? <span className="mt-1 flex flex-wrap gap-2"><Button size="sm" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "dose", instructionId: i.id, dose: i.dose }), "Dose recorded.")} data-clinic-dose>{ui("Record dose given now ({0})", [i.dose])}</Button>{canPlan ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => call("/api/care", "POST", { action: "end-instruction", id: i.id }), "Instruction ended.")} data-clinic-instruction-end>{ui("End instruction")}</Button> : null}</span> : null}
       </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}
     </div>
     {!data.access.emergency ? <>
-      <div className="space-y-2" data-clinic-doses><h4 className="text-sm font-bold text-ink-strong">{ui("Doses given")}</h4>{data.doses.length ? <ul className="space-y-1 text-sm">{data.doses.map(d => <li key={d.id} data-clinic-dose-row={d.id}><bdi>{dateTime(d.givenAt)}</bdi> · <span dir="auto">{d.dose}</span> · <bdi>{d.actor}</bdi></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No doses recorded.")}</p>}</div>
-      <div className="space-y-2 rounded-xl border p-3" data-clinic-visit-form>
-        <h4 className="text-sm font-bold text-ink-strong">{ui("Record visit")}</h4>
+      <div className="space-y-2" data-clinic-doses><h4 className="text-sm font-bold text-ink-strong">{ui("Doses given")}</h4>{data.doses.length ? <ol className={cn(deskTimeline, "text-sm")}>{data.doses.map(d => <li key={d.id} data-tone="success" data-clinic-dose-row={d.id}><bdi>{dateTime(d.givenAt)}</bdi> · <span dir="auto">{d.dose}</span> · <bdi>{d.actor}</bdi></li>)}</ol> : <p className="text-sm text-ink-muted">{ui("No doses recorded.")}</p>}</div>
+      <DeskSection title={ui("Record visit")} icon={Stethoscope} data-clinic-visit-form>
         <FormField name="cv-time" label={ui("Arrived at")}><Input type="datetime-local" value={visit.arrivedAt} onChange={e => setVisit({ ...visit, arrivedAt: e.target.value })} dir="ltr" /></FormField>
         <FormField name="cv-obs" label={ui("Record what you observed")}><Textarea value={visit.observation} onChange={e => setVisit({ ...visit, observation: e.target.value })} rows={3} dir="auto" data-clinic-visit-observation /></FormField>
         <FormField name="cv-action" label={ui("What was done")}><Textarea value={visit.actionTaken} onChange={e => setVisit({ ...visit, actionTaken: e.target.value })} rows={2} dir="auto" data-clinic-visit-action /></FormField>
         <FormField name="cv-outcome" label={ui("Outcome")}><Select value={visit.outcome} onChange={e => setVisit({ ...visit, outcome: e.target.value })} data-clinic-visit-outcome>{["RETURNED_TO_CLASS", "SENT_HOME", "EMERGENCY_SERVICES", "STAYED_IN_CLINIC"].map(o => <option key={o} value={o}>{outcomeLabel(ui, o)}</option>)}</Select></FormField>
         <div className="flex justify-end"><Button loading={busy} disabled={busy || !visit.observation.trim() || !visit.actionTaken.trim()} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "visit", studentId, ...visit, arrivedAt: new Date(visit.arrivedAt).toISOString() }); setVisit({ observation: "", actionTaken: "", outcome: "RETURNED_TO_CLASS", arrivedAt: localNow() }); }, "Visit recorded.")} data-clinic-visit-save>{ui("Save visit")}</Button></div>
-      </div>
-      <div className="space-y-2" data-clinic-visits><h4 className="text-sm font-bold text-ink-strong">{ui("Visits")}</h4>{data.visits.length ? <ul className="space-y-2">{data.visits.map(v => <li key={v.id} className="sk-panel px-3 py-2 text-sm" data-clinic-visit={v.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)} · <bdi>{v.recordedBy}</bdi></p><p dir="auto" className="whitespace-pre-wrap">{v.observation}</p><p dir="auto" className="whitespace-pre-wrap text-ink-muted">{v.actionTaken}</p></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No visits recorded.")} />}</div>
+      </DeskSection>
+      <div className="space-y-2" data-clinic-visits><h4 className="text-sm font-bold text-ink-strong">{ui("Visits")}</h4>{data.visits.length ? <ol className={deskTimeline}>{data.visits.map(v => <li key={v.id} data-tone={v.outcome === "EMERGENCY_SERVICES" ? "danger" : v.outcome === "SENT_HOME" ? "warning" : "brand"} className="rounded-(--radius-control-small) border border-border-subtle bg-card px-3 py-2 text-sm" data-clinic-visit={v.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)} · <bdi>{v.recordedBy}</bdi></p><p dir="auto" className="whitespace-pre-wrap">{v.observation}</p><p dir="auto" className="whitespace-pre-wrap text-ink-muted">{v.actionTaken}</p></li>)}</ol> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No visits recorded.")} />}</div>
     </> : null}
     {ins ? <Modal title={ui("Add approved instruction")} onClose={() => setIns(null)}>
       <div className="space-y-2" data-clinic-instruction-form>
@@ -227,17 +227,31 @@ function ClinicWorkspace() {
   const { dateTime } = useLocaleFormat();
   const [queue, setQueue] = useState<{ role: string; visits: { id: string; studentId: string; studentName: string; arrivedAt: string; outcome: string }[]; instructions: { id: string; studentId: string; studentName: string; medicine: string; schedule: string; validUntil: string }[] } | null>(null);
   const [error, setError] = useState<string | null>(null), [open, setOpen] = useState<string | null>(null), [pick, setPick] = useState<Student | null>(null);
+  // The emergency tile narrows the visit list; the quick filter narrows both lists by pupil name or medicine.
+  const [emergencyOnly, setEmergencyOnly] = useState(false), [q, setQ] = useState("");
   const load = useCallback(() => call("/api/care?view=clinic").then(q => { setQueue(q); setError(null); }).catch(e => setError(e.message)), []);
   useEffect(() => { if (!open) void load(); }, [load, open]);
   useEffect(() => { if (pick) { setOpen(pick.id); setPick(null); } }, [pick]);
   if (open) return <ClinicRecord studentId={open} onClose={() => setOpen(null)} />;
   if (error) return <p className="sk-panel p-4 text-sm" data-care-denied>{ui(error)}</p>;
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
+  const needle = q.trim().toLowerCase();
+  const visitRank = (o: string) => o === "EMERGENCY_SERVICES" ? 0 : o === "SENT_HOME" ? 1 : o === "STAYED_IN_CLINIC" ? 2 : 3;
+  const visits = urgencyFirst(queue.visits.filter(v => (!emergencyOnly || v.outcome === "EMERGENCY_SERVICES") && (!needle || v.studentName.toLowerCase().includes(needle))), v => visitRank(v.outcome));
+  const instructions = queue.instructions.filter(i => !needle || `${i.studentName} ${i.medicine}`.toLowerCase().includes(needle));
+  const emergencies = queue.visits.filter(v => v.outcome === "EMERGENCY_SERVICES").length;
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-clinic-queue>
     <header><h2 className="text-base font-bold text-ink-strong">{ui("Clinic workspace")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Only clinic members can open these records. Safeguarding uses a separately authorized workspace.")} · {roleLabel(ui, queue.role)}</p></header>
+    <DeskStats data-clinic-pulse>
+      <StatTile index={0} icon={Stethoscope} tone="brand" value={queue.visits.length} label={ui("Recent visits")} />
+      <StatTile index={1} icon={Pill} tone={queue.instructions.length ? "info" : "neutral"} value={queue.instructions.length} label={ui("Medication in effect")} />
+      <StatTile index={2} icon={Siren} tone={emergencies ? "danger" : "neutral"} value={emergencies} label={ui("Emergency services called")} onSelect={emergencies ? () => setEmergencyOnly(v => !v) : undefined} selected={emergencyOnly} />
+    </DeskStats>
     <StudentPicker value={null} onChange={setPick} label={ui("Open a student's clinic record")} />
-    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Recent visits")}</h3>{queue.visits.length ? <ul className="mt-1 space-y-1">{queue.visits.map(v => <li key={v.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><bdi>{v.studentName}</bdi> · <bdi>{dateTime(v.arrivedAt)}</bdi> · {outcomeLabel(ui, v.outcome)}</Button></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}</div>
-    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Medication in effect")}</h3>{queue.instructions.length ? <ul className="mt-1 space-y-1">{queue.instructions.map(i => <li key={i.id}><Button variant="ghost" className="w-full justify-start" onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><bdi>{i.studentName}</bdi> · <span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
+    {queue.visits.length + queue.instructions.length > 8 ? <DeskQuickFilter value={q} onChange={setQ} label={ui("Filter this list")} /> : null}
+    <DeskFilterStatus shown={visits.length + instructions.length} total={queue.visits.length + queue.instructions.length} onClear={() => { setEmergencyOnly(false); setQ(""); }} />
+    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Recent visits")}</h3>{visits.length ? <ul className="mt-2 space-y-2">{visits.map(v => <li key={v.id}><DeskRowButton icon={Stethoscope} tone={v.outcome === "EMERGENCY_SERVICES" ? "danger" : v.outcome === "SENT_HOME" ? "warning" : undefined} trailing={<DeskPill tone={v.outcome === "EMERGENCY_SERVICES" ? "danger" : v.outcome === "SENT_HOME" ? "warning" : v.outcome === "RETURNED_TO_CLASS" ? "success" : "info"}>{outcomeLabel(ui, v.outcome)}</DeskPill>} onClick={() => setOpen(v.studentId)} data-clinic-queue-visit={v.id}><span className="block text-sm font-semibold text-ink-strong"><bdi>{v.studentName}</bdi></span><span className="block text-xs text-ink-muted"><RelativeTime iso={v.arrivedAt} full={dateTime(v.arrivedAt)} /></span></DeskRowButton></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}</div>
+    <div><h3 className="text-base font-semibold text-ink-strong">{ui("Medication in effect")}</h3>{instructions.length ? <ul className="mt-2 space-y-2">{instructions.map(i => <li key={i.id}><DeskRowButton icon={Pill} onClick={() => setOpen(i.studentId)} data-clinic-queue-instruction={i.id}><span className="block text-sm font-semibold text-ink-strong"><bdi>{i.studentName}</bdi></span><span className="block text-xs text-ink-muted"><span dir="auto">{i.medicine}</span> · <span dir="auto">{i.schedule}</span></span></DeskRowButton></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No medication instructions.")}</p>}</div>
   </section>;
 }
 
@@ -273,14 +287,14 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
   const c = data.concern, lead = !data.access.emergency, closed = c.status === "CLOSED";
   const kindLabel = (k: string) => ({ CREATED: ui("Concern recorded"), NOTE: ui("Note"), OWNER: ui("Owner assigned"), STATUS: ui("Status changed"), ESCALATION: ui("Escalated"), DISCLOSURE: ui("Disclosure"), CLOSED: ui("Closed") } as Record<string, string>)[k] ?? k;
   return <section className="sk-panel min-w-0 space-y-4 p-4 sm:p-5" data-concern={c.id} data-concern-status={c.status}>
-    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-bold text-ink-strong"><bdi>{c.reference}</bdi> · {statusLabel(ui, c.status)}</h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
+    <header className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="flex flex-wrap items-center gap-2 text-base font-bold text-ink-strong"><bdi className="font-mono">{c.reference}</bdi><DeskPill tone={caseTone(c.status)}>{statusLabel(ui, c.status)}</DeskPill></h3><p className="text-xs text-ink-muted">{data.student ? <><bdi>{data.student.fullName}</bdi> · <bdi>{data.student.className}</bdi> · </> : null}{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}{c.escalation ? <> · {c.escalation === "EXTERNAL_REFERRAL" ? ui("External referral") : ui("Internal review")}</> : null}</p></div><span className="flex gap-2"><a className="sk-link text-sm font-medium text-primary" href={`/api/care/export?concernId=${c.id}`} data-concern-export>{ui("Export chronology")}</a><Button size="sm" variant="secondary" onClick={onClose}>{ui("Back")}</Button></span></header>
     <EmergencyBanner access={data.access} />
-    <div className="rounded-xl border p-3 text-sm"><p className="text-xs text-ink-muted">{ui("Observation as recorded by {0} · {1} · event {2}", [c.reporter, sourceLabel(ui, c.source), dateTime(c.eventAt)])}</p><blockquote dir="auto" className="mt-1 whitespace-pre-wrap" data-concern-observation>{c.observation}</blockquote></div>
+    <div className="rounded-(--radius-control) border border-border-subtle bg-surface-subtle p-4 text-sm"><p className="text-xs text-ink-muted">{ui("Observation as recorded by {0} · {1} · event {2}", [c.reporter, sourceLabel(ui, c.source), dateTime(c.eventAt)])}</p><blockquote dir="auto" className="mt-2 whitespace-pre-wrap border-s-2 border-brand-200 ps-3 leading-relaxed text-ink-strong" data-concern-observation>{c.observation}</blockquote></div>
     {lead && !closed ? <div className="grid gap-3 sm:grid-cols-2">
-      <div className="space-y-2 rounded-xl border p-3"><FormField name="sg-owner" label={ui("Designated owner")}><Select value={owner} onChange={e => setOwner(e.target.value)} data-concern-owner-select><option value="">{ui("Choose")}</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.name} · {roleLabel(ui, m.role)}</option>)}</Select></FormField><Button size="sm" disabled={busy || !owner || owner === c.ownerId} onClick={() => void run(() => call("/api/care", "POST", { action: "assign", concernId: c.id, ownerId: owner, version: c.version }), "Owner assigned.")} data-concern-assign>{ui("Assign owner")}</Button></div>
-      <div className="space-y-2 rounded-xl border p-3"><FormField name="sg-esc" label={ui("Escalation")}><Select value={esc.escalation} onChange={e => setEsc({ ...esc, escalation: e.target.value })} data-concern-escalation><option value="INTERNAL_REVIEW">{ui("Internal review")}</option><option value="EXTERNAL_REFERRAL">{ui("External referral")}</option></Select></FormField><FormField name="sg-esc-reason" label={ui("Reason")}><Input value={esc.reason} onChange={e => setEsc({ ...esc, reason: e.target.value })} dir="auto" data-concern-escalation-reason /></FormField><Button size="sm" disabled={busy || !c.ownerId || !esc.reason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "escalate", concernId: c.id, version: c.version, ...esc }), "Escalation recorded.")} data-concern-escalate>{ui("Record escalation")}</Button></div>
+      <div className="sk-desk-section content-start"><FormField name="sg-owner" label={ui("Designated owner")}><Select value={owner} onChange={e => setOwner(e.target.value)} data-concern-owner-select><option value="">{ui("Choose")}</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.name} · {roleLabel(ui, m.role)}</option>)}</Select></FormField><Button size="sm" disabled={busy || !owner || owner === c.ownerId} onClick={() => void run(() => call("/api/care", "POST", { action: "assign", concernId: c.id, ownerId: owner, version: c.version }), "Owner assigned.")} data-concern-assign>{ui("Assign owner")}</Button></div>
+      <div className="sk-desk-section content-start"><FormField name="sg-esc" label={ui("Escalation")}><Select value={esc.escalation} onChange={e => setEsc({ ...esc, escalation: e.target.value })} data-concern-escalation><option value="INTERNAL_REVIEW">{ui("Internal review")}</option><option value="EXTERNAL_REFERRAL">{ui("External referral")}</option></Select></FormField><FormField name="sg-esc-reason" label={ui("Reason")}><Input value={esc.reason} onChange={e => setEsc({ ...esc, reason: e.target.value })} dir="auto" data-concern-escalation-reason /></FormField><Button size="sm" disabled={busy || !c.ownerId || !esc.reason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "escalate", concernId: c.id, version: c.version, ...esc }), "Escalation recorded.")} data-concern-escalate>{ui("Record escalation")}</Button></div>
     </div> : null}
-    <div className="space-y-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Chronology")}</h4><ol className="space-y-2 border-s ps-3">{data.entries.map(e => <li key={e.id} className="text-sm" data-concern-entry={e.kind}><p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi> · {kindLabel(e.kind)} · <bdi>{e.actor}</bdi>{e.kind === "DISCLOSURE" && typeof e.detail.status === "string" ? <> · {statusLabel(ui, e.detail.status)}</> : null}</p>{e.body ? <p dir="auto" className="whitespace-pre-wrap">{e.body}</p> : null}</li>)}</ol>
+    <div className="space-y-2"><h4 className="text-sm font-bold text-ink-strong">{ui("Chronology")}</h4><ol className={deskTimeline}>{data.entries.map(e => <li key={e.id} data-tone={e.kind === "ESCALATION" ? "danger" : e.kind === "CLOSED" ? "neutral" : e.kind === "DISCLOSURE" ? "warning" : "brand"} className="text-sm" data-concern-entry={e.kind}><p className="text-xs text-ink-muted"><bdi>{dateTime(e.createdAt)}</bdi> · {kindLabel(e.kind)} · <bdi>{e.actor}</bdi>{e.kind === "DISCLOSURE" && typeof e.detail.status === "string" ? <> · {statusLabel(ui, e.detail.status)}</> : null}</p>{e.body ? <p dir="auto" className="whitespace-pre-wrap">{e.body}</p> : null}</li>)}</ol>
       {lead ? <div className="flex flex-col gap-2 sm:flex-row"><Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} dir="auto" placeholder={ui("Add a note to the chronology")} aria-label={ui("Add a note to the chronology")} data-concern-note /><Button size="sm" disabled={busy || !note.trim()} onClick={() => void run(async () => { await call("/api/care", "POST", { action: "note", concernId: c.id, version: c.version, body: note }); setNote(""); }, "Note added.")} data-concern-note-save>{ui("Add note")}</Button></div> : null}
     </div>
     <div className="space-y-2" data-concern-disclosures>
@@ -297,15 +311,15 @@ function ConcernDetail({ concernId, members, onClose }: { concernId: string; mem
         onConfirm={() => { const item = releasing; if (item) return run(() => call("/api/care", "POST", { action: "release-disclosure", id: item.id }), "Released to the approved recipient.").then(saved => { if (saved) setReleasing(null); }); }}
         onCancel={() => setReleasing(null)}
       />
-      {data.disclosures.length ? <ul className="space-y-2">{data.disclosures.map(d => <li key={d.id} className="rounded-xl border px-3 py-2 text-sm" data-disclosure={d.id} data-disclosure-status={d.status}>
-        <p><bdi>{d.recipientName}</bdi> · <span dir="auto">{d.purpose}</span> · {statusLabel(ui, d.status)}</p>
+      {data.disclosures.length ? <ul className="space-y-2">{data.disclosures.map(d => <li key={d.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={d.status === "PROPOSED" ? "warning" : d.status === "RELEASED" ? "success" : undefined} data-disclosure={d.id} data-disclosure-status={d.status}>
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={caseTone(d.status)}>{statusLabel(ui, d.status)}</DeskPill><bdi className="font-semibold text-ink-strong">{d.recipientName}</bdi> · <span dir="auto">{d.purpose}</span></p>
         <p className="text-xs text-ink-muted">{ui("Proposed by {0}", [d.proposedBy])}{d.reviewedBy ? <> · {ui("Reviewed by {0}", [d.reviewedBy])}</> : null}</p>
         {lead && d.status === "PROPOSED" && !d.proposedByMe ? <Button size="sm" variant="outline" onClick={() => setReview(d)} data-disclosure-review>{ui("Review")}</Button> : null}
         {lead && d.status === "APPROVED" ? <Button size="sm" disabled={busy} onClick={() => setReleasing(d)} data-disclosure-release>{ui("Release")}</Button> : null}
       </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("This case has not been shared with anyone.")}</p>}
     </div>
     {lead && data.guardians.length ? <details className="text-sm"><summary className="cursor-pointer">{ui("Guardians named in the concern")}</summary><ImplicatedEditor data={data} busy={busy} run={run} /></details> : null}
-    {lead && !closed ? <div className="flex flex-col gap-2 rounded-xl border p-3 sm:flex-row"><Input value={closeReason} onChange={e => setCloseReason(e.target.value)} dir="auto" placeholder={ui("Why is the case being closed?")} aria-label={ui("Why is the case being closed?")} data-concern-close-reason /><Button size="sm" variant="secondary" disabled={busy || !c.ownerId || !closeReason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "close", concernId: c.id, version: c.version, reason: closeReason }), "Case closed. The chronology is retained.")} data-concern-close>{ui("Close case")}</Button></div> : null}
+    {lead && !closed ? <div className="flex flex-col gap-2 rounded-(--radius-control) border border-border-subtle bg-surface-subtle p-3 sm:flex-row"><Input value={closeReason} onChange={e => setCloseReason(e.target.value)} dir="auto" placeholder={ui("Why is the case being closed?")} aria-label={ui("Why is the case being closed?")} data-concern-close-reason /><Button size="sm" variant="secondary" disabled={busy || !c.ownerId || !closeReason.trim()} onClick={() => void run(() => call("/api/care", "POST", { action: "close", concernId: c.id, version: c.version, reason: closeReason }), "Case closed. The chronology is retained.")} data-concern-close>{ui("Close case")}</Button></div> : null}
     {disc ? <Modal title={ui("Propose a disclosure for {0}", [c.reference])} onClose={() => setDisc(null)}>
       {!confirmDisc ? <div className="space-y-2" data-disclosure-form>
         <FormField name="d-type" label={ui("Recipient")}><Select value={disc.recipientType} onChange={e => setDisc({ ...disc, recipientType: e.target.value, recipientUserId: "" })} data-disclosure-type><option value="STAFF">{ui("Staff member")}</option><option value="GUARDIAN">{ui("Guardian")}</option><option value="EXTERNAL_AGENCY">{ui("External agency")}</option></Select></FormField>
@@ -349,19 +363,32 @@ function SafeguardingWorkspace() {
   const { dateTime } = useLocaleFormat();
   const [queue, setQueue] = useState<{ role: string; members: Members; concerns: { id: string; reference: string; status: string; escalation: string | null; owner: string | null; mine: boolean; eventAt: string; createdAt: string; pendingDisclosures: number; retentionDue: boolean }[] } | null>(null);
   const [error, setError] = useState<string | null>(null), [open, setOpen] = useState<string | null>(null), [filter, setFilter] = useState("OPEN");
+  const [pendingOnly, setPendingOnly] = useState(false), [q, setQ] = useState("");
   const load = useCallback(() => call("/api/care?view=safeguarding").then(q => { setQueue(q); setError(null); }).catch(e => setError(e.message)), []);
   useEffect(() => { if (!open) void load(); }, [load, open]);
   if (open) return <ConcernDetail concernId={open} members={queue?.members ?? []} onClose={() => setOpen(null)} />;
   if (error) return <p className="sk-panel p-4 text-sm" data-care-denied>{ui(error)}</p>;
   if (!queue) return <p className="text-sm text-ink-muted">{ui("Verifying confidential access before loading records.")}</p>;
-  const rows = queue.concerns.filter(c => filter === "ALL" || (filter === "MINE" ? c.mine : c.status !== "CLOSED"));
+  const needle = q.trim().toLowerCase();
+  // Escalated first, then cases nobody owns yet, then words waiting for a second lead; the newest stay on top within each.
+  const rows = urgencyFirst(queue.concerns.filter(c => (filter === "ALL" || (filter === "MINE" ? c.mine : c.status !== "CLOSED")) && (!pendingOnly || c.pendingDisclosures > 0) && (!needle || `${c.reference} ${c.owner ?? ""}`.toLowerCase().includes(needle))),
+    c => c.status === "ESCALATED" ? 0 : !c.owner && c.status !== "CLOSED" ? 1 : c.pendingDisclosures ? 2 : c.status === "CLOSED" ? 4 : 3);
+  const live = queue.concerns.filter(c => c.status !== "CLOSED");
+  const pending = queue.concerns.filter(c => c.pendingDisclosures).length;
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-safeguarding-queue>
     <header className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-base font-bold text-ink-strong">{ui("Safeguarding workspace")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("Separately authorized. Clinic membership does not open these records.")} · {roleLabel(ui, queue.role)}</p></div>
       <Select value={filter} onChange={e => setFilter(e.target.value)} aria-label={ui("Show")} className="w-auto" data-safeguarding-filter><option value="OPEN">{ui("Open cases")}</option><option value="MINE">{ui("Assigned to me")}</option><option value="ALL">{ui("All cases")}</option></Select></header>
-    {rows.length ? <ul className="space-y-1">{rows.map(c => <li key={c.id}><Button variant="ghost" className="h-auto w-full flex-wrap justify-start gap-x-2 py-2 text-start" onClick={() => setOpen(c.id)} data-safeguarding-row={c.reference}>
-      <bdi className="font-bold">{c.reference}</bdi><span>{statusLabel(ui, c.status)}</span><span className="text-ink-muted">{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}</span><span className="text-ink-muted"><bdi>{dateTime(c.createdAt)}</bdi></span>
-      {c.pendingDisclosures ? <span className="text-status-warning-text">{ui("Disclosure awaiting review")}</span> : null}{c.retentionDue ? <span className="text-ink-muted">{ui("Retention review due")}</span> : null}
-    </Button></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}
+    <DeskStats data-safeguarding-pulse>
+      <StatTile index={0} icon={ShieldAlert} tone={live.some(c => c.status === "ESCALATED") ? "danger" : live.length ? "warning" : "success"} value={live.length} label={ui("Open cases")} onSelect={() => setFilter(f => f === "OPEN" ? "ALL" : "OPEN")} selected={filter === "OPEN"} />
+      <StatTile index={1} icon={UserCheck} tone="brand" value={live.filter(c => c.mine).length} label={ui("Assigned to me")} onSelect={() => setFilter(f => f === "MINE" ? "OPEN" : "MINE")} selected={filter === "MINE"} />
+      <StatTile index={2} icon={FileLock2} tone={pending ? "warning" : "neutral"} value={pending} label={ui("Disclosure awaiting review")} onSelect={pending ? () => setPendingOnly(v => !v) : undefined} selected={pendingOnly} />
+    </DeskStats>
+    {queue.concerns.length > 8 ? <DeskQuickFilter value={q} onChange={setQ} label={ui("Filter this list")} /> : null}
+    <DeskFilterStatus shown={rows.length} total={queue.concerns.length} onClear={() => { setFilter("ALL"); setPendingOnly(false); setQ(""); }} />
+    {rows.length ? <ul className="space-y-2">{rows.map(c => <li key={c.id}><DeskRowButton icon={ShieldAlert} tone={c.status === "ESCALATED" ? "danger" : !c.owner && c.status !== "CLOSED" ? "warning" : c.status === "CLOSED" ? "muted" : undefined} trailing={<DeskPill tone={caseTone(c.status)}>{statusLabel(ui, c.status)}</DeskPill>} onClick={() => setOpen(c.id)} data-safeguarding-row={c.reference}>
+      <span className="block text-sm font-bold text-ink-strong"><bdi className="font-mono">{c.reference}</bdi></span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted"><span>{ui("Owner: {0}", [c.owner ?? ui("Unassigned")])}</span><RelativeTime iso={c.createdAt} full={dateTime(c.createdAt)} />{c.pendingDisclosures ? <DeskPill tone="warning">{ui("Disclosure awaiting review")}</DeskPill> : null}{c.retentionDue ? <DeskPill tone="neutral">{ui("Retention review due")}</DeskPill> : null}</span>
+    </DeskRowButton></li>)}</ul> : <EmptyState size="sm" icon={ShieldCheck} title={ui("No records assigned to you in this confidential workspace.")} />}
   </section>;
 }
 
@@ -379,12 +406,12 @@ function Oversight({ domain }: { domain: Domain }) {
   return <section className="sk-panel min-w-0 space-y-3 p-4 sm:p-5" data-care-oversight={domain}>
     <h2 className="text-base font-bold text-ink-strong">{ui("Access review · {0}", [domainLabel(ui, domain)])}</h2>
     <h3 className="text-base font-semibold text-ink-strong">{ui("Emergency access")}</h3>
-    {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className="rounded-xl border px-3 py-2 text-sm" data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
-      <p><bdi>{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
+    {data.grants.length ? <ul className="space-y-2">{data.grants.map(g => <li key={g.id} className={cn(deskRow, "space-y-1 text-sm")} data-tone={g.reviewedAt ? "muted" : g.live ? "danger" : "warning"} data-emergency-grant={g.id} data-reviewed={!!g.reviewedAt}>
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1"><DeskPill tone={g.live ? "danger" : g.reviewedAt ? "success" : "warning"}>{g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")}</DeskPill><bdi className="font-semibold text-ink-strong">{g.user}</bdi> · <bdi>{g.studentName}</bdi> · <span dir="auto">{g.purpose}</span></p>
       <p className="text-xs text-ink-muted"><bdi>{dateTime(g.createdAt)}</bdi>–<bdi>{dateTime(g.revokedAt ?? g.expiresAt)}</bdi> · {g.live ? ui("Active") : g.revokedAt ? ui("Revoked") : ui("Expired")} · {ui("{0} records opened", [String(g.uses)])}</p>
       {g.reviewedAt ? <p className="text-xs">{ui("Reviewed by {0}", [g.reviewedBy ?? ""])} · <span dir="auto">{g.reviewNote}</span></p> : <div className="mt-1 flex flex-col gap-2 sm:flex-row"><Input value={notes[g.id] ?? ""} onChange={e => setNotes({ ...notes, [g.id]: e.target.value })} dir="auto" placeholder={ui("Review outcome")} aria-label={ui("Review outcome")} data-emergency-note /><Button size="sm" disabled={busy || !(notes[g.id] ?? "").trim()} onClick={() => void review(g.id)} data-emergency-review>{g.live ? ui("Review and end access") : ui("Record review")}</Button></div>}
     </li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No emergency access has been opened.")}</p>}
-    <details className="text-sm"><summary className="cursor-pointer">{ui("Access log")}</summary><ul className="mt-2 space-y-1">{data.logs.map(l => <li key={l.id} data-access-log={l.action}><bdi>{dateTime(l.createdAt)}</bdi> · <bdi>{l.actor}</bdi> · {l.action} · {l.recordType}{l.emergency ? ` · ${ui("Emergency access")}` : ""}</li>)}</ul></details>
+    <details className="text-sm"><summary className="cursor-pointer">{ui("Access log")}</summary><ol className={cn(deskTimeline, "mt-3 text-xs")}>{data.logs.map(l => <li key={l.id} data-tone={l.emergency ? "danger" : "neutral"} data-access-log={l.action}><bdi>{dateTime(l.createdAt)}</bdi> · <bdi>{l.actor}</bdi> · {l.action} · {l.recordType}{l.emergency ? ` · ${ui("Emergency access")}` : ""}</li>)}</ol></details>
   </section>;
 }
 
@@ -397,9 +424,9 @@ function EmergencyPanel({ me, reload, onOpen }: { me: Me; reload: () => void; on
   const [domain, setDomain] = useState<Domain>(domains[0] ?? "CLINIC"), [student, setStudent] = useState<Student | null>(null), [purpose, setPurpose] = useState(""), [minutes, setMinutes] = useState("30"), [busy, setBusy] = useState(false);
   const open = async () => { if (!student) return; setBusy(true); try { await call("/api/care", "POST", { action: "emergency", domain, studentId: student.id, purpose, minutes: Number(minutes) }); toast.success(ui("Emergency access opened. It is logged and will be reviewed.")); setStudent(null); setPurpose(""); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); } };
   const end = async (id: string) => { try { await call("/api/care", "POST", { action: "revoke-emergency", id }); reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
-  return <section className="sk-panel space-y-3 p-4 sm:p-5" data-care-emergency>
-    <header><h2 className="text-base font-bold text-ink-strong">{ui("Emergency access")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></header>
-    {me.grants.length ? <ul className="space-y-2">{me.grants.map(g => <li key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-status-warning-border px-3 py-2 text-sm" data-my-grant={g.id}><span>{domainLabel(ui, g.domain)} · <bdi>{g.studentName}</bdi> · {ui("ends {0}", [dateTime(g.expiresAt)])}</span><span className="flex gap-2"><Button size="sm" onClick={() => onOpen(g)} data-my-grant-open>{ui("Open record")}</Button><Button size="sm" variant="secondary" onClick={() => void end(g.id)} data-my-grant-end>{ui("End access now")}</Button></span></li>)}</ul> : null}
+  return <section className="sk-desk-section" data-tone="danger" data-care-emergency>
+    <header className="flex items-start gap-3"><span aria-hidden="true" className="sk-desk-section-icon"><KeyRound /></span><div className="min-w-0"><h2 className="text-base font-bold text-ink-strong">{ui("Emergency access")}</h2><p className="text-sm leading-relaxed text-ink-muted">{ui("For an urgent need only. Access is limited to one student, ends automatically and is reviewed by the lead.")}</p></div></header>
+    {me.grants.length ? <ul className="space-y-2">{me.grants.map(g => <li key={g.id} className={cn(deskRow, "flex flex-wrap items-center justify-between gap-2 text-sm")} data-tone="warning" data-my-grant={g.id}><span className="min-w-0">{domainLabel(ui, g.domain)} · <bdi>{g.studentName}</bdi> · {ui("ends {0}", [dateTime(g.expiresAt)])} · <RelativeTime iso={g.expiresAt} full={dateTime(g.expiresAt)} /></span><span className="flex gap-2"><Button size="sm" onClick={() => onOpen(g)} data-my-grant-open>{ui("Open record")}</Button><Button size="sm" variant="secondary" onClick={() => void end(g.id)} data-my-grant-end>{ui("End access now")}</Button></span></li>)}</ul> : null}
     {domains.length ? <div className="space-y-2">
       <FormField name="em-domain" label={ui("Workspace")}><Select value={domain} onChange={e => setDomain(e.target.value as Domain)} data-emergency-domain>{domains.map(d => <option key={d} value={d}>{domainLabel(ui, d)}</option>)}</Select></FormField>
       <StudentPicker value={student} onChange={setStudent} label={ui("Student")} />
@@ -500,7 +527,7 @@ function MessagesToMe({ family = false }: { family?: boolean }) {
   if (!rows?.length) return null;
   return <section className="sk-panel space-y-2 p-4 sm:p-5" data-care-messages>
     <h2 className="text-base font-bold text-ink-strong">{ui("Messages from the school")}</h2>
-    <ul className="space-y-2">{rows.map(r => <li key={r.id} className="rounded-xl border px-3 py-2 text-sm" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
+    <ul className="space-y-2">{rows.map(r => <li key={r.id} className={cn(deskRow, "text-sm")} data-tone="info" data-care-message={r.id}><p className="text-xs text-ink-muted"><bdi>{dateTime(r.releasedAt)}</bdi> · <span dir="auto">{r.purpose}</span></p><p dir="auto" className="whitespace-pre-wrap">{r.content}</p></li>)}</ul>
   </section>;
 }
 
@@ -532,6 +559,7 @@ export function CareDesk() {
   if (!me.canReport) return <div data-care-denied><AccessNotice reason="You do not have access to this confidential workspace." /></div>;
   return <div className={cn("min-w-0 space-y-4 transition", hidden && "blur-md")} data-care-desk>
     <PageHeader
+      icon={HeartPulse}
       title="Care & safeguarding"
       description="Clinic and safeguarding are separate workspaces with their own members. Nothing here appears in search, timelines or AI."
       tabs={<ViewTabs ariaLabel="Confidential care" value={current} onChange={setTab} items={tabs} />}

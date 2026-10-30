@@ -5,6 +5,8 @@ import { InputGroup } from "@/components/ui/input-group";
 import { Tooltip } from "@/components/ui/tooltip";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { DeskStats, StatTile } from "@/components/ui/desk";
+import { ArrowDownRight, ArrowUpRight, Repeat2, UsersRound } from "lucide-react";
 
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -602,13 +604,18 @@ function RulesEditor({
               </Button>
             </div>
             {impactCurrent ? (
-              <div className="mt-2 flex flex-wrap gap-1.5" data-testid="grade-weight-impact">
-                <Badge variant="neutral">{tr("{0} of {1} students change", [impactCurrent.changed, impactCurrent.students])}</Badge>
-                <Badge variant="neutral">{tr("{0} change grade", [impactCurrent.gradeChanged])}</Badge>
-                <Badge variant={impactCurrent.newlyFailing ? "danger" : "neutral"}>{tr("{0} would now fail", [impactCurrent.newlyFailing])}</Badge>
-                <Badge variant={impactCurrent.newlyPassing ? "success" : "neutral"}>{tr("{0} would now pass", [impactCurrent.newlyPassing])}</Badge>
-                <Badge variant="neutral">{tr("Largest shift {0} points", [impactCurrent.largestShift])}</Badge>
-                {impactCurrent.skipped ? <Badge variant="warning">{tr("{0} could not be calculated", [impactCurrent.skipped])}</Badge> : null}
+              <div className="mt-3 space-y-2" data-testid="grade-weight-impact">
+                {/* The four outcomes a head checks before saving, as numbers first and sentences second. */}
+                <DeskStats>
+                  <StatTile index={0} icon={UsersRound} tone={impactCurrent.changed ? "brand" : "neutral"} value={impactCurrent.changed} label={tr("{0} of {1} students change", [impactCurrent.changed, impactCurrent.students])} />
+                  <StatTile index={1} icon={Repeat2} tone={impactCurrent.gradeChanged ? "info" : "neutral"} value={impactCurrent.gradeChanged} label={tr("{0} change grade", [impactCurrent.gradeChanged])} />
+                  <StatTile index={2} icon={ArrowDownRight} tone={impactCurrent.newlyFailing ? "danger" : "neutral"} value={impactCurrent.newlyFailing} label={tr("{0} would now fail", [impactCurrent.newlyFailing])} />
+                  <StatTile index={3} icon={ArrowUpRight} tone={impactCurrent.newlyPassing ? "success" : "neutral"} value={impactCurrent.newlyPassing} label={tr("{0} would now pass", [impactCurrent.newlyPassing])} />
+                </DeskStats>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="neutral">{tr("Largest shift {0} points", [impactCurrent.largestShift])}</Badge>
+                  {impactCurrent.skipped ? <Badge variant="warning">{tr("{0} could not be calculated", [impactCurrent.skipped])}</Badge> : null}
+                </div>
               </div>
             ) : impact ? (
               <p className="mt-2 text-2xs font-medium text-ink-subtle">{tr("The rules changed since the last preview. Preview again.")}</p>

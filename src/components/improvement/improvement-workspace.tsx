@@ -7,7 +7,6 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { InfoTip } from "@/components/ui/tooltip";
 import { Modal } from "@/components/ui/modal";
 import { PageHeader, type PageAction } from "@/components/ui/page-header";
@@ -20,7 +19,10 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
-import { ClipboardCheck, FileDown, Layers, Plus } from "lucide-react";
+import { AlarmClock, CheckCircle2, ClipboardCheck, FileDown, Layers, Plus, SearchX, Target } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskStats, RelativeTime, StatTile, deskRow, deskTimeline, urgencyFirst } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 
 // SKO-450: improvement evidence workspace. Frameworks are school-configured references and no accreditation outcome
 // is implied. Every claim keeps its source, date and freshness beside it; gaps are shown, not hidden. Actions link to
@@ -97,17 +99,17 @@ function ItemRow({ item, data, reload }: { item: Item; data: Data; reload: () =>
     try { await call("/api/improvement", "POST", { action: "review", itemId: item.id, decision, note: note || null }); toast.success(decision === "ACCEPT" ? ui("Evidence note approved.") : ui("More evidence requested.")); setReviewing(false); await reload(); }
     catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); }
   };
-  return <li className="rounded-xl border border-border p-3 text-sm" data-evidence-item={item.id} data-freshness={item.freshness} data-review-state={item.reviewState} data-restricted={item.restricted ? "true" : "false"}>
+  return <li className={cn(deskRow, "text-sm")} data-tone={item.stance === "CONTRADICTS" ? "danger" : item.freshness === "CURRENT" ? undefined : "warning"} data-evidence-item={item.id} data-freshness={item.freshness} data-review-state={item.reviewState} data-restricted={item.restricted ? "true" : "false"}>
     <div className="flex flex-wrap items-center gap-2">
       <span className="font-semibold">{item.restricted ? ui("Restricted source · {0}", [sourceLabel(ui, item.sourceType)]) : <bdi>{item.title}</bdi>}</span>
-      <Badge size="sm" variant={item.freshness === "CURRENT" ? "success" : "warning"} data-freshness-label>{freshLabel(ui, item.freshness)}</Badge>
-      <Badge size="sm" variant="neutral">{reviewLabel(ui, item.reviewState)}</Badge>
-      {item.stance === "CONTRADICTS" ? <Badge size="sm" variant="danger">{ui("Contradicts the criterion")}</Badge> : null}
+      <DeskPill tone={item.freshness === "CURRENT" ? "success" : "warning"} data-freshness-label>{freshLabel(ui, item.freshness)}</DeskPill>
+      <DeskPill tone={item.reviewState === "ACCEPTED" ? "success" : "neutral"}>{reviewLabel(ui, item.reviewState)}</DeskPill>
+      {item.stance === "CONTRADICTS" ? <DeskPill tone="danger">{ui("Contradicts the criterion")}</DeskPill> : null}
       {item.narrativeOnly ? <span className="text-xs text-ink-muted">{ui("Narrative only · not verified")}</span> : null}
     </div>
     <p className="mt-1 text-xs text-ink-muted">{sourceLabel(ui, item.sourceType)} · <bdi dir="ltr">{item.sourceVersion}</bdi> · {ui("Source date {0}", [date(item.sourceDate)])} · {ui("Review by {0}", [date(item.reviewBy)])} · {ui("Owner")}: <bdi>{item.owner}</bdi> · {audienceLabel(ui, item.audience)}</p>
     {item.reviewNote ? <p className="mt-1 text-xs" data-review-note>{ui("Reviewer")}: <bdi>{item.reviewer}</bdi> — <bdi>{item.reviewNote}</bdi></p> : null}
-    {opened ? <p className="mt-1 rounded-lg bg-surface-muted p-2 text-xs" data-source-preview>{opened}</p> : null}
+    {opened ? <p className="mt-2 rounded-(--radius-control-small) border border-border-subtle bg-surface-subtle p-2.5 text-xs" data-source-preview>{opened}</p> : null}
     <div className="mt-2 flex flex-wrap gap-2">
       <Button size="sm" variant="ghost" data-open-source onClick={async () => {
         try { const s = await call(`/api/improvement?view=source&itemId=${item.id}`); setOpened(s.content ? `${s.content.label ?? s.content.note ?? ""}${s.current ? "" : ` · ${ui("Source changed since linked")}`}` : ui(s.message ?? "This evidence source is unavailable. The criterion remains incomplete.")); }
@@ -131,13 +133,13 @@ function ActionCard({ action, view, data, reload }: { action: Action; view: View
   const [evidenceId, setEvidenceId] = useState("");
   const codes = view.criteria.filter(c => action.criterionIds.includes(c.id)).map(c => c.code);
   const post = async (body: Record<string, unknown>, done: string) => { try { await call("/api/improvement", "POST", body); toast.success(done); setMode(null); await reload(); } catch (e) { toast.error(ui(e instanceof Error ? e.message : "The change was not saved.")); } };
-  return <li className="sk-panel space-y-2 p-4 text-sm" data-action={action.id} data-action-status={action.status} data-outcome={action.outcome.state}>
+  return <li className={cn(deskRow, "space-y-2 p-4 text-sm")} data-tone={action.overdue ? "danger" : action.status === "COMPLETED" ? "success" : undefined} data-action={action.id} data-action-status={action.status} data-outcome={action.outcome.state}>
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold"><bdi>{action.title}</bdi></h3>
-      <div className="flex flex-wrap gap-1">{action.overdue ? <Badge size="sm" variant="danger" data-action-overdue>{ui("Overdue")}</Badge> : null}<Badge size="sm" variant={action.status === "COMPLETED" ? "success" : "neutral"}>{action.status === "COMPLETED" ? ui("Completed") : ui("Open")}</Badge></div></div>
-    <p className="text-xs text-ink-muted">{ui("Owner")}: <bdi>{action.owner}</bdi> · {ui("Due {0}", [date(action.dueDate)])} · {ui("Criteria")}: <bdi dir="ltr">{codes.join(", ")}</bdi></p>
+      <div className="flex flex-wrap gap-1">{action.overdue ? <DeskPill tone="danger" data-action-overdue>{ui("Overdue")}</DeskPill> : null}<DeskPill tone={action.status === "COMPLETED" ? "success" : "brand"}>{action.status === "COMPLETED" ? ui("Completed") : ui("Open")}</DeskPill></div></div>
+    <p className="text-xs text-ink-muted">{ui("Owner")}: <bdi>{action.owner}</bdi> · {ui("Due {0}", [date(action.dueDate)])}{action.status !== "COMPLETED" ? <> (<RelativeTime iso={action.dueDate} full={date(action.dueDate)} />)</> : null} · {ui("Criteria")}: <bdi dir="ltr">{codes.join(", ")}</bdi></p>
     <p>{ui("Expected measure")}: <bdi>{action.expectedMeasure}</bdi></p>
     {action.learningAction ? <p className="text-xs" data-learning-action>{ui("Linked learning action")}: {action.learningAction.status}{action.learningAction.version ? ` · v${action.learningAction.version}` : ""} · {ui("Managed in learning actions; not changed here.")}</p> : null}
-    {action.milestones.length ? <ul className="text-xs">{action.milestones.map((m, i) => <li key={i}><span aria-hidden="true">{m.done ? "✓" : "○"}</span><span className="sr-only">{m.done ? ui("Done") : ui("Open")}</span> <bdi>{m.label}</bdi> · {date(m.date)}</li>)}</ul> : null}
+    {action.milestones.length ? <ol className={cn(deskTimeline, "text-xs")}>{action.milestones.map((m, i) => <li key={i} data-tone={m.done ? "success" : "neutral"} className={m.done ? undefined : "text-ink-muted"}><span className="sr-only">{m.done ? ui("Done") : ui("Open")}</span> <bdi>{m.label}</bdi> · {date(m.date)}</li>)}</ol> : null}
     <p className="font-semibold" data-outcome-text>{outcomeLabel(ui, action.outcome)}</p>
     {action.reflection ? <p className="text-xs"><bdi>{action.reflection}</bdi></p> : null}
     {action.status === "OPEN" && (data.mode === "LEAD" || data.mode === "STAFF") ? <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setMode(mode === "follow" ? null : "follow")} data-follow-open>{ui("Record follow-up measure")}</Button><Button size="sm" onClick={() => setMode(mode === "complete" ? null : "complete")} data-complete-open>{ui("Complete with evidence")}</Button></div> : null}
@@ -163,6 +165,8 @@ export function ImprovementWorkspace() {
   const [people, setPeople] = useState<Person[]>([]);
   const [modal, setModal] = useState<null | { kind: "framework" | "evidence" | "action" | "grant" | "export" | "interpret"; criterionId?: string }>(null);
   const [onlyGaps, setOnlyGaps] = useState(false), [open, setOpen] = useState<Record<string, boolean>>({});
+  // The overdue tile narrows the action list; the quick filter matches criterion codes and titles.
+  const [overdueOnly, setOverdueOnly] = useState(false), [q, setQ] = useState("");
   const [revoking, setRevoking] = useState<Data["grants"][number] | null>(null), [revokeBusy, setRevokeBusy] = useState(false);
   const load = useCallback(async () => {
     try { const d: Data = await call(`/api/improvement?view=workspace${frameworkId ? `&frameworkId=${encodeURIComponent(frameworkId)}` : ""}`); setData(d); setError(null); if (d.mode === "LEAD" && !people.length) setPeople(await call("/api/improvement?view=staff").catch(() => [])); }
@@ -203,6 +207,10 @@ export function ImprovementWorkspace() {
     finally { setRevokeBusy(false); }
   };
 
+  const needle = q.trim().toLowerCase();
+  const criteria = (view?.criteria ?? []).filter(c => (!onlyGaps || c.status !== "CURRENT" || !c.interpretationApproved) && (!needle || `${c.code} ${c.title}`.toLowerCase().includes(needle)));
+  // Overdue work first, then open actions by due date; completed ones last.
+  const actions = urgencyFirst((view?.actions ?? []).filter(a => !overdueOnly || a.overdue), a => a.overdue ? 0 : a.status === "COMPLETED" ? 2 : 1);
   return <div className="min-w-0 space-y-5" data-improvement data-mode={data.mode}>
     <PageHeader
       title={title}
@@ -222,12 +230,20 @@ export function ImprovementWorkspace() {
           {data.mode === "REVIEWER" ? <p className="text-xs text-ink-muted" data-reviewer-scope>{ui("You can review the criteria you were granted. Restricted sources stay closed.")}</p> : null}</div>
         <Button variant={onlyGaps ? "default" : "outline"} onClick={() => setOnlyGaps(!onlyGaps)} aria-pressed={onlyGaps} data-review-gaps>{ui("Review gaps")}</Button>
       </section>
+      <DeskStats data-improvement-pulse>
+        <StatTile index={0} icon={CheckCircle2} tone={view.summary.current === view.summary.total ? "success" : "brand"} value={<bdi>{view.summary.current}/{view.summary.total}</bdi>} label={ui("Current evidence")} hint={<Progress size="sm" value={view.summary.current} max={Math.max(view.summary.total, 1)} tone={view.summary.current === view.summary.total ? "success" : "brand"} aria-label={ui("Current: {0} of {1}", [String(view.summary.current), String(view.summary.total)])} />} />
+        <StatTile index={1} icon={SearchX} tone={view.summary.needsEvidence ? "warning" : "success"} value={view.summary.needsEvidence} label={ui("Needs evidence")} onSelect={() => setOnlyGaps(!onlyGaps)} selected={onlyGaps} />
+        <StatTile index={2} icon={AlarmClock} tone={view.summary.overdueActions ? "danger" : "neutral"} value={view.summary.overdueActions} label={ui("Overdue")} onSelect={view.summary.overdueActions ? () => setOverdueOnly(v => !v) : undefined} selected={overdueOnly} />
+        <StatTile index={3} icon={Target} tone="info" value={view.actions.filter(a => a.status !== "COMPLETED").length} label={ui("Improvement actions")} />
+      </DeskStats>
 
       <section className="space-y-2" aria-labelledby="criteria-h"><h2 id="criteria-h" className="text-base font-bold">{ui("Evidence map")}</h2>
-        <ul className="space-y-2">{view.criteria.filter(c => !onlyGaps || c.status !== "CURRENT" || !c.interpretationApproved).map(c => <li key={c.id} className="sk-panel p-4" data-criterion={c.code} data-criterion-status={c.status}>
+        {view.criteria.length > 8 ? <DeskQuickFilter value={q} onChange={setQ} label={ui("Filter this list")} /> : null}
+        <DeskFilterStatus shown={criteria.length} total={view.criteria.length} onClear={() => { setOnlyGaps(false); setQ(""); }} />
+        <ul className="space-y-2.5">{criteria.map(c => <li key={c.id} className={cn(deskRow, "p-4")} data-tone={c.status === "CURRENT" && c.interpretationApproved ? undefined : statusTone(c.status)} data-criterion={c.code} data-criterion-status={c.status}>
           <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={!!open[c.id]} onClick={() => setOpen({ ...open, [c.id]: !open[c.id] })} data-criterion-toggle={c.code}>
             <span className="font-bold"><bdi dir="ltr">{c.code}</bdi> · <bdi>{c.title}</bdi></span>
-            <Badge size="sm" variant={statusTone(c.status)} data-criterion-status-label>{statusLabel(ui, c.status)}</Badge>
+            <DeskPill tone={statusTone(c.status)} data-criterion-status-label>{statusLabel(ui, c.status)}</DeskPill>
           </Button>
           <p className="mt-1 text-xs text-ink-muted"><bdi>{view.framework.name}</bdi> · <bdi dir="ltr">{view.framework.version}</bdi> · {c.interpretationApproved ? <>{ui("School interpretation approved")} · <bdi>{c.interpretationApprovedBy}</bdi></> : <span data-interpretation-pending>{ui("Interpretation not yet approved")}</span>}</p>
           {open[c.id] ? <div className="mt-3 space-y-2">
@@ -241,7 +257,8 @@ export function ImprovementWorkspace() {
       </section>
 
       <section className="space-y-2" aria-labelledby="actions-h"><div className="flex flex-wrap items-center justify-between gap-2"><h2 id="actions-h" className="text-base font-bold">{ui("Improvement actions")}</h2>{lead ? <Button size="sm" variant="outline" onClick={() => setModal({ kind: "action" })} data-action-new>{ui("Create an improvement action")}</Button> : null}</div>
-        {view.actions.length ? <ul className="space-y-2">{view.actions.map(a => <ActionCard key={`${a.id}:${a.version}`} action={a} view={view} data={data} reload={load} />)}</ul> : <p className="text-sm text-ink-muted">{ui("No improvement actions yet.")}</p>}
+        {overdueOnly ? <DeskFilterStatus shown={actions.length} total={view.actions.length} onClear={() => setOverdueOnly(false)} /> : null}
+        {view.actions.length ? <ul className="space-y-2.5">{actions.map(a => <ActionCard key={`${a.id}:${a.version}`} action={a} view={view} data={data} reload={load} />)}</ul> : <EmptyState size="sm" icon={Target} title={ui("No improvement actions yet.")} action={lead ? <Button size="sm" onClick={() => setModal({ kind: "action" })}>{ui("Create an improvement action")}</Button> : undefined} />}
       </section>
 
       {lead ? <section className="sk-panel space-y-2 p-4" data-grants><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Reviewer access")}</h2><Button size="sm" variant="outline" onClick={() => setModal({ kind: "grant" })} data-grant-open>{ui("Grant reviewer access")}</Button></div>

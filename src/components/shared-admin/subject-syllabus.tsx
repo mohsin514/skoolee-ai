@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
 import { SkeletonBar, SkeletonRegion } from "@/components/ui/skeleton";
 import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Progress } from "@/components/ui/progress";
+import { deskRow } from "@/components/ui/desk";
 
 type TopicStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
 
@@ -174,6 +176,16 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
         </span>
         <ChevronDown aria-hidden="true" className={cn("h-4 w-4 text-ink-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} />
       </SystemButton>
+      {/* Coverage stays visible while the list is folded: how much of the syllabus has been taught. */}
+      {syllabusTopics.length ? (
+        <Progress
+          size="sm"
+          className="mt-2 px-2"
+          tone={syllabusTopics.every((topic) => topic.status === "COMPLETED") ? "success" : "brand"}
+          value={Math.round((syllabusTopics.filter((topic) => topic.status === "COMPLETED").length / syllabusTopics.length) * 100)}
+          label={ui(STATUS_LABEL.COMPLETED)}
+        />
+      ) : null}
 
       {open ? (
         <div className="mt-4 space-y-3">
@@ -189,7 +201,7 @@ export function SubjectSyllabus({ subjectId }: { subjectId: string }) {
               {syllabusTopics.length ? (
                 <div className="space-y-1.5">
                   {syllabusTopics.map((topic, index) => (
-                    <div key={topic.id} className="flex items-center gap-2 rounded-xl bg-brand-50/60 px-3 py-2">
+                    <div key={topic.id} data-tone={topic.status === "COMPLETED" ? "success" : topic.status === "IN_PROGRESS" ? "warning" : undefined} className={cn(deskRow, "flex items-center gap-2 py-2 pe-2")}>
                       <IconButton
                         label={index > 0 ? ui("Move up") : ui("Move down")}
                         variant="ghost"

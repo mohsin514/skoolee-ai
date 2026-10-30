@@ -10,7 +10,10 @@ import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { IconButton } from "@/components/ui/icon-button";
 import { Menu } from "@/components/ui/menu";
-import { MoreHorizontal } from "lucide-react";
+import { BookCheck, BookCopy, BookOpen, BookmarkCheck, MoreHorizontal, Receipt, ScanLine, Undo2, UserRound } from "lucide-react";
+import { DeskPill, DeskStats, RelativeTime, StatTile, deskRow, DeskRowIcon, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
+import { EmptyState } from "@/components/ui/empty-state";
 import { usePanelCommand } from "@/components/fees/fee-utils";
 import type { PanelCommand } from "@/components/fees/fee-types";
 import { useFormDraft } from "@/lib/hooks/use-form-draft";
@@ -27,6 +30,8 @@ type Overview = { rules: { version: number; loanDays: number; maxLoans: number; 
   books: { id: string; title: string; copiesTotal: number; copiesAvailable: number }[]; reservations: { id: string; bookId: string; status: string; readyUntil: string | null }[]; charges: { id: string; kind: string; amount: number; currency: string }[] };
 
 const STATUS_LABEL: Record<string, string> = { AVAILABLE: "On the shelf", ON_LOAN: "On loan", RESERVED_HOLD: "Held for a reservation", DAMAGED: "Damaged", LOST: "Lost", WAITING: "Waiting", READY: "Ready to collect" };
+const STATUS_TONE: Record<string, DeskTone> = { AVAILABLE: "success", ON_LOAN: "brand", RESERVED_HOLD: "info", DAMAGED: "warning", LOST: "danger", WAITING: "neutral", READY: "success" };
+const todayIso = () => new Date().toISOString().slice(0, 10);
 const KIND_LABEL: Record<string, string> = { FINE: "Late fine", LOST: "Lost copy", DAMAGE: "Damage" };
 
 async function call(url: string, init?: RequestInit) {
@@ -43,7 +48,7 @@ async function call(url: string, init?: RequestInit) {
 export function LendingDesk({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
   const ui = useUiText();
   const [losing, setLosing] = useState<Loan | null>(null);
-  const { number } = useLocaleFormat();
+  const { number, date } = useLocaleFormat();
   const scanRef = useRef<HTMLInputElement>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [code, setCode] = useState("");
@@ -146,12 +151,23 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       />
       {overviewLoading && !overview ? <p role="status" className="text-sm text-ink-muted">{ui("Loading library data…")}</p> : null}
       {overviewError ? <Alert tone="warning" compact actions={<Button size="sm" variant="outline" disabled={overviewLoading} onClick={() => void load()}>{ui("Try again")}</Button>}>{overviewError}</Alert> : null}
+      {overview ? (() => {
+        const total = overview.books.reduce((sum, b) => sum + b.copiesTotal, 0);
+        const shelf = overview.books.reduce((sum, b) => sum + b.copiesAvailable, 0);
+        const ready = overview.reservations.filter((r) => r.status === "READY").length;
+        return <DeskStats data-lending-pulse>
+          <StatTile index={0} icon={BookCheck} tone="success" value={number(shelf)} label={ui("On the shelf")} />
+          <StatTile index={1} icon={BookOpen} tone="brand" value={number(total - shelf)} label={ui("On loan")} />
+          <StatTile index={2} icon={BookmarkCheck} tone={ready ? "info" : "neutral"} value={number(ready)} label={ui("Ready to collect")} />
+          <StatTile index={3} icon={Receipt} tone={overview.charges.length ? "warning" : "neutral"} value={number(overview.charges.length)} label={ui("Open charges")} />
+        </DeskStats>;
+      })() : null}
       <div aria-live="polite">
         {error ? <Alert tone="danger" compact>{error}</Alert> : null}
         {message ? <p role="status" className="text-sm font-medium text-status-success-text">{message}</p> : null}
       </div>
 
-      <form className="flex flex-wrap items-end gap-2" data-tour="library.lending.scan" onSubmit={(e) => { e.preventDefault(); void scan(code); }}>
+      <form className="sk-desk-section flex flex-wrap items-end gap-2" data-tour="library.lending.scan" onSubmit={(e) => { e.preventDefault(); void scan(code); }}>
         <FormField name="desk-scan" label={ui("Scan a member card or a copy")} hint={ui(member ? "Scan each copy to issue it to this reader." : "Scan a member card first to issue books.")} className="min-w-0 flex-1 sm:min-w-[16rem]">
           <Input ref={scanRef} dir="ltr" autoFocus value={code} onChange={(e) => setCode(e.target.value)} />
         </FormField>
@@ -161,24 +177,32 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
       </form>
 
       {member ? (
-        <div ref={renewRef} className="space-y-2 rounded-xl border border-border p-3 text-sm" data-lending-reader>
-          <p className="font-semibold"><bdi>{member.member.name}</bdi> · <span dir="ltr">{member.member.memberNo}</span></p>
-          <p>{ui("Loans: {0} of {1} allowed", [member.loans.length, member.maxLoans])}</p>
-          <ul className="space-y-1">{member.loans.map((l) => (
-            <li key={l.id} className="flex flex-wrap items-center gap-2">
-              <bdi>{l.title}</bdi>{l.barcode ? <span dir="ltr" className="text-ink-subtle">{l.barcode}</span> : null}<span>· {ui("due {0}", [String(l.dueAt).slice(0, 10)])}</span>
+        <div ref={renewRef} className="sk-desk-section text-sm" data-lending-reader>
+          <div className="sk-desk-section-head">
+            <span aria-hidden="true" className="sk-desk-section-icon"><UserRound /></span>
+            <h3 className="min-w-0 flex-1"><bdi>{member.member.name}</bdi> <span dir="ltr" className="font-mono text-xs font-semibold text-primary">{member.member.memberNo}</span></h3>
+          </div>
+          <Progress value={member.loans.length} max={member.maxLoans || 1} size="sm" tone={member.loans.length >= member.maxLoans ? "warning" : "brand"} showValue label={ui("Loans: {0} of {1} allowed", [member.loans.length, member.maxLoans])} valueText={`${number(member.loans.length)} / ${number(member.maxLoans)}`} />
+          <ul className="space-y-2">{urgencyFirst(member.loans, (l) => new Date(l.dueAt).getTime()).map((l) => (
+            <li key={l.id} data-tone={String(l.dueAt).slice(0, 10) < todayIso() ? "danger" : undefined} className={`${deskRow} flex flex-wrap items-center gap-2`}>
+              <DeskRowIcon icon={BookOpen} />
+              <span className="min-w-0 flex-1"><bdi className="font-semibold">{l.title}</bdi>{l.barcode ? <span dir="ltr" className="ms-2 text-xs text-ink-subtle">{l.barcode}</span> : null}<span className="block text-xs text-ink-muted">{ui("due {0}", [String(l.dueAt).slice(0, 10)])} · <RelativeTime iso={l.dueAt} full={date(l.dueAt)} className={String(l.dueAt).slice(0, 10) < todayIso() ? "font-semibold text-status-error-text" : undefined} /></span></span>
               <Button size="sm" variant="outline" data-loan-renew onClick={async () => { if (await post("renew", { issueId: l.id })) { setMessage(ui("Loan renewed.")); await refreshMember(); } }}>{ui("Renew")}</Button>
               <Menu label="More actions" trigger={<IconButton variant="ghost" label={ui("More actions")}><MoreHorizontal aria-hidden="true" /></IconButton>} items={[{ id: "lost", label: "Mark lost", tone: "danger", onSelect: () => setLosing(l) }]} />
             </li>
           ))}</ul>
-          {member.openCharges.length ? <p className="text-ink-subtle">{ui("Open charges")}: {member.openCharges.map((c) => `${ui(KIND_LABEL[c.kind] ?? c.kind)} ${money(c.amount, c.currency)}`).join(" · ")}</p> : null}
+          {member.openCharges.length ? <p className="text-status-warning-text">{ui("Open charges")}: {member.openCharges.map((c) => `${ui(KIND_LABEL[c.kind] ?? c.kind)} ${money(c.amount, c.currency)}`).join(" · ")}</p> : null}
         </div>
-      ) : <p className="text-sm text-ink-subtle">{ui("Scan a member card or search for a borrower.")}</p>}
+      ) : <div className="sk-panel"><EmptyState size="sm" icon={ScanLine} title={ui("Scan a member card or search for a borrower.")} /></div>}
 
       {copy ? (
-        <div className="space-y-2 rounded-xl border border-border p-3 text-sm">
-          <p className="font-semibold"><bdi>{copy.book?.title ?? "—"}</bdi> · <span dir="ltr">{copy.copy.barcode}</span></p>
-          <p>{ui(STATUS_LABEL[copy.copy.status] ?? copy.copy.status)}{copy.book?.isbn ? <> · ISBN <span dir="ltr">{copy.book.isbn}</span></> : null} · {ui("{0} waiting", [copy.waitingReservations])}</p>
+        <div className="sk-desk-section text-sm" data-tone={STATUS_TONE[copy.copy.status] === "danger" || STATUS_TONE[copy.copy.status] === "warning" ? STATUS_TONE[copy.copy.status] : undefined}>
+          <div className="sk-desk-section-head">
+            <span aria-hidden="true" className="sk-desk-section-icon"><BookCopy /></span>
+            <h3 className="min-w-0 flex-1"><bdi>{copy.book?.title ?? "—"}</bdi> <span dir="ltr" className="font-mono text-xs font-semibold text-primary">{copy.copy.barcode}</span></h3>
+            <DeskPill tone={STATUS_TONE[copy.copy.status] ?? "neutral"}>{ui(STATUS_LABEL[copy.copy.status] ?? copy.copy.status)}</DeskPill>
+          </div>
+          <p className="text-ink-muted">{copy.book?.author ? <><bdi>{copy.book.author}</bdi> · </> : null}{copy.book?.isbn ? <> · ISBN <span dir="ltr">{copy.book.isbn}</span></> : null} · {ui("{0} waiting", [copy.waitingReservations])}</p>
           {!member && copy.copy.status === "AVAILABLE" ? <p className="text-ink-subtle">{ui("Copy {0} is ready to issue — scan a member card first.", [copy.copy.barcode])}</p> : null}
           {override === copy.copy.barcode ? (
             <div className="flex flex-wrap items-end gap-2">
@@ -189,28 +213,28 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
         </div>
       ) : null}
 
-      <form className="flex flex-wrap items-end gap-2 rounded-xl border border-border p-3" data-tour="library.lending.return" onSubmit={async (e) => {
+      <form className="sk-desk-section flex flex-wrap items-end gap-2" data-tour="library.lending.return" onSubmit={async (e) => {
         e.preventDefault();
         const r = await post("return", { barcode: returnCode.trim(), condition });
         if (r) { setMessage(r.alreadyReturned ? ui("Already returned · no duplicate change") : ui(r.heldForNextReservation ? "Return recorded. The copy is now held for the next reservation." : "Return recorded; availability updated.") + (r.fine?.amount ? ` ${ui("Fine recorded: {0}", [money(r.fine.amount, r.fine.currency)])}` : "")); returnDraft.markSaved(); setReturnCode(""); setFine(null); void load(); if (member) await refreshMember(); }
         refocus();
       }}>
-        <h3 className="w-full font-semibold">{ui("Return a copy")}</h3>
+        <div className="sk-desk-section-head w-full"><span aria-hidden="true" className="sk-desk-section-icon"><Undo2 /></span><h3 className="min-w-0 flex-1">{ui("Return a copy")}</h3></div>
         <div className="w-full"><DraftRecovery recordLabel={ui("Library return")} draft={returnDraft} excluded={ui("Only the barcode and condition are stored in this signed-in browser draft.")} /></div>
         <FormField name="desk-return" label={ui("Copy barcode")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input dir="ltr" value={returnCode} onChange={(e) => { setReturnCode(e.target.value); setFine(null); }} /></FormField>
         <FormField name="desk-condition" label={ui("Condition")}><Select value={condition} onChange={(e) => setCondition(e.target.value)}><option value="GOOD">{ui("Good")}</option><option value="WORN">{ui("Worn")}</option><option value="DAMAGED">{ui("Damaged")}</option></Select></FormField>
         <Button type="button" variant="outline" disabled={!returnCode.trim()} onClick={async () => { try { const p = await call(`/api/library/desk?preview=${encodeURIComponent(returnCode.trim())}`); setFine(p.onLoan ? p.fine : null); if (!p.onLoan) setMessage(ui("Already returned · no duplicate change")); } catch (e) { setError(ui((e as Error).message)); } }}>{ui("Preview fine")}</Button>
         <Button type="submit" variant="secondary" disabled={!returnCode.trim()}>{ui("Confirm return")}</Button>
-        {fine ? <p className="w-full text-sm text-ink-subtle">{ui("{0} days late · {1} closure days not charged · {2} grace days · {3} chargeable days × {4} = {5}{6}", [fine.overdueDays, fine.closureDays.length, fine.graceDays, fine.chargeableDays, money(fine.perDay, fine.currency), money(fine.amount, fine.currency), fine.cap && fine.uncapped > fine.cap ? ` (${ui("capped")})` : ""])}</p> : null}
+        {fine ? <p className="w-full rounded-xl bg-status-warning-surface px-3 py-2 text-sm text-status-warning-text">{ui("{0} days late · {1} closure days not charged · {2} grace days · {3} chargeable days × {4} = {5}{6}", [fine.overdueDays, fine.closureDays.length, fine.graceDays, fine.chargeableDays, money(fine.perDay, fine.currency), money(fine.amount, fine.currency), fine.cap && fine.uncapped > fine.cap ? ` (${ui("capped")})` : ""])}</p> : null}
       </form>
 
       {overview ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="space-y-2">
-            <h3 className="font-semibold">{ui("Charges awaiting a decision")}</h3>
-            {overview.charges.length === 0 ? <p className="text-sm text-ink-subtle">{ui("No open charges.")}</p> : overview.charges.map((c) => (
-              <div key={c.id} className="space-y-1 rounded-xl border border-border p-2 text-sm">
-                <p>{ui(KIND_LABEL[c.kind] ?? c.kind)} · {money(c.amount, c.currency)}</p>
+            <h3 className="font-semibold text-ink-strong">{ui("Charges awaiting a decision")}</h3>
+            {overview.charges.length === 0 ? <div className="sk-panel"><EmptyState size="sm" icon={Receipt} title={ui("No open charges.")} /></div> : overview.charges.map((c) => (
+              <div key={c.id} data-tone={c.kind === "LOST" ? "danger" : "warning"} className={`${deskRow} space-y-2 text-sm`}>
+                <p className="flex flex-wrap items-center gap-2 font-semibold"><Receipt aria-hidden="true" className="size-4 text-status-warning-text" />{ui(KIND_LABEL[c.kind] ?? c.kind)}<DeskPill tone={c.kind === "LOST" ? "danger" : "warning"}><bdi>{money(c.amount, c.currency)}</bdi></DeskPill></p>
                 <div className="flex flex-wrap items-end gap-2">
                   <FormField name={`ch-${c.id}`} label={ui("Reason")} className="min-w-0 flex-1 sm:min-w-[12rem]"><Input value={reasons[c.id] ?? ""} onChange={(e) => setReasons((r) => ({ ...r, [c.id]: e.target.value }))} /></FormField>
                   {overview.canWaive ? <Button size="sm" variant="outline" onClick={async () => { if (await post("charge", { chargeId: c.id, decision: "WAIVE", reason: reasons[c.id] ?? "" })) { setMessage(ui("Charge waived; the reason and approver are recorded.")); void load(); } }}>{ui("Waive")}</Button> : <span className="text-xs text-ink-subtle">{ui("Your campus admin decides waivers; you can send the charge to the fees office.")}</span>}
@@ -220,8 +244,8 @@ export function LendingDesk({ hideHeader = false, command }: { hideHeader?: bool
             ))}
           </div>
           <div className="space-y-2">
-            <h3 className="font-semibold">{ui("Add barcoded copies")}</h3>
-            <form className="space-y-2 rounded-xl border border-border p-2" onSubmit={async (e) => { e.preventDefault(); const r = await post("copies", { bookId: copyForm.bookId, barcodes: copyForm.barcodes.split(/[\s,]+/).filter(Boolean) }); if (r) { setMessage(ui("{0} copies registered.", [r.length])); copyRegistrationDraft.markSaved(); setCopyForm({ bookId: copyForm.bookId, barcodes: "" }); void load(); } }}>
+            <h3 className="font-semibold text-ink-strong">{ui("Add barcoded copies")}</h3>
+            <form className="sk-desk-section" onSubmit={async (e) => { e.preventDefault(); const r = await post("copies", { bookId: copyForm.bookId, barcodes: copyForm.barcodes.split(/[\s,]+/).filter(Boolean) }); if (r) { setMessage(ui("{0} copies registered.", [r.length])); copyRegistrationDraft.markSaved(); setCopyForm({ bookId: copyForm.bookId, barcodes: "" }); void load(); } }}>
               <DraftRecovery recordLabel={ui("Copy registration")} draft={copyRegistrationDraft} excluded={ui("Only the selected title and barcode list are stored in this signed-in browser draft.")} />
               <FormField name="cp-book" label={ui("Title")}><Select value={copyForm.bookId} onChange={(e) => setCopyForm((f) => ({ ...f, bookId: e.target.value }))}><option value="">{ui("Choose a title")}</option>{overview.books.map((b) => <option key={b.id} value={b.id}>{b.title} ({b.copiesAvailable}/{b.copiesTotal})</option>)}</Select></FormField>
               <FormField name="cp-codes" label={ui("Barcodes")} hint={ui("One per copy, separated by spaces or commas.")}><Input dir="ltr" value={copyForm.barcodes} onChange={(e) => setCopyForm((f) => ({ ...f, barcodes: e.target.value }))} /></FormField>

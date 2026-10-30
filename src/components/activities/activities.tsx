@@ -11,8 +11,9 @@ import { Modal } from "@/components/ui/modal";
 import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Badge } from "@/components/ui/badge";
-import { CalendarDays, MoreHorizontal, Plus } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, DeskStats, RelativeTime, StatTile, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { Bus, CalendarDays, CheckCircle2, Clock3, MoreHorizontal, Plus, Ticket, Trophy, Users } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { Menu, type MenuItem } from "@/components/ui/menu";
 import { ConfirmAction } from "@/components/ui/confirm-action";
@@ -37,6 +38,8 @@ const reqLabel = (ui: Ui, kind: "consent" | "fee", v: string): string | null => 
   const labels: Record<string, string | null> = kind === "consent" ? { NOT_REQUIRED: null, GRANTED: ui("Consent given"), PENDING: ui("Consent needed"), PARTIAL: ui("Consent: another guardian must answer"), DECLINED: ui("Consent declined") } : { NOT_REQUIRED: null, NONE: null, DUE: ui("Fee due"), PAID: ui("Fee paid"), WAIVED: ui("Fee waived") };
   return v in labels ? labels[v] : v;
 };
+const placeTone = (s: string): DeskTone => ({ WAITLIST: "info", OFFERED: "warning", RESERVED: "warning", CONFIRMED: "success", DECLINED: "neutral", EXPIRED: "neutral", CANCELLED: "neutral" } as Record<string, DeskTone>)[s] ?? "neutral";
+const kindIcon = (k: string) => k === "SPORT" ? Trophy : k === "TRIP" ? Bus : Users;
 const kindLabel = (ui: Ui, k: string) => ({ CLUB: ui("Club"), SPORT: ui("Sport"), TRIP: ui("Trip") } as Record<string, string>)[k] ?? k;
 
 type FamilyActivity = { id: string; kind: string; title: string; description: string; location: string; startsAt: string; endsAt: string; costAmount: number; costCurrency: string; cancellationTerms: string; placesLeft: number; capacity: number; blocker: string | null; place: { id: string; status: string; version: number; offerExpiresAt: string | null; waitlistPosition: number | null; requirements: { consent: string; fee: string }; refundState: string | null } | null };
@@ -53,14 +56,15 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
   if (denied || !data) return null;
   return <section className="sk-panel space-y-3 p-4 sm:p-5" data-family-activities>
     <header><h3 className="text-base font-bold">{ui("Clubs, sports and trips")}</h3><p className="text-xs text-ink-muted">{ui("A place is confirmed only when its consent and fee rules are complete.")}</p></header>
-    {!data.activities.length ? <EmptyState size="sm" icon={CalendarDays} title={ui("No activities published for this age group yet.")} description={ui("A place is confirmed only when its consent and fee rules are complete.")} /> : <ul className="space-y-2">{data.activities.map(a => <li key={a.id} className={cn("rounded-xl border p-3", a.place?.status === "OFFERED" ? "border-status-warning-border bg-status-warning-surface/40" : "border-edge/40")} data-activity={a.id} data-activity-place={a.place?.status ?? "NONE"}>
-      <div className="flex flex-wrap items-start justify-between gap-2"><div>
+    {!data.activities.length ? <EmptyState size="sm" icon={CalendarDays} title={ui("No activities published for this age group yet.")} description={ui("A place is confirmed only when its consent and fee rules are complete.")} /> : <ul className="space-y-2.5">{urgencyFirst(data.activities, a => a.place?.status === "OFFERED" ? 0 : a.place?.status === "RESERVED" ? 1 : a.place ? 3 : 2).map(a => <li key={a.id} className="sk-desk-row" data-tone={a.place?.status === "OFFERED" ? "warning" : a.place?.status === "CONFIRMED" ? "success" : undefined} data-activity={a.id} data-activity-place={a.place?.status ?? "NONE"}>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 flex-1 items-start gap-3"><DeskRowIcon icon={kindIcon(a.kind)} /><div className="min-w-0 flex-1 space-y-1">
         <p className="text-sm font-bold"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}</p>
         <p className="text-xs text-ink-muted"><bdi>{dateTime(a.startsAt)}</bdi>–<bdi>{dateTime(a.endsAt)}</bdi> · <span dir="auto">{a.location}</span> · {a.costAmount ? <bdi>{money(a.costAmount, a.costCurrency)}</bdi> : ui("Free")} · {ui("{0} of {1} places left", [String(a.placesLeft), String(a.capacity)])}</p>
-        {a.place ? <p className="flex flex-wrap items-center gap-1 text-xs text-ink-muted" data-activity-status><Badge size="sm" variant={a.place.status === "CONFIRMED" ? "success" : a.place.status === "OFFERED" ? "warning" : "neutral"} dot>{statusLabel(ui, a.place.status)}</Badge>{a.place.waitlistPosition ? <> · {ui("Position {0}", [String(a.place.waitlistPosition)])}</> : null}{a.place.status === "OFFERED" && a.place.offerExpiresAt ? <> · {ui("Offer expires {0}", [dateTime(a.place.offerExpiresAt)])}</> : null}</p> : null}
+        {a.capacity ? <Progress size="sm" value={a.capacity - a.placesLeft} max={a.capacity} tone={a.placesLeft <= 0 ? "danger" : a.placesLeft / a.capacity < 0.2 ? "warning" : "brand"} label={ui("{0} of {1} places left", [String(a.placesLeft), String(a.capacity)])} className="max-w-xs" /> : null}
+        {a.place ? <p className="flex flex-wrap items-center gap-1 text-xs text-ink-muted" data-activity-status><DeskPill tone={placeTone(a.place.status)}>{statusLabel(ui, a.place.status)}</DeskPill>{a.place.waitlistPosition ? <> · {ui("Position {0}", [String(a.place.waitlistPosition)])}</> : null}{a.place.status === "OFFERED" && a.place.offerExpiresAt ? <> · {ui("Offer expires {0}", [dateTime(a.place.offerExpiresAt)])} (<RelativeTime iso={a.place.offerExpiresAt} full={dateTime(a.place.offerExpiresAt)} />)</> : null}</p> : null}
         {a.place && ["RESERVED", "CONFIRMED"].includes(a.place.status) ? <p className="text-xs">{[reqLabel(ui, "consent", a.place.requirements.consent), reqLabel(ui, "fee", a.place.requirements.fee)].filter(Boolean).join(" · ")}</p> : null}
         {!a.place || !["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"].includes(a.place.status) ? (a.blocker ? <p className="text-xs font-semibold text-status-error-text" data-activity-blocker>{ui(a.blocker)}</p> : null) : null}
-      </div>
+      </div></div>
         <div className="flex flex-wrap gap-2">
           {a.place?.status === "OFFERED" ? <><Button size="sm" disabled={busy} onClick={() => setReview(a)} data-activity-accept>{ui("Accept place")}</Button><Button size="sm" variant="outline" disabled={busy} onClick={() => setReleasing({ kind: "decline", activity: a })} data-activity-decline>{ui("Decline offer")}</Button></> : null}
           {(!a.place || !["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"].includes(a.place.status)) && !a.blocker ? <Button size="sm" disabled={busy} onClick={() => setReview(a)} data-activity-request>{a.placesLeft > 0 ? ui("Request a place") : ui("Join the waitlist")}</Button> : null}
@@ -90,7 +94,7 @@ export function FamilyActivities({ studentId }: { studentId: string }) {
         {review.description ? <p dir="auto">{review.description}</p> : null}
         <p><bdi>{dateTime(review.startsAt)}</bdi>–<bdi>{dateTime(review.endsAt)}</bdi> · <span dir="auto">{review.location}</span></p>
         <p className="font-bold">{review.costAmount ? <>{ui("Cost")}: <bdi>{money(review.costAmount, review.costCurrency)}</bdi></> : ui("Free")}</p>
-        <div className="rounded-lg bg-surface-sunken p-2 text-xs"><p className="font-bold">{ui("Cancellation and refunds")}</p><p dir="auto">{review.cancellationTerms}</p></div>
+        <div className="rounded-(--radius-control) border border-border-subtle bg-surface-subtle p-3 text-xs"><p className="font-bold text-ink-strong">{ui("Cancellation and refunds")}</p><p dir="auto">{review.cancellationTerms}</p></div>
         {review.kind === "TRIP" ? <p className="text-xs">{ui("Trip consent is requested separately; the place stays conditional until it is given.")}</p> : null}
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setReview(null)}>{ui("Back")}</Button><Button disabled={busy} onClick={async () => { const r = review.place?.status === "OFFERED" ? await run({ action: "answer", placeId: review.place.id, knownVersion: review.place.version, accept: true }, "Place reserved. One or more requirements remain.") : await run({ action: "request", activityId: review.id, studentId }, "Request recorded."); if (r) setReview(null); }} data-activity-confirm>{review.place?.status === "OFFERED" ? ui("Accept place") : review.placesLeft > 0 ? ui("Reserve the place") : ui("Join the waitlist")}</Button></div>
       </div>
@@ -116,6 +120,8 @@ export function ActivitiesDesk() {
   const [confirming, setConfirming] = useState<{ kind: "cancel-activity"; id: string; title: string } | { kind: "cancel-place"; id: string; name: string } | null>(null);
   // Waiving a fee is a money decision: confirmed with a typed reason that is kept in the audit trail (R3, §4.5.5).
   const [waiving, setWaiving] = useState<{ id: string; name: string } | null>(null);
+  // A counter narrows the list to activities with that kind of place; the quick filter matches titles.
+  const [tile, setTile] = useState<"" | "CONFIRMED" | "OFFERED" | "WAITLIST">(""), [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null), [roster, setRoster] = useState<Roster | null>(null), [rosterError, setRosterError] = useState(false), [creating, setCreating] = useState(false), [busy, setBusy] = useState(false);
   // The cost is in the campus currency (locale package); the server applies the same default (R7: no hard-coded "PKR").
   const [form, setForm] = useState({ kind: "CLUB", title: "", description: "", location: "", startsAt: "", endsAt: "", capacity: "20", costAmount: "0", cancellationTerms: "", tripId: "", classIds: [] as string[] });
@@ -130,20 +136,38 @@ export function ActivitiesDesk() {
   const publish = list.canPublish === true;
   const currency = list.currency || locale.currency;
   const running = roster?.activity.canRun !== false;
+  const total = (k: string) => list.activities.filter(a => a.status !== "CANCELLED").reduce((n, a) => n + (a.counts[k] ?? 0), 0);
+  const toggle = (next: typeof tile) => setTile(t => t === next ? "" : next);
+  const needle = q.trim().toLowerCase();
+  const pendingPlaces = (a: StaffList["activities"][number]) => (a.counts.OFFERED ?? 0) + (a.counts.RESERVED ?? 0);
+  // Activities with families waiting on an answer come first, then the soonest; cancelled ones sink.
+  const shown = urgencyFirst(list.activities.filter(a => (!needle || a.title.toLowerCase().includes(needle))
+    && (tile === "" || (tile === "OFFERED" ? pendingPlaces(a) > 0 : (a.counts[tile] ?? 0) > 0))), a => a.status === "CANCELLED" ? 3 : pendingPlaces(a) ? 0 : (a.counts.WAITLIST ?? 0) ? 1 : 2);
   return <div className="space-y-4" data-activities-desk>
     <PageHeader
+      icon={CalendarDays}
       title="Activities"
       description={publish ? "Clubs, sports and trips. Interest, reservation and confirmed participation are kept apart." : "Clubs, sports and trips on your campus. Their coordinators run them; you can open any roster."}
       primaryAction={publish ? { id: "publish-activity", label: "Publish activity", icon: Plus, onClick: () => setCreating(true) } : undefined}
     />
-    {!list.activities.length ? <EmptyState size="sm" icon={CalendarDays} title={ui("No activities yet.")} description={ui(publish ? "Interest, reservation and confirmed participation are kept apart." : "Activities you coordinate or help run appear here.")} action={publish ? <Button size="sm" onClick={() => setCreating(true)}>{ui("Publish activity")}</Button> : undefined} /> : <ul className="space-y-2">{list.activities.map(a => <li key={a.id}><Button type="button" variant="ghost" className={cn("block h-auto w-full whitespace-normal rounded-xl border p-3 text-start font-normal", open === a.id ? "border-primary" : "border-edge/40")} onClick={() => void loadRoster(a.id)} aria-expanded={open === a.id} data-activity-row={a.id}>
-      <span className="block text-sm font-bold"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}{a.status === "CANCELLED" ? ` · ${ui("Cancelled")}` : ""}</span>
+    {list.activities.length ? <DeskStats data-activities-pulse>
+      <StatTile index={0} icon={CalendarDays} tone="brand" value={list.activities.filter(a => a.status !== "CANCELLED").length} label={ui("Activities")} onSelect={() => { setTile(""); setQ(""); }} selected={!tile && !needle} />
+      <StatTile index={1} icon={CheckCircle2} tone="success" value={total("CONFIRMED")} label={ui("Confirmed")} onSelect={() => toggle("CONFIRMED")} selected={tile === "CONFIRMED"} />
+      <StatTile index={2} icon={Ticket} tone={total("OFFERED") + total("RESERVED") ? "warning" : "neutral"} value={total("OFFERED") + total("RESERVED")} label={ui("Place offered")} onSelect={() => toggle("OFFERED")} selected={tile === "OFFERED"} />
+      <StatTile index={3} icon={Clock3} tone={total("WAITLIST") ? "info" : "neutral"} value={total("WAITLIST")} label={ui("On the waitlist")} onSelect={() => toggle("WAITLIST")} selected={tile === "WAITLIST"} />
+    </DeskStats> : null}
+    {list.activities.length > 8 ? <DeskQuickFilter value={q} onChange={setQ} label={ui("Filter this list")} /> : null}
+    {list.activities.length ? <DeskFilterStatus shown={shown.length} total={list.activities.length} onClear={() => { setTile(""); setQ(""); }} /> : null}
+    {!list.activities.length ? <EmptyState size="sm" icon={CalendarDays} title={ui("No activities yet.")} description={ui(publish ? "Interest, reservation and confirmed participation are kept apart." : "Activities you coordinate or help run appear here.")} action={publish ? <Button size="sm" onClick={() => setCreating(true)}>{ui("Publish activity")}</Button> : undefined} /> : <ul className="space-y-2.5">{shown.map(a => { const taken = (a.counts.CONFIRMED ?? 0) + (a.counts.RESERVED ?? 0) + (a.counts.OFFERED ?? 0); return <li key={a.id}><DeskRowButton tone={a.status === "CANCELLED" ? "muted" : undefined} icon={kindIcon(a.kind)} trailing={<DeskPill tone={a.status === "CANCELLED" ? "neutral" : taken >= a.capacity ? "danger" : "brand"}>{a.status === "CANCELLED" ? ui("Cancelled") : kindLabel(ui, a.kind)}</DeskPill>} className={cn(open === a.id && "border-primary")} onClick={() => void loadRoster(a.id)} aria-expanded={open === a.id} data-activity-row={a.id}>
+      <span className="block text-sm font-bold text-ink-strong"><span dir="auto">{a.title}</span> · {kindLabel(ui, a.kind)}{a.status === "CANCELLED" ? ` · ${ui("Cancelled")}` : ""}</span>
       <span className="block text-xs text-ink-muted"><bdi>{dateTime(a.startsAt)}</bdi> · {ui("{0} confirmed, {1} conditional, {2} waiting of {3}", [String(a.counts.CONFIRMED ?? 0), String((a.counts.RESERVED ?? 0) + (a.counts.OFFERED ?? 0)), String(a.counts.WAITLIST ?? 0), String(a.capacity)])}</span>
-    </Button></li>)}</ul>}
+      {a.capacity ? <Progress size="sm" value={taken} max={a.capacity} tone={taken >= a.capacity ? "danger" : taken / a.capacity > 0.8 ? "warning" : "brand"} aria-label={ui("Places: {0} of {1}", [String(taken), String(a.capacity)])} className="max-w-sm pt-1" /> : null}
+    </DeskRowButton></li>; })}</ul>}
 
     {rosterError && open ? <ErrorState title={ui("This roster could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void loadRoster(open)} retryLabel={ui("Try again")} /> : null}
-    {roster ? <section className="space-y-3 rounded-2xl border border-border-subtle p-3 sm:p-4" aria-label={roster.activity.title} data-activity-roster={roster.activity.id}>
-      <p className="text-sm font-bold"><span dir="auto">{roster.activity.title}</span> · {ui("Places: {0} of {1}", [String(roster.activity.placesTaken), String(roster.activity.capacity)])}</p>
+    {roster ? <section className="sk-desk-section" aria-label={roster.activity.title} data-activity-roster={roster.activity.id}>
+      <div className="flex items-center gap-3"><DeskRowIcon icon={kindIcon(roster.activity.kind)} /><p className="min-w-0 flex-1 text-sm font-bold text-ink-strong"><span dir="auto">{roster.activity.title}</span> · {ui("Places: {0} of {1}", [String(roster.activity.placesTaken), String(roster.activity.capacity)])}</p></div>
+      {roster.activity.capacity ? <Progress value={roster.activity.placesTaken} max={roster.activity.capacity} tone={roster.activity.placesTaken >= roster.activity.capacity ? "danger" : "brand"} aria-label={ui("Places: {0} of {1}", [String(roster.activity.placesTaken), String(roster.activity.capacity)])} /> : null}
       {!running ? <p className="text-xs text-ink-muted" data-activity-readonly>{ui("Read only: the coordinator and your campus admin run this activity.")}</p> : null}
       <ul className="divide-y divide-border-subtle text-sm">{roster.places.map(p => {
         // Row actions live in one overflow menu (§4.5.2–3): waiving and the refund hand-off are the campus admin's
@@ -153,12 +177,12 @@ export function ActivitiesDesk() {
         if (lead && p.refundState === "NEEDED") items.push({ id: "refund", label: "Send refund request", onSelect: () => void act({ action: "refund", placeId: p.id }, "Refund request sent to finance."), disabled: busy });
         if (running && ["WAITLIST", "OFFERED", "RESERVED", "CONFIRMED"].includes(p.status)) items.push({ id: "cancel-place", label: "Cancel place", tone: "danger", onSelect: () => setConfirming({ kind: "cancel-place", id: p.id, name: p.name }), disabled: busy });
         return <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5" data-roster-place={p.id} data-roster-status={p.status}>
-          <span className="min-w-0"><bdi>{p.name}</bdi> · <bdi>{p.className}</bdi> · {statusLabel(ui, p.status)}{["RESERVED", "CONFIRMED"].includes(p.status) ? <> · {[reqLabel(ui, "consent", p.requirements.consent), reqLabel(ui, "fee", p.requirements.fee)].filter(Boolean).join(" · ")}</> : null}{p.refundState === "NEEDED" ? <> · <span className="font-bold text-status-warning-text">{ui("Refund request needed")}</span></> : p.refundState === "REQUESTED" ? <> · {ui("Refund requested")}</> : null}</span>
+          <span className="min-w-0"><bdi className="font-semibold text-ink-strong">{p.name}</bdi> · <bdi>{p.className}</bdi> <DeskPill tone={placeTone(p.status)} className="ms-1">{statusLabel(ui, p.status)}</DeskPill>{["RESERVED", "CONFIRMED"].includes(p.status) ? <> · {[reqLabel(ui, "consent", p.requirements.consent), reqLabel(ui, "fee", p.requirements.fee)].filter(Boolean).join(" · ")}</> : null}{p.refundState === "NEEDED" ? <> · <span className="font-bold text-status-warning-text">{ui("Refund request needed")}</span></> : p.refundState === "REQUESTED" ? <> · {ui("Refund requested")}</> : null}</span>
           {items.length ? <Menu label="More actions" items={items} trigger={<IconButton variant="ghost" label={ui("More actions")} data-roster-actions><MoreHorizontal aria-hidden="true" /></IconButton>} /> : null}
         </li>;
       })}</ul>
       <div className="space-y-2" data-activity-sessions><p className="sk-eyebrow">{ui("Sessions")}</p>
-        {roster.sessions.map(s => <div key={s.id} className="rounded-lg border border-border-subtle p-2" data-session={s.id}><p className="text-xs font-bold"><bdi>{dateTime(s.startsAt)}</bdi></p><div className="mt-1 flex flex-wrap gap-2">{roster.places.filter(p => p.status === "CONFIRMED").map(p => { const mark = s.marks.find(m => m.studentId === p.studentId)?.status; return <span key={p.id} className="flex items-center gap-1 text-xs"><bdi>{p.name}</bdi>{running ? ["PRESENT", "ABSENT"].map(st => <Button key={st} size="sm" variant={mark === st ? "default" : "outline"} disabled={busy} aria-pressed={mark === st} onClick={() => void act({ action: "attend", sessionId: s.id, studentId: p.studentId, status: st }, "Attendance saved.")} data-attend={st}>{st === "PRESENT" ? ui("Present") : ui("Absent")}</Button>) : <span className="text-ink-muted">{mark === "PRESENT" ? ui("Present") : mark === "ABSENT" ? ui("Absent") : "—"}</span>}</span>; })}</div></div>)}
+        {roster.sessions.map(s => <div key={s.id} className="rounded-(--radius-control-small) border border-border-subtle bg-surface-subtle p-2.5" data-session={s.id}><p className="text-xs font-bold"><bdi>{dateTime(s.startsAt)}</bdi></p><div className="mt-1 flex flex-wrap gap-2">{roster.places.filter(p => p.status === "CONFIRMED").map(p => { const mark = s.marks.find(m => m.studentId === p.studentId)?.status; return <span key={p.id} className="flex items-center gap-1 text-xs"><bdi>{p.name}</bdi>{running ? ["PRESENT", "ABSENT"].map(st => <Button key={st} size="sm" variant={mark === st ? "default" : "outline"} disabled={busy} aria-pressed={mark === st} onClick={() => void act({ action: "attend", sessionId: s.id, studentId: p.studentId, status: st }, "Attendance saved.")} data-attend={st}>{st === "PRESENT" ? ui("Present") : ui("Absent")}</Button>) : <span className="text-ink-muted">{mark === "PRESENT" ? ui("Present") : mark === "ABSENT" ? ui("Absent") : "—"}</span>}</span>; })}</div></div>)}
         {running ? <Button size="sm" variant="outline" loading={busy} onClick={() => void act({ action: "session", activityId: roster.activity.id, startsAt: roster.activity.startsAt, endsAt: new Date(new Date(roster.activity.startsAt).getTime() + 3_600_000).toISOString() }, "Session added.")} data-session-add>{ui("Add a session")}</Button> : null}
       </div>
       {lead && running && roster.activity.status !== "CANCELLED" ? <div className="flex justify-start border-t border-border-subtle pt-3"><Button size="sm" variant="outline" className="text-destructive" disabled={busy} onClick={() => setConfirming({ kind: "cancel-activity", id: roster.activity.id, title: roster.activity.title })} data-activity-cancel>{ui("Cancel activity")}</Button></div> : null}

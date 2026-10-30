@@ -11,7 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { Package, Plus, ShoppingCart } from "lucide-react";
+import { CheckCircle2, FileWarning, Hourglass, Package, Plus, ShoppingCart, Truck, Wrench } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Modal, ModalActions } from "@/components/ui/modal";
@@ -33,6 +35,7 @@ type Asset = { id: string; tag: string; description: string; custodian: string |
 type Overview = { userId: string; canApprove: boolean; /** SD3 (§2.5): no other campus operator can decide on this campus. */ soleChecker?: boolean; budgets: Budget[]; requests: Request[]; invoices: Invoice[]; assets: Asset[]; services: { id: string; assetId: string; dueOn: string }[]; stores: { id: string; name: string }[]; items: { id: string; name: string }[]; suppliers: { id: string; name: string }[] };
 
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Draft", SUBMITTED: "Waiting for approval", APPROVED: "Approved — record delivery", RETURNED: "Returned for changes", PARTIALLY_RECEIVED: "Partly received", RECEIVED: "Received", CANCELLED: "Cancelled", MATCHED: "Matched", REVIEW: "Needs review", ACCEPTED_WITH_VARIANCE: "Accepted with variance", REJECTED: "Rejected" };
+const STATUS_TONE: Record<string, DeskTone> = { DRAFT: "brand", SUBMITTED: "warning", APPROVED: "info", RETURNED: "warning", PARTIALLY_RECEIVED: "info", RECEIVED: "success", CANCELLED: "neutral" };
 const ISSUE_LABEL: Record<string, string> = { DUPLICATE: "Duplicate invoice number", PRICE_VARIANCE: "Amount differs from goods received", NOTHING_RECEIVED: "Nothing received yet" };
 
 async function call(url: string, init?: RequestInit) {
@@ -71,6 +74,7 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
   const [returning, setReturning] = useState<Request | null>(null);
   const [approving, setApproving] = useState<Request | null>(null);
   const [creating, setCreating] = useState(false);
+  const [show, setShow] = useState<"all" | "approval" | "delivery" | "review">("all"), [find, setFind] = useState("");
   usePanelCommand(command, { "new-request": () => setCreating(true) }, Boolean(data));
   const load = useCallback(async () => { try { setData(await call("/api/purchasing")); setError(null); } catch (e) { setError(friendlyErrorMessage(e, ui("Check your connection and try again."))); } }, [ui]);
   useEffect(() => { void load(); }, [load]);
@@ -92,6 +96,13 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
     : access.has("standaloneDeputy")
       ? ui("No other campus admin can decide it. Your reason is recorded and your school admin is told.")
       : ui("No other campus admin can decide it. Your reason is recorded and your group admin is told.");
+  const inReview = (r: Request) => data.invoices.some((i) => i.requestId === r.id && i.status === "REVIEW");
+  const stage = (r: Request) => inReview(r) ? "review" : r.status === "SUBMITTED" ? "approval" : ["APPROVED", "PARTIALLY_RECEIVED"].includes(r.status) ? "delivery" : "other";
+  const needle = find.trim().toLowerCase();
+  // Work that waits on someone comes first: invoices to review, approvals, deliveries, returned drafts, then the rest.
+  const requests = urgencyFirst(data.requests, (r) => ({ review: 0, approval: 1, delivery: 2 } as Record<string, number>)[stage(r)] ?? (r.status === "RETURNED" ? 3 : r.status === "DRAFT" ? 4 : 5))
+    .filter((r) => (show === "all" || stage(r) === show) && (!needle || `${r.poNumber} ${r.title}`.toLowerCase().includes(needle)));
+  const toggle = (next: typeof show) => setShow((current) => current === next ? "all" : next);
   const commitLine = (r: Request) => {
     const b = budgetOf(r.budgetId);
     if (!b) return ui("Approving commits {0} against its budget.", [money(r.total)]);
@@ -153,6 +164,13 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
         }}
       />
 
+      <DeskStats data-purchasing-pulse>
+        <StatTile index={0} icon={Hourglass} tone={data.requests.some((r) => r.status === "SUBMITTED") ? "warning" : "neutral"} value={number(data.requests.filter((r) => r.status === "SUBMITTED").length)} label={ui("Waiting for approval")} onSelect={() => toggle("approval")} selected={show === "approval"} />
+        <StatTile index={1} icon={Truck} tone="info" value={number(data.requests.filter((r) => ["APPROVED", "PARTIALLY_RECEIVED"].includes(r.status)).length)} label={ui("Approved — record delivery")} onSelect={() => toggle("delivery")} selected={show === "delivery"} />
+        <StatTile index={2} icon={FileWarning} tone={data.invoices.some((i) => i.status === "REVIEW") ? "danger" : "success"} value={number(data.invoices.filter((i) => i.status === "REVIEW").length)} label={ui("Needs review")} onSelect={() => toggle("review")} selected={show === "review"} />
+        <StatTile index={3} icon={Package} tone="brand" value={number(data.assets.length)} label={ui("Assets")} />
+      </DeskStats>
+
       {/* The shared data table (one look for every list of numbers); a caption names it for screen readers. */}
       <div className="space-y-2">
         <h3 className="text-base font-semibold text-ink-strong">{ui("Budgets")}</h3>
@@ -162,7 +180,7 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
           <Table className="tabular-nums" containerClassName="min-w-0">
             <caption className="sr-only">{ui("Budgets")}</caption>
             <TableHeader><TableRow><TableHead>{ui("Cost centre")}</TableHead><TableHead>{ui("Budget")}</TableHead><TableHead>{ui("Committed")}</TableHead><TableHead>{ui("Received")}</TableHead><TableHead>{ui("Available")}</TableHead></TableRow></TableHeader>
-            <TableBody>{data.budgets.map((b) => <TableRow key={b.id}><TableCell className="py-3"><bdi>{b.costCenter}</bdi> · <span dir="ltr">{b.period}</span></TableCell><TableCell className="py-3">{money(b.amount, b.currency)}</TableCell><TableCell className="py-3">{money(b.committed)}</TableCell><TableCell className="py-3">{money(b.spent)}</TableCell><TableCell className={b.available < 0 ? "py-3 font-semibold text-status-error-text" : "py-3"}>{money(b.available)}</TableCell></TableRow>)}</TableBody>
+            <TableBody>{data.budgets.map((b) => <TableRow key={b.id}><TableCell className="py-3"><bdi>{b.costCenter}</bdi> · <span dir="ltr">{b.period}</span></TableCell><TableCell className="py-3">{money(b.amount, b.currency)}</TableCell><TableCell className="py-3">{money(b.committed)}</TableCell><TableCell className="py-3">{money(b.spent)}</TableCell><TableCell className={b.available < 0 ? "py-3 font-semibold text-status-error-text" : "py-3"}>{money(b.available)}<Progress className="mt-1.5 min-w-20" size="sm" value={b.committed + b.spent} max={b.amount || 1} tone={b.available < 0 ? "danger" : (b.committed + b.spent) / (b.amount || 1) > 0.85 ? "warning" : "brand"} label={`${b.costCenter} · ${b.period}`} /></TableCell></TableRow>)}</TableBody>
           </Table>
         )}
       </div>
@@ -198,12 +216,22 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
       ) : null}
 
       {data.requests.length === 0 ? <EmptyState size="sm" icon={ShoppingCart} title={ui("No purchase requests yet")} description={ui("Start a request, save it as a draft, then submit it for approval.")} primaryAction={{ id: "new-purchase-request", label: "New purchase request", icon: Plus, onClick: () => setCreating(true) }} /> : null}
-      <ul className="space-y-2">{data.requests.map((r) => {
+      {data.requests.length > 1 ? <DeskQuickFilter value={find} onChange={setFind} label={ui("Filter this list")} /> : null}
+      <DeskFilterStatus shown={requests.length} total={data.requests.length} onClear={() => { setShow("all"); setFind(""); }} />
+      <ul className="space-y-2.5">{requests.map((r) => {
         const b = budgetOf(r.budgetId);
+        const tone = STATUS_TONE[r.status];
         return (
-          <li key={r.id} className="space-y-2 rounded-xl border border-edge p-3 text-sm">
-            <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 font-semibold text-ink-strong"><span dir="ltr">{r.poNumber}</span> · <bdi>{r.title}</bdi> · <span className="tabular-nums">{money(r.total, b?.currency)}</span></p><Badge size="sm" dot variant={r.status === "RECEIVED" ? "success" : r.status === "RETURNED" || r.status === "SUBMITTED" ? "warning" : r.status === "CANCELLED" ? "neutral" : "info"}>{ui(STATUS_LABEL[r.status] ?? r.status)}</Badge></div>
-            <ul className="text-ink-subtle">{r.lines.map((l, i) => <li key={i}><bdi>{l.description}</bdi> · {ui("Received {0} of {1}", [r.received[i] ?? 0, l.quantity])}{l.asset ? ` · ${ui("asset")}` : ""}</li>)}</ul>
+          <li key={r.id} data-tone={r.status === "CANCELLED" ? "muted" : tone === "warning" || inReview(r) ? "warning" : tone === "success" ? "success" : undefined} className={`${deskRow} space-y-3 text-sm`}>
+            <div className="flex items-start gap-3">
+              <DeskRowIcon icon={r.status === "RECEIVED" ? CheckCircle2 : ["APPROVED", "PARTIALLY_RECEIVED"].includes(r.status) ? Truck : ShoppingCart} />
+              <div className="min-w-0 flex-1">
+                <p className="min-w-0 font-semibold text-ink-strong"><span dir="ltr" className="font-mono text-xs font-semibold text-primary">{r.poNumber}</span> · <bdi>{r.title}</bdi></p>
+                <p className="mt-0.5 text-base font-bold tabular-nums text-ink-strong">{money(r.total, b?.currency)}</p>
+              </div>
+              <DeskPill tone={tone ?? "info"}>{ui(STATUS_LABEL[r.status] ?? r.status)}</DeskPill>
+            </div>
+            <ul className="space-y-1.5 text-ink-subtle">{r.lines.map((l, i) => <li key={i}><span><bdi>{l.description}</bdi> · {ui("Received {0} of {1}", [r.received[i] ?? 0, l.quantity])}{l.asset ? ` · ${ui("asset")}` : ""}</span>{["APPROVED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(r.status) ? <Progress className="mt-1 max-w-xs" size="sm" value={r.received[i] ?? 0} max={l.quantity || 1} tone={(r.received[i] ?? 0) >= l.quantity ? "success" : "brand"} label={l.description} /> : null}</li>)}</ul>
             <div className="flex flex-wrap items-end gap-2">
               {["DRAFT", "RETURNED"].includes(r.status) ? <Button size="sm" loading={busy === `submit:${r.id}`} onClick={() => post({ action: "submit", id: r.id, version: r.version }, "Submitted for approval.", `submit:${r.id}`)}>{ui("Submit for approval")}</Button> : null}
               {r.status === "SUBMITTED" && data.canApprove && r.requestedById !== data.userId ? <>
@@ -236,7 +264,7 @@ export function PurchasingPanel({ command, createInHeader = false, soleChecker }
       <div className="space-y-2">
         <h3 className="text-base font-semibold text-ink-strong">{ui("Assets")}</h3>
         {data.assets.length === 0 ? <EmptyState size="sm" icon={Package} title={ui("No assets yet")} description={ui("Assets appear here once a delivery is confirmed.")} /> : (
-          <ul className="space-y-1 text-sm">{data.assets.map((a) => <li key={a.id} className="min-w-0 break-words"><span dir="ltr" className="font-semibold">{a.tag}</span> · <bdi>{a.description}</bdi> · {a.custodian ? <bdi>{a.custodian}</bdi> : ui("No custodian yet")}{a.location ? <> · <bdi>{a.location}</bdi></> : null}{a.nextServiceOn ? ` · ${ui("service due {0}", [a.nextServiceOn.slice(0, 10)])}` : ""}</li>)}</ul>
+          <ul className="grid gap-2 text-sm sm:grid-cols-2">{data.assets.map((a) => <li key={a.id} data-tone={a.nextServiceOn && a.nextServiceOn.slice(0, 10) <= new Date().toISOString().slice(0, 10) ? "warning" : undefined} className={`${deskRow} flex min-w-0 items-start gap-3 break-words`}><DeskRowIcon icon={a.nextServiceOn ? Wrench : Package} /><span className="min-w-0 flex-1"><span dir="ltr" className="block font-mono text-xs font-semibold text-primary">{a.tag}</span><bdi className="font-semibold text-ink-strong">{a.description}</bdi><span className="block text-xs text-ink-muted">{a.custodian ? <bdi>{a.custodian}</bdi> : ui("No custodian yet")}{a.location ? <> · <bdi>{a.location}</bdi></> : null}{a.nextServiceOn ? ` · ${ui("service due {0}", [a.nextServiceOn.slice(0, 10)])}` : ""}</span></span></li>)}</ul>
         )}
       </div>
     </section>
