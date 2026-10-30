@@ -114,9 +114,13 @@ export async function POST(req: NextRequest) {
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
-      select: { id: true, name: true, plan: true },
+      select: { id: true, name: true, plan: true, status: true },
     });
     if (!school) throw new ApiError("School not found", 404);
+    // SKAI-1377: a suspended or deleted school accepts no new active staff.
+    if (["SUSPENDED", "DELETED"].includes(school.status)) {
+      throw new ApiError("This school is not accepting new staff accounts", 409);
+    }
 
     // SUPER_ADMIN spans the whole school, so it carries no campus.
     // Every other role must be pinned to a campus in that school.
@@ -125,9 +129,13 @@ export async function POST(req: NextRequest) {
       if (!campusIdRaw) throw new ApiError(`${role} must be assigned to a campus`, 400);
       const campus = await prisma.campus.findFirst({
         where: { id: campusIdRaw, schoolId },
-        select: { id: true },
+        select: { id: true, archivedAt: true, pausedAt: true },
       });
       if (!campus) throw new ApiError("Campus not found in that school", 404);
+      // SKAI-1363: archived or paused campuses accept no new active staff.
+      if (campus.archivedAt || campus.pausedAt) {
+        throw new ApiError("This campus is archived or paused and cannot accept new staff", 409);
+      }
       campusId = campus.id;
     }
 

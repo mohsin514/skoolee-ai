@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     if (params.get("owners") || params.get("classes")) {
       await listForms(user, campusId); // same admissions read check
       if (params.get("owners")) return Response.json({ success: true, data: await prisma.user.findMany({ where: { schoolId: user.schoolId, isActive: true, role: { in: ["SUPER_ADMIN", "CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "RECEPTIONIST"] }, OR: [{ campusId }, { role: "SUPER_ADMIN" }] }, select: { id: true, fullName: true }, orderBy: { fullName: "asc" } }) });
-      return Response.json({ success: true, data: await prisma.class.findMany({ where: { campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true, name: true, section: true }, orderBy: [{ name: "asc" }, { section: "asc" }] }) });
+      return Response.json({ success: true, data: await prisma.class.findMany({ where: { campusId, schoolId: user.schoolId, archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true, section: true }, orderBy: [{ name: "asc" }, { section: "asc" }] }) });
     }
     const view = params.get("view") ?? "active";
     if (!["active", "mine", "unassigned", "overdue", "all"].includes(view)) throw new ApiError("Unknown view", 400);

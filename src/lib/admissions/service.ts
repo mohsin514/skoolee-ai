@@ -286,7 +286,7 @@ async function duplicatesFor(db: TxClient, application: AdmissionApplication & {
   if (definition.identityKeys.includes("nameAndDob") && identity.dateOfBirth) studentWhere.push({ dateOfBirth: new Date(`${identity.dateOfBirth}T00:00:00Z`) });
   const phone = identity.guardianPhone?.replace(/\D/g, "").slice(-9);
   if (definition.identityKeys.includes("guardianPhoneAndName") && phone && phone.length >= 6) studentWhere.push({ guardianPhone: { contains: phone } });
-  const candidates = studentWhere.length ? await db.student.findMany({ where: { schoolId: application.schoolId, consolidatedIntoId: null, OR: studentWhere }, select: { id: true, fullName: true, rollNo: true, admissionNo: true, dateOfBirth: true, guardianPhone: true, archivedAt: true, campusId: true, class: { select: { name: true, section: true } } }, take: 50 }) : [];
+  const candidates = studentWhere.length ? await db.student.findMany({ where: { schoolId: application.schoolId, campusId: application.campusId, consolidatedIntoId: null, OR: studentWhere }, select: { id: true, fullName: true, rollNo: true, admissionNo: true, dateOfBirth: true, guardianPhone: true, archivedAt: true, campusId: true, class: { select: { name: true, section: true } } }, take: 50 }) : [];
   const name = identity.childName ? foldName(identity.childName) : "";
   const students = candidates.filter(student => foldName(student.fullName) === name).map(student => ({ id: student.id, fullName: student.fullName, rollNo: student.rollNo, admissionNo: student.admissionNo, className: [student.class.name, student.class.section].filter(Boolean).join(" "), archived: Boolean(student.archivedAt), dateOfBirth: student.dateOfBirth?.toISOString().slice(0, 10) ?? null }));
   return { applications, students };
@@ -490,8 +490,13 @@ export async function convertApplication(user: AuthUser, campusId: string, body:
       student = await db.student.findUniqueOrThrow({ where: { id: choice.studentId }, select: { id: true, fullName: true, rollNo: true, admissionNo: true } });
     } else {
       const classId = String(body.classId ?? application.intakeClassId ?? "");
-      const cls = await db.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true, name: true, section: true } });
-      if (!cls) throw new ApiError("Choose the class to enrol the pupil in.", 400);
+      // SKAI-1388: only an ACTIVE class with free capacity takes a new placement.
+      const cls = await db.class.findFirst({ where: { id: classId, campusId, schoolId: user.schoolId, archivedAt: null, status: "ACTIVE" }, select: { id: true, name: true, section: true, capacity: true } });
+      if (!cls) throw new ApiError("Choose an active class to enrol the pupil in.", 400);
+      if (cls.capacity != null) {
+        const occupied = await db.student.count({ where: { classId: cls.id, archivedAt: null, status: "active" } });
+        if (occupied + 1 > cls.capacity) throw new ApiError(`The class is full (${occupied} of ${cls.capacity} seats). Choose another class.`, 409);
+      }
       const rollNo = text(body.rollNo, "Roll number", 1, 32);
       await db.$queryRaw`SELECT id FROM campuses WHERE id = ${campusId} AND school_id = ${user.schoolId} FOR UPDATE`;
       const clash = await db.$queryRaw<{ id: string }[]>`SELECT id FROM students WHERE school_id = ${user.schoolId} AND campus_id = ${campusId} AND archived_at IS NULL AND lower(btrim(roll_no)) = ${rollNo.toLocaleLowerCase("en")} LIMIT 1`;

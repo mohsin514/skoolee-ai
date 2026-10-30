@@ -164,11 +164,17 @@ export async function POST(req: NextRequest) {
       throw new ApiError("School contact email is not valid", 400);
     }
 
+    // SKAI-1369: unknown plan or status values are rejected, not silently
+    // downgraded to FREE/TRIAL. Omitted values keep their defaults.
+    if (body.plan && !["FREE", "BASIC", "PRO", "ENTERPRISE"].includes(String(body.plan).toUpperCase())) {
+      throw new ApiError("Unsupported plan", 400);
+    }
+    if (body.status && !["TRIAL", "ACTIVE"].includes(String(body.status).toUpperCase())) {
+      throw new ApiError("Unsupported status", 400);
+    }
     const plan = normalizePlan(body.plan);
     const planDef = PLANS[plan];
-    const status = ["TRIAL", "ACTIVE"].includes(String(body.status).toUpperCase())
-      ? String(body.status).toUpperCase()
-      : "TRIAL";
+    const status = body.status ? String(body.status).toUpperCase() : "TRIAL";
 
     // Owner may override the plan's default AI credit allowance.
     const aiCreditsLimit =

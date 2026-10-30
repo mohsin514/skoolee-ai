@@ -414,7 +414,7 @@ function tenantGuard() {
 
           // Without RLS, or when we are already inside a transaction that has
           // set the tenant, run the (now scoped) query directly.
-          if (!RLS_ENABLED || context.rlsSession) {
+          if (!RLS_ENABLED || context.rlsSession || referenceTransaction.getStore()) {
             return query(next as typeof args);
           }
 
@@ -456,7 +456,13 @@ export const prisma = new Proxy(guardedClient, {
     return (first: unknown, options?: unknown) => {
       const transact = target.$transaction.bind(target) as (arg: unknown, options?: unknown) => unknown;
       if (typeof first !== "function") return transact(first, options);
-      return transact((tx: ReferenceClient) => referenceTransaction.run(tx, async () => await first(tx)), options);
+      return transact(async (tx: ReferenceClient) => {
+        // RLS reads inside this transaction must reuse it: a nested rlsClient
+        // transaction waits on the rows this one locked and times out (SKAI-1303).
+        const context = getTenantContext();
+        if (RLS_ENABLED && context?.schoolId) await applySchoolGuc(tx as unknown as { $executeRawUnsafe: (q: string, ...v: unknown[]) => Promise<unknown> }, context.schoolId);
+        return referenceTransaction.run(tx, async () => await first(tx));
+      }, options);
     };
   },
 });
