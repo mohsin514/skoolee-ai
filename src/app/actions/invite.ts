@@ -303,8 +303,11 @@ async function acceptInvitation(token: string, password: string, fullName?: stri
   if (invite.status === 'cancelled') throw new ApiError('Invite cancelled', 409);
   if (new Date() > invite.expiresAt) throw new ApiError('Invite expired', 410);
 
-  const campus = await prisma.campus.findUnique({ where: { id: invite.campusId }, select: { schoolId: true } });
+  const campus = await prisma.campus.findUnique({ where: { id: invite.campusId }, select: { schoolId: true, archivedAt: true, pausedAt: true, school: { select: { status: true } } } });
   if (!campus) throw new ApiError("Campus not found", 404);
+  // SKAI-1375: a pending invitation cannot activate a membership in an unavailable campus or school.
+  if (campus.school?.status === "SUSPENDED" || campus.school?.status === "DELETED") throw new ApiError("This school is not accepting new staff right now.", 409);
+  if (campus.archivedAt || campus.pausedAt) throw new ApiError("This campus is not accepting new staff right now.", 409);
 
   if (invite.role === "TEACHER") {
     await assertPlanCapacity({ schoolId: campus.schoolId, metric: "teachers", increment: 0 });
