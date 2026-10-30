@@ -189,7 +189,7 @@ function CheckoutStatus() {
       {error && !intent && (
         <ErrorState
           title={error}
-          description={translateUi("We couldn't load this right now. Please try again.", language)}
+          description={translateUi("We couldn't load this right now. Please try again.", language === "ar" || language === "ur" ? language : "en")}
           onRetry={intentId ? refresh : undefined}
           retryLabel={copy.refreshStatus}
           action={<Link href="/onboarding" className={buttonVariants({ variant: "outline" })}>{copy.resumeSetup}</Link>}
