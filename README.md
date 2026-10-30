@@ -16,45 +16,47 @@ npm run dev
 
 Email now uses SMTP instead of Resend, so Gmail plus-addresses like `mohsin.ali14993+test@gmail.com` are sent as normal recipients.
 
-For Gmail SMTP, add these values to `.env`:
+For Hostinger mailbox SMTP (`mohsin@skooleeai.com`), add these values to `.env`:
 
 ```bash
-SMTP_HOST=smtp.gmail.com
+SMTP_HOST=smtp.hostinger.com
 SMTP_PORT=465
 SMTP_SECURE=true
-SMTP_USER=mohsin.ali14993@gmail.com
-SMTP_PASS=your_google_app_password
-SMTP_FROM_EMAIL=mohsin.ali14993@gmail.com
+SMTP_USER=mohsin@skooleeai.com
+SMTP_PASS=your_mailbox_password
+SMTP_FROM_EMAIL=mohsin@skooleeai.com
 SMTP_FROM_NAME="Skoolee AI"
 ```
 
-Use a Google app password for `SMTP_PASS`; the normal Gmail password will not work.
+`SMTP_PASS` is the password of the `mohsin@skooleeai.com` mailbox in hPanel. Confirm the host and port in hPanel → Emails → the mailbox's settings before relying on them.
 
 ## AI Provider
 
 The AI routes use a provider switchboard in `src/lib/ai/openai.ts`.
 
-By default, the app tries free providers first:
+The app defaults to the configured OpenAI provider. Keep credentials in the server environment:
 
 ```bash
 AI_PROVIDER=auto
-AI_PROVIDER_ORDER=pollinations,ollama
-POLLINATIONS_MODEL=openai
-OLLAMA_MODEL=llama3.2
+AI_PROVIDER_ORDER=openai
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-For production reliability, add a Pollinations key:
+An explicitly approved Pollinations deployment requires both its credentials and the public-provider policy flag:
 
 ```bash
+AI_PROVIDER=pollinations
+AI_ALLOW_PUBLIC_PROVIDER=true
 POLLINATIONS_API_KEY=your_free_or_paid_pollinations_key
 POLLINATIONS_API_URL=https://gen.pollinations.ai/v1/chat/completions
 ```
 
-Without a key, the app also tries Pollinations' public text fallback for quick demos. To use your own provider instead:
+The app does not silently fall back to a public provider. To select OpenAI or a local Ollama instance:
 
 ```bash
 AI_PROVIDER=openai
-OPENAI_API_KEY=your_openai_key
+OPENAI_API_KEY="sk-your-openai-api-key"
 OPENAI_MODEL=gpt-4o-mini
 
 # or local Ollama
@@ -64,6 +66,12 @@ OLLAMA_MODEL=llama3.2
 ```
 
 AI prompts include the school-scoped context needed for the requested draft. Use `AI_PROVIDER=ollama` for local processing when prompts should stay on your own machine.
+
+The School AI workspace and dashboard AI panels also offer an explicit **sample-data preview**. These fictional examples work without a provider, do not spend credits, and do not save or publish school records. Live requests remain separate and preserve useful retry/manual options when a provider fails.
+
+Text drafting, document reading and voice transcription have separate readiness checks. An API key alone does not enable binary document or audio processing. See `.env.school-ai.example` for the media policy and model settings. UTF-8 text upload and manual source entry work without media AI. A configured provider label indicates configuration, not a completed health check.
+
+Run `npm run test:school-ai` for the provider-free unit suite. Database and browser acceptance use the isolated fixtures under `tests/school-ai`; they require their explicitly configured local test database and app server.
 
 ## Workers (separate terminal)
 

@@ -1,14 +1,19 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { createBankAccount } from "@/lib/accounts/bank-account-command";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  assertPermission,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
   scopedCampusWhere,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // Bank accounts CRUD
 // GET /api/accounts/bank-accounts?campusId=
@@ -37,29 +42,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "add");
 
-    const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    if (!name) throw new ApiError("name is required", 400);
-
-    const openingBalance = Math.round(Number(body.openingBalance ?? 0));
-    if (!Number.isInteger(openingBalance)) throw new ApiError("openingBalance must be an integer (paisa)", 400);
-
-    const existing = await prisma.bankAccount.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A bank account with this name already exists", 409);
-
-    const bank = await prisma.bankAccount.create({
-      data: {
-        campusId,
-        name,
-        bankName: body.bankName ? String(body.bankName).trim() : null,
-        accountNumber: body.accountNumber ? String(body.accountNumber).trim() : null,
-        openingBalance,
-        isActive: body.isActive !== false,
-      },
-    });
+    const body = await parseBody(req, jsonObjectBody);
+    const bank = await createBankAccount(user, body);
 
     return Response.json({ success: true, data: bank }, { status: 201 });
   } catch (error) {
@@ -70,15 +56,17 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "accounts", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id is required", 400);
+    const body = await parseBody(req, idBody);
 
     const bank = await prisma.bankAccount.findFirst({
       where: { id: body.id, campus: { schoolId: user.schoolId } },
     });
     if (!bank) throw new ApiError("Bank account not found", 404);
+    await resolveCampusId(user, bank.campusId);
+
+    if (body.currency !== undefined && body.currency !== bank.currency) throw new ApiError("Existing monetary currency cannot be changed", 400);
 
     if (body.name && String(body.name).trim() !== bank.name) {
       const dup = await prisma.bankAccount.findFirst({
@@ -87,21 +75,29 @@ export async function PATCH(req: NextRequest) {
       if (dup) throw new ApiError("A bank account with this name already exists", 409);
     }
 
-    const updated = await prisma.bankAccount.update({
-      where: { id: bank.id },
-      data: {
-        name: body.name ? String(body.name).trim() : undefined,
-        bankName: body.bankName !== undefined ? (String(body.bankName).trim() || null) : undefined,
-        accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
-        openingBalance: body.openingBalance !== undefined
-          ? (() => {
-              const v = Math.round(Number(body.openingBalance));
-              if (!Number.isInteger(v)) throw new ApiError("openingBalance must be an integer (paisa)", 400);
-              return v;
-            })()
-          : undefined,
-        isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.bankAccount.update({
+        where: { id: bank.id },
+        data: {
+          name: body.name ? String(body.name).trim() : undefined,
+          bankName: body.bankName !== undefined ? (String(body.bankName).trim() || null) : undefined,
+          accountNumber: body.accountNumber !== undefined ? (String(body.accountNumber).trim() || null) : undefined,
+          openingBalance: body.openingBalance !== undefined
+            ? (() => {
+                const v = Number(body.openingBalance);
+                if (!Number.isSafeInteger(v)) throw new ApiError("Opening balance must be an integer in minor units", 400);
+                return v;
+              })()
+            : undefined,
+          isActive: typeof body.isActive === "boolean" ? body.isActive : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, {
+        table: "bank_accounts", recordId: next.id, action: "UPDATE", campusId: next.campusId,
+        before: { openingBalance: bank.openingBalance, isActive: bank.isActive },
+        after: { openingBalance: next.openingBalance, isActive: next.isActive },
+      });
+      return next;
     });
 
     return Response.json({ success: true, data: updated });
@@ -111,25 +107,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const bank = await prisma.bankAccount.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-      include: { _count: { select: { entries: true } } },
-    });
-    if (!bank) throw new ApiError("Bank account not found", 404);
-    if (bank._count.entries > 0) {
-      throw new ApiError("Cannot delete: this bank account has ledger entries", 409);
-    }
-
-    await prisma.bankAccount.delete({ where: { id: bank.id } });
-    return Response.json({ success: true, message: "Bank account deleted" });
-  } catch (error) {
-    return errorResponse(error, "accounts/bank-accounts DELETE failed");
-  }
+  return operationDeleteResponse(req, "accounts/bank-accounts");
 }

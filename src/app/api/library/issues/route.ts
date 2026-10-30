@@ -8,6 +8,9 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { returnIssue } from "@/lib/library/desk";
 
 export async function GET(req: NextRequest) {
   try {
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { bookId, memberId, dueAt } = body;
     if (!bookId) throw new ApiError("bookId is required", 400);
     if (!memberId) throw new ApiError("memberId is required", 400);
@@ -88,30 +91,11 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { id } = body;
     if (!id) throw new ApiError("id is required", 400);
 
-    const existing = await prisma.bookIssue.findFirst({
-      where: { id, book: { campus: { schoolId: user.schoolId } } },
-    });
-    if (!existing) throw new ApiError("Issue not found", 404);
-    if (existing.returnedAt) throw new ApiError("Book already returned", 409);
-
-    const now = new Date();
-    const fine = now > existing.dueAt ? 0 : 0; // fine calculation TODO
-
-    const data = await prisma.$transaction(async (tx) => {
-      await tx.book.update({
-        where: { id: existing.bookId },
-        data: { copiesAvailable: { increment: 1 } },
-      });
-
-      return tx.bookIssue.update({
-        where: { id },
-        data: { returnedAt: now, fine },
-      });
-    });
+    const data = await returnIssue(user, String(id));
 
     return Response.json({ success: true, data });
   } catch (error) {

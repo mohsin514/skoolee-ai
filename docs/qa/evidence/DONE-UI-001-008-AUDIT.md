@@ -1,0 +1,36 @@
+# Done Skoolee AI UI audit — SKO-208 through SKO-213
+
+Audit date: 2026-10-08. Isolated checkout: `codex/audit-done-001-008`. All current browser checks ran against this local checkout with synthetic-only database fixtures or intercepted synthetic API responses. No `.env`, real school account, production record, remote database, outbound payment, merge, or deploy was used. Screenshots show the Next development indicator (`N`); it is not part of the product UI.
+
+The screenshots below were captured in this audit and visually reviewed. JSON files beside them record route, viewport, locale, direction, overflow, keyboard, and page-error outcomes where applicable. Earlier repository screenshots were treated as historical and are not current evidence.
+
+| Issue | Screen/page route(s) from the issue | Current browser disposition |
+| --- | --- | --- |
+| SKO-208 | Staff work queue and form/reference patterns: `/design-system`, `/design-system?patterns=application` | **Pass for current en/ar reference states at desktop (1440), tablet (768), and phone (390).** Twelve current screenshots and `design-system-browser.json` record direction and no-overflow checks. The existing Playwright pattern suite also exercised validation, draft/stale recovery, dialogs, keyboard date navigation, contrast, access failure/retry, and Arabic calendar behavior. Eight checks passed; the full-workspace snapshot remains different by 0.01 (540 pixels), so its baseline was not replaced. The Home/End test expectation was corrected to Monday-first English locale and the focused keyboard test passed. **Urdu is unsupported by these synthetic reference routes** (their only locale control is Arabic/RTL); it is recorded as a gap, not a pass. Both reference components are in PR #36’s shared scope and were not edited here. Evidence: `design-system-browser.json`, `design-system-*.png`, `application-patterns-*.png`. |
+| SKO-207 | No product route is specified; the decision detail and policy test matrix are optional internal operational references | **No product UI screen.** No security-debug or operator console was added. Direct authorization browser behavior is not claimed here. |
+| SKO-219 | Membership roles/scope `/memberships`; invitation acceptance `/accept-invite` | **Pass for tested states.** `/memberships` was inspected for all 11 roles in English at desktop, and the owner screen at en/ar/ur across desktop, tablet, and phone. Invitation-review keyboard submission passed. Acceptance was completed using a synthetic invite, and en/ar/ur direction, delegation disclosure, password toggle label, and no-overflow checks passed at 320/390/768/1440px. Screenshots: `memberships-*.png`, `accept-invite-*.png`; JSON: `memberships-browser.json`. **Confirmed fix:** the membership page lacked Urdu; it now has Urdu copy and RTL layout. |
+| SKO-209 | `/memberships`; MFA setup and recovery `/protect-account` | Membership status is above. `/protect-account` passed at desktop/tablet/phone and en/ar/ur with synthetic API responses; keyboard Enter setup and Tab order from code entry to verify passed, with no horizontal overflow or page errors. No enrollment or recovery code was sent to a real account. Screenshots: `protect-account-*.png`; results: `manual-public-pages.json`. |
+| SKO-210 | Principal review of a report version and exact-version approval: `/principal` | **Pass for the report-review surface.** A synthetic school/report fixture was reviewed in en/ar/ur at desktop/tablet/phone. The keyboard review checkbox worked, the panel had no horizontal overflow, and the pages had no browser page errors. The additional role-route smoke matrix completed; 42 cases are recorded in `sko-210/browser.json`. Screenshots: `sko-210/review-*.png`. |
+| SKO-211 | Public plan catalogue `/pricing`; package selection `/onboarding/package`; internal plan-contract/evidence review is optional operational material | **Pass for tested public and selection states.** Both pages were checked in en/ar/ur at desktop/tablet/phone. Annual billing toggles worked by keyboard, direction matched locale, and no overflow/page errors were recorded. Package selection used a synthetic onboarding-incomplete token and mocked synthetic catalogue; no plan was purchased. **Confirmed fixes:** Urdu labels/plan names/accessibility names were completed on `/onboarding/package`; disabled unavailable-checkout buttons now use a readable muted style instead of 50% opacity. Screenshots: `pricing-*.png`, `package-*.png`; results: `manual-public-pages.json`. |
+| SKO-212 | Recovery readiness/result are optional operational runbook screens | **No product UI screen.** No operational runbook console is specified for users. |
+| SKO-213 | Request and history of grade/payment corrections: `/corrections` | **Pass for the principal/accountant correction screens.** Synthetic mark/payment data was inspected at desktop/tablet/phone for en/ar/ur. Keyboard review checkbox and draft recovery passed; no overflow or browser page errors occurred. The screenshots include both correction requests and correction history. Eighteen screen cases are in `sko-213/browser.json`; screenshots are `sko-213/{principal,accountant}-*.png`. The supplemental domain integration suite did not fully pass (4 of 8 tests passed); its failures concern API/domain fixture assertions and are recorded separately from the successful browser-screen matrix. |
+
+## Visual review notes
+
+The captured responsive pages keep primary content within the viewport, maintain clear card grouping and readable form labels, and place RTL controls at the expected logical edge. Pricing and onboarding retain a single-column plan stack on phones. The principal report review keeps its queue and version review content usable on phone widths. Corrections history is long on phones but remains a vertical scroll flow without horizontal page overflow. All tested primary buttons and focus states remained visible in the screenshots. The design reference page is an intentionally synthetic pattern catalogue; several sample labels stay English in its Arabic layout, and it exposes no Urdu selector.
+
+## Current evidence index
+
+- `memberships-browser.json` and `memberships-*.png`, `accept-invite-*.png`
+- `protect-account-*.png`, `pricing-*.png`, `package-*.png`, `manual-public-pages.json`
+- `design-system-browser.json`, `design-system-*.png`, `application-patterns-*.png`
+- `sko-210/browser.json` and `sko-210/review-*.png`
+- `sko-213/browser.json` and `sko-213/{principal,accountant}-*.png`
+
+## Validation commands
+
+- Synthetic membership/invitation browser fixture: `npx tsx tests/memberships/browser-check.ts` — passed for all 11 role visibility checks and the en/ar/ur responsive invitation checks.
+- Synthetic report fixture: `npx tsx --test tests/report-versions/version.test.ts` — the full domain suite did not pass in the local harness; current report-review UI matrix itself completed 42 browser cases.
+- Synthetic corrections fixture: `npx tsx --test tests/corrections/integration.test.ts` — 4/8 tests passed; current request/history browser matrix completed 18 cases.
+- Manual browser matrices for `/pricing`, `/onboarding/package`, `/protect-account`, and both design-reference routes completed as recorded in their JSON evidence.
+- TypeScript, scoped ESLint, and `git diff --check` are rerun before commit.

@@ -1,44 +1,80 @@
 "use client";
+import { useListField } from "@/hooks/use-list-field";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * Platform operations (APP_OWNER) — SPEC §3 `owner`, §4.4/§4.4b owner rows, M109–M111.
+ *
+ * - Navigation comes from the registry (`console="owner"`, `useConsoleView("owner")`): Schools · Tenant users ·
+ *   Commercial (Subscription requests, Pricing, Payment gateways, Plans & revenue) · Trust & safety (Support
+ *   access, Audit log, Sessions) · Insights (Pilot evidence, Capacity).
+ * - The signed-in operator's own name and email come from the session (M110), never a hard-coded identity.
+ * - Tenant tuition (families paying their school) is the school's money, not platform revenue (M109): no tile,
+ *   chart or total of it appears here.
+ * - Every view opens with one PageHeader and at most one primary action; destructive row actions sit behind a
+ *   ConfirmAction; a failed load is an inline ErrorState with retry, never a toast (R4).
+ */
+
+import { loadOwnerPages } from "@/lib/owner/load-pages";
+import { useConsoleView } from "@/components/nav/useConsoleView";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+import { Menu } from "@/components/ui/menu";
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { localeTag } from "@/lib/locale/package";
+import { COMMERCIAL_CONTRACT } from "@/config/commercial-contract";
+import { roleLabel, type UserRole } from "@/lib/roles";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { InfoTip } from "@/components/ui/tooltip";
+import { Alert } from "@/components/ui/alert";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { FormField } from "@/components/ui/form-field";
+import { Progress, type ProgressTone } from "@/components/ui/progress";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
+
+import { cn } from "@/lib/utils";
+
+import { PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Activity,
   AlertCircle,
-  AlertTriangle,
-  Banknote,
   Building2,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
   CreditCard,
   DollarSign,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
   FileText,
   Globe,
-  HelpCircle,
   KeyRound,
-  LayoutGrid,
-  Loader2,
   Lock,
   LogIn,
   LogOut,
   Monitor,
+  MoreHorizontal,
   Pause,
+  PieChart,
   Play,
-  Plus,
   RefreshCw,
   Save,
   School,
   Search,
-  Shield,
   ShieldCheck,
   Smartphone,
-  Tag,
   User,
+  UserPlus,
   WalletCards,
   Users,
   Wifi,
@@ -46,25 +82,94 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { PlatformOverview } from "@/components/insights";
-import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
-import { AddUserModal } from "@/components/owner/provisioning-modals";
+import { AddUserModal, ProvisionSchoolModal, type SchoolProvisionPrefill } from "@/components/owner/provisioning-modals";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
-import { getPlanLimits } from "@/config/plans";
+import { DeskPill, DeskRowIcon, DeskSection, DeskStats, RelativeTime, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { formatPlanLimit, getPlanLimits } from "@/config/plans";
 import {
-  BrandButton,
   EmptyState,
   RoleShell,
-  type RoleNavItem,
+  useShellSession,
 } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { SubscriptionRequestReview } from "@/components/owner/SubscriptionRequestReview";
+import { PilotEvidence } from "@/components/owner/PilotEvidence";
+import { DataRegionPanel } from "@/components/owner/DataRegionPanel";
+import { AttendanceRegulatorPanel } from "@/components/owner/AttendanceRegulatorPanel";
+import { PilotReadinessConsole } from "@/components/owner/PilotReadinessConsole";
+import { PilotGoNoGoBoard } from "@/components/owner/PilotGoNoGoBoard";
+import { CurriculumCatalogue } from "@/components/owner/CurriculumCatalogue";
+import { CapacityReport } from "@/components/owner/CapacityReport";
+import { AiCostReport } from "@/components/owner/AiCostReport";
 
-type OwnerView = "schools" | "users" | "audit" | "sessions" | "billing" | "pricing" | "payments";
+type Tr = ReturnType<typeof useUiText>;
 
 function planLabel(plan: string) {
   return getPlanLimits(plan).name;
 }
+
+/** The plan's limits in words, read from the plan catalogue so they cannot drift from it. */
+function planSummary(plan: string, t: Tr) {
+  const limits = getPlanLimits(plan);
+  if (limits.maxStudents < 0 && limits.maxTeachers < 0 && limits.maxCampuses < 0) {
+    return t("Unlimited students, teachers and campuses");
+  }
+  return [
+    t("{0} students", [formatPlanLimit(limits.maxStudents)]),
+    t("{0} teachers", [formatPlanLimit(limits.maxTeachers)]),
+    t("{0} campuses", [formatPlanLimit(limits.maxCampuses)]),
+  ].join(" · ");
+}
+
+/** Dates and relative times in the operator's language (never a hard-coded `en-PK`, R7). */
+function useOwnerDates() {
+  const t = useUiText();
+  const tag = localeTag(useLocale());
+  return useMemo(() => {
+    const when = (d: string | null) => d
+      ? new Intl.DateTimeFormat(tag, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(d))
+      : t("Never");
+    const month = (d: string) => new Intl.DateTimeFormat(tag, { month: "short", year: "numeric" }).format(new Date(d));
+    const ago = (d: string) => {
+      const minutes = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
+      if (minutes < 1) return t("Just now");
+      if (minutes < 60) return t("{0} min ago", [minutes]);
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return t("{0} h ago", [hours]);
+      return when(d);
+    };
+    const number = (value: number) => new Intl.NumberFormat(tag).format(value);
+    // Support access windows carry their time zone: the operator and the school may be in different ones.
+    const instant = (d: string) => new Intl.DateTimeFormat(tag, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(new Date(d));
+    return { when, month, ago, number, instant };
+  }, [t, tag]);
+}
+
+/** Spreadsheet-safe CSV (cells a spreadsheet would execute are neutralised) downloaded in the browser. */
+function downloadCsv(name: string, header: string[], rows: Array<Array<string | number | null | undefined>>) {
+  const cell = (value: string | number | null | undefined) => {
+    const raw = value == null ? "" : String(value);
+    const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+    return /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+  };
+  const body = [header, ...rows].map((row) => row.map(cell).join(",")).join("\r\n") + "\r\n";
+  const url = URL.createObjectURL(new Blob([body], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+const PLAN_CHOICES = ["FREE", "BASIC", "PRO", "ENTERPRISE"] as const;
+
+/** Mirrors AI_CREDIT_POLICY in src/config/plans.ts. */
+const AI_CREDITS_HELP = "Credits used this month against the plan's monthly allowance. Unused credits expire when usage resets at the start of each calendar month.";
 
 interface SchoolRow {
   id: string;
@@ -79,8 +184,14 @@ interface SchoolRow {
   establishedYear: number | null;
   status: string;
   plan: string;
+  /** SKAI-1143: hosting region (src/lib/school/data-region.ts). */
+  dataRegion: string;
+  /** SKAI-1153: regulator attendance codes and calendar (src/lib/attendance/regulator.ts). */
+  attendanceRegulator: string;
   aiCreditsUsed: number;
   aiCreditsLimit: number;
+  /** Set when an APP_OWNER switched AI Workflows live: AI may save this school's real records (practice.ts). */
+  aiWorkflowsLiveAt: string | null;
   createdAt: string;
   campusCount: number;
   totalStudents: number;
@@ -146,18 +257,13 @@ interface Stats {
   inactiveUsers: number;
   recentLogins: number;
   recentAuditActions: number;
-  totalRevenue: number;
-  totalPaymentCount: number;
-  pendingInvoices: number;
   schoolsByStatus: Record<string, number>;
   schoolsByPlan: Record<string, number>;
   schools: { id: string; name: string }[];
   // Series added for the platform deck. Optional: an older cached response
   // must still render, it just draws empty states for the charts.
   usersByRole?: Record<string, number>;
-  invoicesByStatus?: { status: string; count: number; amount: number }[];
   signupsByMonth?: { month: string; count: number }[];
-  revenueByMonth?: { month: string; amount: number; count: number }[];
   loginsByDay?: { day: string; count: number }[];
   schoolBreakdown?: {
     id: string;
@@ -170,192 +276,763 @@ interface Stats {
   }[];
 }
 
-const ROLE_COLORS: Record<string, string> = {
-  APP_OWNER: "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white",
-  SUPER_ADMIN: "bg-gradient-to-r from-[#8127cf] to-[#6a1fb0] text-white",
-  CAMPUS_ADMIN: "bg-indigo-100 text-indigo-700",
-  ADMIN: "bg-indigo-100 text-indigo-700",
-  PRINCIPAL: "bg-emerald-100 text-emerald-700",
-  TEACHER: "bg-sky-100 text-sky-700",
-  PARENT: "bg-amber-100 text-amber-700",
-  STUDENT: "bg-[#fbf0fe] text-[#8127cf]",
+type BadgeVariant = NonNullable<BadgeProps["variant"]>;
+
+/** "login_failed" → "Login failed" — only for machine values with no catalogue label. */
+function sentenceCase(value: string) {
+  const words = value.replace(/_/g, " ").trim().toLowerCase();
+  return words ? words[0].toUpperCase() + words.slice(1) : value;
+}
+
+const ROLE_BADGES: Record<string, BadgeVariant> = {
+  APP_OWNER: "default",
+  SUPER_ADMIN: "secondary",
+  CAMPUS_ADMIN: "info",
+  ADMIN: "info",
+  PRINCIPAL: "success",
+  TEACHER: "outline",
+  PARENT: "warning",
+  STUDENT: "neutral",
 };
 
-const ACTION_META: Record<string, { icon: any; label: string; tone: string }> = {
-  login: { icon: LogIn, label: "Login", tone: "bg-emerald-50 text-emerald-600" },
-  login_failed: { icon: AlertCircle, label: "Login Failed", tone: "bg-rose-50 text-rose-600" },
-  logout: { icon: LogOut, label: "Logout", tone: "bg-[#f3f4f9] text-ink-muted" },
-  password_change: { icon: KeyRound, label: "Password Changed", tone: "bg-amber-50 text-amber-600" },
-  school_suspended: { icon: Pause, label: "School Suspended", tone: "bg-rose-50 text-rose-600" },
-  school_activated: { icon: Play, label: "School Activated", tone: "bg-emerald-50 text-emerald-600" },
-  session_terminated: { icon: LogOut, label: "Session Terminated", tone: "bg-amber-50 text-amber-600" },
+function RoleBadge({ role }: { role: string }) {
+  const { language } = useLocale();
+  return <Badge variant={ROLE_BADGES[role] ?? "neutral"} size="sm">{roleLabel(role as UserRole, language)}</Badge>;
+}
+
+const PLAN_BADGES: Record<string, { variant: BadgeVariant; className?: string }> = {
+  FREE: { variant: "neutral" },
+  STARTER: { variant: "info" },
+  BASIC: { variant: "info" },
+  PRO: { variant: "secondary" },
+  ENTERPRISE: { variant: "outline", className: "border-ink-strong bg-ink-strong text-white" },
+};
+
+function PlanBadge({ plan, size = "sm" }: { plan: string; size?: "sm" | "default" }) {
+  const style = PLAN_BADGES[plan] ?? { variant: "neutral" as const };
+  return <Badge variant={style.variant} size={size} className={style.className}><bdi>{planLabel(plan)}</bdi></Badge>;
+}
+
+const ACTION_META: Record<string, { icon: LucideIcon; label: string; tone: string }> = {
+  login: { icon: LogIn, label: "Signed in", tone: "bg-status-success-surface text-status-success-text" },
+  login_failed: { icon: AlertCircle, label: "Sign-in failed", tone: "bg-status-error-surface text-status-error-text" },
+  logout: { icon: LogOut, label: "Signed out", tone: "bg-surface-subtle text-ink-muted" },
+  password_change: { icon: KeyRound, label: "Password changed", tone: "bg-status-warning-surface text-status-warning-text" },
+  school_suspended: { icon: Pause, label: "School suspended", tone: "bg-status-error-surface text-status-error-text" },
+  school_activated: { icon: Play, label: "School activated", tone: "bg-status-success-surface text-status-success-text" },
+  session_terminated: { icon: LogOut, label: "Session ended", tone: "bg-status-warning-surface text-status-warning-text" },
+  ai_workflows_live_on: { icon: Zap, label: "AI Workflows turned live", tone: "bg-status-warning-surface text-status-warning-text" },
+  ai_workflows_live_off: { icon: ShieldCheck, label: "AI Workflows back in practice mode", tone: "bg-surface-subtle text-ink-muted" },
 };
 
 function getActionMeta(action: string) {
-  return ACTION_META[action] || { icon: Activity, label: action.replace(/_/g, " "), tone: "bg-[#f3f4f9] text-ink-muted" };
-}
-
-function formatDate(d: string | null) {
-  if (!d) return "Never";
-  return new Date(d).toLocaleDateString("en-PK", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function relativeTime(d: string) {
-  const diff = Date.now() - new Date(d).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(diff / 3600000);
-  if (hrs < 24) return `${hrs}h ago`;
-  return formatDate(d);
+  return ACTION_META[action] || { icon: Activity, label: sentenceCase(action), tone: "bg-surface-subtle text-ink-muted" };
 }
 
 function parseBrowser(ua: string | null) {
   if (!ua) return "Unknown";
+  if (ua.includes("Edg/")) return "Edge";
   if (ua.includes("Chrome")) return "Chrome";
   if (ua.includes("Firefox")) return "Firefox";
   if (ua.includes("Safari")) return "Safari";
-  if (ua.includes("Edge")) return "Edge";
   return "Browser";
 }
 
 function parseDevice(ua: string | null) {
   if (!ua) return { browser: "Unknown", os: "Unknown", icon: Monitor };
   const browser = parseBrowser(ua);
-  const os = ua.includes("Windows") ? "Windows" : ua.includes("Mac") ? "macOS" : ua.includes("Linux") ? "Linux" : ua.includes("Android") ? "Android" : ua.includes("iPhone") ? "iOS" : "Unknown";
+  const os = ua.includes("Windows") ? "Windows" : ua.includes("Android") ? "Android" : ua.includes("iPhone") ? "iOS" : ua.includes("Mac") ? "macOS" : ua.includes("Linux") ? "Linux" : "Unknown";
   const icon = ua.includes("Mobile") || ua.includes("Android") || ua.includes("iPhone") ? Smartphone : Monitor;
   return { browser, os, icon };
 }
 
+const STATUS_BADGES: Record<string, BadgeVariant> = {
+  ACTIVE: "success",
+  SUSPENDED: "danger",
+  TRIAL: "secondary",
+};
+const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", SUSPENDED: "Suspended", TRIAL: "Trial", DELETED: "Deleted" };
+
 function StatusPill({ status }: { status: string }) {
-  const tone = ["ACTIVE", "Active"].includes(status)
-    ? "bg-emerald-50 text-emerald-600"
-    : ["SUSPENDED", "Suspended"].includes(status)
-    ? "bg-rose-50 text-rose-600"
-    : ["TRIAL", "Trial"].includes(status)
-    ? "bg-[#fbf0fe] text-[#8127cf]"
-    : "bg-[#f3f4f9] text-ink-muted";
-  const dot = tone.includes("emerald") ? "bg-emerald-500" : tone.includes("rose") ? "bg-rose-500" : tone.includes("8127cf") ? "bg-[#8127cf]" : "bg-[#4d4354]/40";
+  const t = useUiText();
+  const key = status.toUpperCase();
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${tone}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-      {status}
-    </span>
+    <Badge variant={STATUS_BADGES[key] ?? "neutral"} size="sm" dot>
+      {t(STATUS_LABELS[key] ?? sentenceCase(status))}
+    </Badge>
   );
 }
 
+/* Shared layout for every console view: the scrolling body of the shell's one page card (addendum 2026-10-22). */
+const VIEW_BODY = cn("custom-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto", PAGE_CARD_BODY);
+const TOOLBAR = "mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center";
+const SEARCH_GROUP = "w-full sm:min-w-56 sm:max-w-sm sm:flex-1";
+const FILTER_SELECT = "sm:w-48";
+
+/**
+ * The owner console's view header: the shared PageHeader (§4.3) — one h1 (the registry label), one sentence,
+ * at most one primary action, secondaries that collapse into "More actions". Kept as a thin wrapper so every
+ * owner view reads the same.
+ */
+function ViewHeader({ title, description, icon, primaryAction, secondaryActions, status }: {
+  title: string;
+  description?: string;
+  icon?: LucideIcon;
+  primaryAction?: PageAction;
+  secondaryActions?: PageAction[];
+  status?: ReactNode;
+}) {
+  return <PageHeader title={title} description={description} icon={icon} primaryAction={primaryAction} secondaryActions={secondaryActions} status={status} />;
+}
+
+/** A school's status as a row tone: a paused school needs attention first, a trial is still choosing a plan. */
+const STATUS_TONES: Record<string, DeskTone> = { ACTIVE: "success", TRIAL: "info", SUSPENDED: "danger" };
+
+/** A section heading inside a panel, with its icon tile and one line of purpose. */
+function PanelHeading({ icon: Icon, title, description, id }: { icon: LucideIcon; title: string; description?: ReactNode; id?: string }) {
+  return (
+    <div className="mb-5 flex items-start gap-3">
+      <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary">
+        <Icon className="size-[18px]" />
+      </span>
+      <div className="min-w-0">
+        <h2 id={id} className="text-base font-bold text-ink-strong">{title}</h2>
+        {description ? <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">{description}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Subscription requests waiting for review: the Schools primary action and the sidebar badge (§1.4 counts). */
+function usePendingRequests() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/navigation/counts", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => { if (alive) setCount(Number(body?.counts?.approvals ?? 0)); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
+  return count;
+}
+
 export default function OwnerDashboard() {
-  const [activeView, setActiveView] = useState<OwnerView>("schools");
+  const { view, setView } = useConsoleView("owner");
+  // M110: the operator is whoever is signed in — name and avatar come from the session, never a fixed identity.
+  const session = useShellSession();
   const [stats, setStats] = useState<Stats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsFailed, setStatsFailed] = useState(false);
 
+  // A failed load is shown inline by the view that needs the figures (R4) — never a toast.
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const res = await fetch("/api/owner/stats");
-      const json = await res.json();
-      if (json.success) setStats(json.data);
+      const res = await fetch("/api/owner/stats", { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        setStats(json.data);
+        setStatsFailed(false);
+      } else {
+        setStatsFailed(true);
+      }
     } catch {
-      toast.error("Failed to load stats");
+      setStatsFailed(true);
     } finally {
       setStatsLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
-
-  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
-  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
-  // prop, so nothing could call it); its router.push("/login") would also have
-  // left this console renderable via Back after sign-out.
-  const navItems: RoleNavItem[] = [
-    { icon: LayoutGrid, label: "Schools", active: activeView === "schools", onClick: () => setActiveView("schools") },
-    { icon: Users, label: "Users", active: activeView === "users", onClick: () => setActiveView("users") },
-    { icon: DollarSign, label: "Billing", active: activeView === "billing", onClick: () => setActiveView("billing") },
-    { icon: Tag, label: "Pricing", active: activeView === "pricing", onClick: () => setActiveView("pricing") },
-    { icon: WalletCards, label: "Payments", active: activeView === "payments", onClick: () => setActiveView("payments") },
-    { icon: FileText, label: "Audit Log", active: activeView === "audit", onClick: () => setActiveView("audit") },
-    { icon: Shield, label: "Sessions", active: activeView === "sessions", onClick: () => setActiveView("sessions") },
-  ];
-  const bottomItems: RoleNavItem[] = [];
-
-  if (statsLoading && !stats) {
-    return (
-      <RoleShellSkeleton navRows={7} label="Loading the platform command centre">
-        <CommandCentreSkeleton />
-      </RoleShellSkeleton>
-    );
-  }
+  useEffect(() => { void loadStats(); }, [loadStats]);
 
   return (
     <RoleShell
-      navItems={navItems}
-      bottomItems={bottomItems}
-      searchPlaceholder="Search schools, users..."
-      userName="Mohsin (App Owner)"
-      userRole="APP_OWNER"
-      avatarSeed="mohsin@skooleeai.com"
+      console="owner"
+      activeView={view}
+      onSelectView={setView}
+      userName={session?.fullName}
+      avatarSeed={session?.fullName}
       dashboardHref="/owner"
+      // The platform operator belongs to no school conversation: every /api/chat call would be refused.
+      chatDock={false}
     >
-      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 overflow-hidden flex flex-col">
-        {activeView === "schools" && (
+      {/* The shell draws the one page card; each view below is its scrolling body (no card-in-card). */}
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden" data-owner-view={view}>
+        <SupportSessionBanner />
+        {view === "schools" && (
           <SchoolsView
             stats={stats}
+            statsLoading={statsLoading}
+            statsFailed={statsFailed}
             onRefreshStats={loadStats}
-            onOpenBilling={() => setActiveView("billing")}
-            onOpenUsers={() => setActiveView("users")}
+            onOpenRequests={() => setView("subscription-requests")}
+            onOpenUsers={() => setView("users")}
           />
         )}
-        {activeView === "users" && <UsersView />}
-        {activeView === "billing" && <BillingView stats={stats} />}
-        {activeView === "pricing" && <PricingView stats={stats} />}
-        {activeView === "payments" && <PaymentSettingsView />}
-        {activeView === "audit" && <AuditLogView />}
-        {activeView === "sessions" && <SessionsView />}
+        {view === "users" && <UsersView />}
+        {view === "billing" && <BillingView stats={stats} loading={statsLoading} onRetry={loadStats} />}
+        {view === "pricing" && <PricingView stats={stats} />}
+        {view === "payments" && <PaymentSettingsView />}
+        {view === "audit" && <AuditLogView />}
+        {view === "sessions" && <SessionsView />}
+        {view === "support" && <SupportAccessView schools={stats?.schools || []} />}
+        {view === "subscription-requests" && <SubscriptionRequestReview />}
+        {view === "pilots" && <PilotEvidence />}
+        {view === "pilot-readiness" && <PilotReadinessConsole />}
+        {view === "pilot-go-no-go" && <PilotGoNoGoBoard />}
+        {view === "curriculum-packs" && <CurriculumCatalogue />}
+        {view === "capacity" && <CapacityReport />}
+        {view === "ai-cost" && <AiCostReport />}
       </section>
     </RoleShell>
   );
 }
 
-function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
+type SupportGrantRow = {
+  id: string; schoolId: string; purpose: string; scope: string[]; actions: string[]; status: string; expiresAt: string;
+  emergencyReason: string | null; reviewDueAt: string | null; reviewedAt: string | null;
+  school: { id: string; name: string }; incident: { id: string; reference: string; purpose: string; impact: string; status: string; updatedAt: string; ownerActorId: string; closureEvidence: string | null };
+};
+
+/** The same states as row tones: a request waiting on the school and a live grant come first in the eye. */
+const GRANT_TONES: Record<string, DeskTone> = { pending: "warning", approved: "info", active: "success", rejected: "danger" };
+
+const SUPPORT_ACTION_BADGES: Record<string, BadgeVariant> = {
+  queued: "warning",
+  completed: "success",
+  cancelled: "neutral",
+  failed: "danger",
+};
+
+/** A checkbox choice drawn as a tile; the whole tile is the label. */
+const CHOICE_TILE = "flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-border-subtle bg-card px-3 py-2 text-sm font-medium text-ink transition-colors hover:border-border-subtle-hover hover:bg-surface-hover has-[:checked]:border-primary/40 has-[:checked]:bg-surface-selected";
+
+function SupportSessionBanner() {
+  const t = useUiText();
+  const dates = useOwnerDates();
+  const [session, setSession] = useState<{ id: string; purpose: string; scope: string[]; actions: string[]; expiresAt: string } | null>(null);
+  const [remaining, setRemaining] = useState(0);
+  const [ending, setEnding] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/owner/support/session", { cache: "no-store" });
+        const json = await response.json();
+        if (alive) setSession(response.ok && json.success ? json.data : null);
+      } catch { if (alive) setSession(null); }
+    };
+    void refresh();
+    const poll = window.setInterval(refresh, 15_000);
+    window.addEventListener("skoolee:support-session-change", refresh);
+    return () => { alive = false; window.clearInterval(poll); window.removeEventListener("skoolee:support-session-change", refresh); };
+  }, []);
+  useEffect(() => {
+    if (!session) return;
+    const tick = () => setRemaining(Math.max(0, Math.ceil((Date.parse(session.expiresAt) - Date.now()) / 1000)));
+    tick(); const timer = window.setInterval(tick, 1000); return () => window.clearInterval(timer);
+  }, [session]);
+  if (!session) return null;
+  const end = async () => {
+    setEnding(true);
+    try {
+      const response = await fetch(`/api/owner/support/grants/${session.id}`, { method: "DELETE" });
+      if (!response.ok) { toast.error(t("Could not end support access")); return; }
+      setSession(null); toast.success(t("Support access ended"));
+      window.dispatchEvent(new Event("skoolee:support-session-change"));
+    } catch {
+      toast.error(t("Could not end support access"));
+    } finally {
+      setEnding(false);
+    }
+  };
+  const scoped = session.actions.some((action) => action === "write" || action === "export");
+  return (
+    <Alert
+      tone="warning"
+      live="polite"
+      icon={ShieldCheck}
+      compact
+      className="rounded-none border-x-0 border-t-0 px-4 py-3 shadow-none sm:px-6"
+      title={scoped ? t("Support access is active · scoped actions") : t("Support access is active · read only")}
+      actions={<Button variant="outline" size="sm" type="button" loading={ending} onClick={end}>{t("End access now")}</Button>}
+    >
+      <span className="text-xs text-ink-muted">
+        {t("Expires")} <bdi>{dates.instant(session.expiresAt)}</bdi>
+        {" · "}
+        {/* The ticking countdown is visual only: a live region would announce it every second. */}
+        <bdi dir="ltr" aria-hidden="true" className="font-semibold tabular-nums text-ink">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</bdi>
+        {" · "}
+        <bdi dir="ltr" className="break-all font-mono">{session.id}</bdi>
+      </span>
+    </Alert>
+  );
+}
+
+function SupportAccessView({ schools }: { schools: { id: string; name: string }[] }) {
+  const t = useUiText();
+  const dates = useOwnerDates();
+  const [grants, setGrants] = useState<SupportGrantRow[]>([]);
+  const [supportSession, setSupportSession] = useState<{ id: string; purpose: string; scope: string[]; actions: string[]; expiresAt: string; queuedActions: { id: string; domain: string; action: string; status: string }[] } | null>(null);
+  const [preview, setPreview] = useState<{ id: string; domain: string; data: unknown } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [schoolId, setSchoolId] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [impact, setImpact] = useState("");
+  const [emergencyReason, setEmergencyReason] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(30);
+  const [scope, setScope] = useState<string[]>(["school_profile"]);
+  const [actions, setActions] = useState<string[]>(["read"]);
+  const [emergency, setEmergency] = useState(false);
+  const [closureEvidence, setClosureEvidence] = useState<Record<string, string>>({});
+  const [actionType, setActionType] = useState("write");
+  const [writeField, setWriteField] = useState("phone");
+  const [writeValue, setWriteValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  // Which row action is in flight, so only that button shows progress.
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<SupportGrantRow | null>(null);
+  const requestFormRef = useRef<HTMLElement>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const active = await fetch("/api/owner/support/session", { cache: "no-store" });
+      const activeJson = await active.json();
+      if (active.ok && activeJson.success) { setSupportSession(activeJson.data); setGrants([]); return; }
+      setSupportSession(null); setPreview(null);
+      const response = await fetch("/api/owner/support/grants", { cache: "no-store" }); const json = await response.json();
+      if (!response.ok) throw new Error(json.error || t("Failed to load support grants"));
+      setGrants(json.data || []);
+    }
+    catch { setLoadFailed(true); }
+    finally { setLoading(false); }
+  }, [t]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const refresh = () => { void load(); };
+    window.addEventListener("skoolee:support-session-change", refresh);
+    return () => window.removeEventListener("skoolee:support-session-change", refresh);
+  }, [load]);
+  useEffect(() => {
+    if (!supportSession) return;
+    const poll = window.setInterval(() => {
+      void fetch("/api/owner/support/session", { cache: "no-store" }).then(async (response) => {
+        if (!response.ok) { void load(); return; }
+        const json = await response.json();
+        if (!json.success || json.data.id !== supportSession.id) { setSupportSession(null); setPreview(null); }
+      }).catch(() => { setSupportSession(null); setPreview(null); });
+    }, 10_000);
+    return () => window.clearInterval(poll);
+  }, [supportSession, load]);
+
+  const track = async (key: string, failure: string, task: () => Promise<void>) => {
+    setPendingKey(key);
+    try { await task(); }
+    catch { toast.error(failure); }
+    finally { setPendingKey(null); }
+  };
+  const isPending = (key: string) => pendingKey === key;
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/owner/support/grants", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ schoolId, purpose, impact, scope, actions, durationMinutes, emergency, emergencyReason }) });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || t("Could not request support access"));
+      toast.success(emergency ? t("Emergency support access started; school review is required") : t("Support request sent to the school approver"));
+      setPurpose(""); setImpact(""); setEmergencyReason(""); setEmergency(false); await load();
+      window.dispatchEvent(new Event("skoolee:support-session-change"));
+    } catch { toast.error(t("Could not request support access")); }
+    finally { setBusy(false); }
+  };
+
+  const start = (grant: SupportGrantRow) => track(`start:${grant.id}`, t("Could not start support access"), async () => {
+    const response = await fetch(`/api/owner/support/grants/${grant.id}/start`, { method: "POST" });
+    const json = await response.json();
+    if (!response.ok) { toast.error(t("Could not start support access")); return; }
+    toast.success(t("Support access started")); await load(); window.dispatchEvent(new Event("skoolee:support-session-change"));
+  });
+  const stop = (grant: SupportGrantRow) => track(`stop:${grant.id}`, t("Could not revoke support access"), async () => {
+    const response = await fetch(`/api/owner/support/grants/${grant.id}`, { method: "DELETE" });
+    const json = await response.json();
+    if (!response.ok) { toast.error(t("Could not revoke support access")); return; }
+    toast.success(t("Support access revoked; queued actions were cancelled")); await load(); window.dispatchEvent(new Event("skoolee:support-session-change"));
+  });
+  const closeIncident = async (grant: SupportGrantRow) => {
+    const evidence = (closureEvidence[grant.id] || "").trim();
+    if (evidence.length < 12) return;
+    await track(`close:${grant.id}`, t("Could not close support incident"), async () => {
+      const response = await fetch(`/api/owner/support/grants/${grant.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "closed", closureEvidence: evidence }) });
+      const json = await response.json();
+      if (!response.ok) { toast.error(t("Could not close support incident")); return; }
+      toast.success(t("Incident closed with evidence")); await load();
+    });
+  };
+  const inspect = (grant: Pick<SupportGrantRow, "id">, domain: string) => track(`inspect:${grant.id}:${domain}`, t("Support access expired or was revoked"), async () => {
+    const response = await fetch(`/api/owner/support/workspace?grantId=${encodeURIComponent(grant.id)}&domain=${encodeURIComponent(domain)}`, { cache: "no-store" });
+    const json = await response.json();
+    if (!response.ok) { toast.error(t("Support access expired or was revoked")); return; }
+    setPreview({ id: grant.id, domain, data: json.data });
+  });
+  const queueAction = async () => {
+    if (!supportSession) return;
+    const chosenAction = selectedAction;
+    if (!chosenAction) return;
+    const payload = chosenAction === "write" ? { field: writeField, value: writeValue } : undefined;
+    await track("queue", t("Could not queue support action"), async () => {
+      const response = await fetch("/api/owner/support/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain: "school_profile", action: chosenAction, payload }) });
+      const json = await response.json();
+      if (!response.ok) { toast.error(t("Could not queue support action")); return; }
+      toast.success(t("Action queued for scoped support")); setWriteValue(""); await load();
+    });
+  };
+  const executeAction = (id: string, type: string) => track(`execute:${id}`, t("Could not complete support action"), async () => {
+    const response = await fetch(`/api/owner/support/actions/${id}/execute`, { method: "POST" });
+    if (!response.ok) { toast.error(t("Could not complete support action")); return; }
+    if (type === "export") {
+      const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "school-profile.csv"; anchor.click(); URL.revokeObjectURL(url);
+    }
+    toast.success(type === "export" ? t("Scoped export completed") : t("Scoped change completed")); await load();
+  });
+  const toggle = (items: string[], setter: (value: string[]) => void, value: string) => setter(items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
+  const domainLabels: Record<string, string> = { school_profile: "School profile", operations: "Operations", users: "Staff directory", finance: "Finance", learning: "Learning records" };
+  const selectedAction = supportSession
+    ? ((actionType === "write" || actionType === "export") && supportSession.actions.includes(actionType) ? actionType : supportSession.actions.find((item) => item === "write" || item === "export"))
+    : undefined;
+  const canSubmit = Boolean(schoolId)
+    && purpose.trim().length >= 12
+    && impact.trim().length >= 8
+    && scope.length > 0
+    && actions.length > 0
+    && Number.isInteger(durationMinutes) && durationMinutes >= 5 && durationMinutes <= (emergency ? 60 : 480)
+    && !(emergency && emergencyReason.trim().length < 20);
+
+  // §4.4b: "Request access" is the screen's one primary action; it brings the request form into view.
+  const requestAccess = () => {
+    requestFormRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    requestFormRef.current?.querySelector<HTMLElement>("select, input, textarea")?.focus({ preventScroll: true });
+  };
+
+  return <div className={VIEW_BODY}>
+    <div className="space-y-6">
+      <ViewHeader
+        title="Support access"
+        icon={ShieldCheck}
+        description="Ask a school's admin for temporary access. Everything you view or change is logged."
+        secondaryActions={supportSession ? undefined : [{ id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void load(), loading }]}
+      />
+
+      {supportSession ? (
+        <section aria-labelledby="support-session-heading" className="sk-enter rounded-2xl border border-status-warning-border bg-status-warning-surface p-4 shadow-xs sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 id="support-session-heading" className="text-base font-bold text-ink-strong">{t("Scoped active session")}</h2>
+              <p className="mt-1 text-sm leading-relaxed text-ink">{supportSession.purpose}</p>
+            </div>
+            <Badge variant="warning" dot>{t("Active")}</Badge>
+          </div>
+          <p className="mt-2 text-xs text-ink-muted">{t("Expires")}: <bdi className="whitespace-nowrap tabular-nums">{dates.instant(supportSession.expiresAt)}</bdi></p>
+          <p className="mt-0.5 text-xs text-ink-subtle"><span dir="ltr" className="break-all font-mono">{supportSession.id}</span></p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {supportSession.scope.map((domain) => {
+              const key = `inspect:${supportSession.id}:${domain}`;
+              return (
+                <Button variant="outline" size="sm" key={domain} type="button" loading={isPending(key)} onClick={() => void inspect({ id: supportSession.id }, domain)}>
+                  {isPending(key) ? null : <Eye aria-hidden="true" />}
+                  {t("Open")}: {t(domainLabels[domain] || domain)}
+                </Button>
+              );
+            })}
+          </div>
+
+          {(supportSession.actions.includes("write") || supportSession.actions.includes("export")) && supportSession.scope.includes("school_profile") && (
+            <div className="mt-5 rounded-2xl border border-status-warning-border bg-card p-4 shadow-xs sm:p-5">
+              <h3 className="text-sm font-bold text-ink-strong">{t("Approved school profile actions")}</h3>
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <FormField name="support-action" label={t("Action")}>
+                  <SystemSelect value={selectedAction} onChange={(event) => setActionType(event.target.value)} aria-label={t("Action")}>
+                    {supportSession.actions.includes("write") && <option value="write">{t("Write")}</option>}
+                    {supportSession.actions.includes("export") && <option value="export">{t("Export")}</option>}
+                  </SystemSelect>
+                </FormField>
+                {selectedAction === "write" && <>
+                  <FormField name="support-field" label={t("Field")}>
+                    <SystemSelect value={writeField} onChange={(event) => setWriteField(event.target.value)} aria-label={t("Field")}>
+                      <option value="phone">{t("Phone")}</option>
+                      <option value="contactEmail">{t("Contact email")}</option>
+                      <option value="website">{t("Website")}</option>
+                    </SystemSelect>
+                  </FormField>
+                  <FormField name="support-value" label={t("New value")} hint={t("Nothing changes until you apply the queued action.")}>
+                    <SystemInput value={writeValue} maxLength={180} onChange={(event) => setWriteValue(event.target.value)} aria-label={t("New value")} />
+                  </FormField>
+                </>}
+              </div>
+              <Button variant="default" type="button" loading={isPending("queue")} disabled={selectedAction === "write" && !writeValue.trim()} onClick={() => void queueAction()} className="mt-4">{t("Queue action")}</Button>
+            </div>
+          )}
+
+          {supportSession.queuedActions.length > 0 && (
+            <ul className="mt-4 space-y-2" aria-label={t("Support action queue")}>
+              {supportSession.queuedActions.map((action) => (
+                <li key={action.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-status-warning-border bg-card p-3 text-sm shadow-xs">
+                  <span className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="font-semibold text-ink-strong">{t(action.action[0].toUpperCase() + action.action.slice(1))}</span>
+                    <Badge variant={SUPPORT_ACTION_BADGES[action.status] ?? "neutral"} size="sm" dot>{t(action.status)}</Badge>
+                    <bdi dir="ltr" className="break-all font-mono text-xs text-ink-subtle">{action.id}</bdi>
+                  </span>
+                  {action.status === "queued" && (
+                    <Button variant="outline" size="sm" type="button" loading={isPending(`execute:${action.id}`)} onClick={() => void executeAction(action.id, action.action)}>
+                      {t(action.action === "export" ? "Run export" : "Apply change")}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : <>
+        <section ref={requestFormRef} aria-labelledby="support-request-heading" className="sk-panel scroll-mt-4 p-4 sm:p-6">
+          <h2 id="support-request-heading" className="text-base font-bold text-ink-strong">{t("Request scoped access")}</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField name="support-school" label={t("School")} required>
+              <SystemSelect value={schoolId} onChange={(event) => setSchoolId(event.target.value)} aria-label={t("School")}>
+                <option value="">{t("Choose a school")}</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+              </SystemSelect>
+            </FormField>
+            <FormField
+              name="support-duration"
+              label={t("Duration (minutes)")}
+              required
+              hint={emergency ? t("Between 5 and 60 minutes for emergency access.") : t("Between 5 and 480 minutes (8 hours).")}
+            >
+              <SystemInput type="number" min={5} max={emergency ? 60 : 480} value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))} className="tabular-nums" />
+            </FormField>
+            <FormField name="support-purpose" label={t("Support purpose")} required showCount className="sm:col-span-2" hint={t("At least 12 characters. The school approver sees this.")}>
+              <SystemInput value={purpose} onChange={(event) => setPurpose(event.target.value)} minLength={12} maxLength={500} aria-label={t("Support purpose")} />
+            </FormField>
+            <FormField name="support-impact" label={t("Impact")} required className="sm:col-span-2" description={t("What is affected, and for whom.")} hint={t("At least 8 characters.")}>
+              <Textarea className="min-h-24 w-full" value={impact} onChange={(event) => setImpact(event.target.value)} minLength={8} maxLength={2000} aria-label={t("Impact")} />
+            </FormField>
+          </div>
+          <fieldset className="mt-6">
+            <legend className="text-sm font-semibold text-ink-strong">{t("What you can see")}</legend>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(domainLabels).map(([value, label]) => (
+                <label key={value} className={CHOICE_TILE}>
+                  <Checkbox checked={scope.includes(value)} onChange={() => toggle(scope, setScope, value)} />
+                  <span className="min-w-0">{t(label)}</span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-ink-muted">
+              <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              {t("Safeguarding, clinic, counselling, and custody records are always excluded.")}
+            </p>
+          </fieldset>
+          <fieldset className="mt-5">
+            <legend className="text-sm font-semibold text-ink-strong">{t("Allowed actions")}</legend>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {["read", "write", "export"].map((value) => (
+                <label key={value} className={CHOICE_TILE}>
+                  <Checkbox checked={actions.includes(value)} onChange={() => toggle(actions, setActions, value)} />
+                  <span>{t(value[0].toUpperCase() + value.slice(1))}</span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-relaxed text-ink-muted">{t("Read access is the default. Write access and exports require explicit approval.")}</p>
+          </fieldset>
+          <div className="mt-6 rounded-2xl border border-status-warning-border bg-status-warning-surface p-4">
+            <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm font-semibold text-status-warning-text">
+              <Checkbox checked={emergency} onChange={(event) => { setEmergency(event.target.checked); if (event.target.checked) setDurationMinutes(Math.min(durationMinutes, 60)); }} />
+              {t("Emergency access (school review due before expiry)")}
+            </label>
+            <p className="ps-7.5 text-xs leading-relaxed text-ink-muted">{t("Access starts as soon as you submit, without waiting for approval, and lasts at most 60 minutes.")}</p>
+            {emergency && (
+              <FormField name="support-emergency-reason" label={t("Emergency justification")} required className="mt-4" hint={t("At least 20 characters.")}>
+                <Textarea className="min-h-20 w-full" value={emergencyReason} onChange={(event) => setEmergencyReason(event.target.value)} minLength={20} aria-label={t("Emergency justification")} />
+              </FormField>
+            )}
+          </div>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <Button variant="default" type="button" loading={busy} disabled={!canSubmit} onClick={submit} className="sm:shrink-0">
+              {emergency ? t("Start emergency access") : t("Send school approval request")}
+            </Button>
+            {!canSubmit && !busy ? (
+              <p className="text-xs leading-relaxed text-ink-subtle">{t("Choose a school, describe the purpose and impact, and pick at least one domain and one action.")}</p>
+            ) : null}
+          </div>
+        </section>
+
+        <section aria-labelledby="support-grants-heading" className="sk-panel p-4 sm:p-6">
+          <h2 id="support-grants-heading" className="text-base font-bold text-ink-strong">{t("Incidents and grants")}</h2>
+          {loading ? (
+            <SkeletonList rows={3} label={t("Loading…")} className="mt-4" />
+          ) : loadFailed ? (
+            <ErrorState description={t("Support requests could not be loaded. Check your connection and try again.")} onRetry={() => void load()} />
+          ) : grants.length === 0 ? (
+            <EmptyState
+              size="sm"
+              icon={ShieldCheck}
+              title={t("No support requests yet")}
+              description={t("Requests you send appear here with their approval status, expiry and closure evidence.")}
+            />
+          ) : (
+            <div className="mt-4 space-y-3">
+              {urgencyFirst(grants, (grant) => ({ active: 0, pending: 1, approved: 2 } as Record<string, number>)[grant.status] ?? 3).map((grant) => (
+                <article key={grant.id} data-tone={GRANT_TONES[grant.status] ?? "neutral"} className={cn(deskRow, "sm:p-5 sm:ps-6")}>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-ink-strong">{grant.school.name} · <bdi dir="ltr">{grant.incident.reference}</bdi></p>
+                        <DeskPill tone={GRANT_TONES[grant.status] ?? "neutral"}>{t(grant.status)}</DeskPill>
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-ink-muted">{grant.purpose}</p>
+                      <p className="mt-2 text-xs text-ink-subtle">{t("Incident owner")}: <bdi dir="ltr">{grant.incident.ownerActorId}</bdi> · {t("Incident status")}: {t(grant.incident.status)}</p>
+                      <p className="mt-1 text-xs text-ink-subtle">{t("Expires")}: <bdi className="tabular-nums">{dates.instant(grant.expiresAt)}</bdi>{grant.status === "active" || grant.status === "approved" ? <> · <RelativeTime iso={grant.expiresAt} full={dates.instant(grant.expiresAt)} className="font-semibold text-ink-muted" /></> : null}</p>
+                      <p className="mt-1 text-xs text-ink-subtle">{t("Domains")}: {grant.scope.map((item) => t(domainLabels[item] || item)).join(", ")} · {t("Actions")}: {grant.actions.map((item) => t(item[0].toUpperCase() + item.slice(1))).join(", ")}</p>
+                      {grant.incident.closureEvidence && (
+                        <Alert tone="success" live="off" compact className="mt-3" title={t("Closure evidence")}>{grant.incident.closureEvidence}</Alert>
+                      )}
+                      {grant.emergencyReason && (
+                        <Alert tone="warning" live="off" compact className="mt-3" title={t("Emergency")}>
+                          {grant.emergencyReason}{grant.reviewedAt ? ` · ${t("Reviewed")}` : <> · {t("Review due")}: <bdi>{dates.instant(grant.reviewDueAt || grant.expiresAt)}</bdi></>}
+                        </Alert>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 lg:max-w-xs lg:justify-end">
+                      {grant.status === "approved" && (
+                        <Button variant="default" size="sm" type="button" loading={isPending(`start:${grant.id}`)} onClick={() => void start(grant)}>{t("Start access")}</Button>
+                      )}
+                      {grant.status === "active" && (
+                        <Button variant="outline" size="sm" type="button" loading={isPending(`stop:${grant.id}`)} onClick={() => setRevoking(grant)}>{t("Revoke now")}</Button>
+                      )}
+                      {grant.status === "active" && grant.scope.map((domain) => {
+                        const key = `inspect:${grant.id}:${domain}`;
+                        return (
+                          <Button variant="outline" size="sm" key={domain} type="button" loading={isPending(key)} onClick={() => void inspect(grant, domain)}>
+                            {isPending(key) ? null : <Eye aria-hidden="true" />}
+                            {t("Open")}: {t(domainLabels[domain] || domain)}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {grant.incident.status !== "closed" && ["revoked", "expired", "rejected", "active", "approved"].includes(grant.status) && (
+                    <div className="mt-4 border-t border-border-subtle pt-4">
+                      <FormField name={`closure-${grant.id}`} label={t("Closure evidence")} hint={t("At least 12 characters: what was done and how it was confirmed.")}>
+                        <Textarea className="min-h-20 w-full" value={closureEvidence[grant.id] || ""} onChange={(event) => setClosureEvidence((current) => ({ ...current, [grant.id]: event.target.value }))} aria-label={t("Closure evidence")} />
+                      </FormField>
+                      <Button variant="outline" size="sm" type="button" loading={isPending(`close:${grant.id}`)} disabled={(closureEvidence[grant.id] || "").trim().length < 12} onClick={() => void closeIncident(grant)} className="mt-3">{t("Close incident with evidence")}</Button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </>}
+
+      {preview && (
+        <section aria-labelledby="support-preview-heading" className="sk-enter rounded-2xl border border-border-subtle bg-surface-subtle p-4 shadow-xs sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="support-preview-heading" className="min-w-0 text-base font-bold text-ink-strong">{t("Audited support workspace")}: {t(domainLabels[preview.domain] || preview.domain)}</h2>
+            <Button variant="outline" size="sm" type="button" onClick={() => setPreview(null)}><X aria-hidden="true" />{t("Close")}</Button>
+          </div>
+          <pre className="custom-scrollbar mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border-subtle bg-card p-4 font-mono text-xs leading-relaxed text-ink" dir="ltr">{JSON.stringify(preview.data, null, 2)}</pre>
+        </section>
+      )}
+      <p className="text-xs leading-relaxed text-ink-subtle">{t("The school's administrator approves requests in their own console. Support grants never change anyone's role in the school.")}</p>
+    </div>
+    <ConfirmAction
+      open={Boolean(revoking)}
+      tone="danger"
+      title={t("Revoke support access?")}
+      description={t("Support loses access to {0} straight away, and any support actions still queued are cancelled.", [revoking?.school.name ?? ""])}
+      confirmLabel={t("Revoke now")}
+      cancelLabel={t("Keep editing")}
+      busy={Boolean(revoking) && isPending(`stop:${revoking?.id}`)}
+      onCancel={() => setRevoking(null)}
+      onConfirm={() => { const target = revoking; if (!target) return; void stop(target).finally(() => setRevoking(null)); }}
+    />
+  </div>;
+}
+
+function SchoolsView({ stats, statsLoading, statsFailed = false, onRefreshStats, onOpenRequests, onOpenUsers }: {
   stats: Stats | null;
+  statsLoading: boolean;
+  /** The platform totals failed to load; the school list can still be used. */
+  statsFailed?: boolean;
   onRefreshStats: () => void;
-  onOpenBilling: () => void;
+  onOpenRequests: () => void;
   onOpenUsers: () => void;
 }) {
+  const t = useUiText();
+  const dates = useOwnerDates();
+  const pendingRequests = usePendingRequests();
   const [schools, setSchools] = useState<SchoolRow[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [planFilter, setPlanFilter] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [search, setSearch] = useListField<string>("schools.search", "", "schools.page");
+  const [statusFilter, setStatusFilter] = useListField<string>("schools.status", "", "schools.page");
+  const [planFilter, setPlanFilter] = useListField<string>("schools.plan", "", "schools.page");
+  const [showProvisionSchool, setShowProvisionSchool] = useState(false);
+  const [preparedSchool, setPreparedSchool] = useState<{ id: string; prefill: SchoolProvisionPrefill } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1") return;
+    const id = params.get("workflowHandoffId");
+    if (!id) { setShowProvisionSchool(true); return; }
+    let active = true;
+    void fetch(`/api/ai-workflows/handoffs/${encodeURIComponent(id)}`, { method: "POST" })
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || body.handoff?.targetRoute !== `/owner?view=schools&new=1&workflowHandoffId=${id}`) throw new Error("Prepared request is unavailable");
+        if (active) { setPreparedSchool({ id, prefill: body.handoff.prefill }); setShowProvisionSchool(true); }
+      }).catch(() => { if (active) toast.error(t("Could not open the prepared school request. Open it again from AI Workflows.")); });
+    return () => { active = false; };
+  }, [t]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailSchool, setDetailSchool] = useState<SchoolRow | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  const loadSchools = useCallback(async (page = 1) => {
+  const [requestedPage, setPage] = useListField<number>("schools.page", 1, "schools.page");
+  const loadSchoolsVersion = useRef(0);
+  const loadSchools = useCallback(async (page = requestedPage) => {
+    const version = ++loadSchoolsVersion.current;
     setLoading(true);
+    setLoadFailed(false);
     try {
       const qp = new URLSearchParams({ page: String(page), limit: "25" });
       if (search) qp.set("search", search);
       if (statusFilter) qp.set("status", statusFilter);
       if (planFilter) qp.set("plan", planFilter);
 
-      const res = await fetch(`/api/owner/schools?${qp}`);
+      const res = await fetch(`/api/owner/schools?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadSchoolsVersion.current) return;
       if (json.success) {
         setSchools(json.data);
         setPagination(json.pagination);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      toast.error("Failed to load schools");
+      if (version === loadSchoolsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadSchoolsVersion.current) setLoading(false);
     }
-  }, [search, statusFilter, planFilter]);
+  }, [search, statusFilter, planFilter, requestedPage]);
 
-  useEffect(() => { loadSchools(); }, [loadSchools]);
+  useEffect(() => { void loadSchools(); }, [loadSchools]);
+
+  const hasFilters = Boolean(search || statusFilter || planFilter);
+  const clearFilters = () => { setSearch(""); setStatusFilter(""); setPlanFilter(""); };
 
   const changeSchoolPlan = async (schoolId: string, newPlan: string) => {
     try {
@@ -366,70 +1043,130 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
-      toast.success(json.message);
-      loadSchools(pagination.page);
+      toast.success(t("Plan changed to {0}.", [planLabel(newPlan)]));
+      void loadSchools(pagination.page);
       onRefreshStats();
       return true;
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err) {
+      toast.error(friendlyErrorMessage(err, t("The plan could not be changed. Please try again.")));
       return false;
     }
   };
 
+  /** Every school matching the current filters, one page of 100 at a time. */
+  const exportSchools = async () => {
+    setExporting(true);
+    try {
+      const qp = new URLSearchParams();
+      if (search) qp.set("search", search);
+      if (statusFilter) qp.set("status", statusFilter);
+      if (planFilter) qp.set("plan", planFilter);
+      const rows = await loadOwnerPages<SchoolRow>("/api/owner/schools", qp);
+      downloadCsv("schools", ["name", "slug", "plan", "status", "city", "contact_email", "campuses", "students", "staff", "classes", "ai_credits_used", "ai_credits_limit", "created"],
+        rows.map((row) => [row.name, row.slug, row.plan, row.status, row.city, row.contactEmail, row.campusCount, row.totalStudents, row.totalStaff, row.totalClasses, row.aiCreditsUsed, row.aiCreditsLimit, row.createdAt.slice(0, 10)]));
+      toast.success(t("Export downloaded."));
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The export could not be prepared. Try again.")));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
-    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
+    <div className={VIEW_BODY}>
+      <ViewHeader
+        title="Schools"
+        icon={School}
+        description="Every school on the platform, with its plan, status and size."
+        primaryAction={{ id: "provision", label: "Provision a school", icon: Building2, onClick: () => { setPreparedSchool(null); setShowProvisionSchool(true); } }}
+        secondaryActions={[...(pendingRequests > 0 ? [{ id: "review-requests", label: t("Review requests ({0})", [dates.number(pendingRequests)]), icon: CreditCard, onClick: onOpenRequests }] : []), { id: "export", label: "Export", icon: Download, onClick: () => void exportSchools(), loading: exporting, disabled: loading || pagination.total === 0 }]}
+      />
+
       {stats ? (
-        <div className="mb-6">
-          <PlatformOverview
-            stats={stats}
-            onOpenBilling={onOpenBilling}
-            onOpenUsers={onOpenUsers}
-          />
-        </div>
+        <PlatformOverview stats={stats} onOpenUsers={onOpenUsers} />
+      ) : statsLoading ? (
+        <SkeletonCards count={4} label={t("Loading platform totals")} />
+      ) : statsFailed ? (
+        <Alert
+          tone="warning"
+          title={t("Platform totals are unavailable")}
+          actions={<Button variant="outline" size="sm" type="button" onClick={onRefreshStats}><RefreshCw aria-hidden="true" />{t("Try again")}</Button>}
+        >
+          {t("The school list below still works. Totals and charts appear once the statistics load.")}
+        </Alert>
       ) : null}
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="flex flex-wrap items-center gap-3 mb-5">
-          <div className="flex-1 min-w-[200px] max-w-sm relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
-            <input
+      <section aria-labelledby="owner-schools-heading" className="sk-panel p-4 sm:p-6" data-tour="owner.schools.table">
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 id="owner-schools-heading" className="text-lg font-bold text-ink-strong">{t("All schools")}</h2>
+          {!loading && !loadFailed ? (
+            <p className="text-xs tabular-nums text-ink-subtle">{t(pagination.total === 1 ? "{0} school" : "{0} schools", [dates.number(pagination.total)])}</p>
+          ) : null}
+        </div>
+        {/* Counters are filters: each status tile narrows the list below and pressing it again shows everything. */}
+        {stats?.schoolsByStatus ? (
+          <DeskStats className="mb-4" data-owner-status-tiles>
+            {([["ACTIVE", Activity, "Active"], ["TRIAL", Clock, "Trial"], ["SUSPENDED", Pause, "Suspended"]] as const).map(([status, Icon, label], index) => (
+              <StatTile key={status} index={index} icon={Icon} label={t(label)} value={dates.number(stats.schoolsByStatus[status] || 0)}
+                tone={status === "SUSPENDED" && !stats.schoolsByStatus[status] ? "neutral" : STATUS_TONES[status]}
+                selected={statusFilter === status} onSelect={() => setStatusFilter(statusFilter === status ? "" : status)} />
+            ))}
+          </DeskStats>
+        ) : null}
+        <div className={TOOLBAR}>
+          <InputGroup surfaceClassName="bg-muted" className={SEARCH_GROUP}>
+            <Search data-field-affix="start" aria-hidden="true" className="size-4 text-ink-subtle" />
+            <SystemInput
               type="text"
-              placeholder="Search schools by name, email, slug..."
+              placeholder={t("Search schools by name, email or address")}
+              aria-label={t("Search schools")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle focus:ring-2 focus:ring-[#8127cf]/20"
+              className={"w-full"}
             />
-          </div>
-          <select
+          </InputGroup>
+          <SystemSelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+            aria-label={t("Filter by status")}
+            className={FILTER_SELECT}
           >
-            <option value="">All Status</option>
-            <option value="ACTIVE">Active</option>
-            <option value="SUSPENDED">Suspended</option>
-            <option value="TRIAL">Trial</option>
-          </select>
-          <select
+            <option value="">{t("All statuses")}</option>
+            <option value="ACTIVE">{t("Active")}</option>
+            <option value="SUSPENDED">{t("Suspended")}</option>
+            <option value="TRIAL">{t("Trial")}</option>
+          </SystemSelect>
+          <SystemSelect
             value={planFilter}
             onChange={(e) => setPlanFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+            aria-label={t("Filter by plan")}
+            className={FILTER_SELECT}
           >
-            <option value="">All Plans</option>
-            <option value="FREE">Basic</option>
-            <option value="BASIC">Pro</option>
-            <option value="PRO">Enterprise</option>
-            <option value="ENTERPRISE">Custom</option>
-          </select>
+            <option value="">{t("All plans")}</option>
+            {PLAN_CHOICES.map((plan) => <option key={plan} value={plan}>{planLabel(plan)}</option>)}
+          </SystemSelect>
+          {hasFilters ? (
+            <Button variant="ghost" size="sm" type="button" onClick={clearFilters} className="self-start sm:self-auto">
+              <X aria-hidden="true" />
+              {t("Clear filters")}
+            </Button>
+          ) : null}
         </div>
 
         {loading ? (
-          <SkeletonList rows={4} label="Loading schools" />
+          <SkeletonList rows={4} label={t("Loading schools")} />
+        ) : loadFailed ? (
+          <ErrorState
+            title={t("Schools did not load")}
+            description={t("We couldn't load the school list. Check your connection and try again.")}
+            onRetry={() => void loadSchools(pagination.page)}
+          />
         ) : schools.length === 0 ? (
           <EmptyState
             icon={School}
-            title="No Schools Found"
-            description="No registered schools match your filters."
+            title={t("No schools found")}
+            description={hasFilters ? t("No schools match these filters. Try a different search or clear the filters.") : t("Schools appear here as soon as they register.")}
+            action={hasFilters ? <Button variant="outline" type="button" onClick={clearFilters}>{t("Clear filters")}</Button> : undefined}
           />
         ) : (
           <>
@@ -439,105 +1176,84 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
                 return (
                   <div
                     key={school.id}
-                    className="rounded-2xl border border-[#cfc2d6]/25 hover:border-[#8127cf]/25 transition-all overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)]"
+                    data-tone={school.status === "ACTIVE" ? undefined : STATUS_TONES[school.status] ?? "neutral"}
+                    className={cn(deskRow, "group overflow-hidden p-0 ps-0")}
                   >
-                    <button
+                    <Button variant="ghost"
                       type="button"
+                      aria-expanded={isExpanded}
                       onClick={() => setExpandedId(isExpanded ? null : school.id)}
-                      className="w-full text-left p-5 cursor-pointer hover:bg-[#fbf0fe]/20 transition-all"
+                      className="block w-full rounded-none p-4 text-start font-normal actionable-hover:bg-surface-hover actionable-hover:text-ink sm:p-5"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 rounded-[18px] bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0 overflow-hidden">
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="sk-icon-tile flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary">
                           {school.logoUrl ? (
-                            <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
+                            <img src={school.logoUrl} alt="" className="h-full w-full object-cover" />
                           ) : (
-                            <School className="w-5 h-5" />
+                            <School aria-hidden="true" className="size-5" />
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <h3 className="text-base font-black text-[#1f1a23]">{school.name}</h3>
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${
-                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white" :
-                              school.plan === "PRO" ? "bg-[#fbf0fe] text-[#8127cf]" :
-                              school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
-                              "bg-[#f3f4f9] text-ink-muted"
-                            }`}>
-                              {planLabel(school.plan)}
-                            </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="min-w-0 max-w-full break-words text-base font-bold text-ink-strong"><bdi>{school.name}</bdi></h3>
+                            <PlanBadge plan={school.plan} />
+                            {school.status !== "ACTIVE" ? <StatusPill status={school.status} /> : null}
+                            {school.aiWorkflowsLiveAt ? <Badge variant="warning" size="sm"><Zap aria-hidden="true" className="size-3" />{t("AI live")}</Badge> : null}
                           </div>
-                          <div className="flex flex-wrap items-center gap-4 mt-1.5">
-                            <span className="text-[10px] font-bold text-ink-subtle">{school.contactEmail || "—"}</span>
-                            <span className="text-[10px] font-bold text-ink-subtle">{school.city || "—"}</span>
-                            <span className="text-[10px] font-bold text-ink-subtle">Since {new Date(school.createdAt).toLocaleDateString("en-PK", { month: "short", year: "numeric" })}</span>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-subtle">
+                            <span className="min-w-0 max-w-full truncate"><bdi dir="ltr">{school.contactEmail || "—"}</bdi></span>
+                            <span><bdi>{school.city || "—"}</bdi></span>
+                            <span>{t("Since {0}", [dates.month(school.createdAt)])}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 shrink-0">
-                          <div className="hidden md:flex gap-3">
-                            <MiniStat label="Campuses" value={school.campusCount} />
-                            <MiniStat label="Students" value={school.totalStudents} />
-                            <MiniStat label="Staff" value={school.totalStaff} />
-                            <MiniStat label="Classes" value={school.totalClasses} />
+                        <div className="flex shrink-0 items-center gap-4">
+                          <div className="hidden gap-2 md:flex">
+                            <MiniStat label={t("Campuses")} value={school.campusCount} />
+                            <MiniStat label={t("Students")} value={school.totalStudents} />
+                            <MiniStat label={t("Staff")} value={school.totalStaff} />
+                            <MiniStat label={t("Classes")} value={school.totalClasses} />
                           </div>
-                          <ChevronRight className={`w-4 h-4 text-ink-subtle transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                          <ChevronRight aria-hidden="true" className={cn("size-4 text-ink-subtle transition-transform duration-200", isExpanded ? "rotate-90" : "rtl:rotate-180")} />
                         </div>
                       </div>
-                    </button>
+                    </Button>
 
                     {isExpanded && (
-                      <div className="border-t border-[#f3f4f9] bg-[#fbf0fe]/10 p-5">
-                        <div className="flex flex-wrap gap-3 mb-4 md:hidden">
-                          <MiniStat label="Campuses" value={school.campusCount} />
-                          <MiniStat label="Students" value={school.totalStudents} />
-                          <MiniStat label="Staff" value={school.totalStaff} />
-                          <MiniStat label="Classes" value={school.totalClasses} />
+                      <div className="sk-fade-in border-t border-border-subtle bg-surface-subtle/60 p-4 sm:p-5">
+                        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 md:hidden">
+                          <MiniStat label={t("Campuses")} value={school.campusCount} />
+                          <MiniStat label={t("Students")} value={school.totalStudents} />
+                          <MiniStat label={t("Staff")} value={school.totalStaff} />
+                          <MiniStat label={t("Classes")} value={school.totalClasses} />
                         </div>
 
-                        <div className="flex items-center justify-between gap-4 mb-4">
-                          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">
-                            Campus Breakdown
-                          </p>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold text-ink-subtle">
-                              AI Credits: {school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                          <p className="sk-eyebrow text-primary">{t("Campus breakdown")}</p>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="inline-flex items-center gap-1 text-xs text-ink-muted">
+                              <Zap aria-hidden="true" className="size-3.5 text-status-warning-text" />
+                              {t("AI credits")}:{" "}
+                              <span className="font-semibold tabular-nums text-ink-strong">
+                                <bdi>{dates.number(school.aiCreditsUsed)} / {school.aiCreditsLimit < 0 ? t("Unlimited") : dates.number(school.aiCreditsLimit)}</bdi>
+                              </span>
+                              <InfoTip content={t(AI_CREDITS_HELP)} label={t("About AI credits")} />
                             </span>
-                            <button
+                            <Button variant="outline" size="sm"
+                              type="button"
                               onClick={(e) => { e.stopPropagation(); setDetailSchool(school); }}
-                              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] bg-[#fbf0fe] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
                             >
-                              <ExternalLink className="w-3 h-3" />
-                              Details
-                            </button>
-                            <span className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-normal ${
-                              school.plan === "ENTERPRISE" ? "bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-white" :
-                              school.plan === "PRO" ? "bg-[#fbf0fe] text-[#8127cf]" :
-                              school.plan === "BASIC" ? "bg-sky-50 text-sky-700" :
-                              "bg-[#f3f4f9] text-ink-muted"
-                            }`}>
-                              {planLabel(school.plan)}
-                            </span>
+                              <Eye aria-hidden="true" />
+                              {t("Details")}
+                            </Button>
                           </div>
                         </div>
 
                         {school.campuses.length > 0 ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {school.campuses.map((campus) => (
-                              <div key={campus.id} className="rounded-xl bg-white border border-[#cfc2d6]/25 p-4 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                                <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                                <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
-                                {campus.principalName ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
-                                {campus.phone ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
-                                {campus.website ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.website}</p> : null}
-                                <div className="flex gap-3 mt-3">
-                                  <span className="text-[9px] font-bold text-ink-muted">{campus.students} students</span>
-                                  <span className="text-[9px] font-bold text-ink-muted">{campus.staff} staff</span>
-                                  <span className="text-[9px] font-bold text-ink-muted">{campus.classes} classes</span>
-                                </div>
-                              </div>
-                            ))}
+                          <div className="sk-stagger grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                            {school.campuses.map((campus) => <CampusCard key={campus.id} campus={campus} />)}
                           </div>
                         ) : (
-                          <p className="text-xs font-semibold text-ink-subtle">No campuses registered.</p>
+                          <EmptyState size="sm" icon={Building2} title={t("No campuses yet")} description={t("This school has not added a campus.")} />
                         )}
                       </div>
                     )}
@@ -550,20 +1266,35 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
               <PaginationBar
                 pagination={pagination}
                 label="schools"
-                onPage={(p) => loadSchools(p)}
+                onPage={setPage}
               />
             )}
           </>
         )}
-      </div>
+      </section>
+
+      {showProvisionSchool && <ProvisionSchoolModal prefill={preparedSchool?.prefill} workflowHandoffId={preparedSchool?.id} onClose={() => setShowProvisionSchool(false)} onCreated={() => { void loadSchools(); onRefreshStats(); }} />}
 
       {detailSchool && (
         <SchoolDetailModal
           school={detailSchool}
+          onStatusChange={() => { setDetailSchool(null); void loadSchools(pagination.page); onRefreshStats(); }}
           onClose={() => setDetailSchool(null)}
           onPlanChange={async (schoolId, newPlan) => {
             const ok = await changeSchoolPlan(schoolId, newPlan);
             if (ok) setDetailSchool(null);
+          }}
+          onAiWorkflowsLiveChange={(schoolId, aiWorkflowsLiveAt) => {
+            setSchools((rows) => rows.map((row) => row.id === schoolId ? { ...row, aiWorkflowsLiveAt } : row));
+            setDetailSchool((row) => row && row.id === schoolId ? { ...row, aiWorkflowsLiveAt } : row);
+          }}
+          onDataRegionChange={(schoolId, dataRegion) => {
+            setSchools((rows) => rows.map((row) => row.id === schoolId ? { ...row, dataRegion } : row));
+            setDetailSchool((row) => row && row.id === schoolId ? { ...row, dataRegion } : row);
+          }}
+          onAttendanceRegulatorChange={(schoolId, attendanceRegulator) => {
+            setSchools((rows) => rows.map((row) => row.id === schoolId ? { ...row, attendanceRegulator } : row));
+            setDetailSchool((row) => row && row.id === schoolId ? { ...row, attendanceRegulator } : row);
           }}
         />
       )}
@@ -571,297 +1302,416 @@ function SchoolsView({ stats, onRefreshStats, onOpenBilling, onOpenUsers }: {
   );
 }
 
+type Campus = SchoolRow["campuses"][number];
+
+function CampusCard({ campus }: { campus: Campus }) {
+  const t = useUiText();
+  const contact = [campus.phone, campus.email].filter(Boolean).join(" · ");
+  return (
+    <div className="sk-panel min-w-0 p-4">
+      <p className="truncate text-sm font-bold text-ink-strong"><bdi>{campus.name}</bdi></p>
+      <p className="mt-0.5 text-xs text-ink-subtle"><bdi>{campus.city || "—"}</bdi>{campus.board ? <> · <bdi>{campus.board}</bdi></> : null}</p>
+      {campus.principalName ? <p className="mt-0.5 text-xs text-ink-subtle">{t("Principal")}: <bdi>{campus.principalName}</bdi></p> : null}
+      {contact ? <p className="mt-0.5 truncate text-xs text-ink-subtle"><bdi dir="ltr">{contact}</bdi></p> : null}
+      {campus.website ? <p className="mt-0.5 truncate text-xs text-ink-subtle"><bdi dir="ltr">{campus.website}</bdi></p> : null}
+      <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-ink-muted">
+        <span>{t("{0} students", [campus.students])}</span>
+        <span>{t("{0} staff", [campus.staff])}</span>
+        <span>{t("{0} classes", [campus.classes])}</span>
+      </div>
+    </div>
+  );
+}
+
 function UsersView() {
+  const t = useUiText();
+  const { language } = useLocale();
+  const dates = useOwnerDates();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 25, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [search, setSearch] = useListField<string>("users.search", "", "users.page");
+  const [schoolFilter, setSchoolFilter] = useListField<string>("users.school", "", "users.page");
+  const [roleFilter, setRoleFilter] = useListField<string>("users.role", "", "users.page");
+  const [statusFilter, setStatusFilter] = useListField<string>("users.status", "", "users.page");
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [schoolOptions, setSchoolOptions] = useState<
     { id: string; name: string; plan?: string; campuses?: { id: string; name: string }[] }[]
   >([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(true);
+  const [schoolsFailed, setSchoolsFailed] = useState(false);
 
   // The Add User modal needs every school with its campuses. Fetched once
   // on demand rather than with the paginated user list.
   const loadSchoolOptions = useCallback(async () => {
     if (schoolOptions.length) return;
+    setSchoolsLoading(true);
+    setSchoolsFailed(false);
     try {
-      const res = await fetch("/api/owner/schools?limit=100");
-      const json = await res.json();
-      if (json.success) {
-        setSchoolOptions(
-          json.data.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            plan: s.plan,
-            campuses: s.campuses?.map((c: any) => ({ id: c.id, name: c.name })) ?? [],
-          }))
-        );
-      }
+      const schools = await loadOwnerPages<SchoolRow>("/api/owner/schools");
+      setSchoolOptions(schools.map((school) => ({
+        id: school.id, name: school.name, plan: school.plan,
+        campuses: school.campuses.map((campus) => ({ id: campus.id, name: campus.name })),
+      })));
     } catch {
-      toast.error("Could not load schools");
+      setSchoolsFailed(true);
+    } finally {
+      setSchoolsLoading(false);
     }
-  }, [schoolOptions.length]);
+  }, [schoolOptions.length, t]);
 
-  const loadUsers = useCallback(async (page = 1) => {
+  useEffect(() => { void loadSchoolOptions(); }, [loadSchoolOptions]);
+
+  const filters = useCallback((qp: URLSearchParams) => {
+    if (search) qp.set("search", search);
+    if (schoolFilter) qp.set("schoolId", schoolFilter);
+    if (roleFilter) qp.set("role", roleFilter);
+    if (statusFilter) qp.set("status", statusFilter);
+    return qp;
+  }, [search, roleFilter, statusFilter, schoolFilter]);
+
+  const [requestedPage, setPage] = useListField<number>("users.page", 1, "users.page");
+  const loadUsersVersion = useRef(0);
+  const loadUsers = useCallback(async (page = requestedPage) => {
+    const version = ++loadUsersVersion.current;
     setLoading(true);
+    setLoadFailed(false);
     try {
-      const qp = new URLSearchParams({ page: String(page), limit: "25" });
-      if (search) qp.set("search", search);
-      if (roleFilter) qp.set("role", roleFilter);
-      if (statusFilter) qp.set("status", statusFilter);
-
-      const res = await fetch(`/api/owner/users?${qp}`);
+      const qp = filters(new URLSearchParams({ page: String(page), limit: "25" }));
+      const res = await fetch(`/api/owner/users?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadUsersVersion.current) return;
       if (json.success) {
         setUsers(json.data);
         setPagination(json.pagination);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      toast.error("Failed to load users");
+      if (version === loadUsersVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadUsersVersion.current) setLoading(false);
     }
-  }, [search, roleFilter, statusFilter]);
+  }, [filters, requestedPage]);
 
-  useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => { void loadUsers(); }, [loadUsers]);
+
+  const hasFilters = Boolean(search || roleFilter || statusFilter || schoolFilter);
+  const clearFilters = () => { setSchoolFilter(""); setSearch(""); setRoleFilter(""); setStatusFilter(""); };
+  const openAddUser = () => { void loadSchoolOptions(); setShowAddUser(true); };
+
+  const exportUsers = async () => {
+    setExporting(true);
+    try {
+      const rows = await loadOwnerPages<UserRow>("/api/owner/users", filters(new URLSearchParams()));
+      downloadCsv("tenant-users", ["name", "email", "role", "school", "campus", "status", "last_sign_in", "created"],
+        rows.map((row) => [row.fullName, row.email, row.role, row.school?.name, row.campus?.name, row.isActive ? "active" : "inactive", row.lastLogin?.slice(0, 10) ?? "", row.createdAt.slice(0, 10)]));
+      toast.success(t("Export downloaded."));
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The export could not be prepared. Try again.")));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
-    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">All Users</h2>
-          <p className="text-sm font-semibold text-ink-muted mt-1">
-            {pagination.total} users across all schools
-          </p>
-        </div>
-        <button
-          onClick={() => { loadSchoolOptions(); setShowAddUser(true); }}
-          className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-[#8127cf] to-[#9c48ea] px-5 text-[13px] font-black text-white shadow-lg shadow-[#8127cf]/25 transition-all hover:shadow-xl active:scale-[0.98]"
-        >
-          <Plus className="h-4 w-4" />
-          Add User
-        </button>
-      </div>
+    <div className={VIEW_BODY}>
+      <ViewHeader
+        title="Tenant users"
+        icon={Users}
+        description={t("{0} accounts across every school. Changing a school's people is the school's own job; use these tools only for support.", [dates.number(pagination.total)])}
+        secondaryActions={[
+          { id: "export", label: "Export", icon: Download, onClick: () => void exportUsers(), loading: exporting, disabled: loading || pagination.total === 0 },
+          { id: "add-user", label: "Add user", icon: UserPlus, onClick: openAddUser, disabled: schoolsLoading || schoolsFailed || !schoolOptions.length },
+        ]}
+      />
 
+      {schoolsFailed ? <Alert tone="warning" title={t("The school list did not load")} actions={<Button variant="outline" onClick={() => void loadSchoolOptions()}>{t("Try again")}</Button>}>{t("Retry to filter by school or add a user. The account list is still available.")}</Alert> : null}
       {showAddUser && (
         <AddUserModal
           schools={schoolOptions}
+          initialSchoolId={schoolFilter}
           onClose={() => setShowAddUser(false)}
-          onCreated={() => loadUsers(pagination.page)}
+          onCreated={() => void loadUsers(pagination.page)}
         />
       )}
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="flex flex-wrap items-center gap-3 mb-5">
-          <div className="flex-1 min-w-[200px] max-w-sm relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
-            <input
+      <section className="sk-panel p-4 sm:p-6">
+        <div className={TOOLBAR}>
+          <InputGroup surfaceClassName="bg-muted" className={SEARCH_GROUP}>
+            <Search data-field-affix="start" aria-hidden="true" className="size-4 text-ink-subtle" />
+            <SystemInput
               type="text"
-              placeholder="Search by name, email, phone..."
+              placeholder={t("Search by name, email or phone")}
+              aria-label={t("Search users")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none placeholder:text-ink-subtle focus:ring-2 focus:ring-[#8127cf]/20"
+              className={"w-full"}
             />
-          </div>
-          <select
+          </InputGroup>
+          <SystemSelect value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} aria-label={t("Filter by school")} className={FILTER_SELECT}>
+            <option value="">{t("All schools")}</option>
+            {schoolOptions.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+          </SystemSelect>
+          <SystemSelect
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+            aria-label={t("Filter by role")}
+            className={FILTER_SELECT}
           >
-            <option value="">All Roles</option>
-            <option value="SUPER_ADMIN">Super Admin</option>
-            <option value="CAMPUS_ADMIN">Campus Admin</option>
-            <option value="PRINCIPAL">Principal</option>
-            <option value="TEACHER">Teacher</option>
-            <option value="PARENT">Parent</option>
-            <option value="STUDENT">Student</option>
-          </select>
-          <select
+            <option value="">{t("All roles")}</option>
+            {(["SUPER_ADMIN", "ADMIN", "CAMPUS_ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN", "PARENT", "STUDENT"] as const).map((role) => (
+              <option key={role} value={role}>{roleLabel(role, language)}</option>
+            ))}
+          </SystemSelect>
+          <SystemSelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+            aria-label={t("Filter by status")}
+            className={FILTER_SELECT}
           >
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+            <option value="">{t("All statuses")}</option>
+            <option value="active">{t("Active")}</option>
+            <option value="inactive">{t("Inactive")}</option>
+          </SystemSelect>
+          {hasFilters ? (
+            <Button variant="ghost" size="sm" type="button" onClick={clearFilters} className="self-start sm:self-auto">
+              <X aria-hidden="true" />
+              {t("Clear filters")}
+            </Button>
+          ) : null}
         </div>
 
         {loading ? (
-          <SkeletonList rows={5} label="Loading users" />
+          <SkeletonList rows={5} label={t("Loading users")} />
+        ) : loadFailed ? (
+          <ErrorState
+            title={t("Users did not load")}
+            description={t("We couldn't load the user list. Check your connection and try again.")}
+            onRetry={() => void loadUsers(pagination.page)}
+          />
         ) : users.length === 0 ? (
-          <EmptyState icon={Users} title="No Users Found" description="Try adjusting your filters." />
+          <EmptyState
+            icon={Users}
+            title={t("No users found")}
+            description={hasFilters ? t("No users match these filters. Try a different search or clear the filters.") : t("Accounts appear here as schools invite their people.")}
+            action={hasFilters ? <Button variant="outline" type="button" onClick={clearFilters}>{t("Clear filters")}</Button> : undefined}
+          />
         ) : (
           <>
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full min-w-[1000px] text-left">
-                <thead>
-                  <tr className="text-[9px] font-black uppercase tracking-normal text-ink-subtle bg-gradient-to-r from-[#fbf0fe]/30 to-transparent">
-                    <th className="px-4 py-3 rounded-tl-2xl">User</th>
-                    <th className="px-4 py-3">Role</th>
-                    <th className="px-4 py-3">School</th>
-                    <th className="px-4 py-3">Campus</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Last Login</th>
-                    <th className="px-4 py-3 text-right rounded-tr-2xl">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f3f4f9]">
+              <div className="grid gap-3 sm:grid-cols-2 xl:hidden" data-owner-user-cards>
+                {users.map((u) => <article key={u.id} data-tone={u.isActive ? undefined : "muted"} className={deskRow}>
+                  <div className="flex items-start justify-between gap-2">
+                    <DeskRowIcon icon={User} />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words font-semibold text-ink-strong"><bdi>{u.fullName}</bdi></p>
+                      <p className="mt-1 break-all text-xs text-ink-muted"><bdi dir="ltr">{u.email}</bdi></p>
+                    </div>
+                    <Menu label="More actions" align="end"
+                      trigger={<IconButton label={t("More actions for {0}", [u.fullName])} variant="outline"><MoreHorizontal aria-hidden="true" /></IconButton>}
+                      items={[{ id: "reset-password", label: t("Reset password"), icon: KeyRound, onSelect: () => { setSelectedUser(u); setShowPasswordModal(true); } }]} />
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2"><RoleBadge role={u.role} /><DeskPill tone={u.isActive ? "success" : "neutral"}>{t(u.isActive ? "Active" : "Inactive")}</DeskPill></div>
+                  <dl className="mt-3 space-y-2 text-xs">
+                    <div><dt className="text-ink-subtle">{t("School")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.school?.name || "—"}</bdi></dd></div>
+                    <div><dt className="text-ink-subtle">{t("Campus")}</dt><dd className="mt-0.5 break-words text-ink"><bdi>{u.campus?.name || "—"}</bdi></dd></div>
+                    <div><dt className="text-ink-subtle">{t("Last sign-in")}</dt><dd className="mt-0.5 text-ink">{u.lastLogin ? <RelativeTime iso={u.lastLogin} full={dates.when(u.lastLogin)} /> : <bdi>{dates.when(u.lastLogin)}</bdi>}</dd></div>
+                  </dl>
+                </article>)}
+              </div>
+              <Table containerClassName="hidden xl:block overflow-x-auto custom-scrollbar" className="w-full min-w-[880px] text-start">
+                <TableHeader>
+                  <TableRow className="text-ink-subtle">
+                    <TableHead className="px-4 py-3">{t("User")}</TableHead>
+                    <TableHead className="px-4 py-3">{t("Role")}</TableHead>
+                    <TableHead className="px-4 py-3">{t("School")}</TableHead>
+                    <TableHead className="px-4 py-3">{t("Campus")}</TableHead>
+                    <TableHead className="px-4 py-3">{t("Status")}</TableHead>
+                    <TableHead className="px-4 py-3">{t("Last sign-in")}</TableHead>
+                    <TableHead className="px-4 py-3 text-end"><span className="sr-only">{t("Actions")}</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-border-subtle">
                   {users.map((u) => (
-                    <tr key={u.id} className="text-sm transition-all duration-200 hover:bg-[#fbf0fe]/20">
-                      <td className="px-4 py-4">
+                    <TableRow key={u.id} className="text-sm duration-200">
+                      <TableCell className="px-4 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] flex items-center justify-center text-[#8127cf] shrink-0">
-                            <User className="w-4 h-4" />
+                          <div aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary">
+                            <User className="size-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-black text-[#1f1a23] truncate">{u.fullName}</p>
-                            <p className="text-[10px] font-bold text-ink-subtle truncate">{u.email}</p>
+                            <p className="truncate font-semibold text-ink-strong"><bdi>{u.fullName}</bdi></p>
+                            <p className="truncate text-xs text-ink-subtle"><bdi dir="ltr">{u.email}</bdi></p>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${ROLE_COLORS[u.role] || "bg-[#f3f4f9] text-ink"}`}>
-                          {u.role.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-ink font-bold text-xs">
-                        {u.school?.name || "—"}
-                      </td>
-                      <td className="px-4 py-4 text-ink font-bold text-xs">
-                        {u.campus?.name || "—"}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-normal ${u.isActive ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${u.isActive ? "bg-emerald-500" : "bg-rose-500"}`} />
-                          {u.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-ink-muted text-xs font-semibold">
-                        {formatDate(u.lastLogin)}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <button
-                          onClick={() => { setSelectedUser(u); setShowPasswordModal(true); }}
-                          className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-normal text-[#8127cf] bg-[#fbf0fe] hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
-                        >
-                          <KeyRound className="w-3 h-3" />
-                          Reset
-                        </button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5">
+                        <RoleBadge role={u.role} />
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5 text-xs text-ink">
+                        <bdi>{u.school?.name || "—"}</bdi>
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5 text-xs text-ink">
+                        <bdi>{u.campus?.name || "—"}</bdi>
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5">
+                        <Badge variant={u.isActive ? "success" : "neutral"} size="sm" dot>
+                          {u.isActive ? t("Active") : t("Inactive")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap px-4 py-3.5 text-xs tabular-nums text-ink-muted">
+                        <bdi>{dates.when(u.lastLogin)}</bdi>
+                      </TableCell>
+                      <TableCell className="px-4 py-3.5 text-end">
+                        {/* §4.4b: password reset is a support tool, kept in the row overflow (D10). */}
+                        <Menu
+                          label="More actions"
+                          align="end"
+                          trigger={<IconButton label={t("More actions for {0}", [u.fullName])} variant="outline"><MoreHorizontal aria-hidden="true" /></IconButton>}
+                          items={[{ id: "reset-password", label: t("Reset password"), icon: KeyRound, description: t("Only when the school's own administrator cannot."), onSelect: () => { setSelectedUser(u); setShowPasswordModal(true); } }]}
+                        />
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
 
             {pagination.pages > 1 && (
-              <PaginationBar pagination={pagination} label="users" onPage={(p) => loadUsers(p)} />
+              <PaginationBar pagination={pagination} label="users" onPage={setPage} />
             )}
           </>
         )}
-      </div>
+      </section>
 
       {showPasswordModal && selectedUser && (
         <ChangePasswordModal
           user={selectedUser}
           apiBase="/api/owner"
           onClose={() => { setShowPasswordModal(false); setSelectedUser(null); }}
-          onSuccess={() => { setShowPasswordModal(false); setSelectedUser(null); loadUsers(pagination.page); }}
+          onSuccess={() => { setShowPasswordModal(false); setSelectedUser(null); void loadUsers(pagination.page); }}
         />
       )}
     </div>
   );
 }
 
+const AUDIT_ACTIONS = ["login", "login_failed", "logout", "password_change", "school_suspended", "school_activated", "session_terminated", "school_provisioned", "user_provisioned", "plan_changed", "plan_pricing_updated", "default_plan_pricing_updated", "payment_bank_details_updated", "delete_school", "ai_workflows_live_on", "ai_workflows_live_off"] as const;
+
 function AuditLogView() {
+  const t = useUiText();
+  const { language } = useLocale();
+  const dates = useOwnerDates();
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [page, setPage] = useListField<number>("audit.page", 1, "audit.page");
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
-  const [actionFilter, setActionFilter] = useState("");
-  const [daysFilter, setDaysFilter] = useState("30");
+  const [actionFilter, setActionFilter] = useListField<string>("audit.action", "", "audit.page");
+  const [daysFilter, setDaysFilter] = useListField<string>("audit.days", "30", "audit.page");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  const loadLogs = useCallback(async (p = 1) => {
+  const loadLogsVersion = useRef(0);
+  const loadLogs = useCallback(async () => {
+    const version = ++loadLogsVersion.current;
     setLoading(true);
+    setLoadFailed(false);
     try {
-      const qp = new URLSearchParams({ page: String(p), limit: "30", days: daysFilter });
+      const qp = new URLSearchParams({ page: String(page), limit: "30", days: daysFilter });
       if (actionFilter) qp.set("action", actionFilter);
 
-      const res = await fetch(`/api/owner/audit-logs?${qp}`);
+      const res = await fetch(`/api/owner/audit-logs?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadLogsVersion.current) return;
       if (json.success) {
         setLogs(json.data);
         setTotalPages(json.pagination.pages);
         setTotal(json.pagination.total);
-        setPage(p);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      toast.error("Failed to load audit logs");
+      if (version === loadLogsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadLogsVersion.current) setLoading(false);
     }
-  }, [actionFilter, daysFilter]);
+  }, [actionFilter, daysFilter, page]);
 
-  useEffect(() => { loadLogs(); }, [loadLogs]);
+  useEffect(() => { void loadLogs(); }, [loadLogs]);
+
+  const exportLogs = async () => {
+    setExporting(true);
+    try {
+      const qp = new URLSearchParams({ days: daysFilter });
+      if (actionFilter) qp.set("action", actionFilter);
+      const rows = await loadOwnerPages<AuditEntry>("/api/owner/audit-logs", qp);
+      downloadCsv("platform-audit-log", ["time", "action", "status", "actor", "actor_role", "target_type", "target", "ip_address"],
+        rows.map((row) => [row.createdAt, row.action, row.status, row.user?.fullName ?? "", row.user?.role ?? "", row.targetType ?? "", row.targetName ?? "", row.ipAddress ?? ""]));
+      toast.success(t("Export downloaded."));
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The export could not be prepared. Try again.")));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
-    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Audit Log</h2>
-          <p className="text-sm font-semibold text-ink-muted mt-1">{total} actions recorded</p>
-        </div>
-        <button
-          onClick={() => loadLogs(1)}
-          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
-      </div>
+    <div className={VIEW_BODY}>
+      <ViewHeader
+        title="Audit log"
+        icon={FileText}
+        description={t("{0} platform actions recorded in the selected period: who did what, and when.", [dates.number(total)])}
+        secondaryActions={[
+          { id: "export", label: "Export", icon: Download, onClick: () => void exportLogs(), loading: exporting, disabled: loading || total === 0 },
+          { id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void loadLogs(), loading },
+        ]}
+      />
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="flex flex-wrap items-center gap-3 mb-5">
-          <select
+      <section className="sk-panel p-4 sm:p-6">
+        <div className={TOOLBAR}>
+          <SystemSelect
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+            aria-label={t("Filter by action")}
+            className={FILTER_SELECT}
           >
-            <option value="">All Actions</option>
-            <option value="login">Login</option>
-            <option value="login_failed">Login Failed</option>
-            <option value="logout">Logout</option>
-            <option value="password_change">Password Change</option>
-            <option value="school_suspended">School Suspended</option>
-            <option value="school_activated">School Activated</option>
-            <option value="session_terminated">Session Terminated</option>
-          </select>
-          <select
+            <option value="">{t("All actions")}</option>
+            {AUDIT_ACTIONS.map((action) => <option key={action} value={action}>{t(getActionMeta(action).label)}</option>)}
+          </SystemSelect>
+          <SystemSelect
             value={daysFilter}
             onChange={(e) => setDaysFilter(e.target.value)}
-            className="h-11 px-4 rounded-xl bg-[#f3f4f9] border-none text-sm font-bold outline-none cursor-pointer"
+            aria-label={t("Time period")}
+            className={FILTER_SELECT}
           >
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="365">Last year</option>
-          </select>
+            <option value="7">{t("Last 7 days")}</option>
+            <option value="30">{t("Last 30 days")}</option>
+            <option value="90">{t("Last 90 days")}</option>
+            <option value="365">{t("Last year")}</option>
+          </SystemSelect>
         </div>
 
         {loading ? (
-          <SkeletonList rows={5} label="Loading audit log" />
+          <SkeletonList rows={5} label={t("Loading audit log")} />
+        ) : loadFailed ? (
+          <ErrorState
+            title={t("The audit log did not load")}
+            description={t("We couldn't load these entries. Check your connection and try again.")}
+            onRetry={() => void loadLogs()}
+          />
         ) : logs.length === 0 ? (
-          <EmptyState icon={FileText} title="No Audit Entries" description="No actions recorded in this time period." />
+          <EmptyState
+            icon={FileText}
+            title={t("No audit entries")}
+            description={actionFilter ? t("No entries match this action in the selected period.") : t("Nothing was recorded in the selected period.")}
+            action={daysFilter !== "365" ? <Button variant="outline" type="button" onClick={() => setDaysFilter("365")}>{t("Show the last year")}</Button> : undefined}
+            secondaryAction={actionFilter ? <Button variant="ghost" type="button" onClick={() => setActionFilter("")}>{t("Show all actions")}</Button> : undefined}
+          />
         ) : (
           <div className="space-y-2">
             {logs.map((log) => {
@@ -870,85 +1720,84 @@ function AuditLogView() {
               const isExpanded = expandedId === log.id;
 
               return (
-                <button
+                <Button variant="ghost"
                   key={log.id}
                   type="button"
+                  aria-expanded={isExpanded}
                   onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                  className="w-full text-left rounded-2xl border border-transparent hover:border-[#cfc2d6]/15 p-4 transition-all hover:bg-[#fbf0fe]/20 cursor-pointer"
+                  data-tone={log.status === "failed" ? "danger" : undefined}
+                  className={cn(deskRow, "group block h-auto w-full p-4 ps-5 text-start font-normal actionable-hover:text-ink sm:p-5 sm:ps-6")}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${meta.tone}`}>
-                      <Icon className="w-4 h-4" />
+                  <div className="flex items-start gap-3 sm:items-center sm:gap-4">
+                    <div aria-hidden="true" className={cn("sk-icon-tile flex size-10 shrink-0 items-center justify-center rounded-xl", meta.tone)}>
+                      <Icon className="size-4" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-black text-[#1f1a23]">{meta.label}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-ink-strong">{t(meta.label)}</p>
                         {log.status === "failed" && (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase bg-rose-50 text-rose-600">
-                            <AlertCircle className="w-2 h-2" /> Failed
-                          </span>
+                          <DeskPill tone="danger">{t("Failed")}</DeskPill>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 mt-1">
-                        <span className="text-[10px] font-bold text-ink-muted flex items-center gap-1">
-                          <User className="w-2.5 h-2.5" /> {log.user?.fullName || "System"}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-subtle">
+                        <span className="inline-flex items-center gap-1 text-ink-muted">
+                          <User aria-hidden="true" className="size-3" /> <bdi>{log.user?.fullName || t("System")}</bdi>
                         </span>
                         {log.user?.role && (
-                          <span className="text-[10px] font-bold text-ink-subtle">{log.user.role.replace("_", " ")}</span>
+                          <span>{roleLabel(log.user.role as UserRole, language)}</span>
                         )}
                         {log.targetName && (
-                          <span className="text-[10px] font-bold text-ink-muted">Target: {log.targetName}</span>
+                          <span className="text-ink-muted">{t("Target")}: <bdi>{log.targetName}</bdi></span>
                         )}
                         {log.ipAddress && (
-                          <span className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
-                            <Globe className="w-2.5 h-2.5" /> {log.ipAddress}
+                          <span className="inline-flex items-center gap-1">
+                            <Globe aria-hidden="true" className="size-3" /> <bdi dir="ltr" className="tabular-nums">{log.ipAddress}</bdi>
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-bold text-ink-subtle flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {relativeTime(log.createdAt)}
+                    <div className="shrink-0 text-end">
+                      <p className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-ink-subtle">
+                        <Clock aria-hidden="true" className="size-3" /> <RelativeTime iso={log.createdAt} full={dates.when(log.createdAt)} />
                       </p>
                       {log.userAgent && (
-                        <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{parseBrowser(log.userAgent)}</p>
+                        <p className="mt-0.5 text-xs text-ink-subtle"><bdi dir="ltr">{parseBrowser(log.userAgent)}</bdi></p>
                       )}
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-[#f3f4f9] space-y-3">
+                    <div className="sk-fade-in mt-4 space-y-3 border-t border-border-subtle pt-4">
                       {log.errorMessage && (
-                        <div className="rounded-xl bg-rose-50 px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-rose-500 mb-1">Error</p>
-                          <p className="text-xs font-bold text-rose-700">{log.errorMessage}</p>
-                        </div>
+                        <Alert tone="danger" live="off" compact title={t("Action failed")}>
+                          <span dir="auto">{log.errorMessage}</span>
+                        </Alert>
                       )}
                       {log.oldValues && (
-                        <div className="rounded-xl bg-[#f3f4f9] px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-ink-subtle mb-1">Before</p>
-                          <pre className="text-xs font-mono text-ink whitespace-pre-wrap break-all">
+                        <div className="rounded-xl border border-border-subtle bg-surface-subtle px-4 py-3">
+                          <p className="sk-eyebrow mb-1">{t("Before")}</p>
+                          <pre dir="ltr" className="whitespace-pre-wrap break-all font-mono text-xs text-ink">
                             {JSON.stringify(log.oldValues, null, 2)}
                           </pre>
                         </div>
                       )}
                       {log.newValues && (
-                        <div className="rounded-xl bg-emerald-50/50 px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-emerald-600/60 mb-1">After</p>
-                          <pre className="text-xs font-mono text-emerald-700/70 whitespace-pre-wrap break-all">
+                        <div className="rounded-xl border border-status-success-border bg-status-success-surface px-4 py-3">
+                          <p className="sk-eyebrow mb-1 text-status-success-text">{t("After")}</p>
+                          <pre dir="ltr" className="whitespace-pre-wrap break-all font-mono text-xs text-status-success-text">
                             {JSON.stringify(log.newValues, null, 2)}
                           </pre>
                         </div>
                       )}
                       {log.userAgent && (
-                        <div className="rounded-xl bg-[#f3f4f9] px-4 py-3">
-                          <p className="text-[9px] font-black uppercase text-ink-subtle mb-1">User Agent</p>
-                          <p className="text-xs font-mono text-ink-muted break-all">{log.userAgent}</p>
+                        <div className="rounded-xl border border-border-subtle bg-surface-subtle px-4 py-3">
+                          <p className="sk-eyebrow mb-1">{t("Browser details")}</p>
+                          <p className="break-all font-mono text-xs text-ink-muted" dir="ltr">{log.userAgent}</p>
                         </div>
                       )}
                     </div>
                   )}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -958,41 +1807,52 @@ function AuditLogView() {
           <PaginationBar
             pagination={{ page, limit: 30, total, pages: totalPages }}
             label="entries"
-            onPage={(p) => loadLogs(p)}
+            onPage={setPage}
           />
         )}
-      </div>
+      </section>
     </div>
   );
 }
 
 function SessionsView() {
+  const t = useUiText();
+  const dates = useOwnerDates();
   const [sessions, setSessions] = useState<SessionEntry[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 50, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
-  const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [showActiveOnly, setShowActiveOnly] = useListField<boolean>("sessions.active", true, "sessions.page");
   const [terminatingId, setTerminatingId] = useState<string | null>(null);
+  const [confirmSession, setConfirmSession] = useState<SessionEntry | null>(null);
 
-  const loadSessions = useCallback(async (page = 1) => {
+  const [requestedPage, setPage] = useListField<number>("sessions.page", 1, "sessions.page");
+  const loadSessionsVersion = useRef(0);
+  const loadSessions = useCallback(async (page = requestedPage) => {
+    const version = ++loadSessionsVersion.current;
     setLoading(true);
+    setLoadFailed(false);
     try {
       const qp = new URLSearchParams({ page: String(page), limit: "50" });
       if (showActiveOnly) qp.set("active", "true");
 
-      const res = await fetch(`/api/owner/sessions?${qp}`);
+      const res = await fetch(`/api/owner/sessions?${qp}`, { cache: "no-store" });
       const json = await res.json();
+      if (version !== loadSessionsVersion.current) return;
       if (json.success) {
         setSessions(json.data);
         setPagination(json.pagination);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      toast.error("Failed to load sessions");
+      if (version === loadSessionsVersion.current) setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (version === loadSessionsVersion.current) setLoading(false);
     }
-  }, [showActiveOnly]);
+  }, [showActiveOnly, requestedPage]);
 
-  useEffect(() => { loadSessions(); }, [loadSessions]);
+  useEffect(() => { void loadSessions(); }, [loadSessions]);
 
   const terminateSession = async (sessionId: string) => {
     setTerminatingId(sessionId);
@@ -1002,64 +1862,65 @@ function SessionsView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error);
-      toast.success("Session terminated");
-      loadSessions(pagination.page);
-    } catch (err: any) {
-      toast.error(err.message);
+      toast.success(t("Session ended. The user has been signed out of it."));
+      void loadSessions(pagination.page);
+    } catch (err) {
+      toast.error(friendlyErrorMessage(err, t("The session could not be ended. Please try again.")));
     } finally {
       setTerminatingId(null);
     }
   };
 
-  return (
-    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Active Sessions</h2>
-          <p className="text-sm font-semibold text-ink-muted mt-1">
-            {pagination.total} sessions across all schools
-          </p>
-        </div>
-        <button
-          onClick={() => loadSessions(1)}
-          className="flex items-center gap-2 h-11 px-5 rounded-xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#8127cf] hover:text-white transition-all cursor-pointer"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
-      </div>
+  const confirmDevice = confirmSession ? parseDevice(confirmSession.userAgent) : null;
 
-      <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-        <div className="flex items-center justify-between gap-4 mb-5">
+  return (
+    <div className={VIEW_BODY}>
+      <ViewHeader
+        title="Sessions"
+        icon={Monitor}
+        description={t("{0} sign-in sessions across every school. End one when a device is lost or shared.", [dates.number(pagination.total)])}
+        secondaryActions={[{ id: "refresh", label: "Refresh", icon: RefreshCw, onClick: () => void loadSessions(1), loading }]}
+      />
+
+      <section className="sk-panel p-4 sm:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf] flex items-center justify-center">
-              <Wifi className="w-5 h-5" />
-            </div>
-            <h3 className="text-lg font-black text-[#1f1a23]">Login Sessions</h3>
+            <span aria-hidden="true" className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-brand-100 text-primary">
+              <Wifi className="size-5" />
+            </span>
+            <h2 className="text-lg font-bold text-ink-strong">{t("Sign-in sessions")}</h2>
           </div>
-          <div className="flex items-center gap-2">
-            <button
+          <div role="group" aria-label={t("Which sessions to show")} className="flex flex-wrap gap-2">
+            <Button aria-pressed={showActiveOnly} variant="choice" size="sm" type="button"
               onClick={() => setShowActiveOnly(true)}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink"}`}
             >
-              Active Only
-            </button>
-            <button
+              {t("Active only")}
+            </Button>
+            <Button aria-pressed={!showActiveOnly} variant="choice" size="sm" type="button"
               onClick={() => setShowActiveOnly(false)}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${!showActiveOnly ? "bg-[#8127cf] text-white" : "bg-[#f3f4f9] text-ink"}`}
             >
-              All Sessions
-            </button>
+              {t("All sessions")}
+            </Button>
           </div>
         </div>
 
         {loading ? (
-          <SkeletonList rows={4} label="Loading sessions" />
+          <SkeletonList rows={4} label={t("Loading sessions")} />
+        ) : loadFailed ? (
+          <ErrorState
+            title={t("Sessions did not load")}
+            description={t("We couldn't load the session list. Check your connection and try again.")}
+            onRetry={() => void loadSessions(pagination.page)}
+          />
         ) : sessions.length === 0 ? (
-          <EmptyState icon={Lock} title="No Sessions" description="No sessions found with the current filter." />
+          <EmptyState
+            icon={Lock}
+            title={t("No sessions")}
+            description={showActiveOnly ? t("Nobody is signed in right now.") : t("No sign-ins have been recorded yet.")}
+            action={showActiveOnly ? <Button variant="outline" type="button" onClick={() => setShowActiveOnly(false)}>{t("Show all sessions")}</Button> : undefined}
+          />
         ) : (
           <div className="space-y-3">
             {sessions.map((session) => {
@@ -1071,61 +1932,47 @@ function SessionsView() {
               return (
                 <div
                   key={session.id}
-                  className={`rounded-2xl border p-4 transition-all ${
-                    isLive
-                      ? "border-emerald-100/50 bg-gradient-to-r from-emerald-50/30 to-white"
-                      : "border-[#f3f4f9] bg-[#f3f4f9]/30"
-                  }`}
+                  data-tone={isLive ? "success" : "muted"}
+                  className={deskRow}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      isLive ? "bg-emerald-100 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
-                    }`}>
-                      <DeviceIcon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-black text-[#1f1a23]">{session.user.fullName}</p>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-black uppercase ${
-                          isLive ? "bg-emerald-50 text-emerald-600" : "bg-[#f3f4f9] text-ink-subtle"
-                        }`}>
-                          <span className={`h-1 w-1 rounded-full ${isLive ? "bg-emerald-500" : "bg-[#4d4354]/30"}`} />
-                          {isLive ? "Active" : "Ended"}
-                        </span>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[7px] font-black uppercase ${ROLE_COLORS[session.user.role] || "bg-[#f3f4f9] text-ink"}`}>
-                          {session.user.role.replace("_", " ")}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 mt-1">
-                        <span className="text-[10px] font-bold text-ink-subtle">{session.user.email}</span>
-                        {session.user.school && (
-                          <span className="text-[10px] font-bold text-[#8127cf]/60">{session.user.school.name}</span>
-                        )}
-                        <span className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
-                          <Globe className="w-2.5 h-2.5" /> {session.ipAddress || "—"}
-                        </span>
-                        <span className="text-[10px] font-bold text-ink-subtle">
-                          {device.browser} / {device.os}
-                        </span>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <div className="flex min-w-0 flex-1 items-start gap-3 sm:items-center sm:gap-4">
+                      <DeskRowIcon icon={DeviceIcon} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-bold text-ink-strong"><bdi>{session.user.fullName}</bdi></p>
+                          <DeskPill tone={isLive ? "success" : "neutral"}>
+                            {isLive ? t("Active") : t("Ended")}
+                          </DeskPill>
+                          <RoleBadge role={session.user.role} />
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-subtle">
+                          <span className="min-w-0 max-w-full truncate"><bdi dir="ltr">{session.user.email}</bdi></span>
+                          {session.user.school && (
+                            <span className="text-primary"><bdi>{session.user.school.name}</bdi></span>
+                          )}
+                          <span className="inline-flex items-center gap-1">
+                            <Globe aria-hidden="true" className="size-3" /> <bdi dir="ltr" className="tabular-nums">{session.ipAddress || "—"}</bdi>
+                          </span>
+                          <span>
+                            <bdi dir="ltr">{device.browser} / {device.os}</bdi>
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                      <p className="text-[10px] font-bold text-ink-subtle flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {formatDate(session.loginAt)}
+                    <div className="flex shrink-0 items-center justify-between gap-2 sm:flex-col sm:items-end">
+                      <p className="inline-flex items-center gap-1 whitespace-nowrap text-xs tabular-nums text-ink-subtle">
+                        <Clock aria-hidden="true" className="size-3" /> <RelativeTime iso={session.loginAt} full={dates.when(session.loginAt)} />
                       </p>
                       {isLive && (
-                        <button
-                          onClick={() => terminateSession(session.id)}
-                          disabled={terminatingId === session.id}
-                          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all cursor-pointer disabled:opacity-40"
+                        <Button variant="outline" size="sm"
+                          type="button"
+                          onClick={() => setConfirmSession(session)}
+                          loading={terminatingId === session.id}
                         >
-                          {terminatingId === session.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <LogOut className="w-3 h-3" />
-                          )}
-                          Terminate
-                        </button>
+                          {terminatingId === session.id ? null : <LogOut aria-hidden="true" />}
+                          {t("End session")}
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -1136,394 +1983,430 @@ function SessionsView() {
         )}
 
         {pagination.pages > 1 && (
-          <PaginationBar pagination={pagination} label="sessions" onPage={(p) => loadSessions(p)} />
+          <PaginationBar pagination={pagination} label="sessions" onPage={setPage} />
         )}
-      </div>
+      </section>
+
+      <ConfirmAction
+        open={Boolean(confirmSession)}
+        tone="warning"
+        title={t("End this session?")}
+        description={confirmSession && confirmDevice
+          ? t("{0} is signed out of {1} on {2} and will need to sign in again there.", [confirmSession.user.fullName, confirmDevice.browser, confirmDevice.os])
+          : ""}
+        confirmLabel={t("End session")}
+        cancelLabel={t("Keep editing")}
+        busy={Boolean(confirmSession && terminatingId === confirmSession.id)}
+        onCancel={() => setConfirmSession(null)}
+        onConfirm={async () => {
+          if (!confirmSession) return;
+          await terminateSession(confirmSession.id);
+          setConfirmSession(null);
+        }}
+      />
     </div>
   );
 }
 
-function BillingView({ stats }: { stats: Stats | null }) {
-  const planColors: Record<string, string> = {
-    FREE: "bg-[#f3f4f9] text-ink-muted border border-[#cfc2d6]/10",
-    STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
-    PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
-    ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
-  };
+const PLAN_PROGRESS: Record<string, ProgressTone> = { FREE: "neutral", STARTER: "brand", BASIC: "brand", PRO: "brand", ENTERPRISE: "brand" };
+const STATUS_PROGRESS: Record<string, ProgressTone> = { ACTIVE: "success", TRIAL: "brand", SUSPENDED: "danger" };
 
-
+/** A count per key with its share of all schools, drawn as labelled bars. */
+function DistributionPanel({ title, counts, total, renderBadge, label, tone, emptyTitle }: {
+  title: string;
+  counts: Record<string, number>;
+  total: number;
+  renderBadge: (key: string) => ReactNode;
+  label: (key: string) => string;
+  tone: (key: string) => ProgressTone;
+  emptyTitle: string;
+}) {
+  const t = useUiText();
+  const dates = useOwnerDates();
+  const entries = Object.entries(counts).sort(([, a], [, b]) => b - a);
   return (
-    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Billing & Plans</h2>
-          <p className="text-sm font-semibold text-ink-muted mt-1">Revenue overview and plan distribution</p>
-        </div>
-      </div>
+    <section className="sk-panel p-5 sm:p-6">
+      <h2 className="text-base font-bold text-ink-strong">{t(title)}</h2>
+      {entries.length > 0 ? (
+        <ul className="mt-4 space-y-4">
+          {entries.map(([key, count]) => {
+            const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+            return (
+              <li key={key}>
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  {renderBadge(key)}
+                  <span className="text-sm font-bold tabular-nums text-ink-strong"><bdi>{dates.number(count)}</bdi></span>
+                </div>
+                <Progress value={pct} label={t("{0}: {1}% of schools", [label(key), pct])} tone={tone(key)} size="sm" />
+                <p className="mt-1 text-xs tabular-nums text-ink-subtle">{t("{0}% of schools", [pct])}</p>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <EmptyState size="sm" icon={PieChart} title={t(emptyTitle)} description={t("This fills in once schools are registered.")} />
+      )}
+    </section>
+  );
+}
 
-      {stats && (
+/**
+ * Plans & revenue — the platform's own commercial picture: who is on which plan, who is paying, trialling or
+ * paused. Tenant tuition (families paying their school) is never shown here (M109): it is the school's money.
+ */
+function BillingView({ stats, loading, onRetry }: { stats: Stats | null; loading: boolean; onRetry?: () => void }) {
+  const t = useUiText();
+  const dates = useOwnerDates();
+  const paid = stats ? Object.entries(stats.schoolsByPlan ?? {}).filter(([plan]) => plan !== "FREE").reduce((sum, [, count]) => sum + count, 0) : 0;
+  const exportPlans = () => {
+    if (!stats) return;
+    downloadCsv("plans-and-status",
+      ["group", "key", "schools", "share_percent"],
+      [
+        ...Object.entries(stats.schoolsByPlan ?? {}).map(([plan, count]) => ["plan", plan, count, stats.schoolCount ? Math.round((count / stats.schoolCount) * 100) : 0]),
+        ...Object.entries(stats.schoolsByStatus ?? {}).map(([status, count]) => ["status", status, count, stats.schoolCount ? Math.round((count / stats.schoolCount) * 100) : 0]),
+      ]);
+    toast.success(t("Export downloaded."));
+  };
+  return (
+    <div className={VIEW_BODY}>
+      <ViewHeader
+        title="Plans & revenue"
+        icon={PieChart}
+        description="Which plan each school is on and where every subscription stands. Family fees belong to each school and are not shown here."
+        secondaryActions={[{ id: "export", label: "Export", icon: Download, onClick: exportPlans, disabled: !stats }]}
+      />
+
+      {stats ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="rounded-[24px] bg-gradient-to-br from-[#1f1a23] to-[#2d2633] p-6 text-white">
-              <p className="text-[9px] font-black uppercase tracking-normal text-white/40 flex items-center gap-2">
-                <Banknote className="w-3 h-3" /> Total Revenue
-              </p>
-              <p className="text-3xl font-black mt-2">
-                PKR {((stats.totalRevenue || 0) / 100).toLocaleString("en-PK")}
-              </p>
-              <p className="text-xs font-bold text-white/50 mt-1">{stats.totalPaymentCount} successful payments</p>
-            </div>
-            <div className="rounded-[24px] bg-gradient-to-br from-amber-50 to-amber-50/50 border border-amber-100/50 p-6">
-              <p className="text-[9px] font-black uppercase tracking-normal text-amber-600/60 flex items-center gap-2">
-                <Clock className="w-3 h-3" /> Pending Invoices
-              </p>
-              <p className="text-3xl font-black text-amber-800 mt-2">{stats.pendingInvoices}</p>
-              <p className="text-xs font-bold text-amber-600/60 mt-1">Awaiting payment</p>
-            </div>
-            <div className="rounded-[24px] bg-gradient-to-br from-emerald-50 to-emerald-50/50 border border-emerald-100/50 p-6">
-              <p className="text-[9px] font-black uppercase tracking-normal text-emerald-600/60 flex items-center gap-2">
-                <CreditCard className="w-3 h-3" /> Active Schools
-              </p>
-              <p className="text-3xl font-black text-emerald-800 mt-2">{stats.schoolsByStatus?.ACTIVE || 0}</p>
-              <p className="text-xs font-bold text-emerald-600/60 mt-1">Out of {stats.schoolCount} total</p>
-            </div>
-          </div>
+          <DeskStats>
+            <StatTile index={0} icon={School} tone="brand" label={t("Schools")} value={dates.number(stats.schoolCount)} hint={t("{0} campuses", [dates.number(stats.campusCount)])} />
+            <StatTile index={1} icon={CreditCard} tone="success" label={t("On a paid plan")} value={dates.number(paid)} hint={t("Out of {0} schools", [dates.number(stats.schoolCount)])} />
+            <StatTile index={2} icon={Clock} tone="info" label={t("In trial")} value={dates.number(stats.schoolsByStatus?.TRIAL || 0)} hint={t("Choosing a plan")} />
+            <StatTile index={3} icon={Pause} tone={stats.schoolsByStatus?.SUSPENDED ? "danger" : "neutral"} label={t("Paused")} value={dates.number(stats.schoolsByStatus?.SUSPENDED || 0)} hint={t("Waiting for renewal")} />
+          </DeskStats>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Plan</p>
-              {Object.keys(stats.schoolsByPlan).length > 0 ? (
-                <div className="space-y-3">
-                  {Object.entries(stats.schoolsByPlan)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([plan, count]) => {
-                      const pct = stats.schoolCount > 0 ? Math.round((count / stats.schoolCount) * 100) : 0;
-                      return (
-                        <div key={plan}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
-                              {planLabel(plan)}
-                            </span>
-                            <span className="text-sm font-black text-[#1f1a23]">{count}</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                plan === "ENTERPRISE" ? "bg-[#1f1a23]" :
-                                plan === "PRO" ? "bg-[#8127cf]" :
-                                plan === "STARTER" ? "bg-sky-500" : "bg-[#cfc2d6]/40"
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{pct}% of schools</p>
-                        </div>
-                      );
-                    })}
-                </div>
-              ) : (
-                <p className="text-sm font-semibold text-ink-subtle">No plan data available</p>
-              )}
-            </div>
-
-            <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-              <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4">Schools by Status</p>
-              {Object.keys(stats.schoolsByStatus).length > 0 ? (
-                <div className="space-y-3">
-                  {Object.entries(stats.schoolsByStatus)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([status, count]) => {
-                      const pct = stats.schoolCount > 0 ? Math.round((count / stats.schoolCount) * 100) : 0;
-                      return (
-                        <div key={status}>
-                          <div className="flex items-center justify-between mb-1">
-                            <StatusPill status={status} />
-                            <span className="text-sm font-black text-[#1f1a23]">{count}</span>
-                          </div>
-                          <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                status === "ACTIVE" ? "bg-emerald-500" :
-                                status === "TRIAL" ? "bg-[#8127cf]" :
-                                status === "SUSPENDED" ? "bg-rose-500" : "bg-[#cfc2d6]/40"
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{pct}% of schools</p>
-                        </div>
-                      );
-                    })}
-                </div>
-              ) : (
-                <p className="text-sm font-semibold text-ink-subtle">No status data available</p>
-              )}
-            </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <DistributionPanel
+              title="Schools by plan"
+              counts={stats.schoolsByPlan}
+              total={stats.schoolCount}
+              renderBadge={(plan) => <PlanBadge plan={plan} size="default" />}
+              label={planLabel}
+              tone={(plan) => PLAN_PROGRESS[plan] ?? "neutral"}
+              emptyTitle="No plan data yet"
+            />
+            <DistributionPanel
+              title="Schools by status"
+              counts={stats.schoolsByStatus}
+              total={stats.schoolCount}
+              renderBadge={(status) => <StatusPill status={status} />}
+              label={(status) => t(STATUS_LABELS[status] ?? sentenceCase(status))}
+              tone={(status) => STATUS_PROGRESS[status] ?? "neutral"}
+              emptyTitle="No status data yet"
+            />
           </div>
         </>
+      ) : loading ? (
+        <SkeletonCards count={4} label={t("Loading plans")} />
+      ) : (
+        <div className="sk-panel">
+          <ErrorState
+            title={t("Plan figures did not load")}
+            description={t("We couldn't load the platform statistics. Check your connection and try again.")}
+            onRetry={onRetry}
+          />
+        </div>
       )}
-
     </div>
   );
 }
 
-function PricingView({ stats }: { stats: Stats | null }) {
-  const planColors: Record<string, string> = {
-    FREE: "bg-[#f3f4f9] text-ink-muted border border-[#cfc2d6]/10",
-    STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
-    PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
-    ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
-  };
-  const [pricingSchoolId, setPricingSchoolId] = useState("");
-  const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>({
-    FREE: { price: "0" },
-    BASIC: { price: "4000" },
-    PRO: { price: "7000" },
-    ENTERPRISE: { price: "" },
-  });
-  const [savingPricing, setSavingPricing] = useState(false);
-  const [pricingMessage, setPricingMessage] = useState("");
+/** One plan's monthly catalogue price, in the platform catalogue currency. Blank keeps the meaning the section describes. */
+function PlanPriceField({ scope, plan, value, placeholder, disabled, onChange }: {
+  scope: string;
+  plan: string;
+  value: string;
+  placeholder: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <FormField name={`${scope}-${plan}`} label={planLabel(plan)} className="min-w-0">
+      <InputGroup surfaceClassName="bg-card" className="w-full">
+        <span data-field-affix="start" className="text-xs font-semibold text-ink-subtle"><bdi dir="ltr">{COMMERCIAL_CONTRACT.currency}</bdi></span>
+        <SystemInput
+          type="number"
+          min="0"
+          step="any"
+          disabled={disabled}
+          dir="ltr"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={"w-full tabular-nums"}
+        />
+      </InputGroup>
+    </FormField>
+  );
+}
 
-  const [defaultPricing, setDefaultPricing] = useState<Record<string, { price: string }>>({
-    FREE: { price: "0" },
-    BASIC: { price: "4000" },
-    PRO: { price: "7000" },
-    ENTERPRISE: { price: "" },
-  });
+const DEFAULT_PRICE_FIELDS = { FREE: { price: "0" }, BASIC: { price: "4000" }, PRO: { price: "7000" }, ENTERPRISE: { price: "" } };
+const EMPTY_PRICE_FIELDS = { FREE: { price: "" }, BASIC: { price: "" }, PRO: { price: "" }, ENTERPRISE: { price: "" } };
+type SavedPrices = Record<string, { price?: number | null }>;
+const priceFields = (prices: SavedPrices | null | undefined) => Object.fromEntries(
+  PLAN_CHOICES.map(plan => [plan, { price: prices?.[plan]?.price == null ? "" : String(prices[plan].price) }]),
+);
+
+function PricingView({ stats }: { stats: Stats | null }) {
+  const t = useUiText();
+  const [pricingSchoolId, setPricingSchoolId] = useState("");
+  const [pricingValues, setPricingValues] = useState<Record<string, { price: string }>>(EMPTY_PRICE_FIELDS);
+  const [savingPricing, setSavingPricing] = useState(false);
+  const [pricingSaved, setPricingSaved] = useState(false);
+  const [loadingPricing, setLoadingPricing] = useState(false);
+  const [pricingLoadFailed, setPricingLoadFailed] = useState(false);
+
+  const [defaultPricing, setDefaultPricing] = useState<Record<string, { price: string }>>(DEFAULT_PRICE_FIELDS);
   const [savingDefaults, setSavingDefaults] = useState(false);
+  const [defaultsFailed, setDefaultsFailed] = useState(false);
+  const [loadingDefaults, setLoadingDefaults] = useState(true);
+  const [savedDefaults, setSavedDefaults] = useState<SavedPrices | null>(null);
+  const pricingVersion = useRef(0);
 
   const loadDefaultPricing = async () => {
+    setLoadingDefaults(true);
+    setDefaultsFailed(false);
     try {
-      const res = await fetch("/api/owner/platform-config");
+      const res = await fetch("/api/owner/platform-config", { cache: "no-store" });
       const json = await res.json();
-      if (json.success && json.data) {
-        const d = json.data as Record<string, { price?: number | null }>;
-        setDefaultPricing({
-          FREE: { price: String(d.FREE?.price ?? 0) },
-          BASIC: { price: String(d.BASIC?.price ?? 4000) },
-          PRO: { price: String(d.PRO?.price ?? 7000) },
-          ENTERPRISE: { price: d.ENTERPRISE?.price != null ? String(d.ENTERPRISE.price) : "" },
-        });
+      if (res.ok && json.success && json.data) {
+        setSavedDefaults(json.data);
+        setDefaultPricing(priceFields(json.data));
+      } else {
+        setDefaultsFailed(true);
       }
     } catch {
-      // ignore
+      setDefaultsFailed(true);
+    } finally {
+      setLoadingDefaults(false);
     }
   };
 
   const saveDefaultPricing = async () => {
+    if (loadingDefaults || defaultsFailed || !savedDefaults || savingDefaults) return;
+    const pricing: Record<string, { price?: number | null }> = {};
+    for (const [plan, vals] of Object.entries(defaultPricing)) {
+      const num = vals.price === "" ? null : Number(vals.price);
+      if (num !== null && (!Number.isFinite(num) || num < 0)) {
+        toast.error(t("Enter a price of 0 or more for {0}.", [planLabel(plan)]));
+        return;
+      }
+      pricing[plan] = num !== null ? { price: num } : { price: null };
+    }
     setSavingDefaults(true);
     try {
-      const pricing: Record<string, { price?: number | null }> = {};
-      for (const [plan, vals] of Object.entries(defaultPricing)) {
-        const num = vals.price === "" ? null : Number(vals.price);
-        if (num !== null && (isNaN(num) || num < 0)) {
-          toast.error(`Invalid price for ${plan}`);
-          setSavingDefaults(false);
-          return;
-        }
-        pricing[plan] = num !== null ? { price: num } : { price: null };
-      }
       const res = await fetch("/api/owner/platform-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pricing }),
+        body: JSON.stringify({ pricing, expected: savedDefaults }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || JSON.stringify(json));
-      toast.success(json.message);
-    } catch (err: any) {
-      console.error("[pricing] save error", err);
-      toast.error(err?.message || String(err));
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error);
+      setSavedDefaults(json.data);
+      toast.success(t("Default prices saved. Schools see the new catalogue prices from their next renewal."));
+      setDefaultsFailed(false);
+    } catch (err) {
+      toast.error(friendlyErrorMessage(err, t("The prices could not be saved. Please try again.")));
     } finally {
       setSavingDefaults(false);
     }
   };
 
-  useEffect(() => { loadDefaultPricing(); }, []);
+  useEffect(() => { void loadDefaultPricing(); }, []);
 
   const loadPricing = async (schoolId: string) => {
+    const version = ++pricingVersion.current;
+    setLoadingPricing(true);
+    setPricingLoadFailed(false);
     try {
-      const res = await fetch(`/api/owner/schools/${schoolId}`);
+      const res = await fetch(`/api/owner/schools/${schoolId}`, { cache: "no-store" });
       const json = await res.json();
-      if (json.data?.planPricing) {
-        const p = json.data.planPricing as Record<string, { price?: number }>;
-        setPricingValues({
-          FREE: { price: String(p.FREE?.price ?? 0) },
-          BASIC: { price: String(p.BASIC?.price ?? 4000) },
-          PRO: { price: String(p.PRO?.price ?? 7000) },
-          ENTERPRISE: { price: p.ENTERPRISE?.price != null ? String(p.ENTERPRISE.price) : "" },
-        });
-      } else {
-        setPricingValues({
-          FREE: { price: "0" },
-          BASIC: { price: "4000" },
-          PRO: { price: "7000" },
-          ENTERPRISE: { price: "" },
-        });
-      }
-      setPricingMessage("");
+      if (version !== pricingVersion.current) return;
+      if (!res.ok) throw new Error(json.error);
+      setPricingValues(priceFields(json.data?.planPricing));
+      setPricingSaved(false);
     } catch {
-      toast.error("Failed to load pricing");
+      // R4: shown inline under the school picker, with a retry.
+      if (version === pricingVersion.current) setPricingLoadFailed(true);
+    } finally {
+      if (version === pricingVersion.current) setLoadingPricing(false);
     }
   };
 
   const savePricing = async () => {
-    if (!pricingSchoolId) return;
-    setSavingPricing(true);
-    setPricingMessage("");
-    try {
-      const pricing: Record<string, { price?: number }> = {};
-      for (const [plan, vals] of Object.entries(pricingValues)) {
-        const num = vals.price === "" ? undefined : Number(vals.price);
-        if (num !== undefined && (isNaN(num) || num < 0)) {
-          toast.error(`Invalid price for ${plan}`);
-          setSavingPricing(false);
-          return;
-        }
-        pricing[plan] = num !== undefined ? { price: num } : { price: undefined };
+    if (!pricingSchoolId || loadingPricing || pricingLoadFailed || savingPricing) return;
+    const pricing: Record<string, { price?: number }> = {};
+    for (const [plan, vals] of Object.entries(pricingValues)) {
+      const num = vals.price === "" ? undefined : Number(vals.price);
+      if (num !== undefined && (!Number.isFinite(num) || num < 0)) {
+        toast.error(t("Enter a price of 0 or more for {0}.", [planLabel(plan)]));
+        return;
       }
+      pricing[plan] = num !== undefined ? { price: num } : { price: undefined };
+    }
+    setSavingPricing(true);
+    setPricingSaved(false);
+    try {
       const res = await fetch(`/api/owner/schools/${pricingSchoolId}/pricing`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pricing }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error);
-      toast.success(json.message);
-      setPricingMessage("Pricing saved — Super Admins will see updated prices immediately.");
-    } catch (err: any) {
-      toast.error(err.message);
+      toast.success(t("This school's prices are saved."));
+      setPricingSaved(true);
+    } catch (err) {
+      toast.error(friendlyErrorMessage(err, t("The prices could not be saved. Please try again.")));
     } finally {
       setSavingPricing(false);
     }
   };
 
   return (
-    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Plan Pricing</h2>
-          <p className="text-sm font-semibold text-ink-muted mt-1">Set global defaults and per-school overrides</p>
-        </div>
-      </div>
+    <div className={VIEW_BODY}>
+      <ViewHeader
+        title="Pricing"
+        icon={DollarSign}
+        description={t("Default monthly catalogue prices for every school, and per-school overrides. Prices are in {0}.", [COMMERCIAL_CONTRACT.currency])}
+        primaryAction={{ id: "save-prices", label: "Save prices", icon: Save, onClick: () => void saveDefaultPricing(), loading: savingDefaults, disabled: loadingDefaults || defaultsFailed || !savedDefaults }}
+      />
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
-          <Globe className="w-3 h-3" /> Default Plan Prices
-        </p>
-        <p className="text-xs font-semibold text-ink-subtle mb-4">
-          Set global default prices for all plans. These apply to every school unless overridden per school below. Existing schools will see a notice about new rates from their next billing cycle.
-        </p>
-        <div className="space-y-3 mb-4">
+      <section aria-labelledby="pricing-defaults-heading" className="sk-panel p-4 sm:p-6">
+        <PanelHeading
+          id="pricing-defaults-heading"
+          icon={Globe}
+          title={t("Default plan prices")}
+          description={t("These apply to every school unless overridden below. Schools already on a plan see a notice and keep their approved terms until their next renewal.")}
+        />
+        {defaultsFailed ? (
+          <Alert
+            tone="warning"
+            className="mb-5"
+            title={t("The saved default prices did not load")}
+            actions={<Button variant="outline" size="sm" type="button" onClick={() => void loadDefaultPricing()}><RefreshCw aria-hidden="true" />{t("Try again")}</Button>}
+          >
+            {t("Load the saved prices before making changes.")}
+          </Alert>
+        ) : null}
+        <Button variant="ghost" size="sm" type="button" disabled={loadingDefaults || savingDefaults} onClick={() => void loadDefaultPricing()} className="mb-3"><RefreshCw aria-hidden="true" />{t("Reload saved prices")}</Button>
+        {loadingDefaults ? <SkeletonList rows={2} label={t("Loading saved prices")} /> : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Object.entries(defaultPricing).map(([plan, vals]) => (
-            <div key={plan} className="flex items-center gap-4">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
-                {planLabel(plan)}
-              </span>
-              <div className="relative flex-1 max-w-[200px]">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Default"
-                  value={vals.price}
-                  onChange={(e) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
-                  className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
-                />
-              </div>
-            </div>
+            <PlanPriceField
+              key={plan}
+              scope="default-price"
+              plan={plan}
+              value={vals.price}
+              placeholder={t("Not set")}
+              disabled={defaultsFailed || savingDefaults}
+              onChange={(value) => setDefaultPricing(prev => ({ ...prev, [plan]: { price: value } }))}
+            />
           ))}
-        </div>
-        <button
-          type="button"
-          onClick={saveDefaultPricing}
-          disabled={savingDefaults}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#1f1a23] px-5 py-[10px] text-sm font-black text-white hover:bg-[#2d2633] transition-colors disabled:opacity-50"
-        >
-          {savingDefaults ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {savingDefaults ? "Saving..." : "Save Defaults"}
-        </button>
-      </div>
+        </div>}
+      </section>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
-          <DollarSign className="w-3 h-3" /> Plan Pricing Override
-        </p>
-        <p className="text-xs font-semibold text-ink-subtle mb-4">
-          Set custom plan prices per school. Leave blank to use defaults.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <div className="flex-1">
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">School</label>
-            <select
-              value={pricingSchoolId}
-              onChange={(e) => {
-                setPricingSchoolId(e.target.value);
-                if (e.target.value) loadPricing(e.target.value);
-                setPricingMessage("");
-              }}
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
-            >
-              <option value="">Select a school...</option>
-              {stats?.schools?.map((s: { id: string; name: string }) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {pricingSchoolId && (
-          <div className="space-y-3">
-            {Object.entries(pricingValues).map(([plan, vals]) => (
-              <div key={plan} className="flex items-center gap-4">
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal w-28 ${planColors[plan] || "bg-[#f3f4f9] text-ink"}`}>
-                  {planLabel(plan)}
-                </span>
-                <div className="relative flex-1 max-w-[200px]">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-subtle">PKR</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Default"
-                    value={vals.price}
-                    onChange={(e) => setPricingValues(prev => ({ ...prev, [plan]: { price: e.target.value } }))}
-                    className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-12 pr-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
-                  />
-                </div>
-              </div>
+      <section aria-labelledby="pricing-override-heading" className="sk-panel p-4 sm:p-6">
+        <PanelHeading
+          id="pricing-override-heading"
+          icon={DollarSign}
+          title={t("Price for one school")}
+          description={t("Set custom plan prices for one school. Leave a field blank to use the default.")}
+        />
+        <FormField
+          name="pricing-school"
+          label={t("School")}
+          className="mb-5 max-w-md"
+          hint={stats ? t("Choose a school to see and change its prices.") : t("The school list is unavailable until the platform statistics load.")}
+        >
+          <SystemSelect
+            value={pricingSchoolId}
+            disabled={savingPricing}
+            onChange={(e) => {
+              ++pricingVersion.current;
+              setPricingSchoolId(e.target.value);
+              setPricingValues(EMPTY_PRICE_FIELDS);
+              if (e.target.value) void loadPricing(e.target.value);
+              setPricingSaved(false);
+            }}
+            className={"w-full"}
+          >
+            <option value="">{t("Choose a school")}</option>
+            {stats?.schools?.map((s: { id: string; name: string }) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={savePricing}
-                disabled={savingPricing}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
-              >
-                {savingPricing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {savingPricing ? "Saving..." : "Save Pricing"}
-              </button>
-              {pricingMessage && (
-                <span className="text-xs font-semibold text-emerald-600">{pricingMessage}</span>
-              )}
+          </SystemSelect>
+        </FormField>
+        {pricingSchoolId && (
+          loadingPricing ? (
+            <SkeletonList rows={2} label={t("Loading this school's prices")} />
+          ) : pricingLoadFailed ? (
+            <ErrorState title={t("This school's prices did not load")} description={t("Check your connection and try again.")} onRetry={() => void loadPricing(pricingSchoolId)} />
+          ) : (
+            <div className="sk-fade-in space-y-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {Object.entries(pricingValues).map(([plan, vals]) => (
+                  <PlanPriceField
+                    key={plan}
+                    scope="school-price"
+                    plan={plan}
+                    value={vals.price}
+                    placeholder={t("Use default")}
+                    disabled={savingPricing}
+                    onChange={(value) => { setPricingSaved(false); setPricingValues(prev => ({ ...prev, [plan]: { price: value } })); }}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <Button variant="outline"
+                  type="button"
+                  onClick={() => void savePricing()}
+                  loading={savingPricing}
+                  className="sm:shrink-0"
+                >
+                  {savingPricing ? null : <Save aria-hidden="true" />}
+                  {t("Save this school's prices")}
+                </Button>
+                {pricingSaved && (
+                  <Alert tone="success" compact live="polite" className="sm:w-auto sm:flex-1">{t("Saved. The school's administrator sees the new prices in Billing & plan straight away.")}</Alert>
+                )}
+              </div>
             </div>
-          </div>
+          )
         )}
-      </div>
+      </section>
     </div>
   );
 }
 
+const CONNECT_RETURN: Record<string, { tone: "success" | "warning"; message: string }> = {
+  success: { tone: "success", message: "Stripe finished onboarding. Payouts start once Stripe confirms the account." },
+  refresh: { tone: "warning", message: "The Stripe onboarding link expired before it was finished. Continue onboarding to pick up where you left off." },
+};
+
 function PaymentSettingsView() {
+  const t = useUiText();
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
   const [bankForm, setBankForm] = useState({ bankName: "", accountTitle: "", accountNumber: "", iban: "" });
+  const [connectOutcome, setConnectOutcome] = useState<(typeof CONNECT_RETURN)[string] | null>(null);
 
   const loadSettings = async () => {
     try {
-      const res = await fetch("/api/owner/payment-settings");
+      const res = await fetch("/api/owner/payment-settings", { cache: "no-store" });
       const json = await res.json();
       if (json.success) {
         setSettings(json.data);
@@ -1533,15 +2416,36 @@ function PaymentSettingsView() {
           accountNumber: json.data.accountNumber || "",
           iban: json.data.iban || "",
         });
+        setLoadFailed(false);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      toast.error("Failed to load payment settings");
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadSettings(); }, []);
+  useEffect(() => { void loadSettings(); }, []);
+
+  // M111: Stripe Connect returns to `?view=payments&connect=success|refresh`. One toast and one status Alert,
+  // then the parameter is stripped so a refresh does not repeat it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = CONNECT_RETURN[params.get("connect") ?? ""];
+    if (!params.has("connect")) return;
+    if (outcome) {
+      setConnectOutcome(outcome);
+      if (outcome.tone === "success") toast.success(t(outcome.message)); else toast.warning(t(outcome.message));
+    }
+    params.delete("connect");
+    const query = params.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    // Runs once per mount: the parameter is gone after this.
+  }, []);
+
+  const retryLoad = () => { setLoading(true); setLoadFailed(false); void loadSettings(); };
 
   const startConnectOnboarding = async () => {
     setConnectLoading(true);
@@ -1551,12 +2455,11 @@ function PaymentSettingsView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start-connect-onboarding" }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error);
       window.location.href = json.url;
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
+    } catch (err) {
+      toast.error(friendlyErrorMessage(err, t("Stripe onboarding could not be started. Please try again.")));
       setConnectLoading(false);
     }
   };
@@ -1569,144 +2472,245 @@ function PaymentSettingsView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "save-bank", ...bankForm }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error);
-      toast.success(json.message);
-      loadSettings();
-    } catch (err: any) {
-      toast.error(err.message);
+      toast.success(t("Bank details saved. Schools paying by transfer see them straight away."));
+      void loadSettings();
+    } catch (err) {
+      toast.error(friendlyErrorMessage(err, t("The bank details could not be saved. Please try again.")));
     } finally {
       setSaving(false);
     }
   };
 
+  const connected = Boolean(settings?.connectedAccountId);
+  const onboarded = Boolean(settings?.onboardingComplete);
+  const header = (
+    <ViewHeader
+      title="Payment gateways"
+      icon={WalletCards}
+      description="How schools pay for their SkooleeAI subscription: Stripe, and a bank account for manual transfers."
+      primaryAction={settings && !onboarded ? { id: "connect-stripe", label: connected ? "Continue Stripe onboarding" : "Connect Stripe", icon: ExternalLink, onClick: () => void startConnectOnboarding(), loading: connectLoading } : undefined}
+      status={connectOutcome ? <Alert tone={connectOutcome.tone} compact live="off" onDismiss={() => setConnectOutcome(null)}>{t(connectOutcome.message)}</Alert> : undefined}
+    />
+  );
+
   if (loading) {
     return (
-      <SkeletonCards count={4} label="Loading billing" />
+      <div className={VIEW_BODY}>
+        {header}
+        <SkeletonCards count={2} label={t("Loading payment gateways")} />
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className={VIEW_BODY}>
+        {header}
+        <div className="sk-panel">
+          <ErrorState
+            title={t("Payment gateways did not load")}
+            description={t("We couldn't load your payout settings. Check your connection and try again.")}
+            onRetry={retryLoad}
+          />
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]">Platform</p>
-          <h2 className="text-3xl font-black text-[#1f1a23] tracking-normal mt-1">Payment Settings</h2>
-          <p className="text-sm font-semibold text-ink-muted mt-1">
-            Configure how you receive subscription payments from schools
-          </p>
-        </div>
-      </div>
+    <div className={VIEW_BODY}>
+      {header}
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
-          <WalletCards className="w-3 h-3" /> Stripe Connect
-        </p>
-        <p className="text-xs font-semibold text-ink-subtle mb-4">
-          Connect your Stripe account to receive subscription payments directly. When a school upgrades, funds are transferred to your connected account automatically.
-        </p>
+      <section aria-labelledby="payments-stripe-heading" className="sk-panel p-4 sm:p-6">
+        <PanelHeading
+          id="payments-stripe-heading"
+          icon={WalletCards}
+          title={t("Stripe Connect")}
+          description={t("Connect your Stripe account to receive subscription payments directly. When a school upgrades, funds are transferred to your connected account automatically.")}
+        />
 
-        {settings?.connectedAccountId ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-normal ${settings.onboardingComplete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                {settings.onboardingComplete ? "Active" : "Incomplete"}
-              </span>
-              <span className="text-xs font-semibold text-ink-subtle">
-                Account: {settings.connectedAccountId}
+        {connected ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant={onboarded ? "success" : "warning"} dot>
+                {onboarded ? t("Active") : t("Onboarding not finished")}
+              </Badge>
+              <span className="min-w-0 text-xs text-ink-subtle">
+                {t("Account")}: <bdi dir="ltr" className="break-all font-mono">{settings.connectedAccountId}</bdi>
               </span>
             </div>
-            {!settings.onboardingComplete && (
-              <button
-                type="button"
-                onClick={startConnectOnboarding}
-                disabled={connectLoading}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
-              >
-                {connectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-                Complete onboarding
-              </button>
-            )}
-            {settings.onboardingComplete && (
-              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
-                <p className="text-sm font-bold text-emerald-800 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" /> Stripe account connected
-                </p>
-                <p className="text-xs font-semibold text-emerald-600/70 mt-1">
-                  Subscription payments will be transferred to your Stripe account automatically.
-                </p>
-              </div>
+            {onboarded ? (
+              <Alert tone="success" live="off" title={t("Stripe account connected")}>
+                {t("Subscription payments are transferred to your Stripe account automatically.")}
+              </Alert>
+            ) : (
+              <p className="text-sm text-ink-muted">{t("Finish onboarding with Stripe before payouts can start.")}</p>
             )}
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={startConnectOnboarding}
-            disabled={connectLoading}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#8127cf] px-5 py-[10px] text-sm font-black text-white hover:bg-[#6a1fb3] transition-colors disabled:opacity-50"
-          >
-            {connectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-            Connect Stripe account
-          </button>
+          <p className="text-sm text-ink-muted">{t("No Stripe account is connected yet.")}</p>
         )}
-      </div>
+      </section>
 
-      <div className="rounded-[24px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] mb-8">
-        <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle mb-4 flex items-center gap-2">
-          <Building2 className="w-3 h-3" /> Bank Account (Fallback)
-        </p>
-        <p className="text-xs font-semibold text-ink-subtle mb-4">
-          Optional: Provide bank account details as a fallback payment method. Schools will see these for manual transfers.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Bank Name</label>
-            <input
+      <section aria-labelledby="payments-bank-heading" className="sk-panel p-4 sm:p-6">
+        <PanelHeading
+          id="payments-bank-heading"
+          icon={Building2}
+          title={t("Bank account (fallback)")}
+          description={t("Optional. Schools that pay by transfer see these details.")}
+        />
+        <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <FormField name="bank-name" label={t("Bank name")}>
+            <SystemInput
               value={bankForm.bankName}
               onChange={(e) => setBankForm(prev => ({ ...prev, bankName: e.target.value }))}
-              placeholder="e.g. HBL, Meezan Bank"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              dir="auto"
+              className={"w-full"}
             />
-          </div>
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Account Title</label>
-            <input
+          </FormField>
+          <FormField name="bank-account-title" label={t("Account title")} hint={t("The name on the account, as schools will see it when they transfer.")}>
+            <SystemInput
               value={bankForm.accountTitle}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountTitle: e.target.value }))}
-              placeholder="Full name or business name"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              dir="auto"
+              className={"w-full"}
             />
-          </div>
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">Account Number</label>
-            <input
+          </FormField>
+          <FormField name="bank-account-number" label={t("Account number")}>
+            <SystemInput
               value={bankForm.accountNumber}
               onChange={(e) => setBankForm(prev => ({ ...prev, accountNumber: e.target.value }))}
-              placeholder="IBAN or account number"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              className={"w-full tabular-nums"}
+              dir="ltr"
             />
-          </div>
-          <div>
-            <label className="text-[9px] font-black uppercase tracking-normal text-ink-subtle block mb-1">IBAN (optional)</label>
-            <input
+          </FormField>
+          <FormField name="bank-iban" label="IBAN" optional>
+            <SystemInput
               value={bankForm.iban}
               onChange={(e) => setBankForm(prev => ({ ...prev, iban: e.target.value }))}
-              placeholder="PK...XXXX"
-              className="w-full rounded-xl border border-[#cfc2d6]/20 bg-white px-4 py-[10px] text-sm font-semibold text-[#1f1a23] focus:outline-none focus:ring-2 focus:ring-[#8127cf]/30"
+              className={"w-full tabular-nums"}
+              dir="ltr"
             />
-          </div>
+          </FormField>
         </div>
-        <button
+        <Button variant="outline"
           type="button"
-          onClick={saveBankDetails}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-[#1f1a23] px-5 py-[10px] text-sm font-black text-white hover:bg-[#2d2633] transition-colors disabled:opacity-50"
+          onClick={() => void saveBankDetails()}
+          loading={saving}
         >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : "Save Bank Details"}
-        </button>
-      </div>
+          {saving ? null : <Save aria-hidden="true" />}
+          {t("Save bank details")}
+        </Button>
+      </section>
     </div>
+  );
+}
+
+/**
+ * APP_OWNER-only switch that takes one school out of AI Workflows practice mode before the release evaluation
+ * (src/lib/ai-workflows/practice.ts). Turning it on is confirmed in a dialog that says AI may then change the
+ * school's real records; turning it off is immediate, because practice mode is the safe state. The server
+ * re-checks the role and audits both directions.
+ */
+function AiWorkflowsLivePanel({ school, onChange }: { school: SchoolRow; onChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void }) {
+  const t = useUiText();
+  const dates = useOwnerDates();
+  const { language } = useLocale();
+  const lang = language === "ar" || language === "ur" ? language : "en";
+  // Local copy for the lines this panel adds (the shared UI catalogue lives in src/lib, which this pass leaves alone).
+  const words = {
+    saving: { en: "Saving…", ar: "جارٍ الحفظ…", ur: "محفوظ ہو رہا ہے…" },
+    changes: { en: "What changes", ar: "ما الذي يتغيّر", ur: "کیا بدلے گا" },
+    changesBody: { en: "When staff confirm an AI step, it saves to this school's real records.", ar: "عندما يؤكد الموظفون خطوة من الذكاء الاصطناعي، تُحفظ في سجلات المدرسة الحقيقية.", ur: "جب عملہ اے آئی کے کسی قدم کی تصدیق کرے گا تو وہ اس اسکول کے اصل ریکارڈ میں محفوظ ہو گا۔" },
+    stays: { en: "What stays the same", ar: "ما الذي يبقى كما هو", ur: "کیا ویسا ہی رہے گا" },
+    staysBody: { en: "Nothing is saved without a person confirming it, and other schools stay in practice mode.", ar: "لا يُحفظ شيء دون تأكيد شخص، وتبقى المدارس الأخرى في وضع التدريب.", ur: "کسی شخص کی تصدیق کے بغیر کچھ محفوظ نہیں ہوتا، اور دوسرے اسکول مشق کے موڈ میں رہتے ہیں۔" },
+    back: { en: "Switching back", ar: "العودة", ur: "واپس جانا" },
+    backBody: { en: "Stops new saves; records already saved stay saved.", ar: "يوقف الحفظ الجديد؛ وتبقى السجلات المحفوظة محفوظة.", ur: "نئے اندراج رک جاتے ہیں؛ جو ریکارڈ محفوظ ہو چکے وہ محفوظ رہتے ہیں۔" },
+  } as const;
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const live = Boolean(school.aiWorkflowsLiveAt);
+
+  const save = async (next: boolean) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/owner/schools/${school.id}/ai-workflows-live`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next ? { live: true, acknowledgeRealRecords: true } : { live: false }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error);
+      onChange(school.id, json.data.aiWorkflowsLiveAt ?? null);
+      toast.success(next ? t("AI Workflows are live for {0}.", [school.name]) : t("{0} is back in practice mode.", [school.name]));
+      // Close only once the server has saved: a failed save leaves the dialog open to retry.
+      setConfirming(false);
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The AI Workflows setting could not be changed. Please try again.")));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const MarkIcon = live ? Zap : ShieldCheck;
+  return (
+    // Live mode is the risky state, so the whole block turns amber while it is on.
+    <DeskSection data-ai-live-state={live ? "live" : "practice"} icon={Zap} tone={live ? "warning" : "brand"} title={t("AI Workflows")}
+      action={live ? <DeskPill tone="warning">{t("Live · saves real records")}</DeskPill> : <DeskPill tone="neutral">{t("Practice mode")}</DeskPill>}>
+      <label className="flex min-h-11 cursor-pointer items-center gap-4" aria-busy={saving || undefined}>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "grid size-11 shrink-0 place-items-center rounded-2xl border transition-colors duration-(--duration-control)",
+            live ? "border-status-warning-border bg-status-warning-surface/50 text-status-warning-text" : "border-border-subtle bg-surface-subtle text-primary",
+          )}
+        >
+          <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-primary to-brand-500 text-primary-foreground">
+            <MarkIcon className="size-4" />
+          </span>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink-strong">{t("Let AI save real records")}</span>
+          <span id={`ai-live-${school.id}`} className="mt-0.5 block text-xs leading-relaxed text-ink-muted">
+            {live && school.aiWorkflowsLiveAt
+              ? <>
+                  <span className="block">{t("Live since")} <bdi className="tabular-nums">{dates.instant(school.aiWorkflowsLiveAt)}</bdi></span>
+                  <span className="block">{t("Staff-confirmed AI steps change this school's records.")}</span>
+                </>
+              : t("AI shows what it would do and saves nothing until the release evaluation is recorded.")}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {saving ? <span role="status" className="text-xs text-ink-muted">{words.saving[lang]}</span> : null}
+          <Switch
+            checked={live}
+            disabled={saving}
+            aria-describedby={`ai-live-${school.id}`}
+            onChange={(event) => { if (event.target.checked) setConfirming(true); else void save(false); }}
+          />
+        </span>
+      </label>
+      <ConfirmAction
+        open={confirming}
+        tone="warning"
+        title={t("Turn AI Workflows live for {0}?", [school.name])}
+        description={t("AI Workflows can then change {0}'s real records, such as students, attendance and fees, whenever its staff confirm a step. Practice mode ends for this school only. You can switch it back at any time.", [school.name])}
+        detail={
+          <dl className="space-y-2 text-xs">
+            <div><dt className="font-semibold text-ink-strong">{words.changes[lang]}</dt><dd className="text-ink-muted">{words.changesBody[lang]}</dd></div>
+            <div><dt className="font-semibold text-ink-strong">{words.stays[lang]}</dt><dd className="text-ink-muted">{words.staysBody[lang]}</dd></div>
+            <div><dt className="font-semibold text-ink-strong">{words.back[lang]}</dt><dd className="text-ink-muted">{words.backBody[lang]}</dd></div>
+          </dl>
+        }
+        confirmLabel={t("Turn live")}
+        cancelLabel={t("Keep practice mode")}
+        busy={saving}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => save(true)}
+      />
+    </DeskSection>
   );
 }
 
@@ -1714,42 +2718,83 @@ function SchoolDetailModal({
   school,
   onClose,
   onPlanChange,
+  onAiWorkflowsLiveChange,
+  onDataRegionChange,
+  onAttendanceRegulatorChange,
+  onStatusChange,
 }: {
   school: SchoolRow;
+  onStatusChange: () => void;
   onClose: () => void;
   onPlanChange: (schoolId: string, newPlan: string) => Promise<void>;
+  onAiWorkflowsLiveChange: (schoolId: string, aiWorkflowsLiveAt: string | null) => void;
+  onDataRegionChange: (schoolId: string, dataRegion: string) => void;
+  onAttendanceRegulatorChange: (schoolId: string, attendanceRegulator: string) => void;
 }) {
-  const activeTabClass = "text-sm font-black text-[#8127cf] border-b-2 border-[#8127cf] pb-2";
-  const inactiveTabClass = "text-sm font-bold text-ink-subtle pb-2 cursor-pointer hover:text-ink transition-colors";
+  const t = useUiText();
+  const dates = useOwnerDates();
   const [tab, setTab] = useState<"overview" | "campuses" | "subscription">("overview");
+  // A plan change rewrites the school's limits and AI allowance, so it is confirmed first.
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [statusAction, setStatusAction] = useState<"ACTIVE" | "SUSPENDED" | null>(null);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const changeStatus = async () => {
+    if (!statusAction) return;
+    setChangingStatus(true);
+    try {
+      const response = await fetch(`/api/owner/schools/${school.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: statusAction }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error);
+      toast.success(t("School status updated."));
+      onStatusChange();
+    } catch (error) {
+      toast.error(friendlyErrorMessage(error, t("The school could not be updated. Try again.")));
+    } finally { setChangingStatus(false); setStatusAction(null); }
+  };
+
+  const confirmPlanChange = async () => {
+    if (!pendingPlan) return;
+    setChangingPlan(true);
+    try {
+      await onPlanChange(school.id, pendingPlan);
+    } finally {
+      setChangingPlan(false);
+      setPendingPlan(null);
+    }
+  };
+
+  const creditRatio = school.aiCreditsLimit > 0 ? school.aiCreditsUsed / school.aiCreditsLimit : 0;
+  const creditTone: ProgressTone = creditRatio > 0.8 ? "danger" : creditRatio > 0.5 ? "warning" : "success";
 
   return (
     <Modal
       title={school.name}
-      eyebrow="School"
+      eyebrow={t("School")}
       subtitle={
         <>
-          {school.contactEmail || "—"} · {school.city || "—"}
-          {school.phone ? ` · ${school.phone}` : ""}
-          {school.website ? <span className="block">{school.website}</span> : null}
-          {school.establishedYear ? <span className="block">Est. {school.establishedYear}</span> : null}
+          <bdi dir="ltr">{school.contactEmail || "—"}</bdi> · <bdi>{school.city || "—"}</bdi>
+          {school.phone ? <> · <bdi dir="ltr">{school.phone}</bdi></> : ""}
+          {school.website ? <span className="block"><bdi dir="ltr">{school.website}</bdi></span> : null}
+          {school.establishedYear ? <span className="block">{t("Established {0}", [school.establishedYear])}</span> : null}
         </>
       }
       chips={
         <>
           <StatusPill status={school.status} />
           {school.tagline ? (
-            <span className="text-[10px] font-bold italic text-[#8127cf]/60">&ldquo;{school.tagline}&rdquo;</span>
+            <span className="text-xs italic text-ink-muted"><bdi>“{school.tagline}”</bdi></span>
           ) : null}
         </>
       }
       avatar={
         school.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={school.logoUrl} alt={`${school.name} logo`} className="h-full w-full object-cover" />
+          <img src={school.logoUrl} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]">
-            <School className="h-5 w-5" />
+          <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-50 to-brand-100 text-primary">
+            <School aria-hidden="true" className="h-5 w-5" />
           </span>
         )
       }
@@ -1757,159 +2802,145 @@ function SchoolDetailModal({
       onClose={onClose}
       bodyClassName="px-0 py-0 sm:px-0"
     >
-        <div className="px-7 pt-5 flex gap-6 border-b border-[#f3f4f9]">
-          <button className={tab === "overview" ? activeTabClass : inactiveTabClass} onClick={() => setTab("overview")}>Overview</button>
-          <button className={tab === "campuses" ? activeTabClass : inactiveTabClass} onClick={() => setTab("campuses")}>Campuses</button>
-          <button className={tab === "subscription" ? activeTabClass : inactiveTabClass} onClick={() => setTab("subscription")}>Subscription</button>
+        <div role="group" aria-label={t("School details")} className="flex flex-wrap gap-2 border-b border-border-subtle px-5 py-3 sm:px-7">
+          <Button aria-pressed={tab === "overview"} variant="choice" size="sm" type="button" onClick={() => setTab("overview")}>{t("Overview")}</Button>
+          <Button aria-pressed={tab === "campuses"} variant="choice" size="sm" type="button" onClick={() => setTab("campuses")}>{t("Campuses")}</Button>
+          <Button aria-pressed={tab === "subscription"} variant="choice" size="sm" type="button" onClick={() => setTab("subscription")}>{t("Subscription")}</Button>
         </div>
 
-        <div className="p-7">
+        <div className="p-5 sm:p-7">
           {tab === "overview" && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <MiniStat label="Campuses" value={school.campusCount} />
-                <MiniStat label="Students" value={school.totalStudents} />
-                <MiniStat label="Staff" value={school.totalStaff} />
-                <MiniStat label="Classes" value={school.totalClasses} />
+            <div className="sk-fade-in space-y-5">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <MiniStat label={t("Campuses")} value={school.campusCount} />
+                <MiniStat label={t("Students")} value={school.totalStudents} />
+                <MiniStat label={t("Staff")} value={school.totalStaff} />
+                <MiniStat label={t("Classes")} value={school.totalClasses} />
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-[#fbf0fe]/50 to-white border border-[#cfc2d6]/10 p-5">
-                <p className="text-[9px] font-black uppercase tracking-normal text-[#8127cf]/60 mb-3">AI Credits</p>
+              {/* Nearly spent credits turn the block amber, so the operator sees the overage risk before opening it. */}
+              <DeskSection icon={Zap} tone={school.aiCreditsLimit > 0 && creditRatio > 0.8 ? "warning" : "brand"} title={t("AI credits")} action={<InfoTip content={t(AI_CREDITS_HELP)} label={t("About AI credits")} />}>
                 <div className="flex items-center gap-4">
-                  <Zap className="w-8 h-8 text-amber-500" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-black text-[#1f1a23]">{school.aiCreditsUsed} / {school.aiCreditsLimit < 0 ? "Unlimited" : school.aiCreditsLimit}</span>
-                      <span className={`text-[10px] font-black ${school.aiCreditsLimit > 0 && (school.aiCreditsUsed / school.aiCreditsLimit) > 0.8 ? "text-rose-600" : "text-emerald-600"}`}>
-                        {school.aiCreditsLimit > 0 ? `${Math.round((school.aiCreditsUsed / school.aiCreditsLimit) * 100)}% used` : "—"}
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-bold tabular-nums text-ink-strong"><bdi>{dates.number(school.aiCreditsUsed)} / {school.aiCreditsLimit < 0 ? t("Unlimited") : dates.number(school.aiCreditsLimit)}</bdi></span>
+                      <span className={cn("text-xs font-semibold tabular-nums", school.aiCreditsLimit > 0 && creditRatio > 0.8 ? "text-status-error-text" : "text-status-success-text")}>
+                        {school.aiCreditsLimit > 0 ? t("{0}% used", [Math.round(creditRatio * 100)]) : "—"}
                       </span>
                     </div>
                     {school.aiCreditsLimit > 0 && (
-                      <div className="h-2 rounded-full bg-[#f3f4f9] overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${(school.aiCreditsUsed / school.aiCreditsLimit) > 0.8 ? "bg-rose-500" : (school.aiCreditsUsed / school.aiCreditsLimit) > 0.5 ? "bg-amber-500" : "bg-emerald-500"}`}
-                          style={{ width: `${Math.min((school.aiCreditsUsed / school.aiCreditsLimit) * 100, 100)}%` }}
-                        />
-                      </div>
+                      <Progress value={school.aiCreditsUsed} max={school.aiCreditsLimit} label={t("AI credits used")} tone={creditTone} size="sm" />
                     )}
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between rounded-2xl bg-[#f3f4f9]/50 p-4">
+              </DeskSection>
+              <AiWorkflowsLivePanel school={school} onChange={onAiWorkflowsLiveChange} />
+              <DataRegionPanel schoolId={school.id} value={school.dataRegion} onChange={onDataRegionChange} />
+              <AttendanceRegulatorPanel schoolId={school.id} value={school.attendanceRegulator} onChange={onAttendanceRegulatorChange} />
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Plan</p>
-                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{planLabel(school.plan)}</p>
+                  <p className="text-xs font-medium text-ink-subtle">{t("Plan")}</p>
+                  <p className="mt-0.5 text-sm font-bold text-ink-strong"><bdi>{planLabel(school.plan)}</bdi></p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[9px] font-black uppercase tracking-normal text-ink-subtle">Since</p>
-                  <p className="text-sm font-black text-[#1f1a23] mt-0.5">{new Date(school.createdAt).toLocaleDateString("en-PK", { month: "short", year: "numeric" })}</p>
-                </div>
-              </div>
-              <div className="rounded-2xl bg-amber-50/50 border border-amber-100/50 p-4 flex items-center gap-3">
-                <CreditCard className="w-5 h-5 text-amber-600 shrink-0" />
-                <div>
-                  <p className="text-xs font-black text-amber-800">Manage Plan</p>
-                  <p className="text-[10px] font-semibold text-amber-700/60">Go to the Subscription tab to change the plan for this school.</p>
+                <div className="text-end">
+                  <p className="text-xs font-medium text-ink-subtle">{t("Since")}</p>
+                  <p className="mt-0.5 text-sm font-bold tabular-nums text-ink-strong"><bdi>{dates.month(school.createdAt)}</bdi></p>
                 </div>
               </div>
+              <Alert
+                tone="info"
+                live="off"
+                icon={CreditCard}
+                title={t("Manage plan")}
+                actions={<Button variant="outline" size="sm" type="button" onClick={() => setTab("subscription")}>{t("Open subscription")}</Button>}
+              >
+                {t("Use the Subscription tab to move this school to another plan.")}
+              </Alert>
+              <Alert tone={school.status === "ACTIVE" || school.status === "TRIAL" ? "warning" : "info"} title={t("School access")} live="off"
+                actions={<Button type="button" variant="outline" size="sm" onClick={() => setStatusAction(school.status === "ACTIVE" || school.status === "TRIAL" ? "SUSPENDED" : "ACTIVE")}>
+                  {t(school.status === "ACTIVE" || school.status === "TRIAL" ? "Suspend school" : "Restore school")}
+                </Button>}>
+                {t("Suspension pauses school access while retaining its records. Restoring access clears the suspension and expired payment grace period.")}
+              </Alert>
             </div>
           )}
 
           {tab === "campuses" && (
-            <div>
+            <div className="sk-fade-in">
               {school.campuses.length > 0 ? (
-                <div className="space-y-3">
-                  {school.campuses.map((campus) => (
-                    <div key={campus.id} className="rounded-2xl border border-[#cfc2d6]/10 p-5 hover:border-[#8127cf]/10 transition-all">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-black text-[#1f1a23]">{campus.name}</p>
-                          <p className="text-[10px] font-bold text-ink-subtle mt-0.5">{campus.city || "—"} {campus.board ? `· ${campus.board}` : ""}</p>
-                          {campus.principalName ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">Principal: {campus.principalName}</p> : null}
-                          {campus.phone ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.phone}{campus.email ? ` · ${campus.email}` : ""}</p> : null}
-                          {campus.website ? <p className="text-[9px] font-bold text-ink-subtle mt-0.5">{campus.website}</p> : null}
-                        </div>
-                        <div className="flex gap-4">
-                          <span className="text-[10px] font-bold text-ink-muted">{campus.students} students</span>
-                          <span className="text-[10px] font-bold text-ink-muted">{campus.staff} staff</span>
-                          <span className="text-[10px] font-bold text-ink-muted">{campus.classes} classes</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="sk-stagger space-y-3">
+                  {school.campuses.map((campus) => <CampusCard key={campus.id} campus={campus} />)}
                 </div>
               ) : (
-                <div className="rounded-2xl bg-[#f3f4f9]/50 p-8 text-center">
-                  <p className="text-sm font-bold text-ink-subtle">No campuses registered.</p>
-                </div>
+                <EmptyState size="sm" icon={Building2} title={t("No campuses yet")} description={t("This school has not added a campus.")} />
               )}
             </div>
           )}
 
           {tab === "subscription" && (
-            <div className="space-y-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#8127cf]/60">Select Plan for {school.name}</p>
+            <div className="sk-fade-in space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-ink-strong">{t("Choose a plan for {0}", [school.name])}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">{t("You confirm the change before it is applied.")}</p>
+              </div>
               <div className="grid gap-3">
-                {(["FREE", "BASIC", "PRO", "ENTERPRISE"] as const).map((plan) => {
+                {PLAN_CHOICES.map((plan) => {
                   const isCurrent = school.plan === plan;
-                  const planStyles: Record<string, string> = {
-                    FREE: "border-[#cfc2d6]/20 bg-white",
-                    BASIC: "border-sky-200 bg-sky-50/30",
-                    PRO: "border-[#8127cf]/20 bg-[#fbf0fe]/30",
-                    ENTERPRISE: "border-[#1f1a23]/20 bg-gradient-to-br from-[#f3f4f9] to-white",
-                  };
                   const dotStyles: Record<string, string> = {
-                    FREE: "bg-[#cfc2d6]/40",
-                    BASIC: "bg-sky-500",
-                    PRO: "bg-[#8127cf]",
-                    ENTERPRISE: "bg-[#1f1a23]",
+                    FREE: "bg-ink-faint",
+                    BASIC: "bg-brand-300",
+                    PRO: "bg-primary",
+                    ENTERPRISE: "bg-ink-strong",
                   };
                   return (
-                    <button
+                    <Button aria-pressed={isCurrent} variant="choice"
                       key={plan}
                       type="button"
-                      onClick={() => onPlanChange(school.id, plan)}
+                      onClick={() => setPendingPlan(plan)}
                       disabled={isCurrent}
-                      className={`relative flex items-center justify-between rounded-2xl border-2 p-4 text-left transition-all cursor-pointer disabled:cursor-default ${
-                        isCurrent
-                          ? "border-[#8127cf] bg-[#fbf0fe]/50 shadow-md"
-                          : `${planStyles[plan]} hover:border-[#8127cf]/30 hover:shadow-sm`
-                      }`}
+                      className="relative h-auto justify-between gap-3 p-4 text-start font-normal"
                     >
-                      <div className="flex items-center gap-3">
-                        <span className={`h-3 w-3 rounded-full ${dotStyles[plan]} ${isCurrent ? "ring-2 ring-[#8127cf]/30 ring-offset-2" : ""}`} />
-                        <div>
-                          <p className={`text-sm font-black ${isCurrent ? "text-[#8127cf]" : "text-[#1f1a23]"}`}>{planLabel(plan)}</p>
-                          <p className="text-[10px] font-bold text-ink-muted mt-0.5">
-                            {plan === "FREE" ? "50 students, 2 teachers, 1 campus" :
-                             plan === "BASIC" ? "500 students, 10 teachers, 1 campus" :
-                             plan === "PRO" ? "2,500 students, 50 teachers, 5 campuses" :
-                             "Unlimited students, teachers & campuses"}
-                          </p>
-                        </div>
-                      </div>
-                      {isCurrent && (
-                        <span className="text-[9px] font-black text-[#8127cf] bg-white rounded-full px-3 py-1 border border-[#8127cf]/10">
-                          Current
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span aria-hidden="true" className={cn("size-3 shrink-0 rounded-full", dotStyles[plan], isCurrent && "ring-2 ring-primary/30 ring-offset-2")} />
+                        <span className="min-w-0">
+                          <span className={cn("block text-sm font-bold", isCurrent ? "text-primary" : "text-ink-strong")}><bdi>{planLabel(plan)}</bdi></span>
+                          <span className="mt-0.5 block text-xs text-ink-muted">{planSummary(plan, t)}</span>
                         </span>
+                      </span>
+                      {isCurrent && (
+                        <Badge variant="secondary" size="sm">{t("Current")}</Badge>
                       )}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
             </div>
           )}
         </div>
+
+        <ConfirmAction open={Boolean(statusAction)} title={t(statusAction === "SUSPENDED" ? "Suspend school" : "Restore school")}
+          description={t(statusAction === "SUSPENDED" ? "Pause access for this school? Its records will be retained." : "Restore access for this school and clear its expired payment grace period?")}
+          detail={<bdi>{school.name}</bdi>} busy={changingStatus} tone={statusAction === "SUSPENDED" ? "warning" : "success"}
+          onConfirm={changeStatus} onCancel={() => setStatusAction(null)} />
+        <ConfirmAction
+          open={Boolean(pendingPlan)}
+          tone="warning"
+          title={pendingPlan ? t("Move {0} to {1}?", [school.name, planLabel(pendingPlan)]) : ""}
+          description={t("The plan, its limits and the monthly AI credit allowance change straight away. The change is recorded in the audit log.")}
+          detail={pendingPlan ? <><bdi className="font-semibold">{planLabel(school.plan)}</bdi> <span className="inline-block rtl:rotate-180" aria-hidden="true">→</span> <bdi className="font-semibold">{planLabel(pendingPlan)}</bdi>: {planSummary(pendingPlan, t)}</> : null}
+          confirmLabel={t("Change plan")}
+          cancelLabel={t("Keep editing")}
+          busy={changingPlan}
+          onCancel={() => setPendingPlan(null)}
+          onConfirm={() => confirmPlanChange()}
+        />
     </Modal>
   );
 }
 
-const planColors: Record<string, string> = {
-  FREE: "bg-[#f3f4f9] text-ink-muted border border-[#cfc2d6]/10",
-  STARTER: "bg-sky-50 text-sky-700 border border-sky-100",
-  PRO: "bg-[#fbf0fe] text-[#8127cf] border border-[#8127cf]/10",
-  ENTERPRISE: "bg-gradient-to-br from-[#1f1a23] to-[#2d2633] text-white border-0",
-};
-
+/**
+ * A support tool (D10): resetting a school member's password from the platform. The school's own administrator
+ * normally does this; the warning says so before anything is changed.
+ */
 function ChangePasswordModal({
   user,
   apiBase,
@@ -1921,6 +2952,7 @@ function ChangePasswordModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const t = useUiText();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -1928,18 +2960,13 @@ function ChangePasswordModal({
   const [error, setError] = useState("");
 
   const strength = getPasswordStrength(newPassword);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  const mismatch = Boolean(confirmPassword) && newPassword !== confirmPassword;
 
   const handleSubmit = async () => {
     setError("");
-    if (!newPassword) return setError("Password is required");
-    if (newPassword.length < 8) return setError("Password must be at least 8 characters");
-    if (newPassword !== confirmPassword) return setError("Passwords do not match");
+    if (!newPassword) return setError(t("Enter a new password."));
+    if (newPassword.length < 8) return setError(t("Use at least 8 characters."));
+    if (newPassword !== confirmPassword) return setError(t("The two passwords do not match."));
 
     setLoading(true);
     try {
@@ -1948,12 +2975,12 @@ function ChangePasswordModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPassword }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to change password");
-      toast.success(`Password changed for ${user.fullName}`);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error);
+      toast.success(t("Password changed for {0}.", [user.fullName]));
       onSuccess();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(friendlyErrorMessage(err, t("Could not change the password. Please try again.")));
     } finally {
       setLoading(false);
     }
@@ -1961,125 +2988,109 @@ function ChangePasswordModal({
 
   return (
     <Modal
-      title="Change Password"
-      eyebrow="Security action"
+      title={t("Reset password")}
+      eyebrow={t("Support tool")}
       icon={KeyRound}
       tone="amber"
       size="xs"
       onClose={onClose}
       dirty={Boolean(newPassword) && !loading}
-      dirtyMessage="The new password has not been set yet. Leave without applying it?"
+      dirtyMessage={t("The new password has not been set yet. Leave without applying it?")}
       footer={
-        <div className="flex gap-4">
-          <button
-            onClick={onClose}
-            className="flex-1 h-14 rounded-2xl bg-[#f3f4f9] text-sm font-black text-ink hover:bg-[#e8e0ec] transition-all cursor-pointer"
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="outline" type="button" onClick={onClose}>
+            {t("Keep editing")}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void handleSubmit()}
+            loading={loading}
+            disabled={!newPassword || newPassword !== confirmPassword}
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !newPassword || newPassword !== confirmPassword}
-            className="flex-[2] h-14 rounded-2xl bg-gradient-to-r from-[#1f1a23] to-[#2d2633] text-sm font-black text-white hover:from-black hover:to-[#1f1a23] disabled:opacity-40 transition-all cursor-pointer flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-            {loading ? "Updating..." : "Change Password"}
-          </button>
+            {loading ? null : <KeyRound aria-hidden="true" />}
+            {t("Reset password")}
+          </Button>
         </div>
       }
     >
+        <Alert tone="warning" live="off" className="mb-6" title={t("Use this only for support")}>
+          {t("This change is logged and signs the person out on every device. Share the temporary password securely; they must replace it at their next sign-in.")}
+        </Alert>
 
-        <div className="rounded-2xl bg-[#fbf0fe]/50 border border-[#cfc2d6]/10 p-4 mb-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-[#8127cf]">
-              <User className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="font-black text-sm text-[#1f1a23]">{user.fullName}</p>
-              <p className="text-[10px] font-bold text-ink-subtle">{user.email}</p>
-              {user.school && <p className="text-[10px] font-bold text-[#8127cf]/60 mt-0.5">{user.school.name}</p>}
-            </div>
+        <div className="mb-6 flex items-center gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+          <div aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-xs">
+            <User className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-ink-strong"><bdi>{user.fullName}</bdi></p>
+            <p className="truncate text-xs text-ink-subtle"><bdi dir="ltr">{user.email}</bdi></p>
+            {user.school && <p className="mt-0.5 truncate text-xs text-primary"><bdi>{user.school.name}</bdi></p>}
           </div>
         </div>
 
-        <div className="space-y-4 mb-6">
+        <div className="mb-6 space-y-4">
           <div>
-            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
-              New Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password..."
-                className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 pr-12 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-subtle hover:text-[#8127cf] cursor-pointer"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
+            <FormField
+              name="owner-new-password"
+              id="owner-new-password"
+              label={t("New password")}
+              required
+              hint={t("At least 8 characters. Length, a mix of upper and lower case, numbers and symbols make it stronger.")}
+            >
+              <InputGroup surfaceClassName="bg-brand-50/50" className="relative">
+                <SystemInput id="owner-new-password"
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  dir="ltr"
+                  autoComplete="new-password"
+                  className={"w-full"}
+                />
+                <FieldAction data-field-affix="end"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? t("Hide password") : t("Show password")}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <EyeOff aria-hidden="true" className="w-4 h-4" /> : <Eye aria-hidden="true" className="w-4 h-4" />}
+                </FieldAction>
+              </InputGroup>
+            </FormField>
             {newPassword && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex gap-1 flex-1">
-                  {[1, 2, 3, 4].map((level) => (
-                    <div
-                      key={level}
-                      className={`h-1.5 flex-1 rounded-full transition-all ${
-                        level <= strength.level
-                          ? strength.level <= 1 ? "bg-rose-500" : strength.level <= 2 ? "bg-amber-500" : strength.level <= 3 ? "bg-emerald-400" : "bg-emerald-600"
-                          : "bg-[#f3f4f9]"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className={`text-[9px] font-black uppercase tracking-normal ${
-                  strength.level <= 1 ? "text-rose-500" : strength.level <= 2 ? "text-amber-500" : "text-emerald-600"
-                }`}>
-                  {strength.label}
-                </span>
-              </div>
+              <Progress
+                className="mt-3"
+                size="sm"
+                value={strength.level}
+                max={4}
+                label={t("Password strength")}
+                valueText={t(strength.label)}
+                showValue
+                tone={strength.level <= 1 ? "danger" : strength.level <= 2 ? "warning" : "success"}
+              />
             )}
           </div>
-          <div>
-            <label className="mb-2 block pl-2 text-[9px] font-black uppercase tracking-normal text-ink-subtle">
-              Confirm Password
-            </label>
-            <input
+          <FormField
+            name="owner-confirm-password"
+            id="owner-confirm-password"
+            label={t("Confirm password")}
+            required
+            error={mismatch ? t("The two passwords do not match.") : undefined}
+          >
+            <SystemInput id="owner-confirm-password"
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Re-enter password..."
-              className="h-14 w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/50 px-4 text-sm font-bold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:bg-white"
+              dir="ltr"
+              autoComplete="new-password"
+              className={"w-full"}
             />
-            {confirmPassword && newPassword !== confirmPassword && (
-              <p className="mt-2 text-xs font-bold text-rose-500 flex items-center gap-1.5">
-                <AlertTriangle className="w-3 h-3" /> Passwords do not match
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-amber-50/60 border border-amber-200/40 p-4 mb-6">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-black text-amber-800">Security Notice</p>
-              <p className="text-[10px] font-semibold text-amber-700/70 mt-0.5">
-                This action is logged. The user will need the new password on their next login.
-              </p>
-            </div>
-          </div>
+          </FormField>
         </div>
 
         {error && (
-          <div className="rounded-2xl bg-rose-50 border border-rose-200/40 p-4 mb-4">
-            <p className="text-xs font-bold text-rose-700">{error}</p>
-          </div>
+          <Alert tone="danger" className="mb-4">
+            {error}
+          </Alert>
         )}
 
     </Modal>
@@ -2087,13 +3098,16 @@ function ChangePasswordModal({
 }
 
 function MiniStat({ label, value }: { label: string; value: number }) {
+  const dates = useOwnerDates();
   return (
-    <div className="rounded-xl bg-[#f3f4f9] px-3 py-2 text-center">
-      <p className="text-[7px] font-black uppercase tracking-normal text-ink-subtle">{label}</p>
-      <p className="text-sm font-black text-[#1f1a23]">{value}</p>
+    <div className="min-w-0 rounded-xl border border-border-subtle bg-surface-subtle px-3 py-2 text-center">
+      <p className="truncate text-2xs font-medium text-ink-subtle">{label}</p>
+      <p className="text-sm font-bold tabular-nums text-ink-strong"><bdi>{dates.number(value)}</bdi></p>
     </div>
   );
 }
+
+const PAGINATION_LABELS: Record<string, string> = { schools: "Page {0} of {1} · {2} schools", users: "Page {0} of {1} · {2} accounts", entries: "Page {0} of {1} · {2} entries", sessions: "Page {0} of {1} · {2} sessions" };
 
 function PaginationBar({
   pagination,
@@ -2101,29 +3115,33 @@ function PaginationBar({
   onPage,
 }: {
   pagination: Pagination;
-  label: string;
+  label: keyof typeof PAGINATION_LABELS;
   onPage: (page: number) => void;
 }) {
+  const t = useUiText();
+  const dates = useOwnerDates();
   return (
-    <div className="flex items-center justify-between mt-5 pt-4 border-t border-[#f3f4f9]">
-      <p className="text-xs font-bold text-ink-subtle">
-        Page {pagination.page} of {pagination.pages} ({pagination.total} {label})
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+      <p className="text-xs tabular-nums text-ink-subtle">
+        {t(PAGINATION_LABELS[label], [dates.number(pagination.page), dates.number(pagination.pages), dates.number(pagination.total)])}
       </p>
       <div className="flex gap-2">
-        <button
+        <IconButton
+          label={t("Previous page")}
+          variant="outline"
           onClick={() => onPage(pagination.page - 1)}
           disabled={pagination.page <= 1}
-          className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-ink transition-all cursor-pointer"
         >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button
+          <ChevronLeft aria-hidden="true" className="rtl:rotate-180" />
+        </IconButton>
+        <IconButton
+          label={t("Next page")}
+          variant="outline"
           onClick={() => onPage(pagination.page + 1)}
           disabled={pagination.page >= pagination.pages}
-          className="h-9 w-9 rounded-xl bg-[#f3f4f9] flex items-center justify-center text-ink hover:bg-[#8127cf] hover:text-white disabled:opacity-30 disabled:hover:bg-[#f3f4f9] disabled:hover:text-ink transition-all cursor-pointer"
         >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+          <ChevronRight aria-hidden="true" className="rtl:rotate-180" />
+        </IconButton>
       </div>
     </div>
   );

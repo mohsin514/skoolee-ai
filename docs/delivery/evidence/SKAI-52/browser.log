@@ -1,0 +1,33 @@
+✔ same-name pupils stay in their campus; an exact identifier ranks first and survives a name change (8674.521708ms)
+✔ Arabic spelling variants match; archived and merged records need an explicit filter or open the surviving record (2843.011916ms)
+✔ filters combine with AND, types with OR, and a single type pages through every result (1625.880292ms)
+✔ record search is refused outside its roles; reception sees applications only; revoked permissions see nothing (6488.942584ms)
+✔ the search page restores from the URL, drops stale answers, and opens the authoritative record (8901.750958ms)
+✔ campus operators open every result type in their own console (246.631209ms)
+✔ the principal's staff search lists teachers only, since the academic console opens teachers only (68.74025ms)
+✔ a role without record search sees an access notice on /search, never a Retry (2067.851666ms)
+✔ Arabic staff search on a phone reads right-to-left with isolated identifiers (1980.388084ms)
+✔ the student directory keeps its filters in the URL and both roll tiles change the list (2622.83225ms)
+✔ SCRUM-306: stable sorting, stale pages and denied options (244.815791ms)
+✔ SCRUM-306: Back restores search input, sort and results without reverting the URL (3190.746958ms)
+✔ SCRUM-306: tenant isolation applies to rows, counts, options and direct roster requests (619.467334ms)
+✔ SCRUM-306: Urdu mobile sorting is labelled, RTL and has no horizontal overflow (1904.799208ms)
+✔ SCRUM-306: invoice query and status survive refresh and Back without changing dashboard scope (2443.407875ms)
+✔ SCRUM-306: transient and partial failures retry the same query and retain controls (2522.433625ms)
+✔ SCRUM-306: operations APIs bound reads, preserve complete selector/export traversal and scope counts (2044.320583ms)
+✔ SCRUM-306: offline recovery retains search and filters (2283.900125ms)
+✔ SCRUM-306: authenticated enumeration budget returns actionable 429 (8742.428916ms)
+✔ SCRUM-306: stalled search times out and retries without losing the query (16129.064166ms)
+✔ SKAI-52: stale administration pages clamp after authorized counts, including empty lists (891.969208ms)
+✔ SKAI-52: owner paging survives refresh, Back and filters (5027.38925ms)
+SKAI-52 inventory traversal: 501 rows / 6 requests / 250 ms (local QA, not a production SLO)
+✔ SKAI-52: 501 inventory rows traverse bounded stable pages without crossing tenants or campuses (290.406792ms)
+✔ SKAI-52: owner Arabic phone layout and denied-role evidence (4342.112ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 86996.661958

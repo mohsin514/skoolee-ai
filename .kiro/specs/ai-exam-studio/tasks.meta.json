@@ -1,0 +1,889 @@
+{
+  "pbtResults": {
+    "1.3 Write the property test for the authority matrix": {
+      "status": "passed",
+      "lastRunTimestamp": 1792045082867
+    }
+  },
+  "executionHistory": {
+    "1.1 Extract canonical serialization and fix the `localeCompare` determinism defect": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029572767
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029623751
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792031386204
+      }
+    ],
+    "1.2 Build the frozen studio authority matrix": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029572816
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029631569
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792031387162
+      }
+    ],
+    "1.4 Create the trilingual copy modules and the status vocabulary strings": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029572898
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029633028
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792031388564
+      }
+    ],
+    "1.6 Build the seeded deterministic generator fixture": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029572947
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029634411
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792031389514
+      }
+    ],
+    "1.7 Build the Commercial Evidence Register": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573011
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029637062
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792031390510
+      }
+    ],
+    "2.1 Write migration `20261014120000_school_ai_exam_studio_release`": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573061
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792031397698
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792032777658
+      }
+    ],
+    "3.1 Build the single status vocabulary component": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573110
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792032799928
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792040094810
+      }
+    ],
+    "3.2 Build the Exam Studio shell with the seven-space registry and the state union": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573160
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050122517
+      }
+    ],
+    "3.3 Build the Studio_Intro motion sequence": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573212
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048601888
+      }
+    ],
+    "3.5 Mount Exam Studio in the existing workspace navigation": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573269
+      }
+    ],
+    "4.1 Build the delivery policy domain module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573319
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792032789806
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792040094897
+      }
+    ],
+    "4.2 Register the three new record kinds and the approval separation check": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573369
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792040101914
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041512858
+      }
+    ],
+    "5.1 Build the assessment brief domain module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573419
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048609821
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050101601
+      }
+    ],
+    "5.2 Build the brief route handlers": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573469
+      }
+    ],
+    "5.3 Build the Brief space": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573512
+      }
+    ],
+    "6.1 Add the four optional schema fields to the assessment module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573575
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792032800985
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792040095375
+      }
+    ],
+    "6.2 Build the item review and staleness domain module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573628
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048610778
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050102490
+      }
+    ],
+    "6.3 Build the review desk, evidence drawer and review-state route": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573678
+      }
+    ],
+    "7.1 Build the generation frame grammar": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573728
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050121625
+      }
+    ],
+    "7.2 Build the streaming generation route handler": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573778
+      }
+    ],
+    "7.3 Build single-item regeneration, the diff and the progress surface": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573827
+      }
+    ],
+    "7.4 Build the Blueprint space": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573882
+      }
+    ],
+    "8.1 Build the form-set domain module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573937
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048612948
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050103969
+      }
+    ],
+    "8.2 Wire one assignment per form and freeze each candidate's form": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029573987
+      }
+    ],
+    "8.3 Build the exposure ledger": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574038
+      }
+    ],
+    "8.4 Build the language review surface": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574092
+      }
+    ],
+    "9.1 Build the rehearsal check registry": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574143
+      }
+    ],
+    "9.2 Build the rehearsal service with transaction rollback": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574201
+      }
+    ],
+    "9.3 Build the rehearse route, the Rehearsal space and the blocker report": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574285
+      }
+    ],
+    "10.1 Build the content hash and release precondition module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574336
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048612198
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050104860
+      }
+    ],
+    "10.2 Build the release service and route": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574394
+      }
+    ],
+    "10.3 Verify the content hash on both renderers": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574446
+      }
+    ],
+    "10.4 Build the Exam Room space and the release seal": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574502
+      }
+    ],
+    "11.1 Enforce provider output isolation and output escaping": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574553
+      }
+    ],
+    "11.4 Extend the design-system adoption check": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574604
+      }
+    ],
+    "12. Checkpoint — slice 1 green and demonstrable": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574661
+      }
+    ],
+    "13.1 Write migration `20261014121000_school_ai_exam_studio_room`": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574710
+      }
+    ],
+    "13.2 Write migration `20261014122000_school_ai_exam_studio_integrity`": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574761
+      }
+    ],
+    "14.1 Build the pure Exam Room decision and allowlists": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574809
+      }
+    ],
+    "14.2 Build the signed claim and the authoritative attempt resolution": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574854
+      }
+    ],
+    "14.3 Add the optimistic proxy hint": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574909
+      }
+    ],
+    "14.4 Wire authoritative enforcement next to the data": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029574963
+      }
+    ],
+    "15.1 Add the writer-revocation outcome to the save decision": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575020
+      }
+    ],
+    "15.2 Build the attempt receipt module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575072
+      }
+    ],
+    "15.3 Wire writer sessions and the single receipt write": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575128
+      }
+    ],
+    "15.4 Build the attempt read, save, submit and receipt routes": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575178
+      }
+    ],
+    "16.1 Build the integrity signal domain module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575232
+      }
+    ],
+    "16.2 Build the integrity signal service with a narrowed write client": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575289
+      }
+    ],
+    "16.3 Build the integrity signal and queue routes": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575343
+      }
+    ],
+    "16.4 Build the integrity review queue surface": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575389
+      }
+    ],
+    "16.7 Add the integrity retention sweep": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575439
+      }
+    ],
+    "17.1 Add the capture consent record, unavailable signal and recording indicator": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575492
+      }
+    ],
+    "18.1 Build the durable attempt save-state surface": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575542
+      }
+    ],
+    "18.2 Complete attempt page accessibility": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575596
+      }
+    ],
+    "19. Checkpoint — slice 2 green and demonstrable": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575647
+      }
+    ],
+    "20.1 Write migration `20261014123000_school_ai_exam_studio_incident`": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575702
+      }
+    ],
+    "20.2 Write migration `20261014124000_school_ai_exam_studio_recovery`": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575756
+      }
+    ],
+    "21.1 Build the control room service and view": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575809
+      }
+    ],
+    "21.2 Build idempotent bulk control actions": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575862
+      }
+    ],
+    "21.3 Build the control room routes": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575924
+      }
+    ],
+    "21.4 Build the Control room space": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029575990
+      }
+    ],
+    "21.6 Consume the SKO-413 sitting records": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576038
+      }
+    ],
+    "22.1 Build the incident domain module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576099
+      }
+    ],
+    "22.2 Build clarification issue and display": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576186
+      }
+    ],
+    "22.3 Build remedy proposal and authorized application": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576238
+      }
+    ],
+    "22.4 Build the clarification composer and remedy preview": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576294
+      }
+    ],
+    "23.1 Build the recovery domain module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576347
+      }
+    ],
+    "23.2 Build the recovery service and practice approval": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576403
+      }
+    ],
+    "23.3 Build the Results and Improve space": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576461
+      }
+    ],
+    "24.1 Build the evidence pack and manifest module": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576511
+      }
+    ],
+    "24.2 Build the evidence pack service and route": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576571
+      }
+    ],
+    "24.3 Build the evidence pack panel": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576634
+      }
+    ],
+    "25.1 Build the demonstration dataset script": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576695
+      }
+    ],
+    "25.3 Expose the dataset through the SKO-452 demonstration path": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576755
+      }
+    ],
+    "26.2 Write the migration safety test": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576812
+      }
+    ],
+    "27. Checkpoint — slice 3 green and demonstrable": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576869
+      }
+    ],
+    "28.1 Write migration `20261014125000_school_ai_exam_studio_managed`": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576925
+      }
+    ],
+    "28.2 Widen the expiry sweep mode filter": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029576987
+      }
+    ],
+    "29.1 Give the mode assertion a policy argument without opening the default": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577047
+      }
+    ],
+    "29.2 Update the existing fail-closed test rather than deleting it": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577097
+      }
+    ],
+    "29.3 Build the managed mode service, admission route and per-request client verification": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577154
+      }
+    ],
+    "29.4 Build local release and the independent emergency exit recording": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577216
+      }
+    ],
+    "30.1 Build the honest managed-mode interface state": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577275
+      }
+    ],
+    "31.1 **Blocked by gate (SKO-449).** Managed client and configuration validation, the Supported_Device_Matrix, the 120 s local release bound and the independent emergency exit, each on real devices": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577336
+      }
+    ],
+    "31.2 **Blocked by gate.** Educational calibration of generation, semantic review and marking proposals against representative, properly authorized English, Arabic and Urdu material with independently reviewed expectations": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577418
+      }
+    ],
+    "31.3 **Blocked by gate.** Camera, microphone, screen, printer, browser and assistive-technology device acceptance, including the documented manual path when a device is unsupported": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577485
+      }
+    ],
+    "31.4 **Blocked by gate.** Private storage permissions, recording retention and deletion, backup and restore, and worker dispatch monitoring in the intended environment": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577545
+      }
+    ],
+    "31.5 **Blocked by gate (SKO-451).** Sustained realistic exam load, and a measured school pilot for any setup, review or correction effort figure": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577613
+      }
+    ],
+    "32. Final checkpoint — all four slices green": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792029577677
+      }
+    ],
+    "1. Shared foundations, determinism fix and the authority matrix": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792031390591
+      }
+    ],
+    "2. Slice 1 migration — release, form sets and exposure": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792032777768
+      }
+    ],
+    "4. Delivery Policy record kind and approval separation": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041512976
+      }
+    ],
+    "1.3 Write the property test for the authority matrix": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041557007
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041578332
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048597997
+      }
+    ],
+    "1.5 Write the property test for copy completeness": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041557952
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041589636
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050105858
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792050113442
+      }
+    ],
+    "1.8 Write the property test for the evidence register": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041559401
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041589784
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048598875
+      }
+    ],
+    "4.3 Write the delivery policy storage and approval integration test": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041560296
+      }
+    ],
+    "3.4 Write the Studio_Intro example and reduced-motion tests": [
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041561421
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792041590615
+      },
+      {
+        "executionId": "d093d688-c5a4-481d-803b-57d9b9c91c24",
+        "chatSessionId": "sess_462cad97-48c5-418c-8354-70f239f8c00a",
+        "timestamp": 1792048602046
+      }
+    ]
+  }
+}

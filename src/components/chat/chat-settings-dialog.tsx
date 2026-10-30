@@ -9,50 +9,58 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from "react";
-import { Loader2, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import type { ChatSettings } from "@/lib/chat/policy";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { useUiText } from "@/components/locale/LocaleProvider";
+
 
 interface ChatSettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
+type Ui = ReturnType<typeof useUiText>;
+
 const TOGGLES: {
   key: keyof ChatSettings;
-  label: string;
-  help: string;
+  label: (ui: Ui) => string;
+  help: (ui: Ui) => string;
 }[] = [
   {
     key: "parentToSupport",
-    label: "Guardians may message the office",
-    help: "Accounts, library and front desk. Leadership and their children's teachers are always reachable.",
+    label: (ui) => ui("Guardians may message the office"),
+    help: (ui) => ui("Accounts, library and front desk. Leadership and their children's teachers are always reachable."),
   },
   {
     key: "studentToSupport",
-    label: "Students may message the office",
-    help: "Same departments, for pupils with their own login.",
+    label: (ui) => ui("Students may message the office"),
+    help: (ui) => ui("Same departments, for pupils with their own login."),
   },
   {
     key: "parentToParent",
-    label: "Guardians may message each other",
-    help: "Off by default. Turning this on lets any guardian find any other guardian on the campus.",
+    label: (ui) => ui("Guardians may message each other"),
+    help: (ui) => ui("Off by default. Turning this on lets any guardian find any other guardian on the campus."),
   },
   {
     key: "studentToStudent",
-    label: "Students may message each other",
-    help: "Off by default. Consider your safeguarding policy before enabling pupil-to-pupil messaging.",
+    label: (ui) => ui("Students may message each other"),
+    help: (ui) => ui("Off by default. Consider your safeguarding policy before enabling pupil-to-pupil messaging."),
   },
   {
     key: "attachmentsEnabled",
-    label: "Allow file attachments",
-    help: "Images and documents up to 10 MB.",
+    label: (ui) => ui("Allow file attachments"),
+    help: (ui) => ui("Images and documents up to 10 MB."),
   },
   {
     key: "quietHoursEnabled",
-    label: "Quiet hours for staff",
-    help: "Outside these hours a family's message still arrives, but staff are not notified.",
+    label: (ui) => ui("Quiet hours for staff"),
+    help: (ui) => ui("Outside these hours a family's message still arrives, but staff are not notified."),
   },
 ];
 
@@ -61,6 +69,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSaved, setHasSaved] = useState(false);
+  const ui = useUiText();
 
   useEffect(() => {
     if (!open) return;
@@ -96,12 +105,12 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json.error ?? "Could not save");
+        setError(json.error ? ui(json.error) : ui("Could not save"));
         return;
       }
       setHasSaved(true);
     } catch {
-      setError("Could not save — check your connection");
+      setError(ui("Could not save — check your connection"));
     } finally {
       setIsSaving(false);
     }
@@ -109,9 +118,9 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
 
   return (
     <Modal
-      title="Messaging policy"
-      eyebrow="Messaging"
-      subtitle="Applies to everyone in your school."
+      title={ui("Messaging policy")}
+      eyebrow={ui("Messaging")}
+      subtitle={ui("Applies to everyone in your school.")}
       icon={Settings2}
       size="sm"
       onClose={onClose}
@@ -119,7 +128,7 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
         <div className="flex items-center justify-between gap-3">
           <p
             className={cn(
-              "text-[11px] font-bold",
+              "text-2xs font-bold",
               error ? "text-rose-600" : "text-ink-muted"
             )}
             role={error ? "alert" : "status"}
@@ -127,27 +136,24 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
             {error
               ? error
               : isSaving
-                ? "Saving…"
+                ? ui("Saving…")
                 : hasSaved
-                  ? "Saved"
-                  : "Changes save as you make them"}
+                  ? ui("Saved")
+                  : ui("Changes save as you make them")}
           </p>
-          <button
+          <Button variant="default" size="sm"
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-xl bg-[#8127cf] px-4 py-2 text-[11px] font-black text-white transition-all hover:bg-[#6a1fb0] active:scale-95"
+
           >
-            Done
-          </button>
+            {ui("Done")}
+          </Button>
         </div>
       }
     >
           <div>
             {!settings ? (
-              <p className="flex items-center justify-center gap-2 py-10 text-xs font-bold text-ink-muted">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                Loading
-              </p>
+              <SkeletonList rows={4} label={ui("Loading")} className="py-2" />
             ) : (
               <div className="space-y-1">
                 {TOGGLES.map((toggle) => {
@@ -155,54 +161,41 @@ export function ChatSettingsDialog({ open, onClose }: ChatSettingsDialogProps) {
                   return (
                     <div
                       key={toggle.key}
-                      className="flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-[#fbf0fe]/50"
+                      className="flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-brand-50/50"
                     >
                       <div className="min-w-0 flex-1">
                         <label
                           htmlFor={`chat-setting-${toggle.key}`}
-                          className="block cursor-pointer text-xs font-black text-[#1f1a23]"
+                          className="block cursor-pointer text-sm font-semibold text-ink-strong"
                         >
-                          {toggle.label}
+                          {toggle.label(ui)}
                         </label>
-                        <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-ink-muted">
-                          {toggle.help}
+                        <p className="mt-0.5 text-xs leading-relaxed text-ink-muted">
+                          {toggle.help(ui)}
                         </p>
                       </div>
 
-                      <button
+                      <Switch
                         id={`chat-setting-${toggle.key}`}
-                        type="button"
-                        role="switch"
-                        aria-checked={value}
-                        onClick={() => save({ ...settings, [toggle.key]: !value })}
-                        className={cn(
-                          "mt-0.5 h-6 w-11 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors",
-                          value ? "bg-[#8127cf]" : "bg-[#cfc2d6]/60"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "block h-5 w-5 rounded-full bg-white shadow transition-transform",
-                            value && "translate-x-5"
-                          )}
-                          aria-hidden
-                        />
-                      </button>
+                        checked={value}
+                        onChange={() => save({ ...settings, [toggle.key]: !value })}
+                        className="mt-0.5 shrink-0"
+                      />
                     </div>
                   );
                 })}
 
                 {settings.quietHoursEnabled && (
-                  <div className="flex items-center gap-3 rounded-2xl bg-[#fbf0fe]/60 px-3 py-3">
+                  <div className="flex items-center gap-3 rounded-2xl bg-brand-50/60 px-3 py-3">
                     <TimeField
                       id="quiet-start"
-                      label="Quiet from"
+                      label={ui("Quiet from")}
                       value={settings.quietHoursStart}
                       onChange={(v) => save({ ...settings, quietHoursStart: v })}
                     />
                     <TimeField
                       id="quiet-end"
-                      label="until"
+                      label={ui("until")}
                       value={settings.quietHoursEnd}
                       onChange={(v) => save({ ...settings, quietHoursEnd: v })}
                     />
@@ -228,15 +221,15 @@ function TimeField({
 }) {
   return (
     <div className="flex-1">
-      <label htmlFor={id} className="block text-[10px] font-black uppercase tracking-wide text-ink-faint">
+      <label htmlFor={id} className="block text-2xs font-semibold uppercase tracking-wide text-ink-faint">
         {label}
       </label>
-      <input
+      <SystemInput
         id={id}
         type="time"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-xs font-bold text-ink focus:border-[#8127cf]/40 focus:outline-none focus:ring-2 focus:ring-[#8127cf]/20"
+        className="mt-1 w-full px-3 py-2"
       />
     </div>
   );

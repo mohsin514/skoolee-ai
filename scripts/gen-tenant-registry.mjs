@@ -25,11 +25,21 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  *  - SuperAdminAuditLog  platform-operator audit trail
  */
 const GLOBAL = [
+  "AuthAttempt", // Cross-instance pre-auth throttles, keyed only by SHA-256.
+  "PhoneOtpChallenge", "OtpDelivery", // SKAI-954: pre-auth phone OTP, keyed by hashes; no tenant payload.
   "School",
   "PlatformConfig",
   "PendingRegistration",
   "PasswordReset",
   "SuperAdminAuditLog",
+  "StripeWebhookReceipt", // Provider event receipts are globally unique and contain no tenant payload.
+  "DataServiceVerification", // Platform hosting evidence for a service/region; no tenant data.
+  "Pilot", "PilotObservation", "PilotMeasure", "PilotClaim", // SKO-430: platform-operator pilot evidence; schools by reference, participants pseudonymous.
+  "QuestionNetwork", "QuestionNetworkMember", "QuestionNetworkItem", "QuestionNetworkReview", "QuestionNetworkAdoption", "QuestionNetworkStat", // SKO-454: shared across schools; the service enforces school, audience, membership and embargo on every access.
+  "PackExpansionDecision", // SKAI-1019/1020: founder decisions on deferred curriculum packs; no tenant data.
+  "CurriculumPackVersion", // SKAI-1008: platform curriculum catalogue; contract content only, no school data.
+  "MarketTrustReview", // SKAI-1016: per-market platform trust evidence; references only, no school data.
+  "ResourcePolicy", "PerformanceRun", // SKO-451: platform-operator capacity policy and measured runs; schools by reference, no pupil data.
 ];
 
 const schema = fs.readFileSync(path.join(root, "prisma/schema.prisma"), "utf8");

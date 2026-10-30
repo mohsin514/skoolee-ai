@@ -1,7 +1,9 @@
 "use client";
+import { InputGroup } from "@/components/ui/input-group";
 
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "@/components/ui/toast";
 import {
   CalendarCheck,
   ChevronLeft,
@@ -18,9 +20,18 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { NO_ENTRY_ANIMATION } from "@/components/insights";
+import { STATUS } from "@/components/insights/palette";
 import { BrandButton } from "@/components/role-dashboard";
+import { resolveMediaUrl } from "@/lib/storage/s3";
 import { cn } from "@/lib/utils";
 import { downloadCSV } from "@/lib/csv";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -28,6 +39,11 @@ import { downloadCSV } from "@/lib/csv";
 
 interface AttendanceOverviewProps {
   campusId?: string;
+  /**
+   * Host-owned header (§4.4b "Attendance": Export secondary): each new number downloads what is on screen, and the
+   * in-panel "Download report" button is not rendered (the PageHeader carries it).
+   */
+  exportRequest?: number;
 }
 
 type Period = "today" | "week" | "month";
@@ -53,6 +69,7 @@ interface ClassBreakdownItem {
   leave: number;
   marked: number;
   unmarked: number;
+  percentage: number;
 }
 
 interface MonthlyData {
@@ -120,9 +137,9 @@ function currentMonthStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function formatMonthLabel(ym: string): string {
+function formatMonthLabel(ym: string, language?: string): string {
   const [y, m] = ym.split("-").map(Number);
-  return new Date(y, m - 1).toLocaleDateString(undefined, {
+  return new Date(y, m - 1).toLocaleDateString(language, {
     month: "long",
     year: "numeric",
   });
@@ -144,13 +161,13 @@ function pct(n: number, total: number): number {
 
 function StatSkeleton() {
   return (
-    <div className="bg-white rounded-[28px] border border-[#cfc2d6]/10 shadow-lg p-6 animate-skeleton-in">
+    <div className="sk-panel p-6 animate-skeleton-in">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-3 flex-1">
-          <div className="h-3 w-20 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-8 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-3 w-20 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+          <div className="h-8 w-16 rounded-full bg-border-subtle/50 skeleton-shimmer" />
         </div>
-        <div className="h-11 w-11 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+        <div className="h-11 w-11 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
       </div>
     </div>
   );
@@ -162,12 +179,12 @@ function TableSkeleton() {
       {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center gap-4 rounded-2xl bg-[#e8e0ec]/20 p-4 animate-skeleton-in"
+          className="flex items-center gap-4 rounded-2xl bg-border-subtle/20 p-4 animate-skeleton-in"
           style={{ animationDelay: `${i * 60}ms` }}
         >
-          <div className="h-4 w-32 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-4 flex-1 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-          <div className="h-4 w-16 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+          <div className="h-4 w-32 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+          <div className="h-4 flex-1 rounded-full bg-border-subtle/50 skeleton-shimmer" />
+          <div className="h-4 w-16 rounded-full bg-border-subtle/50 skeleton-shimmer" />
         </div>
       ))}
     </div>
@@ -177,7 +194,7 @@ function TableSkeleton() {
 function ChartSkeleton() {
   return (
     <div className="flex items-center justify-center animate-skeleton-in">
-      <div className="h-40 w-40 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
+      <div className="h-40 w-40 rounded-full bg-border-subtle/50 skeleton-shimmer" />
     </div>
   );
 }
@@ -186,7 +203,8 @@ function ChartSkeleton() {
 /*  Sub-components                                                     */
 /* ------------------------------------------------------------------ */
 
-const DONUT_COLORS = ["#10b981", "#f43f5e", "#f59e0b"]; // emerald, rose, amber
+// The chart palette's status colours (one source for every chart) — present, absent, on leave.
+const DONUT_COLORS = [STATUS.good, STATUS.critical, STATUS.warning];
 
 function AttendanceDonut({
   present,
@@ -197,19 +215,20 @@ function AttendanceDonut({
   absent: number;
   leave: number;
 }) {
+  const ui = useUiText();
   const total = present + absent + leave;
   if (total === 0) {
     return (
-      <div className="flex items-center justify-center h-44 text-sm font-semibold text-ink-subtle">
-        No data
+      <div className="flex items-center justify-center h-44 text-sm text-ink-subtle">
+        {ui("No records yet")}
       </div>
     );
   }
 
   const data = [
-    { name: "Present", value: present },
-    { name: "Absent", value: absent },
-    { name: "Leave", value: leave },
+    { name: ui("Present"), value: present },
+    { name: ui("Absent"), value: absent },
+    { name: ui("On leave"), value: leave },
   ];
 
   return (
@@ -236,9 +255,9 @@ function AttendanceDonut({
         </PieChart>
       </ResponsiveContainer>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="text-2xl font-black text-[#1f1a23]">{total}</span>
-        <span className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">
-          Records
+        <span className="text-2xl font-bold text-ink-strong">{total}</span>
+        <span className="text-xs font-semibold text-ink-subtle">
+          {ui("Records")}
         </span>
       </div>
     </div>
@@ -254,20 +273,21 @@ function DonutLegend({
   absent: number;
   leave: number;
 }) {
+  const ui = useUiText();
   const items = [
-    { label: "Present", value: present, color: "bg-emerald-500" },
-    { label: "Absent", value: absent, color: "bg-rose-500" },
-    { label: "Leave", value: leave, color: "bg-amber-500" },
+    { label: ui("Present"), value: present, color: "bg-status-success-text" },
+    { label: ui("Absent"), value: absent, color: "bg-status-error-text" },
+    { label: ui("On leave"), value: leave, color: "bg-status-warning-text" },
   ];
   return (
     <div className="flex items-center justify-center gap-5 mt-2">
       {items.map((it) => (
         <div key={it.label} className="flex items-center gap-1.5">
-          <span className={cn("h-2 w-2 rounded-full", it.color)} />
-          <span className="text-[10px] font-bold text-ink-muted">
+          <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", it.color)} />
+          <span className="text-2xs font-bold text-ink-muted">
             {it.label}
           </span>
-          <span className="text-[10px] font-black text-[#1f1a23]">
+          <span className="text-2xs font-bold text-ink-strong">
             {it.value}
           </span>
         </div>
@@ -280,12 +300,12 @@ function ProgressBar({ value, className }: { value: number; className?: string }
   return (
     <div
       className={cn(
-        "h-2 w-full rounded-full bg-[#e8e0ec]/40 overflow-hidden",
+        "h-2 w-full rounded-full bg-border-subtle/40 overflow-hidden",
         className
       )}
     >
       <div
-        className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-[#9c48ea] transition-all duration-500"
+        className="h-full rounded-full bg-gradient-to-r from-primary to-brand-400 transition-all duration-500 motion-reduce:transition-none"
         style={{ width: `${Math.min(value, 100)}%` }}
       />
     </div>
@@ -293,24 +313,25 @@ function ProgressBar({ value, className }: { value: number; className?: string }
 }
 
 function StatusBadge({ percentage }: { percentage: number }) {
+  const ui = useUiText();
   if (percentage < 75) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-600">
-        <AlertTriangle className="h-3 w-3" />
-        At Risk
+      <span className="inline-flex items-center gap-1 rounded-full bg-status-error-surface px-2.5 py-0.5 text-2xs font-semibold text-status-error-text">
+        <AlertTriangle aria-hidden="true" className="h-3 w-3" />
+        {ui("At risk")}
       </span>
     );
   }
   if (percentage < 85) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-600">
-        Warning
+      <span className="inline-flex items-center gap-1 rounded-full bg-status-warning-surface px-2.5 py-0.5 text-2xs font-semibold text-status-warning-text">
+        {ui("Watch")}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700">
-      Good
+    <span className="inline-flex items-center gap-1 rounded-full bg-status-success-surface px-2.5 py-0.5 text-2xs font-semibold text-status-success-text">
+      {ui("Good")}
     </span>
   );
 }
@@ -319,7 +340,9 @@ function StatusBadge({ percentage }: { percentage: number }) {
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
+export function AttendanceOverview({ campusId, exportRequest }: AttendanceOverviewProps) {
+  const ui = useUiText();
+  const { language } = useLocale();
   // --------------- state ---------------
   const [period, setPeriod] = useState<Period>("today");
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
@@ -332,6 +355,8 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingMonthly, setLoadingMonthly] = useState(false);
   const [loadingClass, setLoadingClass] = useState(false);
+  // R4: a failed read is one inline alert with retry, never a toast (it used to fire up to three).
+  const [loadError, setLoadError] = useState<null | "summary" | "monthly" | "class">(null);
 
   const [classSearch, setClassSearch] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
@@ -341,6 +366,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const fetchSummary = useCallback(
     async (p: Period) => {
       setLoadingSummary(true);
+      setLoadError((e) => (e === "summary" ? null : e));
       try {
         const qs = new URLSearchParams({ period: p });
         if (campusId) qs.set("campusId", campusId);
@@ -350,7 +376,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setSummaryData(data);
       } catch {
         setSummaryData(null);
-        toast.error("Failed to load attendance summary");
+        setLoadError("summary");
       } finally {
         setLoadingSummary(false);
       }
@@ -361,6 +387,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const fetchMonthly = useCallback(
     async (month: string) => {
       setLoadingMonthly(true);
+      setLoadError((e) => (e === "monthly" ? null : e));
       try {
         const qs = new URLSearchParams({ month });
         if (campusId) qs.set("campusId", campusId);
@@ -370,7 +397,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setMonthlyData(data);
       } catch {
         setMonthlyData(null);
-        toast.error("Failed to load monthly attendance");
+        setLoadError("monthly");
       } finally {
         setLoadingMonthly(false);
       }
@@ -381,6 +408,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const fetchClassDetail = useCallback(
     async (classId: string, month: string) => {
       setLoadingClass(true);
+      setLoadError((e) => (e === "class" ? null : e));
       try {
         const qs = new URLSearchParams({ classId, month });
         if (campusId) qs.set("campusId", campusId);
@@ -390,7 +418,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
         setClassDetail(data);
       } catch {
         setClassDetail(null);
-        toast.error("Failed to load class attendance details");
+        setLoadError("class");
       } finally {
         setLoadingClass(false);
       }
@@ -424,8 +452,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
   const summaryTotal = summaryData?.totalStudents ?? 0;
   const summaryRate = summaryData?.attendanceRate ?? 0;
 
-  // classes from monthly data for the table
-  const monthlyClasses = monthlyData?.classes ?? [];
+  // The class rows follow the same period as the headline, not an unrelated month.
+  const monthlyClasses = period === "month" ? monthlyData?.classes ?? [] : (summaryData?.classBreakdown ?? []).map((cls) => ({
+    ...cls, studentCount: cls.totalStudents, total: cls.marked,
+  }));
   const filteredClasses = classSearch
     ? monthlyClasses.filter((c) =>
         c.className.toLowerCase().includes(classSearch.toLowerCase())
@@ -479,7 +509,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
       downloadCSV(
         `attendance-${classDetail.className.replace(/\s+/g, "-")}-${classDetail.month}`,
         [
-          ["Roll No", "Student", "Present", "Absent", "Leave", "Attendance %"],
+          [ui("Roll no."), ui("Student"), ui("Present"), ui("Absent"), ui("Leave"), ui("Attendance %")],
           ...classDetail.students.map((st) => [
             st.rollNo,
             st.name,
@@ -490,13 +520,13 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           ]),
         ]
       );
-      toast.success(`Exported ${classDetail.students.length} students`);
+      toast.success(ui("Exported {0} students", [classDetail.students.length]));
       return;
     }
 
     if (period === "month" && monthlyData) {
       downloadCSV(`attendance-by-class-${monthlyData.month}`, [
-        ["Class", "Students", "Present", "Absent", "Leave", "Marked", "Attendance %"],
+        [ui("Class"), ui("Students"), ui("Present"), ui("Absent"), ui("Leave"), ui("Marked"), ui("Attendance %")],
         ...monthlyData.classes.map((c) => [
           c.className,
           c.studentCount,
@@ -507,13 +537,13 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           c.percentage,
         ]),
       ]);
-      toast.success(`Exported ${monthlyData.classes.length} classes`);
+      toast.success(ui("Exported {0} classes", [monthlyData.classes.length]));
       return;
     }
 
     if (summaryData) {
       downloadCSV(`attendance-${summaryData.period}-${currentMonthStr()}`, [
-        ["Class", "Students", "Present", "Absent", "Leave", "Marked", "Unmarked"],
+        [ui("Class"), ui("Students"), ui("Present"), ui("Absent"), ui("Leave"), ui("Marked"), ui("Not marked")],
         ...summaryData.classBreakdown.map((c) => [
           c.className,
           c.totalStudents,
@@ -524,12 +554,22 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           c.unmarked,
         ]),
       ]);
-      toast.success(`Exported ${summaryData.classBreakdown.length} classes`);
+      toast.success(ui("Exported {0} classes", [summaryData.classBreakdown.length]));
       return;
     }
 
-    toast.error("Nothing to export yet");
+    toast.error(ui("Nothing to export yet. Attendance appears here once registers are marked."));
   }
+
+  // Header-driven export: only a new number downloads (never on mount).
+  const seenExport = useRef(exportRequest);
+  useEffect(() => {
+    if (exportRequest === undefined || seenExport.current === exportRequest) return;
+    seenExport.current = exportRequest;
+    handleDownloadReport();
+    // Reads the data on screen at the moment of the request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exportRequest]);
 
   function handlePrevMonth() {
     setSelectedMonth((m) => shiftMonth(m, -1));
@@ -544,14 +584,30 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
 
   // --------------- render ---------------
 
+  const retryLoad = () => {
+    if (loadError === "summary") void fetchSummary(period);
+    else if (loadError === "monthly") void fetchMonthly(selectedMonth);
+    else if (loadError === "class" && selectedClassId) void fetchClassDetail(selectedClassId, selectedMonth);
+  };
+
   return (
     <div className="space-y-6">
+      {loadError ? (
+        <Alert
+          tone="danger"
+          live="polite"
+          title={ui(loadError === "summary" ? "The attendance summary could not be loaded" : loadError === "monthly" ? "This month's attendance could not be loaded" : "This class's attendance could not be loaded")}
+          actions={<Button type="button" variant="outline" size="sm" onClick={retryLoad}>{ui("Try again")}</Button>}
+        >
+          {ui("Check your connection and try again.")}
+        </Alert>
+      ) : null}
       {/* ===== Header ===== */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           {selectedClassId && classDetail ? (
-            <h2 className="text-2xl font-black text-[#1f1a23] tracking-tight mt-1">
-              {classDetail.className}
+            <h2 className="text-2xl font-bold text-ink-strong tracking-tight mt-1">
+              <bdi>{classDetail.className}</bdi>
             </h2>
           ) : null}
         </div>
@@ -560,60 +616,59 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           {selectedClassId && (
             <BrandButton
               variant="soft"
-              icon={<ChevronLeft className="h-4 w-4" />}
+              icon={<ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />}
               onClick={handleBackToOverview}
             >
-              Back
+              {ui("All classes")}
             </BrandButton>
           )}
-          <BrandButton
-            variant="soft"
-            icon={<Download className="h-4 w-4" />}
-            onClick={handleDownloadReport}
-          >
-            Download Report
-          </BrandButton>
+          {exportRequest === undefined ? (
+            <BrandButton
+              variant="soft"
+              icon={<Download aria-hidden="true" className="h-4 w-4" />}
+              onClick={handleDownloadReport}
+            >
+              {ui("Download report")}
+            </BrandButton>
+          ) : null}
         </div>
       </div>
 
       {/* ===== Period tabs + month nav ===== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Period selector */}
-        <div className="flex items-center gap-1 rounded-2xl bg-[#f3f4f9] p-1">
+        <div role="group" aria-label={ui("Period")} className="flex items-center gap-1 rounded-2xl bg-muted p-1">
           {(["today", "week", "month"] as Period[]).map((p) => (
-            <button
+            <Button variant="ghost" size="sm"
               key={p}
+              aria-pressed={period === p}
               onClick={() => handlePeriodChange(p)}
               className={cn(
-                "rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                "",
                 period === p
-                  ? "bg-white text-[#8127cf] shadow-md"
-                  : "text-ink-muted hover:text-[#8127cf]"
+                  ? "bg-card shadow-md"
+                  : "text-ink-muted"
               )}
             >
-              {p === "today" ? "Today" : p === "week" ? "This Week" : "This Month"}
-            </button>
+              {ui(p === "today" ? "Today" : p === "week" ? "This week" : "This month")}
+            </Button>
           ))}
         </div>
 
         {/* Month navigator */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrevMonth}
-            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm font-black text-[#1f1a23] min-w-[140px] text-center">
-            {formatMonthLabel(selectedMonth)}
+          <IconButton variant="outline" size="sm" label={ui("Previous month")} onClick={handlePrevMonth}>
+            <ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
+          </IconButton>
+          <span className="text-sm font-bold text-ink-strong min-w-[140px] text-center">
+            {formatMonthLabel(selectedMonth, language)}
           </span>
-          <button
+          <IconButton variant="outline" size="sm" label={ui("Next month")}
             onClick={handleNextMonth}
             disabled={shiftMonth(selectedMonth, 1) > currentMonthStr()}
-            className="h-9 w-9 rounded-xl bg-white border border-[#cfc2d6]/20 flex items-center justify-center text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf] transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+            <ChevronRight aria-hidden="true" className="h-4 w-4 rtl:rotate-180" />
+          </IconButton>
         </div>
       </div>
 
@@ -642,13 +697,13 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <SummaryStatCard
                 icon={Users}
-                label="Total Students"
+                label={ui("Students")}
                 value={summaryTotal}
                 tone="purple"
               />
               <SummaryStatCard
                 icon={CalendarCheck}
-                label="Present"
+                label={ui("Present")}
                 value={summaryPresent}
                 tone="green"
                 sub={
@@ -659,7 +714,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               />
               <SummaryStatCard
                 icon={UserX}
-                label="Absent"
+                label={ui("Absent")}
                 value={summaryAbsent}
                 tone="rose"
                 sub={
@@ -670,7 +725,7 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               />
               <SummaryStatCard
                 icon={Clock}
-                label="On Leave"
+                label={ui("On leave")}
                 value={summaryLeave}
                 tone="amber"
                 sub={
@@ -686,10 +741,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
               */}
               <SummaryStatCard
                 icon={TrendingUp}
-                label="Attendance Rate"
+                label={ui("Attendance rate")}
                 value={summaryData?.totalRecords ? `${summaryRate}%` : "—"}
                 tone="dark"
-                sub={summaryData?.totalRecords ? undefined : "Not marked yet"}
+                sub={summaryData?.totalRecords ? undefined : ui("Not marked yet")}
               />
             </div>
           )}
@@ -697,10 +752,10 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
           {/* Donut + Monthly Class Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Donut chart card */}
-            <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted mb-4">
-                Distribution
-              </p>
+            <div className="sk-panel min-w-0 p-5 sm:p-6">
+              <h3 className="text-sm font-bold text-ink-strong mb-4">
+                {ui("Distribution")}
+              </h3>
               {loadingSummary ? (
                 <ChartSkeleton />
               ) : (
@@ -720,66 +775,63 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
             </div>
 
             {/* Class Breakdown Table */}
-            <div className="lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
-              <div className="flex items-center justify-between gap-4 mb-5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                  Class Breakdown &mdash; {formatMonthLabel(selectedMonth)}
-                </p>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
-                  <input
+            <div className="lg:col-span-2 sk-panel min-w-0 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                <h3 className="text-sm font-bold text-ink-strong">
+                  {ui("Classes — {0}", [period === "month" ? formatMonthLabel(selectedMonth, language) : ui(period === "today" ? "Today" : "Past 7 days")])}
+                </h3>
+                <InputGroup surfaceClassName="bg-muted" className="relative">
+                  <Search aria-hidden="true" data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+                  <SystemInput
                     type="text"
-                    placeholder="Search class..."
+                    aria-label={ui("Search classes")}
+                    placeholder={ui("Search classes…")}
                     value={classSearch}
                     onChange={(e) => setClassSearch(e.target.value)}
-                    className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                    className="w-full ps-9 pe-3 sm:w-44"
                   />
-                </div>
+                </InputGroup>
               </div>
 
-              {loadingMonthly ? (
+              {(period === "month" ? loadingMonthly : loadingSummary) ? (
                 <TableSkeleton />
               ) : filteredClasses.length === 0 ? (
-                <div className="py-12 text-center">
-                  <BarChart3 className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-                  <p className="text-sm font-bold text-ink-subtle">
-                    No class data for this month
-                  </p>
-                </div>
+                <EmptyState size="sm" icon={BarChart3} title={ui("No class data for this period")} description={ui(classSearch ? "No class matches your search." : "Classes appear here once their registers are marked.")} />
               ) : (
-                <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[420px] overflow-y-auto pe-1">
+                  {period !== "today" ? <p className="text-xs text-ink-muted">{ui("Counts are attendance records across the selected days, not individual pupils.")}</p> : null}
                   {/* Header */}
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                    <span className="col-span-3">Class</span>
-                    <span className="col-span-1 text-center">Students</span>
-                    <span className="col-span-1 text-center text-emerald-600">P</span>
-                    <span className="col-span-1 text-center text-rose-500">A</span>
-                    <span className="col-span-1 text-center text-amber-500">L</span>
-                    <span className="col-span-3">Progress</span>
-                    <span className="col-span-2 text-right">Rate</span>
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-ink-subtle">
+                    <span className="col-span-3">{ui("Class")}</span>
+                    <span className="col-span-1 text-center">{ui("Students")}</span>
+                    <abbr title={ui("Present")} className="col-span-1 text-center text-status-success-text no-underline">{ui("Pres.")}</abbr>
+                    <abbr title={ui("Absent")} className="col-span-1 text-center text-status-error-text no-underline">{ui("Abs.")}</abbr>
+                    <abbr title={ui("On leave")} className="col-span-1 text-center text-status-warning-text no-underline">{ui("Lv.")}</abbr>
+                    <span className="col-span-3">{ui("Progress")}</span>
+                    <span className="col-span-2 text-end">{ui("Rate")}</span>
                   </div>
 
                   {filteredClasses.map((cls) => {
                     const rate = cls.percentage;
                     return (
-                      <button
+                      <Button variant="outline"
                         key={cls.classId}
                         onClick={() => handleClassClick(cls.classId)}
-                        className="w-full grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-2xl bg-[#f3f4f9]/50 hover:bg-[#fbf0fe] border border-transparent hover:border-[#8127cf]/10 transition-all cursor-pointer text-left group"
+                        className="sk-row-interactive w-full grid grid-cols-12 gap-2 items-center text-start tabular-nums group"
                       >
-                        <span className="col-span-3 text-sm font-bold text-[#1f1a23] group-hover:text-[#8127cf] transition-colors truncate">
+                        <bdi className="col-span-3 text-sm font-bold text-ink-strong group-hover:text-primary transition-colors truncate">
                           {cls.className}
-                        </span>
+                        </bdi>
                         <span className="col-span-1 text-xs font-bold text-ink-muted text-center">
                           {cls.studentCount}
                         </span>
-                        <span className="col-span-1 text-xs font-bold text-emerald-600 text-center">
+                        <span className="col-span-1 text-xs font-bold text-status-success-text text-center">
                           {cls.present}
                         </span>
-                        <span className="col-span-1 text-xs font-bold text-rose-500 text-center">
+                        <span className="col-span-1 text-xs font-bold text-status-error-text text-center">
                           {cls.absent}
                         </span>
-                        <span className="col-span-1 text-xs font-bold text-amber-500 text-center">
+                        <span className="col-span-1 text-xs font-bold text-status-warning-text text-center">
                           {cls.leave}
                         </span>
                         <span className="col-span-3">
@@ -787,17 +839,17 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
                         </span>
                         <span
                           className={cn(
-                            "col-span-2 text-right text-sm font-black",
+                            "col-span-2 text-end text-sm font-bold",
                             rate >= 85
-                              ? "text-emerald-600"
+                              ? "text-status-success-text"
                               : rate >= 75
-                                ? "text-amber-600"
-                                : "text-rose-500"
+                                ? "text-status-warning-text"
+                                : "text-status-error-text"
                           )}
                         >
                           {rate}%
                         </span>
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -807,39 +859,39 @@ export function AttendanceOverview({ campusId }: AttendanceOverviewProps) {
 
           {/* At-Risk Classes (campus-wide) */}
           {!loadingMonthly && campusAtRiskClasses.length > 0 && (
-            <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+            <div className="sk-panel min-w-0 p-5 sm:p-6">
               <div className="flex items-center gap-2 mb-5">
-                <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
-                  <AlertTriangle className="h-4 w-4 text-rose-500" />
+                <div aria-hidden="true" className="h-8 w-8 rounded-xl bg-status-error-surface flex items-center justify-center">
+                  <AlertTriangle className="h-4 w-4 text-status-error-text" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                    Attention Required
+                  <p className="text-xs font-semibold text-ink-muted">
+                    {ui("Attention required")}
                   </p>
-                  <p className="text-sm font-black text-[#1f1a23]">
-                    Classes Below 75% Attendance
-                  </p>
+                  <h3 className="text-sm font-bold text-ink-strong">
+                    {ui("Classes below 75% attendance")}
+                  </h3>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {campusAtRiskClasses.map((cls) => (
-                  <button
+                  <Button variant="outline"
                     key={cls.classId}
                     onClick={() => handleClassClick(cls.classId)}
-                    className="flex items-center gap-4 p-4 rounded-2xl bg-rose-50/50 border border-rose-100 hover:bg-rose-50 hover:border-rose-200 transition-all cursor-pointer text-left"
+                    className="flex justify-start items-center gap-4 text-start"
                   >
-                    <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
-                      <BarChart3 className="h-4 w-4 text-rose-600" />
+                    <div className="h-10 w-10 rounded-xl bg-status-error-surface flex items-center justify-center shrink-0">
+                      <BarChart3 aria-hidden="true" className="h-4 w-4 text-status-error-text" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-[#1f1a23] truncate">
+                      <bdi className="block text-sm font-bold text-ink-strong truncate">
                         {cls.className}
-                      </p>
-                      <p className="text-[10px] font-bold text-rose-500">
-                        {cls.percentage}% attendance &middot; {cls.absent} absences
+                      </bdi>
+                      <p className="text-xs font-medium tabular-nums text-status-error-text">
+                        {ui("{0}% attendance · {1} absences", [cls.percentage, cls.absent])}
                       </p>
                     </div>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -868,30 +920,31 @@ function SummaryStatCard({
   tone: "purple" | "green" | "rose" | "amber" | "dark";
 }) {
   const toneStyles: Record<string, string> = {
-    purple: "bg-[#fbf0fe] text-[#8127cf]",
-    green: "bg-emerald-50 text-emerald-600",
-    rose: "bg-rose-50 text-rose-500",
-    amber: "bg-amber-50 text-amber-600",
-    dark: "bg-[#1f1a23] text-white",
+    purple: "bg-brand-50 text-primary",
+    green: "bg-status-success-surface text-status-success-text",
+    rose: "bg-status-error-surface text-status-error-text",
+    amber: "bg-status-warning-surface text-status-warning-text",
+    dark: "bg-ink-strong text-primary-foreground",
   };
 
   return (
-    <div className="bg-white p-5 rounded-[28px] border border-[#cfc2d6]/10 shadow-lg">
+    <div className="bg-card p-5 rounded-[28px] border border-edge/10 shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-ink-subtle mb-2">
             {label}
           </p>
-          <p className="text-2xl md:text-3xl font-black text-[#1f1a23] leading-none">
+          <p className="text-2xl md:text-3xl font-extrabold text-ink-strong leading-none">
             {value}
           </p>
           {sub && (
-            <p className="text-[10px] font-bold text-ink-subtle uppercase tracking-wider mt-2">
+            <p className="text-xs font-semibold text-ink-subtle mt-2">
               {sub}
             </p>
           )}
         </div>
         <div
+          aria-hidden="true"
           className={cn(
             "h-10 w-10 rounded-2xl flex items-center justify-center shrink-0",
             toneStyles[tone]
@@ -925,6 +978,8 @@ function ClassDetailView({
   filteredStudents: StudentAttendance[];
   atRiskStudents: AtRiskStudent[];
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   if (loading) {
     return (
       <div className="space-y-6">
@@ -933,7 +988,7 @@ function ClassDetailView({
             <StatSkeleton key={i} />
           ))}
         </div>
-        <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+        <div className="sk-panel min-w-0 p-5 sm:p-6">
           <TableSkeleton />
         </div>
       </div>
@@ -942,14 +997,8 @@ function ClassDetailView({
 
   if (!data) {
     return (
-      <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
-        <div className="py-16 text-center">
-          <CalendarCheck className="mx-auto h-12 w-12 text-ink-subtle mb-4" />
-          <p className="text-lg font-black text-[#1f1a23]">No attendance data</p>
-          <p className="text-sm font-semibold text-ink-muted mt-1">
-            No records found for this class in {formatMonthLabel(month)}
-          </p>
-        </div>
+      <div className="sk-panel min-w-0 p-5 sm:p-6">
+        <EmptyState icon={CalendarCheck} title={ui("No attendance data")} description={ui("No records found for this class in {0}.", [formatMonthLabel(month, language)])} />
       </div>
     );
   }
@@ -962,25 +1011,25 @@ function ClassDetailView({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryStatCard
           icon={Users}
-          label="Total Students"
+          label={ui("Students")}
           value={totalStudents}
           tone="purple"
         />
         <SummaryStatCard
           icon={CalendarCheck}
-          label="Total Present"
+          label={ui("Present")}
           value={summary.totalPresent}
           tone="green"
         />
         <SummaryStatCard
           icon={UserX}
-          label="Total Absent"
+          label={ui("Absent")}
           value={summary.totalAbsent}
           tone="rose"
         />
         <SummaryStatCard
           icon={TrendingUp}
-          label="Class Average"
+          label={ui("Class average")}
           value={`${classAveragePercentage}%`}
           tone="dark"
         />
@@ -988,41 +1037,37 @@ function ClassDetailView({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Student table */}
-        <div className="lg:col-span-2 bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
-          <div className="flex items-center justify-between gap-4 mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-              Student Attendance &mdash; {formatMonthLabel(month)}
-            </p>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
-              <input
+        <div className="lg:col-span-2 sk-panel min-w-0 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+            <h3 className="text-sm font-bold text-ink-strong">
+              {ui("Students — {0}", [formatMonthLabel(month, language)])}
+            </h3>
+            <InputGroup surfaceClassName="bg-muted" className="relative">
+              <Search aria-hidden="true" data-field-affix="start" className="absolute start-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-subtle" />
+              <SystemInput
                 type="text"
-                placeholder="Search student..."
+                aria-label={ui("Search students")}
+                placeholder={ui("Search students…")}
                 value={studentSearch}
                 onChange={(e) => onStudentSearch(e.target.value)}
-                className="h-9 w-44 rounded-xl border border-[#cfc2d6]/20 bg-[#f3f4f9] pl-9 pr-3 text-xs font-semibold text-[#1f1a23] placeholder:text-ink-subtle outline-none focus:border-[#8127cf]/30 focus:ring-2 focus:ring-[#8127cf]/10 transition-all"
+                className="w-full ps-9 pe-3 sm:w-44"
               />
-            </div>
+            </InputGroup>
           </div>
 
           {filteredStudents.length === 0 ? (
-            <div className="py-12 text-center">
-              <User className="mx-auto h-10 w-10 text-ink-subtle mb-3" />
-              <p className="text-sm font-bold text-ink-subtle">
-                No students found
-              </p>
-            </div>
+            <EmptyState size="sm" icon={User} title={ui("No students found")} description={ui("Try a different name or roll number.")} />
           ) : (
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pe-1">
               {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-wider text-ink-subtle">
-                <span className="col-span-1">Roll</span>
-                <span className="col-span-3">Name</span>
-                <span className="col-span-1 text-center text-emerald-600">P</span>
-                <span className="col-span-1 text-center text-rose-500">A</span>
-                <span className="col-span-1 text-center text-amber-500">L</span>
-                <span className="col-span-3">Progress</span>
-                <span className="col-span-2 text-right">Status</span>
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-semibold text-ink-subtle">
+                <span className="col-span-1">{ui("Roll")}</span>
+                <span className="col-span-3">{ui("Name")}</span>
+                <abbr title={ui("Present")} className="col-span-1 text-center text-status-success-text no-underline">{ui("Pres.")}</abbr>
+                <abbr title={ui("Absent")} className="col-span-1 text-center text-status-error-text no-underline">{ui("Abs.")}</abbr>
+                <abbr title={ui("On leave")} className="col-span-1 text-center text-status-warning-text no-underline">{ui("Lv.")}</abbr>
+                <span className="col-span-3">{ui("Progress")}</span>
+                <span className="col-span-2 text-end">{ui("Status")}</span>
               </div>
 
               {filteredStudents.map((student) => (
@@ -1031,22 +1076,26 @@ function ClassDetailView({
                   className={cn(
                     "grid grid-cols-12 gap-2 items-center px-4 py-3 rounded-2xl transition-all",
                     student.percentage < 75
-                      ? "bg-rose-50/50 border border-rose-100"
-                      : "bg-[#f3f4f9]/50 border border-transparent"
+                      ? "bg-status-error-surface border border-status-error-border"
+                      : "bg-muted/50 border border-transparent"
                   )}
                 >
                   <span className="col-span-1 text-xs font-bold text-ink-muted">
                     {student.rollNo || "-"}
                   </span>
                   <div className="col-span-3 flex items-center gap-2 min-w-0">
-                    <div className="h-8 w-8 rounded-xl bg-[#fbf0fe] flex items-center justify-center shrink-0 text-[10px] font-black text-[#8127cf]">
-                      {student.profileImageUrl ? (
-                        <img
-                          src={student.profileImageUrl}
-                          alt=""
-                          className="h-full w-full rounded-xl object-cover"
-                        />
-                      ) : (
+                    <div className="h-8 w-8 rounded-xl bg-brand-50 flex items-center justify-center shrink-0 text-2xs font-bold text-primary">
+                      {(() => {
+                        const imgSrc = resolveMediaUrl(student.profileImageUrl);
+                        return imgSrc ? (
+                          <img
+                            src={imgSrc}
+                            alt=""
+                            className="h-full w-full rounded-xl object-cover"
+                          />
+                        ) : null;
+                      })()}
+                      {!resolveMediaUrl(student.profileImageUrl) && (
                         student.name
                           .split(" ")
                           .map((n) => n[0])
@@ -1055,17 +1104,17 @@ function ClassDetailView({
                           .slice(0, 2)
                       )}
                     </div>
-                    <span className="text-sm font-bold text-[#1f1a23] truncate">
+                    <bdi className="text-sm font-bold text-ink-strong truncate">
                       {student.name}
-                    </span>
+                    </bdi>
                   </div>
-                  <span className="col-span-1 text-xs font-bold text-emerald-600 text-center">
+                  <span className="col-span-1 text-xs font-bold text-status-success-text text-center">
                     {student.present}
                   </span>
-                  <span className="col-span-1 text-xs font-bold text-rose-500 text-center">
+                  <span className="col-span-1 text-xs font-bold text-status-error-text text-center">
                     {student.absent}
                   </span>
-                  <span className="col-span-1 text-xs font-bold text-amber-500 text-center">
+                  <span className="col-span-1 text-xs font-bold text-status-warning-text text-center">
                     {student.leave}
                   </span>
                   <span className="col-span-3">
@@ -1081,45 +1130,43 @@ function ClassDetailView({
         </div>
 
         {/* At-Risk Sidebar */}
-        <div className="bg-white rounded-[30px] border border-[#cfc2d6]/10 p-6 shadow-lg">
+        <div className="sk-panel min-w-0 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-5">
-            <div className="h-8 w-8 rounded-xl bg-rose-50 flex items-center justify-center">
-              <AlertTriangle className="h-4 w-4 text-rose-500" />
+            <div aria-hidden="true" className="h-8 w-8 rounded-xl bg-status-error-surface flex items-center justify-center">
+              <AlertTriangle className="h-4 w-4 text-status-error-text" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Below 75%
+              <p className="text-xs font-semibold text-ink-muted">
+                {ui("Below {0}%", [75])}
               </p>
-              <p className="text-sm font-black text-[#1f1a23]">
-                At-Risk Students ({atRiskStudents.length})
-              </p>
+              <h3 className="text-sm font-bold text-ink-strong">
+                {ui("Students at risk ({0})", [atRiskStudents.length])}
+              </h3>
             </div>
           </div>
 
           {atRiskStudents.length === 0 ? (
-            <div className="py-10 text-center">
-              <CalendarCheck className="mx-auto h-8 w-8 text-emerald-300 mb-3" />
-              <p className="text-sm font-bold text-emerald-600">All good!</p>
-              <p className="text-xs font-semibold text-ink-subtle mt-1">
-                No at-risk students this month
-              </p>
-            </div>
+            <EmptyState size="sm" icon={CalendarCheck} title={ui("All good")} description={ui("No students are at risk this month.")} />
           ) : (
-            <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[460px] overflow-y-auto pe-1">
               {atRiskStudents.map((student) => (
                 <div
                   key={student.studentId}
-                  className="p-4 rounded-2xl bg-rose-50/50 border border-rose-100"
+                  className="p-4 rounded-2xl bg-status-error-surface border border-status-error-border"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-rose-100 flex items-center justify-center shrink-0 text-[10px] font-black text-rose-600">
-                      {student.profileImageUrl ? (
-                        <img
-                          src={student.profileImageUrl}
-                          alt=""
-                          className="h-full w-full rounded-xl object-cover"
-                        />
-                      ) : (
+                    <div className="h-9 w-9 rounded-xl bg-card flex items-center justify-center shrink-0 text-2xs font-bold text-status-error-text">
+                      {(() => {
+                        const imgSrc = resolveMediaUrl(student.profileImageUrl);
+                        return imgSrc ? (
+                          <img
+                            src={imgSrc}
+                            alt=""
+                            className="h-full w-full rounded-xl object-cover"
+                          />
+                        ) : null;
+                      })()}
+                      {!resolveMediaUrl(student.profileImageUrl) && (
                         student.studentName
                           .split(" ")
                           .map((n) => n[0])
@@ -1129,24 +1176,24 @@ function ClassDetailView({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-[#1f1a23] truncate">
+                      <bdi className="block text-sm font-bold text-ink-strong truncate">
                         {student.studentName}
-                      </p>
-                      <p className="text-[10px] font-bold text-ink-subtle">
-                        Roll: {student.rollNo || "-"}
+                      </bdi>
+                      <p className="text-2xs font-bold text-ink-subtle">
+                        {ui("Roll: {0}", [student.rollNo || "-"])}
                       </p>
                     </div>
-                    <span className="text-sm font-black text-rose-500 shrink-0">
+                    <span className="text-sm font-bold text-status-error-text shrink-0">
                       {student.percentage}%
                     </span>
                   </div>
-                  <div className="mt-3 flex items-center gap-4 text-[10px] font-bold">
-                    <span className="text-rose-500">
-                      {student.absentDays} days absent
+                  <div className="mt-3 flex items-center gap-4 text-2xs font-bold">
+                    <span className="text-status-error-text">
+                      {ui(student.absentDays === 1 ? "1 day absent" : "{0} days absent", [student.absentDays])}
                     </span>
                     {student.consecutiveAbsences > 0 && (
-                      <span className="text-amber-600">
-                        {student.consecutiveAbsences} consecutive
+                      <span className="text-status-warning-text">
+                        {ui("{0} in a row", [student.consecutiveAbsences])}
                       </span>
                     )}
                   </div>

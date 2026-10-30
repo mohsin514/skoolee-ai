@@ -31,21 +31,60 @@ export type PIIKind = "STUDENT" | "PERSON" | "PHONE" | "EMAIL" | "ADDRESS" | "ID
 
 // Object keys whose values are personal identifiers. Matched case-insensitively
 // against the whole key, so `guardianWhatsapp`, `parent_email` etc. are covered.
+// Deny by default: every key ending in "name" (and its localised `nameUr`/`nameAr`
+// variants) is a person unless it is explicitly cleared below.
 const SENSITIVE_KEYS: Array<{ pattern: RegExp; kind: PIIKind }> = [
   { pattern: /studentname|student_name/i, kind: "STUDENT" },
-  { pattern: /(full|guardian|parent|father|mother|teacher|staff|contact|principal)?_?name$/i, kind: "PERSON" },
-  { pattern: /^name$/i, kind: "PERSON" },
+  { pattern: /name_?(ur|ar|en)?$/i, kind: "PERSON" },
   { pattern: /whatsapp|phone|mobile|contact_?no|cell/i, kind: "PHONE" },
   { pattern: /email/i, kind: "EMAIL" },
   { pattern: /address/i, kind: "ADDRESS" },
   { pattern: /cnic|nic|b_?form|nationalid|national_id/i, kind: "ID" },
 ];
 
-function classifyKey(key: string): PIIKind | null {
+/**
+ * Reviewed non-person labels. Checked before SENSITIVE_KEYS so the model sees
+ * "7B" and "Mathematics" instead of [PERSON_n]. Adding a key here is a privacy
+ * decision: tests/ai/pseudonymize-schema.test.ts fails on any Prisma `*name*`
+ * field that is neither a person nor reviewed here.
+ */
+export const CLEAR_KEYS = new Set([
+  "className", "subjectName", "campusName", "schoolName", "stopName", "gradeName", "departmentName",
+  "designationName", "sourceCurriculumName", "bankName", "tableName", "shortName",
+]);
+
+/** Models whose bare `name` column is a label, not a person (reviewed with the schema test). */
+export const CLEAR_NAME_MODELS = new Set([
+  "School", "Campus", "StaffDesignation", "Department", "LeaveType", "Class", "AdmissionForm", "StudentCategory",
+  "StudentGroup", "Subject", "Holiday", "FeeType", "FeeGroup", "FeeDiscount", "ChartOfAccount", "PaymentMethodRef",
+  "FeeFineRule", "ServiceCategory", "TransportStop", "IntegrationConnection", "IdentityConnection", "DormRoomType",
+  "BookCategory", "ItemCategory", "Item", "ItemStore", "CertificateTemplate", "SecureBrowserProfile", "Pilot",
+  "PayrollProvider", "PlanningScenario", "QuestionNetwork", "EvidenceFramework", "CanteenItem",
+]);
+/** Models whose bare `name` is a person (an enquirer, visitor, caller, account holder or sole trader). */
+export const PERSON_NAME_MODELS = new Set(["AdmissionQuery", "Supplier", "VisitorLog", "PhoneCallLog", "IdentityLinkRequest", "BankAccount"]);
+
+// A bare `name` is cleared only inside a container named after a cleared model,
+// e.g. { classes: [{ name: "7B" }] } or { subject: { name: "Physics" } }.
+const CLEAR_NAME_CONTAINERS = new Set([...CLEAR_NAME_MODELS].flatMap(model => {
+  const singular = model[0].toLowerCase() + model.slice(1);
+  return [singular, `${singular}s`, `${singular}es`, singular.replace(/y$/, "ies")];
+}));
+
+export function classifyKey(key: string, container: string | null = null): PIIKind | null {
+  if (CLEAR_KEYS.has(key)) return null;
+  if (/^name$/i.test(key) && container && CLEAR_NAME_CONTAINERS.has(container)) return null;
   for (const { pattern, kind } of SENSITIVE_KEYS) {
     if (pattern.test(key)) return kind;
   }
   return null;
+}
+
+// Replacement respects Unicode word boundaries so a registered "Ali" never
+// rewrites "Alignment" and a short token never corrupts ids, numbers or JSON.
+function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function replaceWhole(text: string, original: string, replacement: string) {
+  return text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(original)}(?![\\p{L}\\p{N}])`, "gu"), () => replacement);
 }
 
 /**
@@ -78,7 +117,7 @@ export class Pseudonymizer {
     let out = text;
     const originals = [...this.forward.keys()].sort((a, b) => b.length - a.length);
     for (const original of originals) {
-      out = out.split(original).join(this.forward.get(original)!);
+      out = replaceWhole(out, original, this.forward.get(original)!);
     }
     return out;
   }
@@ -93,26 +132,39 @@ export class Pseudonymizer {
     return out;
   }
 
+  /** Restore string values without interpreting restored text as JSON or keys. */
+  unmaskObject<T>(value: T): T {
+    const restore = (item: unknown): unknown => {
+      if (typeof item === "string") return this.unmask(item);
+      if (Array.isArray(item)) return item.map(restore);
+      if (item && typeof item === "object") return Object.fromEntries(
+        Object.entries(item).map(([key, child]) => [key, restore(child)]),
+      );
+      return item;
+    };
+    return restore(value) as T;
+  }
+
   /**
    * Deep-copies `value`, replacing any string under a sensitive key with a
    * token. Use to sanitize a structured context object before serializing it
    * into a prompt.
    */
   maskObject<T>(value: T): T {
-    return this.walk(value, null) as T;
+    return this.walk(value, null, null) as T;
   }
 
-  private walk(value: unknown, keyKind: PIIKind | null): unknown {
+  private walk(value: unknown, keyKind: PIIKind | null, container: string | null): unknown {
     if (typeof value === "string") {
       return keyKind ? this.token(value, keyKind) : value;
     }
     if (Array.isArray(value)) {
-      return value.map((item) => this.walk(item, keyKind));
+      return value.map((item) => this.walk(item, keyKind, container));
     }
     if (value && typeof value === "object") {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value)) {
-        out[k] = this.walk(v, classifyKey(k));
+        out[k] = this.walk(v, classifyKey(k, container), k);
       }
       return out;
     }
@@ -127,12 +179,30 @@ const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PK_PHONE_RE = /(?:\+?92[\s-]?|0)3\d{2}[\s-]?\d{7}\b/g;
 // CNIC: 13 digits, usually 5-7-1.
 const CNIC_RE = /\b\d{5}[\s-]?\d{7}[\s-]?\d\b/g;
+// Broader reviewed patterns catch international numbers and national IDs
+// outside Pakistan while avoiding ordinary marks and dates where possible.
+const INTERNATIONAL_PHONE_RE = /(?:\+\d{1,3}[\s().-]?(?:\d[\s().-]?){7,14}\d|\b00\d{1,3}[\s().-]?(?:\d[\s().-]?){7,14}\d)/g;
+const NATIONAL_PHONE_RE = /\b0\d{9,14}\b/g;
+const GENERIC_NATIONAL_ID_RE = /\b\d{10,18}\b/g;
+// Gulf local mobiles are usually written in 3-3-4 groups: 050 123 4567.
+const GROUPED_LOCAL_PHONE_RE = /\b0\d{2}[\s-]\d{3}[\s-]?\d{4}\b/g;
+// Emirates ID: 784-YYYY-NNNNNNN-N.
+const EMIRATES_ID_RE = /\b784[\s-]?\d{4}[\s-]?\d{7}[\s-]?\d\b/g;
+// IBAN (SA/AE/PK/KW and others), with or without 4-character grouping.
+const IBAN_RE = /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?\b/g;
+
+// Arabic-Indic (٠-٩) and Extended Arabic-Indic/Urdu (۰-۹) digits are not
+// folded by NFKC, so identifiers written in them would bypass every pattern.
+function asciiDigits(text: string): string {
+  return text.replace(/[٠-٩۰-۹]/g, d => String((d.charCodeAt(0) & 0xf)));
+}
 
 /** Returns a de-duplicated list of PII-looking substrings found in `text`. */
 export function scanForPII(text: string): string[] {
   const hits = new Set<string>();
-  for (const re of [EMAIL_RE, PK_PHONE_RE, CNIC_RE]) {
-    for (const m of text.matchAll(re)) hits.add(m[0]);
+  const normalized = asciiDigits(text.normalize("NFKC"));
+  for (const re of [EMAIL_RE, INTERNATIONAL_PHONE_RE, NATIONAL_PHONE_RE, GROUPED_LOCAL_PHONE_RE, PK_PHONE_RE, CNIC_RE, EMIRATES_ID_RE, IBAN_RE, GENERIC_NATIONAL_ID_RE]) {
+    for (const m of normalized.matchAll(re)) hits.add(m[0]);
   }
   return [...hits];
 }

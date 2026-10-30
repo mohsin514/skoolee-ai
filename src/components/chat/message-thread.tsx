@@ -8,6 +8,9 @@ import {
   BellOff,
   Check,
   CheckCheck,
+  AlertTriangle,
+  Clock,
+  RotateCcw,
   CornerUpLeft,
   Download,
   FileText,
@@ -16,18 +19,31 @@ import {
   MoreVertical,
   Pencil,
   Pin,
-  PinOff,
   Sparkles,
+  PinOff,
   Trash2,
   Users,
   X,
 } from "lucide-react";
+import { chatHeader, chatEmptyIcon } from "./chat-styles";
 import { cn } from "@/lib/utils";
 import { roleLabel } from "@/lib/roles";
-import { useChat } from "./chat-provider";
+import { useChat, type SendState } from "./chat-provider";
 import { ChatAvatar } from "./chat-avatar";
 import { Composer } from "./composer";
 import type { ChatMessageView } from "@/lib/chat/types";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { localeTag } from "@/lib/locale/package";
+import { fill } from "./chat-text";
+
+type Ui = ReturnType<typeof useUiText>;
+
 
 interface MessageThreadProps {
   /**
@@ -39,20 +55,20 @@ interface MessageThreadProps {
   backVisibility?: "always" | "mobile";
 }
 
-function dayLabel(iso: string) {
+function dayLabel(iso: string, ui: Ui, tag: string) {
   const date = new Date(iso);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
   const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  if (sameDay(date, today)) return "Today";
-  if (sameDay(date, yesterday)) return "Yesterday";
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  if (sameDay(date, today)) return ui("Today");
+  if (sameDay(date, yesterday)) return ui("Yesterday");
+  return date.toLocaleDateString(tag, { day: "numeric", month: "long", year: "numeric" });
 }
 
-function clockTime(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+function clockTime(iso: string, tag?: string) {
+  return new Date(iso).toLocaleTimeString(tag, { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatSize(bytes: number) {
@@ -75,7 +91,15 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     leaveConversation,
     typingUsers,
     closeConversation,
+    sendStates,
+    retryMessage,
+    discardMessage,
+    lastSyncedAt,
+    isConnected,
   } = useChat();
+  const ui = useUiText();
+  const locale = useLocale();
+  const tag = localeTag(locale);
 
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
   const [editing, setEditing] = useState<ChatMessageView | null>(null);
@@ -126,20 +150,20 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
     <MotionConfig reducedMotion="user">
       <div className="flex h-full min-h-0 flex-col">
         {/* ── Header ── */}
-        <header className="relative z-20 flex shrink-0 items-center gap-2.5 border-b border-[#cfc2d6]/25 bg-white/80 px-3 py-2.5 shadow-[0_4px_20px_-12px_rgba(129,39,207,0.35)] backdrop-blur-xl md:px-4">
+        <header className={cn(chatHeader, "relative z-20")}>
           {showBack && (
-            <button
+            <Button variant="ghost" size="icon"
               type="button"
               onClick={onBack}
-              aria-label="Back to conversations"
+              aria-label={ui("Back to conversations")}
               className={cn(
-                "-ml-1 shrink-0 cursor-pointer rounded-xl p-2 text-ink-muted transition-all",
-                "hover:-translate-x-0.5 hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-90",
+                "-ms-1 shrink-0",
+                "hover:-translate-x-0.5 rtl:hover:translate-x-0.5",
                 backVisibility === "mobile" && "md:hidden"
               )}
             >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
+              <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
+            </Button>
           )}
 
           <ChatAvatar
@@ -151,8 +175,8 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           />
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-black tracking-tight text-[#1f1a23]">
-              {detail.title}
+            <p className="truncate text-sm font-semibold tracking-tight text-foreground">
+              <bdi>{detail.title}</bdi>
             </p>
             <div className="mt-0.5 h-3.5">
               <AnimatePresence mode="wait" initial={false}>
@@ -162,10 +186,10 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     initial={{ opacity: 0, y: 3 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -3 }}
-                    className="flex items-center gap-1.5 text-[10px] font-bold text-[#8127cf]"
+                    className="flex items-center gap-1.5 text-2xs font-semibold text-primary"
                   >
                     <TypingDots />
-                    {others.map((t) => t.fullName.split(" ")[0]).join(", ")} typing
+                    {fill(ui("{0} typing"), [others.map((t) => t.fullName.split(" ")[0]).join(", ")])}
                   </motion.p>
                 ) : (
                   <motion.p
@@ -173,11 +197,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     initial={{ opacity: 0, y: 3 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -3 }}
-                    className="truncate text-[10px] font-bold text-ink-muted"
+                    className="truncate text-xs font-medium text-ink-muted"
                   >
                     {detail.kind === "DIRECT" ? (
                       detail.isOnline ? (
-                        <span className="text-emerald-600">Online now</span>
+                        <span className="text-emerald-600">{ui("Online now")}</span>
                       ) : (
                         (detail.subtitle ?? "")
                       )
@@ -191,43 +215,44 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           </div>
 
           {detail.isLocked && (
-            <span
-              className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700 ring-1 ring-amber-200/70"
-              title="Closed to new messages"
-            >
-              <Lock className="h-3 w-3" />
-              <span className="hidden sm:inline">Closed</span>
-            </span>
+            <Tooltip content={ui("Closed to new messages")}>
+              <span tabIndex={0} className="inline-flex shrink-0 rounded-full">
+                <Badge variant="warning" size="sm" className="gap-1">
+                  <Lock className="h-3 w-3" aria-hidden="true" />
+                  <span className="hidden sm:inline">{ui("Closed")}</span>
+                </Badge>
+              </span>
+            </Tooltip>
           )}
 
           {detail.kind !== "DIRECT" && (
-            <button
+            <Button variant="ghost" size="sm"
               type="button"
               onClick={() => setShowMembers((v) => !v)}
               aria-expanded={showMembers}
-              aria-label={`${detail.memberCount} members`}
+              aria-label={ui("{0} members", [detail.memberCount])}
               className={cn(
-                "flex shrink-0 cursor-pointer items-center gap-1 rounded-xl px-2 py-1.5 text-[11px] font-black transition-all active:scale-95",
+                "flex justify-start shrink-0 items-center gap-1",
                 showMembers
-                  ? "bg-[#8127cf] text-white shadow-[0_6px_16px_-6px_rgba(129,39,207,0.6)]"
-                  : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+                  ? "bg-primary text-white shadow-brand"
+                  : "text-ink-muted hover:bg-brand-50"
               )}
             >
               <Users className="h-3.5 w-3.5" />
               {detail.memberCount}
-            </button>
+            </Button>
           )}
 
           <div className="relative shrink-0">
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
-              aria-label="Conversation options"
+              aria-label={ui("Conversation options")}
               aria-expanded={menuOpen}
-              className="cursor-pointer rounded-xl p-2 text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-90"
+
             >
               <MoreVertical className="h-4 w-4" />
-            </button>
+            </Button>
 
             <AnimatePresence>
               {menuOpen && (
@@ -238,11 +263,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.96, y: -4 }}
                     transition={{ type: "spring", stiffness: 460, damping: 30 }}
-                    className="absolute right-0 top-full z-20 mt-1.5 w-48 origin-top-right overflow-hidden rounded-2xl border border-[#cfc2d6]/30 bg-white/95 p-1 shadow-[0_20px_50px_-14px_rgba(31,26,35,0.35)] backdrop-blur-xl"
+                    className="absolute end-0 top-full z-20 mt-1.5 w-48 origin-top-right rtl:origin-top-left overflow-hidden rounded-2xl border border-edge/30 bg-popover/95 p-1 shadow-xl backdrop-blur-xl"
                   >
                     <MenuItem
                       icon={detail.isMuted ? Bell : BellOff}
-                      label={detail.isMuted ? "Unmute" : "Mute notifications"}
+                      label={detail.isMuted ? ui("Unmute") : ui("Mute notifications")}
                       onClick={() => {
                         setPreference(detail.id, { isMuted: !detail.isMuted });
                         setMenuOpen(false);
@@ -250,7 +275,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     />
                     <MenuItem
                       icon={detail.isPinned ? PinOff : Pin}
-                      label={detail.isPinned ? "Unpin" : "Pin to top"}
+                      label={detail.isPinned ? ui("Unpin") : ui("Pin to top")}
                       onClick={() => {
                         setPreference(detail.id, { isPinned: !detail.isPinned });
                         setMenuOpen(false);
@@ -258,7 +283,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     />
                     <MenuItem
                       icon={MessageSquareDashed}
-                      label={detail.isArchived ? "Unarchive" : "Archive"}
+                      label={detail.isArchived ? ui("Unarchive") : ui("Archive")}
                       onClick={() => {
                         setPreference(detail.id, { isArchived: !detail.isArchived });
                         setMenuOpen(false);
@@ -267,10 +292,10 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                     />
                     {detail.kind !== "DIRECT" && (
                       <>
-                        <span className="my-1 block h-px bg-[#cfc2d6]/30" aria-hidden />
+                        <span className="my-1 block h-px bg-edge/30" aria-hidden />
                         <MenuItem
                           icon={Trash2}
-                          label="Leave conversation"
+                          label={ui("Leave conversation")}
                           destructive
                           onClick={() => {
                             leaveConversation(detail.id);
@@ -294,17 +319,17 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.22, ease: [0.2, 0.8, 0.3, 1] }}
-              className="shrink-0 overflow-hidden border-b border-[#cfc2d6]/25 bg-gradient-to-b from-[#fbf0fe]/80 to-white/40"
+              className="shrink-0 overflow-hidden border-b border-edge/25 bg-gradient-to-b from-brand-50/80 to-white/40"
             >
               <ul className="flex flex-wrap gap-1.5 px-4 py-3">
                 {detail.members.map((m) => (
                   <li
                     key={m.userId}
-                    className="flex items-center gap-1.5 rounded-full bg-white py-1 pl-1 pr-2.5 text-[10px] font-bold text-ink shadow-[0_2px_8px_-2px_rgba(31,26,35,0.12)] ring-1 ring-[#cfc2d6]/25"
+                    className="flex items-center gap-1.5 rounded-full bg-white py-1 ps-1 pe-2.5 text-2xs font-semibold text-ink shadow-xs ring-1 ring-edge/25"
                   >
                     <ChatAvatar name={m.fullName} seed={m.userId} imageUrl={m.profileImageUrl} size="sm" online={m.isOnline} />
-                    <span className="max-w-[120px] truncate">{m.fullName}</span>
-                    <span className="text-ink-faint">{roleLabel(m.role)}</span>
+                    <bdi className="max-w-[120px] truncate">{m.fullName}</bdi>
+                    <span className="font-medium text-ink-subtle">{roleLabel(m.role, locale.language)}</span>
                   </li>
                 ))}
               </ul>
@@ -315,20 +340,25 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
         {/* ── Messages ── */}
         <div
           ref={scrollRef}
-          className="custom-scrollbar sk-chat-canvas relative min-h-0 flex-1 overflow-y-auto bg-[#fdfaff] px-3 py-4 md:px-5"
+          className="custom-scrollbar relative min-h-0 flex-1 overflow-y-auto bg-background px-3 py-4 md:px-5"
         >
           {hasOlder && (
             <div className="mb-5 flex justify-center">
-              <button
+              <Button variant="outline" size="sm"
                 type="button"
                 onClick={loadOlder}
-                className="cursor-pointer rounded-full bg-white/90 px-3.5 py-1.5 text-[11px] font-black text-[#8127cf] shadow-[0_6px_18px_-6px_rgba(129,39,207,0.4)] ring-1 ring-[#cfc2d6]/30 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-8px_rgba(129,39,207,0.5)] active:scale-95"
+                className="backdrop-blur hover:-translate-y-0.5"
               >
-                Load earlier messages
-              </button>
+                {ui("Load earlier messages")}
+              </Button>
             </div>
           )}
 
+          {!isConnected && lastSyncedAt && (
+            <Alert tone="warning" compact live="polite" className="mb-2 text-xs font-normal" data-chat-offline>
+              {fill(ui("Reconnecting. Showing messages up to {0}; anything sent meanwhile appears when the connection returns."), [clockTime(lastSyncedAt, tag)])}
+            </Alert>
+          )}
           {isLoadingThread ? (
             <ThreadSkeleton />
           ) : messages.length === 0 ? (
@@ -338,7 +368,7 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
               {messages.map((message, index) => {
                 const previous = messages[index - 1];
                 const showDay =
-                  !previous || dayLabel(previous.createdAt) !== dayLabel(message.createdAt);
+                  !previous || dayLabel(previous.createdAt, ui, tag) !== dayLabel(message.createdAt, ui, tag);
 
                 // A pending message has no sender echoed back yet, so it is
                 // identified by its optimistic id instead.
@@ -354,11 +384,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 
                 return (
                   <li key={message.id}>
-                    {showDay && <DaySeparator label={dayLabel(message.createdAt)} />}
+                    {showDay && <DaySeparator label={dayLabel(message.createdAt, ui, tag)} />}
 
                     {message.kind === "SYSTEM" ? (
-                      <p className="py-2 text-center text-[10px] font-bold text-ink-faint">
-                        <span className="rounded-full bg-white/70 px-2.5 py-1 ring-1 ring-[#cfc2d6]/25">
+                      <p className="py-2 text-center text-2xs font-medium tabular-nums text-ink-subtle">
+                        <span className="rounded-full bg-white/70 px-2.5 py-1 ring-1 ring-edge/25">
                           {message.body}
                         </span>
                       </p>
@@ -373,6 +403,12 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
                         onEdit={() => setEditing(message)}
                         onDelete={() => deleteMessage(message.id)}
                         canModerate={detail.canModerate}
+                        language={locale.language}
+                        tag={tag}
+                        sendState={message.clientKey && message.id.startsWith("pending-") ? sendStates[message.clientKey] : undefined}
+                        seen={isMine && !message.id.startsWith("pending-") && detail.members.some((m) => m.userId !== viewerId && m.lastReadAt !== null && m.lastReadAt >= message.createdAt)}
+                        onRetry={() => message.clientKey && void retryMessage(message.clientKey)}
+                        onDiscard={() => message.clientKey && discardMessage(message.clientKey)}
                       />
                     )}
                   </li>
@@ -382,17 +418,17 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           )}
 
           {others.length > 0 && (
-            <div className="mt-2 flex justify-start pl-1">
-              <span className="flex items-center gap-1.5 rounded-2xl rounded-bl-md bg-white px-3 py-2.5 shadow-[0_4px_14px_-6px_rgba(31,26,35,0.2)] ring-1 ring-[#cfc2d6]/25">
+            <div className="mt-2 flex justify-start ps-1">
+              <span className="flex items-center gap-1.5 rounded-2xl rounded-es-md bg-white px-3 py-2.5 shadow-sm ring-1 ring-edge/25">
                 <TypingDots />
               </span>
             </div>
           )}
 
           {detail.kind === "DIRECT" && counterpartRead && messages.length > 0 && (
-            <p className="mt-2 flex items-center justify-end gap-1 pr-1 text-[10px] font-bold text-ink-faint">
-              <CheckCheck className="h-3 w-3 text-[#8127cf]" />
-              Seen {clockTime(counterpartRead)}
+            <p className="mt-2 flex items-center justify-end gap-1 pe-1 text-2xs font-medium tabular-nums text-ink-subtle">
+              <CheckCheck className="h-3 w-3 text-primary" />
+              {fill(ui("Seen {0}"), [clockTime(counterpartRead, tag)])}
             </p>
           )}
 
@@ -404,8 +440,8 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
           canPost={detail.canPost}
           lockedReason={
             detail.isLocked
-              ? "This conversation is closed to new messages."
-              : "Only moderators can post in this channel."
+              ? ui("This conversation is closed to new messages.")
+              : ui("Only moderators can post in this channel.")
           }
           replyTo={replyTo}
           onClearReply={() => setReplyTo(null)}
@@ -422,10 +458,11 @@ export function MessageThread({ onBack, backVisibility = "mobile" }: MessageThre
 }
 
 function TypingDots() {
+  const ui = useUiText();
   return (
-    <span className="flex items-center gap-1" aria-label="Typing">
+    <span className="flex items-center gap-1" aria-label={ui("Typing")}>
       {[0, 1, 2].map((i) => (
-        <span key={i} className="sk-typing-dot h-1.5 w-1.5 rounded-full bg-[#8127cf]" />
+        <span key={i} className="sk-typing-dot h-1.5 w-1.5 rounded-full bg-primary" />
       ))}
     </span>
   );
@@ -434,11 +471,11 @@ function TypingDots() {
 function DaySeparator({ label }: { label: string }) {
   return (
     <div className="my-4 flex items-center gap-3">
-      <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[#cfc2d6]/50" aria-hidden />
-      <span className="rounded-full bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle shadow-[0_2px_10px_-4px_rgba(31,26,35,0.18)] ring-1 ring-[#cfc2d6]/25">
+      <span className="h-px flex-1 bg-gradient-to-r from-transparent to-edge/50" aria-hidden />
+      <span className="rounded-full bg-white/90 px-3 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle shadow-xs ring-1 ring-edge/25">
         {label}
       </span>
-      <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[#cfc2d6]/50" aria-hidden />
+      <span className="h-px flex-1 bg-gradient-to-l from-transparent to-edge/50" aria-hidden />
     </div>
   );
 }
@@ -455,19 +492,19 @@ function MenuItem({
   destructive?: boolean;
 }) {
   return (
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[11px] font-bold transition-colors",
+        "flex justify-start w-full items-center gap-2.5 text-start",
         destructive
           ? "text-rose-600 hover:bg-rose-50"
-          : "text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+          : "text-ink hover:bg-brand-50"
       )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
       {label}
-    </button>
+    </Button>
   );
 }
 
@@ -481,7 +518,19 @@ function MessageBubble({
   onEdit,
   onDelete,
   canModerate,
+  sendState,
+  seen,
+  onRetry,
+  onDiscard,
+  language,
+  tag,
 }: {
+  language: "en" | "ar" | "ur";
+  tag: string;
+  sendState?: SendState;
+  seen: boolean;
+  onRetry: () => void;
+  onDiscard: () => void;
   message: ChatMessageView;
   isMine: boolean;
   grouped: boolean;
@@ -493,6 +542,7 @@ function MessageBubble({
   canModerate: boolean;
 }) {
   const isPending = message.id.startsWith("pending-");
+  const ui = useUiText();
 
   return (
     <div
@@ -513,11 +563,11 @@ function MessageBubble({
         </span>
       )}
 
-      <div className={cn("max-w-[85%] sm:max-w-[68%]", isMine && "order-2")}>
+      <div className={cn("min-w-0 max-w-[85%] sm:max-w-[72%]", isMine && "order-2")}>
         {showSender && message.sender && (
-          <p className="mb-1 px-1 text-[10px] font-black text-[#8127cf]">
-            {message.sender.fullName}
-            <span className="ml-1.5 font-bold text-ink-faint">{roleLabel(message.sender.role)}</span>
+          <p className="mb-1 px-1 text-2xs font-semibold text-primary">
+            <bdi>{message.sender.fullName}</bdi>
+            <span className="ms-1.5 font-medium text-ink-subtle">{roleLabel(message.sender.role, language)}</span>
           </p>
         )}
 
@@ -526,14 +576,14 @@ function MessageBubble({
             "relative overflow-hidden px-3.5 py-2.5 transition-shadow",
             isMine
               ? [
-                  "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] text-white",
-                  "shadow-[0_8px_22px_-10px_rgba(129,39,207,0.75)]",
-                  grouped ? "rounded-2xl rounded-br-md" : "rounded-2xl rounded-br-sm",
+                  "bg-primary text-primary-foreground",
+                  "shadow-sm",
+                  grouped ? "rounded-2xl rounded-ee-md" : "rounded-2xl rounded-ee-sm",
                 ]
               : [
-                  "bg-white text-ink ring-1 ring-[#cfc2d6]/30",
-                  "shadow-[0_6px_18px_-10px_rgba(31,26,35,0.28)]",
-                  grouped ? "rounded-2xl rounded-bl-md" : "rounded-2xl rounded-bl-sm",
+                  "bg-white text-ink ring-1 ring-edge/30",
+                  "shadow-sm",
+                  grouped ? "rounded-2xl rounded-es-md" : "rounded-2xl rounded-es-sm",
                 ],
             isPending && "opacity-70"
           )}
@@ -550,20 +600,20 @@ function MessageBubble({
           {message.replyTo && (
             <div
               className={cn(
-                "mb-2 rounded-lg border-l-2 py-1 pl-2 pr-1",
-                isMine ? "border-white/50 bg-white/10" : "border-[#8127cf]/50 bg-[#fbf0fe]"
+                "mb-2 rounded-lg border-s-2 py-1 ps-2 pe-1",
+                isMine ? "border-white/50 bg-white/10" : "border-primary/50 bg-brand-50"
               )}
             >
-              <p className={cn("text-[9px] font-black", isMine ? "text-white/90" : "text-[#8127cf]")}>
-                {message.replyTo.senderName ?? "Message"}
+              <p className={cn("text-2xs font-semibold", isMine ? "text-white/90" : "text-primary")}>
+                {message.replyTo.senderName ? <bdi>{message.replyTo.senderName}</bdi> : ui("Message")}
               </p>
               <p
                 className={cn(
-                  "truncate text-[10px] font-semibold",
+                  "truncate text-2xs font-medium",
                   isMine ? "text-white/75" : "text-ink-muted"
                 )}
               >
-                {message.replyTo.body || "withdrawn"}
+                {message.replyTo.body || ui("withdrawn")}
               </p>
             </div>
           )}
@@ -571,17 +621,17 @@ function MessageBubble({
           {message.isDeleted ? (
             <p
               className={cn(
-                "flex items-center gap-1.5 text-xs font-semibold italic",
+                "flex items-center gap-1.5 text-xs font-medium italic",
                 isMine ? "text-white/70" : "text-ink-faint"
               )}
             >
               <Trash2 className="h-3 w-3" />
-              This message was withdrawn
+              {ui("This message was withdrawn")}
             </p>
           ) : (
             <>
               {message.body && (
-                <p className="whitespace-pre-wrap break-words text-[13px] font-semibold leading-relaxed">
+                <p className="whitespace-pre-wrap break-words text-sm font-normal leading-relaxed">
                   {message.body}
                 </p>
               )}
@@ -597,7 +647,7 @@ function MessageBubble({
                           src={a.url}
                           alt={a.fileName}
                           loading="lazy"
-                          className="max-h-72 w-auto rounded-xl shadow-[0_6px_18px_-8px_rgba(31,26,35,0.4)]"
+                          className="max-h-72 w-auto rounded-xl shadow-md"
                         />
                       </li>
                     ) : (
@@ -607,15 +657,15 @@ function MessageBubble({
                           target="_blank"
                           rel="noreferrer"
                           className={cn(
-                            "group/file flex items-center gap-2 rounded-xl px-2.5 py-2 text-[11px] font-bold transition-all",
+                            "group/file flex items-center gap-2 rounded-xl px-2.5 py-2 text-2xs font-bold transition-all",
                             isMine
                               ? "bg-white/15 text-white hover:bg-white/25"
-                              : "bg-[#fbf0fe] text-[#8127cf] hover:bg-[#f0e2f8]"
+                              : "bg-brand-50 text-primary hover:bg-brand-100"
                           )}
                         >
                           <FileText className="h-4 w-4 shrink-0" />
-                          <span className="min-w-0 flex-1 truncate">{a.fileName}</span>
-                          <span className="shrink-0 text-[10px] opacity-70">{formatSize(a.sizeBytes)}</span>
+                          <bdi className="min-w-0 flex-1 truncate">{a.fileName}</bdi>
+                          <span className="shrink-0 text-2xs opacity-70">{formatSize(a.sizeBytes)}</span>
                           <Download className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover/file:opacity-100" />
                         </a>
                       </li>
@@ -628,34 +678,47 @@ function MessageBubble({
 
           <p
             className={cn(
-              "mt-1 flex items-center justify-end gap-1 text-[9px] font-bold",
+              "mt-1 flex items-center justify-end gap-1 text-2xs font-medium tabular-nums",
               isMine ? "text-white/70" : "text-ink-faint"
             )}
           >
-            {message.isEdited && !message.isDeleted && <span>edited</span>}
-            {clockTime(message.createdAt)}
+            {message.isUrgent && <span className="rounded bg-white/25 px-1 font-semibold uppercase" data-urgent>{ui("Urgent")}</span>}
+            {message.isEdited && !message.isDeleted && <span>{ui("edited")}</span>}
+            <bdi>{clockTime(message.createdAt, tag)}</bdi>
+            {/* SKO-415: one tick only once the server has stored it; two only when a member has read it.
+                Never a delivery tick for something still on this device. */}
             {isMine &&
               (isPending ? (
-                <Check className="h-2.5 w-2.5" />
+                sendState?.status === "sending" || !sendState ? <span className="inline-flex items-center gap-0.5" data-send-state="sending"><Clock className="h-2.5 w-2.5" aria-hidden />{ui("Sending…")}</span> : null
+              ) : seen ? (
+                <span className="inline-flex items-center" data-send-state="seen"><CheckCheck className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">{ui("Seen")}</span></span>
               ) : (
-                <CheckCheck className="h-2.5 w-2.5" />
+                <span className="inline-flex items-center" data-send-state="sent"><Check className="h-2.5 w-2.5" aria-hidden /><span className="sr-only">{ui("Sent")}</span></span>
               ))}
           </p>
         </div>
+        {isPending && sendState && sendState.status !== "sending" && (
+          <div role="alert" className="mt-1 flex flex-wrap items-center justify-end gap-1.5 text-2xs font-medium text-status-error-text" data-send-state={sendState.status}>
+            <AlertTriangle className="h-3 w-3" aria-hidden />
+            <span>{sendState.status === "unconfirmed" ? (sendState.error ? ui(sendState.error) : null) : ui("Not sent: {0}", [sendState.error ? ui(sendState.error) : ui("the server refused it")])}</span>
+            <Button size="sm" variant="secondary" type="button" onClick={onRetry} aria-label={ui("Retry sending this message")}><RotateCcw className="h-3 w-3" aria-hidden />{ui("Retry")}</Button>
+            <Button size="sm" variant="ghost" type="button" onClick={onDiscard} aria-label={ui("Discard this unsent message")}>{ui("Discard")}</Button>
+          </div>
+        )}
       </div>
 
       {!message.isDeleted && !isPending && (
         <div
           className={cn(
-            "flex shrink-0 items-center gap-0.5 self-center rounded-full bg-white/90 p-0.5 opacity-0 shadow-[0_4px_14px_-6px_rgba(31,26,35,0.3)] ring-1 ring-[#cfc2d6]/25 backdrop-blur transition-all",
+            "flex shrink-0 items-center gap-0.5 self-center rounded-full bg-white/90 p-0.5 opacity-0 shadow-sm [@media(hover:none)]:opacity-100 ring-1 ring-edge/25 backdrop-blur transition-all",
             "focus-within:opacity-100 group-hover:opacity-100",
             isMine && "order-1"
           )}
         >
-          <IconAction icon={CornerUpLeft} label="Reply" onClick={onReply} />
-          {isMine && <IconAction icon={Pencil} label="Edit" onClick={onEdit} />}
+          <IconAction icon={CornerUpLeft} label={ui("Reply")} onClick={onReply} />
+          {isMine && <IconAction icon={Pencil} label={ui("Edit")} onClick={onEdit} />}
           {(isMine || canModerate) && (
-            <IconAction icon={Trash2} label="Withdraw" onClick={onDelete} destructive />
+            <IconAction icon={Trash2} label={ui("Withdraw")} onClick={onDelete} destructive />
           )}
         </div>
       )}
@@ -675,41 +738,34 @@ function IconAction({
   destructive?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <IconButton
+      variant="ghost"
+      size="sm"
       onClick={onClick}
-      aria-label={label}
-      title={label}
+      label={label}
       className={cn(
-        "cursor-pointer rounded-full p-1.5 transition-all active:scale-90",
+        "",
         destructive
           ? "text-ink-faint hover:bg-rose-50 hover:text-rose-600"
-          : "text-ink-faint hover:bg-[#fbf0fe] hover:text-[#8127cf]"
+          : "text-ink-faint hover:bg-brand-50"
       )}
     >
-      <Icon className="h-3 w-3" />
-    </button>
+      <Icon className="h-3 w-3" aria-hidden="true" />
+    </IconButton>
   );
 }
 
 /** Shown in the thread pane before anything is selected. */
 function ThreadPlaceholder() {
+  const ui = useUiText();
   return (
-    <div className="sk-chat-canvas relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden bg-[#fdfaff] p-8 text-center">
-      <div className="relative">
-        <span className="sk-float grid h-20 w-20 place-items-center rounded-[28px] bg-gradient-to-br from-[#8127cf] to-[#b10e6b] text-white shadow-[0_20px_44px_-16px_rgba(129,39,207,0.75)]">
-          <Users className="h-9 w-9" />
-        </span>
-        <span className="absolute -right-2 -top-2 grid h-8 w-8 place-items-center rounded-2xl bg-white text-[#b10e6b] shadow-[0_8px_20px_-8px_rgba(177,14,107,0.6)]">
-          <Sparkles className="h-4 w-4" />
-        </span>
-      </div>
+    <div className="relative flex h-full flex-col items-center justify-center gap-4 overflow-hidden bg-background p-8 text-center">
+      <span className={chatEmptyIcon}><Users className="h-7 w-7" /></span>
 
       <div className="max-w-xs">
-        <p className="text-base font-black tracking-tight text-[#1f1a23]">Select a conversation</p>
-        <p className="mt-1.5 text-xs font-semibold leading-relaxed text-ink-muted">
-          Pick someone from the list, or start a new conversation with anyone you are connected
-          to at school.
+        <p className="text-base font-semibold tracking-tight text-foreground">{ui("Select a conversation")}</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
+          {ui("Pick someone from the list, or start a new conversation with anyone you are connected to at school.")}
         </p>
       </div>
     </div>
@@ -717,17 +773,15 @@ function ThreadPlaceholder() {
 }
 
 function EmptyThread({ title }: { title: string }) {
+  const ui = useUiText();
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-      <span className="grid h-14 w-14 place-items-center rounded-3xl bg-white text-[#8127cf] shadow-[0_10px_28px_-12px_rgba(129,39,207,0.5)] ring-1 ring-[#cfc2d6]/25">
-        <Sparkles className="h-6 w-6" />
-      </span>
-      <div>
-        <p className="text-xs font-black text-[#1f1a23]">No messages yet</p>
-        <p className="mt-1 text-[11px] font-semibold text-ink-muted">
-          Say hello to {title.split(" ")[0]}.
-        </p>
-      </div>
+    <div className="py-10">
+      <EmptyState
+        size="sm"
+        icon={Sparkles}
+        title={ui("No messages yet")}
+        description={fill(ui("Say hello to {0}."), [title.split(" ")[0]])}
+      />
     </div>
   );
 }
@@ -748,7 +802,7 @@ function ThreadSkeleton() {
             className={cn(
               "skeleton-shimmer h-11 rounded-2xl",
               row.w,
-              row.mine ? "rounded-br-sm bg-[#e6d6f5]" : "rounded-bl-sm bg-[#eadfed]"
+              row.mine ? "rounded-ee-sm bg-brand-100" : "rounded-es-sm bg-border-subtle"
             )}
           />
         </div>

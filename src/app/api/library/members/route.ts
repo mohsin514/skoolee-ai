@@ -1,3 +1,4 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -8,6 +9,9 @@ import {
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { createMember } from "@/lib/library/catalogue-command";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,23 +40,8 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthUser();
     if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
 
-    const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const { userId, memberNo } = body;
-
-    if (!userId) throw new ApiError("userId is required", 400);
-    if (!memberNo) throw new ApiError("memberNo is required", 400);
-
-    const [dupUser, dupMemberNo] = await Promise.all([
-      prisma.libraryMember.findFirst({ where: { campusId, userId } }),
-      prisma.libraryMember.findFirst({ where: { campusId, memberNo } }),
-    ]);
-    if (dupUser) throw new ApiError("This user is already a library member", 409);
-    if (dupMemberNo) throw new ApiError("Member number already in use", 409);
-
-    const data = await prisma.libraryMember.create({
-      data: { campusId, userId, memberNo },
-    });
+    const body = await parseBody(req, jsonObjectBody);
+    const data = await createMember(user, body);
 
     return Response.json({ success: true, data });
   } catch (error) {
@@ -60,29 +49,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageLibrary(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) throw new ApiError("id is required", 400);
-
-    const existing = await prisma.libraryMember.findFirst({
-      where: { id, campus: { schoolId: user.schoolId } },
-    });
-    if (!existing) throw new ApiError("Member not found", 404);
-
-    const unreturned = await prisma.bookIssue.count({
-      where: { memberId: id, returnedAt: null },
-    });
-    if (unreturned > 0) throw new ApiError("Cannot delete member with unreturned issues", 409);
-
-    await prisma.libraryMember.delete({ where: { id } });
-
-    return Response.json({ success: true, data: { id } });
-  } catch (error) {
-    return errorResponse(error, "[library] DELETE members failed");
-  }
+export async function DELETE(request: NextRequest) {
+  return operationDeleteResponse(request, "library/members");
 }

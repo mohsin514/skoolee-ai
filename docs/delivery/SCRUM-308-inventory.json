@@ -1,0 +1,2441 @@
+[
+  {
+    "file": "src/app/principal/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "read state provided by usePrivateDashboardData; scoped provider clears on failure and guards sequence; mutation/denial classification audit remains"
+  },
+  {
+    "file": "src/app/pupils/[id]/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/safepay/page.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/owner/page.tsx",
+    "fetch_calls": 31,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/receptionist/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Shared private dashboard loader; checked front-desk dependency reads clear protected results, distinguish failure and guard sequence. Browser dashboard and queue recovery verified."
+  },
+  {
+    "file": "src/app/student/fees/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/student/timetable/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "classified timetable/calendar reads and latest-request guard; browser provider/denial/unpublished recovery verified"
+  },
+  {
+    "file": "src/app/admin/page.tsx",
+    "fetch_calls": 23,
+    "shared_error": true,
+    "access_notice": true,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/super/page.tsx",
+    "fetch_calls": 8,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/super/super-data-context.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/ai/error.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/ai/studio-intro/studio-intro-probe.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/parent/parent-data-context.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/parent/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/parent/timetable/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Checked scoped timetable read, typed denied state and latest-request guard. Broader child-switch browser acceptance remains."
+  },
+  {
+    "file": "src/app/teacher-onboarding/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/jobs/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/(auth)/apply/[token]/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/(auth)/register/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/(auth)/accept-invite/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/(auth)/first-login/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/(auth)/login/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/403/sign-out-link.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/teacher/page.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/teacher/attendance/page.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/teacher/marks/page.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/teacher/reports/page.tsx",
+    "fetch_calls": 6,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/teacher/timetable/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Checked timetable/calendar dependency reads, cleared failures and latest-request guard. Provider recovery verified in Chromium and WebKit."
+  },
+  {
+    "file": "src/app/billing/page.tsx",
+    "fetch_calls": 0,
+    "shared_error": false,
+    "access_notice": true,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/onboarding/_wizard/wizard-states.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/onboarding/package/test-checkout/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/onboarding/package/status/page.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/app/corrections/view.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ParentInvitations.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/GuardianAccessManager.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/SplashScreen.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/attendance/attendance-overview.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/attendance/unified-attendance-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/attendance/class-register.tsx",
+    "fetch_calls": 8,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/principal/action-queue.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ui/error-state.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": true,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/ui/route-error.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/settings/DataLifecyclePanel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/settings/ProfileSettingsSection.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/settings/InstitutionSettingsPanel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/settings/ChangePasswordDialog.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/study/study-assistant.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/assignments/shared.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/assignments/AssignmentWorkspace.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/assignments/LearnerAssignments.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/transport/transport.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "FamilyJourney uses shared checked hook. Trip planner, riders and offline event queue remain audit candidates."
+  },
+  {
+    "file": "src/components/owner/PilotEvidence.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/owner/CapacityReport.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "Checked telemetry read and sequence guard; export disabled during loading/failure. Denied report/export verified in both engines. Policy mutations retain existing domain contract."
+  },
+  {
+    "file": "src/components/owner/SubscriptionRequestReview.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/owner/provisioning-modals.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/identity/identity-admin.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/identity/sso.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/care/care.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": true,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "MessagesToMe and FamilyCareMessages use shared checked hook. Care pickers, queues and mutation acceptance remain audit candidates."
+  },
+  {
+    "file": "src/components/chat/chat-provider.tsx",
+    "fetch_calls": 17,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/chat/chat-settings-dialog.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/chat/composer.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/fees/FeePaymentsTab.tsx",
+    "fetch_calls": 8,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/fees/adjustments-panel.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/fees/online-payment.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/fees/FeeStructuresTab.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/fees/AccountsTab.tsx",
+    "fetch_calls": 16,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/fees/FeeLayersTab.tsx",
+    "fetch_calls": 21,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/fees/reconciliations-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/fees/installment-plan-panel.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/fees/family-fee-statement.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Checked statement read and latest-request guard; clears parent summary on loading/failure. Guardian and learner denied claims verified in both engines."
+  },
+  {
+    "file": "src/components/fees/FeeReportsTab.tsx",
+    "fetch_calls": 5,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/fees/FeeOverviewTab.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/fees/FeeInvoicesTab.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/marks/mark-scan-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/purchasing/purchasing-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/campus-packages/campus-packages.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/curriculum/ObjectiveMap.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/group-policy/group-policy.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/learning/learning-actions.tsx",
+    "fetch_calls": 5,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/learning/learning-transfer.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "Staff summary/family consent lists use shared checked hook, loading/error/retry. Detail mapping and export mutations require broader audit."
+  },
+  {
+    "file": "src/components/providers/candidate-exam-guard.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/resources/ResourceLibrary.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "checked reads; mounted draft subtree hidden and inert on error; dedicated recovery browser evidence pending"
+  },
+  {
+    "file": "src/components/student/student-components.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/student/student-today.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/family/staff-requests.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Leave/trip lists and required class selector migrated to shared useFetch; roster failures surface safely. Trip denied/empty recovery verified in both engines."
+  },
+  {
+    "file": "src/components/family/family-digest.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "GuardianDigest read migrated to shared useFetch; child switch resets digest index. Staff review mutations remain domain-owned, broader acceptance remains."
+  },
+  {
+    "file": "src/components/family/family-requests.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/planning/scenario-planner.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/accommodations/AccessPlans.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/role-dashboard/ScopeBadge.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/role-dashboard/RoleShell.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": true,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/role-dashboard/RoleHeader.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/role-dashboard/AiActionPanel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/tax/tax-packages.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/account-security/SecuritySettingsPanel.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/library/lending-desk.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/index.tsx",
+    "fetch_calls": 46,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/create-class-wizard.tsx",
+    "fetch_calls": 4,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/students-panel.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/archived-classes-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/quick-create-class.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/role-permissions-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/class-manager.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/shared-admin/teacher-picker.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Optional availability enrichment clears stale data on failed checked reads and guards sequence; existing inline failed indicator retained."
+  },
+  {
+    "file": "src/components/shared-admin/subject-syllabus.tsx",
+    "fetch_calls": 6,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "changed consumer; targeted verification varies by route"
+  },
+  {
+    "file": "src/components/shared-admin/restore-student-dialog.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/pickup/pickup.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/rag/knowledge-library.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/policies/policy-assistant.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/policies/policy-manager.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/operations/index.tsx",
+    "fetch_calls": 16,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "13 collection loaders migrated; browser library loading/empty/denial/conflict/draft recovery verified; independent transport planners remain separate audit work"
+  },
+  {
+    "file": "src/components/operations/postal-register.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/operations/dormitory-allocations.tsx",
+    "fetch_calls": 5,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/operations/visitor-register.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/operations/console-page.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/operations/certificates-desk.tsx",
+    "fetch_calls": 6,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/operations/complaints-desk.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/operations/phone-call-log.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/AcademicCalendar.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Checked unified calendar read, collection validation, cleared failure and sequence guard; browser provider retry verified."
+  },
+  {
+    "file": "src/components/academic/DatesheetBuilder.tsx",
+    "fetch_calls": 9,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/ReportCardPipeline.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/YearEndPanel.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/rollover-review.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/GradingRulesPanel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/AcademicModelPanel.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/YearClosureChecklist.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/RoomsManager.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "checked collection reads; browser denial verified"
+  },
+  {
+    "file": "src/components/academic/YearSetupWizard.tsx",
+    "fetch_calls": 14,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/ExamCycleManager.tsx",
+    "fetch_calls": 10,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/AcademicHub.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/MasterDatesheet.tsx",
+    "fetch_calls": 5,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/ReportCardsPanel.tsx",
+    "fetch_calls": 6,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/DatesheetPublication.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/ControlTower.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/ExceptionsDesk.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/ExamsWorkspace.tsx",
+    "fetch_calls": 5,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/SessionWizard.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/PapersStep.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/PaperSittingPanel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/SeatingPlanner.tsx",
+    "fetch_calls": 7,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/ExamDetailDialog.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic/exams/PaperGradebookPanel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/search/search-workspace.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "classified reads and context recovery verified by Chromium/WebKit provider, timeout, denial, offline, RTL and refresh cases"
+  },
+  {
+    "file": "src/components/integrations/integrations.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Connection and delivery reads use shared hook, typed failures and filter-preserving retry. Delivery failure/recovery verified in both engines. Worker replay contract unchanged."
+  },
+  {
+    "file": "src/components/students/bulk-import-dialog.tsx",
+    "fetch_calls": 7,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/students/admission-form.tsx",
+    "fetch_calls": 6,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/institution/support-approvals.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/audit/audit-history-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/profile/editable-profile-card.tsx",
+    "fetch_calls": 4,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/parent/family-inbox.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Typed checked read and sequence guard; clear on refresh/failure; existing partial-success warning retained."
+  },
+  {
+    "file": "src/components/parent/parent-components.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/parent/family-result-notes.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "Migrated to corrected shared useFetch collection read; loading/error/retry now explicit. Provider recovery verified in both engines."
+  },
+  {
+    "file": "src/components/readiness/ReadinessHome.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": true,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/memberships/memberships-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "bare-object contract preserved; classified failed refresh clears members; application typecheck verified; dedicated browser evidence pending"
+  },
+  {
+    "file": "src/components/admissions/admissions-desk.tsx",
+    "fetch_calls": 7,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/improvement/improvement-workspace.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": true,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic-year/TeacherPerformancePanel.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic-year/CycleGate.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic-year/CycleManagementPanel.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic-year/CycleBadge.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/academic-year/AcademicYearPanel.tsx",
+    "fetch_calls": 6,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/tour/TourProvider.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/portfolio/portfolio.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/activities/activities.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/exams/family-exam-brief.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/exams/my-next-paper.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": true,
+    "audit_status": "bare timeline contract preserved; explicit loading/failure and retry; Chromium/WebKit learner provider-to-empty recovery verified"
+  },
+  {
+    "file": "src/components/exams/family-exam-results.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/staff/department-manager.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/staff/designation-ladder.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/staff/position-fields.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/staff/hierarchy-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/staff/workload-cover.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/staff/position-dialog.tsx",
+    "fetch_calls": 5,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/meetings/family-meetings.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/meetings/meeting-desk.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/nav/ViewGate.tsx",
+    "fetch_calls": 0,
+    "shared_error": false,
+    "access_notice": true,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/nav/NavigationAccess.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": true,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/question-network/question-network.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/payroll/payroll-runs-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ai-workflows/ask-recent.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ai-workflows/handoff-inbox.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ai-workflows/role-setup.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ai-workflows/ask-workspace.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ai-workflows/inbox-count-chip.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ai-workflows/questionnaire-run.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/ai-workflows/setup-prompt.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-proctor-capture.tsx",
+    "fetch_calls": 4,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/item-evidence-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-gradebook.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/scan-composer.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-preflight.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/lesson-plan-actions.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/written-marking.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-review.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/source-image-preview.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/secure-browser.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-proctor-console.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-workspace.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-accommodations.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/announcement-panel.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/multimodal-composer.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/roster-import.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-integrity-policy.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/pilot-ledger.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/voice-conversation.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/assessment-repair-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/question-bank.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-release-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/school-operations-duties.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/private-assistant.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/paper-figure-editor.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-integrity-desk.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-results.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-scripts.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/script-response-proposal.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/practice-session-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-key-correction.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-notices.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/assessment-studio.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/paper-semantic-review.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-remedy-panel.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/workspace-insights.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-proctor-sessions.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/outcome-feedback.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/learning-plans.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-moderation-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/practice-progress-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-player.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/paper-dna-strip.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/exam-studio-shell.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/evidence-pack-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/department-appeals.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/upload-paper.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/room-board.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/mistake-map-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/moderation-queue.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/papers-owed.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/syllabus-drop.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/twin-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/moderation-panel.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/syllabus-map.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/teaching-line-prompt.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/pulse-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/department-queue.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/spaces/improve-space.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/spaces/exam-room-space.tsx",
+    "fetch_calls": 7,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/spaces/rehearsal-space.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/spaces/control-room-space.tsx",
+    "fetch_calls": 5,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/spaces/brief-space.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/school-ai/exam-studio/spaces/blueprint-space.tsx",
+    "fetch_calls": 4,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/teacher/teacher-components.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/design-system/FoundationReference.tsx",
+    "fetch_calls": 0,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/notifications/notification-center.tsx",
+    "fetch_calls": 4,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Checked reads and writes; no false seen success; same-tick mutation guard; denied clears list; browser rejected-save then recovery verified."
+  },
+  {
+    "file": "src/components/billing/SubscriptionWorkspace.tsx",
+    "fetch_calls": 6,
+    "shared_error": true,
+    "access_notice": true,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/service-desk/service-desk.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/onboarding/PublicShowcase.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/onboarding/PackageChooser.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/onboarding/FirstRunGuide.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/leave/my-leave.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "checked reads; teacher browser denial verified across shared staff component"
+  },
+  {
+    "file": "src/components/pathways/pathway-panel.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/communications/engagement-panel.tsx",
+    "fetch_calls": 2,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/offline/offline-register.tsx",
+    "fetch_calls": 4,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/analytics/analytics-charts.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/timetable/AddPeriodDialog.tsx",
+    "fetch_calls": 1,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/timetable/ConflictPanel.tsx",
+    "fetch_calls": 2,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/timetable/ExamDateSheet.tsx",
+    "fetch_calls": 4,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/timetable/TimetableStudio.tsx",
+    "fetch_calls": 13,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/timetable/PublicationReview.tsx",
+    "fetch_calls": 3,
+    "shared_error": false,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/timetable/TimetablePanel.tsx",
+    "fetch_calls": 12,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/cover/my-cover.tsx",
+    "fetch_calls": 1,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": false,
+    "classified_requests": false,
+    "audit_status": "inventory candidate; independent flow audit incomplete"
+  },
+  {
+    "file": "src/components/cover/cover-follow-up.tsx",
+    "fetch_calls": 3,
+    "shared_error": true,
+    "access_notice": false,
+    "shared_empty": true,
+    "classified_requests": true,
+    "audit_status": "Both required dependencies checked and validated, failures cleared, sequence guarded. Broader workflow browser acceptance remains."
+  }
+]

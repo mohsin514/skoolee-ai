@@ -1,6 +1,12 @@
 "use client";
+import { Pagination } from "@/components/shared-admin/workspace";
+import { loadListPages } from "@/lib/lists/load-pages";
+import { useListPagination } from "@/hooks/use-list-page";
+import { useListField } from "@/hooks/use-list-field";
+import { InputGroup } from "@/components/ui/input-group";
 
-import { useCallback, useEffect, useState } from "react";
+
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   Bus,
   Building2,
@@ -16,15 +22,26 @@ import {
   Mail,
   MessageSquare,
   FileText,
-  Loader2,
+  MoreHorizontal,
 } from "lucide-react";
-import { toast } from "sonner";
+import { Menu } from "@/components/ui/menu";
+import { toast } from "@/components/ui/toast";
 import { PanelTitle } from "@/components/shared-admin";
+import { DormitoryAllocations } from "./dormitory-allocations";
+import { VisitorRegister } from "./visitor-register";
+import { ComplaintsDesk } from "./complaints-desk";
+import { PhoneCallLog } from "./phone-call-log";
+import { PostalRegister } from "./postal-register";
+import { CertificatesDesk } from "./certificates-desk";
+import { useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { BrandButton } from "@/components/role-dashboard";
-import { formatPKR } from "@/components/fees/fee-utils";
+import { forwardCommand, usePanelCommand } from "@/components/fees/fee-utils";
+import type { PanelCommand } from "@/components/fees/fee-types";
+import { SectionPicker } from "./console-page";
 import { useValidatedForm } from "@/lib/hooks/use-validated-form";
 import { serverFieldErrors } from "@/lib/validators/client";
 import { apiErrorMessage } from "@/lib/errors";
+import { roleLabel } from "@/lib/roles";
 import {
   bookCategorySchema,
   bookFormSchema,
@@ -42,8 +59,6 @@ import {
   ITEM_TRANSACTION_KINDS,
   libraryMemberSchema,
   PAGE_SIZES,
-  phoneCallFormSchema,
-  postalFormSchema,
   POSTAL_DIRECTIONS,
   supplierSchema,
   transportRouteFormSchema,
@@ -51,37 +66,74 @@ import {
   VEHICLE_MODELS,
   visitorFormSchema,
 } from "@/lib/validators/operations";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { ReviewedDelete } from "@/components/ui/reviewed-delete";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { checkedListJson, readRequest, requestFailure, type RequestFailure } from "@/lib/http/request-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { FormField } from "@/components/ui/form-field";
+import { RidersPlanner, TripsPlanner } from "@/components/transport/transport";
+import { downloadCSV } from "@/lib/csv";
+import { AlarmClock, BedDouble, BookCheck, CircleSlash, DoorOpen, Inbox, Route as RouteIcon, SearchX, type LucideIcon } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskStats, RelativeTime, StatTile, urgencyFirst } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
+
 
 /* ─── tiny helpers ─── */
-const inputCls =
-  "h-10 rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold text-[#1f1a23] outline-none focus:border-[#8127cf]/40 aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:bg-red-50/60";
-const labelCls =
-  "mb-1 block pl-1 text-[10px] font-black uppercase tracking-wider text-ink-subtle";
-const cardCls =
-  "sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]";
-const addBoxCls =
-  "mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-[#cfc2d6]/20 bg-[#f6f2fa] p-4";
-const thCls =
-  "px-3 py-2 text-left text-[10px] font-black uppercase tracking-wider text-ink-subtle";
-const tdCls = "px-3 py-2.5 text-sm font-medium text-[#1d1b20]";
 
-function EmptyRow({ cols, text }: { cols: number; text: string }) {
+/** A record's name cell with the desk's icon tile, so every operations table reads like the desk rows. */
+function NameCell({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return <span className="flex items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8 shrink-0"><Icon /></span><bdi className="whitespace-nowrap font-semibold">{children}</bdi></span>;
+}
+const inputCls =
+  "max-w-full";
+const labelCls =
+  "mb-1 block ps-1 text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
+const cardCls =
+  "sk-panel sk-rise p-6";
+const addBoxCls =
+  "mb-5 flex flex-wrap items-end gap-3 rounded-2xl border border-edge/20 bg-surface-sunken p-4";
+const thCls =
+  "px-3 py-2 text-start text-2xs font-semibold uppercase tracking-wider text-ink-subtle";
+const tdCls = "px-3 py-2.5 text-sm font-medium text-ink-strong";
+
+const TXN_KIND_LABEL: Record<string, string> = { RECEIVE: "Received", SELL: "Sold", ISSUE: "Issued", RETURN: "Returned" };
+/** What each stock movement is called in the add row (EN UI keys). */
+const TXN_KIND_OPTION: Record<string, string> = { RECEIVE: "Receive", SELL: "Sell", ISSUE: "Issue", RETURN: "Return" };
+const VEHICLE_MODEL_LABEL: Record<string, string> = { BUS: "Bus", VAN: "Van", CAR: "Car", OTHER: "Other" };
+
+function EmptyRow({ cols, text, hint, state, failure, onRetry, filtered = false, icon = Inbox }: { icon?: LucideIcon; filtered?: boolean; failure?: RequestFailure | null; cols: number; text?: string; hint?: string; state?: "loading" | "error"; onRetry?: () => void }) {
+  const ui = useUiText();
   return (
     <tr>
-      <td colSpan={cols} className="py-10 text-center text-sm text-ink-muted">
-        {text}
+      <td colSpan={cols} className="px-3 py-6">
+        {state === "loading" ? (
+          <SkeletonTable rows={3} columns={Math.min(cols, 5)} />
+        ) : state === "error" ? (
+          <ErrorState
+            error={failure}
+            title={ui("These records could not be loaded")}
+            description={ui("Check your connection, then try again.")}
+            onRetry={onRetry}
+          />
+        ) : (
+          <div role="status" aria-live="polite" data-resource-state={filtered ? "no-match" : "no-data"}><EmptyState size="sm" icon={filtered ? SearchX : icon} title={ui(filtered ? "No matching records" : text ?? "Nothing here yet")} description={filtered ? ui("Change or clear your search to see more records.") : hint ? ui(hint) : ui("Use the available add action to create your first record.")} /></div>
+        )}
       </td>
     </tr>
   );
 }
 
-function DeleteBtn({ onClick, loading }: { onClick: () => void; loading: boolean }) {
-  return (
-    <button onClick={onClick} disabled={loading} className="rounded-lg p-1.5 text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40">
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-    </button>
-  );
-}
+/**
+ * The row's overflow menu (role-ux §4.5.2–3): destructive actions never sit inline in a row. "Delete" is the last,
+ * danger-toned item and is confirmed (R3: consequence, "Keep editing" to back out).
+ */
 
 /**
  * A labelled cell in one of the inline "add" rows.
@@ -101,17 +153,17 @@ function OpField({
   width?: string;
   children: React.ReactNode;
 }) {
-  return (
-    <div className={width}>
-      <label className={labelCls}>{label}</label>
-      {children}
-      {error ? (
-        <p role="alert" className="mt-1 pl-1 text-[10px] font-bold text-red-600">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
+  const fieldName = useId();
+  const ui = useUiText();
+  // Labels are EN UI keys; translated here so every inline add row follows the display language (role-ux R11).
+  return <FormField name={fieldName} label={ui(label)} error={error} className={width}>{children}</FormField>;
+}
+
+/** Money in the campus currency from the school's locale package (role-ux R7/F23 — never a hard-coded "Rs"). */
+function useCampusMoney() {
+  const { money } = useLocaleFormat();
+  const { currency } = useLocale();
+  return (minor: number) => money(minor, currency);
 }
 
 /**
@@ -150,46 +202,116 @@ async function submitTo(
   return false;
 }
 
+/**
+ * A header "Export" for a module list (role-ux §4.4b): fetches the list the open section shows and saves it as a
+ * CSV (BOM included, cells guarded against formula injection). Nothing to export → a translated notice, not an
+ * empty file; a failed read → an error toast (the result of the viewer's own action).
+ */
+async function exportList(
+  ui: ReturnType<typeof useUiText>,
+  url: string,
+  filename: string,
+  header: string[],
+  toRow: (row: any) => unknown[],
+) {
+  try {
+    let rows: any[];
+    if (["/api/inventory/items", "/api/library/books"].includes(url)) rows = await loadListPages(url);
+    else {
+      const response = await fetch(url, { cache: "no-store" });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.success) throw new Error();
+      rows = Array.isArray(json.data) ? json.data : [];
+    }
+    if (!rows.length) { toast.info(ui("Nothing to export yet.")); return; }
+    downloadCSV(`${filename}-${new Date().toISOString().slice(0, 10)}`, [header, ...rows.map(toRow)]);
+  } catch {
+    toast.error(ui("The export could not be prepared. Check your connection, then try again."));
+  }
+}
+
+/** Section switcher for a module panel: one row of choice buttons (the only tab row on its screen). */
+function SectionChoices<T extends string>({ items, value, onChange, label, dataAttr }: { items: ReadonlyArray<{ id: T; label: string }>; value: T; onChange: (id: T) => void; label: string; dataAttr?: string }) {
+  const ui = useUiText();
+  return (
+    <div role="group" aria-label={ui(label)} className="flex max-w-full flex-wrap gap-1 rounded-xl bg-surface-sunken p-1">
+      {items.map((item) => (
+        <Button aria-pressed={value === item.id} variant="choice" size="sm" key={item.id} onClick={() => onChange(item.id)} {...(dataAttr ? { [dataAttr]: item.id } : {})}>
+          {ui(item.label)}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════════════════════════
    MODULE 14-A — TRANSPORT
    ════════════════════════════════════════════════════════════════ */
 
-export function TransportPanel() {
-  const [tab, setTab] = useState<"routes" | "vehicles">("routes");
+export type TransportTab = "routes" | "vehicles" | "riders" | "trips";
+const TRANSPORT_TABS: { id: TransportTab; label: string }[] = [
+  { id: "routes", label: "Routes" },
+  { id: "vehicles", label: "Vehicles" },
+  { id: "riders", label: "Riders & stops" },
+  { id: "trips", label: "Trips" },
+];
+
+/**
+ * Transport (routes, vehicles, riders, trips). `hideHeader` makes the panel the page body under a console's
+ * PageHeader (§4.4b admin · Transport: **Add route** · Vehicles · Export): no card or title of its own and no
+ * in-panel "Add route". `command` "add-route" opens the add-route row on Routes, "vehicles" opens Vehicles, and
+ * "export" saves the open list (vehicles on Vehicles, routes otherwise) as CSV.
+ */
+export function TransportPanel({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
+  const [tab, setTab] = useState<TransportTab>("routes");
+  // A forwarded header command reaches only the section it is for; changing section drops it.
+  const [forwarded, setForwarded] = useState<{ tab: TransportTab; command: PanelCommand } | null>(null);
+  const select = (next: TransportTab) => { setTab(next); setForwarded(null); };
+  usePanelCommand(command, {
+    "add-route": () => { setTab("routes"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "routes", command: copy } : null); },
+    vehicles: () => select("vehicles"),
+    export: () => tab === "vehicles"
+      ? void exportList(ui, "/api/transport/vehicles", "transport-vehicles", ["Number", "Type", "Capacity", "Driver", "Phone"], (v) => [v.number, v.model ?? "", v.capacity ?? "", v.driverName ?? "", v.driverPhone ?? ""])
+      : void exportList(ui, "/api/transport/routes", "transport-routes", ["Route", "Description", "Fare", "Vehicles"], (r) => [r.title, r.description ?? "", r.fare != null ? campusMoney(r.fare) : "", r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0]),
+  });
+  const choices = <SectionChoices label="Transport sections" items={TRANSPORT_TABS} value={tab} onChange={select} dataAttr="data-transport-tab" />;
   return (
     <div className="space-y-5">
-      <div className={cardCls}>
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <PanelTitle icon={Bus} title="Transport Management" />
-          <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
-            {(["routes", "vehicles"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
-                {t === "routes" ? "Routes" : "Vehicles"}
-              </button>
-            ))}
+      <div className={hideHeader ? "space-y-5" : cardCls}>
+        {hideHeader ? choices : (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <PanelTitle icon={Bus} title={ui("Transport")} />
+            {choices}
           </div>
-        </div>
-        {tab === "routes" ? <RoutesTab /> : <VehiclesTab />}
+        )}
+        {/* SKO-437: riders, stops and dated trips with a frozen manifest. */}
+        {tab === "routes" ? <RoutesTab hideAdd={hideHeader} command={forwarded?.tab === "routes" ? forwarded.command : null} /> : tab === "vehicles" ? <VehiclesTab /> : tab === "riders" ? <RidersPlanner /> : <TripsPlanner />}
       </div>
     </div>
   );
 }
 
-function RoutesTab() {
+function RoutesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: PanelCommand | null }) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const r = await fetch("/api/transport/routes");
-      const j = await r.json();
-      if (j.success) setRows(j.data || []);
-    } catch {} finally { setLoading(false); }
+      const r = await readRequest("/api/transport/routes");
+      const j = await checkedListJson(r);
+      if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Field names match TransportRoute exactly, and the schema converts the
   // rupees typed here into the paisa the column stores.
@@ -197,56 +319,53 @@ function RoutesTab() {
     schema: transportRouteFormSchema,
     initialValues: { title: "", description: "", fare: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/transport/routes", values, form))) return;
-      toast.success("Route added");
+      toast.success(ui("Route added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try {
-      const r = await fetch(`/api/transport/routes?id=${id}`, { method: "DELETE" });
-      const j = await r.json();
-      if (!j.success) throw new Error(j.error);
-      toast.success("Route removed"); load();
-    } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
-  };
+  usePanelCommand(command, { "add-route": () => setShowAdd(true) });
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Route</BrandButton>
-      </div>
+      {hideAdd ? null : (
+        <div className="mb-4 flex justify-end">
+          <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add route")}</BrandButton>
+        </div>
+      )}
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Route Name" error={form.errors.title}>
-            <input className={`${inputCls} w-44`} {...form.field("title")} placeholder="Route A" />
+            <SystemInput className={`${inputCls} w-44`} {...form.field("title")} placeholder={ui("Route A")} />
           </OpField>
           <OpField label="Description" error={form.errors.description} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("description")} placeholder="Stops, timings…" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder={ui("Stops, timings…")} />
           </OpField>
           {/* The stored value is paisa (the schema multiplies by 100 on save),
               so the unit has to be on the label — otherwise "500" is ambiguous. */}
-          <OpField label="Fare (Rs)" error={form.errors.fare}>
-            <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("fare")} placeholder="0" />
+          <OpField label="Fare" error={form.errors.fare}>
+            <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("fare")} placeholder="0" />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
+          {/* Opened from the PageHeader, the row needs its own way out (the in-panel toggle is hidden). */}
+          {hideAdd ? <Button variant="ghost" onClick={() => { setShowAdd(false); form.reset(); }}>{ui("Cancel")}</Button> : null}
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Route Name", "Description", "Fare", "Vehicles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No transport routes yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{r.title}</td>
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} icon={RouteIcon} text="No transport routes yet" hint="Add your first route." /> : rows.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
+                <td className={tdCls}><NameCell icon={RouteIcon}>{r.title}</NameCell></td>
                 <td className={tdCls}>{r.description || "—"}</td>
-                <td className={tdCls}>{r.fare != null ? formatPKR(r.fare) : "—"}</td>
-                <td className={tdCls}>{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}>{r.fare != null ? campusMoney(r.fare) : "—"}</td>
+                <td className={tdCls}>{(r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0) > 0 ? <DeskPill tone="success"><bdi className="tabular-nums">{r._count?.routeVehicles ?? r.routeVehicles?.length ?? 0}</bdi></DeskPill> : <DeskPill tone="warning"><bdi className="tabular-nums">0</bdi></DeskPill>}</td>
+                <td className={tdCls}><ReviewedDelete endpoint="transport/routes" record={r} label={r.title} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -257,20 +376,23 @@ function RoutesTab() {
 }
 
 function VehiclesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const r = await fetch("/api/transport/vehicles");
-      const j = await r.json();
-      if (j.success) setRows(j.data || []);
-    } catch {} finally { setLoading(false); }
+      const r = await readRequest("/api/transport/vehicles");
+      const j = await checkedListJson(r);
+      if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []);
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The column is `model`. This form posted `type`, which the route never read,
   // so the bus/van choice was discarded on save and the Type column below
@@ -279,67 +401,59 @@ function VehiclesTab() {
     schema: vehicleFormSchema,
     initialValues: { number: "", model: "BUS", capacity: "40", driverName: "", driverPhone: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/transport/vehicles", values, form))) return;
-      toast.success("Vehicle added");
+      toast.success(ui("Vehicle added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try {
-      const r = await fetch(`/api/transport/vehicles?id=${id}`, { method: "DELETE" });
-      const j = await r.json();
-      if (!j.success) throw new Error(j.error);
-      toast.success("Vehicle removed"); load();
-    } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
-  };
 
   return (
     <>
       <div className="mb-4 flex justify-end">
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Vehicle</BrandButton>
+        <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add vehicle")}</BrandButton>
       </div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Number" error={form.errors.number}>
-            <input className={`${inputCls} w-32`} {...form.field("number")} placeholder="BUS-01" />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("number")} placeholder="BUS-01" />
           </OpField>
           <OpField label="Type" error={form.errors.model}>
-            <select className={`${inputCls} w-28`} {...form.field("model")}>
+            <SystemSelect className={`${inputCls} w-28`} {...form.field("model")}>
               {VEHICLE_MODELS.map((value) => (
                 <option key={value} value={value}>
-                  {value.charAt(0) + value.slice(1).toLowerCase()}
+                  {ui(VEHICLE_MODEL_LABEL[value] ?? value)}
                 </option>
               ))}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Capacity" error={form.errors.capacity}>
-            <input className={`${inputCls} w-20`} type="number" min={1} max={200} {...form.field("capacity")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={1} max={200} {...form.field("capacity")} />
           </OpField>
           <OpField label="Driver Name" error={form.errors.driverName}>
-            <input className={`${inputCls} w-36`} {...form.field("driverName")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("driverName")} />
           </OpField>
           <OpField label="Driver Phone" error={form.errors.driverPhone}>
-            <input className={`${inputCls} w-32`} inputMode="tel" {...form.field("driverPhone")} />
+            <SystemInput className={`${inputCls} w-32`} inputMode="tel" {...form.field("driverPhone")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Number", "Type", "Capacity", "Driver", "Phone", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No vehicles yet" /> : rows.map((v: any) => (
-              <tr key={v.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{v.number}</td>
-                <td className={tdCls}>{v.model || "—"}</td>
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} icon={Bus} text="No vehicles yet" hint="Add your first vehicle." /> : rows.map((v: any) => (
+              <tr key={v.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
+                <td className={tdCls}><NameCell icon={Bus}>{v.number}</NameCell></td>
+                <td className={tdCls}>{v.model ? <DeskPill tone="info">{ui(VEHICLE_MODEL_LABEL[v.model] ?? v.model)}</DeskPill> : "—"}</td>
                 <td className={tdCls}>{v.capacity ?? "—"}</td>
                 <td className={tdCls}>{v.driverName || "—"}</td>
-                <td className={tdCls}>{v.driverPhone || "—"}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(v.id)} loading={deleting === v.id} /></td>
+                <td className={tdCls}>{v.driverPhone ? <bdi dir="ltr" className="tabular-nums">{v.driverPhone}</bdi> : "—"}</td>
+                <td className={tdCls}><ReviewedDelete endpoint="transport/vehicles" record={v} label={v.number} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -353,38 +467,60 @@ function VehiclesTab() {
    MODULE 14-B — DORMITORY
    ════════════════════════════════════════════════════════════════ */
 
-export function DormitoryPanel() {
-  const [tab, setTab] = useState<"types" | "rooms">("types");
+export type DormitoryTab = "allocations" | "types" | "rooms";
+const DORMITORY_TABS: { id: DormitoryTab; label: string }[] = [
+  { id: "allocations", label: "Allocations" },
+  { id: "types", label: "Room types" },
+  { id: "rooms", label: "Rooms" },
+];
+
+/**
+ * Hostel (allocations, room types, rooms). `hideHeader` makes the panel the page body under a console's PageHeader
+ * (§4.4b admin · Hostel: **Allocate bed** · Rooms): no card or title of its own and no in-panel "Allocate student".
+ * `command` "allocate-bed" opens the allocation dialog on Allocations (once the rooms are loaded) and "rooms"
+ * opens Rooms.
+ */
+export function DormitoryPanel({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
+  const ui = useUiText();
+  const [tab, setTab] = useState<DormitoryTab>("allocations");
+  const [forwarded, setForwarded] = useState<{ tab: DormitoryTab; command: PanelCommand } | null>(null);
+  const select = (next: DormitoryTab) => { setTab(next); setForwarded(null); };
+  usePanelCommand(command, {
+    "allocate-bed": () => { setTab("allocations"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "allocations", command: copy } : null); },
+    rooms: () => select("rooms"),
+    "add-room-type": () => { setTab("types"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "types", command: copy } : null); },
+  });
+  const choices = <SectionChoices label="Hostel sections" items={DORMITORY_TABS} value={tab} onChange={select} />;
   return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        {/* "Hostel" in the sidebar; the page said "Dormitory". Same thing, two
-            names, on the same screen. */}
-        <PanelTitle icon={Building2} title="Hostel Management" />
-        <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
-          {(["types", "rooms"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
-              {t === "types" ? "Room Types" : "Rooms"}
-            </button>
-          ))}
+    <div className={hideHeader ? "space-y-5" : cardCls}>
+      {hideHeader ? choices : (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          {/* "Hostel" in the sidebar; the page said "Dormitory". Same thing, two
+              names, on the same screen. */}
+          <PanelTitle icon={Building2} title={ui("Hostel management")} />
+          {choices}
         </div>
-      </div>
-      {tab === "types" ? <DormRoomTypesTab /> : <DormRoomsTab />}
+      )}
+      {tab === "allocations" ? <DormitoryAllocations hideAllocate={hideHeader} command={forwarded?.tab === "allocations" ? forwarded.command : null} /> : tab === "types" ? <DormRoomTypesTab hideAdd={hideHeader} command={forwarded?.tab === "types" ? forwarded.command : null} /> : <DormRoomsTab />}
     </div>
   );
 }
 
-function DormRoomTypesTab() {
+function DormRoomTypesTab({ hideAdd = false, command }: { hideAdd?: boolean; command?: PanelCommand | null } = {}) {
+  const campusMoney = useCampusMoney();
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try { const r = await fetch("/api/dormitory/room-types"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/dormitory/room-types"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // costPerTerm reaches the API in paisa, matching invoices, fees and transport
   // fares — the schema applies the conversion so no call site can double it.
@@ -392,47 +528,46 @@ function DormRoomTypesTab() {
     schema: dormRoomTypeFormSchema,
     initialValues: { name: "", description: "", costPerTerm: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/dormitory/room-types", values, form))) return;
-      toast.success("Room type added");
+      toast.success(ui("Room type added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/dormitory/room-types?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
-  };
+
+  usePanelCommand(command, { "add-room-type": () => setShowAdd(true) });
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Type</BrandButton></div>
+      {hideAdd ? null : <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add room type")}</BrandButton></div>}
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} placeholder="Single" />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} placeholder={ui("Single")} />
           </OpField>
-          <OpField label="Cost/Term (Rs)" error={form.errors.costPerTerm}>
-            <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("costPerTerm")} placeholder="0" />
+          <OpField label="Cost per term" error={form.errors.costPerTerm}>
+            <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("costPerTerm")} placeholder="0" />
           </OpField>
           <OpField label="Description" error={form.errors.description} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("description")} placeholder="Occupancy, facilities…" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("description")} placeholder={ui("Occupancy, facilities…")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Description", "Cost/Term", "Rooms", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No room types yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{r.name}</td>
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} icon={BedDouble} text="No room types yet" hint="Add your first room type." /> : rows.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
+                <td className={tdCls}><NameCell icon={BedDouble}>{r.name}</NameCell></td>
                 <td className={tdCls}>{r.description || "—"}</td>
-                <td className={tdCls}>{r.costPerTerm ? formatPKR(r.costPerTerm) : "—"}</td>
+                <td className={tdCls}>{r.costPerTerm ? campusMoney(r.costPerTerm) : "—"}</td>
                 <td className={tdCls}>{r._count?.rooms ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="dormitory/room-types" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -443,75 +578,88 @@ function DormRoomTypesTab() {
 }
 
 function DormRoomsTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [show, setShow] = useState<"all" | "free" | "full" | "out">("all");
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [rr, tr] = await Promise.all([fetch("/api/dormitory/rooms"), fetch("/api/dormitory/room-types")]);
-      const [rj, tj] = await Promise.all([rr.json(), tr.json()]);
-      if (rj.success) setRows(rj.data || []);
+      const [rr, tr] = await Promise.all([readRequest("/api/dormitory/rooms"), readRequest("/api/dormitory/room-types")]);
+      const [rj, tj] = await Promise.all([checkedListJson(rr), checkedListJson(tr)]);
+      if (version !== loadSequence.current) return; if (rj.success) setRows(rj.data || []);
       if (tj.success) setTypes(tj.data || []);
-    } catch {} finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The column is `number`; this form posted `roomNumber`, so every save was
   // rejected with "number is required" and the table below read a field that
   // was never returned. `floor` is gone because DormRoom has no such column —
   // whatever was typed there was discarded silently on every save.
+  // Out-of-service rooms first (someone has to bring them back), then full rooms, then rooms with a free bed.
+  const roomState = (r: any) => r.status === "OUT_OF_SERVICE" ? "out" : (r.occupied ?? 0) >= (r.capacity || 0) ? "full" : "free";
+  const toggle = (next: typeof show) => setShow((current) => current === next ? "all" : next);
+  const shownRooms = urgencyFirst(rows, (r: any) => ({ out: 0, full: 1, free: 2 } as Record<string, number>)[roomState(r)]).filter((r: any) => show === "all" || roomState(r) === show);
+
   const form = useValidatedForm({
     schema: dormRoomFormSchema,
     initialValues: { number: "", roomTypeId: "", capacity: "4" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/dormitory/rooms", values, form))) return;
-      toast.success("Room added");
+      toast.success(ui("Room added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/dormitory/rooms?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Room removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
-  };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Room</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add room")}</BrandButton></div>
+      {!loading && !loadFailed && rows.length ? <DeskStats className="mb-4" data-dorm-rooms-pulse>
+        <StatTile index={0} icon={DoorOpen} tone="success" value={rows.filter((r: any) => roomState(r) === "free").length} label={ui("Available")} onSelect={() => toggle("free")} selected={show === "free"} />
+        <StatTile index={1} icon={BedDouble} tone="brand" value={rows.filter((r: any) => roomState(r) === "full").length} label={ui("Full")} onSelect={() => toggle("full")} selected={show === "full"} />
+        <StatTile index={2} icon={CircleSlash} tone={rows.some((r: any) => roomState(r) === "out") ? "warning" : "neutral"} value={rows.filter((r: any) => roomState(r) === "out").length} label={ui("Out of service")} onSelect={() => toggle("out")} selected={show === "out"} />
+      </DeskStats> : null}
+      <DeskFilterStatus shown={shownRooms.length} total={rows.length} onClear={() => setShow("all")} />
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Room #" error={form.errors.number}>
-            <input className={`${inputCls} w-28`} {...form.field("number")} placeholder="D-101" />
+            <SystemInput className={`${inputCls} w-28`} {...form.field("number")} placeholder="D-101" />
           </OpField>
           <OpField label="Type" error={form.errors.roomTypeId}>
-            <select className={`${inputCls} w-32`} {...form.field("roomTypeId")}>
-              <option value="">Select…</option>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("roomTypeId")}>
+              <option value="">{ui("Select…")}</option>
               {types.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Capacity" error={form.errors.capacity}>
-            <input className={`${inputCls} w-20`} type="number" min={1} max={50} {...form.field("capacity")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={1} max={50} {...form.field("capacity")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Room #", "Type", "Capacity", "Occupied", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Room #", "Type", "Capacity", "Occupied today", "Status", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No dorm rooms yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{r.number}</td>
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} icon={BedDouble} text="No dorm rooms yet" hint="Add a room type first, then add rooms." /> : shownRooms.length === 0 ? <EmptyRow cols={6} filtered /> : shownRooms.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50" data-room-state={roomState(r)}>
+                <td className={tdCls}><NameCell icon={DoorOpen}>{r.number}</NameCell></td>
                 <td className={tdCls}>{r.roomType?.name || "—"}</td>
                 <td className={tdCls}>{r.capacity}</td>
-                <td className={tdCls}>{r._count?.students ?? 0} / {r.capacity}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={`${tdCls} min-w-28`}><bdi className="tabular-nums">{r.occupied ?? 0} / {r.capacity}{r.upcoming ? ` (+${r.upcoming})` : ""}</bdi><Progress className="mt-1" size="sm" value={r.occupied ?? 0} max={r.capacity || 1} tone={roomState(r) === "full" ? "warning" : "success"} label={ui("Occupied today")} /></td>
+                <td className={tdCls}><DeskPill tone={r.status === "OUT_OF_SERVICE" ? "warning" : "success"}>{ui(r.status === "OUT_OF_SERVICE" ? "Out of service" : "Available")}</DeskPill></td>
+                <td className={tdCls}><ReviewedDelete endpoint="dormitory/rooms" record={r} label={r.number} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -525,36 +673,72 @@ function DormRoomsTab() {
    MODULE 14-C — LIBRARY
    ════════════════════════════════════════════════════════════════ */
 
-export function LibraryPanel() {
-  const [tab, setTab] = useState<"books" | "members" | "issues" | "categories">("books");
+export type LibraryTab = "books" | "members" | "issues" | "categories";
+const LIBRARY_TABS: { id: LibraryTab; label: string }[] = [
+  { id: "books", label: "Titles" },
+  { id: "members", label: "Members" },
+  { id: "issues", label: "Issues" },
+  { id: "categories", label: "Categories" },
+];
+
+/** Catalogue sections the librarian console shows as its PageHeader tabs (the Issues tab is retired, M84). */
+export const CATALOGUE_TABS = LIBRARY_TABS.filter((item) => item.id !== "issues");
+/** The PageHeader primary for each catalogue section and the command it sends (EN UI keys; §4.4 "Add book"). */
+export const CATALOGUE_CREATE: Record<Exclude<LibraryTab, "issues">, { id: string; label: string }> = {
+  books: { id: "add-book", label: "Add book" },
+  members: { id: "add-member", label: "Add member" },
+  categories: { id: "add-category", label: "Add category" },
+};
+
+/**
+ * Catalogue and members. `hideIssues` removes the old Issues tab (role-ux M84/F24): issuing, renewing and returning
+ * live on the lending desk (`LendingDesk`), which handles copies, fines and reader cards correctly. `command`
+ * "add-book" opens the add-book row from the console's PageHeader (`hideHeader` drops the panel title and the
+ * in-panel Add book button, and the panel becomes the page body: no card of its own).
+ *
+ * One tab row per screen (§3.1): the librarian console renders the sections as its PageHeader tabs
+ * (`sectionNav="none"`); under another tab row (the campus admin's Library › Catalogue) they are a section picker.
+ */
+export function LibraryPanel({ hideIssues = false, hideHeader = false, command, tab: wanted, onTabChange, sectionNav = "picker" }: { hideIssues?: boolean; hideHeader?: boolean; command?: PanelCommand | null; tab?: string | null; onTabChange?: (tab: LibraryTab) => void; sectionNav?: "picker" | "none" } = {}) {
+  const ui = useUiText();
+  const items = LIBRARY_TABS.filter((item) => !(hideIssues && item.id === "issues"));
+  const [localTab, setLocalTab] = useState<LibraryTab>("books");
+  const tab: LibraryTab = items.some((item) => item.id === wanted) ? (wanted as LibraryTab) : onTabChange ? "books" : localTab;
+  // A forwarded header command reaches only the section it is for; changing section drops it.
+  const [forwarded, setForwarded] = useState<{ tab: LibraryTab; command: PanelCommand } | null>(null);
+  const select = (next: LibraryTab) => { setLocalTab(next); onTabChange?.(next); setForwarded(null); };
+  const forwardTo = (target: LibraryTab) => { select(target); const copy = forwardCommand(command); setForwarded(copy ? { tab: target, command: copy } : null); };
+  usePanelCommand(command, { "add-book": () => forwardTo("books"), "add-member": () => forwardTo("members"), "add-category": () => forwardTo("categories") });
+  const commandFor = (target: LibraryTab) => (forwarded?.tab === target ? forwarded.command : null);
+  const picker = sectionNav === "picker" ? <SectionPicker label="Catalogue section" items={items} value={tab} onChange={select} /> : null;
   return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={BookOpen} title="Library Management" />
-        <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
-          {(["books", "members", "issues", "categories"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
+    <div className={hideHeader ? "space-y-5" : cardCls}>
+      {hideHeader ? picker : (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <PanelTitle icon={BookOpen} title={ui("Catalogue and members")} />
+          {picker}
         </div>
-      </div>
-      {tab === "books" ? <BooksTab /> : tab === "members" ? <MembersTab /> : tab === "issues" ? <IssuesTab /> : <BookCategoriesTab />}
+      )}
+      {tab === "books" ? <BooksTab command={commandFor("books")} hideAdd={hideHeader} /> : tab === "members" ? <MembersTab command={commandFor("members")} hideAdd={hideHeader} /> : tab === "issues" ? <IssuesTab /> : <BookCategoriesTab command={commandFor("categories")} hideAdd={hideHeader} />}
     </div>
   );
 }
 
-function BookCategoriesTab() {
+function BookCategoriesTab({ command, hideAdd = false }: { command?: PanelCommand | null; hideAdd?: boolean }) {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  usePanelCommand(command, { "add-category": () => setShowAdd(true) });
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try { const r = await fetch("/api/library/categories"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/library/categories"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // BookCategory has only a name. The old `description` lived in state, had no
   // input bound to it, and was rendered in a table column that could never be
@@ -563,39 +747,36 @@ function BookCategoriesTab() {
     schema: bookCategorySchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/categories", values, form))) return;
-      toast.success("Category added");
+      toast.success(ui("Category added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/library/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
-  };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Category</BrandButton></div>
+      {hideAdd ? null : <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add category")}</BrandButton></div>}
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-40`} {...form.field("name")} placeholder="Fiction" />
+            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} placeholder={ui("Fiction")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Books", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Titles", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={3} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories yet" /> : rows.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
                 <td className={tdCls}>{r._count?.books ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/categories" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -605,25 +786,33 @@ function BookCategoriesTab() {
   );
 }
 
-function BooksTab() {
+function BooksTab({ command, hideAdd = false }: { command?: PanelCommand | null; hideAdd?: boolean }) {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const [search, setSearch] = useListField<string>("library.search", "", "library.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("library.category", "", "library.page");
+  const [sort, setSort] = useListField<string>("library.sort", "name", "library.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "library");
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++requestVersion.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
-      const [br, cr] = await Promise.all([fetch(`/api/library/books${q}`), fetch("/api/library/categories")]);
-      const [bj, cj] = await Promise.all([br.json(), cr.json()]);
-      if (bj.success) setRows(bj.data || []);
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      const [br, cr] = await Promise.all([readRequest(`/api/library/books${q}`), readRequest("/api/library/categories")]);
+      const [bj, cj] = await Promise.all([checkedListJson(br), checkedListJson(cr)]);
+      if (version !== requestVersion.current) return;
+      if (bj.success) { setRows(bj.data || []); setTotal(bj.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch {} finally { setLoading(false); }
-  }, [search]);
-  useEffect(() => { load(); }, [load]);
+    } catch (error) { if (version === requestVersion.current) { setRows([]); setCats([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // The column is `copiesTotal`. This form sent `totalCopies`, so the route
   // read `undefined`, failed its own `Number.isFinite` check, and rejected
@@ -632,64 +821,67 @@ function BooksTab() {
     schema: bookFormSchema,
     initialValues: { title: "", author: "", isbn: "", categoryId: "", copiesTotal: "1" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/books", values, form))) return;
-      toast.success("Book added");
+      toast.success(ui("Book added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/library/books?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
-  };
+  usePanelCommand(command, { "add-book": () => setShowAdd(true) });
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <input className={`${inputCls} w-64 pl-9`} placeholder="Search books…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Book</BrandButton>
+        <InputGroup className="relative w-full sm:w-72">
+          <Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+          <SystemInput className={`${inputCls} w-full ps-9`} placeholder={ui("Search books…")} aria-label={ui("Search books")} value={search} onChange={(e) => setSearch(e.target.value)} />
+        </InputGroup>
+        {hideAdd ? null : <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add book")}</BrandButton>}
       </div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Title" error={form.errors.title}>
-            <input className={`${inputCls} w-48`} {...form.field("title")} />
+            <SystemInput className={`${inputCls} w-48`} {...form.field("title")} />
           </OpField>
           <OpField label="Author" error={form.errors.author}>
-            <input className={`${inputCls} w-36`} {...form.field("author")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("author")} />
           </OpField>
           <OpField label="ISBN" error={form.errors.isbn}>
-            <input className={`${inputCls} w-32`} {...form.field("isbn")} placeholder="978…" />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("isbn")} placeholder="978…" />
           </OpField>
           <OpField label="Category" error={form.errors.categoryId}>
-            <select className={`${inputCls} w-32`} {...form.field("categoryId")}>
-              <option value="">None</option>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("categoryId")}>
+              <option value="">{ui("None")}</option>
               {cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Copies" error={form.errors.copiesTotal}>
-            <input className={`${inputCls} w-20`} type="number" min={0} {...form.field("copiesTotal")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={0} {...form.field("copiesTotal")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Title", "Author", "ISBN", "Category", "Total", "Available", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={7} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={7} text="No books yet" /> : rows.map((b: any) => (
-              <tr key={b.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{b.title}</td>
+            {loading ? <EmptyRow cols={7} state="loading" /> : loadFailed ? <EmptyRow cols={7} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={7} filtered={Boolean(search || category)} text="No books yet" /> : rows.map((b: any) => (
+              <tr key={b.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
+                <td className={tdCls}><span className="flex items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8"><BookOpen /></span><bdi className="font-semibold">{b.title}</bdi></span></td>
                 <td className={tdCls}>{b.author || "—"}</td>
                 <td className={tdCls}>{b.isbn || "—"}</td>
                 <td className={tdCls}>{b.category?.name || "—"}</td>
                 <td className={tdCls}>{b.copiesTotal}</td>
-                <td className={tdCls}>{b.copiesAvailable}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(b.id)} loading={deleting === b.id} /></td>
+                <td className={`${tdCls} min-w-28`}><span className={b.copiesAvailable > 0 ? "tabular-nums" : "font-semibold tabular-nums text-status-warning-text"}>{b.copiesAvailable}</span><Progress className="mt-1" size="sm" value={b.copiesAvailable} max={b.copiesTotal || 1} tone={b.copiesAvailable > 0 ? "success" : "warning"} label={ui("{0} available", [b.copiesAvailable])} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/books" record={b} label={b.title} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -699,17 +891,102 @@ function BooksTab() {
   );
 }
 
-function MembersTab() {
+type Reader = { id: string; fullName: string; detail: string };
+
+/**
+ * Finds a library reader by name (F24) without depending on who may message whom (P8-05): learners come from the
+ * campus roster (`/api/students`, the librarian's read access to student records, §2.2 #27) and only those with a
+ * sign-in can be members; staff come from the staff directory as a second, best-effort source. A failed search says
+ * so in place with a retry (R4) instead of reading as "no one found".
+ */
+function PersonPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const ui = useUiText();
+  const { language } = useLocale();
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<Reader[]>([]);
+  const [picked, setPicked] = useState<{ id: string; fullName: string } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setFound([]); setFailed(false); return; }
+    let live = true;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setFailed(false);
+      const learners = fetch(`/api/students?${new URLSearchParams({ search: q, limit: "8" })}`, { cache: "no-store" })
+        .then(async (r) => { const j = await r.json().catch(() => null); if (!r.ok || !j?.success) throw new Error("students"); return j.data as Array<{ fullName: string; rollNo?: string | null; class?: { name: string; section: string | null } | null; studentUser?: { id: string; isActive: boolean } | null }>; })
+        .then((rows) => rows.filter((row) => row.studentUser?.id && row.studentUser.isActive !== false).map((row): Reader => ({ id: row.studentUser!.id, fullName: row.fullName, detail: [ui("Student"), [row.class?.name, row.class?.section].filter(Boolean).join(" ")].filter(Boolean).join(" · ") })));
+      // Staff readers: best effort (a school may limit the directory); learners never depend on it.
+      const staff = fetch(`/api/chat/directory?${new URLSearchParams({ q, limit: "8" })}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => ((j?.success ? j.contacts : []) as Array<{ id: string; fullName: string; role: string; campusName: string | null }>).filter((person) => person.role !== "STUDENT" && person.role !== "PARENT").map((person): Reader => ({ id: person.id, fullName: person.fullName, detail: roleLabel(person.role, language) })))
+        .catch(() => [] as Reader[]);
+      void Promise.allSettled([learners, staff]).then(([a, b]) => {
+        if (!live) return;
+        const people = [...(a.status === "fulfilled" ? a.value : []), ...(b.status === "fulfilled" ? b.value : [])];
+        const unique = people.filter((person, index) => people.findIndex((other) => other.id === person.id) === index);
+        setFound(unique);
+        setFailed(a.status === "rejected" && unique.length === 0);
+        setSearching(false);
+      });
+    }, 250);
+    return () => { live = false; clearTimeout(timer); };
+  }, [query, attempt, ui, language]);
+  if (picked && picked.id === value) {
+    return (
+      <div className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-edge/40 bg-card px-3 py-2 text-sm">
+        <bdi className="font-semibold text-ink-strong">{picked.fullName}</bdi>
+        <Button type="button" size="sm" variant="ghost" onClick={() => { setPicked(null); onChange(""); setQuery(""); }}>{ui("Change")}</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      <SystemInput className={`${inputCls} w-full`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={ui("Type a name")} aria-label={ui("Find a reader by name")} />
+      {query.trim().length >= 2 ? (
+        failed ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-status-error-text">
+            <span>{ui("Readers could not be searched. Check your connection and try again.")}</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>{ui("Try again")}</Button>
+          </div>
+        ) : found.length ? (
+          <ul className="max-h-56 space-y-1 overflow-y-auto rounded-xl border border-edge/30 bg-card p-1" aria-label={ui("Matching people")}>
+            {found.map((person) => (
+              <li key={person.id}>
+                <Button type="button" variant="ghost" className="h-auto min-h-11 w-full justify-start whitespace-normal px-3 py-2 text-start font-normal" onClick={() => { setPicked({ id: person.id, fullName: person.fullName }); onChange(person.id); }}>
+                  <span className="min-w-0">
+                    <bdi className="block font-semibold text-ink-strong">{person.fullName}</bdi>
+                    <span className="block text-xs text-ink-muted"><bdi>{person.detail}</bdi></span>
+                  </span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-ink-muted" role="status">{ui(searching ? "Searching…" : "No one found. Check the spelling; a learner needs a sign-in before joining the library.")}</p>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function MembersTab({ command, hideAdd = false }: { command?: PanelCommand | null; hideAdd?: boolean }) {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  usePanelCommand(command, { "add-member": () => setShowAdd(true) });
 
   const load = useCallback(async () => {
-    setLoading(true);
-    try { const r = await fetch("/api/library/members"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); }
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
+    try { const r = await readRequest("/api/library/members"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // LibraryMember is (userId, memberNo). The old form posted `membershipType`,
   // which is not a column, and never posted `memberNo`, which the route
@@ -718,43 +995,40 @@ function MembersTab() {
     schema: libraryMemberSchema,
     initialValues: { userId: "", memberNo: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/members", values, form))) return;
-      toast.success("Member added");
+      toast.success(ui("Member added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => {
-    setDeleting(id);
-    try { const r = await fetch(`/api/library/members?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); }
-  };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Member</BrandButton></div>
+      {hideAdd ? null : <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add member")}</BrandButton></div>}
       {showAdd && (
         <div className={addBoxCls}>
-          <OpField label="User ID" error={form.errors.userId}>
-            <input className={`${inputCls} w-64`} {...form.field("userId")} placeholder="Paste user ID" />
+          <OpField label="Reader" error={form.errors.userId} width="w-full sm:w-72">
+            <PersonPicker value={String(form.values.userId ?? "")} onChange={(id) => form.setValue("userId", id)} />
           </OpField>
           <OpField label="Member No" error={form.errors.memberNo}>
-            <input className={`${inputCls} w-32`} {...form.field("memberNo")} placeholder="LM-001" />
+            <SystemInput className={`${inputCls} w-32`} {...form.field("memberNo")} placeholder="LM-001" />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Member", "Member No", "Active Issues", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={4} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
-              <tr key={m.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+            {loading ? <EmptyRow cols={4} state="loading" /> : loadFailed ? <EmptyRow cols={4} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={4} text="No members yet" /> : rows.map((m: any) => (
+              <tr key={m.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{m.user?.fullName || m.userId}</td>
                 <td className={tdCls}>{m.memberNo || "—"}</td>
                 <td className={tdCls}>{m._count?.issues ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(m.id)} loading={deleting === m.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="library/members" record={m} label={m.memberNo} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -765,23 +1039,31 @@ function MembersTab() {
 }
 
 function IssuesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+  const { date } = useLocaleFormat();
+  const [show, setShow] = useState<"all" | "open" | "overdue" | "returned">("all");
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [ir, br, mr] = await Promise.all([fetch("/api/library/issues"), fetch("/api/library/books"), fetch("/api/library/members")]);
-      const [ij, bj, mj] = await Promise.all([ir.json(), br.json(), mr.json()]);
+      const [ir, br, mr] = await Promise.all([readRequest("/api/library/issues"), loadListPages("/api/library/books"), readRequest("/api/library/members")]);
+      const [ij, mj] = await Promise.all([checkedListJson(ir), checkedListJson(mr)]);
+      const bj = { success: true, data: br };
+      if (version !== loadSequence.current) return;
       if (ij.success) setRows(ij.data || []);
       if (bj.success) setBooks(bj.data || []);
       if (mj.success) setMembers(mj.data || []);
-    } catch {} finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // The route reads `dueAt`; this form sent `dueDate`, so the librarian's
   // chosen return date was dropped and every loan silently took the default.
@@ -789,8 +1071,9 @@ function IssuesTab() {
     schema: bookIssueSchema,
     initialValues: { bookId: "", memberId: "", dueAt: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/library/issues", values, form))) return;
-      toast.success("Book issued");
+      toast.success(ui("Book issued."));
       setShowAdd(false);
       form.reset();
       load();
@@ -801,48 +1084,61 @@ function IssuesTab() {
     try {
       const r = await fetch("/api/library/issues", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, action: "return" }) });
       const j = await r.json(); if (!j.success) throw new Error(j.error);
-      toast.success("Book returned"); load();
-    } catch (e: any) { toast.error(e.message); }
+      toast.success(ui("Book returned.")); load();
+    } catch (e: any) { toast.error(e); }
   };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const issueState = (i: any) => i.returnDate ? "returned" : i.dueDate && String(i.dueDate).slice(0, 10) < today ? "overdue" : "open";
+  const toggle = (next: typeof show) => setShow((current) => current === next ? "all" : next);
+  // Overdue loans first, then the ones due soonest; returned loans last.
+  const shown = urgencyFirst(rows, (i: any) => ({ overdue: 0, open: 1, returned: 2 } as Record<string, number>)[issueState(i)] * 1e13 + (i.dueDate ? new Date(i.dueDate).getTime() : 9e12))
+    .filter((i: any) => show === "all" || (show === "open" ? issueState(i) !== "returned" : issueState(i) === show));
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Issue Book</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Issue book")}</BrandButton></div>
+      {!loading && !loadFailed && rows.length ? <DeskStats className="mb-4" data-library-issues-pulse>
+        <StatTile index={0} icon={BookOpen} tone="brand" value={rows.filter((i: any) => issueState(i) !== "returned").length} label={ui("On loan")} onSelect={() => toggle("open")} selected={show === "open"} />
+        <StatTile index={1} icon={AlarmClock} tone={rows.some((i: any) => issueState(i) === "overdue") ? "danger" : "success"} value={rows.filter((i: any) => issueState(i) === "overdue").length} label={ui("Overdue")} onSelect={() => toggle("overdue")} selected={show === "overdue"} />
+        <StatTile index={2} icon={BookCheck} tone="neutral" value={rows.filter((i: any) => issueState(i) === "returned").length} label={ui("Returned")} onSelect={() => toggle("returned")} selected={show === "returned"} />
+      </DeskStats> : null}
+      <DeskFilterStatus shown={shown.length} total={rows.length} onClear={() => setShow("all")} />
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Book" error={form.errors.bookId}>
-            <select className={`${inputCls} w-48`} {...form.field("bookId")}>
-              <option value="">Select…</option>
-              {books.filter((b: any) => b.copiesAvailable > 0).map((b: any) => <option key={b.id} value={b.id}>{b.title} ({b.copiesAvailable} avail)</option>)}
-            </select>
+            <SystemSelect className={`${inputCls} w-48`} {...form.field("bookId")}>
+              <option value="">{ui("Select…")}</option>
+              {books.filter((b: any) => b.copiesAvailable > 0).map((b: any) => <option key={b.id} value={b.id}>{b.title} ({ui("{0} available", [b.copiesAvailable])})</option>)}
+            </SystemSelect>
           </OpField>
           <OpField label="Member" error={form.errors.memberId}>
             {/* Previously filtered on `m.isActive`, which LibraryMember does not
                 have — the list was therefore always empty and no member could
                 be picked. */}
-            <select className={`${inputCls} w-48`} {...form.field("memberId")}>
-              <option value="">Select…</option>
+            <SystemSelect className={`${inputCls} w-48`} {...form.field("memberId")}>
+              <option value="">{ui("Select…")}</option>
               {members.map((m: any) => <option key={m.id} value={m.id}>{m.user?.fullName || m.memberNo || m.userId}</option>)}
-            </select>
+            </SystemSelect>
           </OpField>
           <OpField label="Due Date" error={form.errors.dueAt}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
+            <SystemInput className={`${inputCls} w-36`} type="date" {...form.field("dueAt")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Issuing…" : "Issue"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Issuing…") : ui("Issue")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Book", "Member", "Issued", "Due", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : rows.map((i: any) => (
-              <tr key={i.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{i.book?.title || i.bookId}</td>
-                <td className={tdCls}>{i.member?.user?.fullName || i.memberId}</td>
-                <td className={tdCls}>{new Date(i.issueDate).toLocaleDateString()}</td>
-                <td className={tdCls}>{i.dueDate ? new Date(i.dueDate).toLocaleDateString() : "—"}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${i.returnDate ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{i.returnDate ? "Returned" : "Issued"}</span></td>
-                <td className={tdCls}>{!i.returnDate && <button onClick={() => returnBook(i.id)} className="rounded-lg bg-[#8127cf]/10 px-2 py-1 text-xs font-bold text-[#8127cf] hover:bg-[#8127cf]/20"><RotateCcw className="mr-1 inline h-3 w-3" />Return</button>}</td>
+            {loading ? <EmptyRow cols={6} state="loading" /> : loadFailed ? <EmptyRow cols={6} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={6} text="No issues yet" /> : shown.length === 0 ? <EmptyRow cols={6} filtered /> : shown.map((i: any) => (
+              <tr key={i.id} className={`border-b border-edge/10 hover:bg-surface-sunken/50 ${issueState(i) === "overdue" ? "bg-status-error-surface/50" : ""}`} data-issue-state={issueState(i)}>
+                <td className={tdCls}><bdi className="font-semibold">{i.book?.title || i.bookId}</bdi></td>
+                <td className={tdCls}><bdi>{i.member?.user?.fullName || i.memberId}</bdi></td>
+                <td className={tdCls}>{date(i.issueDate)}</td>
+                <td className={tdCls}>{i.dueDate ? <>{date(i.dueDate)}{!i.returnDate ? <RelativeTime iso={i.dueDate} full={date(i.dueDate)} className={`block text-xs ${issueState(i) === "overdue" ? "font-semibold text-status-error-text" : "text-ink-muted"}`} /> : null}</> : "—"}</td>
+                <td className={tdCls}><DeskPill tone={i.returnDate ? "success" : issueState(i) === "overdue" ? "danger" : "brand"}>{ui(i.returnDate ? "Returned" : issueState(i) === "overdue" ? "Overdue" : "Issued")}</DeskPill></td>
+                <td className={tdCls}>{!i.returnDate && <Button variant="secondary" size="sm" onClick={() => returnBook(i.id)} ><RotateCcw className="me-1 inline h-3 w-3" aria-hidden="true" />{ui("Return")}</Button>}</td>
               </tr>
             ))}
           </tbody>
@@ -856,33 +1152,59 @@ function IssuesTab() {
    MODULE 14-D — INVENTORY
    ════════════════════════════════════════════════════════════════ */
 
-export function InventoryPanel() {
-  const [tab, setTab] = useState<"items" | "transactions" | "stores" | "suppliers" | "categories">("items");
+export type InventoryTab = "items" | "transactions" | "stores" | "suppliers" | "categories";
+const INVENTORY_TABS: { id: InventoryTab; label: string }[] = [
+  { id: "items", label: "Items" },
+  { id: "transactions", label: "Transactions" },
+  { id: "stores", label: "Stores" },
+  { id: "suppliers", label: "Suppliers" },
+  { id: "categories", label: "Categories" },
+];
+
+/**
+ * Stock: items, movements, stores, suppliers and categories. `hideHeader` drops the panel's card and title (use it
+ * when the panel is the page body; under another section — the campus admin's purchase requests — pass `command`
+ * only and keep the titled card). `command` (§4.4b admin · Inventory: Receive goods · Export) "receive-goods" opens
+ * a Receive movement on Transactions; "export" saves the movements on Transactions, the stock list otherwise.
+ */
+export function InventoryPanel({ hideHeader = false, command }: { hideHeader?: boolean; command?: PanelCommand | null } = {}) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
+  const { date: formatDate } = useLocaleFormat();
+  const [tab, setTab] = useState<InventoryTab>("items");
+  const [forwarded, setForwarded] = useState<{ tab: InventoryTab; command: PanelCommand } | null>(null);
+  const select = (next: InventoryTab) => { setTab(next); setForwarded(null); };
+  usePanelCommand(command, {
+    "receive-goods": () => { setTab("transactions"); const copy = forwardCommand(command); setForwarded(copy ? { tab: "transactions", command: copy } : null); },
+    export: () => tab === "transactions"
+      ? void exportList(ui, "/api/inventory/transactions", "stock-movements", ["Date", "Kind", "Item", "Store", "Qty", "Unit price", "Supplier", "Note"], (t) => [formatDate(t.createdAt), TXN_KIND_LABEL[t.kind] ?? t.kind, t.item?.name ?? t.itemId, t.store?.name ?? t.storeId, t.quantity, t.unitPrice != null ? campusMoney(t.unitPrice) : "", t.supplier?.name ?? "", t.note ?? ""])
+      : void exportList(ui, "/api/inventory/items", "stock", ["Name", "Category", "Unit", "Total stock"], (r) => [r.name, r.category?.name ?? "", r.unit ?? "", (r.stock || []).reduce((sum: number, st: any) => sum + (st.quantity || 0), 0)]),
+  });
+  const choices = <SectionChoices label="Inventory sections" items={INVENTORY_TABS} value={tab} onChange={select} />;
   return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Package} title="Inventory / POS" />
-        <div className="flex gap-1 rounded-xl bg-[#f6f2fa] p-1">
-          {(["items", "transactions", "stores", "suppliers", "categories"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${tab === t ? "bg-white shadow text-[#8127cf]" : "text-ink-muted hover:text-[#1d1b20]"}`}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
+    <div className={hideHeader ? "space-y-5" : cardCls}>
+      {hideHeader ? choices : (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <PanelTitle icon={Package} title={ui("Inventory")} />
+          {choices}
         </div>
-      </div>
-      {tab === "items" ? <ItemsTab /> : tab === "transactions" ? <TransactionsTab /> : tab === "stores" ? <StoresTab /> : tab === "suppliers" ? <SuppliersTab /> : <ItemCategoriesTab />}
+      )}
+      {tab === "items" ? <ItemsTab /> : tab === "transactions" ? <TransactionsTab command={forwarded?.tab === "transactions" ? forwarded.command : null} /> : tab === "stores" ? <StoresTab /> : tab === "suppliers" ? <SuppliersTab /> : <ItemCategoriesTab />}
     </div>
   );
 }
 
 function ItemCategoriesTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/inventory/categories"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/categories"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemCategory holds only a name. The old `description` had no input bound
   // to it and no column behind the table cell that rendered it.
@@ -890,35 +1212,35 @@ function ItemCategoriesTab() {
     schema: itemCategorySchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/categories", values, form))) return;
-      toast.success("Category added");
+      toast.success(ui("Category added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/categories?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Category</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add category")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-40`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Items", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={3} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+            {loading ? <EmptyRow cols={3} state="loading" /> : loadFailed ? <EmptyRow cols={3} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={3} text="No categories" /> : rows.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r._count?.items ?? 0}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/categories" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -929,13 +1251,16 @@ function ItemCategoriesTab() {
 }
 
 function StoresTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/inventory/stores"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/stores"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // ItemStore has no `location` column — whatever was typed into that input
   // was discarded on save, and the table column could never fill in.
@@ -943,35 +1268,35 @@ function StoresTab() {
     schema: itemStoreSchema,
     initialValues: { name: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/stores", values, form))) return;
-      toast.success("Store added");
+      toast.success(ui("Store added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/stores?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Store</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add store")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("name")} placeholder="Main Store" />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("name")} placeholder={ui("Main store")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={2} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+            {loading ? <EmptyRow cols={2} state="loading" /> : loadFailed ? <EmptyRow cols={2} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={2} text="No stores" /> : rows.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/stores" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -982,13 +1307,16 @@ function StoresTab() {
 }
 
 function SuppliersTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/inventory/suppliers"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
+  const load = useCallback(async () => { const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null); try { const r = await readRequest("/api/inventory/suppliers"); const j = await checkedListJson(r); if (version !== loadSequence.current) return; if (j.success) setRows(j.data || []); } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); } }, []);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   // Supplier has no `contactName` column, so that input never persisted.
   // `address` does exist and now has an input rather than only living in state.
@@ -996,44 +1324,44 @@ function SuppliersTab() {
     schema: supplierSchema,
     initialValues: { name: "", phone: "", email: "", address: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/suppliers", values, form))) return;
-      toast.success("Supplier added");
+      toast.success(ui("Supplier added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/suppliers?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Supplier</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add supplier")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-36`} {...form.field("name")} />
           </OpField>
           <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
+            <SystemInput className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
           </OpField>
           <OpField label="Email" error={form.errors.email}>
-            <input className={`${inputCls} w-36`} type="email" {...form.field("email")} />
+            <SystemInput className={`${inputCls} w-36`} type="email" {...form.field("email")} />
           </OpField>
           <OpField label="Address" error={form.errors.address} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("address")} />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("address")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Phone", "Email", "Address", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
-              <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} text="No suppliers" /> : rows.map((r: any) => (
+              <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.phone || "—"}</td><td className={tdCls}>{r.email || "—"}</td><td className={tdCls}>{r.address || "—"}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <td className={tdCls}><ReviewedDelete endpoint="inventory/suppliers" record={r} label={r.name} onDeleted={load} /></td>
               </tr>
             ))}
           </tbody>
@@ -1044,70 +1372,83 @@ function SuppliersTab() {
 }
 
 function ItemsTab() {
+  const ui = useUiText();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const [search, setSearch] = useListField<string>("inventory.search", "", "inventory.page");
+  const [total, setTotal] = useState(0);
+  const [category, setCategory] = useListField<string>("inventory.category", "", "inventory.page");
+  const [sort, setSort] = useListField<string>("inventory.sort", "name", "inventory.page");
   const [showAdd, setShowAdd] = useState(false);
   const [cats, setCats] = useState<any[]>([]);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
+  const requestVersion = useRef(0);
+  const paged = useListPagination(total, "inventory");
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++requestVersion.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const q = search ? `?search=${encodeURIComponent(search)}` : "";
-      const [ir, cr] = await Promise.all([fetch(`/api/inventory/items${q}`), fetch("/api/inventory/categories")]);
-      const [ij, cj] = await Promise.all([ir.json(), cr.json()]);
-      if (ij.success) setRows(ij.data || []);
+      const q = `?${new URLSearchParams({ search, categoryId: category, sort, page: String(paged.requestedPage), limit: String(paged.controls.perPage) })}`;
+      const [ir, cr] = await Promise.all([readRequest(`/api/inventory/items${q}`), readRequest("/api/inventory/categories")]);
+      const [ij, cj] = await Promise.all([checkedListJson(ir), checkedListJson(cr)]);
+      if (version !== requestVersion.current) return;
+      if (ij.success) { setRows(ij.data || []); setTotal(ij.pagination.total); }
       if (cj.success) setCats(cj.data || []);
-    } catch {} finally { setLoading(false); }
-  }, [search]);
-  useEffect(() => { load(); }, [load]);
+    } catch (error) { if (version === requestVersion.current) { setRows([]); setCats([]); setTotal(0); setLoadFailed(requestFailure(error)); } } finally { if (version === requestVersion.current) setLoading(false); }
+  }, [search, category, sort, paged.requestedPage, paged.controls.perPage]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 250); return () => { clearTimeout(timer); requestVersion.current++; }; }, [load]);
 
   // Item is (name, unit, categoryId). `description` had no input and no column.
   const form = useValidatedForm({
     schema: itemSchema,
     initialValues: { name: "", categoryId: "", unit: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/items", values, form))) return;
-      toast.success("Item added");
+      toast.success(ui("Item added."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
 
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/inventory/items?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><input className={`${inputCls} w-64 pl-9`} placeholder="Search items…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Item</BrandButton>
+        <InputGroup className="relative"><Search data-field-affix="start" className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" /><SystemInput className={`${inputCls} w-64 ps-9`} aria-label={ui("Search items…")} placeholder={ui("Search items…")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup>
+        <BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("Add item")}</BrandButton>
       </div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-40`} {...form.field("name")} />
+            <SystemInput className={`${inputCls} w-40`} {...form.field("name")} />
           </OpField>
           <OpField label="Category" error={form.errors.categoryId}>
-            <select className={`${inputCls} w-32`} {...form.field("categoryId")}><option value="">None</option>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-32`} {...form.field("categoryId")}><option value="">{ui("None")}</option>{cats.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Unit" error={form.errors.unit}>
-            <input className={`${inputCls} w-24`} {...form.field("unit")} placeholder="pcs" />
+            <SystemInput className={`${inputCls} w-24`} {...form.field("unit")} placeholder={ui("pcs")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="mb-3 flex flex-wrap gap-3">
+        <SystemSelect aria-label={ui("Category")} value={category} onChange={event => setCategory(event.target.value)}><option value="">{ui("All")}</option>{cats.map((cat: any) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</SystemSelect>
+        <SystemSelect aria-label={ui("Sort by")} value={sort} onChange={event => setSort(event.target.value)}><option value="name">{ui("Name")} ↑</option><option value="name-desc">{ui("Name")} ↓</option></SystemSelect>
+      </div>
+      <Pagination {...paged.controls} />
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Name", "Category", "Unit", "Total Stock", ""].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No items" /> : rows.map((r: any) => {
+            {loading ? <EmptyRow cols={5} state="loading" /> : loadFailed ? <EmptyRow cols={5} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={5} filtered={Boolean(search || category)} text="No items" /> : rows.map((r: any) => {
               const totalStock = (r.stock || []).reduce((s: number, st: any) => s + (st.quantity || 0), 0);
               return (
-                <tr key={r.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                  <td className={tdCls}>{r.name}</td><td className={tdCls}>{r.category?.name || "—"}</td><td className={tdCls}>{r.unit || "—"}</td><td className={tdCls}>{totalStock}</td>
-                  <td className={tdCls}><DeleteBtn onClick={() => del(r.id)} loading={deleting === r.id} /></td>
+                <tr key={r.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
+                  <td className={tdCls}><span className="flex items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8"><Package /></span><bdi className="font-semibold">{r.name}</bdi></span></td><td className={tdCls}>{r.category?.name || "—"}</td><td className={tdCls}>{r.unit || "—"}</td><td className={tdCls}>{totalStock > 0 ? <span className="font-semibold tabular-nums">{totalStock}</span> : <DeskPill tone="danger">{ui("Out of stock")}</DeskPill>}</td>
+                  <td className={tdCls}><ReviewedDelete endpoint="inventory/items" record={r} label={r.name} onDeleted={load} /></td>
                 </tr>
               );
             })}
@@ -1118,82 +1459,92 @@ function ItemsTab() {
   );
 }
 
-function TransactionsTab() {
+function TransactionsTab({ command }: { command?: PanelCommand | null } = {}) {
+  const ui = useUiText();
+  const campusMoney = useCampusMoney();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState<RequestFailure | null>(null);
+  const loadSequence = useRef(0);
   const [showAdd, setShowAdd] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const version = ++loadSequence.current;
+    setLoading(true); setLoadFailed(null);
     try {
-      const [tr, ir, sr, spr] = await Promise.all([fetch("/api/inventory/transactions"), fetch("/api/inventory/items"), fetch("/api/inventory/stores"), fetch("/api/inventory/suppliers")]);
-      const [tj, ij, sj, spj] = await Promise.all([tr.json(), ir.json(), sr.json(), spr.json()]);
+      const [tr, ir, sr, spr] = await Promise.all([readRequest("/api/inventory/transactions"), loadListPages("/api/inventory/items"), readRequest("/api/inventory/stores"), readRequest("/api/inventory/suppliers")]);
+      const [tj, sj, spj] = await Promise.all([checkedListJson(tr), checkedListJson(sr), checkedListJson(spr)]);
+      const ij = { success: true, data: ir };
+      if (version !== loadSequence.current) return;
       if (tj.success) setRows(tj.data || []);
       if (ij.success) setItems(ij.data || []);
       if (sj.success) setStores(sj.data || []);
       if (spj.success) setSuppliers(spj.data || []);
-    } catch {} finally { setLoading(false); }
+    } catch (error) { if (version === loadSequence.current) { setRows([]); setLoadFailed(requestFailure(error)); } } finally { if (version === loadSequence.current) setLoading(false); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); return () => { loadSequence.current++; }; }, [load]);
 
   const form = useValidatedForm({
     schema: itemTransactionFormSchema,
     initialValues: { itemId: "", storeId: "", supplierId: "", kind: "RECEIVE", quantity: "1", unitPrice: "", note: "" },
     onSubmit: async (values) => {
+      if (loading || loadFailed) return;
       if (!(await submitTo("/api/inventory/transactions", values, form))) return;
-      toast.success("Transaction recorded");
+      toast.success(ui("Transaction recorded."));
       setShowAdd(false);
       form.reset();
       load();
     },
   });
+  // "Receive goods" from the PageHeader: a Receive movement, ready for the item, store and quantity.
+  usePanelCommand(command, { "receive-goods": () => { form.setValues({ kind: "RECEIVE" }); setShowAdd(true); } });
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>New Transaction</BrandButton></div>
+      <div className="mb-4 flex justify-end"><BrandButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>{ui("New transaction")}</BrandButton></div>
       {showAdd && (
         <div className={addBoxCls}>
           <OpField label="Kind" error={form.errors.kind}>
-            <select className={`${inputCls} w-28`} {...form.field("kind")}>
-              {ITEM_TRANSACTION_KINDS.map((k) => <option key={k} value={k}>{k.charAt(0) + k.slice(1).toLowerCase()}</option>)}
-            </select>
+            <SystemSelect className={`${inputCls} w-28`} {...form.field("kind")}>
+              {ITEM_TRANSACTION_KINDS.map((k) => <option key={k} value={k}>{ui(TXN_KIND_OPTION[k] ?? k)}</option>)}
+            </SystemSelect>
           </OpField>
           <OpField label="Item" error={form.errors.itemId}>
-            <select className={`${inputCls} w-40`} {...form.field("itemId")}><option value="">Select…</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-40`} {...form.field("itemId")}><option value="">{ui("Select…")}</option>{items.map((i: any) => <option key={i.id} value={i.id}>{i.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Store" error={form.errors.storeId}>
-            <select className={`${inputCls} w-36`} {...form.field("storeId")}><option value="">Select…</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-36`} {...form.field("storeId")}><option value="">{ui("Select…")}</option>{stores.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Qty" error={form.errors.quantity}>
-            <input className={`${inputCls} w-20`} type="number" min={1} {...form.field("quantity")} />
+            <SystemInput className={`${inputCls} w-20`} type="number" min={1} {...form.field("quantity")} />
           </OpField>
-          <OpField label="Unit Price (Rs)" error={form.errors.unitPrice}>
-            <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("unitPrice")} placeholder="0" />
+          <OpField label="Unit price" error={form.errors.unitPrice}>
+            <SystemInput className={`${inputCls} w-28`} type="number" min={0} step="0.01" {...form.field("unitPrice")} placeholder="0" />
           </OpField>
           <OpField label="Supplier" error={form.errors.supplierId}>
-            <select className={`${inputCls} w-36`} {...form.field("supplierId")}><option value="">None</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            <SystemSelect className={`${inputCls} w-36`} {...form.field("supplierId")}><option value="">{ui("None")}</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</SystemSelect>
           </OpField>
           <OpField label="Note" error={form.errors.note} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("note")} />
+            <SystemInput className={`${inputCls} w-full`} {...form.field("note")} />
           </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
+          <BrandButton onClick={form.handleSubmit} disabled={form.submitting || loading || !!loadFailed}>{form.submitting ? ui("Saving…") : ui("Save")}</BrandButton>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto lg:overflow-visible">
         <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-edge/15">{["Date", "Kind", "Item", "Store", "Qty", "Unit Price", "Supplier", "Note"].map((h) => <th key={h} className={thCls}>{h ? ui(h) : null}</th>)}</tr></thead>
           <tbody>
-            {loading ? <EmptyRow cols={8} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
-              <tr key={t.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
+            {loading ? <EmptyRow cols={8} state="loading" /> : loadFailed ? <EmptyRow cols={8} state="error" failure={loadFailed} onRetry={load} /> : rows.length === 0 ? <EmptyRow cols={8} text="No transactions" /> : rows.map((t: any) => (
+              <tr key={t.id} className="border-b border-edge/10 hover:bg-surface-sunken/50">
                 <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.kind === "RECEIVE" || t.kind === "RETURN" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{t.kind}</span></td>
+                <td className={tdCls}><DeskPill tone={t.kind === "RECEIVE" || t.kind === "RETURN" ? "success" : "warning"}>{ui(TXN_KIND_LABEL[t.kind] ?? t.kind)}</DeskPill></td>
                 <td className={tdCls}>{t.item?.name || t.itemId}</td>
                 <td className={tdCls}>{t.store?.name || t.storeId}</td>
                 <td className={tdCls}>{t.quantity}</td>
-                <td className={tdCls}>{t.unitPrice != null ? formatPKR(t.unitPrice) : "—"}</td>
+                <td className={tdCls}>{t.unitPrice != null ? campusMoney(t.unitPrice) : "—"}</td>
                 <td className={tdCls}>{t.supplier?.name || "—"}</td>
                 <td className={tdCls}>{t.note || "—"}</td>
               </tr>
@@ -1210,412 +1561,26 @@ function TransactionsTab() {
    ════════════════════════════════════════════════════════════════ */
 
 export function VisitorsPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/visitors"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // VisitorLog is (name, phone, purpose, toMeet, inTime, outTime). This panel
-  // was written against a different vocabulary entirely — `visitorName`,
-  // `personToMeet`, `checkIn`, `checkOut` — so the route rejected every save
-  // with "name and inTime are required", and the table below rendered an
-  // em-dash in every column because none of those fields are ever returned.
-  const form = useValidatedForm({
-    schema: visitorFormSchema,
-    initialValues: { name: "", phone: "", purpose: "", toMeet: "", note: "" },
-    onSubmit: async (values) => {
-      const payload = { ...values, inTime: new Date().toISOString() };
-      if (!(await submitTo("/api/front-desk/visitors", payload, form))) return;
-      toast.success("Visitor logged");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  const checkout = async (id: string) => {
-    try { const r = await fetch("/api/front-desk/visitors", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, outTime: new Date().toISOString() }) }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Checked out"); load(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Eye} title="Visitor Log" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Log Visitor</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Name" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} />
-          </OpField>
-          <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
-          </OpField>
-          <OpField label="Purpose" error={form.errors.purpose}>
-            <input className={`${inputCls} w-36`} {...form.field("purpose")} />
-          </OpField>
-          <OpField label="Person to Meet" error={form.errors.toMeet}>
-            <input className={`${inputCls} w-36`} {...form.field("toMeet")} />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Phone", "Purpose", "Meet", "Check-in", "Check-out", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={7} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={7} text="No visitor logs" /> : rows.map((v: any) => (
-              <tr key={v.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{v.name}</td>
-                <td className={tdCls}>{v.phone || "—"}</td>
-                <td className={tdCls}>{v.purpose || "—"}</td>
-                <td className={tdCls}>{v.toMeet || "—"}</td>
-                <td className={tdCls}>{v.inTime ? new Date(v.inTime).toLocaleString() : "—"}</td>
-                <td className={tdCls}>{v.outTime ? new Date(v.outTime).toLocaleString() : "—"}</td>
-                <td className={tdCls}>{!v.outTime && <button onClick={() => checkout(v.id)} className="rounded-lg bg-[#8127cf]/10 px-2 py-1 text-xs font-bold text-[#8127cf] hover:bg-[#8127cf]/20">Check Out</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-466: the register (on site first, refusals, corrections, retention) lives in its own component.
+  return <VisitorRegister />;
 }
 
 export function ComplaintsPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/complaints"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // Two independent blockers here. The old guard required `description`, which
-  // had no input at all — only a state key — so it was always empty and the
-  // toast fired before any request was made. Had it got past that, the route
-  // requires `date`, which the form never sent. Complaint also has no
-  // `priority` column, so that select was discarded on save and the badge
-  // below always fell back to "MEDIUM".
-  const form = useValidatedForm({
-    schema: complaintFormSchema,
-    initialValues: {
-      complainantName: "",
-      type: "",
-      phone: "",
-      date: new Date().toISOString().slice(0, 10),
-      description: "",
-    },
-    onSubmit: async (values) => {
-      if (!(await submitTo("/api/front-desk/complaints", values, form))) return;
-      toast.success("Complaint logged");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  const resolve = async (id: string) => {
-    try { const r = await fetch("/api/front-desk/complaints", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status: "RESOLVED" }) }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Resolved"); load(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={MessageSquare} title="Complaints" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Log Complaint</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Name" error={form.errors.complainantName}>
-            <input className={`${inputCls} w-36`} {...form.field("complainantName")} />
-          </OpField>
-          <OpField label="Type" error={form.errors.type}>
-            <input className={`${inputCls} w-28`} {...form.field("type")} placeholder="General" />
-          </OpField>
-          <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
-          </OpField>
-          <OpField label="Date" error={form.errors.date}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("date")} />
-          </OpField>
-          <OpField label="Description" error={form.errors.description} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("description")} placeholder="What happened?" />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Name", "Type", "Phone", "Description", "Status", "Action"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={7} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={7} text="No complaints" /> : rows.map((c: any) => (
-              <tr key={c.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{c.date ? new Date(c.date).toLocaleDateString() : new Date(c.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}>{c.complainantName}</td>
-                <td className={tdCls}>{c.type || "—"}</td>
-                <td className={tdCls}>{c.phone || "—"}</td>
-                <td className={`${tdCls} max-w-[200px] truncate`}>{c.description || "—"}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === "RESOLVED" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{c.status || "OPEN"}</span></td>
-                <td className={tdCls}>{c.status !== "RESOLVED" && <button onClick={() => resolve(c.id)} className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-100">Resolve</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-467: owned cases, confidential routing and history live in ComplaintsDesk.
+  return <ComplaintsDesk />;
 }
 
 export function PostalPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/postal"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // PostalRecord is (direction, fromName, toName, referenceNo, date, note) and
-  // direction stores RECEIVE/DISPATCH. Every one of those names differed in the
-  // old form, and `date` — which the route requires — was never sent, so this
-  // panel could not save a record and its table read six fields that are never
-  // returned. Note there was also no client-side guard at all here.
-  const form = useValidatedForm({
-    schema: postalFormSchema,
-    initialValues: {
-      direction: "RECEIVE",
-      fromName: "",
-      toName: "",
-      referenceNo: "",
-      date: new Date().toISOString().slice(0, 10),
-      note: "",
-    },
-    onSubmit: async (values) => {
-      if (!(await submitTo("/api/front-desk/postal", values, form))) return;
-      toast.success("Postal record added");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Mail} title="Postal Records" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Record</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Type" error={form.errors.direction}>
-            <select className={`${inputCls} w-32`} {...form.field("direction")}>
-              <option value="RECEIVE">Received</option>
-              <option value="DISPATCH">Dispatched</option>
-            </select>
-          </OpField>
-          <OpField label="Sender" error={form.errors.fromName}>
-            <input className={`${inputCls} w-32`} {...form.field("fromName")} />
-          </OpField>
-          <OpField label="Receiver" error={form.errors.toName}>
-            <input className={`${inputCls} w-32`} {...form.field("toName")} />
-          </OpField>
-          <OpField label="Ref #" error={form.errors.referenceNo}>
-            <input className={`${inputCls} w-28`} {...form.field("referenceNo")} />
-          </OpField>
-          <OpField label="Date" error={form.errors.date}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("date")} />
-          </OpField>
-          <OpField label="Note" error={form.errors.note} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("note")} />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Type", "Sender", "Receiver", "Ref #", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No postal records" /> : rows.map((p: any) => (
-              <tr key={p.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{p.date ? new Date(p.date).toLocaleDateString() : new Date(p.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${p.direction === "RECEIVE" ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}>{p.direction === "RECEIVE" ? "Received" : "Dispatched"}</span></td>
-                <td className={tdCls}>{p.fromName || "—"}</td>
-                <td className={tdCls}>{p.toName || "—"}</td>
-                <td className={tdCls}>{p.referenceNo || "—"}</td>
-                <td className={tdCls}>{p.note || "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-464: handoff tracking, corrections and history live in PostalRegister.
+  return <PostalRegister />;
 }
 
 export function PhoneCallsPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/phone-calls"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // PhoneCallLog is (name, phone, direction, date, followUpDate, note), with
-  // direction stored as IN/OUT. The old form sent `callerName`, the strings
-  // INCOMING/OUTGOING, a `purpose` field with no column behind it, and no
-  // `date` — which the route requires — so no call could be logged. `phone` is
-  // non-null in the model, so it is required rather than optional here.
-  const form = useValidatedForm({
-    schema: phoneCallFormSchema,
-    initialValues: {
-      name: "",
-      phone: "",
-      direction: "IN",
-      date: new Date().toISOString().slice(0, 10),
-      followUpDate: "",
-      note: "",
-    },
-    onSubmit: async (values) => {
-      if (!(await submitTo("/api/front-desk/phone-calls", values, form))) return;
-      toast.success("Call logged");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={Phone} title="Phone Call Log" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Log Call</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={addBoxCls}>
-          <OpField label="Caller" error={form.errors.name}>
-            <input className={`${inputCls} w-36`} {...form.field("name")} />
-          </OpField>
-          <OpField label="Phone" error={form.errors.phone}>
-            <input className={`${inputCls} w-28`} inputMode="tel" {...form.field("phone")} />
-          </OpField>
-          <OpField label="Direction" error={form.errors.direction}>
-            <select className={`${inputCls} w-28`} {...form.field("direction")}>
-              <option value="IN">Incoming</option>
-              <option value="OUT">Outgoing</option>
-            </select>
-          </OpField>
-          <OpField label="Date" error={form.errors.date}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("date")} />
-          </OpField>
-          <OpField label="Follow-up" error={form.errors.followUpDate}>
-            <input className={`${inputCls} w-36`} type="date" {...form.field("followUpDate")} />
-          </OpField>
-          <OpField label="Note" error={form.errors.note} width="flex-1">
-            <input className={`${inputCls} w-full`} {...form.field("note")} />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Date", "Direction", "Caller", "Phone", "Follow-up", "Note"].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={6} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={6} text="No calls logged" /> : rows.map((c: any) => (
-              <tr key={c.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{c.date ? new Date(c.date).toLocaleDateString() : new Date(c.createdAt).toLocaleString()}</td>
-                <td className={tdCls}><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.direction === "IN" ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}>{c.direction === "IN" ? "Incoming" : "Outgoing"}</span></td>
-                <td className={tdCls}>{c.name}</td>
-                <td className={tdCls}>{c.phone || "—"}</td>
-                <td className={tdCls}>{c.followUpDate ? new Date(c.followUpDate).toLocaleDateString() : "—"}</td>
-                <td className={tdCls}>{c.note || "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-465: owned callbacks, restricted notes and history live in PhoneCallLog.
+  return <PhoneCallLog />;
 }
 
 export function CertificatesPanel() {
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-
-  const load = useCallback(async () => { setLoading(true); try { const r = await fetch("/api/front-desk/certificates"); const j = await r.json(); if (j.success) setRows(j.data || []); } catch {} finally { setLoading(false); } }, []);
-  useEffect(() => { load(); }, [load]);
-
-  // CertificateTemplate is (kind, name, backgroundKey, layoutJson, pageSize),
-  // and the route requires kind, name and layoutJson. The old form sent name,
-  // a `description` with no column, and a `bodyTemplate` the route never read
-  // — so saving a template always failed on the missing `kind`.
-  //
-  // The body the user writes is the layout, so it is stored as the layoutJson
-  // document rather than being thrown away.
-  const form = useValidatedForm({
-    schema: certificateTemplateFormSchema,
-    initialValues: { kind: "STUDENT_CERTIFICATE", name: "", bodyTemplate: "", pageSize: "A4" },
-    onSubmit: async ({ bodyTemplate, ...values }) => {
-      const payload = { ...values, layoutJson: { version: 1, body: bodyTemplate } };
-      if (!(await submitTo("/api/front-desk/certificates", payload, form))) return;
-      toast.success("Template added");
-      setShowAdd(false);
-      form.reset();
-      load();
-    },
-  });
-
-  const del = async (id: string) => { setDeleting(id); try { const r = await fetch(`/api/front-desk/certificates?id=${id}`, { method: "DELETE" }); const j = await r.json(); if (!j.success) throw new Error(j.error); toast.success("Removed"); load(); } catch (e: any) { toast.error(e.message); } finally { setDeleting(null); } };
-
-  return (
-    <div className={cardCls}>
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <PanelTitle icon={FileText} title="Certificate Templates" />
-        <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />} onClick={() => setShowAdd(!showAdd)}>Add Template</BrandButton>
-      </div>
-      {showAdd && (
-        <div className={`${addBoxCls} flex-col`}>
-          <div className="flex flex-wrap gap-3">
-            <OpField label="Name" error={form.errors.name}>
-              <input className={`${inputCls} w-48`} {...form.field("name")} placeholder="Transfer Certificate" />
-            </OpField>
-            <OpField label="Type" error={form.errors.kind}>
-              <select className={`${inputCls} w-48`} {...form.field("kind")}>
-                <option value="STUDENT_CERTIFICATE">Student Certificate</option>
-                <option value="ID_CARD">ID Card</option>
-              </select>
-            </OpField>
-            <OpField label="Page Size" error={form.errors.pageSize}>
-              <select className={`${inputCls} w-32`} {...form.field("pageSize")}>
-                {PAGE_SIZES.map((size) => <option key={size} value={size}>{size.replace("_", " ")}</option>)}
-              </select>
-            </OpField>
-            </div>
-          <OpField label="Body Template" error={form.errors.bodyTemplate} width="w-full">
-            <textarea className={`${inputCls} w-full min-h-[80px] resize-y py-2`} {...form.field("bodyTemplate")} placeholder="Use {{studentName}}, {{className}}, etc." />
-          </OpField>
-          <BrandButton variant="dark" onClick={form.handleSubmit} disabled={form.submitting}>{form.submitting ? "Saving…" : "Save"}</BrandButton>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead><tr className="border-b border-[#cfc2d6]/15">{["Name", "Type", "Page Size", "Created", ""].map((h) => <th key={h} className={thCls}>{h}</th>)}</tr></thead>
-          <tbody>
-            {loading ? <EmptyRow cols={5} text="Loading…" /> : rows.length === 0 ? <EmptyRow cols={5} text="No templates" /> : rows.map((t: any) => (
-              <tr key={t.id} className="border-b border-[#cfc2d6]/10 hover:bg-[#f6f2fa]/50">
-                <td className={tdCls}>{t.name}</td>
-                <td className={tdCls}>{t.kind === "ID_CARD" ? "ID Card" : "Certificate"}</td>
-                <td className={tdCls}>{t.pageSize || "—"}</td>
-                <td className={tdCls}>{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className={tdCls}><DeleteBtn onClick={() => del(t.id)} loading={deleting === t.id} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  // SKO-469: approved template versions, issuing with preview, approval, reissue and revocation live in CertificatesDesk.
+  return <CertificatesDesk />;
 }

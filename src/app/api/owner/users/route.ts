@@ -1,3 +1,6 @@
+import { pageWindow } from "@/lib/lists/query";
+import { assertListBudget } from "@/lib/lists/access";
+import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
@@ -5,28 +8,30 @@ import bcrypt from "bcryptjs";
 import { logSuperAdminAction } from "@/lib/audit";
 import { isUserRole, type UserRole } from "@/lib/roles";
 import {
-  assertEmailAvailable,
   assertSeatAvailable,
   generatePassword,
   isValidEmail,
   OWNER_CREATABLE_ROLES,
 } from "@/lib/owner/provisioning";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requirePlatformOwner();
+    await assertListBudget(user, "owner/users");
 
     const { searchParams } = new URL(req.url);
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "25", 10), 1), 100);
+    const { page: requestedPage, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
     const role = searchParams.get("role") || "";
     const schoolId = searchParams.get("schoolId") || "";
     const status = searchParams.get("status") || "";
 
     const where: any = {};
+    if (role && !isUserRole(role)) throw new ApiError("Unknown role", 400);
     if (role) where.role = role;
     if (schoolId) where.schoolId = schoolId;
     if (status === "active") where.isActive = true;
@@ -39,8 +44,9 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
+    const total = await prisma.user.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const users = await prisma.user.findMany({
         where,
         select: {
           id: true,
@@ -56,17 +62,15 @@ export async function GET(req: NextRequest) {
           school: { select: { id: true, name: true } },
           campus: { select: { id: true, name: true } },
         },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip,
         take: limit,
-      }),
-      prisma.user.count({ where }),
-    ]);
+      });
 
     return Response.json({
       success: true,
       data: users,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: { page, limit, total, pages },
     });
   } catch (error) {
     return errorResponse(error, "[owner/users] GET failed");
@@ -86,7 +90,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     const schoolId = String(body.schoolId || "").trim();
     const campusIdRaw = String(body.campusId || "").trim();
@@ -127,7 +131,8 @@ export async function POST(req: NextRequest) {
       campusId = campus.id;
     }
 
-    await assertEmailAvailable(email);
+    const existingUser = await prisma.user.findFirst({ where: { schoolId, email: { equals: email, mode: "insensitive" } }, select: { id: true } });
+    if (existingUser) throw new ApiError("That email already has an account in this school", 409);
     await assertSeatAvailable(schoolId, role);
 
     const tempPassword = String(body.password || "").trim() || generatePassword();

@@ -1,14 +1,20 @@
+import { getLocalePackage } from "@/lib/locale/store";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { feeStructureSchema } from "@/lib/validators/schemas";
 import {
   ApiError,
-  canManageOperations,
+  assertPermission,
+  canManageFinance,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
 import { notify } from "@/lib/notifications/in-app";
+import { resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { evaluateFeeCap, feeCapDecision } from "@/lib/fees/regulator-cap";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,12 +30,20 @@ export async function GET(req: NextRequest) {
     if (campusId) where.campusId = campusId;
     if (classId) where.classId = classId;
     where.campus = { schoolId: user.schoolId };
+    // SKAI-1123: scoped to one academic year. ?academicYearId=<cycle> picks a year, "all" lists every year;
+    // by default the campus's active year (plus legacy year-less rows) is shown.
+    const requestedYear = searchParams.get("academicYearId");
+    if (requestedYear !== "all") {
+      const yearId = campusId ? await resolveFeeStructureYearId(prisma, user.schoolId, campusId, requestedYear) : requestedYear;
+      if (yearId) where.OR = requestedYear ? [{ academicYearId: yearId }] : [{ academicYearId: yearId }, { academicYearId: null }];
+    }
 
     const structures = await prisma.feeStructure.findMany({
       where,
       include: {
         class: { select: { id: true, name: true, section: true } },
         campus: { select: { id: true, name: true } },
+        academicYear: { select: { id: true, label: true, academicYear: true, status: true } },
       },
       orderBy: [{ activeFrom: "desc" }],
     });
@@ -43,9 +57,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const parsed = feeStructureSchema.safeParse(body);
     if (!parsed.success) {
       const flat = parsed.error.flatten().fieldErrors;
@@ -59,15 +74,26 @@ export async function POST(req: NextRequest) {
     const oneTimeFeesJson = parsed.data.oneTimeFeesJson ? JSON.parse(parsed.data.oneTimeFeesJson) : undefined;
     const discountRulesJson = parsed.data.discountRulesJson ? JSON.parse(parsed.data.discountRulesJson) : undefined;
 
+    const academicYearId = await resolveFeeStructureYearId(prisma, user.schoolId, campusId, body.academicYearId);
     const existing = await prisma.feeStructure.findFirst({
-      where: { classId: parsed.data.classId, activeFrom },
-      select: { id: true },
+      where: { classId: parsed.data.classId, academicYearId, activeFrom },
+      select: { id: true, approvedFee: true },
     });
+
+    // SKAI-1154: the school's opt-in regulator fee cap.
+    const capSchool = await prisma.school.findUnique({ where: { id: user.schoolId }, select: { feeCapMode: true } });
+    const capMode = capSchool?.feeCapMode ?? "OFF";
+    const approvedFee = parsed.data.approvedFee !== undefined ? parsed.data.approvedFee : (existing?.approvedFee ?? null);
+    const cap = feeCapDecision(evaluateFeeCap({ mode: capMode, fee: parsed.data.monthlyFee, approvedFee }), capMode);
+    if (cap.error) return Response.json({ error: cap.error, feeCap: "blocked" }, { status: 422 });
 
     const data: any = {
       campusId,
       classId: parsed.data.classId,
+      academicYearId,
       monthlyFee: parsed.data.monthlyFee,
+      approvedFee,
+      approvedFeeReference: parsed.data.approvedFeeReference !== undefined ? parsed.data.approvedFeeReference || null : undefined,
       oneTimeFeesJson: oneTimeFeesJson as any,
       installmentType: parsed.data.installmentType ?? undefined,
       discountRulesJson: discountRulesJson as any,
@@ -90,6 +116,8 @@ export async function POST(req: NextRequest) {
       });
     } else {
       data.createdBy = user.userId;
+      data.currency = (await getLocalePackage(user.schoolId, campusId, activeFrom)).currency;
+      if ((body.currency || "PKR") !== data.currency) throw new ApiError("Currency changed. Reload the fee form before saving.", 409);
       structure = await prisma.feeStructure.create({
         data,
         include: {
@@ -102,7 +130,7 @@ export async function POST(req: NextRequest) {
       data: {
         tableName: "fee_structure",
         recordId: structure.id,
-        newValue: { classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee },
+        newValue: { classId: parsed.data.classId, monthlyFee: parsed.data.monthlyFee, approvedFee, feeCapMode: capMode },
         userId: user.userId,
       },
     });
@@ -119,6 +147,7 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         data: structure,
+        ...(cap.warning ? { feeCapWarning: cap.warning } : {}),
         message: `Fee structure ${existing ? "updated" : "created"} for ${structure.class.name}`,
       },
       { status: existing ? 200 : 201 }

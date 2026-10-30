@@ -1,0 +1,179 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Ban, BookCheck, BookMarked, CircleCheckBig, FilePen, Library, Plus, type LucideIcon } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { useLocale } from "@/components/locale/LocaleProvider";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { FormField } from "@/components/ui/form-field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { formatDateOnly, formatInstant, type LocalePackage } from "@/lib/locale/package";
+import { actorRoleLabel, curriculumPacksCopy, fill, type CurriculumPacksCopy } from "./curriculum-packs-copy";
+
+type Evidence = { sourceId: string; rightsScope: string; permissionEvidence: string; hasDocument: boolean; documentName?: string };
+type Activation = {
+  id: string; campusId: string; packId: string; version: number; status: "DRAFT" | "APPROVED" | "ACTIVE" | "REVOKED"; geography: string; schoolGrade: string;
+  sourceEvidence: Evidence[]; sources: { id: string; reference: string; authority: string; url: string }[];
+  educatorApprover: string | null; approvedOn: string | null; reviewDueOn: string | null; revokedReason: string | null; contentSha256: string;
+  blockers: string[]; events: { from: string | null; to: string; actorRole: string; reason: string | null; at: string }[];
+  can: { edit: boolean; approve: boolean; activate: boolean; revoke: boolean };
+};
+type CatalogueItem = { id: string; packId: string; version: number; board: string; subject: string; schoolGrade: string; examYear: string; language: string; unverifiedCount: number };
+type Overview = { catalogue: CatalogueItem[]; activations: Activation[]; campuses: { id: string; name: string }[]; geographies: string[]; canRequest: boolean; uploadsAvailable: boolean };
+
+const tone: Record<Activation["status"], BadgeProps["variant"]> = { DRAFT: "neutral", APPROVED: "info", ACTIVE: "success", REVOKED: "danger" };
+const deskTone: Record<Activation["status"], DeskTone> = { DRAFT: "neutral", APPROVED: "info", ACTIVE: "success", REVOKED: "danger" };
+const statusIcon: Record<Activation["status"], LucideIcon> = { DRAFT: FilePen, APPROVED: BookCheck, ACTIVE: CircleCheckBig, REVOKED: Ban };
+const STATUSES = ["DRAFT", "APPROVED", "ACTIVE", "REVOKED"] as const;
+// Blocked drafts and approvals waiting to go live need someone first; live and revoked packs follow.
+const rank = (row: Activation) => row.status === "REVOKED" ? 4 : row.status === "ACTIVE" ? 3 : row.blockers.length ? 0 : row.status === "APPROVED" ? 1 : 2;
+const statusLabel = (t: CurriculumPacksCopy, status: Activation["status"]) => t[`status${status}`];
+const geoLabel = (t: CurriculumPacksCopy, geography: string) => (t as Record<string, string>)[`geo${geography}`] ?? geography;
+
+async function send(url: string, body: BodyInit, json = true) {
+  const response = await fetch(url, { method: "POST", ...(json ? { headers: { "Content-Type": "application/json" } } : {}), body });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error([typeof payload.error === "string" ? payload.error : "", ...(Array.isArray(payload.details) ? payload.details.slice(1, 6) : [])].filter(Boolean).join(" "));
+  return payload;
+}
+
+/** SKAI-1008..1012: a school's curriculum pack requests, evidence, educator approval, activation and revocation. */
+export function CurriculumPacks() {
+  const locale = useLocale();
+  const t = curriculumPacksCopy(locale.language);
+  const [data, setData] = useState<Overview | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [only, setOnly] = useState<Activation["status"] | null>(null);
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const response = await fetch("/api/school-ai/curriculum-packs", { cache: "no-store" });
+      const payload = await response.json();
+      if (response.ok) setData(payload); else setError(typeof payload.error === "string" ? payload.error : t.loadError);
+    } catch { setError(t.loadError); }
+  }, [t.loadError]);
+  useEffect(() => { void load(); }, [load]);
+  const act = async (work: () => Promise<unknown>) => {
+    setBusy(true); setError(""); setNotice("");
+    try { await work(); setNotice(t.saved); await load(); } catch (cause) { setError(cause instanceof Error && cause.message ? cause.message : t.loadError); }
+    finally { setBusy(false); }
+  };
+  return <div className="min-w-0 space-y-6" data-curriculum-packs>
+    <PageHeader icon={BookCheck} title={t.title} description={t.intro} />
+    {error && <Alert tone="danger" title={<bdi dir="auto">{error}</bdi>} actions={!data ? <Button variant="outline" onClick={() => void load()}>{t.retry}</Button> : undefined} />}
+    {notice && !error && <Alert compact tone="success" onDismiss={() => setNotice("")}>{notice}</Alert>}
+    {!data && !error && <><SkeletonCards count={4} label={t.requestsTitle} /><SkeletonList rows={2} /></>}
+    {data && <>
+      {data.activations.length > 0 && <DeskStats>{STATUSES.map((key, index) => <StatTile key={key} index={index} icon={statusIcon[key]} tone={deskTone[key]} label={statusLabel(t, key)} value={data.activations.filter(row => row.status === key).length} selected={only === key} onSelect={() => setOnly(current => current === key ? null : key)} />)}</DeskStats>}
+      <section aria-labelledby="pack-requests" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="pack-requests" className="text-lg font-semibold text-ink-strong">{t.requestsTitle}</h2>
+          {data.canRequest && data.catalogue.length > 0 && data.campuses.length > 0 && !requesting && data.activations.length > 0 && <Button onClick={() => setRequesting(true)} data-pack-request-open><Plus aria-hidden="true" />{t.request}</Button>}
+        </div>
+        <DeskFilterStatus shown={only ? data.activations.filter(row => row.status === only).length : data.activations.length} total={data.activations.length} onClear={() => setOnly(null)} />
+        {requesting && <RequestForm t={t} data={data} busy={busy} onCancel={() => setRequesting(false)} onSubmit={body => act(async () => { await send("/api/school-ai/curriculum-packs", JSON.stringify(body)); setRequesting(false); })} />}
+        {!data.activations.length && !requesting && <div className="sk-panel" data-static><EmptyState icon={BookMarked} title={t.noRequests} description={t.catalogueIntro}
+          action={data.canRequest && data.catalogue.length > 0 && data.campuses.length > 0 ? <Button onClick={() => setRequesting(true)} data-pack-request-open><Plus aria-hidden="true" />{t.request}</Button> : undefined} /></div>}
+        <ul className="space-y-4">{urgencyFirst(data.activations.filter(row => !only || row.status === only), rank).map(activation => <li key={activation.id}><ActivationCard t={t} activation={activation} campus={data.campuses.find(item => item.id === activation.campusId)?.name ?? ""} busy={busy} uploads={data.uploadsAvailable} locale={locale} act={act} /></li>)}</ul>
+      </section>
+      <section aria-labelledby="pack-catalogue" className="space-y-3">
+        <h2 id="pack-catalogue" className="text-lg font-semibold text-ink-strong">{t.catalogueTitle}</h2>
+        <p className="text-sm text-ink-muted">{t.catalogueIntro}</p>
+        {!data.catalogue.length && <Alert tone="info" title={t.catalogueEmpty} data-pack-catalogue-empty />}
+        <ul className="grid gap-3 md:grid-cols-2">{data.catalogue.map(item => <li key={item.id} className={`${deskRow} flex items-start gap-3`} data-tone={item.unverifiedCount ? "warning" : "success"} data-pack-catalogue={item.packId}>
+          <DeskRowIcon icon={Library} />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="font-semibold text-ink-strong [overflow-wrap:anywhere]"><bdi dir="ltr">{item.packId}</bdi> · {fill(t.version, [item.version])}</p>
+            <p className="text-sm text-ink-muted">{t.board}: {item.board} · {t.grade}: <bdi dir="auto">{item.schoolGrade}</bdi> · {t.examYear}: {item.examYear} · {t.language}: {item.language.toUpperCase()}</p>
+            <DeskPill tone={item.unverifiedCount ? "warning" : "success"}>{item.unverifiedCount ? fill(t.unverified, [item.unverifiedCount]) : t.verified}</DeskPill>
+          </div>
+        </li>)}</ul>
+      </section>
+    </>}
+  </div>;
+}
+
+function RequestForm({ t, data, busy, onCancel, onSubmit }: { t: CurriculumPacksCopy; data: Overview; busy: boolean; onCancel: () => void; onSubmit: (body: Record<string, string>) => void }) {
+  const [packVersionId, setPack] = useState(data.catalogue[0]?.id ?? "");
+  const [campusId, setCampus] = useState(data.campuses[0]?.id ?? "");
+  const [geography, setGeography] = useState(data.geographies[0] ?? "");
+  const [schoolGrade, setGrade] = useState(data.catalogue[0]?.schoolGrade ?? "");
+  const [localBudgetApprover, setBudget] = useState("");
+  return <form className="sk-panel grid gap-4 p-4 md:grid-cols-2" aria-label={t.requestTitle} onSubmit={event => { event.preventDefault(); onSubmit({ packVersionId, campusId, geography, schoolGrade, ...(localBudgetApprover.trim() ? { localBudgetApprover } : {}) }); }}>
+    <FormField name="pack-version" label={t.pack}><Select required value={packVersionId} onChange={event => { setPack(event.target.value); setGrade(data.catalogue.find(item => item.id === event.target.value)?.schoolGrade ?? ""); }}>{data.catalogue.map(item => <option key={item.id} value={item.id}>{`${item.packId} · ${fill(t.version, [item.version])}`}</option>)}</Select></FormField>
+    <FormField name="pack-campus" label={t.campus}><Select required value={campusId} onChange={event => setCampus(event.target.value)}>{data.campuses.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></FormField>
+    <FormField name="pack-geography" label={t.geography}><Select required value={geography} onChange={event => setGeography(event.target.value)}>{data.geographies.map(item => <option key={item} value={item}>{geoLabel(t, item)}</option>)}</Select></FormField>
+    <FormField name="pack-grade" label={t.schoolGrade}><Input required maxLength={40} value={schoolGrade} onChange={event => setGrade(event.target.value)} /></FormField>
+    <FormField name="pack-budget" label={t.budgetApprover}><Input maxLength={120} value={localBudgetApprover} onChange={event => setBudget(event.target.value)} /></FormField>
+    <div className="flex flex-wrap items-end gap-2"><Button type="submit" disabled={busy} data-pack-request-submit>{t.submit}</Button><Button type="button" variant="outline" onClick={onCancel}>{t.cancel}</Button></div>
+  </form>;
+}
+
+function ActivationCard({ t, activation, campus, busy, uploads, locale, act }: { t: CurriculumPacksCopy; activation: Activation; campus: string; busy: boolean; uploads: boolean; locale: LocalePackage; act: (work: () => Promise<unknown>) => Promise<void> }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [approvedOn, setApprovedOn] = useState(today);
+  const [reviewDueOn, setReviewDueOn] = useState("");
+  const [reason, setReason] = useState("");
+  const base = `/api/school-ai/curriculum-packs/${encodeURIComponent(activation.id)}`;
+  return <article className={`${deskRow} space-y-4 p-4 sm:p-5`} data-tone={activation.status !== "REVOKED" && activation.blockers.length ? "warning" : deskTone[activation.status]} data-pack-activation={activation.status}>
+    <header className="flex flex-wrap items-start justify-between gap-2">
+      <div className="flex min-w-0 items-start gap-3"><DeskRowIcon icon={statusIcon[activation.status]} /><div className="min-w-0"><h3 className="font-semibold text-ink-strong [overflow-wrap:anywhere]"><bdi dir="ltr">{activation.packId}</bdi> · {fill(t.version, [activation.version])}</h3>
+        <p className="text-sm text-ink-muted">{t.campus}: {campus} · {t.grade}: <bdi dir="auto">{activation.schoolGrade}</bdi> · {geoLabel(t, activation.geography)}</p></div></div>
+      <Badge variant={tone[activation.status]} dot>{statusLabel(t, activation.status)}</Badge>
+    </header>
+    {activation.status === "REVOKED" && activation.revokedReason && <Alert tone="neutral" title={fill(t.revokedBecause, [activation.revokedReason])} />}
+    {activation.status === "ACTIVE" && !activation.blockers.length && <Alert tone="success" title={statusLabel(t, "ACTIVE")}>{fill(t.activeBody, [activation.contentSha256.slice(0, 12)])}</Alert>}
+    {activation.status !== "REVOKED" && activation.blockers.length > 0 && <Alert tone="warning" title={t.blockedTitle} data-pack-blockers>
+      <ul className="list-disc space-y-1 ps-5 text-sm">{activation.blockers.map(item => <li key={item}><bdi dir="auto">{item}</bdi></li>)}</ul>
+    </Alert>}
+    {activation.status === "APPROVED" && !activation.blockers.length && <Alert tone="info" title={t.readyTitle}>{t.readyBody}</Alert>}
+    {activation.educatorApprover && activation.approvedOn && <p className="text-sm text-ink-muted">{fill(t.approvedBy, [activation.educatorApprover, formatDateOnly(activation.approvedOn.slice(0, 10), locale), activation.reviewDueOn ? formatDateOnly(activation.reviewDueOn.slice(0, 10), locale) : ""])}</p>}
+
+    <section className="space-y-3"><h4 className="text-sm font-semibold text-ink-strong">{t.evidenceTitle}</h4>
+      {activation.sources.map(source => <EvidenceRow key={source.id} t={t} source={source} evidence={activation.sourceEvidence.find(item => item.sourceId === source.id)} editable={activation.can.edit} uploads={uploads} busy={busy} onSave={form => act(() => send(`${base}/evidence`, form, false))} />)}
+    </section>
+
+    {activation.can.approve && <form className="grid gap-3 md:grid-cols-3" aria-label={t.approveTitle} onSubmit={event => { event.preventDefault(); void act(() => send(`${base}/transition`, JSON.stringify({ to: "APPROVED", approvedOn, reviewDueOn }))); }}>
+      <FormField name={`approved-on-${activation.id}`} label={t.approvedOn}><Input type="date" required max={today} value={approvedOn} onChange={event => setApprovedOn(event.target.value)} /></FormField>
+      <FormField name={`review-due-${activation.id}`} label={t.reviewDueOn}><Input type="date" required min={approvedOn > today ? approvedOn : today} value={reviewDueOn} onChange={event => setReviewDueOn(event.target.value)} /></FormField>
+      <div className="flex items-end"><Button type="submit" disabled={busy} data-pack-approve>{t.approve}</Button></div>
+    </form>}
+    <div className="flex flex-wrap items-end gap-3">
+      {activation.can.activate && <Button disabled={busy || activation.blockers.length > 0} onClick={() => void act(() => send(`${base}/transition`, JSON.stringify({ to: "ACTIVE" })))} data-pack-activate>{t.activate}</Button>}
+      {activation.can.revoke && <form className="flex flex-1 flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void act(() => send(`${base}/transition`, JSON.stringify({ to: "REVOKED", reason }))); }}>
+        <FormField name={`revoke-reason-${activation.id}`} label={t.revokeReason} className="min-w-0 flex-1 basis-64"><Input required maxLength={500} value={reason} onChange={event => setReason(event.target.value)} /></FormField>
+        <Button type="submit" variant="outline" disabled={busy || !reason.trim()} data-pack-revoke>{t.revoke}</Button>
+      </form>}
+    </div>
+    {activation.events.length > 0 && <details><summary className="cursor-pointer text-sm font-semibold">{t.history}</summary>
+      <ol className="mt-2 space-y-1 text-sm text-ink-muted">{activation.events.map(event => <li key={`${event.at}-${event.to}`}>{formatInstant(event.at, locale)} · {event.from ? `${statusLabel(t, event.from as Activation["status"])} → ` : ""}{statusLabel(t, event.to as Activation["status"])} · {actorRoleLabel(t, event.actorRole)}{event.reason ? <> · <bdi dir="auto">{event.reason}</bdi></> : null}</li>)}</ol>
+    </details>}
+  </article>;
+}
+
+function EvidenceRow({ t, source, evidence, editable, uploads, busy, onSave }: { t: CurriculumPacksCopy; source: Activation["sources"][number]; evidence?: Evidence; editable: boolean; uploads: boolean; busy: boolean; onSave: (form: FormData) => Promise<void> }) {
+  const [rightsScope, setRights] = useState(evidence?.rightsScope ?? "");
+  const [permissionEvidence, setPermission] = useState(evidence?.permissionEvidence ?? "");
+  const [file, setFile] = useState<File | null>(null);
+  return <div className="space-y-2 rounded-xl border border-border-subtle bg-surface-subtle/60 p-3" data-pack-source={source.id}>
+    <p className="text-sm font-medium text-ink-strong"><bdi dir="auto">{source.reference}</bdi></p>
+    <p className="text-xs text-ink-subtle"><bdi dir="auto">{source.authority}</bdi> · <a className="underline" href={source.url} target="_blank" rel="noreferrer noopener"><bdi dir="ltr">{source.url}</bdi></a></p>
+    {!editable && <p className="text-sm text-ink-muted">{evidence ? <><bdi dir="auto">{evidence.rightsScope}</bdi> · <bdi dir="auto">{evidence.permissionEvidence}</bdi>{evidence.hasDocument ? ` · ${t.documentAttached}` : ""}</> : t.missingEvidence}</p>}
+    {editable && <form className="grid gap-3 md:grid-cols-2" onSubmit={event => { event.preventDefault(); const form = new FormData(); form.set("sourceId", source.id); form.set("rightsScope", rightsScope); form.set("permissionEvidence", permissionEvidence); if (file) form.set("file", file); void onSave(form); }}>
+      <FormField name={`rights-${source.id}`} label={t.rightsScope}><Textarea required maxLength={500} value={rightsScope} onChange={event => setRights(event.target.value)} /></FormField>
+      <FormField name={`permission-${source.id}`} label={t.permissionEvidence}><Textarea required maxLength={500} value={permissionEvidence} onChange={event => setPermission(event.target.value)} /></FormField>
+      {uploads && <FormField name={`document-${source.id}`} label={t.document}><Input type="file" accept="application/pdf,image/png,image/jpeg" onChange={event => setFile(event.target.files?.[0] ?? null)} /></FormField>}
+      <div className="flex items-end gap-2"><Button type="submit" variant="outline" disabled={busy} data-pack-evidence-save>{t.saveEvidence}</Button>{evidence?.hasDocument && <Badge variant="info" size="sm">{t.documentAttached}</Badge>}</div>
+    </form>}
+  </div>;
+}

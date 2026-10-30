@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, assertStaffRole, canManageOperations, requireAuthUser, errorResponse, resolveCampusId } from "@/lib/api/scope";
+import { schoolToday } from "@/lib/datetime";
+import { slotsOf, versionsFor } from "@/lib/timetable/versions";
 
 export const runtime = "nodejs";
 
@@ -21,41 +23,35 @@ export async function GET(req: NextRequest) {
     }
     const teacherId = requested || user.userId;
 
-    const slots = await prisma.timetableSlot.findMany({
-      where: {
-        timetable: {
-          campusId,
-          status: "PUBLISHED",
-        },
-        OR: [
-          { teacherId },
-          { subject: { teacherId } },
-        ],
-      },
-      include: {
-        subject: { select: { id: true, name: true } },
-        timetable: {
-          include: {
-            class: { select: { id: true, name: true, section: true } },
-          },
-        },
-      },
-      orderBy: [{ dayOfWeek: "asc" }, { periodNumber: "asc" }],
-    });
-
-    const schedule = slots.map((s) => ({
-      id: s.id,
-      dayOfWeek: s.dayOfWeek,
-      periodNumber: s.periodNumber,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      slotType: s.slotType,
-      subject: s.subject,
-      className: s.timetable.class.name,
-      classSection: s.timetable.class.section,
-      classId: s.timetable.class.id,
-      roomNumber: s.roomNumber,
-    }));
+    // SKO-403: each class's published version in force today, never a working draft.
+    const [boards, taught, today] = await Promise.all([
+      prisma.timetable.findMany({ where: { campusId, status: "PUBLISHED" }, select: { id: true, class: { select: { id: true, name: true, section: true } } } }),
+      prisma.subject.findMany({ where: { campusId, teacherId }, select: { id: true } }),
+      schoolToday(user.schoolId, campusId),
+    ]);
+    const mine = new Set(taught.map((subject) => subject.id));
+    const schedule = [];
+    for (const board of boards) {
+      const { inForce } = await versionsFor(board.id, today);
+      for (const s of slotsOf(inForce)) {
+        if (s.teacherId !== teacherId && !(s.subjectId && mine.has(s.subjectId))) continue;
+        schedule.push({
+          id: s.id,
+          dayOfWeek: s.dayOfWeek,
+          periodNumber: s.periodNumber,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          slotType: s.slotType,
+          subject: s.subjectId ? { id: s.subjectId, name: s.subjectName ?? "" } : null,
+          className: board.class.name,
+          classSection: board.class.section,
+          classId: board.class.id,
+          roomNumber: s.roomNumber,
+          version: inForce!.version,
+        });
+      }
+    }
+    schedule.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime) || a.periodNumber - b.periodNumber);
 
     return Response.json({ success: true, data: schedule });
   } catch (error) {

@@ -63,7 +63,7 @@ export function AppLoaderProvider({ children }: { children: React.ReactNode }) {
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 150);
-    
+
     return () => clearTimeout(timer);
   }, [pathname, searchParams]);
 

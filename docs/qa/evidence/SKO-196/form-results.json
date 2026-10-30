@@ -1,0 +1,13 @@
+{
+  "run": "611be0df-0f95-46b8-808e-4f38a35d3c19",
+  "results": [
+    "admission: real offline edit, refresh, explicit recovery, desktop/tablet/phone, RTL + 200% text",
+    "pupil record: real edit, refresh, concurrent staff update, explicit resolution and confirmed save",
+    "settings: real refresh, concurrent school edit, review and confirmed save",
+    "marks: current server 30 vs draft 25 vs base 10, explicit conflict choice, field error + summary keyboard focus, keyboard-only second recovery and confirmed save at 200%",
+    "onboarding: actual incomplete-account draft recovery, actual sign-out purge, same-account new-login isolation",
+    "teacher onboarding: correct incomplete-role route, real refresh/recovery, national ID excluded, confirmed profile completion",
+    "revocation: real account deactivation before review prevents disclosure and purges protected draft"
+  ],
+  "fixturesRemoved": true
+}

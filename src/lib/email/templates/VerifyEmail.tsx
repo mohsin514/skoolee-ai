@@ -1,26 +1,21 @@
 import * as React from "react";
 import { Text } from "@react-email/components";
+import { authEmailCopy, type AuthEmailLanguage } from "@/lib/auth/email-copy";
 import { mutedParagraph, paragraph, SkooleeEmail } from "./SkooleeEmail";
 
-interface VerifyEmailProps {
+interface Props {
   actionUrl: string;
   logoUrl?: string;
+  language?: AuthEmailLanguage;
 }
 
-export const VerifyEmail = ({ actionUrl, logoUrl }: VerifyEmailProps) => {
+export function VerifyEmail({ actionUrl, logoUrl, language = "en" }: Props) {
+  const copy = authEmailCopy[language].verify;
   return (
-    <SkooleeEmail
-      preview="Verify your SkooleeAI account"
-      eyebrow="Account Setup"
-      title="Welcome to SkooleeAI"
-      action={{ label: "Verify Email Address", href: actionUrl }}
-      logoUrl={logoUrl}
-      footerText="SkooleeAI - The next-gen school operating system"
-    >
-      <Text style={paragraph}>
-        Please verify your email address to complete registration and access your school dashboard.
-      </Text>
-      <Text style={mutedParagraph}>If you did not request this email, you can safely ignore it.</Text>
+    <SkooleeEmail language={language} preview={copy.subject} eyebrow={copy.eyebrow}
+      title={copy.title} action={{ label: copy.action, href: actionUrl }} logoUrl={logoUrl}>
+      <Text style={paragraph}>{copy.body}</Text>
+      <Text style={mutedParagraph}>{copy.note}</Text>
     </SkooleeEmail>
   );
-};
+}

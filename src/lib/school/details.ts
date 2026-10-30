@@ -7,7 +7,27 @@
 // cannot be rejected by the edit form, or vice versa.
 // ─────────────────────────────────────────────────────────────────
 
+import { logoKeyInScope, type LogoScope } from "@/lib/school/logo-policy";
+
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * SKAI-934: a phone number may carry an optional leading "+" and the usual separators (spaces, dashes, dots,
+ * brackets), and nothing else, with 7 to 15 digits (E.164). Accepts local and international PK/SA/AE forms
+ * such as "0300 1234567", "+92 300 1234567", "+966 50 123 4567" and "+971 (4) 123-4567".
+ */
+const PHONE_CHARACTERS = /^\+?[\d\s().-]+$/;
+export type PhoneProblem = "format" | "short" | "long";
+export function phoneProblem(value: string | null | undefined): PhoneProblem | null {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return null;
+  if (!PHONE_CHARACTERS.test(trimmed)) return "format";
+  const digits = trimmed.replace(/\D/g, "").length;
+  if (digits < 7) return "short";
+  if (digits > 15) return "long";
+  return null;
+}
+export const isValidPhone = (value: string | null | undefined) => phoneProblem(value) === null;
 
 /** Roughly 1.5 MB of base64, matching what the upload controls accept. */
 const MAX_LOGO_CHARS = 2_000_000;
@@ -32,11 +52,16 @@ export function assertEmail(value: string | null, field: string) {
 }
 
 export function assertPhone(value: string | null, field: string) {
-  if (value) {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length < 7) throw new Error(`${field} is too short to be valid.`);
-    if (digits.length > 15) throw new Error(`${field} is too long to be valid.`);
-  }
+  const problem = phoneProblem(value);
+  if (problem === "format") throw new Error(`${field} can contain only digits, spaces, dashes, brackets and a leading +.`);
+  if (problem === "short") throw new Error(`${field} is too short to be valid.`);
+  if (problem === "long") throw new Error(`${field} is too long to be valid.`);
+  return value;
+}
+
+/** A web address with a real host, e.g. "school.example" or "https://school.example/admissions". */
+export function assertWebsite(value: string | null, field: string) {
+  if (value && !/^(https?:\/\/)?([\p{L}\p{N}-]+\.)+[\p{L}]{2,}(:\d{2,5})?(\/\S*)?$/u.test(value)) throw new Error(`Enter a valid ${field}, for example school.example.`);
   return value;
 }
 
@@ -69,20 +94,25 @@ export function parseEstablishedYear(value: unknown): number | null {
 }
 
 /**
- * An http(s) URL or an inline data image, or null.
+ * An uploaded logo key inside `scope`, an http(s) URL or an inline raster data
+ * image (never SVG — see logo-policy), or null.
  *
  * Logos reach the server as data URLs from the file pickers, so the size cap
  * lives here rather than at the network layer — a multi-megabyte logo would
  * otherwise be written straight into the row and re-read on every dashboard.
  */
-export function parseLogo(value: unknown): string | null {
+export function parseLogo(value: unknown, scope: LogoScope): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (/^logos\//i.test(trimmed)) {
+    if (logoKeyInScope(trimmed, scope)) return trimmed;
+    throw new Error("That logo upload does not belong to this school. Upload the image again.");
+  }
   if (trimmed.length > MAX_LOGO_CHARS) throw new Error("That logo image is too large — use one under 1.5 MB.");
   if (/^https?:\/\/\S+$/i.test(trimmed)) return trimmed;
-  if (/^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(trimmed)) return trimmed;
   throw new Error("Use an uploaded image or a valid image URL for the logo.");
 }
 

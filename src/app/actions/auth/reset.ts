@@ -1,86 +1,71 @@
 'use server'
-
+import { after } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { randomUUID } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
 import bcrypt from "bcryptjs";
-import { rateLimit } from "@/lib/rate-limit";
+import { authRateLimit } from "@/lib/auth/rate-limit";
 import { headers } from "next/headers";
-import { enterUnscoped } from "@/lib/db/tenant-context";
+import { runUnscoped } from "@/lib/db/tenant-context";
+import { clientIp } from "@/lib/http/client-ip";
+import { resetPasswordProblem } from "@/lib/auth/reset-password-policy";
+
+async function limit(kind: string, key = "") {
+  const ip = clientIp(await headers());
+  return (await authRateLimit(`${kind}:${ip}`, { limit: 5, windowMs: 300_000 })).ok && (await authRateLimit(`${kind}:target:${key}`, { limit: 5, windowMs: 300_000 })).ok;
+}
+/** SKO-457: only a SHA-256 digest of a reset token is stored; the link carries the token itself. */
+const digest = (token: unknown) => createHash("sha256").update(typeof token === "string" ? token : "").digest("hex");
+type ResetResult = { success: true } | { success: false; error: string };
 
 export async function requestPasswordReset(email: string) {
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const { ok } = rateLimit(`reset:${ip}`, { limit: 3, windowMs: 300_000 });
-  if (!ok) {
-    throw new Error("Too many reset requests. Please try again in a few minutes.");
-  }
-
-  // Pre-auth: the user has no session yet and is identified only by an email
-  // that maps to exactly one account across all schools.
-  enterUnscoped("password reset request: look up account by email before sign-in");
-
-  // FINDING-D: identity is tenant-scoped, so one address may hold accounts at
-  // several schools. Issue a token PER ACCOUNT, each bound to its user, rather
-  // than one token keyed on the email — which would be ambiguous at redemption
-  // and could reset the wrong account.
-  const users = await prisma.user.findMany({ where: { email }, select: { id: true } });
-
-  // Always return success even when nothing matched, so the endpoint cannot be
-  // used to test whether an address exists.
-  if (users.length === 0) {
-    return { success: true };
-  }
-
-  const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
-
-  for (const user of users) {
-    const token = randomUUID();
-    await prisma.passwordReset.create({
-      data: { email, userId: user.id, token, expiresAt },
-    });
-    await sendPasswordResetEmail(email, token);
-  }
-
+  const normalized = typeof email === "string" ? email.trim().toLowerCase() : "";
+  // Same response for unknown, inactive, throttled and delivery-failure cases.
+  if (!await limit("reset", normalized) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) return { success: true };
+  after(() => runUnscoped("password reset request before sign-in", async () => {
+    const users = await prisma.user.findMany({ where: { email: normalized, isActive: true, school: { status: { not: "DELETED" } } }, select: { id: true, schoolId: true, preferredLanguage: true } });
+    for (const user of users) {
+      const token = randomBytes(32).toString("base64url");
+      await prisma.passwordReset.create({ data: { email: normalized, userId: user.id, token: digest(token), expiresAt: new Date(Date.now() + 3600_000) } });
+      await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.requested" } } });
+      try { await sendPasswordResetEmail(normalized, token, user.preferredLanguage); }
+      catch {
+        await prisma.passwordReset.deleteMany({ where: { token: digest(token) } });
+        await prisma.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.delivery_failed" } } });
+      }
+    }
+  }).catch(() => { console.warn("[password-reset] delivery task failed"); }));
   return { success: true };
 }
-
-export async function verifyToken(token: string) {
-  const resetRequest = await prisma.passwordReset.findUnique({ where: { token } });
-  
-  if (!resetRequest || resetRequest.expiresAt < new Date()) {
-    return { valid: false };
-  }
-  
-  return { valid: true };
-}
-
-export async function resetPassword(token: string, newPassword: string) {
-  // Pre-auth: the reset token is the only credential; the account it belongs
-  // to is resolved by email across all schools.
-  enterUnscoped("password reset: apply new password via single-use token before sign-in");
-
-  const resetRequest = await prisma.passwordReset.findUnique({ where: { token } });
-  
-  if (!resetRequest || resetRequest.expiresAt < new Date()) {
-    throw new Error("Invalid or expired token");
-  }
-
-  // The token names exactly one account. Older tokens predate userId and have
-  // no unambiguous target, so they are refused rather than guessed at.
-  if (!resetRequest.userId) {
-    throw new Error("This reset link is no longer valid. Please request a new one.");
-  }
-
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-  await prisma.user.update({
-    where: { id: resetRequest.userId },
-    data: { password: hashedPassword }
+export async function verifyToken(token: string): Promise<{ valid: boolean; limited?: true }> {
+  return runUnscoped("verify exact password reset token", async () => {
+    // Throttled is not "expired": the page offers a retry instead of sending the user for a new link.
+    if (!await limit("reset-verify", token)) return { valid: false, limited: true };
+    const request = await prisma.passwordReset.findUnique({ where: { token: digest(token) } });
+    return { valid: Boolean(request?.userId && request.expiresAt > new Date()) };
   });
-
-  // Clean up
-  await prisma.passwordReset.delete({ where: { token } });
-
-  return { success: true };
+}
+export async function resetPassword(token: string, newPassword: string): Promise<ResetResult> {
+  // Errors are returned, not thrown: production builds hide thrown server-action messages.
+  const problem = resetPasswordProblem(newPassword);
+  if (problem) return { success: false, error: problem };
+  if (!await limit("reset-accept", token)) return { success: false, error: "Wait five minutes before trying again" };
+  const expired = { success: false, error: "Invalid or expired link. Request a new link." } as const;
+  return runUnscoped("redeem single-use password reset token", async (): Promise<ResetResult> => {
+    const hashed = digest(token);
+    const request = await prisma.passwordReset.findUnique({ where: { token: hashed } });
+    if (!request?.userId || request.expiresAt <= new Date()) return expired;
+    const password = await bcrypt.hash(newPassword, 12);
+    const claimed = await prisma.$transaction(async tx => {
+      const claim = await tx.passwordReset.deleteMany({ where: { token: hashed, expiresAt: { gt: new Date() } } });
+      if (claim.count !== 1) return false;
+      const user = await tx.user.update({ where: { id: request.userId! }, data: { password, accessVersion: { increment: 1 }, lastPasswordChange: new Date() } });
+      await tx.loginSession.updateMany({ where: { userId: user.id }, data: { isActive: false, logoutAt: new Date() } });
+      await tx.passwordReset.deleteMany({ where: { userId: user.id } });
+      await tx.auditLog.create({ data: { schoolId: user.schoolId, userId: user.id, tableName: "account_security", recordId: user.id, newValue: { action: "password_reset.completed", sessionsRevoked: true } } });
+      return true;
+      // SKAI-85: five writes against a remote pool overran Prisma's 5 s default and lost the reset.
+    }, { maxWait: 10_000, timeout: 20_000 });
+    return claimed ? { success: true } : expired;
+  });
 }

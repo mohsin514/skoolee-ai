@@ -1,31 +1,46 @@
 "use client";
-
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { useFormDraft } from "@/lib/hooks/use-form-draft";
+import { FormErrorSummary } from "@/components/ui/form-field";
+import { DraftRecovery } from "@/components/ui/draft-recovery";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
+import { Alert } from "@/components/ui/alert";
+import { DeskFilterStatus, DeskPill, DeskStats, StatTile, urgencyFirst } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { IconButton } from "@/components/ui/icon-button";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { InfoTip, Tooltip } from "@/components/ui/tooltip";
+import { MarkScanPanel } from "@/components/marks/mark-scan-panel";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
-import { toast } from "sonner";
+import Link from "next/link";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { toast } from "@/components/ui/toast";
 import {
-  ArrowDownToLine, BarChart3, ChevronDown, Command, Download, Eraser, FileText, Keyboard,
-  Loader2, Plus, Search, Star, X,
+  AlertCircle, ArrowDownToLine, BarChart3, CheckCircle2, ChevronDown, ClipboardList, Download, Eraser, Keyboard,
+  Lock, PenLine, Plus, Search, Star, X,
 } from "lucide-react";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { BrandButton } from "@/components/role-dashboard";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import {
-  classLabel, CreateAssessmentModal, EmptyInline, FinalGradesModal, GradeConfigModal, MarksSkeleton, MiniMetric, StatusPill, StudentMini, TeacherErrorState, useTeacherData,
+  classLabel, MarksSkeleton, StatusPill, StudentMini, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { useGradingTools } from "../use-grading-tools";
-import { GradingModals, GradingToolbar } from "../grading-tools";
+import { FinalGradesPreview } from "../grading-tools";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { csvCell } from "@/lib/csv";
 import { StickySaveBar } from "@/components/teacher/sticky-save-bar";
-import { useNavGuard, useUnsavedGuard } from "@/lib/hooks/use-unsaved-guard";
-import { NavGuardPrompt } from "@/components/ui/confirm-action";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /** How many assessment cards show before "Show all". */
 const EXAM_PAGE = 6;
 
 export default function MarksPage() {
+  const ui = useUiText();
   const { data, loading, error, loadData } = useTeacherData();
   const searchParams = useSearchParams();
   const [selectedExamId, setSelectedExamId] = useState("");
@@ -33,16 +48,32 @@ export default function MarksPage() {
   const [marksByKey, setMarksByKey] = useState<Record<string, string>>({});
   const [marksLoading, setMarksLoading] = useState(false);
   const [marksSaving, setMarksSaving] = useState(false);
+  // A sheet that failed to load used to read "No editable subjects for this
+  // exam", which sent teachers to ask for permissions they already had.
+  const [marksFailed, setMarksFailed] = useState(false);
   /* The sheet exactly as the server returned it. Dirty state is measured
      against this, so "8 unsaved changes" means eight cells this teacher
      typed — not eight cells that merely have a value in them. */
   const [baselineMarks, setBaselineMarks] = useState<Record<string, string>>({});
+  const draft = useFormDraft({ record: `marks:${selectedExamId}`, schema: 1, values: marksByKey, baseline: baselineMarks,
+    fields: (markSheet?.students || []).flatMap((student: { id: string }) => (markSheet?.subjects || []).map((subject: { id: string }) => `${student.id}:${subject.id}`)), enabled: !!selectedExamId && !!markSheet && !marksLoading,
+    apply: (next) => setMarksByKey(next),
+    current: async () => {
+      const response = await fetch(`/api/marks?examId=${selectedExamId}`, { cache: "no-store" });
+      if (!response.ok) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
+      const latest = await response.json();
+      return Object.fromEntries((latest.marks || []).map((mark: { studentId: string; subjectId: string; marksObtained: number }) => [`${mark.studentId}:${mark.subjectId}`, String(mark.marksObtained)]));
+    },
+  });
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [pendingExamId, setPendingExamId] = useState<string | null>(null);
   const [examQuery, setExamQuery] = useState("");
+  // The Missing marks tile narrows the cards to tests still owed marks; open tests with gaps always lead.
+  const [missingOnly, setMissingOnly] = useState(false);
   const [showAllExams, setShowAllExams] = useState(false);
   const gridRef = useRef<HTMLTableSectionElement>(null);
 
-  const grading = useGradingTools({ onChanged: loadData });
+  const grading = useGradingTools();
 
   const classHubs = data?.classHubs || [];
   const activeExam = (data?.exams || []).find((exam: any) => exam.id === selectedExamId);
@@ -70,8 +101,9 @@ export default function MarksPage() {
   }, [data, selectedExamId, searchParams]);
 
   const loadMarks = useCallback(async (examId: string) => {
-    if (!examId) { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); return; }
+    if (!examId) { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); setMarksFailed(false); return; }
     setMarksLoading(true);
+    setMarksFailed(false);
     try {
       const res = await fetch(`/api/marks?examId=${examId}`);
       const text = await res.text();
@@ -96,8 +128,9 @@ export default function MarksPage() {
         setMarkSheet(null);
         setMarksByKey({});
         setBaselineMarks({});
+        setMarksFailed(true);
       }
-    } catch { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); }
+    } catch { setMarkSheet(null); setMarksByKey({}); setBaselineMarks({}); setMarksFailed(true); }
     finally { setMarksLoading(false); }
   }, []);
 
@@ -116,24 +149,30 @@ export default function MarksPage() {
           payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: Number(value) });
         }
       }
-      if (payload.length === 0) { toast.error("Enter marks first"); return; }
+      if (payload.length === 0) { toast.error(ui("Enter at least one mark before saving.")); return; }
       const res = await fetch("/api/marks", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ examId: selectedExamId, entries: payload }),
+        body: JSON.stringify({ examId: selectedExamId, entries: payload, expectedMarks: draft.baseline }),
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to save marks"));
-      toast.success("Marks saved");
+      if (res.status === 409 && result.conflict) {
+        await draft.reviewCurrent();
+        toast.error(result.error);
+        return;
+      }
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not save the marks. Please try again.")));
+      draft.markSaved();
+      toast.success(ui("Marks saved for this test."));
       await loadMarks(selectedExamId);
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error: unknown) { toast.error(error); }
     finally { setMarksSaving(false); }
-  }, [selectedExamId, markSheet, marksByKey, loadMarks, loadData]);
+  }, [selectedExamId, markSheet, marksByKey, loadMarks, loadData, draft, ui]);
 
   const exportMarksCSV = useCallback(() => {
     if (!markSheet) return;
-    const rows = [["Student", "Roll No", ...markSheet.subjects.map((s: any) => s.name)]];
+    const rows = [[ui("Pupil"), ui("Roll number"), ...markSheet.subjects.map((s: any) => s.name)]];
     for (const student of markSheet.students || []) {
       const row = [student.fullName, student.rollNo || ""];
       for (const subject of markSheet.subjects || []) {
@@ -144,23 +183,25 @@ export default function MarksPage() {
     }
     // Student names routinely contain commas ("Khan, Ayesha"); unquoted they
     // shift every following column into the wrong subject.
+    // The UTF-8 BOM keeps Arabic and Urdu names readable when the file opens in a spreadsheet app.
     const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `marks-${selectedExamId}.csv`; a.click();
     URL.revokeObjectURL(url);
-  }, [markSheet, marksByKey, selectedExamId]);
+  }, [markSheet, marksByKey, selectedExamId, ui]);
 
   const visibleExams = useMemo(() => {
-    const all: any[] = data?.exams || [];
+    const all: any[] = (data?.exams || []).filter((exam: any) => !missingOnly || (exam.missingMarks || 0) > 0);
     const q = examQuery.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter((exam) =>
+    const matched = !q ? all : all.filter((exam) =>
       `${exam.title || ""} ${exam.subject?.name || ""} ${classLabel(exam.class) || ""}`
         .toLowerCase()
         .includes(q),
     );
-  }, [data, examQuery]);
+    const locked = (exam: any) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "");
+    return urgencyFirst(matched, (exam) => ((exam.missingMarks || 0) > 0 && !locked(exam) ? 0 : locked(exam) ? 2 : 1));
+  }, [data, examQuery, missingOnly]);
 
   const dirtyKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -173,8 +214,8 @@ export default function MarksPage() {
 
   const resetMarks = useCallback(() => setMarksByKey(baselineMarks), [baselineMarks]);
 
-  useUnsavedGuard(dirtyKeys.size > 0);
-  const navGuard = useNavGuard(dirtyKeys.size > 0, "You have unsaved marks. Leave this page and lose them?");
+
+
 
   /* Move the caret around the sheet the way a spreadsheet does. Entering a
      column of forty marks previously meant Tab-Tab-Tab across every subject to
@@ -222,17 +263,19 @@ export default function MarksPage() {
      product uses, and states the count. */
   const [clearTarget, setClearTarget] = useState<{ subjectId: string; subjectName: string } | null>(null);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const clearColumn = useCallback((subjectId: string, subjectName: string) => {
     if (!markSheet) return;
     setClearTarget({ subjectId, subjectName });
   }, [markSheet]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const confirmClearColumn = useCallback(() => {
     if (!markSheet || !clearTarget) return;
     const { subjectId } = clearTarget;
     setMarksByKey((current) => {
       const next = { ...current };
-      for (const student of markSheet.students) delete next[`${student.id}:${subjectId}`];
+      for (const student of markSheet.students) next[`${student.id}:${subjectId}`] = "";
       return next;
     });
     setClearTarget(null);
@@ -271,46 +314,60 @@ export default function MarksPage() {
 
   return (
     <TeacherPage
-      tone="exams"
-      icon={FileText}
-      eyebrow="Marks Entry"
-      title="Tests, Exams & Marks"
-      summary={`${data.exams?.length || 0} exam cycle${(data.exams?.length || 0) === 1 ? "" : "s"} · enter marks, create assessments and manage grading`}
-      actions={<GradingToolbar grading={grading} classHubs={classHubs} createLabel="Create Assessment" />}
+      icon={PenLine}
+      title="Marks"
+      description="Enter marks for your tests; the sticky bar saves the sheet. You lock your own quizzes and class tests; your academic lead locks term exams and publishes results."
+      secondaryActions={[
+        ...(markSheet?.students?.length ? [{ id: "export-csv", label: "Export CSV", icon: Download, onClick: exportMarksCSV }] : []),
+        ...(markSheet?.students?.length && !isLocked ? [{ id: "shortcuts", label: shortcutsOpen ? "Hide shortcuts" : "Shortcuts", icon: Keyboard, onClick: () => setShortcutsOpen((v) => !v) }] : []),
+        ...(classHubs.length ? [{ id: "final-grades", label: "Final grades preview", icon: BarChart3, onClick: () => grading.openFinalGrades(activeExam?.classId || classHubs[0]?.id) }] : []),
+      ]}
     >
+      <DraftRecovery recordLabel={activeExam?.title || ui("Marks entry")} draft={draft} saving={marksSaving} labels={Object.fromEntries((markSheet?.students || []).flatMap((student: any) => (markSheet?.subjects || []).map((subject: any) => [`${student.id}:${subject.id}`, `${student.fullName} — ${subject.name}`])))} />
+      <FormErrorSummary errors={Object.fromEntries(invalidCells.map(({ student, subject }: any) => [`mark-${student.id}:${subject.id}`, ui("{0}: {1} must be between 0 and {2}.", [student.fullName, subject.name, subject.totalMarks || 100])]))} onFocusField={(id) => document.getElementById(id)?.focus()} />
       <div className="space-y-3">
 
         {/* Zero state — with no assessments the selector, sheet and save bar are
             all inert, so show the way forward instead of three dead controls. */}
         {!data.exams?.length ? (
-          <div className="sk-rise flex flex-col items-center justify-center rounded-[28px] border border-[#cfc2d6]/25 bg-white px-8 py-14 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-lg shadow-[#8127cf]/25">
-              <Star className="h-8 w-8 text-white" />
-            </div>
-            <h3 className="mt-5 text-xl font-bold text-[#1d1b20]">No assessments yet</h3>
-            <p className="mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
-              Create a test or exam for one of your classes, and its mark sheet will open up here for
-              you to fill in.
-            </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              <BrandButton variant="dark" icon={<Plus className="h-4 w-4" />}
-                onClick={() => grading.setShowExamModal(true)}>
-                Create Assessment
-              </BrandButton>
-              {classHubs.length ? (
-                <BrandButton variant="soft" icon={<FileText className="h-4 w-4" />}
-                  onClick={() => grading.openGradeConfig(classHubs[0]?.id)}>
-                  Set Grade Config
-                </BrandButton>
-              ) : null}
-            </div>
+          <div className="sk-panel sk-enter">
+            <EmptyState
+              icon={Star}
+              title={ui("No tests yet")}
+              description={ui("Create a quiz or class test for one of your classes, and its mark sheet opens here for you to fill in.")}
+              action={classHubs.length ? (
+                <Link href="/teacher/tests" className={buttonVariants({ variant: "default" })}>
+                  <Plus aria-hidden="true" /> {ui("New test")}
+                </Link>
+              ) : undefined}
+            />
             {!classHubs.length ? (
-              <p className="mt-5 rounded-full bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-700">
-                You have no classes assigned yet — ask your campus admin to assign one.
-              </p>
+              <div className="mx-auto max-w-md px-6 pb-8">
+                <Alert tone="warning" compact live="off">
+                  {ui("You have no classes assigned yet — ask your campus admin to assign one.")}
+                </Alert>
+              </div>
             ) : null}
           </div>
         ) : (<>
+
+        {/* What the tests owe, before the picker; Missing marks filters the cards. */}
+        {(() => {
+          const exams: any[] = data.exams || [];
+          const missing = exams.reduce((sum: number, exam: any) => sum + (exam.missingMarks || 0), 0);
+          const owing = exams.filter((exam: any) => (exam.missingMarks || 0) > 0).length;
+          const lockedCount = exams.filter((exam: any) => exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "")).length;
+          return (
+            <DeskStats>
+              <StatTile index={0} icon={ClipboardList} tone="brand" label={ui("Tests")} value={<bdi>{exams.length}</bdi>} />
+              <StatTile index={1} icon={CheckCircle2} tone="success" label={ui("Marks entered")} value={<bdi>{exams.reduce((sum: number, exam: any) => sum + (exam.enteredMarks || 0), 0)}</bdi>} />
+              <StatTile index={2} icon={AlertCircle} tone={missing > 0 ? "danger" : "neutral"} label={ui("Missing marks")} value={<bdi>{missing}</bdi>}
+                onSelect={owing ? () => setMissingOnly((value) => !value) : undefined} selected={missingOnly} />
+              <StatTile index={3} icon={Lock} tone="info" label={ui("Locked")} value={<bdi>{lockedCount}</bdi>} />
+            </DeskStats>
+          );
+        })()}
+        {missingOnly ? <DeskFilterStatus shown={visibleExams.length} total={data.exams.length} onClear={() => { setMissingOnly(false); setExamQuery(""); }} /> : null}
 
         {/* Assessment picker.
 
@@ -325,83 +382,82 @@ export default function MarksPage() {
             only one — with a filter in front of them, which is what the
             dropdown was really being used for once the list grew. */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1 sm:max-w-[320px] sm:flex-none">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-            <input
+          <InputGroup surfaceClassName="bg-card" className="w-full sm:w-[320px] sm:flex-none">
+            <Search data-field-affix="start" aria-hidden="true" className="pointer-events-none size-4 text-ink-subtle" />
+            <SystemInput
               value={examQuery}
               onChange={(e) => setExamQuery(e.target.value)}
-              placeholder="Find an assessment or class…"
-              aria-label="Filter assessments"
-              className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+              placeholder={ui("Find a test or class…")}
+              aria-label={ui("Filter tests")}
+              className={"w-full"}
             />
             {examQuery ? (
-              <button type="button" onClick={() => setExamQuery("")} aria-label="Clear assessment filter"
-                className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
-                <X className="h-3 w-3" />
-              </button>
+              <FieldAction data-field-affix="end" type="button" onClick={() => setExamQuery("")} label={ui("Clear test filter")}>
+                <X aria-hidden="true" />
+              </FieldAction>
             ) : null}
-          </div>
-          <span className="text-[11px] font-black uppercase tracking-wider text-ink-subtle">
-            {visibleExams.length} of {data.exams.length} assessment{data.exams.length === 1 ? "" : "s"}
+          </InputGroup>
+          <span aria-live="polite" className="text-xs tabular-nums text-ink-subtle">
+            {ui("{0} of {1} tests", [visibleExams.length, data.exams.length])}
           </span>
           {/* The grid caps at a readable number; without this the teacher had
               no way to know the other six existed. */}
           {visibleExams.length > EXAM_PAGE && (
-            <button type="button" onClick={() => setShowAllExams((v) => !v)}
-              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl border border-[#8127cf]/15 bg-[#fbf0fe] px-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
-              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllExams && "rotate-180")} />
-              {showAllExams ? "Show fewer" : `Show all ${visibleExams.length}`}
-            </button>
+            <Button variant="outline" size="sm" type="button" onClick={() => setShowAllExams((v) => !v)} aria-expanded={showAllExams}
+              className="justify-start gap-1.5">
+              <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition-transform", showAllExams && "rotate-180")} />
+              {showAllExams ? ui("Show fewer") : ui("Show all {0}", [visibleExams.length])}
+            </Button>
           )}
         </div>
 
         {/* Locked banner */}
         {isLocked && (
-          <div className="flex items-center gap-2 rounded-2xl bg-amber-50 border border-amber-200 px-5 py-3" title="This exam has been locked. Marks cannot be edited.">
-            <BarChart3 className="w-4 h-4 text-amber-600 shrink-0" />
-            <p className="text-sm font-semibold text-amber-800">This exam is locked &mdash; marks are read-only.</p>
-          </div>
+          <Alert tone="warning" icon={Lock} compact live="off">
+            <span className="font-semibold text-status-warning-text">{ui("This test is locked — marks are read-only.")}</span>
+          </Alert>
         )}
 
         {/* Exam cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-          {(showAllExams ? visibleExams : visibleExams.slice(0, EXAM_PAGE)).map((exam: any, index: number) => {
+        <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {(showAllExams ? visibleExams : visibleExams.slice(0, EXAM_PAGE)).map((exam: any) => {
             const isSelected = selectedExamId === exam.id;
             const isLockedExam = exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(exam.status || "");
             return (
-              <button key={exam.id} type="button" onClick={() => setSelectedExamId(exam.id)} title={`Select ${exam.title}`}
-                className={cn(
-                  "sk-rise rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                  isSelected ? "border-[#8127cf]/30 bg-[#fbf0fe] ring-1 ring-[#8127cf]/20 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" : "border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]"
-                )}
-                style={{ animationDelay: `${index * 80}ms` }}>
-                <div className="flex items-start justify-between gap-3 mb-3">
+              <Button aria-pressed={isSelected} variant="choice" key={exam.id} type="button" onClick={() => { if (draft.dirty && exam.id !== selectedExamId) setPendingExamId(exam.id); else setSelectedExamId(exam.id); }}
+                className="block w-full min-w-0 p-4 text-start hover:shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-[#1d1b20] truncate">{exam.title}</p>
-                    <p className="mt-0.5 text-[11px] text-ink-muted">{exam.subject ? `${exam.subject.name} · ` : ""}{classLabel(exam.class)}</p>
+                    <p className="truncate text-sm font-semibold text-ink-strong">{exam.title}</p>
+                    <p className="mt-0.5 truncate text-xs font-normal text-ink-muted">{exam.subject ? `${exam.subject.name} · ` : ""}{classLabel(exam.class)}</p>
                   </div>
-                  <StatusPill status={exam.status} />
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{exam.enteredMarks || 0} entered
+                  <span className="flex shrink-0 items-center gap-1">
+                    {isLockedExam ? <Lock role="img" aria-label={ui("Locked")} className="h-3.5 w-3.5 text-status-warning-text" /> : null}
+                    <StatusPill status={exam.status} />
                   </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <DeskPill tone="success" data-numeric>{ui("{0} entered", [exam.enteredMarks || 0])}</DeskPill>
                   {exam.missingMarks > 0 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />{exam.missingMarks} missing
-                    </span>
+                    <DeskPill tone="danger" data-numeric>{ui("{0} missing", [exam.missingMarks])}</DeskPill>
                   )}
                 </div>
-              </button>
+              </Button>
             );
           })}
           {visibleExams.length === 0 ? (
-            <div className="col-span-full flex flex-col items-center gap-3 rounded-2xl border border-[#cfc2d6]/25 bg-white p-8 text-center">
-              <p className="text-sm font-bold text-[#1d1b20]">No assessment matches “{examQuery}”</p>
-              <button type="button" onClick={() => setExamQuery("")}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
-                <X className="h-3.5 w-3.5" /> Clear filter
-              </button>
+            <div className="sk-panel col-span-full">
+              <EmptyState
+                size="sm"
+                icon={Search}
+                title={ui("No test matches “{0}”", [examQuery])}
+                description={ui("Search by test title, subject or class.")}
+                action={
+                  <Button variant="secondary" size="sm" type="button" onClick={() => setExamQuery("")}>
+                    <X aria-hidden="true" /> {ui("Clear filter")}
+                  </Button>
+                }
+              />
             </div>
           ) : null}
         </div>
@@ -409,82 +465,87 @@ export default function MarksPage() {
         {/* Progress bar */}
         {markSheet && totalCells > 0 && (
           <div className="flex items-center gap-3">
-            <div className="flex-1 h-2 bg-[#f3f4f9] rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-[#8127cf] to-purple-500 transition-all duration-500" style={{ width: `${completion}%` }} />
-            </div>
-            <span className="text-xs font-semibold text-ink-muted whitespace-nowrap">{filledCells}/{totalCells} cells ({completion}%)</span>
+            <Progress className="flex-1" value={completion} label={ui("Mark sheet filled")} valueText={ui("{0} of {1} cells", [filledCells, totalCells])} />
+            <bdi className="whitespace-nowrap text-xs font-semibold tabular-nums text-ink-muted">{filledCells}/{totalCells} · {completion}%</bdi>
           </div>
         )}
 
         {/* Marks table */}
-        <div className="sk-rise overflow-hidden rounded-2xl border border-[#cfc2d6]/25 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "120ms" }}>
+        <div className="sk-panel sk-enter overflow-hidden" style={{ "--sk-delay": "120ms" } as CSSProperties}>
           {marksLoading ? (
-            <div>
-              <div className="bg-[#f3f4f9]/45 px-5 py-4 flex gap-8">
-                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
-                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
-                <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-16 rounded-2xl" />
+            <SkeletonRegion label={ui("Loading the mark sheet")}>
+              <div className="flex gap-8 bg-muted/45 px-5 py-4">
+                <Skeleton className="h-3 w-20 rounded-2xl" />
+                <Skeleton className="h-3 w-16 rounded-2xl" />
+                <Skeleton className="h-3 w-16 rounded-2xl" />
               </div>
               {[...Array(4)].map((_, ri) => (
-                <div key={ri} className="flex items-center gap-4 px-5 py-4 border-t border-[#f3f4f9]">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-10 w-10 rounded-xl shrink-0" />
+                <div key={ri} className="flex items-center gap-4 border-t border-muted px-5 py-4">
+                  <div className="flex flex-1 items-center gap-3">
+                    <Skeleton className="h-10 w-10 shrink-0 rounded-xl" delay={ri * 60} />
                     <div>
-                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-4 w-28 mb-1 rounded-2xl" />
-                      <div className="skeleton-shimmer bg-[#e8e0ec]/60 h-3 w-20 rounded-2xl" />
+                      <Skeleton className="mb-1 h-4 w-28 rounded-2xl" delay={ri * 60} />
+                      <Skeleton className="h-3 w-20 rounded-2xl" delay={ri * 60} />
                     </div>
                   </div>
                   {[...Array(3)].map((_, ci) => (
-                    <div key={ci} className="skeleton-shimmer bg-[#e8e0ec]/60 h-11 w-20 rounded-2xl" />
+                    <Skeleton key={ci} className="hidden h-11 w-20 rounded-2xl sm:block" delay={ri * 60} />
                   ))}
                 </div>
               ))}
-            </div>
+            </SkeletonRegion>
+          ) : marksFailed ? (
+            <ErrorState
+              title={ui("Couldn't load this mark sheet")}
+              description={ui("Check your connection and try again. Marks already saved are safe on the server.")}
+              onRetry={() => void loadMarks(selectedExamId)}
+            />
           ) : markSheet?.subjects?.length && markSheet?.students?.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left">
-                <thead>
-                  <tr className="bg-[#fbf0fe]/40 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+
+              <Table containerClassName="overflow-x-auto" className="w-full min-w-[720px] text-start">
+                <TableHeader>
+                  <TableRow className="bg-brand-50/40 text-ink-muted">
                     {/* The student column is frozen: past three subjects the
                         names scrolled out of view and the teacher was typing
                         into an anonymous grid. */}
-                    <th className="sticky left-0 z-10 bg-[#fbf0fe]/95 px-5 py-4 backdrop-blur-sm">Student</th>
+                    <TableHead className="sticky start-0 z-10 bg-brand-50/95 px-5 py-4 backdrop-blur-sm">{ui("Pupil")}</TableHead>
                     {markSheet.subjects.map((subject: any, col: number) => {
                       const entered = markSheet.students.filter(
                         (st: any) => (marksByKey[`${st.id}:${subject.id}`] ?? "") !== "",
                       ).length;
                       return (
-                        <th key={subject.id} className="px-3 py-3 text-center" title={`Max marks: ${subject.totalMarks || 100}`}>
-                          <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink-muted">{subject.name}</span>
-                          <span className="block text-[10px] font-normal text-ink-subtle">
-                            / {subject.totalMarks || 100} · {entered}/{markSheet.students.length}
+                        <TableHead key={subject.id} className="px-3 py-3 text-center">
+                          <span className="block text-2xs font-semibold text-ink-muted">{subject.name}</span>
+                          <span className="block text-2xs font-normal tabular-nums text-ink-subtle">
+                            <span className="sr-only">{ui("Out of")} </span><bdi>/ {subject.totalMarks || 100} · {entered}/{markSheet.students.length}</bdi><span className="sr-only"> {ui("entered")}</span>
                           </span>
                           {!isLocked ? (
                             <span className="mt-1 flex items-center justify-center gap-1">
-                              <button type="button"
-                                onClick={() => focusCell(0, col)}
-                                title={`Jump to the first ${subject.name} cell`}
-                                className="cursor-pointer rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf] hover:text-white">
-                                Enter
-                              </button>
-                              <button type="button"
+                              <Tooltip content={ui("Jump to the first {0} cell", [subject.name])}>
+                                <Button size="sm" variant="link" type="button"
+                                  onClick={() => focusCell(0, col)}
+                                  className="px-1">
+                                  {ui("Enter")}
+                                </Button>
+                              </Tooltip>
+                              <IconButton size="sm" variant="ghost"
                                 onClick={() => clearColumn(subject.id, subject.name)}
-                                title={`Clear every ${subject.name} mark on this sheet`}
-                                aria-label={`Clear the ${subject.name} column`}
-                                className="cursor-pointer rounded-md p-0.5 text-ink-faint transition-colors hover:bg-rose-100 hover:text-rose-600">
-                                <Eraser className="h-3 w-3" />
-                              </button>
+                                label={ui("Clear the {0} column", [subject.name])}
+                                tooltip={ui("Clear every {0} mark on this sheet", [subject.name])}
+                              >
+                                <Eraser aria-hidden="true" />
+                              </IconButton>
                             </span>
                           ) : null}
-                        </th>
+                        </TableHead>
                       );
                     })}
                     {/* A mark sheet without a running total makes the teacher do
                         the arithmetic they came here to avoid. */}
-                    <th className="px-4 py-4 text-center">Total</th>
-                  </tr>
-                </thead>
-                <tbody ref={gridRef} className="divide-y divide-[#f3f4f9]">
+                    <TableHead className="px-4 py-4 text-center">{ui("Total")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody ref={gridRef} className="divide-y divide-muted">
                   {markSheet.students.map((student: any, row: number) => {
                     const rowMarks = markSheet.subjects.map((subject: any) => ({
                       subject,
@@ -496,13 +557,13 @@ export default function MarksPage() {
                     const pct = outOf > 0 ? Math.round((obtained / outOf) * 100) : null;
                     const rowIncomplete = scored.length < markSheet.subjects.length;
                     return (
-                      <tr key={student.id} className={cn(
-                        "transition-colors hover:bg-[#fbf0fe]/20",
-                        rowIncomplete && !isLocked && "bg-amber-50/25",
+                      <TableRow key={student.id} className={cn(
+                        "transition-colors hover:bg-surface-hover",
+                        rowIncomplete && !isLocked && "bg-status-warning-surface/40",
                       )}>
-                        <td className="sticky left-0 z-10 bg-white px-5 py-3">
+                        <TableCell className="sticky start-0 z-10 bg-card px-5 py-3">
                           <StudentMini student={student} />
-                        </td>
+                        </TableCell>
                         {markSheet.subjects.map((subject: any, col: number) => {
                           const key = `${student.id}:${subject.id}`;
                           const value = marksByKey[key] || "";
@@ -513,8 +574,8 @@ export default function MarksPage() {
                           const isOverLimit = value !== "" && (!Number.isFinite(numVal) || numVal < 0 || numVal > max);
                           const isDirty = dirtyKeys.has(key);
                           return (
-                            <td key={subject.id} className="px-3 py-3">
-                              <input type="number" min={0} max={max} value={value} disabled={isLocked}
+                            <TableCell key={subject.id} className="px-3 py-3">
+                              <SystemInput id={`mark-${key}`} aria-invalid={isOverLimit || undefined} aria-describedby={isOverLimit ? `mark-${key}-error` : undefined} type="number" min={0} max={max} value={value} disabled={isLocked || marksSaving || !!draft.recovery}
                                 data-row={row} data-col={col}
                                 onChange={(e) => setMarksByKey((c) => ({ ...c, [key]: e.target.value }))}
                                 onFocus={(e) => e.currentTarget.select()}
@@ -530,105 +591,91 @@ export default function MarksPage() {
                                     const filled = fillDown(row, subject.id, value);
                                     toast.success(
                                       filled
-                                        ? `Filled ${filled} empty ${subject.name} cell${filled === 1 ? "" : "s"} with ${value}`
-                                        : `No empty ${subject.name} cells below this one`,
+                                        ? ui("Filled {0} empty {1} cells with {2}", [filled, subject.name, value])
+                                        : ui("No empty {0} cells below this one", [subject.name]),
                                     );
                                   }
                                 }}
-                                title={isLocked ? "This exam is locked — marks are read-only" : `${student.fullName} · ${subject.name}, max ${max}. Enter moves down, ⌘D fills down.`}
-                                aria-label={`${subject.name} marks for ${student.fullName}, out of ${max}`}
-                                className={cn(
-                                  "h-11 w-full rounded-xl border px-3 text-center text-sm font-bold outline-none transition-all",
-                                  "focus:border-[#8127cf]/35 focus:bg-white focus:ring-4 focus:ring-[#8127cf]/20",
-                                  isLocked ? "bg-[#f3f4f9]/40 text-ink-muted cursor-not-allowed" : "bg-[#fbf0fe]/40",
-                                  isDirty && !isOverLimit && "border-amber-300 bg-amber-50/70",
-                                  isOverLimit ? "border-rose-300 bg-rose-50 text-rose-700" : "border-[#cfc2d6]/20"
-                                )} />
-                            </td>
+                                aria-description={isLocked ? ui("This test is locked. Marks are read-only.") : undefined}
+                                aria-label={ui("{0} marks for {1}, out of {2}", [subject.name, student.fullName, max])}
+                                className={"w-full text-center"} />
+                              {isOverLimit && <p id={`mark-${key}-error`} className="sk-field-message mt-1 text-center text-xs font-medium text-destructive">{ui("Enter 0 to {0}.", [max])}</p>}
+                            </TableCell>
                           );
                         })}
-                        <td className="px-4 py-3 text-center">
+                        <TableCell className="px-4 py-3 text-center">
                           {scored.length ? (
                             <span className="inline-flex flex-col items-center leading-tight">
                               <span className={cn(
-                                "text-sm font-black tabular-nums",
-                                pct !== null && pct >= 50 ? "text-[#8127cf]" : "text-rose-600",
+                                "text-sm font-bold tabular-nums",
+                                pct !== null && pct >= 50 ? "text-primary" : "text-status-error-text",
                               )}>
                                 {obtained}/{outOf}
                               </span>
-                              <span className="text-[10px] font-bold tabular-nums text-ink-subtle">
-                                {pct}%{rowIncomplete ? " so far" : ""}
+                              <span className="text-2xs font-semibold tabular-nums text-ink-subtle">
+                                <bdi>{pct}%</bdi>{rowIncomplete ? ` ${ui("so far")}` : ""}
                               </span>
                             </span>
                           ) : (
-                            <span className="text-[11px] font-semibold text-ink-subtle">—</span>
+                            <span className="text-xs text-ink-subtle">—</span>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+
           ) : (
-            <div className="p-8">
-              <EmptyInline text={selectedExamId ? "No editable subjects for this exam." : "Select an exam to enter marks."} />
-            </div>
+            selectedExamId ? (
+              <EmptyState
+                size="sm"
+                icon={ClipboardList}
+                title={markSheet && !markSheet.students?.length && markSheet.subjects?.length ? ui("No pupils on this sheet") : ui("No subjects you can mark in this test")}
+                description={markSheet && !markSheet.students?.length && markSheet.subjects?.length
+                  ? ui("This class has no enrolled pupils yet, so there is nothing to mark.")
+                  : ui("You can enter marks only for the subjects you teach in this class, or for every subject if you are its class teacher.")}
+              />
+            ) : (
+              <EmptyState size="sm" icon={ClipboardList} title={ui("Choose a test to enter marks")} description={ui("Pick a test above and its mark sheet opens here.")} />
+            )
           )}
         </div>
 
         {/* Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {activeExam ? (
-            <p className="text-sm font-semibold text-ink-muted">
-              {activeExam.enteredMarks || 0}/{activeExam.expectedMarks || 0} marks entered
+            <p className="inline-flex items-center gap-0.5 text-sm font-medium tabular-nums text-ink-muted">
+              {ui("{0} of {1} marks entered", [activeExam.enteredMarks || 0, activeExam.expectedMarks || 0])}
+              <InfoTip content={ui("Saved marks for this test, out of the marks expected in the subjects you can mark. Unsaved edits on the sheet are not counted until you save.")} />
             </p>
           ) : (
             /* The empty sheet above already says "Select an exam to enter
                marks."; repeating it here printed the same line twice. */
             <span />
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {markSheet?.students?.length && !isLocked ? (
-              <button type="button" onClick={() => setShortcutsOpen((v) => !v)} aria-pressed={shortcutsOpen}
-                title="Show the keyboard shortcuts for entering a mark sheet quickly"
-                className={cn(
-                  "inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-2xl border px-4 text-xs font-black uppercase tracking-wider transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                  shortcutsOpen
-                    ? "border-[#8127cf]/30 bg-[#8127cf] text-white"
-                    : "border-[#8127cf]/10 bg-[#fbf0fe] text-[#8127cf] hover:bg-white",
-                )}>
-                <Keyboard className="h-4 w-4" />
-                Shortcuts
-              </button>
-            ) : null}
-            {markSheet?.students?.length ? (
-              <BrandButton variant="soft" icon={<Download className="w-4 h-4" />} onClick={exportMarksCSV}><span title="Download marks as CSV file">Export CSV</span></BrandButton>
-            ) : null}
-          </div>
         </div>
 
         {shortcutsOpen && !isLocked ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-[#8127cf]/15 bg-[#fbf0fe]/60 px-4 py-2.5">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-[#8127cf]">
-              <Command className="h-3 w-3" /> Mark sheet
-            </span>
-            {[
-              ["↵ / ↓", "Next student, same subject"],
-              ["↑", "Previous student"],
-              ["⇥", "Next subject"],
-              ["⌘D", "Fill this mark down the empty cells below"],
-              ["⌘S", "Save"],
-            ].map(([k, meaning]) => (
-              <span key={k} className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-muted">
-                <kbd className="rounded-md border border-[#cfc2d6]/50 bg-white px-1.5 py-0.5 text-[10px] font-black text-[#1d1b20]">{k}</kbd>
-                {meaning}
-              </span>
-            ))}
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-subtle">
-              <ArrowDownToLine className="h-3 w-3" /> Fill-down never overwrites a mark that is already there.
-            </span>
-          </div>
+          <Alert tone="brand" icon={Keyboard} live="off" title={ui("Mark sheet shortcuts")} className="sk-enter-scale">
+            <ul className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-2">
+              {[
+                ["↵ / ↓", ui("Next pupil, same subject")],
+                ["↑", ui("Previous pupil")],
+                ["⇥", ui("Next subject")],
+                ["⌘D / Ctrl+D", ui("Fill this mark down the empty cells below")],
+                ["⌘S / Ctrl+S", ui("Save")],
+              ].map(([k, meaning]) => (
+                <li key={k} className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+                  <kbd dir="ltr" className="rounded-md border border-edge/50 bg-card px-1.5 py-0.5 text-2xs font-semibold text-ink-strong shadow-xs">{k}</kbd>
+                  {meaning}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 inline-flex items-center gap-1 text-xs text-ink-subtle">
+              <ArrowDownToLine aria-hidden="true" className="h-3.5 w-3.5" /> {ui("Fill-down never overwrites a mark that is already there.")}
+            </p>
+          </Alert>
         ) : null}
 
         {/* Save bar — the sheet is routinely forty rows deep, so the button
@@ -638,40 +685,47 @@ export default function MarksPage() {
           saving={marksSaving}
           onSave={saveMarks}
           onReset={resetMarks}
-          saveLabel="Save marks"
+          saveLabel={ui("Save marks")}
+          // An open, editable sheet keeps its save bar: a calm "All marks saved" status when clean; Save appears with the first change.
+          forceShow={Boolean(markSheet?.students?.length) && !isLocked}
+          label={dirtyKeys.size ? undefined : ui("All marks saved")}
           blocked={invalidCells.length > 0 || isLocked}
           blockedReason={
             isLocked
-              ? "This exam is locked — marks are read-only"
-              : `${invalidCells.length} mark${invalidCells.length !== 1 ? "s are" : " is"} outside the allowed range`
+              ? ui("This test is locked — marks are read-only")
+              : ui("{0} marks are outside the allowed range", [invalidCells.length])
           }
           hint={
             invalidCells.length
-              ? `Fix the highlighted cell${invalidCells.length !== 1 ? "s" : ""} to save`
-              : `${activeExam?.title || "This sheet"} · ${filledCells}/${totalCells} cells filled (${completion}%)`
+              ? ui("Fix the highlighted cells to save")
+              : ui("{0} · {1} of {2} cells filled ({3}%)", [activeExam?.title || ui("This sheet"), filledCells, totalCells, completion])
           }
         />
         </>)}
       </div>
 
-      <GradingModals grading={grading} classHubs={classHubs} />
+      <ConfirmAction open={pendingExamId !== null} tone="warning" title={ui("Change test?")} description={ui("Your marks are not saved to the server. Eligible input stays in this tab as a draft for up to 24 hours.")} confirmLabel={ui("Change test")} cancelLabel={ui("Keep editing")} onConfirm={() => { if (pendingExamId) setSelectedExamId(pendingExamId); setPendingExamId(null); }} onCancel={() => setPendingExamId(null)} />
+      <FinalGradesPreview grading={grading} classHubs={classHubs} />
 
-      <NavGuardPrompt {...navGuard} />
+
 
       <ConfirmAction
         open={clearTarget !== null}
         tone="danger"
-        title={`Clear every mark in ${clearTarget?.subjectName ?? "this subject"}?`}
-        description="This empties the whole column on this sheet. Nothing is sent to the server until you save, so you can still leave without saving to get the marks back."
+        title={ui("Clear every mark in {0}?", [clearTarget?.subjectName ?? ui("this subject")])}
+        description={ui("This empties the whole column on this sheet. Nothing is sent to the server until you save, so you can still leave without saving to get the marks back.")}
         detail={
           clearTargetCount > 0
-            ? `${clearTargetCount} entered mark${clearTargetCount === 1 ? "" : "s"} will be removed from the sheet.`
-            : "Nothing has been entered in this column yet."
+            ? ui("{0} entered marks will be removed from the sheet.", [clearTargetCount])
+            : ui("Nothing has been entered in this column yet.")
         }
-        confirmLabel="Clear column"
+        confirmLabel={ui("Clear column")}
+        cancelLabel={ui("Keep editing")}
         onCancel={() => setClearTarget(null)}
         onConfirm={confirmClearColumn}
       />
+      {/* SKO-412: paper marks sheets — capture, review every mark, approve, import. */}
+      {selectedExamId && markSheet?.subjects?.length ? <div className="mt-4"><MarkScanPanel key={selectedExamId} examId={selectedExamId} subjects={markSheet.subjects.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name }))} onImported={() => void loadMarks(selectedExamId)} /></div> : null}
     </TeacherPage>
   );
 }

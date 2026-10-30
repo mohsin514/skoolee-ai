@@ -88,10 +88,12 @@ export const vehicleSchema = z.object({
   // The column is `model`; the form previously sent `type`, so the bus/van
   // choice never reached the database.
   model: optionalText("Model", 60),
+  // The outer .optional() matters: without it a blank or absent driver name was refused even though the
+  // field is optional (SKO-437).
   driverName: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     personName("Driver name").optional()
-  ),
+  ).optional(),
   driverPhone: optionalPhone("Driver phone"),
   capacity: optionalInteger("Capacity", { min: 1, max: 200 }),
 });

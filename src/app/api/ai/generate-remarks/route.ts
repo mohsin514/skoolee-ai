@@ -13,6 +13,8 @@ import {
   getAIModel,
   generateRemark,
 } from "@/lib/ai/openai";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +33,8 @@ function errorResponse(error: unknown, fallback = "AI remark generation failed")
   if (error instanceof AICreditError) {
     return Response.json({ error: error.message }, { status: error.status });
   }
-  const status = (error as Error & { status?: number }).status || 500;
-  return Response.json({ error: error instanceof Error ? error.message : fallback }, { status });
+  const status = (error as Error & { status?: number }).status || 503;
+  return Response.json({ error: status === 400 || status === 403 || status === 404 || status === 409 ? (error as Error).message : "The AI service is unavailable right now. You can continue editing manually." }, { status });
 }
 
 async function getScopedExam(examId: string, user: AuthUser) {
@@ -240,7 +242,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const { batch, ...rest } = body;
 
     if (batch) {
@@ -319,7 +321,7 @@ export async function POST(req: NextRequest) {
         } catch (error) {
           failed.push({
             studentId: student.id,
-            error: error instanceof Error ? error.message : "Generation failed",
+            error: "The AI service is unavailable. Continue this draft manually.",
           });
         }
       }

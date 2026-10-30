@@ -1,6 +1,11 @@
+import { operationDeleteResponse } from "@/lib/destructive/operations";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
-import { ApiError, canManageOperations, errorResponse, requireAuthUser, resolveCampusId, scopedCampusWhere } from "@/lib/api/scope";
+import { writeAuditEvent } from "@/lib/audit-events";
+import { createFineRule } from "@/lib/fees/fine-rule-command";
+import { ApiError, assertPermission, canManageFinance, errorResponse, requireAuthUser, scopedCampusWhere } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { idBody, jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,28 +26,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "add");
 
-    const body = await req.json();
-    const campusId = await resolveCampusId(user, body.campusId);
-    const name = String(body.name ?? "").trim();
-    const type = String(body.type ?? "").toUpperCase();
-
-    if (!name) throw new ApiError("name required", 400);
-    if (!["PERCENT", "FLAT", "PER_DAY"].includes(type)) throw new ApiError("type must be PERCENT, FLAT or PER_DAY", 400);
-
-    const value = Number(body.value);
-    if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
-    if (type === "PERCENT" && value > 100) throw new ApiError("percent fine cannot exceed 100", 400);
-
-    const graceDays = Math.max(0, Math.round(Number(body.graceDays ?? 0)));
-
-    const existing = await prisma.feeFineRule.findFirst({ where: { campusId, name } });
-    if (existing) throw new ApiError("A fine rule with this name already exists", 409);
-
-    const rule = await prisma.feeFineRule.create({
-      data: { campusId, name, type, value, graceDays, isActive: body.isActive !== false },
-    });
+    const body = await parseBody(req, jsonObjectBody);
+    const rule = await createFineRule(user, body);
     return Response.json({ success: true, data: rule }, { status: 201 });
   } catch (error) {
     return errorResponse(error, "[fees/fine-rules] POST failed");
@@ -52,10 +40,10 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+    if (!canManageFinance(user)) throw new ApiError("Insufficient permissions", 403);
+    await assertPermission(user, "fees", "edit");
 
-    const body = await req.json();
-    if (!body.id) throw new ApiError("id required", 400);
+    const body = await parseBody(req, idBody);
 
     const existing = await prisma.feeFineRule.findFirst({ where: { id: body.id, ...scopedCampusWhere(user) } });
     if (!existing) throw new ApiError("Fine rule not found", 404);
@@ -67,15 +55,19 @@ export async function PATCH(req: NextRequest) {
     if (!Number.isInteger(value) || value < 0) throw new ApiError("value must be a non-negative integer", 400);
     if (type === "PERCENT" && value > 100) throw new ApiError("percent fine cannot exceed 100", 400);
 
-    const rule = await prisma.feeFineRule.update({
-      where: { id: body.id },
-      data: {
-        name: body.name !== undefined ? String(body.name).trim() : undefined,
-        type,
-        value,
-        graceDays: body.graceDays !== undefined ? Math.max(0, Math.round(Number(body.graceDays))) : undefined,
-        isActive: body.isActive !== undefined ? body.isActive : undefined,
-      },
+    const rule = await prisma.$transaction(async (tx) => {
+      const next = await tx.feeFineRule.update({
+        where: { id: body.id },
+        data: {
+          name: body.name !== undefined ? String(body.name).trim() : undefined,
+          type,
+          value,
+          graceDays: body.graceDays !== undefined ? Math.max(0, Math.round(Number(body.graceDays))) : undefined,
+          isActive: body.isActive !== undefined ? body.isActive : undefined,
+        },
+      });
+      await writeAuditEvent(tx, user, { table: "fee_fine_rules", recordId: next.id, action: "UPDATE", campusId: existing.campusId, before: { type: existing.type, value: existing.value, graceDays: existing.graceDays, isActive: existing.isActive }, after: { type: next.type, value: next.value, graceDays: next.graceDays, isActive: next.isActive } });
+      return next;
     });
     return Response.json({ success: true, data: rule });
   } catch (error) {
@@ -84,19 +76,5 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-
-    const id = new URL(req.url).searchParams.get("id");
-    if (!id) throw new ApiError("id required", 400);
-
-    const existing = await prisma.feeFineRule.findFirst({ where: { id, ...scopedCampusWhere(user) } });
-    if (!existing) throw new ApiError("Fine rule not found", 404);
-
-    await prisma.feeFineRule.delete({ where: { id } });
-    return Response.json({ success: true });
-  } catch (error) {
-    return errorResponse(error, "[fees/fine-rules] DELETE failed");
-  }
+  return operationDeleteResponse(req, "fees/fine-rules");
 }

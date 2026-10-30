@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
+import { getLocalePackage } from "@/lib/locale/store";
 
 /**
  * Tenant-local calendar dates.
@@ -39,25 +39,11 @@ export function calendarDateIn(timeZone: string, instant: Date = new Date()): st
   }
 }
 
-// Tenant timezone changes about never, and this is read on hot paths, so it is
-// cached briefly rather than adding a lookup to every attendance request.
-const zoneCache = new Map<string, { zone: string; at: number }>();
-const CACHE_TTL_MS = 60_000;
-
-export async function getSchoolTimeZone(schoolId: string): Promise<string> {
-  const hit = zoneCache.get(schoolId);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.zone;
-
-  const school = await prisma.school.findUnique({
-    where: { id: schoolId },
-    select: { timezone: true },
-  });
-  const zone = school?.timezone || DEFAULT_TIME_ZONE;
-  zoneCache.set(schoolId, { zone, at: Date.now() });
-  return zone;
+/** Resolve at the instant of use: a cache can cross an effective-date boundary. */
+export async function getSchoolTimeZone(schoolId: string, campusId: string | null = null): Promise<string> {
+  return (await getLocalePackage(schoolId, campusId)).timezone;
 }
 
-/** Today's calendar date for a tenant, as YYYY-MM-DD. */
-export async function schoolToday(schoolId: string): Promise<string> {
-  return calendarDateIn(await getSchoolTimeZone(schoolId));
+export async function schoolToday(schoolId: string, campusId: string | null = null): Promise<string> {
+  return calendarDateIn(await getSchoolTimeZone(schoolId, campusId));
 }

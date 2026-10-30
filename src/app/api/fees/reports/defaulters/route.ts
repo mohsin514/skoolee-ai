@@ -1,3 +1,6 @@
+import { dominantInvoiceCurrency } from "../invoice-currency";
+import { getLocalePackage } from "@/lib/locale/store";
+import { CURRENCIES } from "@/lib/locale/package";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import {
@@ -19,7 +22,10 @@ export async function GET(req: NextRequest) {
         ? null
         : await resolveCampusId(user, requestedCampusId);
 
-    const minDaysOverdue = parseInt(searchParams.get("minDays") ?? "1", 10);
+    const minDaysOverdue = Number(searchParams.get("minDays") ?? "1");
+    if (!Number.isSafeInteger(minDaysOverdue) || minDaysOverdue < 0) {
+      return Response.json({ error: "Invalid minimum overdue days" }, { status: 400 });
+    }
 
     const campusWhere = {
       schoolId: user.schoolId,
@@ -31,17 +37,24 @@ export async function GET(req: NextRequest) {
     });
     const campusIds = campuses.map((c) => c.id);
 
+    // Default to the currency the campus actually bills in, not the locale default.
+    const currency = searchParams.get("currency")
+      || (await dominantInvoiceCurrency(user.schoolId, campusIds, (await getLocalePackage(user.schoolId, campusId)).currency));
+    if (!CURRENCIES.includes(currency as typeof CURRENCIES[number])) return Response.json({ error: "Invalid currency" }, { status: 400 });
+
     const overdueInvoices = await prisma.invoice.findMany({
       where: {
+        currency,
         campusId: { in: campusIds },
-        status: { in: ["PENDING", "OVERDUE"] },
+        status: { not: "CANCELLED" },
         balanceDue: { gt: 0 },
         dueDate: { lt: new Date() },
       },
       select: {
         id: true, studentId: true, invoiceNumber: true, totalAmount: true, totalAmountPaid: true,
         balanceDue: true, dueDate: true, status: true,
-        student: {
+        enrollment: true,
+          student: {
           select: {
             id: true, fullName: true, rollNo: true, guardianName: true, guardianPhone: true,
             guardianEmail: true, class: { select: { name: true, section: true } },
@@ -84,9 +97,9 @@ export async function GET(req: NextRequest) {
         studentMap.set(inv.studentId, {
           studentId: inv.studentId,
           studentName: inv.student.fullName,
-          rollNo: inv.student.rollNo,
-          className: inv.student.class.name,
-          section: inv.student.class.section,
+          rollNo: inv.enrollment?.rollNo || inv.student.rollNo,
+          className: inv.enrollment?.className || inv.student.class.name,
+          section: inv.enrollment ? null : inv.student.class.section,
           guardianName: inv.student.guardianName,
           guardianPhone: inv.student.guardianPhone,
           guardianEmail: inv.student.guardianEmail,
@@ -101,7 +114,7 @@ export async function GET(req: NextRequest) {
 
     const defaulters = Array.from(studentMap.values())
       .sort((a, b) => b.totalOverdue - a.totalOverdue)
-      .map((d) => ({ ...d, daysOverdue: d.maxDaysOverdue }));
+      .map((d) => ({ ...d, currency, daysOverdue: d.maxDaysOverdue }));
 
     return Response.json({
       success: true,

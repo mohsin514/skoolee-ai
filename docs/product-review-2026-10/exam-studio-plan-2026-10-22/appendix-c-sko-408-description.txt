@@ -1,0 +1,658 @@
+# Skoolee Exam Studio — flagship product specification for LEAP 2027
+
+**Updated:** 15 October 2026 · **Feature:** F18 / sequence 034 · **Priority:** core commercial product · **Delivery status:** proposed expansion over existing code; acceptance and school-pilot evidence required.
+
+**Product promise:** A school brings its curriculum and teaching context. Skoolee helps it create an exam it can explain, deliver an exam students can complete reliably, and turn reviewed results into useful next learning steps.
+
+The product must be compelling to a teacher in minutes, operationally credible to an exam coordinator, and commercially understandable to a school-group buyer. The founder's ambition is a USD 10 million investment or a potential acquisition; that is a business objective, not a guaranteed outcome or a software acceptance criterion. Build the evidence a buyer or investor can inspect.
+
+**This is the flagship specification in the existing independent feature card.** Reuse the domain implementation owned by the linked cards below; do not create duplicate records, new parent tickets, or a second assessment platform. This update changes <issue id="ddb4bbef-0315-4170-8ce5-3228fa3bc135" href="https://linear.app/skoolee-ai-app/issue/SKO-408/034-ai-exam-studio-source-grounded-paper-generation-and-quality">SKO-408</issue> only. It proposes an expanded managed-browser mode; the previously documented standard-browser implementation remains the current code baseline.
+
+## 1. The customer experience we are selling
+
+“Tell Skoolee what your class learned. Review the evidence behind its paper. Rehearse the exam. Run it confidently. See exactly why a mark was awarded and what to teach next.”
+
+A suggested Arabic teacher journey: speak the exam brief, upload the approved syllabus and a previous paper, correct the extracted topics, approve the coverage plan, inspect a questionable item, launch a candidate on a supported restricted device, scan a handwritten answer, approve its marking evidence, and publish an understandable result. The same journey must work in English and Urdu.
+
+The commercial entry point is a **standalone assessment suite that can connect to existing school systems**, as well as a premium Skoolee module. Schools should not have to replace their entire ERP to try the assessment product.
+
+| Buyer/user | Work being removed or improved | Evidence of value |
+| -- | -- | -- |
+| Teacher | Re-entering syllabus, formatting papers, correcting generated questions, maintaining keys | Minutes to an approved paper including all corrections; reuse in a second assessment |
+| Exam coordinator | Manual readiness checks, scattered incidents, uncertain saves and submissions | Readiness completion, successful receipts, intervention time and support effort |
+| Moderator | Reading every script without priorities, finding evidence, handling regrades | Marking/review time, agreement and override rates, appeal resolution time |
+| Principal/school group | Inconsistent curriculum coverage, unclear quality, fragmented reports | Reviewed coverage, defect resolution, repeat adoption and campus-level operating cost |
+| Student/family | Confusing instructions, lost work, opaque marks and generic feedback | Successful completion, accessible delivery, understandable evidence and reviewed practice |
+
+End-to-end authoring, delivery and marking already exist in established assessment products. Our differentiation hypothesis is the combination of **school-specific evidence, Arabic-first quality, rehearsal before release, reliable mixed paper/digital delivery, and an explainable improvement loop**. Validate that hypothesis with actual school buyers; do not claim to be the first or only platform.
+
+## 2. Current foundation versus remaining work
+
+Repository evidence: `docs/school-ai/IMPLEMENTATION.md`, `src/components/school-ai`, `src/lib/school-ai`, `src/app/api/school-ai`, and `tests/school-ai`. This evidence was inspected for planning, not rerun as a fresh production certification.
+
+| Layer | Evidence already recorded in the repository | Remaining flagship work |
+| -- | -- | -- |
+| Assessment creation | Approved sources, blueprints, bank reuse, selective generation, pinned items, deterministic validation, key-blind review, reviewed figure crops, immutable print/online projection | A coherent brief/evidence/rehearsal experience; bilingual semantic review; controlled forms and exposure policy; representative educator evaluation |
+| Exam delivery | Standard-browser assignments/attempts, server deadlines, sequenced saves, receipts, readiness, accommodations and optional consented media | Complete app-wide candidate restriction, managed-client integration, supported-device matrix, invigilator control room and tested failure/release paths |
+| Marking and outcomes | Script/QR matching, extraction proposals, rubric-linked written marking proposals, moderation, result versions, appeals and gradebook handoff | Integrated exception-review UX, transparent learner feedback, live incident/regrade impact preview and measured follow-up |
+| Commercial readiness | Local synthetic tests and implementation notes | Paid pilot evidence, performance at declared school concurrency, live provider/storage/device checks, buyer onboarding and repeat use |
+
+Secure-client and managed-device support were explicitly out of scope in the prior implementation ledger. **The latest product requirement adds them as proposed work for restricted exams. They are not built or certified merely because this ticket describes them.** Existing passing foundations should be reused, with gaps documented rather than reimplemented blindly.
+
+## 3. Signature capabilities and acceptance
+
+### A. A brief that understands the school
+
+Teacher starts with text, push-to-talk voice, document upload, camera scan, a previous paper or an existing blueprint. Skoolee assembles a visible, editable assessment brief: curriculum/version, grade, subject, taught objectives, excluded material, marks, duration, item mix, language, allowed aids, accommodations, reviewers and delivery mode.
+
+* Ask one meaningful question at a time only when a required fact is missing or contradictory. Offer a structured “edit everything” view.
+* Distinguish school-confirmed facts, extracted suggestions and unanswered decisions; show the original page or transcript behind each extracted fact.
+* Compare proposed coverage with teacher-confirmed taught topics. Do not assume a scheduled lesson was actually taught.
+* A past paper supplies a permitted structure/style reference; it must not silently define the current syllabus or authorize copying.
+* Acceptance: ambiguous dates, incompatible mark totals, untaught topics and unsupported objectives produce a precise decision request before generation. Settings survive interruption. Voice transcripts and OCR remain editable.
+
+### B. A question with an inspectable history
+
+Every item has a compact evidence view: “Why this question?”, source page/region, objective, assessed skill, marks, solution/rubric, author/model provenance, reviewers and revision history.
+
+* Separate a directly sourced fact from an original problem derived from an approved concept. A new arithmetic example need not pretend its numbers were quoted from a textbook.
+* Teacher-authored objectives require explicit authorization and curriculum review; they cannot be an automatic escape hatch for unsupported AI content.
+* Clicking the evidence returns the exact source revision, including the reviewed figure crop. Missing or revoked evidence blocks new approval.
+* Acceptance: source → objective → item → rubric → paper version → answer → moderated mark is navigable with role-appropriate access. A citation is evidence of traceability, not proof that the question is correct.
+
+### C. Rehearse the exam before students see it
+
+A “Rehearse this exam” action opens a concise list of issues to resolve, with a student preview beside the paper.
+
+* Combine deterministic checks, independent key-blind answerability review, figure/asset completeness, candidate-versus-key separation, print pagination, keyboard navigation and a real synthetic save/submit rehearsal.
+* Show an intentionally ambiguous item, explain the ambiguity and allow targeted repair. An item edit invalidates its dependent answer, rubric and approval.
+* Review estimated reading/workload time as an estimate with teacher correction; no invented prediction of actual pupil speed.
+* Acceptance: every blocker has evidence, an owner and a repair path. No opaque “99% quality score” substitutes for checks. LLM-generated student simulations are not evidence of calibrated difficulty, fairness or measured learning.
+
+### D. Arabic-first papers and controlled multilingual versions
+
+Offer English, Arabic and Urdu authoring, bilingual teacher review and optional approved parallel language versions.
+
+* Put original and translated item, key and rubric side by side. Flag changed meaning, negation, units, notation, terminology and mark allocation for educator review.
+* Freeze each approved language/form version and its relationship to the shared blueprint. Translation changes require renewed review; do not live-translate a high-stakes paper during an attempt.
+* Keep exam content language separate from interface language. Use approved bilingual glossaries where the school supplies them.
+* Acceptance: RTL prose, LTR mathematics, numbers, Arabic shaping, Urdu typography, tables and diagrams remain readable in browser and print. No claim of equivalent language difficulty without validation.
+
+### E. Controlled parallel forms and exposure-aware reuse
+
+Create form A/B/C within an approved blueprint, with transparent changes and overlap.
+
+* Preserve objectives, marks, question types, allowed aids and scoring structure. Pin teacher-chosen items; use reviewed parameter variation only where the answer/rubric can be revalidated.
+* Track when an item/key was released, reuse history and audience scope. Suggest rotation or retirement based on the school's policy.
+* Assign and freeze a candidate's form; reload, device recovery and scanning must resolve to that same form.
+* Acceptance: the comparison shows shared/changed items and coverage differences. Variants cannot be labeled equally difficult or psychometrically equivalent without empirical calibration. Secure print copies may carry minimal candidate/form identifiers under school policy.
+
+### F. Skoolee Exam Room
+
+This is the student's dedicated exam experience, with **Managed Exam Mode** for the requested restricted-device behavior. Detailed rules are in section 4.
+
+The normal flow is: rehearse device → verify candidate/configuration → start once → answer with visible saves → submit or reach deadline → receive receipt and leave the exam environment. The student should not have to understand security configuration or solve technical settings during the timed exam.
+
+### G. One exam across paper and digital delivery
+
+The approved blueprint and paper versions drive printable packs, online attempts and scanned scripts.
+
+* A teacher selects the permitted delivery path before release. Print and browser use the same frozen questions, marks, approved figures and candidate projection.
+* QR/reference matching identifies the school, exam/form, candidate and page sequence through scoped opaque identifiers; no sensitive data is unnecessarily embedded.
+* Duplicate/missing pages, wrong forms and uncertain handwriting are held for review. Always show original evidence next to recognition.
+* A supervised switch from device to paper records an incident, medium change, used time, current version and last accepted answers. It must not create a second independent marked attempt.
+* Acceptance: a reviewed handoff resolves overlap explicitly and never silently combines conflicting answers or changes the timer. General unsupervised full-offline testing is not part of the first pilot.
+
+### H. Mark by exceptions, with evidence
+
+The moderator starts with issues that need judgment: unreadable answer, rubric conflict, unexpected valid solution, disputed step or uncertain proposal.
+
+* Each proposed score points to the answer region/text and rubric criterion, with reason and uncertainty. Deterministic objective scoring is separated from AI-assisted written scoring.
+* Calibrate a marking run against teacher-reviewed anchor scripts; disagreements go to a human. A different valid method must not be penalized just because it differs from the generated solution.
+* Support anonymized review where school policy requires it, reviewer assignment, override reasons and a second review for selected high-impact decisions.
+* Acceptance: humans approve consequential results and release; suggestions never silently become final marks. Repeated import/approval cannot create duplicate marks.
+
+### I. Resolve a faulty question without losing trust
+
+An exam coordinator can report an ambiguous or incorrect item during or after delivery.
+
+* Show affected paper versions, forms, language variants, candidates and downstream results.
+* During an active attempt, preserve the original paper; an authorized, versioned clarification reaches the defined affected audience. Never secretly rewrite only some candidates' questions.
+* After the attempt, preview policy-based remedies such as rubric correction, regrade or item neutralization; a human authorizes the exact impact before revised results are published.
+* Acceptance: every change records reason, approver, old/new result versions and notification decision. AI cannot unilaterally adjust marks, exam duration or publication.
+
+### J. Results that lead to the next useful action
+
+The learner sees “what I understood, where my method needs work, and what to practice next” after authorized publication.
+
+* Link feedback to their actual moderated answer and approved objective, not a generic generated paragraph.
+* Teacher receives suggested reteaching groups and short practice activities; guardians receive only permitted, age-appropriate released information.
+* Later formative checks show observed changes over time with sample counts. Practice questions must not leak future secured exam material.
+* Acceptance: recommendations remain reviewable; do not infer diagnosis, intelligence, teacher quality or causal learning gain from a score trend. High-stakes adaptive exams are a separate research phase.
+
+### K. A control room that makes exam day manageable
+
+Provide an invigilator view of verified readiness, active attempts, last acknowledged save, pending connection incidents, approved accommodations, support requests and receipts.
+
+* Show factual operational signals with last update time; a stale heartbeat is not proof of misconduct.
+* Give precise actions for approved recovery, extra time within the published rules, supervised interruption and release. Preview affected candidates and require reason/audit.
+* Surface outages at the correct school/campus/room scope and provide a rehearsed fallback.
+* Acceptance: an invigilator sees no answer keys or unrestricted student records merely because they can supervise. Bulk actions have scope confirmation and idempotent results.
+
+### L. An evidence pack a school can explain
+
+An authorized reviewer can follow the curriculum and approvals through the exact delivered form, response revisions, rubric decisions, result release and appeal.
+
+* Exports contain version references, timestamps, reviewer decisions and a verifiable integrity manifest; access and export activity are audited.
+* Exports follow school retention and student/guardian access rules. A content hash does not establish a student's identity, correctness of a mark or proof of cheating.
+* Acceptance: disputed results can be reconstructed without piecing together chats and screenshots, and cross-school access tests fail safely.
+
+## 4. Required restricted-browser mode
+
+### Decision and terminology
+
+The requested “private browser” is now specified as a **dedicated, policy-controlled exam client**, not Chrome/Safari incognito. Propose integrating a maintained client such as Safe Exam Browser through [SKO-449 — Safe Exam Browser integration](<https://linear.app/skoolee-ai-app/issue/SKO-449>), rather than building an operating-system security agent for the initial release. Client selection remains subject to compatibility, licensing, maintenance and independent security review.
+
+| Delivery mode | Intended experience | Admission rule |
+| -- | -- | -- |
+| Standard browser | Focused Skoolee session for school-approved standard/mocks/open-resource assessment | App routes/actions restricted during attempt; no device-lockdown claim |
+| Managed Exam Mode | Required restricted session on an explicitly supported device/client configuration | Validate supported client/configuration and exam policy before issuing the restricted candidate session |
+| Approved supervised alternative | School-controlled paper or supported supervised device for accessibility/technical needs | Coordinator records the approved alternative and attempt continuity; no silent downgrade |
+
+**For an exam published as Managed, an ordinary or private browser must not start the timer or retrieve the protected paper.** Unsupported devices get a preparation/alternative route before the exam; they are not given a misleading “secure” badge.
+
+### Admission and enforcement
+
+* School publishes a versioned delivery policy: supported OS/client versions, resource allowlist, permitted tools, assistive applications, clipboard/print/download/capture policy, concurrent-session rules and exit/recovery policy.
+* A rehearsal verifies that policy on the actual candidate device before the real timer starts.
+* Server binds candidate, school/campus, exam, form, policy revision and one active attempt/session. Client admission is short-lived and cannot be transferred to an ordinary browser.
+* Keep identity/session refresh, HTTPS, origin checks and CSRF protections working through the real managed-client and hosting/proxy path. Never fix launch or autosave by broadly disabling these protections. Use official signed client distributions, a maintained version policy and rehearsed upgrades; do not introduce a client update in the middle of an active exam.
+* Use the selected client's documented configuration/version verification. A user-agent string, fullscreen event or client-side boolean is insufficient. Config Key and Browser Exam Key checks are configuration/client integration checks, not hardware attestation or proof of an uncompromised device. Modern SEB integration differs by engine/platform; follow its documented API/header capabilities rather than assuming one transport everywhere. [SEB Config Key documentation](<https://safeexambrowser.org/developer/seb-config-key.html>).
+* During the active attempt, block unrelated Skoolee pages, reads, mutations, chat, notifications, account menus and other exams on the server and UI. Allow narrowly scoped exam assets, identity refresh, answer saving, approved tools/accommodations, help, submit and receipt endpoints.
+* Managed-client policy must restrict opening arbitrary URLs/tabs and switching to prohibited apps for the published supported configuration. Clipboard, printing, downloads, screenshots, external displays and remote access are individually tested capabilities; unsupported restrictions cannot be advertised as enforced.
+* Begin the pilot with a declared managed school-device configuration and a supported desktop OS/client build. Add macOS, tablets or BYOD only after a separate complete device test matrix. Never claim all computers are supported.
+
+### Exit, expiry and recovery
+
+* **Normal exit:** candidate confirms Submit and the server commits a final receipt, or the authoritative deadline expires. Only then does the normal release flow restore device access.
+* Premature release links, spoofed client flags, repeat submissions, clock changes and refresh must not unlock the session or restart time. Server state and the selected client's tested release mechanism control normal release.
+* A crash/restart/reconnect resumes the same frozen paper, accepted responses and deadline. An authorized session takeover immediately revokes the old writer; delayed saves from it cannot overwrite the recovered session. Concurrent writable attempts and silent answer overwrites are forbidden. Paper, delivery policy and accommodations stay pinned; any emergency policy change needs authorization, a recorded impact and renewed validation.
+* The first release is online-authoritative with bounded retry/recovery. Pending local answers are shown as pending, protected according to the recovery design, and never falsely described as server-saved. Client timestamps are not sufficient to accept post-deadline work.
+* Design and test automatic bounded local release at offline expiry plus an independently available emergency exit; an invigilator release is an additional path, not the only escape. Proposed UX target: release within 120 seconds of a confirmed emergency request or locally estimated expiry when the server is unreachable; validate this on the selected client before committing the supported profile. Local time may trigger safety release, but never prove that late answers are eligible. If the client cannot meet the bounded-release requirement, that managed profile must not ship. **Device released** and **submission confirmed** are separate states. Preserve pending work for audited recovery; interruption is not an automatic zero, misconduct verdict or confirmed submission.
+* The recovery policy must explain before Start whether a supervised break counts against time; resume and extra time require authorized audited decisions.
+* Closing/reopening or emergency exit does not erase the attempt, reset the timer or automatically regain a writable session. Restore device settings and stop optional capture when the managed session ends.
+
+A dedicated client can enforce documented restrictions on supported configurations; it cannot guarantee control over a second device, physical camera, privileged OS compromise, power loss or every future vulnerability. No “cheat-proof” or universal lockdown claim. Camera recording is a separate, visible and permission-gated supervision policy. A school may explicitly require camera readiness before Start, with a clear preflight notice and an approved, reasoned accommodation alternative. Screen recording remains optional. This is not device lockdown; capture interruption never changes marks or blocks answer saving/submission, and browser readiness is not hardware attestation.
+
+Official SEB documentation describes client/configuration validation and controlled post-submission exit, with a supervisor exit for technical problems. The integration must implement and test both application and client controls. [SEB integration](<https://safeexambrowser.org/developer/seb-integration.html>). Windows kiosk restrictions and permitted processes are platform features to evaluate against the exact pilot configuration. [SEB Windows manual](<https://safeexambrowser.org/windows/win_usermanual_en.html>).
+
+## 5. Premium shared UX: seven connected spaces
+
+Use the existing shared design system and `src/components/ui` primitives (buttons, forms, dialogs/modal, skeletons, tables, badges, confirmations, draft recovery, offline banner and app toaster). Compose exam-specific views under the established School AI components. Do not create an unrelated theme or a parallel control library.
+
+| Space | What the person sees | Important interaction |
+| -- | -- | -- |
+| Welcome / Brief | A full-screen question with text/voice/upload/scan, progress and a compact editable brief | One missing decision at a time; resume and switch to structured input |
+| Blueprint | Source pages, taught-objective map and a live marks/duration summary | Resolve coverage gaps and pin decisions before generation |
+| Review desk | Paper preview, focused item editor and evidence/rubric drawer | Click a question to inspect evidence; targeted regenerate; explicit stale review |
+| Rehearsal | Student/print preview and a short blocker list | Jump from issue to exact question/asset; repair; rerun relevant checks |
+| Exam Room | Calm typography, question map, timer, save indicator, allowed tools and submit | Exam-only surface; keyboard and assistive paths preserved |
+| Control room | Candidate readiness/save/incident/submission status | Human operational decisions with scope, reason and audit |
+| Results / Improve | Moderation queue, learner explanation and teacher-approved practice | Inspect why a score changed; publish exact result; later formative follow-up |
+
+Visual direction: generous reading space, strong typography hierarchy, restrained school branding and a consistent status vocabulary. Use a brief transition that explains moving from brief to paper or readiness to exam. Respect reduced motion; animations must never delay Start, obscure save status or consume exam time. No pulsing timer, promotional overlays, confetti or AI assistant answering questions during a secured exam.
+
+Every space needs empty, loading, partial-success, error, permission, reconnect and recovery states. Use inline field/item errors and persistent action blockers; never make a transient toast the only record of an unsaved answer or failed submission. Keep student controls stable on narrow screens, zoom and long RTL content. All ordinary browsers, physical managed clients, keyboard paths and approved assistive applications need separate evidence.
+
+## 6. Role and authority contract
+
+| Role | May do | Cannot gain implicitly |
+| -- | -- | -- |
+| Teacher / author | Select authorized sources, draft brief/items/rubrics, review assigned material | Publish without assigned approval authority; read another school's content |
+| Academic approver / coordinator | Approve paper/policy, assign delivery/accommodations, authorize release | Silently alter an active frozen paper or already released marks |
+| Invigilator | Monitor assigned candidates, manage approved operational recovery | Read keys, mark answers or browse unrelated student records without a separate role |
+| Moderator | Review evidence, approve/override scores, propose regrades | Publish outside scope or overwrite historical result versions |
+| Student | Own assigned paper, permitted tools, answers, help and submit | Staff keys, hidden notes, other candidates or general Skoolee actions during an active attempt |
+| Guardian | Released child feedback/actions when permitted | Live exam access, other children, unpublished keys or internal moderation notes |
+| Platform/support staff | Operational diagnostics within approved support grants | Unrestricted school documents or exam answers from platform status alone |
+
+AI may propose and explain; it may not independently publish, conclude misconduct, change authoritative marks, extend time, release a managed device or send messages to families.
+
+## 7. Architecture and version rules
+
+Use one school-scoped assessment record chain. Conceptual records below are contracts to map onto existing models, not claims that new tables already exist:
+
+1. Approved source version and teacher-confirmed taught coverage.
+2. Reviewed brief/blueprint revision with policy and unresolved decisions.
+3. Item/evidence/key/rubric revision and reviewer decisions.
+4. Immutable released paper/form/language version plus separately protected key.
+5. Candidate assignment, approved accommodations and delivery-policy revision.
+6. Client admission, authoritative attempt deadline and sequenced answer receipts.
+7. Script matching/extraction or browser response evidence.
+8. Moderation decision, immutable result version, release and appeal.
+9. Reviewed intervention and later formative check.
+
+All transitions recheck current scope/role. Treat source documents and model outputs as untrusted data, never executable instructions. Use explicit typed operations, idempotency, version checks and audited human approvals. Keep provider credentials, keys and private sources off candidate payloads and public URLs. Imported school content must not become cross-school training or a shared bank without explicit rights and authorization.
+
+### Product flow
+
+```mermaid
+flowchart TD
+  A[Teacher voice text upload or scan] --> B[Editable brief and taught coverage]
+  B --> C[Approved sources and blueprint]
+  C --> D[Questions with evidence keys and rubrics]
+  D --> E[Rehearsal and independent checks]
+  E -->|Repair| D
+  E --> F[Authorized exact-version approval]
+  F --> G[Immutable paper forms and delivery policy]
+  G --> P[Printed pack and matched scan]
+  G --> W[School-approved standard browser]
+  G --> M[Validated managed exam client]
+  W --> R[Versioned responses and submission receipt]
+  M --> R
+  P --> S[Reviewed script extraction]
+  R --> T[Evidence-linked marking and moderation]
+  S --> T
+  T --> U[Approved result and appeal record]
+  U --> V[Teacher-reviewed practice and later check]
+```
+
+### Managed session lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Readiness
+  Readiness --> ClientValidation
+  ClientValidation --> Ready: Correct client policy and accommodations
+  ClientValidation --> Readiness: Repair or approved alternative
+  Ready --> Active: Server accepts Start
+  Active --> Reconnecting: Connection or client interrupted
+  Reconnecting --> Active: Same attempt policy and deadline verified
+  Active --> SupervisedPause: Authorized break under published policy
+  SupervisedPause --> Active: Authorized resume
+  SupervisedPause --> Expired: Applicable server deadline
+  Active --> Submitting: Candidate confirms
+  Submitting --> Submitted: Server commits one receipt
+  Submitting --> FinalizationPending: Response unavailable
+  FinalizationPending --> Submitted: Receipt recovered
+  Active --> Expired: Server deadline
+  Reconnecting --> Expired: Server deadline
+  Submitted --> Released
+  Expired --> Released
+  Active --> EmergencyReleased: Authorized or emergency escape
+  Reconnecting --> EmergencyReleased: Bounded device safety release
+  FinalizationPending --> EmergencyReleased: Bounded device safety release
+  EmergencyReleased --> RecoveryReview
+  RecoveryReview --> Active: Authorized and still eligible
+  RecoveryReview --> Expired: Deadline already reached
+```
+
+### Provenance for a disputed mark
+
+```mermaid
+flowchart LR
+  S[Source revision] --> O[Objective]
+  O --> Q[Question and rubric revision]
+  Q --> P[Released form]
+  P --> A[Accepted answer or reviewed scan]
+  A --> M[Moderation decision]
+  M --> R[Published result version]
+  R --> C[Appeal or correction]
+  C --> N[Authorized new result version]
+```
+
+The diagrams describe target behavior. They are not evidence that managed delivery, school pilots or production capacity are already complete.
+
+## 8. Delivery sequence toward LEAP 2027
+
+The official startup program currently lists **12–15 April 2027** in Riyadh. Reconfirm event logistics before booking or publication. [LEAP startup program](<https://onegiantleap.com/startup/become-a-start-up>). The periods below are planning targets from October 2026, not delivery guarantees; gates control release.
+
+| Phase / target window | Deliverable | Exit gate |
+| -- | -- | -- |
+| P0: October–November 2026 | Interview school buyers; measure current work; verify existing code; confirm pilot subjects/grades/languages and managed-device feasibility; build one coherent source-to-paper-to-attempt demonstration | Agreed pilot scope and device matrix; current gaps recorded; no unresolved critical access/key-leakage issue |
+| P1: November–December 2026 | Brief, evidence view, rehearsal, exact approval, shared polished UI, print/browser parity and focused attempt recovery | An educator completes an end-to-end synthetic assessment and finds/repairs a deliberately defective item; role/RTL/accessibility checks pass |
+| P2: December 2026–January 2027 | Supported managed client, device rehearsal, operational control room, safe release/recovery, mixed script marking and explanation | Restricted mode passes actual-device tests; unsupported client denied; outage at submit/deadline has a safe outcome; external security review findings triaged |
+| P3: January–February 2027 | Supervised school pilots, paid conversion experiment, marking/regrade and follow-up loop, measured service costs | Pilot report includes denominators, baseline comparison, failures and teacher decisions; launch blockers resolved |
+| P4: March–early April 2027 | Harden declared concurrency and reliability, validate buyer onboarding/export, prepare permitted case study, rehearse Arabic/English demos and fallback | Release candidate frozen; all advertised features mapped to evidence; demo reset and failure recovery rehearsed; no unvalidated managed-device claim |
+| Showcase: LEAP 2027 | Five-minute connected product demonstration and separate buyer/investor follow-up packs | Each demonstration step labeled live, recorded, simulated or planned; commercial next step is concrete |
+| After pilot evidence | Network rollout, more supported devices/curricula/integrations, richer analytics | Expansion follows actual customer demand and support capacity |
+
+**Later research, not a launch promise:** empirical item calibration and equating; adaptive high-stakes exams; automated proof of authorship; unsupervised offline exam halls; unrestricted code execution; voice-based high-stakes scoring. Formative adaptive practice may be explored earlier with explicit limits and teacher oversight.
+
+## 9. Five-minute demonstration that makes the value visible
+
+Use a resettable synthetic school and candidates. Explain any time compression, prerecorded result or seeded example.
+
+| Time | Moment | What the audience learns |
+| -- | -- | -- |
+| 0:00–0:40 | Speak a short Arabic or English brief and upload an authorized syllabus page | The system understands school context and asks only what is missing |
+| 0:40–1:20 | Reveal coverage and a question's exact source/rubric | Teachers can inspect and control the work |
+| 1:20–2:00 | Rehearsal catches a seeded ambiguous item; teacher fixes it and renews review | Quality control is visible and meaningful |
+| 2:00–3:00 | Open the real managed client; show a tested blocked action; interrupt connectivity briefly; recover the same timer and submit | The delivery restriction and recovery are demonstrable |
+| 3:00–4:00 | Scan a prepared handwritten answer; correct an uncertain region; approve a rubric-linked proposal | Paper-based schools can participate, with human control |
+| 4:00–5:00 | Show released explanation, teacher-approved practice and the pilot value dashboard | The product produces a useful educational and operational outcome |
+
+Rehearse a fast live path with a bounded generation timeout and a clearly labeled previously generated fallback. A standard browser masquerading as a secure client is not an acceptable demo fallback. If managed delivery is not ready, show only the verified mode and mark the restricted version as planned.
+
+## 10. Pilot scorecard and commercial proof
+
+Proposed recruitment target: **3–5 design-partner schools**, including Arabic-medium use and a school that needs paper/digital coexistence. This is a recruitment target, not an existing customer claim. Define participating grades, subjects, devices, accessibility needs, review ownership and data permission before each pilot.
+
+Measure against each school's own previous workflow:
+
+| Measure | Definition / collection |
+| -- | -- |
+| Preparation effort | Teacher + reviewer minutes from brief to approved paper; include corrections, not just generation time |
+| Quality | Unsupported/ambiguous items identified, escaped defects after approval, correction reasons; denominators per subject/language |
+| Marking effort | Minutes per reviewed script and full turnaround, with override and second-review rates |
+| Reliability | Acknowledged-answer loss, duplicate finalization, pending-save incidents, recovery and device-release success |
+| School operation | Invigilator/support minutes per session, readiness failure reasons, appeal resolution time |
+| Adoption | Teachers returning for another assessment; students completing; buyer conversion and renewal evidence |
+| Economics | Actual model/OCR/media/storage/worker/support cost per completed assessment; gross contribution under proposed package |
+| Learning follow-up | Approved practice assigned/completed and later observed outcomes, without claiming causation |
+
+**Engineering targets to validate, not reported achievements:** zero lost server-acknowledged answers and zero duplicate final receipts in the fault suite; zero successful cross-tenant/key access in authorization tests; zero silent downgrade of a managed exam. For an initial reference load, propose 500 concurrent candidates, 15-second staggered autosaves and 500 starts over one minute, with p95 save acknowledgement at or below 2 seconds and p99 at or below 5 seconds in a declared staging environment. Record payload size, device/network, worker/database/provider configuration and test duration; revise the capacity offer from evidence rather than selling these numbers as achieved.
+
+Before public time-saving or accuracy claims, publish the sample size, collection method, relevant school context and limitations. Do not fabricate a survey, testimonial, paid contract, accuracy percentage, learning gain or market-size figure.
+
+## 11. Packaging and investor/acquirer readiness
+
+Test three offers with actual decision makers:
+
+1. **Exam Studio:** approved-source authoring, rehearsal, paper/browser outputs and review workflow.
+2. **Exam Operations:** managed delivery, invigilator operations, mixed scripts, moderation and audited recovery support.
+3. **School Network:** multi-campus governance, approved template/curriculum sharing, integration/export and contracted support.
+
+Evaluate annual school/network subscription with an included assessment allowance, transparent usage limits and an optional managed-device deployment/support charge. Prices and willingness to pay are hypotheses until buyer interviews and paid pilots. Basic accessibility, safe recovery and school data export should not become surprise add-ons. Do not promise unlimited AI processing without unit-cost evidence.
+
+Potential defensibility: permissioned curriculum mappings, reviewed question/rubric histories, educator evaluation sets, dependable integrations, operating reliability and repeat school use. A general-purpose prompt, a prettier dashboard or owning children's data is not the moat.
+
+For investment/acquisition conversations, prepare evidence of paid usage, retention, measured value, unit economics, support burden, infrastructure reproducibility, source/IP ownership, third-party licenses, consented data rights, access controls, portability and an accurate feature-status register. Hosting/residency, language and security claims must match actually provisioned and tested services. The ticket's success is a compelling, evidenced product and repeatable commercial offer; an investment or purchase decision remains external.
+
+## 12. Flagship acceptance gate
+
+These gates apply to the connected experience; retain the detailed generation criteria below.
+
+- [ ] A teacher completes the brief → reviewed paper → release journey using real authorized sources; the system asks only necessary missing questions and preserves corrections.
+- [ ] Question evidence, taught coverage, derived reasoning, figure provenance and all approvals are inspectable by the permitted role; unsupported AI content cannot be silently approved.
+- [ ] A seeded defect is caught in rehearsal and repaired; dependent reviews/approval become stale on relevant changes.
+- [ ] Approved print, browser, language and form variants are versioned, traceable and free of candidate-visible keys or reviewer notes.
+- [ ] Managed mode is visibly distinct from standard mode; ordinary/incognito browser, unsupported client and altered configuration cannot start or retrieve a managed paper.
+- [ ] Every advertised managed-device restriction passes on each supported OS/client configuration; unsupported controls are explicitly excluded from that profile.
+- [ ] Deep links, unrelated APIs, other Skoolee tabs, replayed tokens and concurrent writable sessions cannot bypass the active candidate policy.
+- [ ] Clock changes, reload, crash, restart and reconnect preserve the same attempt and server deadline; out-of-order/duplicate saves preserve the newest acknowledged revision.
+- [ ] Submission/expiry races return one final receipt; a lost response can be recovered without duplicate finalization. An authorized session takeover revokes the previous writer immediately, including delayed/offline save requests.
+- [ ] Network failure at submission or expiry never strands the device indefinitely, falsely confirms a pending submission or silently discards acknowledged answers; local bounded release, independent emergency exit, invigilator release and recovery are tested separately and audited.
+- [ ] Required accessibility tools and accommodations pass the same managed-device policy; the school has a tested supported alternative before exam day.
+- [ ] Paper-script matching exposes duplicate/missing/wrong-form pages and uncertain recognition; mixed-medium recovery never creates two marked attempts.
+- [ ] Scores and feedback show exact answer/rubric evidence; human review controls release, regrade and appeals; no automatic misconduct verdict or AI-only final marks.
+- [ ] A live item incident produces an authorized, versioned clarification or result-impact preview without silently changing frozen candidate papers.
+- [ ] The released learner/guardian experience is scoped correctly; teacher-approved practice uses actual reviewed evidence and does not leak secured future questions.
+- [ ] EN/AR/UR, RTL mixed mathematics, print, mobile teacher review, actual supported exam devices, keyboard, screen reader, reduced motion and failure states meet the shared UI contract.
+- [ ] Declared peak-load and fault tests record conditions and results; existing small synthetic tests are not marketed as production-scale proof.
+- [ ] Pilot and commercial claims link to actual evidence with dates/sample counts; the LEAP demo is repeatable, resettable and truthful about staged or future capabilities.
+
+## 13. Retained detailed generation requirements
+
+The following generation scope remains part of this feature; the flagship product adds the integrated experience and managed-delivery requirement above.
+
+## Owned scope
+
+* Connect an approved syllabus/source set and reviewed assessment blueprint to one generation session. Accept supported text, audio transcript, existing paper, image/PDF scan and teacher chat inputs through the app's existing intake workflows; retain provenance and source version.
+* Ask only for missing decisions in a calm, resumable, conversational setup: grade/class, subject, syllabus unit/objectives, paper type, duration, total marks, question mix, language/script, accommodations and desired challenge. Show confirmed facts separately from assumptions and unknowns.
+* Generate structured question items with objective tags, mark allocation, answer key, rubric/marking steps, worked explanation where requested, language, source citations and review status.
+* Provide question-level edit, remove, reorder, pin, regenerate and compare actions. Regenerating one item must preserve pinned and teacher-approved items.
+* Check the assembled assessment against the selected blueprint and create one immutable, versioned, reviewable paper snapshot for the downstream print and standard-browser exam features.
+* Preserve model/provider, prompt/policy, source, blueprint, validator, semantic-review and teacher-approval provenance needed to reproduce and audit the exact draft.
+
+## Required user journey
+
+1. **Start anywhere:** teacher types, speaks, uploads/scans a syllabus or past paper, or starts from a reviewed blueprint.
+2. **Understand together:** show extracted topics/objectives and source-page evidence; ask a full-screen, one-question-at-a-time follow-up only for material gaps. Teacher can correct every extracted fact.
+3. **Shape the paper:** preview mark total, duration, objective coverage, item types, language, accommodations and source coverage before spending generation credits.
+4. **Generate and review:** stream progress into a saved draft; show each question with its source evidence, objective, marks, answer/rubric, validator results and uncertainty. Keep teacher edits intact.
+5. **Resolve blockers:** fix unsupported claims, ambiguous answers, incorrect totals, inaccessible figures, duplicate items or missing coverage; allow manual authoring when AI is unavailable.
+6. **Approve exact version:** authorized staff explicitly approve the exact paper snapshot. Any subsequent content/source/key/rubric edit invalidates approval.
+7. **Hand off:** send the approved immutable snapshot to paper/PDF printing or the standard-browser attempt workflow. Candidate output never contains keys, private source annotations, reviewer notes or hidden metadata.
+
+## Quality and safety requirements
+
+* Every factual or curriculum-specific item must cite an exact approved source page/region and objective, or be labeled unsupported and blocked from approval.
+* Run deterministic validation for count, marks, duration, objective coverage, question-type constraints, required fields, duplicate/near-duplicate items, answer-key/rubric consistency, supported math, unsafe content and figure references.
+* Run a separate answerability/semantic reviewer that does not see the answer key while judging whether the question is clear and answerable; compare its proposed answer with the key only after its independent assessment. A semantic pass is a review signal, never a certification.
+* Editing question content invalidates dependent answer, rubric and review results. Show what became stale and require revalidation.
+* If the source scan is unclear or a figure is absent/ambiguous, ask the teacher to inspect or recapture the exact page/region. Never invent diagram labels, values or curriculum facts.
+* Treat difficulty as a teacher-selected target or uncalibrated estimate until sufficient moderated response data exists. Do not promise equal difficulty for parallel variants without calibration evidence.
+* Keep student/candidate output and teacher-only keys/rubrics in separate authorization paths. Enforce release gates in the server/API as well as the UI.
+* School content is not used for model training by default. Show provider/data-egress policy before a source is sent to an external model, and retain a manual workflow on outage, budget exhaustion or consent refusal.
+* Support English, Urdu and Arabic, mixed-script math, RTL editing/preview and readable print/browser output. Never reverse math notation or answer-option order when changing direction.
+
+## Acceptance criteria
+
+- [ ] Chat, voice transcript, document upload and scan entry points can begin the same resumable workflow; extracted facts retain page/region provenance and are teacher-correctable.
+- [ ] The setup asks only for missing information, distinguishes confirmed facts, suggestions and unknowns, and previews the complete blueprint before generation.
+- [ ] Every generated item is source/objective-linked or explicitly blocked as unsupported; the reviewer can open the cited page/region.
+- [ ] Deterministic checks report actionable item-level and paper-level failures for marks, duration, objectives, formats, duplicates, key/rubric completeness, math and figures; no failed blocker can be bypassed by the UI or direct API.
+- [ ] Key-blind answerability review is separate from key comparison; results and uncertainty are visible to the teacher and do not imply guaranteed correctness.
+- [ ] Teacher can edit, remove, reorder, pin and regenerate a single item without losing accepted work; dependent keys/rubrics/reviews become stale when their question changes.
+- [ ] A draft is saved across reload, network interruption and provider retry. Provider failure preserves teacher inputs and permits manual completion.
+- [ ] No draft is distributed or released before an authorized human approves its exact version. Any later content change invalidates approval; direct API attempts to bypass this gate fail.
+- [ ] Print/PDF and browser exam receive the same approved immutable paper version; verify matching version/hash and prove candidate payloads exclude answer keys, rubrics, reviewer notes and private annotations.
+- [ ] Arabic/Urdu/English, RTL, mixed-script mathematics, keyboard navigation, screen-reader labels, narrow/mobile review and print layout are covered with representative fixtures.
+- [ ] Figure-based questions are backed by a teacher-reviewed crop from the source; missing, low-quality or altered diagrams block approval until corrected.
+- [ ] Parallel forms expose blueprint parity and item overlap/differences; the UI makes no equal-difficulty claim without an approved calibration method and adequate moderated data.
+- [ ] Success measures are collected without inventing a baseline: teacher time from setup to approved paper, edit/override rate, unsupported-item blocker rate, invalid-item escape rate, source traceability, provider cost and manual fallback use. Numerical targets are set only after a representative baseline and school pilot.
+- [ ] Release evidence includes representative subject/grade/language educator review, adversarial and failure cases, a reproducible local/browser test report, and explicitly listed external gates. Synthetic passing tests alone do not establish educational quality or school readiness.
+
+## Experience and interface direction
+
+Make the workflow feel like a capable assessment co-author, not a technical prompt form. Use a full-screen, warm, stepwise conversation when gathering context, with visible progress and a persistent “what we know / what needs your answer” summary. Let the teacher switch to a structured editor at any time. Use a desktop source-and-question split view and a clear sequential mobile review.
+
+Per item, show source excerpt/page, objective, question, marks, answer, rubric, difficulty status, validation and review provenance. Use precise states: Draft, Needs source, Needs correction, Ready for review, Approved, Changed after approval. Warn before leaving only when unsaved work exists. Keep generated text visually distinct from teacher edits, but let the teacher accept the final result as their own controlled paper.
+
+## UX states and accessibility
+
+* **No source/blueprint:** explain the missing prerequisite and link directly to its owning feature; preserve entered setup.
+* **Extraction:** show page-level progress and allow correction; never present uncertain OCR as confirmed.
+* **Generating:** show item progress, save status and cancel/resume behavior; generated does not mean approved.
+* **Blocker:** identify the exact item and evidence needed, with keyboard-accessible focus and a repair action.
+* **Provider unavailable:** preserve the draft and offer retry/manual creation without losing state.
+* **Approved:** show approver, version/hash, source set and downstream print/browser destinations.
+* All core actions work by keyboard; screen readers announce progress, validation changes and save state. Follow EN/UR/AR localization and shared app design system.
+
+## Verification examples
+
+* Generate from a syllabus scan with a missing/blurred page and verify unsupported questions are blocked and the precise recapture/correction is offered.
+* Edit a numeric value, language, question or rubric after semantic review and confirm all dependent checks become stale.
+* Retry after partial provider failure and confirm pinned/approved items remain unchanged and no duplicate items are created.
+* Attempt publication through the UI and direct API with a stale or unapproved version and verify rejection.
+* Compare print and browser outputs and inspect student payloads for answer-key leakage.
+* Review Urdu/Arabic and math in desktop, mobile, keyboard-only, screen reader and print/PDF paths.
+
+## 14. Implementation ownership and dependencies
+
+Keep existing cards independently trackable; this product specification coordinates their interfaces and user journey. Do not duplicate their implementations or add parent/child nesting.
+
+| Existing owner | Integration needed by this feature |
+| -- | -- |
+| [SKO-407 — Question bank and blueprints](<https://linear.app/skoolee-ai-app/issue/SKO-407>) | Approved objectives, item provenance and reviewed blueprint inputs |
+| [SKO-383 — AI provider policy and evaluation](<https://linear.app/skoolee-ai-app/issue/SKO-383>) | Authorized providers, cost/egress policy and evaluated generation/review |
+| [SKO-460 — Multimodal assistant](<https://linear.app/skoolee-ai-app/issue/SKO-460>) | Resumable text/voice/file intake and teacher corrections |
+| [SKO-410 — Accommodations](<https://linear.app/skoolee-ai-app/issue/SKO-410>) | Approved timing/material/assistive requirements applied to the exact attempt |
+| [SKO-411 — Focused exam session](<https://linear.app/skoolee-ai-app/issue/SKO-411>) | Server attempt state, app-level restriction, autosave/recovery and receipts |
+| [SKO-449 — Safe Exam Browser integration](<https://linear.app/skoolee-ai-app/issue/SKO-449>) | New managed-mode dependency: client/configuration validation, restriction and safe release |
+| [SKO-413 — Scheduling and invigilation](<https://linear.app/skoolee-ai-app/issue/SKO-413>) | Candidate/window/room/staff coordination |
+| [SKO-412 — Scan marks](<https://linear.app/skoolee-ai-app/issue/SKO-412>) | Script evidence, recognition review and approved import |
+| [SKO-424 — Moderation and regrade](<https://linear.app/skoolee-ai-app/issue/SKO-424>) | Human score approval, corrections, appeals and result history |
+| [SKO-422 — Item review and misconceptions](<https://linear.app/skoolee-ai-app/issue/SKO-422>) | Measured item observations and reviewed improvement suggestions |
+| [SKO-451 — Peak-load performance](<https://linear.app/skoolee-ai-app/issue/SKO-451>) | Declared capacity, tenant fairness and failure evidence |
+| [SKO-452 — LEAP demonstration](<https://linear.app/skoolee-ai-app/issue/SKO-452>) | Showcase execution, evidence-backed case studies and audience-specific follow-up |
+
+**Dependency nuance:** authoring can progress without the managed client. The restricted-exam promise cannot ship until <issue id="a3caefc6-4b14-4f08-b669-d5be95378062" href="https://linear.app/skoolee-ai-app/issue/SKO-411/037-focused-exam-session-with-autosave-and-recovery">SKO-411</issue> plus <issue id="fe28a032-c634-4c5a-a98a-1f5fffd0cba4" href="https://linear.app/skoolee-ai-app/issue/SKO-449/075-safe-exam-browser-integration">SKO-449</issue> and the real-device/recovery gates pass. Avoid circular blockers by validating generation and downstream integration as separate delivery gates within this specification.
+
+**PRD context:** [Skoolee AI PRD — Full Product Scope and Feature Roadmap](<https://linear.app/skoolee-ai-app/document/skoolee-ai-prd-full-product-scope-and-feature-roadmap-be8c5048ba69>). The managed-client expansion in this ticket is the new requested product direction; reconciling companion specifications is future implementation planning, not a claim that their earlier standard-only baseline has already changed.
+
+## 15. Research basis and claims discipline
+
+* LEAP's official program currently identifies 12–15 April 2027 in Riyadh and a startup program for exhibiting, fundraising and market access. [Official program](<https://onegiantleap.com/startup/become-a-start-up>).
+* Dedicated-client integration must validate the expected client/configuration and support controlled submission/exit; a standard web page is insufficient. [SEB integration guide](<https://safeexambrowser.org/developer/seb-integration.html>).
+* Config Key, Browser Exam Key and transport support differ by client/engine; these are integration mechanisms, not a claim of hardware attestation. [SEB Config Key specification](<https://safeexambrowser.org/developer/seb-config-key.html>).
+* OS-specific restrictions and approved applications must be checked against the selected client build. [SEB Windows manual](<https://safeexambrowser.org/windows/win_usermanual_en.html>).
+* Established assessment vendors already distinguish open-browser and dedicated-client delivery, so restriction alone is not a unique market position. [Inspera's published deployment modes](<https://support.inspera.com/hc/en-us/articles/360018510132-System-requirements-Inspera-Assessment>).
+
+Research checked 15 October 2026. Product ideas and commercial targets in this ticket are proposed requirements and hypotheses; cited provider capabilities do not prove their integration into Skoolee.
+
+---
+
+## 15 October 2026 — product, UX and QA audit supplement
+
+**Role in the launch:** The flagship: an evidence-to-action assessment studio for global international schools and Pakistani, Saudi and UAE schools. Distinction is a useful, measured closed workflow across the school's existing systems, not a claim of being first.
+
+**Repository assessment:** Current `learning.ts`/`learning-service.ts` already provide reviewed outcome/item observations, source-grounded lessons and key-blind review. `learning-plans.tsx` only preselects an outcome for remediation; generation does not yet consume actual response evidence or an accountable follow-up decision. `.kiro/specs/ai-exam-studio/tasks.md:828` leaves Recovery_Service/Results and Improve unimplemented. Existing `InterventionPlan` is a free-text draft/approval foundation. Preserve it under <issue id="3acc50a1-cf51-45c0-bd11-f63c6c5e7a28" href="https://linear.app/skoolee-ai-app/issue/SKO-425/051-intervention-ownership-and-reassessment">SKO-425</issue> rather than creating a second intervention owner. The 17-tab workspace is an implementation catalogue; the flagship must expose one continuing task. <issue id="50fb90b9-a331-48bd-ad74-ba05628cebec" href="https://linear.app/skoolee-ai-app/issue/SKO-379/001-shared-design-system-and-role-based-navigation">SKO-379</issue> is the current design-system owner (<issue id="9d6e56fc-35a0-4e3c-b9df-ea5e1a76da8a" href="https://linear.app/skoolee-ai-app/issue/SKO-208/001-shared-design-system-and-role-based-navigation">SKO-208</issue> is archived); this is the flagship card. This is source inspection and proposed acceptance, not a fresh production certification.
+
+### Page, screen and modal refinements
+
+Retain the current brief → item evidence → rehearsal → delivery → moderation specification. Add a memorable 'Teach next' path: Teacher Today card shows one actual reviewed pattern and denominator → Evidence-to-action page separates Observed work, Possible explanation and Missing evidence → teacher chooses a ten-minute or other bounded action → Action planner fits available time/materials and temporary groups → exact-version approval → separately reviewed family/student action → actual taught/check-in → later check → human closure. Context and canonical action ID survive every handoff; no re-entering class/curriculum/outcome. Evidence drawer is read-only and role-shaped. Group drawer has explicit inclusion reasons. Approval, family publication, closure and extension use small review modals with scope/version/effect; full editing remains on pages. Desktop puts evidence beside work; mobile uses a sequential review with a persistent next action. One initial page offers at most three justified next options, including 'Collect evidence first'. No heatmap is the only usable interface.
+
+Use <issue id="50fb90b9-a331-48bd-ad74-ba05628cebec" href="https://linear.app/skoolee-ai-app/issue/SKO-379/001-shared-design-system-and-role-based-navigation">SKO-379</issue> shared controls and state vocabulary. Preserve scope and draft/filter state on recovery; provide explicit empty/loading/partial/error/permission/stale/success states, keyboard/focus behavior, mobile/200% text and EN/AR/UR direction appropriate to this feature. A successful receipt describes the actual server-confirmed transition.
+
+### Additional acceptance criteria
+
+- [ ] From a reviewed assessment, an assigned teacher completes the connected teaching-action journey without re-entering scope; each stage references the canonical <issue id="3acc50a1-cf51-45c0-bd11-f63c6c5e7a28" href="https://linear.app/skoolee-ai-app/issue/SKO-425/051-intervention-ownership-and-reassessment">SKO-425</issue> action and exact source/result revisions.
+- [ ] Before teaching recommendations, distinguish valid learning evidence, item/mark defects, absence/unmarked/unreadable/untaught work and insufficient evidence; each has an actionable repair or evidence-collection route.
+- [ ] Where one answer admits competing explanations, propose a teacher-reviewed contrast check; never diagnose ability, motivation or a misconception from a total mark. Unsupported AI rationale is omitted or held for correction.
+- [ ] Proposed activities validate actual minutes, materials and accessible delivery; teacher edits/declines/groups are preserved. A rejected fluent plan cannot bypass feasibility checks.
+- [ ] Family receives one approved age-appropriate action with Need help/Unable this week; private staff notes, speculative interpretations and other learners are excluded. Participation is distinct from learning evidence and a school alternative exists.
+- [ ] Follow-up uses approved fresh evidence; paired/missing counts, repeated-item status and context differences are explicit. Outcome may be inconclusive; only an authorized human closes, adapts, extends or escalates.
+- [ ] Regrade, source change or membership change makes affected uncommitted actions stale and requires impact review before further publication. Historical released versions remain reconstructable.
+- [ ] Global, Pakistani, Saudi and UAE launch uses a published curriculum/version/grade/subject/language/rights/device capability matrix. Urdu/Pakistani boards, Arabic national and international packs are independently validated; no blanket equivalence or connector claim.
+- [ ] Alongside-SIS/LMS adoption works through reviewed namespaced import/export first; one external name or ID cannot cross school boundaries. Implemented connectors each have an explicit tested contract.
+- [ ] AI evaluation separates extraction, item validity, written-mark agreement, useful-action agreement and family comprehension by cohort. Teacher-adjudicated holdouts and severe-error gates precede a model/policy release.
+- [ ] Actual total provider cost includes failures/retries/abandonment; human correction and active versus elapsed effort remain separate. Manual completion remains useful during outage/budget exhaustion.
+- [ ] Standard mode and managed mode remain visibly distinct; current standard-browser foundations do not imply device lockdown. Managed profile admission/exit/accessibility and production quality/load remain named external gates.
+
+### QA journeys and recovery
+
+1. Bring permitted source → draft/repair item → rehearse → use paper/browser attempt → moderate → inspect two response patterns → approve feasible action → publish family projection → record teaching → new check → close; inspect one continuous ID/version chain and role-shaped receipts.
+2. Use identical total marks from different errors, one ambiguous item, missing/illegible/absent work → inspect evidence → choose correction or contrast check; verify no fabricated certainty or low-ability grouping.
+3. Approve an action while another reviewer regrades its underlying result → attempt family release → resolve stale impact → retry; verify original drafts/history retained and no unauthorized publication.
+4. Generate a ten-minute/no-printer action that exceeds time and requires print → repair → lose network/provider → retry/manual completion; verify constraints, preserved edits, idempotent result and full cost observation.
+5. Family switches sibling/language, cannot do the activity, then guardian permission is revoked → inspect/send queued follow-up; verify correct child, useful school alternative and no stale private delivery.
+6. Compare later evidence with changed accommodation, repeated item and absent learners → record outcome; verify limitations, paired denominators and valid inconclusive result rather than causal or mastery claim.
+7. Run keyboard/screen-reader, 360px/200% text, Arabic/Urdu mixed math and reduced motion across every page/drawer/modal; verify preserved context, focus return, durable save state and no key leakage.
+
+**Success measure:** Primary: reviewed learning actions with delivered activity and an observed follow-up reviewed on time, with denominator and exclusions. Also measure teacher task/correction effort, useful hypothesis acceptance, severe item/mark defects, repeated paid assessment use and total serving/support cost. Funding is a business target, not a software acceptance criterion.
+
+**Integration discipline:** Preserve existing independent domain ownership and versioned records. These additions refine the current feature; they do not imply that code, educational validation, deployment gates or school outcomes already pass.
+
+### Audited UI ownership and per-surface execution contract
+
+Source snapshot: 15 October 2026. These are implementation locations and state candidates, not proof that every interaction passes. The feature-specific screen/modal behavior above and the state contract below apply to every listed owned surface; shared controls remain <issue id="50fb90b9-a331-48bd-ad74-ba05628cebec" href="https://linear.app/skoolee-ai-app/issue/SKO-379/001-shared-design-system-and-role-based-navigation">SKO-379</issue>. Line numbers are snapshot navigation aids.
+
+| Surface | Route / view / modal | Source | Specific verification focus |
+| -- | -- | -- | -- |
+| R090 · route | /ai/studio · Staff Exam Studio | `src/app/ai/studio/page.tsx` | Real scoped overview; source library; approved curriculum; paper and session-plan editor; revision history. Explicit scope empty state, loading, recoverable API failure, role denial. EN/AR/UR shell and skippable reduced-motion-aware per-user-session robot intro. |
+| R086 · route | /ai/exams | `src/app/ai/exams/page.tsx` | Student list/return navigation and staff paper assignment; real synthetic roster and access denials |
+| R089 · route | /ai/studio-intro · Isolated animation probe (development only) | `src/app/ai/studio-intro/page.tsx` | Development-only isolated startup-animation probe; excluded from product navigation. Tests skip, reduced motion and session suppression; production intro now lives in /ai/studio. |
+| AI01 · school-ai-workspace-tab | /ai · overview | `src/components/school-ai/school-ai-workspace.tsx` | Verify the feature flow, role boundary and state contract below. |
+| AI14 · school-ai-workspace-tab | /ai · work | `src/components/school-ai/school-ai-workspace.tsx` | Verify the feature flow, role boundary and state contract below. |
+| T024 · nested-tab-or-mode | marks | `src/components/academic/exams/ExamDetailDialog.tsx` | Verify the feature flow, role boundary and state contract below. |
+| T025 · nested-tab-or-mode | papers | `src/components/academic/exams/ExamDetailDialog.tsx` | Verify the feature flow, role boundary and state contract below. |
+| T026 · nested-tab-or-mode | reports | `src/components/academic/exams/ExamDetailDialog.tsx` | Verify the feature flow, role boundary and state contract below. |
+| O008 · overlay-callsite | CampusAdminDashboard | `src/app/admin/page.tsx:1442` | Confirm open/close, scope, validation, durable save/error and focus return using the feature flow below. |
+| O053 · overlay-callsite | ExamCycleManager | `src/components/academic/ExamCycleManager.tsx:1316` | Confirm open/close, scope, validation, durable save/error and focus return using the feature flow below. |
+| O054 · overlay-callsite | ExamCycleManager | `src/components/academic/ExamCycleManager.tsx:1325` | Confirm open/close, scope, validation, durable save/error and focus return using the feature flow below. |
+| O055 · overlay-callsite | ExamCycleManager | `src/components/academic/ExamCycleManager.tsx:1336` | Confirm open/close, scope, validation, durable save/error and focus return using the feature flow below. |
+| O056 · overlay-callsite | ExamCycleManager | `src/components/academic/ExamCycleManager.tsx:1348` | Confirm open/close, scope, validation, durable save/error and focus return using the feature flow below. |
+| O057 · overlay-callsite | ConfirmMoveModal | `src/components/academic/ExamCycleManager.tsx:1792` | {verdictLabel} |
+| O058 · overlay-callsite | RejectMarksModal | `src/components/academic/ExamCycleManager.tsx:1872` | "Send marks back" |
+| O059 · overlay-callsite | CreateExamModal | `src/components/academic/ExamCycleManager.tsx:2066` | {role === "TEACHER" ? "Create Test" : "Create Exam"} |
+| O140 · overlay-callsite | RevisionInspector | `src/components/school-ai/revision-history.tsx:130` | {h.restoreTitle} |
+| O154 · overlay-callsite | ExamDetailModal | `src/components/shared-admin/index.tsx:876` | {exam.title} |
+| O155 · overlay-callsite | ExamCreateModal | `src/components/shared-admin/index.tsx:1184` | "New Exam Cycle" |
+| N018 · local-state-variant-candidate | \[stageFilter, setStageFilter\] | `src/components/academic/ExamCycleManager.tsx:174` | Verify the feature flow, role boundary and state contract below. |
+| N042 · local-state-variant-candidate | \[kind, setKind\] | `src/components/school-ai/assessment-studio.tsx:44` | Verify the feature flow, role boundary and state contract below. |
+| N047 · local-state-variant-candidate | \[state, setState\] | `src/components/school-ai/exam-studio/studio-intro.tsx:95` | Verify the feature flow, role boundary and state contract below. |
+| N053 · local-state-variant-candidate | \[mode, setMode\] | `src/components/school-ai/revision-history.tsx:43` | Verify the feature flow, role boundary and state contract below. |
+| N054 · local-state-variant-candidate | \[busy, setBusy\] | `src/components/school-ai/revision-history.tsx:47` | Verify the feature flow, role boundary and state contract below. |
+
+**Proposed / refined screens:** Exam Studio dashboard; evidence tray; blueprint/review canvas; delivery choice; control room and learning-recovery board.
+
+**Primary journey:** Guide evidence → blueprint → reviewed paper → accessible delivery → moderated marks → targeted recovery → reassessment receipt.
+
+**Acceptance:**
+
+- [ ] Each stage shows prerequisites and next action.
+- [ ] live attempt cannot be interrupted by decoration.
+- [ ] AI never silently publishes grades or messages.
+
+**Screen and modal states:**
+
+* **Loading:** Keep page title, scope and current task visible; announce loading once and retain user input.
+* **Empty:** Explain what data is missing and provide the role-permitted next action; separate first-use from filtered-empty.
+* **Error:** Keep draft and scope, describe recoverable failure and offer retry; do not show successful persistence before server acknowledgement.
+* **No Access:** Prevent restricted content flash; show scoped reason and a safe route back; server enforcement remains authoritative.
+* **Success:** Show the resulting record/version or receipt and next task; keep acknowledged, approved, published and delivered statuses distinct.
+* **Offline:** Show last server confirmation separately from local pending work and the supported recovery path.
+* **Modal-specific:** Name the record and scope; long editing stays on a page. Restore focus to the trigger on close, protect unsaved edits, associate field errors, prevent duplicate confirmation and show the server result before closing. Never hide a failed save behind a success toast.
+
+**End-to-end QA:** Run bilingual class assessment online and on paper, reconnect a student, review uncertain marking, assign a targeted intervention and compare reassessment evidence. Record expected versus observed results, actor/scope, release and evidence; a written flow is not a passed test.
+
+- [ ] Keyboard-only complete the primary flow; visible focus, accessible labels, announced error summary and correct dialog focus return.
+- [ ] Check EN/LTR, AR/RTL and UR/RTL at 320×720, 390×844, 768×1024 and 1440×1000, 200% zoom and reduced motion; dates/numbers/IDs remain readable.
+
+**Launch cohort validation:** Test the applicable workflow with global international-school and Pakistani, Saudi and UAE school configurations. Curriculum, country, language, timezone, currency and enabled module are independent; unsupported combinations have explicit alternatives rather than an unverified supported badge.
+
+Audit publication marker: `skoolee-review-2026-10-15-v1`.
+
+---
+
+## 15 October 2026 implementation supplement — <issue id="ddb4bbef-0315-4170-8ce5-3228fa3bc135" href="https://linear.app/skoolee-ai-app/issue/SKO-408/034-ai-exam-studio-flagship-assessment-secure-delivery-and-learning">SKO-408</issue> remains in progress
+
+Implemented a concrete exam-delivery increment on the existing workspace and design system. This does **not** close <issue id="ddb4bbef-0315-4170-8ce5-3228fa3bc135" href="https://linear.app/skoolee-ai-app/issue/SKO-408/034-ai-exam-studio-flagship-assessment-secure-delivery-and-learning">SKO-408</issue> or represent completion of its full assessment-to-recovery loop.
+
+### Delivered increment
+
+* Dedicated Exam Studio introduction/workspace entry and interactive candidate exam UX: question map, focus view, mark-for-review, progress, explicit save and final submission summary. The introduction is explanatory; it does not claim unseen services are complete.
+* Server-enforced application boundary for an active eligible candidate: unrelated page reads redirect; unrelated APIs and all disallowed write methods return 409. Submission, server deadline or withdrawal of exam access releases the boundary. Competing exam starts serialize per account. Allowed routes retain current authentication and domain authorization. Session status exposes the current active exam URL for cached-navigation recovery.
+* Explicit required-camera school policy and a reasoned, approved learner exemption. The timer cannot start through the normal flow until required-camera readiness and the notice are acknowledged. Browser readiness is a report, not device attestation. Capture failures preserve answer saving/submission and provide recovery.
+* Bounded, idempotent browser observations and a scoped human review desk. Eight event types, enum-only metadata, 600-event cap per attempt, 200-row cursor pages and individual-event refresh. Human decisions require current grants, a reason and a current version. Observations are immutable; reviews are audited. There is no automated misconduct finding, score penalty, or publication action.
+
+### Verified backend acceptance
+
+1. **Boundary:** with an in-progress exam, try student home, pricing, AI insights, chat, another exam, dotted API paths and a Server Action POST. Page reads redirect; writes/APIs return `EXAM_SESSION_ACTIVE`; exact exam saving, session status and logout remain available. Submit and repeat: ordinary navigation becomes available. Page redirects and session responses are noncacheable.
+2. **Race/recovery:** start two assignments simultaneously; one eligible active attempt succeeds. Concurrent observation/submission preserves the final answer sequence and timestamp. After expiry, the server releases navigation independently of the browser timer. Removing assignment membership denies the exam and allows an eligible replacement assignment.
+3. **Required camera:** no readiness/notice or an incorrect notice version fails before attempt creation. Valid readiness starts the attempt; an approved exemption starts without a camera report. These API assertions do not prove physical capture continuity.
+4. **Evidence and human review:** replay the same event without duplication, reject a conflicting replay, reject another learner/unassigned teacher, and exhaust the cap without losing answer submission. Read all 600 events without gaps/duplicates. Teacher-owner view and explicit review grants, administrator review, principal review and immediate permission revocation are verified. A stale conflicting review returns 409; exact retry succeeds; answers and marks remain unchanged.
+
+Tests completed at this supplement's backend checkpoint: **8 new integration tests passed**, **9 existing proctor integration tests passed**, **4 real HTTP tests passed**, and **17 pure boundary/schema plus assessment tests passed**. Focused ESLint and TypeScript compilation passed. Camera, responsive layouts, real cached-history recovery and review-desk browser verification have separate frontend evidence and must be recorded with their final results; the HTTP suite alone is not evidence for those interactions.
+
+### Still planned / release gates
+
+* Full evidence → teacher-owned Learning Action → family delivery/confirmation → comparable reassessment → outcome proof remains shared work with canonical <issue id="3acc50a1-cf51-45c0-bd11-f63c6c5e7a28" href="https://linear.app/skoolee-ai-app/issue/SKO-425/051-intervention-ownership-and-reassessment">SKO-425</issue>. The new UI and integrity controls do not implement that entire loop or establish learning gains.
+* Curriculum/language cohorts, real SIS/LMS connector contracts, representative AI evaluation sets, curriculum-validity/moderation results, measured adoption/time savings and paid pilot/commercial evidence remain validation work. Do not claim global curricular equivalence, defensible novelty or investment readiness from this increment.
+* Standard browsers cannot lock the operating system or another device. Observation absence/presence is not proof of misconduct. Any managed-device lockdown needs a separate deployment contract.
+* Existing media has its own 1–7-day expiry/purge path. **New integrity metadata, review reasons and audit copies do not yet have a timed purge.** Agree a finite school policy, implement deletion/redaction including audit copies, publish the notice and test expiry before using this new metadata with real learners.
+* Additive schema SQL was applied only to the isolated local database. Remote migration, deployment, production monitoring and production learner validation were not performed.
+
+Implementation evidence: `src/proxy.ts`; `src/app/api/auth/session/route.ts`; `src/lib/school-ai/exam-boundary*.ts`; `exam-integrity*.ts`; `exam-service.ts`; `exam-proctor.ts`; `src/app/api/school-ai/exams/[id]/integrity/route.ts`; `prisma/migrations/20261015160000_school_ai_exam_integrity/migration.sql`; `tests/school-ai/exam-boundary*`; `exam-integrity.database.test.ts`; `exam-proctor.database.test.ts`.
+
+Detailed local handoff: `/Users/angular_dev_15/Downloads/skoolee-ai/docs/product-review-2026-10/exam-security-implementation.md`. Product/source audit: `/Users/angular_dev_15/Downloads/skoolee-ai/docs/product-review-2026-10/flagship-audit.md`.
+
+### Final frontend verification checkpoint — 15 October
+
+Real `/ai/studio` browser checks: six intro cases pass, including visibly painted robot animation completing in 1100.7 ms, immediate native input skip, no motion under reduced-motion preference, per-account/session suppression and no overlay during live answer saving. Nineteen Studio/camera cases pass (5 Studio, 8 required-camera, 6 optional capture), including Arabic/Urdu narrow layouts, single-stream handoff, camera loss, reload, approved alternative, native Back and an already-open second tab. Eight integrity desk cases have passing evidence for scoped human review, stale-version comparison, pagination/draft preservation and failed telemetry without blocked answers. These are synthetic Chromium checks, not real-device or school-pilot certification.
+
+Timer, readiness freshness, camera deadlines and observation timestamps use server-aligned monotonic elapsed time; ±1-hour device-clock changes are tested without premature submission/camera loss or rejected observation timestamps. The Next 16 development-only history-cache issue is resolved with fresh exam redirect URLs in development; production retains canonical URLs and noncacheable exam documents. The five-case boundary suite and an independent production history probe pass.
+
+Final combined production-build regression results belong in `docs/product-review-2026-10/README.md`; remaining deployment and educational validation gates above still apply. <issue id="ddb4bbef-0315-4170-8ce5-3228fa3bc135" href="https://linear.app/skoolee-ai-app/issue/SKO-408/034-ai-exam-studio-flagship-assessment-secure-delivery-and-learning">SKO-408</issue> remains in progress.
+
+### Final production verification — 15 October 2026
+
+The final isolated production build passed. The combined production browser run passed all 38 cases: exam boundary 5, required camera 8, optional capture 6, integrity desk 8, real Studio introduction 6, Studio shell 5. These repeat the development scenarios against the production build, not additional unique coverage. Synthetic accounts and video on disposable local PostgreSQL were used; no remote deployment or migration was performed. Build and test logs are referenced in `docs/product-review-2026-10/README.md`.
+
+<issue id="ddb4bbef-0315-4170-8ce5-3228fa3bc135" href="https://linear.app/skoolee-ai-app/issue/SKO-408/034-ai-exam-studio-flagship-assessment-secure-delivery-and-learning">SKO-408</issue> remains in progress. The full evidence-to-Learning-Action-to-reassessment loop, managed-device lockdown, integrity metadata/audit-note retention purge, real-device and school pilot evidence remain release work. The three new flagship concepts <issue id="b9159655-2efe-46b9-9e09-a3c259fa1739" href="https://linear.app/skoolee-ai-app/issue/SKO-471/096-learning-transfer-bridge-across-curricula-and-school-moves">SKO-471</issue>/<issue id="addb71f0-f2c9-49a9-8cf0-b67a8431594a" href="https://linear.app/skoolee-ai-app/issue/SKO-472/097-assessment-repair-map-with-reviewed-downstream-impact">SKO-472</issue>/<issue id="da78ac36-4ec1-49c4-9e17-67c7e78545cf" href="https://linear.app/skoolee-ai-app/issue/SKO-473/098-reasoning-replay-linked-to-student-work-and-permitted-ai-use">SKO-473</issue> are specified backlog modules, not implemented or proven worldwide-first offerings.
+
+### Recovery of the archived audit-coverage gap — 15 October 2026
+
+Archived <issue id="29aec5c8-ce28-48c1-825d-66e776d4096f" href="https://linear.app/skoolee-ai-app/issue/SKO-167/verify-audit-log-entries-for-all-crud-operations">SKO-167</issue> had no implementation contract. Repository review confirmed the Prisma tenant guard isolates schools, but AuditLog has no campusId and the activity-log query does not filter by campus, so this feature now depends on [SKO-476](<https://linear.app/skoolee-ai-app/issue/SKO-476/101-campus-scoped-audit-history-and-sensitive-change-coverage>), which is blocked by authorization <issue id="0c7c0470-0c98-4e3f-900f-d06d7596057d" href="https://linear.app/skoolee-ai-app/issue/SKO-377/002-shared-authorization-and-tenantcampuschild-ownership-rules">SKO-377</issue> and lifecycle policy <issue id="4eda0e98-4ae9-41e9-826a-1fb1de7cbe2f" href="https://linear.app/skoolee-ai-app/issue/SKO-447/073-regional-hosting-and-data-lifecycle-controls">SKO-447</issue>. <issue id="b22fe021-0794-40ee-a5c5-c5c3567fb937" href="https://linear.app/skoolee-ai-app/issue/SKO-476/101-campus-scoped-audit-history-and-sensitive-change-coverage-coverage">SKO-476</issue> blocks closure of the real-learner integrity telemetry release; assessment authoring and synthetic QA can continue. The exam telemetry retention/purge gate is owned there, not in the unrelated sign-in issue <issue id="12e7ede0-20a6-4585-8a6a-aa775d58c4b3" href="https://linear.app/skoolee-ai-app/issue/SKO-457/083-sign-in-sign-up-verification-and-password-recovery-journeys">SKO-457</issue>.

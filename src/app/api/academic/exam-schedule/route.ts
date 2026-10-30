@@ -1,8 +1,14 @@
+import { validateStoredExamSchedules } from "@/lib/academic/exam-bookings";
+import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
+import { publishedPapersForClasses } from "@/lib/academic/datesheet-publication";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
-import { findTimetableRoomClashes, syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
+import { prisma, type TxClient } from "@/lib/db/prisma";
+import { studentScope } from "@/lib/auth/policy";
+import { ApiError, assertPermission, canManageOperations, errorResponse, isFamilyRole, requireAuthUser, resolveCampusId } from "@/lib/api/scope";
+import { syncPrimaryExamRoom } from "@/lib/academic/exam-rooms";
 import { roomCapacity } from "@/lib/academic/room-capacity";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET  /api/academic/exam-schedule?examId=&campusId=
 // POST /api/academic/exam-schedule { examId, subjectId, date, periodDefinitionId?, roomId? }
@@ -17,12 +23,6 @@ import { roomCapacity } from "@/lib/academic/room-capacity";
 // - Scheduling on a campus weekend → 409.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function dayOfWeek(dateStr: string): number {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const jsDay = new Date(y, m - 1, d).getDay(); // 0=Sun
-  return jsDay === 0 ? 7 : jsDay;
-}
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -81,27 +81,31 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     const { searchParams } = new URL(req.url);
-    const campusId = await resolveCampusId(user, searchParams.get("campusId"));
     const examId = searchParams.get("examId");
     // The master date sheet is every class's papers at once, which is one
     // query by session rather than one query per class.
     const sessionId = searchParams.get("sessionId");
+    const campusId = examId ? await resolveExamSchedulingCampus(user, searchParams.get("campusId"), { kind: "exam", id: examId }) : sessionId ? await resolveExamSchedulingCampus(user, searchParams.get("campusId"), { kind: "session", id: sessionId }) : await resolveCampusId(user, searchParams.get("campusId"));
 
     // Families see the date sheet for their own class only, and never for an
     // exam the office is still drafting. Without this, any signed-in student
     // could read every class's papers on the campus.
     let audienceScope: Record<string, unknown> = {};
+    let familyClassIds: string[] = [];
     if (isFamilyRole(user)) {
       const students = await prisma.student.findMany({
         where:
           user.role === "STUDENT"
             ? { studentUserId: user.userId }
-            : { parentUserId: user.userId },
+            : studentScope(user, "learningRecords"),
         select: { classId: true },
       });
       const classIds = Array.from(new Set(students.map((s) => s.classId)));
       if (classIds.length === 0) return Response.json({ success: true, data: [] });
-      audienceScope = { classId: { in: classIds }, status: { not: "DRAFT" } };
+      // SKO-413: live rows only for exams outside a formal session; session
+      // papers come from the published datesheet version below.
+      audienceScope = { classId: { in: classIds }, status: { not: "DRAFT" }, sessionId: null };
+      familyClassIds = classIds;
     }
 
     const schedules = await prisma.examSchedule.findMany({
@@ -119,6 +123,16 @@ export async function GET(req: NextRequest) {
       orderBy: [{ date: "asc" }, { periodDefinition: { periodNumber: "asc" } }],
     });
 
+    if (familyClassIds.length) {
+      const published = (await publishedPapersForClasses(user.schoolId, familyClassIds))
+        .filter(p => (!sessionId || p.sessionId === sessionId) && (!examId || p.examId === examId))
+        .map(p => ({ id: p.scheduleId, examId: p.examId, subjectId: p.subjectId, date: p.date, datesheetVersion: p.version,
+          subject: { id: p.subjectId, name: p.subjectName, totalMarks: p.totalMarks },
+          periodDefinition: p.startTime && p.endTime ? { startTime: p.startTime, endTime: p.endTime } : null,
+          room: p.rooms[0] ? { roomNumber: p.rooms[0].roomNumber } : null, rooms: p.rooms.map(r => ({ room: { roomNumber: r.roomNumber } })),
+          exam: { id: p.examId, title: p.examTitle, classId: p.classId } }));
+      return Response.json({ success: true, data: [...schedules, ...published].sort((a, b) => String(a.date instanceof Date ? a.date.toISOString() : a.date).localeCompare(String(b.date instanceof Date ? b.date.toISOString() : b.date))) });
+    }
     return Response.json({ success: true, data: schedules });
   } catch (error) {
     return errorResponse(error, "[academic/exam-schedule] GET failed");
@@ -133,7 +147,7 @@ export async function POST(req: NextRequest) {
     }
     await assertPermission(user, "exams", "add");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const examId = String(body.examId ?? "");
     const subjectId = String(body.subjectId ?? "");
     const date = String(body.date ?? "");
@@ -144,7 +158,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "examId, subjectId and date (YYYY-MM-DD) are required" }, { status: 400 });
     }
 
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "exam", id: examId });
+    return await withExamSchedulingWrite(user, campusId, "add", async (prisma) => {
     const exam = await prisma.exam.findFirst({
       where: { id: examId, campusId, campus: { schoolId: user.schoolId } },
       select: { id: true, classId: true, subjectId: true, title: true },
@@ -165,7 +180,8 @@ export async function POST(req: NextRequest) {
     });
     if (dup) return Response.json({ error: `${subject.name} is already scheduled in this exam` }, { status: 409 });
 
-    return await createOrUpdate(exam, subject.name, subjectId, date, periodDefinitionId, roomId, campusId);
+    return await createOrUpdate(prisma, user.schoolId, exam, subject.name, subjectId, date, periodDefinitionId, roomId, campusId);
+    });
   } catch (error) {
     return errorResponse(error, "[academic/exam-schedule] POST failed");
   }
@@ -179,11 +195,12 @@ export async function PATCH(req: NextRequest) {
     }
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) return Response.json({ error: "id is required" }, { status: 400 });
 
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "schedule", id });
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
     const existing = await prisma.examSchedule.findFirst({
       where: { id, campusId, campus: { schoolId: user.schoolId } },
       include: {
@@ -205,7 +222,7 @@ export async function PATCH(req: NextRequest) {
     const finalRoom = roomId !== undefined ? roomId : existing.roomId;
 
     return await createOrUpdate(
-      existing.exam,
+      prisma, user.schoolId, existing.exam,
       existing.subject.name,
       existing.subjectId,
       finalDate,
@@ -214,12 +231,14 @@ export async function PATCH(req: NextRequest) {
       campusId,
       id
     );
+    });
   } catch (error) {
     return errorResponse(error, "[academic/exam-schedule] PATCH failed");
   }
 }
 
 async function createOrUpdate(
+  db: TxClient, schoolId: string,
   exam: { id: string; classId: string; subjectId: string | null; title: string },
   subjectName: string,
   subjectId: string,
@@ -229,121 +248,21 @@ async function createOrUpdate(
   campusId: string,
   excludeId?: string
 ) {
-  let periodTimes: { startTime: string; endTime: string } | null = null;
-  if (periodDefinitionId) {
-    const periodDef = await prisma.periodDefinition.findFirst({
-      where: { id: periodDefinitionId, campusId, timeType: "EXAM" },
-    });
-    if (!periodDef) return Response.json({ error: "Period definition not found or not an EXAM period" }, { status: 400 });
-    periodTimes = { startTime: periodDef.startTime, endTime: periodDef.endTime };
-  }
+  if (!Number.isFinite(new Date(`${date}T00:00:00Z`).getTime()) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) throw new ApiError("Choose a real calendar date.", 400);
+  const currentExam = await db.exam.findFirst({ where: { id: exam.id, schoolId, campusId, class: { archivedAt: null, status: "ACTIVE" }, isLocked: false, status: { in: ["DRAFT", "ACTIVE", "MARKS_ENTRY"] } }, select: { id: true, session: { select: { startDate: true, endDate: true } } } });
+  if (!currentExam) throw new ApiError("This exam is no longer editable.", 409);
+  if (currentExam.session?.startDate && date < currentExam.session.startDate.toISOString().slice(0, 10) || currentExam.session?.endDate && date > currentExam.session.endDate.toISOString().slice(0, 10)) throw new ApiError("The paper must fall within the session dates.", 409);
   if (roomId) {
-    const room = await prisma.classRoom.findFirst({ where: { id: roomId, campusId } });
-    if (!room) return Response.json({ error: "Room not found" }, { status: 400 });
-
-    // Seating an exam in a room that cannot hold the class is an operational
-    // failure on the day, so it is blocked rather than warned about.
-    //
-    // The number compared is the room's EXAM capacity, not its teaching one
-    // (§79): a 30-seat room three-to-a-bench invigilates ten. An unmeasured
-    // room has nothing to compare against and is left alone here — allocation
-    // rejects it later with a message that says what to record.
-    const cap = roomCapacity(room);
-    if (!cap.unmeasured) {
-      const seated = await prisma.student.count({ where: { classId: exam.classId, campusId } });
-      if (seated > cap.exam) {
-        const spacing =
-          cap.teaching > cap.exam
-            ? ` It seats ${cap.teaching} in a lesson, but only ${cap.exam} at one candidate per bench.`
-            : "";
-        return Response.json(
-          {
-            error: `Capacity conflict: ${seated} students are sitting this paper but Room ${room.roomNumber} holds only ${cap.exam} on an exam day.${spacing} Pick a larger room, or split the paper across several rooms.`,
-            conflict: {
-              type: "ROOM_CAPACITY",
-              seated,
-              capacity: cap.exam,
-              teachingCapacity: cap.teaching,
-              roomNumber: room.roomNumber,
-              shortBy: seated - cap.exam,
-            },
-          },
-          { status: 409 }
-        );
-      }
+    const room = await db.classRoom.findFirst({ where: { id: roomId, campusId, schoolId } });
+    if (!room) throw new ApiError("Room not found", 400);
+    const allocation = excludeId ? await db.examRoom.count({ where: { examScheduleId: excludeId } }) : 0;
+    // Existing multi-room plans retain their full capacity when dates move.
+    if (allocation <= 1) {
+      const capacity = roomCapacity(room);
+      const candidates = await db.student.count({ where: { classId: exam.classId, campusId, status: "active", archivedAt: null } });
+      if (!capacity.unmeasured && candidates > capacity.exam) throw new ApiError("This room cannot seat the active candidates at exam spacing. Use the full room allocation editor.", 409);
     }
   }
-
-  const weekends = await prisma.weekend.findMany({
-    where: { campusId },
-    select: { dayOfWeek: true },
-  });
-  const weekendDays = new Set(weekends.map((w) => w.dayOfWeek));
-  const day = dayOfWeek(date);
-  if (weekendDays.has(day)) {
-    const labels = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    return Response.json({ error: `${labels[day]} is a campus weekend — pick a working day` }, { status: 409 });
-  }
-
-  // A class can't sit two papers at the same time.
-  const classClash = await prisma.examSchedule.findFirst({
-    where: {
-      campusId,
-      exam: { classId: exam.classId },
-      date: new Date(`${date}T00:00:00.000Z`),
-      periodDefinitionId,
-      id: { not: excludeId || "____" },
-    },
-    include: { subject: { select: { name: true } }, exam: { select: { title: true } } },
-  });
-  if (classClash) {
-    return Response.json(
-      { error: `${exam.title}: ${subjectName} clashes with ${classClash.subject.name} — this class already has a paper in that time slot` },
-      { status: 409 }
-    );
-  }
-
-  // A room can't host two papers at the same time. Since §58 a paper can hold
-  // several rooms, so the search has to go through ExamRoom — checking only the
-  // primary `roomId` would miss every overflow room of a split paper.
-  if (roomId && periodDefinitionId) {
-    const roomClash = await prisma.examRoom.findFirst({
-      where: {
-        campusId,
-        roomId,
-        examScheduleId: { not: excludeId || "____" },
-        examSchedule: { date: new Date(`${date}T00:00:00.000Z`), periodDefinitionId },
-      },
-      include: {
-        room: { select: { roomNumber: true } },
-        examSchedule: {
-          include: { subject: { select: { name: true } }, exam: { select: { title: true } } },
-        },
-      },
-    });
-    if (roomClash) {
-      return Response.json(
-        { error: `Room ${roomClash.room.roomNumber} is already hosting ${roomClash.examSchedule.exam.title} (${roomClash.examSchedule.subject.name}) in that time slot` },
-        { status: 409 }
-      );
-    }
-  }
-
-  // §72: the room may be free of other papers and still be occupied by a
-  // timetabled lesson at that hour.
-  if (roomId && periodTimes) {
-    const lessonClashes = await findTimetableRoomClashes({
-      campusId,
-      roomIds: [roomId],
-      date,
-      startTime: periodTimes.startTime,
-      endTime: periodTimes.endTime,
-    });
-    if (lessonClashes.length) {
-      return Response.json({ error: lessonClashes[0] }, { status: 409 });
-    }
-  }
-
   const data = {
     date: new Date(`${date}T00:00:00.000Z`),
     periodDefinitionId,
@@ -351,20 +270,22 @@ async function createOrUpdate(
   };
 
   if (excludeId) {
-    const updated = await prisma.examSchedule.update({
+    const updated = await db.examSchedule.update({
       where: { id: excludeId },
       data,
       include: scheduleInclude,
     });
-    await syncPrimaryExamRoom({ campusId, scheduleId: updated.id, roomId });
+    await syncPrimaryExamRoom({ db, campusId, scheduleId: updated.id, roomId });
+    await validateStoredExamSchedules(db, { schoolId, campusId }, [updated.id]);
     return Response.json({ success: true, data: updated });
   }
 
-  const created = await prisma.examSchedule.create({
+  const created = await db.examSchedule.create({
     data: { ...data, campusId, examId: exam.id, subjectId },
     include: scheduleInclude,
   });
-  await syncPrimaryExamRoom({ campusId, scheduleId: created.id, roomId });
+  await syncPrimaryExamRoom({ db, campusId, scheduleId: created.id, roomId });
+  await validateStoredExamSchedules(db, { schoolId, campusId }, [created.id]);
   return Response.json({ success: true, data: created }, { status: 201 });
 }
 
@@ -380,14 +301,20 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get("id");
     if (!id) return Response.json({ error: "id is required" }, { status: 400 });
 
-    const campusId = await resolveCampusId(user, searchParams.get("campusId"));
+    const campusId = await resolveExamSchedulingCampus(user, searchParams.get("campusId"), { kind: "schedule", id });
+    return await withExamSchedulingWrite(user, campusId, "delete", async (prisma) => {
     const existing = await prisma.examSchedule.findFirst({
       where: { id, campusId, campus: { schoolId: user.schoolId } },
+      include: { exam: { select: { status: true, isLocked: true } }, paperSlot: { select: { sealedAt: true, printedAt: true, cancelledAt: true } } },
     });
     if (!existing) return Response.json({ error: "Schedule not found" }, { status: 404 });
 
+    if (existing.exam.isLocked || !["DRAFT", "ACTIVE", "MARKS_ENTRY"].includes(existing.exam.status)) throw new ApiError("This exam is no longer editable.", 409);
+    // SKO-500: a sealed or printed paper keeps its sitting; withdraw the paper request first.
+    if (existing.paperSlot && !existing.paperSlot.cancelledAt && (existing.paperSlot.sealedAt || existing.paperSlot.printedAt)) throw new ApiError("This paper is sealed for this sitting. Withdraw the paper request in the Papers step before removing it from the date sheet.", 409);
     await prisma.examSchedule.delete({ where: { id } });
     return Response.json({ success: true });
+    });
   } catch (error) {
     return errorResponse(error, "[academic/exam-schedule] DELETE failed");
   }

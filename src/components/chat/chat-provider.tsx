@@ -69,11 +69,13 @@ interface ChatContextValue {
   closeConversation: () => void;
   loadOlder: () => Promise<void>;
 
-  sendMessage: (input: {
-    body: string;
-    replyToId?: string;
-    attachments?: SendAttachment[];
-  }) => Promise<void>;
+  sendMessage: (input: SendInput) => Promise<boolean>;
+  /** SKO-415: delivery state of the sender's own messages that the server has not confirmed yet. */
+  sendStates: Record<string, SendState>;
+  retryMessage: (clientKey: string) => Promise<boolean>;
+  discardMessage: (clientKey: string) => void;
+  /** When the thread was last brought in line with stored history (after load or reconnect). */
+  lastSyncedAt: string | null;
   editMessage: (messageId: string, body: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
 
@@ -100,6 +102,22 @@ interface ChatContextValue {
   refresh: () => Promise<void>;
   error: string | null;
   clearError: () => void;
+}
+
+export interface SendInput {
+  body: string;
+  replyToId?: string;
+  attachments?: SendAttachment[];
+  urgent?: boolean;
+}
+
+/** "sending": in flight; "failed": the server refused it; "unconfirmed": the connection dropped, so it
+ *  may or may not have been stored — retrying reuses the same send identifier and cannot duplicate it. */
+export interface SendState {
+  status: "sending" | "failed" | "unconfirmed";
+  error?: string;
+  input: SendInput;
+  conversationId: string;
 }
 
 export interface SendAttachment {
@@ -152,6 +170,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // dropped stream itself, but once it gives up and lands in CLOSED it never
   // reopens on its own.
   const [connectionEpoch, setConnectionEpoch] = useState(0);
+  const [sendStates, setSendStates] = useState<Record<string, SendState>>({});
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const messagesRef = useRef<ChatMessageView[]>([]);
+  const disconnectedRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Read inside the SSE handler, which is created once per connection and
@@ -163,6 +185,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [activeId]);
 
   const lastTypingSentRef = useRef(0);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const clearSendState = useCallback((clientKey: string | null | undefined) => {
+    if (!clientKey) return;
+    setSendStates((prev) => {
+      if (!(clientKey in prev)) return prev;
+      const next = { ...prev };
+      delete next[clientKey];
+      return next;
+    });
+  }, []);
+
+  /** Merge server-confirmed messages: replace an optimistic copy by clientKey, never add a second copy. */
+  const mergeConfirmed = useCallback((incoming: ChatMessageView[]) => {
+    if (incoming.length === 0) return;
+    setMessages((prev) => {
+      let next = [...prev];
+      for (const message of incoming) {
+        const byKey = message.clientKey ? next.findIndex((m) => m.clientKey === message.clientKey) : -1;
+        const byId = next.findIndex((m) => m.id === message.id);
+        if (byKey >= 0) next[byKey] = message;
+        else if (byId >= 0) next[byId] = message;
+        else next = [...next, message];
+      }
+      return next;
+    });
+    for (const message of incoming) clearSendState(message.clientKey);
+  }, [clearSendState]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -271,6 +323,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
         setDetail(detailJson.conversation);
         setMessages(messagesJson.messages ?? []);
+        setLastSyncedAt(new Date().toISOString());
         setOlderCursor(messagesJson.nextCursor ?? null);
       } finally {
         if (!cancelled) setIsLoadingThread(false);
@@ -329,6 +382,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             next[byKey] = message;
             return next;
           }
+          if (prev.some((m) => m.id === message.id)) return prev.map((m) => (m.id === message.id ? message : m));
           if (prev.some((m) => m.id === message.id)) return prev;
           return [...prev, message];
         });
@@ -354,11 +408,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return [...rest.slice(0, at), updated, ...rest.slice(at)];
       });
 
+      if (message.clientKey) clearSendState(message.clientKey);
       if (!isOpen) setUnreadTotal((prev) => prev + 1);
       return;
     }
 
     if (event.type === "message-updated") {
+      // SKAI-1291: an edit to the latest message refreshes its inbox preview too.
+      const edited = event.payload;
+      if (edited.isEdited && !edited.isDeleted) {
+        setConversations((prev) => prev.map((c) => (c.id === event.conversationId && c.lastMessageAt === edited.createdAt ? { ...c, lastMessagePreview: edited.body || c.lastMessagePreview } : c)));
+      }
       if (activeIdRef.current !== event.conversationId) return;
       setMessages((prev) =>
         prev.map((m) => (m.id === event.payload.id ? event.payload : m))
@@ -393,15 +453,59 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       loadConversations();
       loadUnread();
     }
-  }, [loadConversations, loadUnread]);
+  }, [loadConversations, loadUnread, clearSendState]);
+
+  // SKO-415 gap recovery: after any outage, fetch every message stored after the last confirmed one
+  // the thread holds, then re-read the list and unread totals from the server, so nothing missed while
+  // offline is lost and nothing is shown twice.
+  const resync = useCallback(async () => {
+    await refresh();
+    const conversationId = activeIdRef.current;
+    if (!conversationId) return;
+    const confirmed = messagesRef.current.filter((m) => !m.id.startsWith("pending-"));
+    let after: string | undefined = confirmed[confirmed.length - 1]?.id;
+    try {
+      if (!after) {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages?limit=40`, { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        mergeConfirmed(json.messages ?? []);
+      } else {
+        for (let page = 0; page < 20 && after; page++) {
+          const res: Response = await fetch(`/api/chat/conversations/${conversationId}/messages?after=${encodeURIComponent(after)}&limit=100`, { cache: "no-store" });
+          if (!res.ok) return;
+          const json: { messages?: ChatMessageView[]; hasMoreAfter?: boolean } = await res.json();
+          const batch: ChatMessageView[] = json.messages ?? [];
+          mergeConfirmed(batch);
+          after = json.hasMoreAfter ? batch[batch.length - 1]?.id : undefined;
+        }
+      }
+      if (activeIdRef.current === conversationId) setLastSyncedAt(new Date().toISOString());
+    } catch {
+      // Still offline; the next restore runs this again.
+    }
+  }, [refresh, mergeConfirmed]);
+  const resyncRef = useRef(resync);
+  useEffect(() => {
+    resyncRef.current = resync;
+  }, [resync]);
 
   useEffect(() => {
     const source = new EventSource("/api/chat/stream");
     eventSourceRef.current = source;
 
-    source.addEventListener("ready", () => setIsConnected(true));
+    source.addEventListener("ready", () => {
+      setIsConnected(true);
+      if (disconnectedRef.current) {
+        disconnectedRef.current = false;
+        void resyncRef.current();
+      }
+    });
     source.addEventListener("open", () => setIsConnected(true));
-    source.addEventListener("error", () => setIsConnected(false));
+    source.addEventListener("error", () => {
+      setIsConnected(false);
+      disconnectedRef.current = true;
+    });
 
     source.addEventListener("chat", (e) => {
       try {
@@ -428,7 +532,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onRestored = () => {
-      refresh();
+      void resyncRef.current();
       if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
         setConnectionEpoch((n) => n + 1);
       }
@@ -439,19 +543,57 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // ─── Writes ────────────────────────────────────────────────────
 
+  // One POST per attempt, always with the message's own send identifier: the server returns the stored
+  // message for a repeated identifier, so a retry after a lost response can never post twice.
+  const postMessage = useCallback(async (conversationId: string, clientKey: string, input: SendInput): Promise<boolean> => {
+    setSendStates((prev) => ({ ...prev, [clientKey]: { status: "sending", input, conversationId } }));
+    try {
+      const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: input.body, replyToId: input.replyToId, clientKey, attachments: input.attachments, urgent: input.urgent || undefined }),
+      });
+      if (!res.ok) {
+        const error = await readError(res, "Message could not be sent");
+        setSendStates((prev) => ({ ...prev, [clientKey]: { status: "failed", error, input, conversationId } }));
+        return false;
+      }
+      const json = await res.json();
+      if (activeIdRef.current === conversationId) mergeConfirmed([json.message]);
+      else clearSendState(clientKey);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? { ...c, lastMessageAt: json.message.createdAt, lastMessagePreview: json.message.body || "Attachment" }
+            : c
+        )
+      );
+      return true;
+    } catch {
+      // The live stream may already have delivered the stored copy; then nothing is uncertain.
+      if (messagesRef.current.some((m) => m.clientKey === clientKey && !m.id.startsWith("pending-"))) {
+        clearSendState(clientKey);
+        return true;
+      }
+      setSendStates((prev) => ({
+        ...prev,
+        [clientKey]: { status: "unconfirmed", error: "We could not confirm this message was sent. Retrying is safe: it will not be sent twice.", input, conversationId },
+      }));
+      return false;
+    }
+  }, [mergeConfirmed, clearSendState]);
+
   const sendMessage = useCallback<ChatContextValue["sendMessage"]>(
-    async ({ body, replyToId, attachments }) => {
-      if (!activeId) return;
+    async (input) => {
+      if (!activeId) return false;
+      const clientKey = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-      const clientKey = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-
-      // Optimistic: the message appears immediately and is reconciled when the
-      // server echoes it back over the stream, keyed on clientKey.
+      // Shown as "Sending…", never as delivered, until the server confirms it.
       const optimistic: ChatMessageView = {
         id: `pending-${clientKey}`,
         conversationId: activeId,
-        kind: attachments?.length ? "FILE" : "TEXT",
-        body,
+        kind: input.attachments?.length ? "FILE" : "TEXT",
+        body: input.body,
         sender: null,
         replyTo: null,
         attachments: [],
@@ -459,44 +601,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         isDeleted: false,
         createdAt: new Date().toISOString(),
         clientKey,
+        isUrgent: Boolean(input.urgent),
       };
       setMessages((prev) => [...prev, optimistic]);
-
-      try {
-        const res = await fetch(`/api/chat/conversations/${activeId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body, replyToId, clientKey, attachments }),
-        });
-
-        if (!res.ok) {
-          setMessages((prev) => prev.filter((m) => m.clientKey !== clientKey));
-          setError(await readError(res, "Message could not be sent"));
-          return;
-        }
-
-        const json = await res.json();
-        setMessages((prev) =>
-          prev.map((m) => (m.clientKey === clientKey ? json.message : m))
-        );
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeId
-              ? {
-                  ...c,
-                  lastMessageAt: json.message.createdAt,
-                  lastMessagePreview: json.message.body || "Attachment",
-                }
-              : c
-          )
-        );
-      } catch {
-        setMessages((prev) => prev.filter((m) => m.clientKey !== clientKey));
-        setError("Message could not be sent — check your connection");
-      }
+      return postMessage(activeId, clientKey, input);
     },
-    [activeId]
+    [activeId, postMessage]
   );
+
+  const retryMessage = useCallback(async (clientKey: string) => {
+    const state = sendStates[clientKey];
+    if (!state) return false;
+    return postMessage(state.conversationId, clientKey, state.input);
+  }, [sendStates, postMessage]);
+
+  const discardMessage = useCallback((clientKey: string) => {
+    setMessages((prev) => prev.filter((m) => !(m.clientKey === clientKey && m.id.startsWith("pending-"))));
+    clearSendState(clientKey);
+  }, [clearSendState]);
 
   const editMessage = useCallback(async (messageId: string, body: string) => {
     const res = await fetch(`/api/chat/messages/${messageId}`, {
@@ -641,6 +763,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       closeConversation,
       loadOlder,
       sendMessage,
+      sendStates,
+      retryMessage,
+      discardMessage,
+      lastSyncedAt,
       editMessage,
       deleteMessage,
       startDirect,
@@ -671,6 +797,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       closeConversation,
       loadOlder,
       sendMessage,
+      sendStates,
+      retryMessage,
+      discardMessage,
+      lastSyncedAt,
       editMessage,
       deleteMessage,
       startDirect,

@@ -1,0 +1,94 @@
+"use client";
+
+/**
+ * SKAI-1108 founder console: the market expansion triggers from the SKAI-1006 decision log. Read-only; thresholds
+ * live in `src/lib/expansion/trigger-config.ts` and a market reopens only when its trigger is met.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import { CircleCheck, CircleDashed, Flag } from "lucide-react";
+import { DeskPill, DeskStats, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/ui/page-header";
+import { PageCard } from "@/components/ui/page-card";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
+import { useLocale } from "@/components/locale/LocaleProvider";
+import type { TriggerStatus } from "@/lib/expansion/triggers";
+
+const COPY = {
+  en: { title: "Expansion triggers", description: "Markets stay deferred until their trigger is met. Missing values count as not met.", asOf: "Values as of", market: "Market", metric: "Metric", threshold: "Threshold", value: "Current value", state: "State", met: "Met", notMet: "Not met", unknown: "Not recorded", yes: "Yes", no: "No", allOf: "All conditions", anyOf: "Any condition", loadFailed: "Expansion triggers could not be loaded." },
+  ur: { title: "توسیعی محرکات", description: "مارکیٹیں اس وقت تک مؤخر رہتی ہیں جب تک ان کا محرک پورا نہ ہو۔ غیر درج قدر پوری نہیں سمجھی جاتی۔", asOf: "اقدار بتاریخ", market: "مارکیٹ", metric: "پیمانہ", threshold: "حد", value: "موجودہ قدر", state: "حالت", met: "پورا", notMet: "پورا نہیں", unknown: "درج نہیں", yes: "ہاں", no: "نہیں", allOf: "تمام شرائط", anyOf: "کوئی ایک شرط", loadFailed: "توسیعی محرکات لوڈ نہیں ہو سکے۔" },
+  ar: { title: "محفزات التوسع", description: "تبقى الأسواق مؤجلة حتى يتحقق محفزها. القيم غير المسجلة تعد غير متحققة.", asOf: "القيم بتاريخ", market: "السوق", metric: "المقياس", threshold: "الحد", value: "القيمة الحالية", state: "الحالة", met: "متحقق", notMet: "غير متحقق", unknown: "غير مسجلة", yes: "نعم", no: "لا", allOf: "كل الشروط", anyOf: "أي شرط", loadFailed: "تعذر تحميل محفزات التوسع." },
+} as const;
+
+export default function ExpansionTriggersPage() {
+  const { language } = useLocale();
+  const t = COPY[language] ?? COPY.en;
+  const [data, setData] = useState<{ asOf: string; triggers: TriggerStatus[] } | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(async () => {
+    setFailed(false);
+    const res = await fetch("/api/owner/expansion-triggers", { cache: "no-store" }).catch(() => null);
+    const json = res?.ok ? await res.json().catch(() => null) : null;
+    if (!json?.success) { setFailed(true); return; }
+    setData(json.data);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  const show = (v: number | boolean | true | null) => v === null ? t.unknown : v === true ? t.yes : v === false ? t.no : String(v);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      <PageHeader icon={Flag} title={t.title} description={data ? `${t.description} ${t.asOf} ${data.asOf}.` : t.description} />
+      {data?.triggers.length ? <DeskStats>
+        <StatTile index={0} icon={CircleCheck} tone="success" label={t.met} value={data.triggers.filter((trigger) => trigger.met).length} />
+        <StatTile index={1} icon={CircleDashed} tone="warning" label={t.notMet} value={data.triggers.filter((trigger) => !trigger.met).length} />
+      </DeskStats> : null}
+      {failed ? <ErrorState title={t.loadFailed} onRetry={load} /> : !data ? <SkeletonList rows={3} label={t.title} /> : data.triggers.map((trigger) => (
+        <PageCard key={trigger.market} data-trigger-met={trigger.met}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold" dir="ltr">{trigger.market}</h2>
+            <div className="flex items-center gap-2">
+              <Badge size="sm" variant="neutral">{trigger.anyOf ? t.anyOf : t.allOf}</Badge>
+              <DeskPill tone={trigger.met ? "success" : "warning"}>{trigger.met ? t.met : t.notMet}</DeskPill>
+            </div>
+          </div>
+          {/* SKAI-1172: on a phone each condition stacks as a card, so nothing scrolls sideways at 360px. */}
+          <ul className="flex flex-col gap-3 sm:hidden">
+            {urgencyFirst(trigger.conditions, (c) => (c.met ? 1 : 0)).map((c) => (
+              <li key={c.id} data-tone={c.met ? "success" : "warning"} className={deskRow} data-testid="trigger-condition-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="break-words font-semibold" dir="ltr">{c.metric}</div>
+                    <div className="break-words text-xs text-ink-muted"><bdi dir="ltr">{c.source}</bdi></div>
+                  </div>
+                  <span className="shrink-0 whitespace-nowrap"><DeskPill tone={c.met ? "success" : "warning"}>{c.met ? t.met : t.notMet}</DeskPill></span>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div><dt className="text-xs text-ink-muted">{t.threshold}</dt><dd>{c.threshold === true ? t.yes : <bdi dir="ltr">≥ {c.threshold}</bdi>}</dd></div>
+                  <div><dt className="text-xs text-ink-muted">{t.value}</dt><dd>{show(c.value)}</dd></div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <Table containerClassName="hidden sm:block">
+            <TableHeader><TableRow><TableHead>{t.metric}</TableHead><TableHead>{t.threshold}</TableHead><TableHead>{t.value}</TableHead><TableHead>{t.state}</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {trigger.conditions.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell><span dir="ltr">{c.metric}</span><div className="text-xs text-ink-muted"><bdi dir="ltr">{c.source}</bdi></div></TableCell>
+                  <TableCell>{c.threshold === true ? t.yes : <bdi dir="ltr">≥ {c.threshold}</bdi>}</TableCell>
+                  <TableCell>{show(c.value)}</TableCell>
+                  <TableCell><Badge size="sm" variant={c.met ? "success" : "neutral"}>{c.met ? t.met : t.notMet}</Badge></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </PageCard>
+      ))}
+    </div>
+  );
+}

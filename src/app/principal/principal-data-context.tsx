@@ -1,8 +1,7 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
-import { toast } from "sonner"
-import { userMessage } from "@/lib/errors"
+import { createContext, useContext, type ReactNode } from "react"
+import { usePrivateDashboardData } from "@/lib/auth/use-private-dashboard-data"
 import { getPrincipalDashboardData } from "@/app/actions/dashboard"
 
 type PrincipalDataContextType = {
@@ -19,48 +18,17 @@ const PrincipalDataContext = createContext<PrincipalDataContextType>({
   refetch: () => {},
 })
 
-const CACHE_KEY = "principal-dashboard"
-const CACHE_TTL = 60_000
-const cache = new Map<string, { data: any; ts: number }>()
-
+/**
+ * The academic console's one data source, scoped to this provider mount (never a module cache).
+ * A refresh after a save keeps the screen in place until the fresh payload lands (stale-while-revalidate, addendum
+ * 2026-10-22 §3 — no skeleton flash); a refresh that fails clears what was shown (fail closed: a revoked grant never
+ * leaves earlier records on screen) and the page shows its inline ErrorState with Retry — never also a toast (R4).
+ */
 export function PrincipalDataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<any>(() => {
-    const cached = cache.get(CACHE_KEY)
-    return cached && Date.now() - cached.ts < CACHE_TTL ? cached.data : null
-  })
-  const [loading, setLoading] = useState(data === null)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadData = useCallback(async () => {
-    if (data === null) setLoading(true)
-    setError(null)
-    try {
-      const fresh = await getPrincipalDashboardData()
-      cache.set(CACHE_KEY, { data: fresh, ts: Date.now() })
-      setData(fresh)
-    } catch (err: any) {
-      // Server-action failures surface raw engine text (query, build paths,
-      // database host), so they never go straight to the user.
-      const message = userMessage(err, "Could not load your dashboard.")
-      setError(message)
-      toast.error(message)
-    } finally {
-      setLoading(false)
-    }
-  }, [data])
-
-  useEffect(() => {
-    const cached = cache.get(CACHE_KEY)
-    if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      setData(cached.data)
-      setLoading(false)
-      return
-    }
-    loadData()
-  }, [loadData])
+  const value = usePrivateDashboardData(getPrincipalDashboardData)
 
   return (
-    <PrincipalDataContext.Provider value={{ data, loading, error, refetch: loadData }}>
+    <PrincipalDataContext.Provider value={value}>
       {children}
     </PrincipalDataContext.Provider>
   )

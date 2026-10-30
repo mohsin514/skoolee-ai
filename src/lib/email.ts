@@ -1,19 +1,20 @@
+import { authEmailCopy, authEmailLanguage } from "@/lib/auth/email-copy";
+import { appUrl } from "@/lib/app-url";
 import type { ReactElement } from "react";
 import { render } from "@react-email/render";
 import { InviteEmail } from "./email/templates/InviteEmail";
 import { MessageEmail } from "./email/templates/MessageEmail";
 import { PasswordResetEmail } from "./email/templates/PasswordResetEmail";
 import { VerifyEmail } from "./email/templates/VerifyEmail";
-import { sendSmtpMail, type SmtpConfig } from "./email/smtp";
+import { sendSmtpMail, verifySmtpConnection, type SmtpConfig } from "./email/smtp";
 import { roleLabel } from "@/lib/roles";
+import { emailProviderReadiness } from "./email/readiness";
+import { NOREPLY_EMAIL } from "@/lib/config/contact";
+export { emailProviderReadiness } from "./email/readiness";
 
-const DEFAULT_FROM_EMAIL = "mohsin.ali14993@gmail.com";
+const DEFAULT_FROM_EMAIL = NOREPLY_EMAIL;
 
-const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-};
+const getBaseUrl = () => appUrl();
 
 function normalizeBaseUrl(baseUrl?: string) {
   return (baseUrl || getBaseUrl()).replace(/\/$/, "");
@@ -21,7 +22,8 @@ function normalizeBaseUrl(baseUrl?: string) {
 
 function getLogoUrl(baseUrl?: string) {
   if (process.env.EMAIL_LOGO_URL) return process.env.EMAIL_LOGO_URL;
-  return `${normalizeBaseUrl(baseUrl)}/favicon.svg`;
+    // SKAI-937/944: Gmail and Outlook block SVG images; a broken logo hurts the image/text score.
+  return `${normalizeBaseUrl(baseUrl)}/apple-icon.png`;
 }
 
 function getFromEmail() {
@@ -53,12 +55,13 @@ function getSmtpConfig(): SmtpConfig {
   };
 }
 
-function hasEmailProviderConfig() {
-  if (process.env.EMAIL_DEV_MODE === "true") return true;
-  if (process.env.SMTP_AUTH === "false") return Boolean(process.env.SMTP_HOST);
+/** SKO-457: handshake-only provider check; sends nothing. */
+export async function checkEmailProviderConnection() {
+  return verifySmtpConnection(getSmtpConfig());
+}
 
-  const config = getSmtpConfig();
-  return Boolean(config.host && config.user && config.pass);
+export function hasEmailProviderConfig() {
+  return emailProviderReadiness().configured;
 }
 
 async function renderTemplate(template: ReactElement) {
@@ -78,9 +81,12 @@ async function deliverEmail({
   text: string;
   fromName?: string;
 }) {
+  if (process.env.DISABLE_OUTBOUND_MESSAGES === "true") {
+    return { success: false, error: "Outbound email is disabled for this environment." };
+  }
   if (process.env.EMAIL_DEV_MODE === "true") {
-    console.log(`[EMAIL DEV MODE] ${subject}: ${to}`);
-    return { success: true, bypass: true, messageId: undefined };
+    console.log("[EMAIL DEV MODE] Delivery bypassed; no provider message was sent.");
+    return { success: false, bypass: true, messageId: undefined, error: "Email delivery is bypassed in development; no provider message was sent." };
   }
 
   if (!hasEmailProviderConfig()) {
@@ -111,16 +117,19 @@ export async function sendEmailMessage({
   subject,
   text,
   html,
+  language = "en",
 }: {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  language?: "en" | "ar" | "ur";
 }) {
   try {
     const renderedHtml = await renderTemplate(
       MessageEmail({
         subject,
+        language,
         text,
         html,
         logoUrl: getLogoUrl(),
@@ -142,17 +151,23 @@ export async function sendEmailMessage({
   }
 }
 
-export async function sendVerificationEmail(email: string, userId: string, token: string) {
+export async function sendVerificationEmail(email: string, userId: string, token: string, preferredLanguage?: string | null) {
+  const language = authEmailLanguage(preferredLanguage);
+  const copy = authEmailCopy[language].verify;
   try {
     // The signed token is the whole credential; the user id is not in the URL.
     void userId;
     const actionUrl = `${getBaseUrl()}/api/auth/verify?token=${token}`;
-    const html = await renderTemplate(VerifyEmail({ actionUrl, logoUrl: getLogoUrl() }));
+    const html = await renderTemplate(VerifyEmail({ actionUrl, logoUrl: getLogoUrl(), language }));
     const result = await deliverEmail({
       to: email,
-      subject: "Verify your SkooleeAI Account",
+      subject: copy.subject,
       html,
-      text: `Verify your SkooleeAI account: ${actionUrl}`,
+      text: `${copy.body}
+
+${copy.action}: ${actionUrl}
+
+${copy.note}`,
       fromName: "SkooleeAI Setup",
     });
 
@@ -164,44 +179,49 @@ export async function sendVerificationEmail(email: string, userId: string, token
     return result;
   } catch (err) {
     console.error("[EMAIL EXCEPTION]", err);
-    if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Verification Link: ${getBaseUrl()}/api/auth/verify?token=${token}`);
-      return { success: true };
+    if (emailProviderReadiness().mode === "development" && process.env.NODE_ENV !== "production") {
+      console.log("[EMAIL DEV MODE] Verification delivery bypassed; no provider message was sent.");
+      return { success: true, bypass: true };
     }
     throw err;
   }
 }
 
+export function buildInviteEmailCopy(role: string, campusName: string, actionUrl: string) {
+  const roleName = roleLabel(role);
+  const isParent = role === "PARENT";
+  return {
+    roleName,
+    // SKAI-937/944: the display name always names the platform, so it matches the sending
+    // domain instead of impersonating the school from a skooleeai.com address.
+    fromName: `${campusName} via Skoolee AI`,
+    subject: isParent ? `Your parent account for ${campusName}` : `Your ${roleName} account for ${campusName}`,
+    text: [
+      isParent
+        ? `${campusName} has set up a parent account for you on Skoolee AI.`
+        : `${campusName} has set up a ${roleName} account for you on Skoolee AI.`,
+      isParent
+        ? "With it you can see your child's attendance, results, report cards and fee statements, and get school notices."
+        : "Open the link below to choose your password and sign in to your dashboard.",
+      `Set up your account: ${actionUrl}`,
+      "The link works for 48 hours. Please do not share it.",
+      `If you were not expecting this, you can ignore this email or reply to let us know.\n\n--\n${campusName}\nSent with Skoolee AI`,
+    ].join("\n\n"),
+  };
+}
+
 export async function sendInviteEmail(email: string, role: string, campusName: string, token: string, baseUrl?: string) {
   try {
-    const roleName = roleLabel(role);
     const inviteBaseUrl = normalizeBaseUrl(baseUrl);
     const actionUrl = `${inviteBaseUrl}/accept-invite?token=${encodeURIComponent(token)}`;
+    const { roleName, fromName, subject, text } = buildInviteEmailCopy(role, campusName, actionUrl);
     const html = await renderTemplate(InviteEmail({ role: roleName, campusName, actionUrl, logoUrl: getLogoUrl(inviteBaseUrl) }));
-    
-    // Customize messaging based on role
-    const isParent = role === "PARENT";
-    
-    // Use the campus name in the from name to make it more legitimate and recognizable
-    const fromName = isParent 
-      ? `${campusName}` 
-      : `${campusName} via Skoolee AI`;
-    
-    // Make subject line more specific and less spammy
-    const subject = isParent
-      ? `Parent Portal Access for ${campusName}`
-      : `You've been invited to ${campusName}`;
-    
-    // Enhance text version for better spam score
-    const textContent = isParent
-      ? `Welcome to ${campusName} Parent Portal\n\nYou have been invited to access the parent portal for ${campusName}.\n\nThe parent portal allows you to:\n- View your child's attendance and academic progress\n- Check exam results and report cards\n- Monitor fee payments and invoices\n- Receive important school notifications\n\nActivate your account: ${actionUrl}\n\nThis activation link will expire in 48 hours.\n\nFor security, please do not share this link with anyone.\n\n---\n${campusName}\nPowered by Skoolee AI Campus Management System`
-      : `You have been invited to join ${campusName} as ${roleName}. Accept your invitation: ${actionUrl}`;
-    
+
     const result = await deliverEmail({
       to: email,
       subject,
       html,
-      text: textContent,
+      text,
       fromName,
     });
 
@@ -213,23 +233,43 @@ export async function sendInviteEmail(email: string, role: string, campusName: s
     return result;
   } catch (err) {
     console.error("[EMAIL EXCEPTION]", err);
-    if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Invite Link: ${normalizeBaseUrl(baseUrl)}/accept-invite?token=${encodeURIComponent(token)}`);
-      return { success: true };
-    }
     throw err;
   }
 }
 
-export async function sendPasswordResetEmail(email: string, token: string) {
+/**
+ * SKO-457: someone tried to register a new school with an address that already owns one. The
+ * signup screen answers exactly as for a new address; only the owner of the address learns
+ * this, here, with the way back in.
+ */
+export async function sendExistingAccountNotice(email: string) {
+  const base = getBaseUrl();
+  const text = [
+    "Someone tried to register a new school on SkooleeAI with this email address, which already has a school account.",
+    `If it was you, sign in: ${base}/login`,
+    `Forgot your password? Reset it here: ${base}/forgot-password`,
+    "If it was not you, you can ignore this email. No new account was created.",
+  ].join("\n\n");
+  const result = await sendEmailMessage({ to: email, subject: "You already have a SkooleeAI account", text });
+  if (!result.success) throw new Error("error" in result && result.error ? String(result.error) : "Email dispatch failed");
+  return result;
+}
+
+export async function sendPasswordResetEmail(email: string, token: string, preferredLanguage?: string | null) {
+  const language = authEmailLanguage(preferredLanguage);
+  const copy = authEmailCopy[language].reset;
   try {
     const actionUrl = `${getBaseUrl()}/forgot-password?token=${token}`;
-    const html = await renderTemplate(PasswordResetEmail({ actionUrl, logoUrl: getLogoUrl() }));
+    const html = await renderTemplate(PasswordResetEmail({ actionUrl, logoUrl: getLogoUrl(), language }));
     const result = await deliverEmail({
       to: email,
-      subject: "Reset your SkooleeAI Password",
+      subject: copy.subject,
       html,
-      text: `Reset your SkooleeAI password: ${actionUrl}`,
+      text: `${copy.body}
+
+${copy.action}: ${actionUrl}
+
+${copy.note}`,
       fromName: "SkooleeAI Support",
     });
 
@@ -239,9 +279,9 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 
     return result;
   } catch (err) {
-    if (process.env.EMAIL_DEV_MODE === "true") {
-      console.log(`[EMAIL DEV MODE] Reset Link: ${getBaseUrl()}/forgot-password?token=${token}`);
-      return { success: true };
+    if (emailProviderReadiness().mode === "development") {
+      console.log("[EMAIL DEV MODE] Password-reset delivery bypassed; no provider message was sent.");
+      return { success: false, bypass: true, error: "Email delivery is bypassed in development; no provider message was sent." };
     }
     throw err;
   }

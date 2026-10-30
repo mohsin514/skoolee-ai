@@ -6,6 +6,16 @@ import { Check, ImageIcon, Loader2, Lock, Paperclip, Send, X } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { useChat, type SendAttachment } from "./chat-provider";
 import type { ChatMessageView } from "@/lib/chat/types";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { InputGroup } from "@/components/ui/input-group";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { fill } from "./chat-text";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const MotionButton = motion.create(Button);
+
 
 const MAX_LENGTH = 4000;
 
@@ -36,11 +46,14 @@ export function Composer({
   onClearEditing,
   onSubmitEdit,
 }: ComposerProps) {
-  const { sendMessage, notifyTyping } = useChat();
+  const { sendMessage, notifyTyping, viewer } = useChat();
+  const ui = useUiText();
+  const [urgent, setUrgent] = useState(false);
+  // Families never raise urgency; staff choose it per message (SKO-415).
+  const canMarkUrgent = Boolean(viewer && viewer.role !== "PARENT" && viewer.role !== "STUDENT");
   const [value, setValue] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,40 +84,47 @@ export function Composer({
 
   if (!canPost) {
     return (
-      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-[#cfc2d6]/25 bg-gradient-to-b from-[#fbf0fe]/60 to-white/80 px-4 py-4 backdrop-blur-xl">
+      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-edge/25 bg-gradient-to-b from-brand-50/60 to-white/80 px-4 py-4 backdrop-blur-xl">
         <Lock className="h-3.5 w-3.5 text-ink-faint" aria-hidden />
-        <p className="text-[11px] font-bold text-ink-muted">{lockedReason}</p>
+        <p className="text-2xs font-bold text-ink-muted">{lockedReason}</p>
       </div>
     );
   }
 
   async function uploadFile(file: File): Promise<PendingFile> {
     try {
-      const presign = await fetch("/api/chat/attachments", {
+      const request = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId,
-          fileName: file.name,
-          contentType: file.type || "application/octet-stream",
-          sizeBytes: file.size,
-        }),
-      });
+        body: JSON.stringify({ conversationId, fileName: file.name, contentType: file.type || "application/octet-stream", sizeBytes: file.size }),
+      };
+      let presign = await fetch("/api/chat/attachments", request);
+      if (!presign.ok && presign.status >= 500) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        presign = await fetch("/api/chat/attachments", request);
+      }
 
       if (!presign.ok) {
         const json = await presign.json().catch(() => ({}));
-        return { file, error: json.error ?? "Upload was refused" };
+        return { file, error: json.error ? ui(json.error) : ui("Upload was refused") };
       }
 
       const { storageKey, uploadUrl } = await presign.json();
 
-      const put = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-      });
+      const putRequest = { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file };
+      let put = await fetch(uploadUrl, putRequest);
+      // A provider timeout can happen after the presign succeeds. Retrying the
+      // same signed request is safe: the server uses If-None-Match and rejects
+      // duplicate writes without changing the draft.
+      if (!put.ok && put.status >= 500) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        put = await fetch(uploadUrl, putRequest);
+      }
 
-      if (!put.ok) return { file, error: "Upload failed" };
+      if (!put.ok) {
+        const json = await put.json().catch(() => ({}));
+        return { file, error: json.error ? ui(json.error) : ui("Upload failed") };
+      }
 
       return {
         file,
@@ -116,7 +136,7 @@ export function Composer({
         },
       };
     } catch {
-      return { file, error: "Upload failed" };
+      return { file, error: ui("Upload failed") };
     }
   }
 
@@ -146,8 +166,10 @@ export function Composer({
       if (editing) {
         await onSubmitEdit(body);
       } else {
-        await sendMessage({ body, replyToId: replyTo?.id, attachments });
+        // A failed send stays in the thread with its own Retry/Discard, so the composer can clear.
+        await sendMessage({ body, replyToId: replyTo?.id, attachments, urgent: canMarkUrgent && urgent });
         onClearReply();
+        setUrgent(false);
       }
       setValue("");
       setFiles([]);
@@ -163,7 +185,7 @@ export function Composer({
   const remaining = MAX_LENGTH - value.length;
 
   return (
-    <div className="shrink-0 border-t border-[#cfc2d6]/25 bg-white/85 px-3 py-3 backdrop-blur-xl md:px-4">
+    <div className="shrink-0 border-t border-border bg-card px-3 py-3 md:px-4">
       <AnimatePresence initial={false}>
         {(replyTo || editing) && (
           <motion.div
@@ -173,24 +195,26 @@ export function Composer({
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-[#fbf0fe] to-white px-3 py-2 ring-1 ring-[#8127cf]/15">
+            <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-brand-50 to-white px-3 py-2 ring-1 ring-primary/15">
               <span
-                className="h-8 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-[#8127cf] to-[#b10e6b]"
+                className="h-8 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-primary to-berry"
                 aria-hidden
               />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black text-[#8127cf]">
+                <p className="text-2xs font-bold text-primary">
                   {editing
-                    ? "Editing your message"
-                    : `Replying to ${replyTo?.sender?.fullName ?? "message"}`}
+                    ? ui("Editing your message")
+                    : replyTo?.sender?.fullName
+                      ? fill(ui("Replying to {0}"), [replyTo.sender.fullName])
+                      : ui("Replying to a message")}
                 </p>
-                <p className="truncate text-[11px] font-semibold text-ink-muted">
+                <p className="truncate text-2xs font-semibold text-ink-muted">
                   {(editing ?? replyTo)?.body}
                 </p>
               </div>
-              <button
+              <IconButton variant="outline" size="sm" label={editing ? ui("Cancel edit") : ui("Cancel reply")}
                 type="button"
-                aria-label={editing ? "Cancel edit" : "Cancel reply"}
+                
                 onClick={() => {
                   if (editing) {
                     onClearEditing();
@@ -199,10 +223,10 @@ export function Composer({
                     onClearReply();
                   }
                 }}
-                className="shrink-0 cursor-pointer rounded-lg p-1 text-ink-muted transition-all hover:bg-white hover:text-[#8127cf] active:scale-90"
+                className="shrink-0"
               >
                 <X className="h-3.5 w-3.5" />
-              </button>
+              </IconButton>
             </div>
           </motion.div>
         )}
@@ -219,13 +243,14 @@ export function Composer({
             {files.map((f, i) => (
               <li
                 key={`${f.file.name}-${i}`}
+                data-upload-state={f.error ? "failed" : f.uploaded ? "ready" : "uploading"}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[10px] font-bold ring-1",
+                  "flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-2xs font-bold ring-1",
                   f.error
                     ? "bg-rose-50 text-rose-600 ring-rose-200"
                     : f.uploaded
-                      ? "bg-[#fbf0fe] text-[#8127cf] ring-[#8127cf]/20"
-                      : "bg-[#f4ecf8] text-ink-muted ring-[#cfc2d6]/30"
+                      ? "bg-brand-50 text-primary ring-primary/20"
+                      : "bg-brand-50 text-ink-muted ring-edge/30"
                 )}
               >
                 {f.error ? null : f.uploaded ? (
@@ -236,30 +261,39 @@ export function Composer({
                 {f.file.type.startsWith("image/") && (
                   <ImageIcon className="h-3 w-3 shrink-0" aria-hidden />
                 )}
-                <span className="max-w-[150px] truncate">{f.file.name}</span>
-                {f.error && <span>· {f.error}</span>}
-                <button
+                <bdi className="max-w-[150px] truncate">{f.file.name}</bdi>
+                {f.error && <span role="alert">· {fill(ui("{0}. Your message draft is still here."), [f.error])}</span>}
+                {f.error && (
+                  <Button variant="outline" size="sm" type="button" aria-label={ui("Retry upload of {0}", [f.file.name])}
+                    onClick={async () => {
+                      const file = f.file;
+                      setFiles((prev) => prev.map((p) => (p.file === file ? { file } : p)));
+                      const result = await uploadFile(file);
+                      setFiles((prev) => prev.map((p) => (p.file === file ? result : p)));
+                    }}>
+                    {ui("Retry")}
+                  </Button>
+                )}
+                <IconButton variant="outline" size="sm" label={ui("Remove {0}", [f.file.name])}
                   type="button"
-                  aria-label={`Remove ${f.file.name}`}
                   onClick={() => setFiles((prev) => prev.filter((_, index) => index !== i))}
-                  className="cursor-pointer rounded p-0.5 transition-colors hover:bg-white/70"
+
                 >
                   <X className="h-3 w-3" />
-                </button>
+                </IconButton>
               </li>
             ))}
           </motion.ul>
         )}
       </AnimatePresence>
 
-      <div
-        className={cn(
-          "flex items-end gap-2 rounded-[20px] border bg-white p-1.5 transition-all",
-          isFocused
-            ? "border-[#8127cf]/40 shadow-[0_0_0_4px_rgba(129,39,207,0.10),0_10px_28px_-14px_rgba(129,39,207,0.5)]"
-            : "border-[#cfc2d6]/30 shadow-[0_4px_16px_-10px_rgba(31,26,35,0.3)]"
-        )}
-      >
+      {canMarkUrgent && !editing && (
+        <label className="mb-1.5 flex w-fit items-center gap-1.5 text-2xs font-bold text-ink-muted">
+          <Checkbox checked={urgent} onChange={(event) => setUrgent(event.target.checked)} data-urgent-toggle />
+          {ui("Urgent: notify even during quiet hours")}
+        </label>
+      )}
+      <InputGroup className="items-end gap-2 p-1.5">
         {!editing && (
           <>
             <input
@@ -273,30 +307,25 @@ export function Composer({
               }}
               accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
             />
-            <button
-              type="button"
+            <IconButton variant="ghost" size="sm"
+              label={ui("Attach a file")}
               onClick={() => fileInputRef.current?.click()}
               disabled={files.length >= 5}
-              aria-label="Attach a file"
-              title="Attach a file"
-              className="shrink-0 cursor-pointer rounded-2xl p-2.5 text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] active:scale-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Paperclip className="h-4 w-4" />
-            </button>
+              <Paperclip aria-hidden="true" className="h-4 w-4" />
+            </IconButton>
           </>
         )}
 
         <label className="sr-only" htmlFor="chat-composer">
-          Write a message
+          {ui("Write a message")}
         </label>
-        <textarea
+        <SystemTextarea
           id="chat-composer"
           ref={textareaRef}
           rows={1}
           value={value}
           maxLength={MAX_LENGTH}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
           onChange={(e) => {
             setValue(e.target.value);
             notifyTyping();
@@ -313,24 +342,19 @@ export function Composer({
               setValue("");
             }
           }}
-          placeholder={editing ? "Edit your message…" : "Write a message…"}
-          className="max-h-[150px] min-h-[40px] flex-1 resize-none border-0 bg-transparent px-1.5 py-2.5 text-[13px] font-semibold text-ink placeholder:text-ink-faint focus:outline-none focus:ring-0"
+          placeholder={editing ? ui("Edit your message…") : ui("Write a message…")}
+          className="max-h-[150px] min-h-12 flex-1 resize-none px-2 py-3 text-sm"
         />
 
-        <motion.button
+        <MotionButton variant="default" size="icon"
           type="button"
           onClick={submit}
           disabled={!canSend}
-          aria-label={editing ? "Save changes" : "Send message"}
+          aria-label={editing ? ui("Save changes") : ui("Send message")}
           whileTap={canSend ? { scale: 0.9 } : undefined}
           animate={canSend ? { scale: 1 } : { scale: 0.94 }}
           transition={{ type: "spring", stiffness: 500, damping: 28 }}
-          className={cn(
-            "shrink-0 cursor-pointer rounded-2xl p-2.5 text-white transition-all",
-            canSend
-              ? "bg-gradient-to-br from-[#8127cf] to-[#9c48ea] shadow-[0_8px_22px_-8px_rgba(129,39,207,0.8)] hover:shadow-[0_12px_30px_-10px_rgba(129,39,207,0.9)]"
-              : "cursor-not-allowed bg-[#cfc2d6]/50 text-white/70"
-          )}
+          className="order-2 shrink-0"
         >
           {isSending ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -339,17 +363,17 @@ export function Composer({
           ) : (
             <Send className="h-4 w-4" />
           )}
-        </motion.button>
-      </div>
+        </MotionButton>
+      </InputGroup>
 
       {remaining < 200 && (
         <p
           className={cn(
-            "mt-1 pr-1 text-right text-[10px] font-bold",
+            "mt-1 pe-1 text-end text-2xs font-bold",
             remaining < 40 ? "text-rose-500" : "text-ink-faint"
           )}
         >
-          {remaining} characters left
+          {ui("{0} characters left", [remaining])}
         </p>
       )}
     </div>

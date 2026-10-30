@@ -18,7 +18,7 @@ const worker = new Worker<BulkPdfJobData>(
   "pdf-generation",
   async (job: Job<BulkPdfJobData>) => {
     // A queue job has no session, so the school travels on the job payload.
-    return runWithTenantContext({ schoolId: job.data.tenantId }, () => processPdfJob(job));
+    return runWithTenantContext({ schoolId: job.data.tenantId, ...(job.data.campusId ? { campusId: job.data.campusId, role: "SERVICE" } : {}) }, () => processPdfJob(job));
   },
   {
     connection: redis,

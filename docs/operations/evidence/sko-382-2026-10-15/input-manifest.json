@@ -1,0 +1,135 @@
+{
+  "commit": "1b366664ed5c4ea3b453df8077bf0cb81e273ce5",
+  "uncommittedWorkspace": true,
+  "inputManifestSha256": "bb9aa77040694c971c264cfcdb3857b9104996cd21f3e3797fcfde02178b110c",
+  "inputs": [
+    {
+      "path": ".github/workflows/outbox.yml",
+      "sha256": "25fe244e9bf865ae42f42c43466ecc358431b4f46193c0f640f4105d1e0a88af"
+    },
+    {
+      "path": "docs/operations/evidence/sko-382-2026-10-15/core.log",
+      "sha256": "909b12cdfb673c727666219ad43ef02b31093a6d7d910901e7efc305e2a6ff0e"
+    },
+    {
+      "path": "docs/operations/evidence/sko-382-2026-10-15/operator-http.log",
+      "sha256": "815e3ccfb6bd2ceb1b892ba616f40bc464fb9bba51f4277dad6e867089f7d1cc"
+    },
+    {
+      "path": "docs/operations/evidence/sko-382-2026-10-15/publication-http.log",
+      "sha256": "87961497bd419d17cae4a7564094a509406dd2462afa95ba19766377bdc59c57"
+    },
+    {
+      "path": "docs/operations/evidence/sko-382-2026-10-15/reconciliation.json",
+      "sha256": "8083d7da65af3ef0c0bfdb8d6b6b47d32cbe766ded2f3a81c36ae398c5560bc2"
+    },
+    {
+      "path": "docs/operations/durable-workflows.md",
+      "sha256": "c0b9059097b8293c9f772ba6910041250c200a67c271f6cc87333be399b963cf"
+    },
+    {
+      "path": "prisma/schema.prisma",
+      "sha256": "7c552e90b88376e10b48eb56b81b954119f26be7a7989e778fe649981fcfc73f"
+    },
+    {
+      "path": "src/app/api/owner/workflows/route.ts",
+      "sha256": "1a6b5903d91eec288d178b99e248338d1f96a5b2a6060a2db1922cd593faa3ae"
+    },
+    {
+      "path": "src/app/api/whatsapp/webhook/route.ts",
+      "sha256": "6ee0b4a8a5bfb54bd6389ae8c78bbfe4ec7dc026fc6693b37810166677f1fce9"
+    },
+    {
+      "path": "src/lib/academic/report-versions.ts",
+      "sha256": "065a412136ae5b5d42be6462b9d5660bdd9c7c51353056e3b11614e6a84ac77a"
+    },
+    {
+      "path": "src/lib/jobs/processing.ts",
+      "sha256": "3b0879b457d0612d3cd6964ff51cc4b001f85614fb699ee670344eab5b89fd87"
+    },
+    {
+      "path": "src/lib/jobs/receipts.ts",
+      "sha256": "9524499aa1ad7b43129df788cd38c2d1b1e321c47a2f3829141711e31daa40ef"
+    },
+    {
+      "path": "src/lib/jobs/service.ts",
+      "sha256": "34bd86f5db9df011d5834cfb36718016e71176ce20c2c59d4aa13e0b7978e1e7"
+    },
+    {
+      "path": "src/lib/notifications/service.ts",
+      "sha256": "5c1c3c5ea19b0f23713d25086d4499f64f5e658607f8a15c2387205b6b110387"
+    },
+    {
+      "path": "src/lib/queue/announcement-delivery.ts",
+      "sha256": "a4ac0f81b9452be70a68563f49e01589fced7e6f59180b5d74d37149e0d8f0db"
+    },
+    {
+      "path": "src/lib/queue/operation-contract.ts",
+      "sha256": "4308be019edbb0c4e7da301c40771fd7975e1d02ca0476fca3283297cf1278bb"
+    },
+    {
+      "path": "src/lib/queue/operations.ts",
+      "sha256": "eb826c09b1880818a27bc0e0d72e7680d61162739b323cf714174834dd48f6cc"
+    },
+    {
+      "path": "src/lib/queue/outbox.ts",
+      "sha256": "ad13dbe4690eeae67bdcdb4b575e90edc7d4cdac082fc54864acd71dcd19cd6a"
+    },
+    {
+      "path": "src/lib/queue/report-delivery.ts",
+      "sha256": "75da7382c276c33ddf0af67dfa01a02cb9134d94727719d0d928c28fd2c531c2"
+    },
+    {
+      "path": "src/lib/queue/report-workflow.ts",
+      "sha256": "3217607302f00250d3a80053ea35db3c1353e093e4ac0c2fcfb19f0d4de1a900"
+    },
+    {
+      "path": "src/lib/school-ai/announcements-service.ts",
+      "sha256": "e315c38e4d1c8d1ab12b63cb2f69fb25144e260e4426576a7d4045c6e11f6185"
+    },
+    {
+      "path": "src/workers/outbox-worker.ts",
+      "sha256": "63ba618bbca1d65019b66a46dcea148a35de21d54b16855e9001f9a6efc0c0f5"
+    },
+    {
+      "path": "tests/outbox/api.test.ts",
+      "sha256": "f6fedbefba83e31fbaae70e5376310e30daf4366077663d345e3d4fc64fd20bf"
+    },
+    {
+      "path": "tests/outbox/crash-child.ts",
+      "sha256": "60821fc12a62de584059b27b3465d12c63884731e50068f6e1e08c45a958c005"
+    },
+    {
+      "path": "tests/outbox/local-destination.mjs",
+      "sha256": "14b7ac884ee3043ecaf6f47a0c92f044d7e29fe7ab298405207b77c966d3bc2c"
+    },
+    {
+      "path": "tests/outbox/operation-contract.test.ts",
+      "sha256": "a74ba621178f4c6a9d5df68257ee95f2907ff94948a56b6f76b1a09a6c43a060"
+    },
+    {
+      "path": "tests/outbox/operator-current.test.ts",
+      "sha256": "f4a5f8e619fba5018e532fde37c2203263c4b876af26eff0a24c3bf270da4efc"
+    },
+    {
+      "path": "tests/outbox/outbox.test.ts",
+      "sha256": "27ddf8d9f94546c9d1b130a2c6e27a0c5a9baffcbca45068fc803f332a1144a0"
+    },
+    {
+      "path": "tests/outbox/prepare.mjs",
+      "sha256": "5f4d0be1f2b4d87f6595c982de8b10b3d257071c832a84c16fcc588780b9ffeb"
+    },
+    {
+      "path": "tests/outbox/receipts.database.test.ts",
+      "sha256": "88b3a28c103c377cdf629727ad227359080e336a84cc2f076c257a33328a100c"
+    },
+    {
+      "path": "tests/outbox/render-evidence.mjs",
+      "sha256": "5fabb836bea89e480d8212e265b28ce2694e013de3aee7358fb92a91acb73e0c"
+    },
+    {
+      "path": "tests/outbox/report-browser.mjs",
+      "sha256": "71f76a1600a3f0f987ce98b82b6e0e04b6ef5cf53ca17ba359088a48a1c7a808"
+    }
+  ]
+}

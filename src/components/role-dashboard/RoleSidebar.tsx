@@ -1,398 +1,300 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { motion, AnimatePresence, MotionConfig } from "framer-motion";
-import { ChevronDown, ChevronLeft, ChevronRight, Menu, X as XIcon, type LucideIcon } from "lucide-react";
+import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider";
+
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ChevronDown, ChevronLeft, FileSearch, Menu, Search, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { availableNavigation, isNavigationActive, searchNavigation } from "@/lib/navigation/items";
+import { ModalSurface } from "@/components/ui/modal";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
 import SkooleeLogo from "@/components/SkooleeLogo";
+import { resolveMediaUrl } from "@/lib/storage/s3";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FormField } from "@/components/ui/form-field";
+import { Tooltip } from "@/components/ui/tooltip";
+import { FlagshipChip } from "@/components/ui/flagship";
+import { HelpMenu } from "./HelpMenu";
+import type { UserRole } from "@/lib/roles";
+
 
 export interface RoleNavItem {
+  lang?: string;
   label: string;
   icon: LucideIcon;
   active?: boolean;
   onClick?: () => void;
   href?: string;
+  /** False when the current scope, permission or enabled-module policy denies this destination. */
+  available?: boolean;
+  module?: string | null;
+  /** Stable registry id; anchors and React keys come from it, never from translated text. */
+  id?: string;
+  /** `data-tour` value for the desktop row (registry `shell.nav.<id>`). */
+  tourAnchor?: string;
+  /** Shorter label for the phone bar (registry `mobileLabel`, translated); the sidebar keeps `label`. */
+  mobileLabel?: string;
+  /** `data-tour` value when rendered in the mobile bar (`shell.mobile.<id>`). */
+  mobileAnchor?: string;
+  /** Count from GET /api/navigation/counts; shown when > 0. */
+  badge?: number;
+  /** A flagship surface (registry `flagship`): the row carries the shared FlagshipChip. */
+  flagship?: boolean;
 }
-
 export interface RoleNavGroup {
   label: string;
   icon: LucideIcon;
   children: RoleNavItem[];
+  available?: boolean;
+  id?: string;
+  tourAnchor?: string;
+  zone?: "primary" | "more" | "owner" | "settings";
 }
-
 export type SidebarEntry = RoleNavItem | RoleNavGroup;
-
 export function isNavGroup(entry: SidebarEntry): entry is RoleNavGroup {
   return "children" in entry;
 }
 
-function hasActiveChild(group: RoleNavGroup): boolean {
-  return group.children.some((c) => c.active);
-}
-
 interface RoleSidebarProps {
   tagline?: string;
+  taglineLang?: string;
+  /** Translated, access-filtered entries. Registry consoles pass registry entries; legacy callers their own. */
   items: SidebarEntry[];
+  /** Legacy callers only. Registry consoles never inject links below the nav (SPEC §3.2). */
   bottomItems?: RoleNavItem[];
+  /** The four mobile slots. Registry consoles pass `mobileLeaves`; legacy callers fall back to the first four items. */
+  mobileItems?: RoleNavItem[];
   logoUrl?: string | null;
-  /** Desktop only — the mobile drawer is always full width. */
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Registry `recordSearch` AND the caller's `recordSearch` capability (CA, ADMIN, PRINCIPAL, RECEPTIONIST). */
+  recordSearch?: boolean;
+  /** Role for the Help & tour row in the mobile sheet; omitted = no row. */
+  helpRole?: UserRole;
+  /** Framed route: the Help tour row reads "Tour my workspace". */
+  framed?: boolean;
 }
 
-/** First letters of the institution/campus name, e.g. "Main Campus · Lahore" → "MC". */
-function initialsOf(name?: string | null) {
-  const words = (name ?? "")
-    .split(/[·|,–-]/)[0]
-    .trim()
-    .split(/\s+/)
-    .filter((w) => /[a-z0-9]/i.test(w));
-  if (!words.length) return "S";
-  return words
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-}
-
-function InstitutionBadge({
-  logoUrl,
-  name,
-  className,
-}: {
-  logoUrl?: string | null;
-  name?: string | null;
-  className?: string;
-}) {
-  const base = className ?? "h-11 w-11 shrink-0 rounded-2xl border border-[#cfc2d6]/25";
-
-  if (logoUrl) {
-    return <img src={logoUrl} alt="Institution logo" className={cn(base, "object-cover")} />;
-  }
-
-  // No uploaded logo: a compact monogram tile. Never the wordmark — it sits
-  // right next to the Skoolee wordmark and would render the brand twice.
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        base,
-        "grid place-items-center bg-gradient-to-br from-[#8127cf] to-[#b10e6b] text-white font-bold tracking-tight",
-        "text-[13px] shadow-[0_4px_12px_rgba(129,39,207,0.25)]"
-      )}
-    >
-      {initialsOf(name)}
+function InstitutionBadge({ logoUrl, name }: { logoUrl?: string | null; name: string }) {
+  const t = useUiText();
+  const resolved = resolveMediaUrl(logoUrl);
+  return resolved ? (
+    <img src={resolved} alt={t("Institution logo")} className="h-10 w-10 shrink-0 rounded-xl border border-border object-cover" />
+  ) : (
+    <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-700 to-brand-500 shadow-lg shadow-primary/20 text-sm font-bold text-primary-foreground">
+      {Array.from(name.trim())[0] || "S"}
     </span>
   );
 }
 
-export function RoleSidebar({
-  tagline = "The Joyful Architect",
-  items,
-  bottomItems = [],
-  logoUrl,
-  collapsed = false,
-  onToggleCollapse,
-}: RoleSidebarProps) {
+const keyOf = (entry: SidebarEntry) => entry.id ?? entry.label;
+
+/** Tablet (md up to lg): the sidebar is always the 72px icon rail so the page keeps its width. */
+const TABLET_QUERY = "(min-width: 768px) and (max-width: 1023.98px)";
+function subscribeTablet(listener: () => void) {
+  const query = window.matchMedia(TABLET_QUERY);
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+const tabletSnapshot = () => window.matchMedia(TABLET_QUERY).matches;
+const serverTablet = () => false;
+function useTabletRail(): boolean {
+  return useSyncExternalStore(subscribeTablet, tabletSnapshot, serverTablet);
+}
+
+export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], mobileItems, logoUrl, collapsed = false, onToggleCollapse, recordSearch = false, helpRole, framed = false }: RoleSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const mobileNavRef = useRef<HTMLElement>(null);
+  const t = useUiText();
+  const locale = useLocale();
   const pathname = usePathname();
+  const access = useNavigationAccess();
+  // Legacy entries still carry module ids and raw labels; registry entries arrive filtered and translated.
+  const visible = (item: RoleNavItem) => item.id ? { ...item, lang: locale.language } : ({ ...item, label: t(item.label), lang: locale.language, available: item.available !== false && access.allows(item.module) && access.allowsHref(item.href) });
+  const items = availableNavigation<SidebarEntry>(allItems.map((entry) => isNavGroup(entry) ? { ...entry, label: entry.id ? entry.label : t(entry.label), children: entry.children.map(visible) } : visible(entry)));
+  const bottomItems = availableNavigation(allBottomItems.map(visible));
+  const shortcuts = (mobileItems ? availableNavigation(mobileItems.map(visible)) : items.filter((entry): entry is RoleNavItem => !isNavGroup(entry))).slice(0, 4);
+  const directory = searchNavigation<SidebarEntry>([...items, ...bottomItems], query);
+  const tablet = useTabletRail();
+  const rail = collapsed || tablet;
+  const asideRef = useRef<HTMLElement>(null);
+  const allLeaves = [...items.flatMap((entry) => isNavGroup(entry) ? entry.children : [entry]), ...bottomItems];
+  // "More" lights up when the current screen is not one of the four slots, so the bar always shows where you are.
+  const activeInSlot = shortcuts.some((item) => isNavigationActive(item, pathname));
+  const activeKey = allLeaves.find((item) => isNavigationActive(item, pathname))?.id ?? pathname;
+  // A console whose every destination already has a slot (e.g. the library) needs no More button.
+  const needsMore = allLeaves.length > shortcuts.length || recordSearch;
+
+  // After a navigation the active row scrolls into view (an open group can push it below the fold).
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      asideRef.current?.querySelector<HTMLElement>('nav [aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeKey, rail]);
 
   useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+    const nav = mobileNavRef.current;
+    const shell = nav?.closest<HTMLElement>('[data-role-shell]');
+    if (!nav || !shell) return;
+    // Labels grow with text zoom and locale. Reserve the measured bar height
+    // instead of assuming a fixed bottom inset that can cover the last task.
+    const measure = () => shell.style.setProperty('--mobile-nav-height', `${nav.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav); measure();
+    return () => { observer.disconnect(); shell.style.removeProperty('--mobile-nav-height'); };
+  }, []);
 
-  const topFiveItems = items.filter((e): e is RoleNavItem => !isNavGroup(e)).slice(0, 5);
-
-  return (
-    <MotionConfig reducedMotion="user">
-      {/* Desktop sidebar */}
-      <aside
-        className={cn(
-          "fixed z-50 hidden h-full flex-col border-r border-[#cfc2d6]/25 bg-white/70 shadow-[12px_0_40px_rgba(129,39,207,0.05)] backdrop-blur-xl transition-[width] duration-300 ease-out md:flex",
-          collapsed ? "w-[72px] px-2 py-4" : "w-64 p-6",
-        )}
-      >
-        <div className={cn("mb-5 flex shrink-0 items-center gap-3", collapsed && "justify-center")}>
-          <InstitutionBadge logoUrl={logoUrl} name={tagline} />
-          {!collapsed && (
-            <div className="min-w-0">
-              <SkooleeLogo size="1.2rem" />
-              <p className="truncate text-[9px] font-bold uppercase tracking-wider text-[#b10e6b]">
-                {tagline}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <nav className={cn("scrollbar-thin min-h-0 flex-1 space-y-1 overflow-y-auto", collapsed ? "px-0" : "pr-1")}>
-          {items.map((entry) =>
-            isNavGroup(entry) ? (
-              <NavGroup
-                key={entry.label}
-                group={entry}
-                collapsed={collapsed}
-                onExpandSidebar={onToggleCollapse}
-              />
-            ) : (
-              <SidebarButton key={entry.label} item={entry} collapsed={collapsed} />
-            )
-          )}
-        </nav>
-
-        {bottomItems.length > 0 && (
-          <div className="shrink-0 space-y-1 border-t border-[#cfc2d6]/20 pt-3">
-            {bottomItems.map((item) => (
-              <SidebarButton key={item.label} item={item} collapsed={collapsed} />
-            ))}
-          </div>
-        )}
-
-        {/* The handle rides the sidebar's own edge, halfway down, where the
-            eye already goes when it wants the panel out of the way — rather
-            than as a full-width button competing with the nav for the bottom
-            of the rail. */}
-        {onToggleCollapse ? (
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-expanded={!collapsed}
-            title={`${collapsed ? "Expand" : "Collapse"} sidebar  ( [ )`}
-            className="group/handle absolute -right-3 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-[#cfc2d6]/35 bg-white text-ink-subtle shadow-[0_2px_6px_rgba(31,26,35,0.10),0_8px_20px_-8px_rgba(129,39,207,0.35)] transition-all duration-200 hover:border-[#8127cf]/40 hover:bg-[#8127cf] hover:text-white hover:shadow-[0_4px_10px_rgba(129,39,207,0.30)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover/handle:translate-x-px" />
-            ) : (
-              <ChevronLeft className="h-3.5 w-3.5 transition-transform duration-200 group-hover/handle:-translate-x-px" />
-            )}
-          </button>
-        ) : null}
-      </aside>
-
-      {/* Mobile bottom tab bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-t border-[#cfc2d6]/25 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-around px-1 py-1 safe-area-pb">
-        {topFiveItems.slice(0, 4).map((item) => (
-          <MobileTabButton key={item.label} item={item} />
-        ))}
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-ink-muted text-[10px] font-semibold"
-        >
-          <Menu className="w-5 h-5" />
-          <span>More</span>
-        </button>
-      </nav>
-
-      {/* Mobile slide-out drawer */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="md:hidden fixed inset-0 z-[130] bg-[#1f1a23]/45 backdrop-blur-sm"
-              onClick={() => setMobileOpen(false)}
-            />
-            <motion.aside
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", stiffness: 400, damping: 35 }}
-              className="md:hidden fixed inset-y-0 left-0 z-[131] w-72 bg-white flex flex-col p-6 shadow-2xl"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <InstitutionBadge
-                  logoUrl={logoUrl}
-                  name={tagline}
-                  className="h-10 w-10 shrink-0 rounded-2xl border border-[#cfc2d6]/25"
-                />
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen(false)}
-                  className="p-2 rounded-xl text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                >
-                  <XIcon className="w-5 h-5" />
-                </button>
-              </div>
-              <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
-                {items.map((entry) =>
-                  isNavGroup(entry) ? (
-                    <NavGroup key={entry.label} group={entry} />
-                  ) : (
-                    <SidebarButton key={entry.label} item={entry} />
-                  )
-                )}
-              </nav>
-              {bottomItems.length > 0 && (
-                <div className="pt-4 border-t border-[#cfc2d6]/20 space-y-1 shrink-0">
-                  {bottomItems.map((item) => (
-                    <SidebarButton key={item.label} item={item} />
-                  ))}
-                </div>
-              )}
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
-    </MotionConfig>
-  );
-}
-
-function NavGroup({
-  group,
-  collapsed,
-  onExpandSidebar,
-}: {
-  group: RoleNavGroup;
-  collapsed?: boolean;
-  onExpandSidebar?: () => void;
-}) {
-  const active = hasActiveChild(group);
-  const [open, setOpen] = useState(active);
-
+  useEffect(() => setMobileOpen(false), [pathname]);
+  useEffect(() => { if (!mobileOpen) setQuery(""); }, [mobileOpen]);
   useEffect(() => {
-    if (active) setOpen(true);
-  }, [active]);
+    const openDirectory = (event: KeyboardEvent) => {
+      if (!event.altKey || !event.shiftKey || event.code !== "KeyK" || event.defaultPrevented) return;
+      if (event.target instanceof HTMLElement && (event.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName))) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]')) return;
+      if (access.status !== "ready") return;
+      event.preventDefault(); setMobileOpen(true);
+    };
+    window.addEventListener("keydown", openDirectory);
+    return () => window.removeEventListener("keydown", openDirectory);
+  }, [access.status]);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px)");
+    const closeOnDesktop = () => { if (query.matches) setMobileOpen(false); };
+    query.addEventListener("change", closeOnDesktop);
+    return () => query.removeEventListener("change", closeOnDesktop);
+  }, []);
 
-  const Icon = group.icon;
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => {
-          // On the rail there is nowhere to show the children, so opening the
-          // group means opening the sidebar with it.
-          if (collapsed) {
-            setOpen(true);
-            onExpandSidebar?.();
-            return;
-          }
-          setOpen((v) => !v);
-        }}
-        aria-expanded={collapsed ? undefined : open}
-        title={collapsed ? group.label : undefined}
-        className={cn(
-          "flex w-full cursor-pointer items-center rounded-2xl text-[13px] font-bold tracking-wide transition-all duration-200",
-          collapsed ? "h-11 justify-center px-0" : "gap-3 px-4 py-2.5",
-          active
-            ? "text-[#8127cf]"
-            : "text-[#1f1a23]/70 hover:bg-white/50 hover:text-[#1f1a23]"
-        )}
-      >
-        <Icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-[#8127cf]" : "text-ink-muted")} />
-        {!collapsed && (
-          <>
-            <span className="flex-1 truncate text-left">{group.label}</span>
-            <ChevronDown
-              className={cn(
-                "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
-                open && "rotate-180"
-              )}
-            />
-          </>
-        )}
-      </button>
-      <AnimatePresence initial={false}>
-        {open && !collapsed && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
-            <div className="pl-3 space-y-0.5 pt-0.5 pb-1">
-              {group.children.map((item) => (
-                <SidebarButton key={item.label} item={item} compact />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function MobileTabButton({ item }: { item: RoleNavItem }) {
-  const Icon = item.icon;
-  const router = useRouter();
-  const pathname = usePathname();
-  const hrefPath = item.href?.split("?")[0] ?? item.href;
-  const isActive = item.active ?? (hrefPath ? pathname === hrefPath || (!["/teacher", "/student", "/parent"].includes(hrefPath) && pathname.startsWith(hrefPath)) : false);
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (item.href) router.push(item.href);
-        else item.onClick?.();
-      }}
-      className={cn(
-        "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[10px] font-semibold transition-colors min-w-0",
-        isActive ? "text-[#8127cf]" : "text-ink-muted"
-      )}
-    >
-      <Icon className={cn("w-5 h-5", isActive && "text-[#8127cf]")} />
-      <span className="truncate max-w-[56px]">{item.label}</span>
-    </button>
-  );
-}
-
-function SidebarButton({
-  item,
-  compact,
-  collapsed,
-}: {
-  item: RoleNavItem;
-  compact?: boolean;
-  collapsed?: boolean;
-}) {
-  const Icon = item.icon;
-  const router = useRouter();
-  const pathname = usePathname();
-
-  const hrefPath = item.href?.split("?")[0] ?? item.href;
-  const isActive = item.active ?? (hrefPath ? pathname === hrefPath || (!["/teacher", "/student", "/parent"].includes(hrefPath) && pathname.startsWith(hrefPath)) : false);
-
-  const handleClick = () => {
-    if (item.href) {
-      router.push(item.href);
-    } else if (item.onClick) {
-      item.onClick();
-    }
+  // The flagship rows (AI Workflows, Exam Studio) follow the landing row; a hairline closes the pair off from the
+  // everyday destinations below, so the two read as one featured block.
+  const closesFlagships = (index: number) => {
+    const entry = items[index];
+    const next = items[index + 1];
+    return !isNavGroup(entry) && Boolean(entry.flagship) && Boolean(next) && (isNavGroup(next) || !next.flagship);
   };
+  const navigation = (rail = false, onNavigate?: () => void) => (
+    <>
+      {items.map((entry, index) => isNavGroup(entry)
+        ? <NavGroup key={keyOf(entry)} group={entry} collapsed={rail} onExpand={tablet && !collapsed ? () => setMobileOpen(true) : onToggleCollapse} onNavigate={onNavigate} />
+        : closesFlagships(index)
+          ? <div key={keyOf(entry)} className="mb-2 border-b border-border-subtle pb-2"><NavigationItem item={entry} collapsed={rail} onNavigate={onNavigate} /></div>
+          : <NavigationItem key={keyOf(entry)} item={entry} collapsed={rail} onNavigate={onNavigate} />)}
+      {bottomItems.length > 0 && <div className="mt-4 space-y-1 border-t border-border pt-3">
+        {bottomItems.map((item) => <NavigationItem key={keyOf(item)} item={item} collapsed={rail} onNavigate={onNavigate} />)}
+      </div>}
+    </>
+  );
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      title={item.label}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(
-        "relative isolate flex w-full cursor-pointer items-center rounded-2xl font-semibold transition-all duration-300 hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8127cf]/30 focus-visible:ring-offset-1",
-        collapsed ? "h-11 justify-center px-0" : "gap-3",
-        collapsed ? "" : compact ? "px-3 py-2.5 text-[13px]" : "px-4 py-3 text-sm",
-        isActive
-          ? "text-[#8127cf] font-bold"
-          : "text-ink hover:bg-white/70 hover:text-[#1f1a23] hover:shadow-sm"
-      )}
-    >
-      {isActive && (
-        <motion.span
-          layoutId="sidebar-active-pill"
-          transition={{ type: "spring", stiffness: 500, damping: 34, mass: 0.9 }}
-          className="absolute inset-0 z-0 rounded-2xl bg-gradient-to-r from-white to-[#fbf0fe] shadow-[0_8px_22px_-4px_rgba(129,39,207,0.32)]"
-        >
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-7 w-[3px] rounded-full bg-gradient-to-b from-[#8127cf] to-[#9c48ea] sk-glow" />
-        </motion.span>
-      )}
-      <span className={cn("relative z-10 flex min-w-0 items-center", collapsed ? "" : "gap-3")}>
-        <Icon className={cn("h-[18px] w-[18px] shrink-0", isActive ? "text-[#8127cf]" : "text-ink-muted")} />
-        {!collapsed && <span className="truncate">{item.label}</span>}
-      </span>
-    </button>
+    <>
+      <aside ref={asideRef} className={cn("fixed inset-y-0 start-0 z-50 hidden flex-col border-e border-border/50 bg-card p-3 shadow-sm text-card-foreground md:flex", collapsed ? "w-[72px]" : "w-[72px] lg:w-64")}>
+        <div className="mb-6 flex min-h-11 items-center gap-3 px-1">
+          <InstitutionBadge logoUrl={logoUrl} name={tagline} />
+          {!rail && <div className="min-w-0"><SkooleeLogo size="1.2rem" /><p lang={taglineLang} className="mt-1 truncate text-xs text-ink-muted" title={tagline}>{tagline}</p></div>}
+        </div>
+        <Tooltip content={t("Find a workspace")} describe={false} disabled={!rail}>
+        <Button variant="outline" type="button" data-tour="shell.sidebar.find" aria-label={t("Find a workspace")} aria-keyshortcuts="Alt+Shift+K" aria-haspopup="dialog" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} className={cn("mb-3 min-h-11 gap-2", rail ? "px-0" : "justify-start px-3")}>
+          <Search aria-hidden="true" className="h-4 w-4 shrink-0" />{!rail && <span className="min-w-0 text-start">{t("Find a workspace")}</span>}
+        </Button>
+        </Tooltip>
+        {recordSearch && <Tooltip content={t("Search records")} describe={false} disabled={!rail}><Link href="/search" aria-label={t("Search records")} data-record-search-link data-tour="shell.sidebar.search-records" className={cn(buttonVariants({ variant: "ghost" }), "mb-3 min-h-11 gap-2", rail ? "px-0" : "justify-start px-3")}>
+          <FileSearch aria-hidden="true" className="h-4 w-4 shrink-0" />{!rail && <span className="min-w-0 text-start">{t("Search records")}</span>}
+        </Link></Tooltip>}
+        <nav aria-label={t("Primary navigation")} className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(rail)}</nav>
+        {onToggleCollapse && <Button variant="outline" type="button" data-tour="shell.sidebar.collapse" onClick={onToggleCollapse} aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!rail} className="mt-3 flex min-h-11 items-center justify-center gap-2">
+          <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />
+          {!collapsed && t("Collapse")}
+        </Button>}
+      </aside>
+      <nav ref={mobileNavRef} aria-label={t("Mobile navigation")} className="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-card px-[4px] py-[4px] safe-area-pb md:hidden">
+        {shortcuts.map((item) => <NavigationItem key={keyOf(item)} item={item} mobile />)}
+        {needsMore ? <Button variant="ghost" type="button" data-tour="shell.mobile.more" data-active={!activeInSlot || undefined} aria-label={t("More")} onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-haspopup="dialog" className={cn("flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-[4px] rounded-xl px-[4px] py-[6px] text-2xs font-semibold leading-tight [&>svg]:size-[20px]", !activeInSlot ? "bg-accent text-primary" : "text-ink")}>
+          <Menu aria-hidden="true" className="h-5 w-5" /><span className="block max-w-full truncate whitespace-nowrap break-normal max-[359px]:sr-only"><UiText>{"More"}</UiText></span>
+        </Button> : null}
+      </nav>
+      {mobileOpen && <ModalSurface onClose={() => setMobileOpen(false)} ariaLabel={t("Navigation")} initialFocusRef={searchRef} className="!max-h-[90dvh]">
+        <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
+          <h2 className="text-lg font-bold"><UiText>{"Navigation"}</UiText></h2>
+          <Button variant="ghost" size="icon" type="button" aria-label={t("Close navigation")} onClick={() => setMobileOpen(false)} className="grid place-items-center [&>svg]:size-5"><X aria-hidden="true" className="h-5 w-5" /></Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+        {helpRole ? <div className="border-b border-border px-4 py-2"><HelpMenu role={helpRole} framed={framed} variant="row" onAction={() => setMobileOpen(false)} /></div> : null}
+        <div className="border-b border-border p-4">
+          <FormField name="workspace-search" label={t("Find a workspace")} hint={t("Only workspaces available to your current role and school are shown.")}>
+            <Input ref={searchRef} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder={t("Search workspaces")} autoComplete="off" />
+          </FormField>
+        </div>
+        <nav aria-label={t("All navigation")} className="space-y-1 p-4">
+          {recordSearch && !query && <Link href="/search" className={cn(buttonVariants({ variant: "ghost" }), "w-full min-h-11 justify-start gap-3 px-3")} onClick={() => setMobileOpen(false)}><FileSearch aria-hidden="true" className="h-5 w-5 shrink-0" />{t("Search records")}</Link>}
+          {directory.map(entry => isNavGroup(entry) ? <section key={keyOf(entry)} className="space-y-1"><h3 className="px-3 pt-3 text-xs font-semibold text-ink-muted">{entry.label}</h3>{entry.children.map(item => <NavigationItem key={keyOf(item)} item={item} directory onNavigate={() => setMobileOpen(false)} />)}</section> : <NavigationItem key={keyOf(entry)} item={entry} directory onNavigate={() => setMobileOpen(false)} />)}
+          {!directory.length && <div className="space-y-3 p-3"><p role="status" className="text-sm text-ink-muted">{t("No available workspaces match your search.")}</p><Button variant="outline" onClick={() => { setQuery(""); searchRef.current?.focus(); }}>{t("Clear search")}</Button></div>}
+        </nav>
+        </div>
+      </ModalSurface>}
+    </>
   );
+}
+
+function NavGroup({ group, collapsed, onExpand, onNavigate }: { group: RoleNavGroup; collapsed?: boolean; onExpand?: () => void; onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const active = group.children.some((item) => isNavigationActive(item, pathname));
+  const [open, setOpen] = useState(active);
+  useEffect(() => { if (active) setOpen(true); }, [active]);
+  // The spotlight tour opens the group that holds the control it is about to explain.
+  useEffect(() => {
+    if (!group.id) return;
+    const reveal = (event: Event) => {
+      const detail = (event as CustomEvent<{ groupId?: string }>).detail;
+      if (detail?.groupId === group.id) setOpen(true);
+    };
+    window.addEventListener("skoolee:reveal-nav", reveal);
+    return () => window.removeEventListener("skoolee:reveal-nav", reveal);
+  }, [group.id]);
+  const Icon = group.icon;
+  // A group holding the current view stays open: its children are the only
+  // route back to the screen you are already on. Collapsing it would hide where you are.
+  const toggleGroup = () => {
+    if (collapsed) { setOpen(true); onExpand?.(); return; }
+    setOpen(active ? true : !open);
+  };
+  return <div className={cn(group.zone === "owner" && "mt-2 border-t border-border pt-2")}>
+    <Tooltip content={group.label} describe={false} disabled={!collapsed}>
+    <Button variant="ghost" type="button" data-tour={group.tourAnchor} aria-label={group.label} aria-expanded={!collapsed && open}
+      onClick={toggleGroup}
+      className={cn("flex justify-start min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-start text-sm font-semibold [&>svg:first-child]:size-5", collapsed && "justify-center", active ? "text-primary" : "text-ink")}>
+      <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+      {!collapsed && <><span className="flex-1">{group.label}</span><ChevronDown aria-hidden="true" className={cn("h-4 w-4", open && "rotate-180")} /></>}
+    </Button>
+    </Tooltip>
+    {open && !collapsed && <div className="ms-3 space-y-1 border-s border-border ps-2">{group.children.map((item) => <NavigationItem key={keyOf(item)} item={item} onNavigate={onNavigate} />)}</div>}
+  </div>;
+}
+
+function NavigationItem({ item, collapsed, mobile, directory, onNavigate }: { item: RoleNavItem; collapsed?: boolean; mobile?: boolean; directory?: boolean; onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const active = isNavigationActive(item, pathname);
+  const Icon = item.icon;
+  const badge = item.badge && item.badge > 0 ? (item.badge > 99 ? "99+" : String(item.badge)) : null;
+  // Only the visible sidebar row and mobile slot carry the anchor; the directory copy would duplicate it.
+  const anchor = directory ? undefined : mobile ? item.mobileAnchor : item.tourAnchor;
+  const className = cn("relative flex justify-start min-h-11 min-w-0 items-center gap-3 [&>svg]:size-5 rounded-xl px-3 py-2 text-start text-sm font-semibold transition-colors", active ? "bg-accent text-primary" : "text-ink hover:bg-muted", collapsed && "justify-center", mobile ? "h-[52px] min-h-0 flex-1 flex-col justify-center gap-[4px] px-[4px] py-[6px] text-center text-2xs leading-tight [&>svg]:size-[20px]" : "w-full");
+  const content = <>
+    <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+    {!collapsed && (mobile
+      ? <span lang={item.lang} className="block min-w-0 max-w-full truncate whitespace-nowrap break-normal max-[359px]:sr-only">{item.mobileLabel ?? item.label}</span>
+      : <span lang={item.lang} className="min-w-0 max-w-full break-words">{item.label}</span>)}
+    {item.flagship && !collapsed && !mobile ? <FlagshipChip className="ms-auto shrink-0" /> : null}
+    {badge && !collapsed && !mobile ? <span className="ms-auto grid min-w-6 place-items-center rounded-full bg-primary px-1.5 text-2xs font-bold text-primary-foreground"><bdi>{badge}</bdi></span> : null}
+    {badge && (collapsed || mobile) ? <span aria-hidden="true" className="absolute end-2 top-1.5 size-2 rounded-full bg-primary ring-2 ring-card" /> : null}
+  </>;
+  const name = badge ? `${item.label} (${badge})` : item.label;
+  // A route is a link (open-in-new-tab, copy address, keyboard semantics); a local view is a button.
+  const control = item.href ? <Link href={item.href} data-tour={anchor} aria-label={name} aria-current={active ? "page" : undefined} className={className} onClick={() => { item.onClick?.(); onNavigate?.(); }}>{content}</Link>
+    : <Button variant="ghost" size={collapsed ? "icon" : "default"} type="button" data-tour={anchor} aria-label={name} aria-current={active ? "page" : undefined} className={className} onClick={() => { item.onClick?.(); onNavigate?.(); }}>{content}</Button>;
+  return <Tooltip content={item.label} describe={false} disabled={!collapsed}>{control}</Tooltip>;
 }

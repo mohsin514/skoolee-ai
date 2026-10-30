@@ -1,0 +1,3 @@
+import Image from "next/image";
+import type { CandidateFigure } from "@/lib/school-ai/paper-figures";
+export function CandidateFigures({figures}:{figures?:CandidateFigure[]}){return figures?.length?<div className="space-y-4">{figures.map(figure=><figure key={figure.id} className="min-w-0 space-y-2"><Image unoptimized src={`data:image/png;base64,${figure.png}`} width={figure.width} height={figure.height} alt={figure.alt} className="h-auto max-h-[32rem] w-auto max-w-full rounded-none border border-border bg-white object-contain"/>{figure.caption&&<figcaption className="whitespace-pre-wrap break-words text-sm text-ink-subtle">{figure.caption}</figcaption>}</figure>)}</div>:null;}

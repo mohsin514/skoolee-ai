@@ -3,14 +3,35 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
-  errorResponse,
+  canLeadAcademics,
+  canManageAcademics,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
-import { getBatchLeaveBalances, getLeaveBalances, rangeTenths } from "@/lib/leave";
+import { created, failFrom, ok } from "@/lib/api/envelope";
+import { getBatchLeaveBalances, getLeaveBalances } from "@/lib/leave";
+import { applyLeave } from "@/lib/leave/apply-command";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
-import { notify } from "@/lib/notifications/in-app";
+import { resolveSourceActions } from "@/lib/notifications/actions";
+import { isCampusOperator } from "@/lib/auth/institution";
+import { isStaffRole } from "@/lib/roles";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+
+const LEAVE_STAFF_ROLES = ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN", "ACCOUNTANT", "RECEPTIONIST", "LIBRARIAN"];
+
+/** Whose leave a reviewer sees (§2.2 #33, §7.6): teaching staff belong to the academic lead (the principal,
+ *  or a campus operator while no principal is appointed); everyone else, the principal included, to the
+ *  campus operator. The group admin keeps a read-only view of every applicant. */
+async function leaveApplicantRoles(user: Parameters<typeof canManageAcademics>[0], campusId: string, purpose: "decide" | "balances") {
+  if (user.role === "SUPER_ADMIN") return LEAVE_STAFF_ROLES;
+  if (user.role === "PRINCIPAL") return ["TEACHER"];
+  if (!isCampusOperator(user)) return [];
+  // Operators own allocations, so their balance view covers every member of staff.
+  if (purpose === "balances") return LEAVE_STAFF_ROLES;
+  const leadsTeaching = await canLeadAcademics(user, campusId);
+  return leadsTeaching ? LEAVE_STAFF_ROLES : LEAVE_STAFF_ROLES.filter((role) => role !== "TEACHER");
+}
 
 // Leave requests.
 // GET — ?mode=my        staff: their own requests + balances
@@ -37,13 +58,14 @@ export async function GET(req: NextRequest) {
     const yearEnd = new Date(`${academicYear + 1}-01-01T00:00:00Z`);
 
     if (mode === "balances") {
-      if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
+      if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
+      const roles = await leaveApplicantRoles(user, campusId, "balances");
       const staff = await prisma.user.findMany({
         where: {
           campusId,
           schoolId: user.schoolId,
           isActive: true,
-          role: { in: ["TEACHER", "PRINCIPAL", "CAMPUS_ADMIN", "ADMIN"] as any },
+          role: { in: roles as any },
         },
         select: { id: true, fullName: true, role: true, email: true },
         orderBy: { fullName: "asc" },
@@ -53,15 +75,22 @@ export async function GET(req: NextRequest) {
         user: s,
         balances: balancesMap.get(s.id) || [],
       }));
-      return Response.json({ success: true, data: { staff: balancesAll, academicYear } });
+      return ok({ staff: balancesAll, academicYear });
     }
 
     if (mode === "all") {
-      if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
-      const [requests, users] = await Promise.all([
+      if (!canManageAcademics(user)) throw new ApiError("Insufficient permissions", 403);
+      const decideRoles = await leaveApplicantRoles(user, campusId, "decide");
+      // SKAI-1026: the campus operator's queue lists every member of staff's leave, teachers included, so a
+      // teacher's pending request is visible on the campus desk even when a principal decides it. Each row says
+      // whether this reviewer decides it (`canDecide`); the decision itself stays with `api/leave/review` (§7.6).
+      const roles = isCampusOperator(user) ? LEAVE_STAFF_ROLES : decideRoles;
+      const [rows, users] = await Promise.all([
         prisma.leaveRequest.findMany({
           where: {
             campusId,
+            schoolId: user.schoolId,
+            user: { role: { in: roles as any } },
             ...(statusFilter ? { status: String(statusFilter).toUpperCase() } : {}),
             fromDate: { gte: yearStart, lt: yearEnd },
           },
@@ -73,12 +102,14 @@ export async function GET(req: NextRequest) {
           orderBy: [{ status: "asc" }, { createdAt: "desc" }],
         }),
         prisma.user.findMany({
-          where: { campusId, schoolId: user.schoolId, isActive: true },
+          where: { campusId, schoolId: user.schoolId, isActive: true, role: { in: roles as any } },
           select: { id: true, fullName: true, role: true },
           orderBy: { fullName: "asc" },
         }),
       ]);
-      return Response.json({ success: true, data: { requests, users } });
+      const decides = new Set(user.role === "SUPER_ADMIN" ? [] : decideRoles);
+      const requests = rows.map((row) => ({ ...row, canDecide: decides.has(row.user.role) }));
+      return ok({ requests, users });
     }
 
     // "my" — any signed-in staff sees their own requests and balances
@@ -100,87 +131,23 @@ export async function GET(req: NextRequest) {
       prisma.leaveType.findMany({ where: { campusId }, orderBy: { name: "asc" } }),
     ]);
 
-    return Response.json({ success: true, data: { requests, balances, types, academicYear } });
+    return ok({ requests, balances, types, academicYear });
   } catch (error) {
-    return errorResponse(error, "[leave] GET failed");
+    return failFrom(error, "[leave] GET failed");
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    // Leave is for members of staff; families and the platform operator have no leave record.
+    if (!isStaffRole(user.role)) throw new ApiError("Leave applications are for school staff.", 403);
+    const body = await parseBody(req, jsonObjectBody);
+    const request = await applyLeave(user, body);
 
-    const campusId = await resolveCampusId(user, body.campusId);
-    const leaveTypeId = String(body.leaveTypeId ?? "");
-    const fromDate = body.fromDate ? new Date(String(body.fromDate)) : null;
-    const toDate = body.toDate ? new Date(String(body.toDate)) : null;
-
-    if (!leaveTypeId) throw new ApiError("leaveTypeId is required", 400);
-    if (!fromDate || isNaN(fromDate.getTime())) throw new ApiError("Valid fromDate is required", 400);
-    if (!toDate || isNaN(toDate.getTime())) throw new ApiError("Valid toDate is required", 400);
-
-    const start = new Date(fromDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(toDate);
-    end.setHours(0, 0, 0, 0);
-    if (end < start) throw new ApiError("toDate cannot be before fromDate", 400);
-
-    const leaveType = await prisma.leaveType.findFirst({
-      where: { id: leaveTypeId, campusId },
-    });
-    if (!leaveType) throw new ApiError("Leave type not found", 404);
-
-    // Overlapping-request guard: any non-terminal request for the same user
-    // whose date range intersects this one is a conflict.
-    const overlap = await prisma.leaveRequest.findFirst({
-      where: {
-        campusId,
-        userId: user.userId,
-        status: { in: ["PENDING", "APPROVED"] },
-        fromDate: { lte: end },
-        toDate: { gte: start },
-      },
-      include: { leaveType: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-    });
-    if (overlap) {
-      throw new ApiError(
-        `This overlaps your existing ${overlap.status.toLowerCase()} ${overlap.leaveType.name} leave (${overlap.fromDate.toISOString().slice(0, 10)} → ${overlap.toDate.toISOString().slice(0, 10)})`,
-        409
-      );
-    }
-
-    const days = body.days !== undefined
-      ? Math.max(1, Math.round(Number(body.days) * 10))
-      : rangeTenths(start, end);
-
-    const request = await prisma.leaveRequest.create({
-      data: {
-        campusId,
-        userId: user.userId,
-        leaveTypeId,
-        fromDate: start,
-        toDate: end,
-        days,
-        reason: body.reason ? String(body.reason).trim().slice(0, 2000) || null : null,
-        attachmentKey: body.attachmentKey ? String(body.attachmentKey) : null,
-      },
-    });
-
-    notify("LEAVE_APPLIED", {
-      schoolId: user.schoolId,
-      campusId,
-      actorId: user.userId,
-      actorName: user.fullName,
-      leaveTypeName: leaveType.name,
-      fromDate: start.toISOString().slice(0, 10),
-      toDate: end.toISOString().slice(0, 10),
-    });
-
-    return Response.json({ success: true, data: request }, { status: 201 });
+    return created(request);
   } catch (error) {
-    return errorResponse(error, "[leave] POST failed");
+    return failFrom(error, "[leave] POST failed");
   }
 }
 
@@ -188,7 +155,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const id = String(body.id ?? "");
     if (!id) throw new ApiError("id is required", 400);
 
@@ -200,12 +167,16 @@ export async function PATCH(req: NextRequest) {
       throw new ApiError(`Only pending requests can be cancelled (current status: ${request.status})`, 409);
     }
 
-    const updated = await prisma.leaveRequest.update({
-      where: { id },
+    const changed = await prisma.leaveRequest.updateMany({
+      where: { id, schoolId: user.schoolId, userId: user.userId, status: "PENDING" },
       data: { status: "CANCELLED" },
     });
-    return Response.json({ success: true, data: updated });
+    if (changed.count !== 1) throw new ApiError("This request was already reviewed or cancelled. Refresh its status.", 409);
+    // SKO-416: reviewers' "review this leave" actions close because the request was withdrawn.
+    await resolveSourceActions({ schoolId: user.schoolId, sourceType: "leave", sourceId: id, resolution: "CANCELLED" });
+    const updated = await prisma.leaveRequest.findFirstOrThrow({ where: { id, schoolId: user.schoolId, userId: user.userId } });
+    return ok(updated);
   } catch (error) {
-    return errorResponse(error, "[leave] PATCH failed");
+    return failFrom(error, "[leave] PATCH failed");
   }
 }

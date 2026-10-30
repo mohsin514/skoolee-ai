@@ -1,3 +1,4 @@
+import { withExamSchedulingWrite, resolveExamSchedulingCampus } from "@/lib/academic/exam-scheduling-write";
 import { NextRequest } from "next/server";
 import {
   ApiError,
@@ -10,6 +11,8 @@ import {
 } from "@/lib/api/scope";
 import { autoSeatSession, campusSeatingCapacity } from "@/lib/academic/exam-sessions";
 import { findAvailableRooms } from "@/lib/academic/exam-rooms";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 // GET  /api/academic/exam-sessions/seating?campusId=[&date=&periodDefinitionId=]
 //      → campus seat supply, and (with a slot) which rooms are free in it
@@ -52,18 +55,20 @@ export async function POST(req: NextRequest) {
     if (!canManageOperations(user)) throw new ApiError("Insufficient permissions", 403);
     await assertPermission(user, "exams", "edit");
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
     const sessionId = String(body.sessionId ?? "");
     if (!sessionId) throw new ApiError("sessionId is required", 400);
-    const campusId = await resolveCampusId(user, body.campusId);
+    const campusId = await resolveExamSchedulingCampus(user, body.campusId, { kind: "session", id: sessionId });
+    return await withExamSchedulingWrite(user, campusId, "edit", async (prisma) => {
 
     const result = await autoSeatSession({
-      campusId,
+      db: prisma,      campusId,
       sessionId,
       includeSeated: Boolean(body.includeSeated),
     });
 
     return Response.json({ success: true, data: result });
+    });
   } catch (error) {
     return errorResponse(error, "[exam-sessions/seating] POST failed");
   }

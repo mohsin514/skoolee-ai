@@ -1,20 +1,48 @@
 "use client";
-
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FormField } from "@/components/ui/form-field";
+import { InputGroup, FieldAction } from "@/components/ui/input-group";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
-import { BrainCircuit, ChevronDown, FileText, Loader2, Search, X } from "lucide-react";
+import { friendlyErrorMessage, toast } from "@/components/ui/toast";
+import { ArrowRight, BrainCircuit, CheckCircle2, ChevronDown, FileCheck2, FileText, Search, SearchX, Send, X } from "lucide-react";
+import { DeskPill, DeskRowButton, DeskStats, RelativeTime, StatTile } from "@/components/ui/desk";
 import { TeacherPage } from "@/components/teacher/teacher-page";
-import { BrandButton } from "@/components/role-dashboard";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Select } from "@/components/ui/select";
 import {
-  classLabel, EmptyInline, MiniMetric, ReportCardDetailModal, ReportsSkeleton, StatusPill, TeacherErrorState, useTeacherData,
+  classLabel, formatDate, ReportCardDetailModal, ReportsSkeleton, StatusPill, statusDeskTone, TeacherErrorState, useTeacherData,
 } from "@/components/teacher/teacher-components";
 import { useAcademicYear } from "@/components/academic-year/CycleGate";
 import { apiErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { Input as SystemInput } from "@/components/ui/input";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonList } from "@/components/ui/skeleton";
+
+/** An ISO timestamp for a date the payload may carry as a Date or a string; null when it is missing or invalid. */
+function isoOf(value: unknown): string | null {
+  if (!value) return null;
+  const at = new Date(value as string);
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+}
+
+/** "PRINCIPAL_REVIEWED" → "Principal reviewed", for filter chips. */
+function statusLabel(status: string) {
+  const text = status.replaceAll("_", " ").toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Report cards (teacher): draft remarks for locked tests, open each card to edit and save its
+ * remarks, and send a published card to its family. Approving and publishing belong to the academic
+ * lead; queueing delivery for a whole class belongs to the office (C6, D5).
+ */
 
 export default function ReportsPage() {
+  const ui = useUiText();
   const { data, loading, error, loadData } = useTeacherData();
   const academicYear = useAcademicYear();
   const router = useRouter();
@@ -28,24 +56,72 @@ export default function ReportsPage() {
   const [cardQuery, setCardQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showAllCards, setShowAllCards] = useState(false);
+  /* Links into this screen scope the list: job and notification links carry `?exam=<id>` (P9
+     `jobSourceHref`, REPORT_CARDS_* notifications) and the class row menu carries `?classId=<id>`.
+     `studentId` + `classId` together open one card instead (effect below). */
+  const examParam = searchParams.get("exam");
+  const classParam = searchParams.get("studentId") ? null : searchParams.get("classId");
+  const scopeKey = `${examParam ?? ""}|${classParam ?? ""}`;
+  const [clearedScopeKey, setClearedScopeKey] = useState<string | null>(null);
+  const scopeCleared = clearedScopeKey === scopeKey;
+  const examScope = scopeCleared ? null : examParam;
+  const classScope = scopeCleared ? null : classParam;
 
-  const classHubs = data?.classHubs || [];
+
+  /* G10: the console payload carries only the newest cards (`recentReportCards`), so a scoped link must not filter
+     that short list — a test outside it would open as "0 of 18". A scope reads its own cards from
+     `GET /api/reports?examId=` (the same teacher-scoped read the report pipeline uses): one locked test, or every
+     locked test of the linked class. */
+  const scopeExamIds = useMemo(() => {
+    if (examScope) return [examScope];
+    if (!classScope) return [];
+    return (data?.lockedExams || []).filter((exam: any) => (exam.classId ?? exam.class?.id) === classScope).map((exam: any) => String(exam.id));
+  }, [examScope, classScope, data]);
+  const scopeFetchKey = scopeExamIds.join(",");
+  const [scoped, setScoped] = useState<{ key: string; cards: any[] | null; failed: boolean } | null>(null);
+  const loadScoped = useCallback(async () => {
+    if (!scopeFetchKey) { setScoped(null); return; }
+    // A refresh of the same scope (after saving remarks) keeps the list on screen while it revalidates.
+    setScoped((prev) => (prev && prev.key === scopeFetchKey && prev.cards ? prev : { key: scopeFetchKey, cards: null, failed: false }));
+    try {
+      const batches = await Promise.all(scopeFetchKey.split(",").map(async (examId: string) => {
+        const res = await fetch(`/api/reports?examId=${encodeURIComponent(examId)}`, { cache: "no-store" });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success) throw new Error("scope");
+        const exam = body.exam || {};
+        return (body.reportCards || []).map((card: any) => ({
+          ...card,
+          exam: { id: exam.id ?? card.examId, title: exam.title, term: exam.term, status: exam.status },
+          student: { ...card.student, id: card.studentId, class: { ...(exam.class || {}), ...(card.student?.class || {}), id: exam.class?.id ?? exam.classId } },
+        }));
+      }));
+      setScoped({ key: scopeFetchKey, cards: batches.flat(), failed: false });
+    } catch {
+      setScoped({ key: scopeFetchKey, cards: null, failed: true });
+    }
+  }, [scopeFetchKey]);
+  useEffect(() => { if (data) void loadScoped(); }, [data, loadScoped]);
+  const scopedCards = scoped && scoped.key === scopeFetchKey ? scoped : null;
 
   /* The list was a hard `.slice(0, 12)`. A teacher of four classes has well
      over a hundred report cards, and the other ninety-plus were simply
      unreachable from this screen — no search, no paging, no indication they
      existed at all. */
-  const allCards: any[] = useMemo(() => data?.recentReportCards || [], [data]);
+  const allCards: any[] = useMemo(() => scopedCards?.cards ?? data?.recentReportCards ?? [], [data, scopedCards]);
+  const scopeLoading = Boolean(scopeFetchKey) && (!scopedCards || (!scopedCards.cards && !scopedCards.failed));
+  const scopeFailed = Boolean(scopedCards?.failed);
   const visibleCards = useMemo(() => {
     const q = cardQuery.trim().toLowerCase();
     return allCards.filter((report) => {
+      if (examScope && report.exam?.id !== examScope) return false;
+      if (classScope && report.student?.class?.id !== classScope) return false;
       if (statusFilter && (report.status || "") !== statusFilter) return false;
       if (!q) return true;
       return `${report.student?.fullName || ""} ${report.student?.rollNo || ""} ${report.exam?.title || ""}`
         .toLowerCase()
         .includes(q);
     });
-  }, [allCards, cardQuery, statusFilter]);
+  }, [allCards, cardQuery, statusFilter, examScope, classScope]);
 
   const cardStatuses = useMemo(
     () => [...new Set(allCards.map((r) => r.status).filter(Boolean))],
@@ -69,17 +145,40 @@ export default function ReportsPage() {
               subjectBreakdown: reportCard.subjectBreakdown || [],
             });
           } else {
-            toast.error("Report card not found. Generate it from Final Grades first.");
+            toast.error(ui("This report card isn't ready yet. Your academic lead generates final grades and report cards."));
           }
-        } catch { toast.error("Failed to load report card"); }
+        } catch { toast.error(ui("Could not open this report card. Please try again.")); }
       })();
     }
-  }, [searchParams, data, academicYear]);
+  }, [searchParams, data, academicYear, ui]);
 
   useEffect(() => {
-    if (!data) return;
-    if (!selectedReportExamId && data.lockedExams?.[0]?.id) setSelectedReportExamId(data.lockedExams[0].id);
-  }, [data, selectedReportExamId]);
+    if (!data || selectedReportExamId) return;
+    const locked: any[] = data.lockedExams || [];
+    const linked = examParam ? locked.find((exam) => exam.id === examParam) : null;
+    if (linked) setSelectedReportExamId(linked.id);
+    else if (locked[0]?.id) setSelectedReportExamId(locked[0].id);
+  }, [data, selectedReportExamId, examParam]);
+
+  /* What the list is scoped to, in words ("Test: Term 1 quiz", "Class: Grade 7 A"). */
+  const scopeLabel = useMemo(() => {
+    if (examScope) {
+      const exam = (data?.lockedExams || []).find((item: any) => item.id === examScope)
+        || allCards.find((report) => report.exam?.id === examScope)?.exam;
+      return exam?.title ? ui("Test: {0}", [exam.title]) : ui("One test");
+    }
+    if (classScope) {
+      const cls = (data?.classHubs || []).find((item: any) => item.id === classScope)
+        || allCards.find((report) => report.student?.class?.id === classScope)?.student?.class;
+      return cls ? ui("Class: {0}", [classLabel(cls)]) : ui("One class");
+    }
+    return null;
+  }, [examScope, classScope, data, allCards, ui]);
+
+  const clearScope = useCallback(() => {
+    setClearedScopeKey(scopeKey);
+    router.replace("/teacher/reports", { scroll: false });
+  }, [router, scopeKey]);
 
   const handleGenerateRemarks = useCallback(async () => {
     if (!selectedReportExamId) return;
@@ -91,12 +190,12 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to generate remarks"));
-      toast.success("Remarks drafted for all students");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not draft remarks. Please try again.")));
+      toast.success(ui("Remarks drafted for every pupil. Review each one before you save it."));
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not draft remarks. Please try again."))); }
     finally { setRemarkBusy(false); }
-  }, [selectedReportExamId, loadData]);
+  }, [selectedReportExamId, loadData, ui]);
 
   const handleGenerateStudentRemarks = useCallback(async (studentId: string, examId: string) => {
     setRemarkGeneratingFor(studentId);
@@ -107,12 +206,12 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to generate remarks"));
-      toast.success("Remarks generated");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not draft remarks for this pupil. Please try again.")));
+      toast.success(ui("Remarks drafted for this pupil."));
       setSelectedReportCard(null);
-    } catch (error: any) { toast.error(error.message); }
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not draft remarks for this pupil. Please try again."))); }
     finally { setRemarkGeneratingFor(null); }
-  }, []);
+  }, [ui]);
 
   const sendReportCard = useCallback(async (reportId: string) => {
     setSendingReport(reportId);
@@ -120,19 +219,29 @@ export default function ReportsPage() {
       const res = await fetch(`/api/reports/${reportId}/send`, { method: "POST" });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Failed to send"));
-      toast.success("Report card sent");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not send this report card. Please try again.")));
+      // M70: a background send stays on this screen; the toast offers the job's progress instead of
+      // navigating away mid-task.
+      if (result.jobId) {
+        const jobId = String(result.jobId);
+        toast.success(ui("Report card is being sent to the family."), {
+          action: { label: ui("View progress"), onClick: () => router.push(`/jobs?id=${encodeURIComponent(jobId)}`) },
+        });
+      } else {
+        toast.success(ui("Report card sent to the family."));
+      }
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+      return true;
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not send this report card. Please try again."))); }
     finally { setSendingReport(null); }
-  }, [loadData]);
+  }, [loadData, router, ui]);
 
   const openReportCard = useCallback(async (report: any) => {
     setSelectedReportCard(report);
   }, []);
 
   const saveRemarks = useCallback(async (remarks: { en: string; ur: string }) => {
-    if (!selectedReportCard) return;
+    if (!selectedReportCard) return false;
     setSavingRemarks(true);
     try {
       const res = await fetch(`/api/reports/${selectedReportCard.id}/remarks`, {
@@ -141,190 +250,204 @@ export default function ReportsPage() {
       });
       const text = await res.text();
       const result = JSON.parse(text);
-      if (!res.ok) throw new Error(apiErrorMessage(result.error, "Could not save remarks"));
-      toast.success("Remarks saved");
+      if (!res.ok) throw new Error(apiErrorMessage(result.error, ui("Could not save remarks. Please try again.")));
+      toast.success(ui("Remarks saved."));
       setSelectedReportCard((prev: any) => ({ ...prev, ...result.reportCard }));
       await loadData();
-    } catch (error: any) { toast.error(error.message); }
+      return true;
+    } catch (error: any) { toast.error(friendlyErrorMessage(error, ui("Could not save remarks. Please try again."))); }
     finally { setSavingRemarks(false); }
-  }, [selectedReportCard, loadData]);
+    return false;
+  }, [selectedReportCard, loadData, ui]);
 
   if (loading && !data) return <ReportsSkeleton />;
   if (!data) return <TeacherErrorState error={error} onRetry={loadData} />;
 
   return (
     <TeacherPage
-      tone="reports"
       icon={FileText}
-      eyebrow="Report Cards"
-      title="Report Cards & Remarks"
-      summary={`${data.recentReportCards?.length || 0} recent · generate report cards, draft remarks and send results to guardians`}
+      title="Report cards"
+      description="Draft and save remarks for your locked tests. Your academic lead approves report cards before families see them."
+      secondaryActions={[{
+        id: "draft-with-ai",
+        label: "Draft with AI",
+        icon: BrainCircuit,
+        onClick: handleGenerateRemarks,
+        loading: remarkBusy,
+        disabled: !selectedReportExamId,
+        disabledReason: "Pick a locked test first.",
+      }]}
     >
       <div className="space-y-3">
 
-        {/* Controls */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div>
-              <label className="block mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Locked Exam</label>
-              <Select value={selectedReportExamId} onChange={(e) => setSelectedReportExamId(e.target.value)} className="min-w-[280px]">
-                {(data.lockedExams || []).map((exam: any) => (
-                  <option key={exam.id} value={exam.id}>{exam.title} &mdash; {classLabel(exam.class)}</option>
-                ))}
-                {!data.lockedExams?.length ? <option value="">No locked exams</option> : null}
-              </Select>
-            </div>
-            <BrandButton variant="soft" icon={remarkBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <BrainCircuit className="w-4 h-4" />}
-              onClick={handleGenerateRemarks} disabled={remarkBusy || !selectedReportExamId}
-              title={!selectedReportExamId ? "Select a locked exam first" : "Draft AI-powered remarks for all students"}>
-              {remarkBusy ? "Drafting..." : "Draft Remarks"}
-            </BrandButton>
-          </div>
-        </div>
+        {/* The test the AI drafts remarks for. */}
+        <FormField
+          name="reportExam"
+          label={ui("Locked test")}
+          description={ui("Only tests your academic lead has locked are listed.")}
+          className="w-full min-w-0 sm:w-auto sm:max-w-md"
+        >
+          <Select value={selectedReportExamId} onChange={(e) => setSelectedReportExamId(e.target.value)} className="w-full sm:min-w-[280px]">
+            {(data.lockedExams || []).map((exam: any) => (
+              <option key={exam.id} value={exam.id}>{exam.title} — {classLabel(exam.class)}</option>
+            ))}
+            {!data.lockedExams?.length ? <option value="">{ui("No locked tests")}</option> : null}
+          </Select>
+        </FormField>
 
         {/* Locked exam cards */}
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mb-3">Locked Exams</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {(data.lockedExams || []).slice(0, 6).map((exam: any, index: number) => {
+        <section aria-labelledby="locked-exams-heading">
+          <h2 id="locked-exams-heading" className="mb-3 text-base font-bold text-ink-strong">{ui("Locked tests")}</h2>
+          <div className="sk-stagger grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {(data.lockedExams || []).slice(0, 6).map((exam: any) => {
               const rcCount = exam.reportCards || 0;
               return (
-                <div key={exam.id} className="sk-rise group relative rounded-2xl bg-white border border-[#cfc2d6]/25 p-4 transition-all duration-300 hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 overflow-hidden shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: `${index * 80}ms` }} title={`${exam.title} — ${rcCount} report card${rcCount !== 1 ? "s" : ""}`}>
-                  <div className="absolute inset-0 bg-gradient-to-br from-rose-500 to-rose-600 opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
-                  <div className="relative flex items-start justify-between gap-3">
+                <div key={exam.id} className="sk-panel p-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors truncate">{exam.title}</p>
-                      <p className="mt-0.5 text-[11px] text-ink-muted">{classLabel(exam.class)}</p>
+                      <p className="truncate text-sm font-semibold text-ink-strong">{exam.title}</p>
+                      <p className="mt-0.5 truncate text-xs text-ink-subtle">{classLabel(exam.class)}</p>
                     </div>
                     <StatusPill status={exam.status} />
                   </div>
-                  <div className="relative mt-3 flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[11px] font-semibold text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white transition-all">
-                      <FileText className="w-3 h-3" />{rcCount} card{rcCount !== 1 ? "s" : ""}
-                    </span>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Badge variant="secondary">
+                      <FileText aria-hidden="true" />
+                      {ui("{0} report cards", [rcCount])}
+                    </Badge>
                   </div>
                 </div>
               );
             })}
             {!data.lockedExams?.length && (
-              <div className="col-span-full rounded-2xl border border-[#cfc2d6]/25 bg-white p-8 text-center shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fbf0fe] text-[#8127cf]">
-                  <FileText className="h-7 w-7" />
-                </div>
-                <h3 className="mt-4 text-base font-bold text-[#1d1b20]">No locked exams yet</h3>
-                {/* Teachers cannot lock an exam themselves — only a principal or
-                    campus admin can — so saying "locked exams will appear here"
-                    left them with no idea what to actually do next. */}
-                <p className="mx-auto mt-1.5 max-w-md text-sm font-semibold leading-relaxed text-ink-muted">
-                  Finish entering marks for an assessment, then your principal or campus admin locks
-                  it. Once locked it appears here, ready for remarks and report cards.
-                </p>
-                <button type="button" onClick={() => router.push("/teacher/marks")}
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] cursor-pointer active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25">
-                  Go to Marks &amp; Tests
-                </button>
+              /* Teachers cannot lock an exam themselves — only a principal or
+                 campus admin can — so saying "locked exams will appear here"
+                 left them with no idea what to actually do next. */
+              <div className="sk-panel col-span-full">
+                <EmptyState
+                  icon={FileText}
+                  title={ui("No locked tests yet")}
+                  description={ui("Finish entering marks for a test and lock it, or wait for your academic lead to lock an exam. Once locked it appears here, ready for remarks.")}
+                  action={
+                    <Button variant="secondary" type="button" onClick={() => router.push("/teacher/marks")} className="sk-nudge-trigger">
+                      {ui("Go to Marks")}
+                      <ArrowRight aria-hidden="true" className="sk-nudge rtl:rotate-180" />
+                    </Button>
+                  }
+                />
               </div>
             )}
           </div>
-        </div>
+        </section>
 
         {/* Report cards list */}
-        <div>
+        <section aria-labelledby="report-cards-heading">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
-              Report Cards
-              <span className="ml-2 normal-case text-[#8127cf]">
-                {cardQuery || statusFilter ? `${visibleCards.length} of ${allCards.length}` : allCards.length}
+            <h2 id="report-cards-heading" className="flex items-center gap-2 text-base font-bold text-ink-strong">
+              {ui("All published report cards")}
+              <Badge variant="secondary" size="sm" aria-live="polite">
+                <bdi data-numeric className="tabular-nums">
+                  {cardQuery || statusFilter || scopeLabel ? ui("{0} of {1}", [visibleCards.length, allCards.length]) : allCards.length}
+                </bdi>
+              </Badge>
+            </h2>
+            {scopeLabel ? (
+              <span className="flex flex-wrap items-center gap-1.5" data-report-scope>
+                <Badge variant="secondary"><bdi>{scopeLabel}</bdi></Badge>
+                <Button variant="ghost" size="sm" type="button" onClick={clearScope}>
+                  <X aria-hidden="true" /> {ui("Show all report cards")}
+                </Button>
               </span>
-            </p>
+            ) : null}
             {allCards.length > 0 ? (
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[190px]">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-subtle" />
-                  <input
+              <div className="flex w-full flex-wrap items-center gap-2 sm:ms-auto sm:w-auto">
+                <InputGroup surfaceClassName="bg-card" className="w-full sm:w-64">
+                  <Search aria-hidden="true" data-field-affix="start" className="pointer-events-none h-4 w-4 text-ink-subtle" />
+                  <SystemInput
                     value={cardQuery}
                     onChange={(e) => setCardQuery(e.target.value)}
-                    placeholder="Student, roll no or exam…"
-                    aria-label="Search report cards"
-                    className="h-9 w-full rounded-xl border border-[#cfc2d6]/25 bg-white pl-9 pr-8 text-xs font-semibold text-[#1d1b20] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/35 focus:ring-4 focus:ring-[#8127cf]/12"
+                    placeholder={ui("Pupil, roll number or test…")}
+                    aria-label={ui("Search report cards")}
+                    className={"w-full"}
                   />
                   {cardQuery ? (
-                    <button type="button" onClick={() => setCardQuery("")} aria-label="Clear report card search"
-                      className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-[#fbf0fe] hover:text-[#8127cf]">
-                      <X className="h-3 w-3" />
-                    </button>
+                    <FieldAction data-field-affix="end" type="button" onClick={() => setCardQuery("")} label={ui("Clear report card search")}>
+                      <X aria-hidden="true" />
+                    </FieldAction>
                   ) : null}
-                </div>
-                {cardStatuses.length > 1 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {["", ...cardStatuses].map((st) => (
-                      <button
-                        key={st || "all"}
-                        type="button"
-                        onClick={() => setStatusFilter(st)}
-                        aria-pressed={statusFilter === st}
-                        className={cn(
-                          "h-8 cursor-pointer rounded-full border px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-[0.96]",
-                          "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                          statusFilter === st
-                            ? "border-[#8127cf] bg-[#8127cf] text-white"
-                            : "border-[#cfc2d6]/30 bg-white text-ink-muted hover:border-[#8127cf]/25 hover:text-[#8127cf]",
-                        )}
-                      >
-                        {st ? String(st).replaceAll("_", " ") : "All"}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                </InputGroup>
               </div>
             ) : null}
           </div>
-          <div className="space-y-2">
-            {(showAllCards ? visibleCards : visibleCards.slice(0, 12)).map((report: any, index: number) => (
-              <button key={report.id} type="button" onClick={() => openReportCard(report)} title={`${report.student?.fullName || "Student"} — ${Math.round(report.percentage || 0)}%`}
-                className={cn(
-                  "sk-rise group relative w-full cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white p-4 text-left transition-all duration-300 overflow-hidden active:scale-[0.99] shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]",
-                  "hover:border-[#8127cf]/25 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25",
-                  "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-                )}
-                style={{ animationDelay: `${index * 60}ms` }}>
-                <div className="absolute inset-0 bg-gradient-to-br from-[#8127cf] to-[#9c48ea] opacity-[0] group-hover:opacity-[0.04] transition-opacity duration-300" />
-                <div className="min-w-0 relative">
-                  <p className="text-sm font-bold text-[#1d1b20] group-hover:text-[#8127cf] transition-colors">{report.student?.fullName || "Student"}</p>
-                  <p className="text-[11px] text-ink-muted mt-0.5">{report.exam?.title || "Report"} &mdash; {classLabel(report.student?.class)}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 relative">
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-[#fbf0fe] px-2.5 py-1 text-[12px] font-bold text-[#8127cf] group-hover:bg-[#8127cf] group-hover:text-white transition-all">
-                    {Math.round(report.percentage || 0)}%
+          {/* Each status is a filter tile: press one to see only those cards, press it again for all. */}
+          {cardStatuses.length > 1 ? (
+            <DeskStats role="group" aria-label={ui("Filter report cards by status")} className="mb-3">
+              {cardStatuses.map((st, index) => (
+                <StatTile key={String(st)} index={index} icon={st === "SENT" ? Send : st === "PUBLISHED" ? CheckCircle2 : st === "DRAFT" ? FileText : FileCheck2}
+                  tone={statusDeskTone(String(st))} label={ui(statusLabel(String(st)))}
+                  value={<bdi>{allCards.filter((report) => report.status === st).length}</bdi>}
+                  onSelect={() => setStatusFilter((current) => (current === st ? "" : String(st)))} selected={statusFilter === st} />
+              ))}
+            </DeskStats>
+          ) : null}
+          {scopeFailed ? (
+            <ErrorState title={ui("Couldn't load the report cards for this link")} onRetry={loadScoped} retryLabel={ui("Try again")} />
+          ) : scopeLoading ? <SkeletonList rows={4} label={ui("Loading report cards…")} /> : null}
+          <div className={cn("sk-stagger space-y-2", (scopeLoading || scopeFailed) && "hidden")}>
+            {(showAllCards ? visibleCards : visibleCards.slice(0, 12)).map((report: any) => (
+              <DeskRowButton key={report.id} onClick={() => openReportCard(report)} icon={report.isSent ? Send : FileText}
+                tone={report.isSent ? "success" : report.status === "DRAFT" ? "warning" : undefined} className="group"
+                trailing={
+                  <span className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <DeskPill tone="brand"><span data-numeric className="tabular-nums">{Math.round(report.percentage || 0)}%</span></DeskPill>
+                    <StatusPill status={report.status} />
                   </span>
-                  <StatusPill status={report.status} />
-                </div>
-              </button>
+                }>
+                <span className="block truncate text-sm font-semibold text-ink-strong transition-colors group-hover:text-primary"><bdi>{report.student?.fullName || ui("Pupil")}</bdi></span>
+                <span className="block text-xs font-normal text-ink-subtle">
+                  <bdi>{report.exam?.title || ui("Report card")}</bdi> — <bdi>{classLabel(report.student?.class)}</bdi>
+                  {isoOf(report.generatedAt) ? <> · <RelativeTime iso={isoOf(report.generatedAt)!} full={formatDate(report.generatedAt)} /></> : null}
+                </span>
+              </DeskRowButton>
             ))}
             {visibleCards.length > 12 ? (
-              <button
+              <Button variant="outline"
                 type="button"
                 onClick={() => setShowAllCards((v) => !v)}
-                className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-[#8127cf]/15 bg-[#fbf0fe] px-4 py-3 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-white active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
+                className="w-full items-center justify-center gap-1.5"
               >
-                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAllCards && "rotate-180")} />
-                {showAllCards ? "Show fewer" : `Show all ${visibleCards.length} report cards`}
-              </button>
+                <ChevronDown aria-hidden="true" className={cn("h-4 w-4 transition-transform", showAllCards && "rotate-180")} />
+                {showAllCards ? ui("Show fewer") : ui("Show all {0} report cards", [visibleCards.length])}
+              </Button>
             ) : null}
-            {allCards.length && !visibleCards.length ? (
-              <div className="flex flex-col items-center gap-3 rounded-2xl border border-[#cfc2d6]/25 bg-white p-8 text-center">
-                <p className="text-sm font-bold text-[#1d1b20]">No report card matches that</p>
-                <button type="button" onClick={() => { setCardQuery(""); setStatusFilter(""); }}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-[#8127cf] transition-all hover:bg-[#f3eeff] active:scale-[0.97]">
-                  <X className="h-3.5 w-3.5" /> Clear filters
-                </button>
+            {/* `allCards.length && …` rendered a stray "0" when there were no cards. */}
+            {allCards.length > 0 && visibleCards.length === 0 ? (
+              <div className="sk-panel">
+                <EmptyState
+                  size="sm"
+                  icon={SearchX}
+                  title={ui("No report card matches that")}
+                  description={ui("Try another name, roll number or test, or clear the filters.")}
+                  action={
+                    <Button variant="secondary" type="button" onClick={() => { setCardQuery(""); setStatusFilter(""); if (scopeLabel) clearScope(); }}>
+                      <X aria-hidden="true" /> {ui("Clear filters")}
+                    </Button>
+                  }
+                />
               </div>
             ) : null}
             {!allCards.length && (
-              <EmptyInline text="Report cards will appear after exams are processed." />
+              <div className="sk-panel">
+                <EmptyState
+                  size="sm"
+                  icon={FileText}
+                  title={ui("No report cards yet")}
+                  description={ui("Report cards appear here once your academic lead generates them.")}
+                />
+              </div>
             )}
           </div>
-        </div>
+        </section>
       </div>
 
       {selectedReportCard ? (

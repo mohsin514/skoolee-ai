@@ -1,3 +1,4 @@
+import { boundedInteger } from "@/lib/lists/query";
 // ─────────────────────────────────────────────────────────────────
 // Chat service.
 //
@@ -16,7 +17,8 @@ import { runWithTenantContext } from "@/lib/db/tenant-context";
 import type { AuthUser } from "@/lib/auth";
 import { ApiError, requireAuthUser } from "@/lib/api/scope";
 import { roleLabel, type UserRole } from "@/lib/roles";
-import { getDownloadUrl } from "@/lib/storage/s3";
+import { liveGuardianRelationshipWhere } from "@/lib/parent/guardian-query";
+import { conversationInclude, requireMembership, assertCurrentConversationAccess, currentClassMembers, type ConversationRow } from "./membership";
 import {
   canCreateAnnouncement,
   canCreateGroup,
@@ -28,6 +30,8 @@ import {
   type ChatSettings,
 } from "./policy";
 import { publishToUsers, whoIsOnline, isOffline } from "./realtime";
+import { headPrivateObject } from "@/lib/storage/s3";
+import { CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TYPES } from "./attachment-rules";
 import type {
   ChatMessageView,
   ConversationDetail,
@@ -49,7 +53,7 @@ const DEFAULT_PAGE_SIZE = 30;
  * intact rather than working around it.
  */
 function inTenant<T>(user: AuthUser, fn: (tx: TxClient) => Promise<T>): Promise<T> {
-  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId }, () =>
+  return runWithTenantContext({ schoolId: user.schoolId, userId: user.userId, campusId: user.campusId, role: user.role }, () =>
     tenantTransaction(fn)
   );
 }
@@ -108,7 +112,7 @@ async function serialiseMessage(row: MessageRow): Promise<ChatMessageView> {
           fileName: a.fileName,
           contentType: a.contentType,
           sizeBytes: a.sizeBytes,
-          url: await getDownloadUrl(a.storageKey, 3600).catch(() => null),
+          url: `/api/chat/attachments/${encodeURIComponent(a.id)}`,
         }))
       );
 
@@ -137,26 +141,9 @@ async function serialiseMessage(row: MessageRow): Promise<ChatMessageView> {
     isDeleted,
     createdAt: row.createdAt.toISOString(),
     clientKey: row.clientKey,
+    isUrgent: row.isUrgent,
   };
 }
-
-const conversationInclude = {
-  members: {
-    where: { leftAt: null },
-    select: {
-      userId: true,
-      memberRole: true,
-      unreadCount: true,
-      lastReadAt: true,
-      isMuted: true,
-      isPinned: true,
-      isArchived: true,
-      user: { select: { id: true, fullName: true, role: true, profileImageUrl: true } },
-    },
-  },
-} satisfies Prisma.ConversationInclude;
-
-type ConversationRow = Prisma.ConversationGetPayload<{ include: typeof conversationInclude }>;
 
 function memberOf(row: ConversationRow, userId: string) {
   return row.members.find((m) => m.userId === userId);
@@ -228,31 +215,6 @@ function serialiseConversation(
 
 // ─── Access ──────────────────────────────────────────────────────
 
-/**
- * Loads a conversation the caller is actually in. Anything else — a thread in
- * their school they were never added to, or one they have left — is a 404
- * rather than a 403, so the endpoint cannot be used to probe which
- * conversations exist.
- */
-async function requireMembership(user: AuthUser, conversationId: string) {
-  const row = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    include: conversationInclude,
-  });
-
-  if (!row) throw new ApiError("Conversation not found", 404);
-
-  const me = memberOf(row, user.userId);
-  if (!me) {
-    // Leadership can moderate any thread in their school, but they still have
-    // to be a member to read one — a principal browsing arbitrary private
-    // conversations is surveillance, not moderation.
-    throw new ApiError("Conversation not found", 404);
-  }
-
-  return { row, me };
-}
-
 /** The people a message should be delivered to. */
 function recipientIds(row: ConversationRow, excludeUserId?: string) {
   return row.members.map((m) => m.userId).filter((id) => id !== excludeUserId);
@@ -270,7 +232,7 @@ export async function listConversations(
   user: AuthUser,
   options: ListOptions = {}
 ): Promise<ConversationView[]> {
-  const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+  const limit = boundedInteger(String(options.limit ?? 50), 50, 100);
   const archived = options.filter === "archived";
 
   const memberships = await prisma.conversationMember.findMany({
@@ -298,7 +260,7 @@ export async function listConversations(
         : {}),
     },
     select: { conversationId: true },
-    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }],
+    orderBy: [{ isPinned: "desc" }, { conversation: { lastMessageAt: "desc" } }, { conversationId: "asc" }],
     take: limit,
   });
 
@@ -313,7 +275,12 @@ export async function listConversations(
   // findMany does not preserve the ordering of an `in` list, so restore the
   // pinned-then-recent order the membership query established.
   const byId = new Map(rows.map((r) => [r.id, r]));
-  const ordered = ids.map((id) => byId.get(id)).filter((r): r is ConversationRow => Boolean(r));
+  const loaded = ids.map((id) => byId.get(id)).filter((r): r is ConversationRow => Boolean(r));
+  const checked = await Promise.all(loaded.map(async row => {
+    try { return (await assertCurrentConversationAccess(user, row)).row; }
+    catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
+  }));
+  const ordered = checked.filter((row): row is ConversationRow => row !== null);
 
   const online = await whoIsOnline(
     ordered.flatMap((r) => r.members.map((m) => m.userId)).filter((id) => id !== user.userId)
@@ -349,16 +316,30 @@ export async function getConversation(
 export async function listMessages(
   user: AuthUser,
   conversationId: string,
-  options: { cursor?: string; limit?: number } = {}
-): Promise<{ messages: ChatMessageView[]; nextCursor: string | null }> {
+  options: { cursor?: string; limit?: number; after?: string } = {}
+): Promise<{ messages: ChatMessageView[]; nextCursor: string | null; hasMoreAfter?: boolean }> {
   await requireMembership(user, conversationId);
 
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_PAGE_SIZE, 1), 100);
+  const limit = boundedInteger(String(options.limit ?? DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE, 100);
+
+  // SKO-415 gap recovery: after a reconnect the client asks for everything after the last message it
+  // holds, oldest first, so the thread converges on stored history without holes or duplicates.
+  if (options.after) {
+    const anchor = await prisma.chatMessage.findFirst({ where: { id: options.after, conversationId }, select: { createdAt: true, id: true } });
+    if (!anchor) throw new ApiError("That message is not in this conversation", 400);
+    const newer = await prisma.chatMessage.findMany({
+      where: { conversationId, OR: [{ createdAt: { gt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { gt: anchor.id } }] },
+      include: messageInclude,
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: limit + 1,
+    });
+    return { messages: await Promise.all(newer.slice(0, limit).map(serialiseMessage)), nextCursor: null, hasMoreAfter: newer.length > limit };
+  }
 
   const rows = await prisma.chatMessage.findMany({
     where: { conversationId },
     include: messageInclude,
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
   });
@@ -550,7 +531,7 @@ async function classAudience(classId: string, includeGuardians: boolean): Promis
     prisma.subject.findMany({ where: { classId, teacherId: { not: null } }, select: { teacherId: true } }),
     prisma.student.findMany({
       where: { classId, status: "active" },
-      select: { studentUserId: true, parentUserId: true },
+      select: { studentUserId: true, guardianRelationships: { where: liveGuardianRelationshipWhere(null, "communication"), select: { guardianUserId: true } } },
     }),
   ]);
 
@@ -561,7 +542,7 @@ async function classAudience(classId: string, includeGuardians: boolean): Promis
   for (const s of subjects) if (s.teacherId) ids.add(s.teacherId);
   for (const s of roster) {
     if (s.studentUserId) ids.add(s.studentUserId);
-    if (includeGuardians && s.parentUserId) ids.add(s.parentUserId);
+    if (includeGuardians) for (const relation of s.guardianRelationships) if (relation.guardianUserId) ids.add(relation.guardianUserId);
   }
   return [...ids];
 }
@@ -596,6 +577,7 @@ export interface SendMessageInput {
   kind?: "TEXT" | "FILE" | "IMAGE";
   replyToId?: string;
   clientKey?: string;
+  urgent?: boolean;
   attachments?: {
     storageKey: string;
     fileName: string;
@@ -653,6 +635,33 @@ export async function sendMessage(
     if (!parent) throw new ApiError("The message being replied to is not in this conversation", 400);
   }
 
+  // Families cannot raise urgency; staff use it deliberately and it is labelled on the message.
+  const urgent = input.urgent === true;
+  if (urgent && (user.role === "PARENT" || user.role === "STUDENT")) throw new ApiError("Only school staff can mark a message urgent", 403);
+
+  // A retried send resolves to the message the first attempt stored, but only for its own sender.
+  if (input.clientKey) {
+    const replay = await prisma.chatMessage.findFirst({ where: { conversationId, clientKey: input.clientKey }, include: messageInclude });
+    if (replay) {
+      if (replay.senderId !== user.userId) throw new ApiError("That send identifier belongs to another message. Start a new message.", 409);
+      return serialiseMessage(replay);
+    }
+  }
+
+  // SKO-415: an attachment is accepted only once its file is actually stored, in this conversation's
+  // folder, with the size and type validated at upload. A key from another conversation, an abandoned
+  // upload or a tampered size never becomes a message.
+  for (const attachment of attachments) {
+    const prefix = `chat/${user.schoolId}/${conversationId}/`;
+    const leaf = attachment.storageKey.slice(prefix.length);
+    if (!attachment.storageKey.startsWith(prefix) || !leaf || /[\/\\\u0000-\u001f]/.test(leaf)) throw new ApiError("This attachment does not belong to this conversation. Attach the file again.", 400);
+    if (!CHAT_ATTACHMENT_TYPES.has(attachment.contentType.toLowerCase()) || attachment.sizeBytes > CHAT_ATTACHMENT_MAX_BYTES) throw new ApiError("That file type or size is not allowed in messages", 400);
+    const stored = await headPrivateObject(attachment.storageKey).catch(() => undefined);
+    if (stored === undefined) throw new ApiError("File storage is unavailable. Your message was not sent; try again shortly.", 503);
+    if (!stored) throw new ApiError("An attachment has not finished uploading. Retry the upload, or send the text without it.", 409);
+    if (stored.sizeBytes !== attachment.sizeBytes || (stored.contentType && stored.contentType.split(";")[0].trim().toLowerCase() !== attachment.contentType.toLowerCase())) throw new ApiError("An attachment changed after it was checked. Attach the file again.", 409);
+  }
+
   const kind = input.kind ?? (attachments.length > 0 ? inferKind(attachments) : "TEXT");
   const others = recipientIds(row, user.userId);
 
@@ -667,6 +676,7 @@ export async function sendMessage(
           body,
           replyToId: input.replyToId ?? null,
           clientKey: input.clientKey ?? null,
+          isUrgent: urgent,
           ...(attachments.length
             ? { attachments: { create: attachments.map((a) => ({ ...a, schoolId: user.schoolId })) } }
             : {}),
@@ -706,20 +716,24 @@ export async function sendMessage(
         where: { conversationId, clientKey: input.clientKey },
         include: messageInclude,
       });
-      if (existing) return serialiseMessage(existing);
+      if (existing) {
+        if (existing.senderId !== user.userId) throw new ApiError("That send identifier belongs to another message. Start a new message.", 409);
+        return serialiseMessage(existing);
+      }
     }
     throw error;
   }
 
   const view = await serialiseMessage(created);
 
-  await publishToUsers(recipientIds(row), {
+  const currentRow = await currentClassMembers(row);
+  await publishToUsers(recipientIds(currentRow), {
     type: "message",
     conversationId,
     payload: view,
   });
 
-  await notifyAbsentMembers(user, row, view, settings);
+  await notifyAbsentMembers(user, currentRow, view, settings);
 
   return view;
 }
@@ -743,6 +757,7 @@ async function notifyAbsentMembers(
   settings: ChatSettings
 ): Promise<void> {
   try {
+    row = await currentClassMembers(row);
     const candidates = row.members.filter((m) => m.userId !== user.userId && !m.isMuted);
     if (candidates.length === 0) return;
 
@@ -751,9 +766,9 @@ async function notifyAbsentMembers(
       select: { timezone: true },
     });
 
-    const quiet =
-      (user.role === "PARENT" || user.role === "STUDENT") &&
-      isWithinQuietHours(settings, new Date(), school?.timezone ?? "Asia/Karachi");
+    // SKO-415: quiet hours hold back every notification except a message staff explicitly marked
+    // urgent. The message itself is always delivered to the thread and counted as unread.
+    const quiet = !message.isUrgent && isWithinQuietHours(settings, new Date(), school?.timezone ?? "Asia/Karachi");
     if (quiet) return;
 
     const offline: string[] = [];
@@ -769,18 +784,31 @@ async function notifyAbsentMembers(
         ? `New message from ${user.fullName ?? "a colleague"}`
         : `${user.fullName ?? "A member"} posted in ${row.title ?? "a conversation"}`;
 
+    // SKO-416: one unread notification per conversation and person. Further messages bump the existing
+    // one (reminder count) rather than stacking identical rows; a direct message is a mention.
+    const existing = await prisma.notification.findMany({ where: { userId: { in: offline }, sourceType: "chat", sourceId: row.id, isRead: false }, select: { id: true, userId: true } });
+    if (existing.length) await prisma.notification.updateMany({ where: { id: { in: existing.map((n) => n.id) } }, data: { reminderCount: { increment: 1 }, lastRemindedAt: new Date(), title, message: message.isUrgent ? "Urgent message. Open Messages to read it." : "Open Messages to read it." } });
+    const bumped = new Set(existing.map((n) => n.userId));
+    const fresh = offline.filter((userId) => !bumped.has(userId));
+    if (fresh.length === 0) return;
+
     const rows = await prisma.notification.createManyAndReturn({
-      data: offline.map((userId) => ({
+      data: fresh.map((userId) => ({
         schoolId: user.schoolId,
         campusId: row.campusId,
         userId,
         type: "CHAT_MESSAGE",
         title,
-        message: message.body || "Sent an attachment",
+        // Notification previews never carry the message text: lock screens and shared devices would
+        // otherwise show private school conversations. The thread holds the content.
+        message: message.isUrgent ? "Urgent message. Open Messages to read it." : "Open Messages to read it.",
         icon: "MessageCircle",
         link: `/messages?c=${row.id}`,
         actorId: user.userId,
         actorName: user.fullName ?? null,
+        category: row.kind === "DIRECT" ? "MENTION" : "UPDATE",
+        sourceType: "chat",
+        sourceId: row.id,
       })),
       select: {
         id: true,
@@ -867,10 +895,18 @@ export async function editMessage(
     throw new ApiError(`Messages are limited to ${MAX_MESSAGE_LENGTH} characters`, 400);
   }
 
-  const updated = await prisma.chatMessage.update({
-    where: { id: messageId },
-    data: { body: next, editedAt: new Date() },
-    include: messageInclude,
+  const updated = await prisma.$transaction(async (tx) => {
+    const edited = await tx.chatMessage.update({
+      where: { id: messageId },
+      data: { body: next, editedAt: new Date() },
+      include: messageInclude,
+    });
+    // SKAI-1291: when the latest message is edited, the inbox preview follows it.
+    await tx.conversation.updateMany({
+      where: { id: row.id, lastMessageAt: edited.createdAt, lastMessageSenderId: user.userId },
+      data: { lastMessagePreview: preview(next, edited.kind) },
+    });
+    return edited;
   });
 
   const view = await serialiseMessage(updated);
@@ -906,6 +942,22 @@ export async function deleteMessage(user: AuthUser, messageId: string): Promise<
     // who removed it. Only the body stops being served.
     data: { deletedAt: message.deletedAt ?? new Date(), deletedById: user.userId },
     include: messageInclude,
+  });
+
+  // SKAI-1302: when the withdrawn message was the latest, the conversation preview
+  // and timestamp must move to the latest visible message, not keep its content.
+  const latestVisible = await prisma.chatMessage.findFirst({
+    where: { conversationId: row.id, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { body: true, kind: true, createdAt: true, senderId: true },
+  });
+  await prisma.conversation.updateMany({
+    where: { id: row.id, lastMessageAt: updated.createdAt },
+    data: {
+      lastMessagePreview: latestVisible ? preview(latestVisible.body, latestVisible.kind) : null,
+      lastMessageAt: latestVisible?.createdAt ?? null,
+      lastMessageSenderId: latestVisible?.senderId ?? null,
+    },
   });
 
   const view = await serialiseMessage(updated);

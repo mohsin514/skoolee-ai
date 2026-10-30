@@ -1,0 +1,268 @@
+import { test, expect, type Page, type BrowserContext } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+import { SignJWT } from "jose";
+import { createHash, randomUUID } from "node:crypto";
+import { schoolAICopy } from "../../src/lib/school-ai/copy";
+import { announcementCopy } from "../../src/components/school-ai/announcement-copy";
+import { announcementChannelCopy } from "../../src/components/school-ai/announcement-channel-copy";
+import type { AnnouncementExecutionReceipt, AnnouncementDelivery } from "../../src/lib/school-ai/announcements";
+
+// Draft saves/approvals use the real local API. Delivery preview, queue and status
+// are controlled browser fixtures; these tests never call a mail provider.
+const local = "postgresql://angular_dev_15@127.0.0.1:55438/postgres";
+if (process.env.DATABASE_URL !== local || process.env.DIRECT_URL !== local) throw new Error("Use only the isolated announcement browser database.");
+const db = new PrismaClient(), schoolId = `ai-announcement-${randomUUID()}`, origin = "http://localhost:3106";
+let campusId = "", adminId = "", classId = "";
+async function signIn(context: BrowserContext, role: "ADMIN" | "PRINCIPAL") {
+  const token = await new SignJWT({ userId: adminId, schoolId, campusId, role, email: `${adminId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  await db.loginSession.create({ data: { userId: adminId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
+  await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
+}
+test.beforeAll(async () => { await db.school.create({ data: { id: schoolId, name: "Synthetic announcement academy", slug: schoolId, regId: schoolId, city: "Test", contactEmail: `${schoolId}@example.test`, registrationKind: "GROUP", status: "ACTIVE", plan: "PRO" } }); });
+test.afterAll(async () => { await db.schoolAiExecution.deleteMany({ where: { schoolId } }); await db.school.deleteMany({ where: { id: schoolId } }); await db.$disconnect(); });
+test.beforeEach(async ({ context, page }) => {
+  campusId = randomUUID(); adminId = randomUUID(); classId = randomUUID();
+  await db.campus.create({ data: { id: campusId, schoolId, name: "Announcement campus", city: "Test", regId: campusId } });
+  await db.user.create({ data: { id: adminId, schoolId, campusId, email: `${adminId}@example.test`, role: "ADMIN", fullName: "Announcement reviewer", isActive: true, onboardingComplete: true, mfaEnabled: true } });
+  await db.class.create({ data: { id: classId, schoolId, campusId, name: "Announcement Grade 8", section: "A", academicYear: 2026 } });
+  await signIn(context, "ADMIN");
+  await page.route("**/api/school-ai/announcements/options?*", route => route.fulfill({ json: { options: { campusId, classes: [{ id: classId, name: "Announcement Grade 8", section: "A", academicYear: 2026 }], providerReady: true } } }));
+});
+async function openDraft(page: Page, language: "en" | "ar" | "ur" = "en") {
+  const c = schoolAICopy(language), t = announcementCopy(language);
+  await page.goto("/ai"); await page.getByRole("button", { name: c.announcements, exact: true }).click();
+  await page.getByRole("button", { name: t.newPlan, exact: true }).click();
+  await page.getByRole("textbox", { name: new RegExp(`^${t.planName}`) }).fill("Reviewed school update");
+  await page.getByRole("checkbox", { name: "Announcement Grade 8 · A · 2026", exact: true }).check();
+  await page.getByRole("textbox", { name: new RegExp(`^${t.subject} · ${t[language]}`) }).fill(language === "en" ? "School meeting" : language === "ar" ? "اجتماع المدرسة" : "اسکول کا اجلاس");
+  await page.getByRole("textbox", { name: new RegExp(`^${t.body} · ${t[language]}`) }).fill(language === "en" ? "Please attend the reviewed school meeting." : language === "ar" ? "يرجى حضور اجتماع المدرسة." : "براہ کرم اسکول کے اجلاس میں شرکت کریں۔");
+}
+async function saveAndApprove(page: Page, language: "en" | "ar" | "ur" = "en") {
+  const c = schoolAICopy(language), t = announcementCopy(language);
+  const response = page.waitForResponse(response => /\/api\/school-ai\/workspace(?:\/[a-zA-Z0-9_-]+)?$/.test(response.url()) && ["POST", "PATCH"].includes(response.request().method()));
+  await page.getByRole("button", { name: c.save, exact: true }).click(); const saved = await response;
+  expect(saved.ok(), await saved.text()).toBeTruthy(); const { record } = await saved.json();
+  await expect(page.getByRole("button", { name: t.approve, exact: true })).toBeDisabled();
+  await page.getByRole("checkbox", { name: t.review, exact: true }).check();
+  await page.getByRole("button", { name: t.approve, exact: true }).click();
+  await expect(page.getByRole("button", { name: t.preview, exact: true })).toBeEnabled(); return record.id as string;
+}
+async function installDeliveryFixture(page: Page, recordId: string, options: { missingLanguage?: boolean; dropFirst?: boolean } = {}) {
+  const receipts: AnnouncementExecutionReceipt[] = [], keys: string[] = [];
+  let status: AnnouncementDelivery["status"] = "QUEUED", dropped = false;
+  await page.route(`**/api/school-ai/workspace/${recordId}/execute*`, async route => {
+    const request = route.request(), url = new URL(request.url());
+    if (request.method() === "GET" && url.searchParams.has("history")) return route.fulfill({ json: { executions: receipts } });
+    const response = await page.request.get(`/api/school-ai/workspace/${recordId}`), { record } = await response.json(), proposal = record.data.proposal;
+    if (request.method() === "GET") return route.fulfill({ json: { preview: { operation: "communications.queue_announcement", recordId, version: record.version, campusId, channel: "EMAIL", classes: [{ id: classId, name: "Announcement Grade 8 · A" }], messages: proposal.messages, fallbackLanguage: proposal.fallbackLanguage, recipients: [{ guardianUserId: "guardian-1", name: "Reviewed guardian", recipient: "guardian@example.test", language: proposal.fallbackLanguage || "en", studentNames: ["Verified learner"] }], skipped: [{ studentId: "excluded-learner", studentName: "Unlinked learner", reason: "NO_VERIFIED_GUARDIAN" }], blockers: options.missingLanguage && !proposal.fallbackLanguage ? ["ANNOUNCEMENT_MISSING_LANGUAGE"] : [], previewHash: `fixture-preview-${record.version}` } } });
+    const body = request.postDataJSON(); keys.push(body.idempotencyKey);
+    if (!receipts.length) receipts.push({ id: "synthetic-queue-receipt", operation: "communications.queue_announcement", recordId, version: record.version, status: "COMPLETED", queuedCount: 1, communicationIds: ["synthetic-delivery"], completedAt: new Date().toISOString() });
+    if (options.dropFirst && !dropped) { dropped = true; return route.abort("failed"); }
+    return route.fulfill({ json: { execution: receipts[0] } });
+  });
+  await page.route(`**/api/school-ai/workspace/${recordId}/announcements?*`, route => route.fulfill({ json: { deliveries: [{ id: "synthetic-delivery", recipient: "guardian@example.test", language: "en", status }], counts: { QUEUED: 0, ACCEPTED: 0, DELIVERED: 0, READ: 0, FAILED: 0, UNCERTAIN: 0, CANCELLED: 0, [status]: 1 } } }));
+  return { keys, setStatus: (next: AnnouncementDelivery["status"]) => { status = next; } };
+}
+
+test("reviewed audience and exact language text are confirmed before queueing and a lost response retries the same key", async ({ page }) => {
+  await openDraft(page); const t = announcementCopy("en");
+  await page.getByRole("checkbox", { name: t.ar, exact: true }).check();
+  await page.getByRole("textbox", { name: new RegExp(`^${t.subject} · ${t.ar}`) }).fill("اجتماع المدرسة");
+  await page.getByRole("textbox", { name: new RegExp(`^${t.body} · ${t.ar}`) }).fill("يرجى حضور اجتماع المدرسة.");
+  const recordId = await saveAndApprove(page), fixture = await installDeliveryFixture(page, recordId, { dropFirst: true });
+  await page.getByRole("button", { name: t.preview, exact: true }).click();
+  const preview = page.getByRole("region", { name: t.previewTitle, exact: true });
+  await expect(preview.getByText("guardian@example.test", { exact: true })).toBeVisible();
+  await expect(preview.getByText(/Unlinked learner/)).toBeVisible();
+  await expect(preview.getByText("يرجى حضور اجتماع المدرسة.", { exact: true })).toBeVisible();
+  await preview.screenshot({ path: "test-results/school-ai/announcements/desktop-review.png" });
+  await expect(preview.getByRole("button", { name: t.queue, exact: true })).toBeDisabled();
+  await preview.getByRole("checkbox", { name: t.queueConfirm, exact: true }).check();
+  await preview.getByRole("button", { name: t.queue, exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: schoolAICopy("en").failed })).toBeVisible();
+  await preview.getByRole("button", { name: t.queue, exact: true }).click();
+  await expect(page.getByRole("heading", { name: t.queued, exact: true })).toBeVisible();
+  expect(fixture.keys).toHaveLength(2); expect(fixture.keys[0]).toBe(fixture.keys[1]);
+  await expect(page.getByText(t.receiptHint, { exact: true })).toBeVisible();
+  await expect(page.getByText(t.QUEUED, { exact: true })).toBeVisible();
+  fixture.setStatus("ACCEPTED"); await page.getByRole("button", { name: t.refreshDelivery, exact: true }).click();
+  await expect(page.getByText(t.ACCEPTED, { exact: true })).toBeVisible();
+  await expect(page.getByText(t.DELIVERED, { exact: true })).toHaveCount(0);
+  fixture.setStatus("UNCERTAIN"); await page.getByRole("button", { name: t.refreshDelivery, exact: true }).click();
+  await expect(page.getByText(t.UNCERTAIN, { exact: true })).toBeVisible();
+  expect(await db.schoolAiExecution.count({ where: { schoolId } })).toBe(0);
+});
+
+test("a missing language blocks queueing until an explicit fallback is saved and approved again", async ({ page }) => {
+  await openDraft(page); const recordId = await saveAndApprove(page), t = announcementCopy("en"); await installDeliveryFixture(page, recordId, { missingLanguage: true });
+  await page.getByRole("button", { name: t.preview, exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: t.ANNOUNCEMENT_MISSING_LANGUAGE })).toBeVisible();
+  await expect(page.getByRole("button", { name: t.queue, exact: true })).toBeDisabled();
+  await page.getByRole("combobox", { name: t.fallback, exact: true }).selectOption("en");
+  await expect(page.getByRole("button", { name: t.preview, exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: schoolAICopy("en").overview, exact: true }).click();
+  await expect(page.getByRole("alertdialog", { name: schoolAICopy("en").unsavedTitle, exact: true })).toBeVisible();
+  await page.getByRole("button", { name: schoolAICopy("en").keepEditing, exact: true }).click();
+  await saveAndApprove(page);
+  await page.getByRole("button", { name: t.preview, exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: t.ANNOUNCEMENT_MISSING_LANGUAGE })).toHaveCount(0);
+  await page.getByRole("checkbox", { name: t.queueConfirm, exact: true }).check();
+  await expect(page.getByRole("button", { name: t.queue, exact: true })).toBeEnabled();
+});
+
+for (const language of ["ar", "ur"] as const) test(`${language} announcement editor remains readable and usable at 360px`, async ({ page }) => {
+  await db.user.update({ where: { id: adminId }, data: { preferredLanguage: language } });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await openDraft(page, language);
+  const t = announcementCopy(language);
+  await expect(page.getByRole("combobox", { name: t.fallback, exact: true })).toBeVisible();
+  if (language === "ar") { await page.getByRole("combobox", { name: t.fallback, exact: true }).scrollIntoViewIfNeeded(); await page.screenshot({ path: "test-results/school-ai/announcements/rtl-mobile.png" }); }
+  const geometry = await page.evaluate(() => ({ width: window.innerWidth, scroll: document.documentElement.scrollWidth, dir: document.documentElement.dir }));
+  expect(geometry.scroll).toBeLessThanOrEqual(geometry.width); expect(geometry.dir).toBe("rtl");
+});
+
+test("legacy communication history and counts immediately hide announcement payloads after grants are revoked", async ({ page }) => {
+  // Real HTTP and database fixture only; no queue or provider is invoked.
+  const announcementId = randomUUID(), legacyIds = [randomUUID(), randomUUID()];
+  await db.parentCommunication.createMany({ data: [
+    { id: announcementId, schoolId, campusId, createdById: adminId, channel: "EMAIL", templateKey: "SCHOOL_AI_ANNOUNCEMENT", relatedType: "SCHOOL_AI_ANNOUNCEMENT", recipient: "restricted-guardian@example.test", body: "Restricted approved announcement", status: "PENDING", metadata: { proofs: [{ relationshipId: "restricted-guardian-proof" }] } },
+    ...legacyIds.map((id, index) => ({ id, schoolId, campusId, createdById: adminId, channel: "EMAIL", templateKey: "LEGACY_TEST", relatedType: index ? "INVOICE" : null, recipient: "legacy@example.test", body: "Existing communication history", status: "PENDING" })),
+  ] });
+  const readHistory = async () => {
+    const response = await page.request.get("/api/communications?status=PENDING&channel=EMAIL");
+    expect(response.ok(), await response.text()).toBeTruthy();
+    expect(response.headers()["cache-control"]).toBe("private, no-store");
+    return response.json() as Promise<{ communications: Array<{ id: string }>; summary: Record<string, number> }>;
+  };
+  expect((await readHistory()).communications.map(item => item.id).sort()).toEqual([announcementId, ...legacyIds].sort());
+  try {
+    for (const denial of [{ module: "students", canView: false, canEdit: true }, { module: "students", canView: true, canEdit: false }, { module: "ai", canView: true, canEdit: false }]) {
+      await db.rolePermission.deleteMany({ where: { schoolId, role: "ADMIN" } });
+      await db.rolePermission.create({ data: { schoolId, role: "ADMIN", canAdd: true, canDelete: true, ...denial } });
+      const denied = await page.request.get("/api/school-ai/workspace/synthetic-record/announcements?executionId=synthetic-receipt");
+      expect(denied.status()).toBe(403);
+      const history = await readHistory();
+      expect(history.communications.map(item => item.id).sort()).toEqual([...legacyIds].sort());
+      expect(history.summary).toEqual({ PENDING: 2 });
+      expect(JSON.stringify(history)).not.toContain("restricted-guardian");
+      expect(JSON.stringify(history)).not.toContain("Restricted approved announcement");
+    }
+  } finally {
+    await db.rolePermission.deleteMany({ where: { schoolId, role: "ADMIN" } });
+  }
+  const restored = await readHistory();
+  expect(restored.communications.map(item => item.id).sort()).toEqual([announcementId, ...legacyIds].sort());
+  expect(restored.summary).toEqual({ PENDING: 3 });
+});
+
+test("principal dashboard server responses omit restricted announcement payloads and counts", async ({ page, context }) => {
+  test.setTimeout(90000);
+  await db.user.update({ where: { id: adminId }, data: { role: "PRINCIPAL" } });
+  await signIn(context, "PRINCIPAL");
+  const announcementId = randomUUID(), legacyId = randomUUID();
+  await db.parentCommunication.createMany({ data: [
+    { id: announcementId, schoolId, campusId, createdById: adminId, channel: "EMAIL", templateKey: "SCHOOL_AI_ANNOUNCEMENT", relatedType: "SCHOOL_AI_ANNOUNCEMENT", recipient: "restricted-principal-guardian@example.test", body: "Restricted principal announcement", status: "PENDING", metadata: { proofs: [{ relationshipId: "restricted-principal-proof" }] } },
+    { id: legacyId, schoolId, campusId, createdById: adminId, channel: "EMAIL", templateKey: "LEGACY_TEST", relatedType: null, recipient: "legacy@example.test", body: "Existing principal communication", status: "PENDING" },
+  ] });
+  const loadDashboardResponse = async () => {
+    const pending = page.waitForResponse(async response => new URL(response.url()).pathname === "/principal" && response.request().method() === "POST" && response.ok() && (await response.text()).includes('"recentCommunications"'));
+    await page.goto("/principal");
+    return (await pending).text();
+  };
+  const allowed = await loadDashboardResponse();
+  expect(allowed).toContain(announcementId);
+  expect(allowed).toContain(legacyId);
+  expect(allowed).toContain('"communicationSummary":{"PENDING":2}');
+  await db.rolePermission.create({ data: { schoolId, role: "PRINCIPAL", module: "ai", canView: true, canAdd: true, canEdit: false, canDelete: true } });
+  const denied = await loadDashboardResponse();
+  expect(denied).toContain(legacyId);
+  expect(denied).toContain('"communicationSummary":{"PENDING":1}');
+  expect(denied).not.toContain(announcementId);
+  expect(denied).not.toContain("restricted-principal");
+  expect(denied).not.toContain("Restricted principal announcement");
+});
+
+for (const language of ["en", "ar", "ur"] as const) test(`${language} records verified channel consent and honestly blocks an unconfigured SMS provider`, async ({ page }) => {
+  const parentId = randomUUID(), studentId = randomUUID(), t = announcementChannelCopy(language), a = announcementCopy(language);
+  await db.user.update({ where: { id: adminId }, data: { preferredLanguage: language } });
+  await db.user.create({ data: { id: parentId, schoolId, campusId, role: "PARENT", fullName: "Channel guardian", email: `${parentId}@example.test`, preferredLanguage: language, isActive: true, onboardingComplete: true } });
+  await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Channel learner", rollNo: "channel-1", gender: "OTHER" } });
+  await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Channel guardian", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic browser guardian right", createdByUserId: adminId } } } });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await openDraft(page, language);
+  await page.locator("summary").filter({ hasText: t.preferences }).click();
+  const preferences = page.getByRole("region", { name: t.preferences, exact: true });
+  await preferences.getByRole("combobox", { name: t.channel, exact: true }).selectOption("SMS");
+  await preferences.getByRole("combobox", { name: t.recipient, exact: true }).selectOption("+923001234567");
+  await preferences.getByRole("checkbox", { name: t.enabled, exact: true }).check();
+  await preferences.getByRole("textbox", { name: t.evidence, exact: true }).fill("Synthetic guardian consent and contact verification recorded.");
+  await preferences.getByRole("button", { name: t.save, exact: true }).click();
+  await expect(preferences.getByRole("alert")).toHaveText(t.invalid);
+  expect(await db.guardianChannelPreference.count({ where: { schoolId, campusId } })).toBe(0);
+  await preferences.getByRole("checkbox", { name: t.verified, exact: true }).check();
+  await preferences.getByRole("checkbox", { name: t.consent, exact: true }).check();
+  await preferences.getByRole("button", { name: t.save, exact: true }).click();
+  await expect(preferences.getByRole("status").filter({ hasText: t.saved })).toBeVisible();
+  const saved = await db.guardianChannelPreference.findFirstOrThrow({ where: { schoolId, campusId, guardianUserId: parentId } });
+  expect(saved.channel).toBe("SMS"); expect(saved.enabled).toBe(true); expect(saved.version).toBe(1);
+  await expect(preferences.getByRole("combobox", { name: t.channel, exact: true })).toHaveValue("SMS");
+  await page.setViewportSize({ width: 360, height: 1500 });
+  await preferences.screenshot({ path: `test-results/school-ai/announcements-completion/consent-${language}.png` });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.locator("summary").filter({ hasText: t.preferences }).click();
+  await page.getByRole("combobox", { name: t.channel, exact: true }).selectOption("SMS");
+  await expect(page.getByText(t.unavailable, { exact: true })).toBeVisible();
+  await saveAndApprove(page, language);
+  await page.getByRole("button", { name: a.preview, exact: true }).click();
+  const preview = page.getByRole("region", { name: a.previewTitle, exact: true });
+  await expect(preview.getByText("+923001234567", { exact: true })).toBeVisible();
+  await expect(preview.getByRole("alert")).toHaveText(a.ANNOUNCEMENT_PROVIDER_UNAVAILABLE);
+  await expect(preview.getByRole("button", { name: a.queue, exact: true })).toBeDisabled();
+  const geometry = await page.evaluate(() => ({ width: window.innerWidth, scroll: document.documentElement.scrollWidth, dir: document.documentElement.dir }));
+  expect(geometry.scroll).toBeLessThanOrEqual(geometry.width); expect(geometry.dir).toBe(language === "en" ? "ltr" : "rtl");
+  expect(await db.parentCommunication.count({ where: { schoolId, campusId } })).toBe(0);
+});
+
+test("guardian profile settings stop an enabled channel using the real API without permission to enable it", async ({ page, context }) => {
+  const parentId = randomUUID(), studentId = randomUUID(), t = announcementChannelCopy("en");
+  await db.user.create({ data: { id: parentId, schoolId, campusId, role: "PARENT", fullName: "Preferences parent", email: `${parentId}@example.test`, isActive: true, onboardingComplete: true } });
+  await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Preferences learner", rollNo: "preferences-1", gender: "OTHER" } });
+  await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Preferences parent", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic browser guardian right", createdByUserId: adminId } } } });
+  await db.guardianChannelPreference.create({ data: { schoolId, campusId, guardianUserId: parentId, channel: "SMS", recipient: "+923001234567", enabled: true, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic prior verified consent", updatedById: adminId } });
+  const token = await new SignJWT({ userId: parentId, schoolId, campusId, role: "PARENT", email: `${parentId}@example.test`, accessVersion: 0, mfaVerified: true, onboardingComplete: true, schoolStatus: "ACTIVE" }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("2h").sign(new TextEncoder().encode("school-ai-isolated-browser-test-secret-only"));
+  await db.loginSession.create({ data: { userId: parentId, schoolId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 7200000), isActive: true } });
+  await context.addCookies([{ name: "skoolee_token", value: token, url: origin, httpOnly: true, sameSite: "Lax" }]);
+  await page.goto("/parent?settings=profile");
+  const preferences = page.getByRole("region", { name: t.preferences, exact: true }), sms = preferences.locator("div").filter({ has: page.locator("b").filter({ hasText: /^SMS$/ }) }).filter({ has: page.getByRole("button", { name: t.stop, exact: true }) }).last();
+  await expect(preferences.getByText(t.parentHint, { exact: true })).toBeVisible();
+  await sms.getByRole("button", { name: t.stop, exact: true }).click();
+  await expect(preferences.getByRole("status").filter({ hasText: t.stopped })).toBeVisible();
+  await expect(sms.getByRole("button", { name: t.stop, exact: true })).toBeDisabled();
+  await preferences.screenshot({ path: "test-results/school-ai/announcements-completion/parent-opt-out.png" });
+  const saved = await db.guardianChannelPreference.findFirstOrThrow({ where: { schoolId, campusId, guardianUserId: parentId, channel: "SMS" } });
+  expect(saved.enabled).toBe(false); expect(saved.version).toBe(2);
+  const response = await page.request.post("/api/communications/channel-preferences", { headers: { origin }, data: { campusId, guardianUserId: parentId, channel: "SMS", recipient: "+923001234567", enabled: true, expectedVersion: 2, verified: true, consent: true, evidence: "Forged self-service enable attempt" } });
+  expect(response.status()).toBe(403);
+  expect(await db.parentCommunication.count({ where: { schoolId, campusId } })).toBe(0);
+});
+
+test("legacy fee reminders enforce channel consent, campus and financial rights and never claim delivery while disabled", async ({ page }) => {
+  const parentId = randomUUID(), studentId = randomUUID(), invoiceId = randomUUID();
+  await db.user.create({ data: { id: parentId, schoolId, campusId, role: "PARENT", fullName: "Fee guardian", email: `${parentId}@example.test`, preferredLanguage: "ur", isActive: true, onboardingComplete: true } });
+  await db.academicCycle.create({ data: { schoolId, campusId, label: "Fee cycle", academicYear: 2026, status: "ACTIVE", startDate: new Date("2026-01-01Z"), endDate: new Date("2026-12-31Z") } });
+  await db.student.create({ data: { id: studentId, schoolId, campusId, classId, fullName: "Fee learner", rollNo: "fee-1", gender: "OTHER", guardianPhone: "+923001234567", enrollmentDate: new Date("2026-01-01Z") } });
+  const relation = await db.guardianRelationship.create({ data: { schoolId, campusId, studentId, guardianUserId: parentId, createdByUserId: adminId, fullName: "Fee guardian", email: `${parentId}@example.test`, phone: "+923001234567", relationship: "GUARDIAN", status: "ACTIVE", verifiedAt: new Date(), accessVersions: { create: { school: { connect: { id: schoolId } }, permissions: { communication: true }, reason: "Synthetic communication access only", createdByUserId: adminId } } } });
+  await db.invoice.create({ data: { id: invoiceId, schoolId, campusId, studentId, invoiceDate: new Date("2026-10-01Z"), dueDate: new Date("2026-10-31Z"), monthlyFee: 10000, subtotal: 10000, totalAmount: 10000, balanceDue: 10000, currency: "USD" } });
+  const remind = () => page.request.post("/api/fees/remind", { headers: { origin }, data: { studentId } });
+  expect((await remind()).status()).toBe(409);
+  await db.guardianChannelPreference.create({ data: { schoolId, campusId, guardianUserId: parentId, channel: "WHATSAPP", recipient: "+923001234567", enabled: true, verifiedAt: new Date(), consentAt: new Date(), evidence: "Synthetic verified consent", updatedById: adminId } });
+  expect((await remind()).status()).toBe(409);
+  await db.guardianAccessVersion.create({ data: { schoolId, relationshipId: relation.id, permissions: { communication: true, finances: true }, reason: "Synthetic financial records consent", createdByUserId: adminId } });
+  const response = await remind(); expect(response.ok(), await response.text()).toBeTruthy(); const result = await response.json();
+  expect(result.data.accepted).toBe(0); expect(result.data.delivered).toBe(false); expect(result.data.communications[0].status).toBe("BLOCKED");
+  const stored = await db.parentCommunication.findFirstOrThrow({ where: { schoolId, campusId, studentId } });
+  expect(stored.relatedId).toBe(invoiceId); expect(stored.body).toContain("فیس"); expect(stored.body).not.toContain("Rs "); expect(stored.sentAt).toBe(null);
+  const foreignCampus = randomUUID(); await db.campus.create({ data: { id: foreignCampus, schoolId, name: "Foreign campus", regId: foreignCampus, city: "Test" } });
+  await db.student.update({ where: { id: studentId }, data: { campusId: foreignCampus } });
+  expect((await remind()).status()).toBe(404);
+});

@@ -3,7 +3,7 @@
 // ===========================================
 
 import Stripe from "stripe";
-import { getPlanLimits } from "@/config/plans";
+import { ANNUAL_DISCOUNT, getPlanLimits, type BillingPeriod } from "@/config/plans";
 import type { PlanType } from "@/types";
 
 type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
@@ -12,10 +12,15 @@ const stripeApiVersion = (
   process.env.STRIPE_API_VERSION || "2026-04-22.dahlia"
 ) as StripeConfig["apiVersion"];
 
+// STRIPE_API_BASE points the client at a local stand-in for isolated tests
+// (e.g. http://127.0.0.1:55442); production leaves it unset.
+const stripeApiBase = process.env.STRIPE_API_BASE ? new URL(process.env.STRIPE_API_BASE) : null;
+
 export const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: stripeApiVersion,
       typescript: true,
+      ...(stripeApiBase ? { host: stripeApiBase.hostname, port: Number(stripeApiBase.port), protocol: stripeApiBase.protocol.replace(":", "") as "http" | "https" } : {}),
     })
   : null;
 
@@ -26,11 +31,8 @@ function requireStripe(): Stripe {
   return stripe;
 }
 
-export function appUrl() {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
+import { appUrl } from "@/lib/app-url";
+export { appUrl };
 
 /**
  * Create a Stripe customer for a new tenant.
@@ -54,9 +56,14 @@ export async function createStripeCustomer(
 export async function createPortalSession(
   customerId: string
 ): Promise<string> {
+  // SKO-373: the portal is for payment recovery only. Plan changes and
+  // cancellation go through the reviewed lifecycle, so the session opens on
+  // the payment-method flow instead of the full self-service portal.
   const session = await requireStripe().billingPortal.sessions.create({
     customer: customerId,
-    return_url: `${appUrl()}/dashboard/billing`,
+    // §6.2: every provider return lands on /billing, which resolves the payer's own Billing & plan view.
+    return_url: `${appUrl()}/billing`,
+    flow_data: { type: "payment_method_update" },
   });
   return session.url;
 }
@@ -71,10 +78,43 @@ export function getPriceId(
   billingPeriod: "monthly" | "annual" = "monthly"
 ): string {
   const limits = getPlanLimits(plan);
-  if (billingPeriod === "annual" && limits.stripeAnnualPriceEnv && process.env[limits.stripeAnnualPriceEnv]) {
-    return process.env[limits.stripeAnnualPriceEnv] || "";
+  const envName = billingPeriod === "annual" ? limits.stripeAnnualPriceEnv : limits.stripePriceEnv;
+  return envName ? process.env[envName] || "" : "";
+}
+
+export function stripePriceMismatch(
+  price: { active: boolean; currency: string; unit_amount: number | null; recurring: { interval: string; interval_count: number } | null },
+  plan: PlanType,
+  billingPeriod: BillingPeriod,
+  cataloguePrice: number | null | undefined
+) {
+  if (cataloguePrice == null) return "This plan has no configured catalogue price";
+  const expectedAmount = billingPeriod === "annual"
+    ? Math.round(cataloguePrice * (1 - ANNUAL_DISCOUNT) * 12)
+    : cataloguePrice;
+  const expectedInterval = billingPeriod === "annual" ? "year" : "month";
+  if (
+    !price.active || price.currency.toUpperCase() !== "PKR" || price.unit_amount !== expectedAmount * 100 ||
+    price.recurring?.interval !== expectedInterval || price.recurring.interval_count !== 1
+  ) {
+    return `${getPlanLimits(plan).name} ${billingPeriod} Stripe price does not match the approved PKR catalogue amount (${expectedAmount} PKR/${expectedInterval})`;
   }
-  return limits.stripePriceEnv ? process.env[limits.stripePriceEnv] || "" : "";
+  return null;
+}
+
+/** Validate the provider's configured amount and interval before redirecting. */
+export async function verifyStripePrice(
+  priceId: string,
+  plan: PlanType,
+  billingPeriod: BillingPeriod,
+  cataloguePrice: number | null | undefined
+) {
+  if (!stripe) throw new Error("Stripe is not configured");
+  if (cataloguePrice == null) throw new Error("This plan has no configured catalogue price");
+  const price = await stripe.prices.retrieve(priceId);
+  const mismatch = stripePriceMismatch(price, plan, billingPeriod, cataloguePrice);
+  if (mismatch) throw new Error(mismatch);
+  return price;
 }
 
 /**
@@ -114,23 +154,28 @@ export async function createCheckoutSessionWithTransfer(
   priceId: string,
   schoolId: string,
   plan: Exclude<PlanType, "FREE" | "ENTERPRISE">,
-  connectedAccountId: string | null
+  connectedAccountId: string | null,
+  contractMetadata: string,
+  changeRequestId: string,
+  idempotencyKey: string
 ): Promise<string> {
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl()}/dashboard/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl()}/dashboard/billing?canceled=true`,
+    // §6.2: /billing resolves the payer's own Billing & plan view and keeps these parameters. The session id
+    // placeholder must stay literal (Stripe substitutes it), so this query is not built with URLSearchParams.
+    success_url: `${appUrl()}/billing?success=true&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl()}/billing?${new URLSearchParams({ canceled: "true" })}`,
     client_reference_id: schoolId,
     allow_promotion_codes: true,
-    metadata: { schoolId, plan },
+    metadata: { schoolId, plan, commercialContract: contractMetadata, subscriptionChangeRequestId: changeRequestId },
     subscription_data: {
-      metadata: { schoolId, plan },
+      metadata: { schoolId, plan, commercialContract: contractMetadata, subscriptionChangeRequestId: changeRequestId },
       ...(connectedAccountId ? { transfer_data: { destination: connectedAccountId } } : {}),
     },
   };
 
-  const session = await requireStripe().checkout.sessions.create(sessionParams);
+  const session = await requireStripe().checkout.sessions.create(sessionParams, { idempotencyKey });
   return session.url || "";
 }

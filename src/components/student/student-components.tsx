@@ -1,55 +1,25 @@
 "use client";
 
-import { AlertCircle, RefreshCw } from "lucide-react";
-import { BrandButton } from "@/components/role-dashboard";
-import { StudentSubnav } from "@/components/student/student-page";
 import { SkeletonBar as SkeletonBlock } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { WorkspacePageSkeleton } from "@/components/teacher/teacher-page";
 
 
 /**
- * The frame every student skeleton sits in.
- *
- * Each skeleton used to draw its own page shell — a `rounded-[40px]` card
- * with a 140px gradient header and no section strip — while the page it
- * stood in for is a `rounded-[32px]` card with a 57px header and a strip of
- * six tabs. So every screen visibly rebuilt itself the moment data arrived.
- * This mirrors `StudentPage` instead, and renders the *real* subnav: it
- * needs no data, so the student can move between screens while the one
- * behind it is still loading.
+ * The frame every skeleton here sits in: `WorkspacePageSkeleton`, the loading shape of the page itself
+ * (PageHeader placeholder, the shared body padding, no card of its own — the shell draws the one page card).
+ * Nothing moves when the data lands, and the sidebar stays usable while a screen is loading.
  */
-function SkeletonFrame({ avatar = false, children }: { avatar?: boolean; children: React.ReactNode }) {
-  return (
-    <section
-      /* Announced once, at the frame, so a screen reader says "loading"
-         rather than reading a page of empty placeholders. */
-      role="status"
-      aria-busy="true"
-      aria-label="Loading the student portal"
-      className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] bg-white shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)]"
-    >
-      <header className="relative shrink-0 overflow-hidden border-b border-[#cfc2d6]/12 bg-white">
-        <span
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-[#8127cf] to-[#9c48ea] opacity-30"
-        />
-        <div className="relative flex items-center gap-3 px-4 py-3 sm:px-5">
-          <SkeletonBlock className={avatar ? "h-10 w-10 shrink-0 rounded-xl" : "h-9 w-9 shrink-0 rounded-xl"} />
-          <div className="min-w-0 space-y-1.5">
-            <SkeletonBlock className="h-4 w-44" />
-            <SkeletonBlock className="h-2.5 w-60" />
-          </div>
-        </div>
-      </header>
-      <StudentSubnav />
-      <div className="custom-scrollbar flex-1 overflow-y-auto bg-[#fbf0fe]/20 p-4 sm:p-5">{children}</div>
-    </section>
-  );
+function SkeletonFrame({ children, action = false }: { avatar?: boolean; action?: boolean; children: React.ReactNode }) {
+  const ui = useUiText();
+  return <WorkspacePageSkeleton label={ui("Loading your learner portal")} documentFlow action={action}>{children}</WorkspacePageSkeleton>;
 }
 
 /** Matches the compact `StatCard` the pages actually render. */
 function StatCardSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   return (
-    <div className="rounded-[18px] border border-[#cfc2d6]/20 bg-white px-3.5 py-2.5 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]">
+    <div className="sk-panel px-3.5 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <SkeletonBlock className={`h-5 ${valueWidth}`} />
@@ -62,48 +32,23 @@ function StatCardSkeleton({ valueWidth = "w-16" }: { valueWidth?: string }) {
   );
 }
 
+/** Today is StudentToday alone: a next-action card, then lessons and work side by side. */
 export function DashboardSkeleton() {
   return (
-    <SkeletonFrame>
-      <div className="space-y-3">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <StatCardSkeleton key={i} />
-          ))}
+    <SkeletonFrame action>
+      <div className="sk-panel space-y-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <SkeletonBlock className="h-5 w-28" />
+          <SkeletonBlock className="h-9 w-48 rounded-xl" />
         </div>
-        <div className="bg-gradient-to-br from-[#8127cf]/70 to-[#9c48ea]/60 rounded-[40px] p-8 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
-          <div className="relative flex flex-col lg:flex-row gap-8">
-            <div className="flex-1 space-y-6">
-              <div className="flex items-center gap-3">
-                <SkeletonBlock className="h-10 w-10 rounded-2xl" />
-                <SkeletonBlock className="h-6 w-40" />
-              </div>
-              <SkeletonBlock className="h-4 w-full" />
-              <SkeletonBlock className="h-4 w-3/4" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[...Array(2)].map((_, j) => (
-                  <div key={j} className="rounded-2xl bg-white/10 border border-white/15 p-4 space-y-2 backdrop-blur-sm">
-                    <SkeletonBlock className="h-3 w-24" />
-                    <SkeletonBlock className="h-3 w-full" />
-                    <SkeletonBlock className="h-3 w-2/3" />
-                  </div>
-                ))}
-              </div>
+        <SkeletonBlock className="h-28 w-full rounded-2xl" />
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[0, 1].map((i) => (
+            <div key={i} className="space-y-2">
+              <SkeletonBlock className="h-4 w-24" />
+              {[0, 1, 2].map((j) => <SkeletonBlock key={j} className="h-9 w-full rounded-lg" />)}
             </div>
-            <div className="lg:w-[360px]">
-              <div className="rounded-[28px] bg-white/95 p-5 space-y-4 shadow-xl">
-                <SkeletonBlock className="h-5 w-20" />
-                {[...Array(3)].map((_, j) => (
-                  <div key={j} className="space-y-2">
-                    <SkeletonBlock className="h-3 w-32" />
-                    <SkeletonBlock className="h-9 w-full rounded-xl" />
-                  </div>
-                ))}
-                <SkeletonBlock className="h-10 w-full rounded-2xl" />
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </SkeletonFrame>
@@ -125,7 +70,7 @@ export function CourseworkSkeleton() {
               <SkeletonBlock className="h-5 w-48 mb-4" />
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="rounded-2xl bg-[#fbf0fe]/40 border border-[#cfc2d6]/10 p-4">
+                  <div key={i} className="rounded-2xl bg-brand-50/40 border border-edge/10 p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div className="space-y-1.5 min-w-0 flex-1">
                         <SkeletonBlock className="h-4 w-32" />
@@ -156,18 +101,18 @@ export function CourseworkSkeleton() {
             </div>
           </div>
           <div className="xl:col-span-3">
-            <div className="overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
-              <div className="border-b border-[#cfc2d6]/10 px-4 py-3">
+            <div className="sk-panel overflow-hidden">
+              <div className="border-b border-edge/10 px-4 py-3">
                 <SkeletonBlock className="h-4 w-28" />
               </div>
-              <div className="bg-[#fbf0fe]/30 border-b border-[#cfc2d6]/10 px-4 py-3 flex gap-8">
+              <div className="bg-brand-50/30 border-b border-edge/10 px-4 py-3 flex gap-8">
                 <SkeletonBlock className="h-3 w-16" />
                 <SkeletonBlock className="h-3 w-12" />
                 <SkeletonBlock className="h-3 w-10" />
-                <SkeletonBlock className="h-3 w-14 ml-auto" />
+                <SkeletonBlock className="h-3 w-14 ms-auto" />
               </div>
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="group flex items-center justify-between px-4 py-3 border-b border-[#cfc2d6]/8">
+                <div key={i} className="group flex items-center justify-between px-4 py-3 border-b border-edge/8">
                   <div className="space-y-1 flex-1">
                     <SkeletonBlock className="h-4 w-28" />
                     <SkeletonBlock className="h-3 w-20" />
@@ -196,8 +141,8 @@ export function ReportsSkeleton() {
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
-              <div className="bg-gradient-to-br from-[#fbf0fe]/60 via-white to-white p-4 pb-3 border-b border-[#cfc2d6]/8">
+            <div key={i} className="sk-panel overflow-hidden">
+              <div className="bg-gradient-to-br from-brand-50/60 via-card to-card p-4 pb-3 border-b border-edge/8">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2 min-w-0 flex-1">
                     <SkeletonBlock className="h-3 w-20" />
@@ -237,7 +182,7 @@ export function AttendanceSkeleton() {
             <StatCardSkeleton key={i} valueWidth="w-16" />
           ))}
         </div>
-        <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+        <div className="sk-panel p-4">
           <div className="flex items-center justify-between mb-5">
             <SkeletonBlock className="h-5 w-40" />
             <div className="flex gap-3">
@@ -269,7 +214,7 @@ export function AttendanceSkeleton() {
           </div>
           <div className="space-y-1.5">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="group flex items-center justify-between gap-3 rounded-2xl bg-white px-5 py-3.5 border border-[#cfc2d6]/8 shadow-sm">
+              <div key={i} className="group flex items-center justify-between gap-3 rounded-2xl bg-card px-5 py-3.5 border border-edge/8 shadow-sm">
                 <div className="flex items-center gap-4">
                   <div className="flex flex-col items-center w-10 space-y-0.5">
                     <SkeletonBlock className="h-2.5 w-8" />
@@ -300,7 +245,7 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
           <SkeletonBlock className="h-8 w-40 rounded-xl" />
           <SkeletonBlock className="h-8 w-52 rounded-xl" />
         </div>
-        <div className="rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+        <div className="sk-panel p-4">
           <div className="space-y-3">
             <div className="flex flex-col items-center justify-center py-2.5">
               <SkeletonBlock className="h-3 w-24" />
@@ -324,24 +269,18 @@ export function TimetableSkeleton({ weekendDays = [] }: { weekendDays?: number[]
   );
 }
 
+/** A failed portal load: one inline ErrorState with a retry (R4/R5). */
 export function StudentErrorState({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
+  const ui = useUiText();
   return (
-    <section className="bg-white rounded-[40px] shadow-2xl flex-1 relative overflow-hidden flex flex-col items-center justify-center p-8">
-      <div className="w-full max-w-md text-center">
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-50 text-rose-600">
-          <AlertCircle className="h-8 w-8" />
-        </div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-[#8127cf]">Something went wrong</p>
-        <h2 className="mt-2 text-2xl font-bold text-[#1d1b20] tracking-tight">Couldn&apos;t load your portal</h2>
-        <p className="mt-2 text-sm font-semibold leading-relaxed text-ink-muted">
-          {error || "We couldn't load your student portal. This may be a permission or connectivity issue."}
-        </p>
-        <div className="mt-6 inline-block">
-          <BrandButton variant="dark" icon={<RefreshCw className="w-4 h-4" />} onClick={onRetry}>
-            Try Again
-          </BrandButton>
-        </div>
-      </div>
+    <section className="flex flex-1 flex-col items-center justify-center p-4 sm:p-8">
+      <ErrorState
+        variant="page"
+        title={ui("Couldn't load your portal")}
+        description={error ? ui(error) : ui("We couldn't load your learner portal. Check your connection and try again.")}
+        onRetry={onRetry}
+        retryLabel={ui("Try again")}
+      />
     </section>
   );
 }
@@ -355,16 +294,16 @@ export function FeesSkeleton() {
             <StatCardSkeleton key={i} valueWidth="w-24" />
           ))}
         </div>
-        <div className="rounded-[32px] bg-gradient-to-br from-[#8127cf] to-[#9c48ea] p-7 shadow-xl relative overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="sk-panel space-y-3 p-4 sm:p-5">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div className="space-y-2">
-              <SkeletonBlock className="h-3 w-28 bg-white/15" />
-              <SkeletonBlock className="h-10 w-36 bg-white/15" />
-              <SkeletonBlock className="h-3 w-44 bg-white/15" />
+              <SkeletonBlock className="h-3 w-28" />
+              <SkeletonBlock className="h-8 w-36 rounded-lg" />
+              <SkeletonBlock className="h-3 w-44" />
             </div>
-            <SkeletonBlock className="h-20 w-20 rounded-full bg-white/15 shrink-0" />
+            <SkeletonBlock className="size-16 shrink-0 rounded-full" />
           </div>
-          <SkeletonBlock className="h-2.5 w-full rounded-full bg-white/15 mt-5" />
+          <SkeletonBlock className="h-2.5 w-full rounded-full" />
         </div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -373,7 +312,7 @@ export function FeesSkeleton() {
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="relative space-y-3 overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)]">
+              <div key={i} className="sk-panel relative space-y-3 overflow-hidden p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1.5">
                     <SkeletonBlock className="h-4 w-28" />
@@ -421,7 +360,7 @@ export function StudentRouteSkeleton() {
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className={`rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] ${i === 0 ? "xl:col-span-2" : ""}`}
+              className={`sk-panel p-4 ${i === 0 ? "xl:col-span-2" : ""}`}
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <SkeletonBlock className="h-8 w-8 shrink-0 rounded-xl" />

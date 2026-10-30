@@ -67,6 +67,7 @@ export function useValidatedForm<S extends z.ZodType>({
   const [values, setValues] = useState<Values>(initialValues);
   const [errors, setErrors] = useState<FieldErrors<Values>>({});
   const [touched, setTouched] = useState<Partial<Record<Key, boolean>>>({});
+  const submissionLock = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -87,7 +88,7 @@ export function useValidatedForm<S extends z.ZodType>({
       `[name="${CSS.escape(field)}"], #${CSS.escape(`field-${field}`)}`
     );
     element?.focus?.();
-    element?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    element?.scrollIntoView?.({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   };
 
   const setValue = (field: Key, value: unknown) => {
@@ -201,7 +202,7 @@ export function useValidatedForm<S extends z.ZodType>({
 
   const handleSubmit = async (event?: { preventDefault?: () => void }) => {
     event?.preventDefault?.();
-    if (submitting) return false;
+    if (submissionLock.current) return false;
 
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
@@ -216,11 +217,13 @@ export function useValidatedForm<S extends z.ZodType>({
 
     setErrors({});
     setSubmitted(true);
+    submissionLock.current = true;
     setSubmitting(true);
     try {
       await onSubmit?.(parsed.data);
       return true;
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };

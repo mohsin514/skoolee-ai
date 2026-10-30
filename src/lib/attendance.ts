@@ -13,28 +13,57 @@ import type { AttendanceStatus } from "@prisma/client";
  */
 export type AttendanceLike = { status: AttendanceStatus | string };
 
+/**
+ * SKO-405: which statuses count as attended and which leave the denominator. A school publishes numbered
+ * versions; until it does, version 0 applies, which is exactly the long-standing formula (approved leave
+ * counts as attended) extended to the new statuses: late and part-day pupils attended, an excused absence
+ * is treated like leave. Everything else in the denominator (an absence) counts against attendance.
+ */
+export type AttendanceRule = { version: number; attended: string[]; excluded: string[] };
+export const ATTENDANCE_STATUSES = ["PRESENT", "LATE", "PARTIAL", "ABSENT", "EXCUSED", "LEAVE"] as const;
+export const DEFAULT_ATTENDANCE_RULE: AttendanceRule = { version: 0, attended: ["PRESENT", "LATE", "PARTIAL", "LEAVE", "EXCUSED"], excluded: [] };
+
 export type AttendanceSummary = {
   total: number;
   present: number;
   absent: number;
   leave: number;
+  late: number;
+  excused: number;
+  partial: number;
+  /** Days that count toward the percentage under the rule (total minus excluded). */
+  counted: number;
+  /** Counted days that count as attended under the rule. */
+  attended: number;
   /** Percentage 0-100, or null when nothing has been marked yet. */
   rate: number | null;
+  ruleVersion: number;
 };
 
-export function summarizeAttendance(records: AttendanceLike[]): AttendanceSummary {
-  const total = records.length;
-  const present = records.filter((r) => r.status === "PRESENT").length;
-  const absent = records.filter((r) => r.status === "ABSENT").length;
-  const leave = records.filter((r) => r.status === "LEAVE").length;
-
+export function summarizeAttendance(records: AttendanceLike[], rule: AttendanceRule = DEFAULT_ATTENDANCE_RULE): AttendanceSummary {
+  const count = (status: string) => records.filter((r) => r.status === status).length;
+  const counted = records.filter((r) => !rule.excluded.includes(String(r.status)));
+  const attended = counted.filter((r) => rule.attended.includes(String(r.status))).length;
   return {
-    total,
-    present,
-    absent,
-    leave,
-    rate: total > 0 ? Math.round(((present + leave) / total) * 100) : null,
+    total: records.length,
+    present: count("PRESENT"),
+    absent: count("ABSENT"),
+    leave: count("LEAVE"),
+    late: count("LATE"),
+    excused: count("EXCUSED"),
+    partial: count("PARTIAL"),
+    counted: counted.length,
+    attended,
+    rate: counted.length > 0 ? Math.round((attended / counted.length) * 100) : null,
+    ruleVersion: rule.version,
   };
+}
+
+/** Percentage (one decimal) of counted days attended under the rule; 0 when nothing is counted. */
+export function ruleRate(records: AttendanceLike[], rule: AttendanceRule = DEFAULT_ATTENDANCE_RULE): number {
+  const counted = records.filter((r) => !rule.excluded.includes(String(r.status)));
+  const attended = counted.filter((r) => rule.attended.includes(String(r.status))).length;
+  return counted.length ? Math.round((attended / counted.length) * 1000) / 10 : 0;
 }
 
 /** Below this, the family sees an "attendance at risk" warning. */

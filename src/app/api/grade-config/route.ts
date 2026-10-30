@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { normalizeWeightMode } from "@/lib/academic/grade-calculator";
-import { assertPermission, canManageOperations } from "@/lib/api/scope";
+import { ApiError, assertPermission, canLeadAcademics } from "@/lib/api/scope";
+import { assertWritable, recordProvenance } from "@/lib/group-policy/service";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { calculateWeightedGrade, defaultWeightConfig, type WeightConfig } from "@/lib/academic/grade-calculator";
+import { describeWeightProblem, summarizeWeightImpact, validateCategoryWeights, type StudentOutcome } from "@/lib/academic/grade-weights";
 
 /**
  * Grading rules are a property of a CLASS, not of a section (§80).
@@ -37,6 +42,10 @@ const DEFAULTS = {
   gradeB: 70,
   gradeC: 60,
   gradeD: 50,
+  missingMarkPolicy: "COUNT_AS_ZERO" as const,
+  absentMarkPolicy: "COUNT_AS_ZERO" as const,
+  exemptMarkPolicy: "EXCLUDE" as const,
+  roundingRule: "WHOLE" as const,
 };
 
 type ConfigShape = typeof DEFAULTS;
@@ -58,17 +67,26 @@ function shapeOf(config: Record<string, unknown> | null): ConfigShape {
   if (!config) return { ...DEFAULTS };
   const out = { ...DEFAULTS } as ConfigShape;
   for (const key of NUMERIC_KEYS) {
-    const v = Number(config[key]);
-    if (Number.isFinite(v)) (out[key] as number) = v;
+    // Absent keys keep the default; anything present must be a real number
+    // (Number("") is 0 and Number(null) is 0, which hid bad input before).
+    if (config[key] === undefined) continue;
+    const v = typeof config[key] === "number" ? config[key] as number : Number.NaN;
+    (out[key] as number) = v;
   }
   out.weightMode = normalizeWeightMode(config.weightMode as string) as "NORMALIZED";
+  out.missingMarkPolicy = ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"].includes(String(config.missingMarkPolicy)) ? config.missingMarkPolicy as ConfigShape["missingMarkPolicy"] : DEFAULTS.missingMarkPolicy;
+  out.absentMarkPolicy = ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"].includes(String(config.absentMarkPolicy)) ? config.absentMarkPolicy as ConfigShape["absentMarkPolicy"] : DEFAULTS.absentMarkPolicy;
+  out.exemptMarkPolicy = ["COUNT_AS_ZERO", "EXCLUDE", "BLOCK"].includes(String(config.exemptMarkPolicy)) ? config.exemptMarkPolicy as ConfigShape["exemptMarkPolicy"] : DEFAULTS.exemptMarkPolicy;
+  out.roundingRule = ["WHOLE", "ONE_DECIMAL", "TWO_DECIMALS"].includes(String(config.roundingRule)) ? config.roundingRule as ConfigShape["roundingRule"] : DEFAULTS.roundingRule;
   return out;
 }
 
 /** Do these sections' rules actually agree? */
 function configsMatch(a: ConfigShape, b: ConfigShape) {
   return (
-    NUMERIC_KEYS.every((k) => a[k] === b[k]) && a.weightMode === b.weightMode
+    NUMERIC_KEYS.every((k) => a[k] === b[k]) && a.weightMode === b.weightMode &&
+    a.missingMarkPolicy === b.missingMarkPolicy && a.absentMarkPolicy === b.absentMarkPolicy &&
+    a.exemptMarkPolicy === b.exemptMarkPolicy && a.roundingRule === b.roundingRule
   );
 }
 
@@ -109,6 +127,8 @@ export async function GET(request: NextRequest) {
           /** True when the sections were saved with different rules. */
           drifted: boolean;
           configured: boolean;
+          /** SKAI-152: latest save across the sections; sent back on save to catch stale edits. */
+          version: string | null;
           students: number;
           subjects: number;
         }
@@ -129,6 +149,7 @@ export async function GET(request: NextRequest) {
             config: shape,
             drifted: false,
             configured: !!raw,
+            version: raw ? raw.updatedAt.toISOString() : null,
             students: cls._count.students,
             subjects: cls._count.subjects,
           });
@@ -146,6 +167,8 @@ export async function GET(request: NextRequest) {
         // A section with no row at all is not drift — it is simply unset, and
         // the first configured section is the one worth showing.
         if (raw) {
+          const stamp = raw.updatedAt.toISOString();
+          if (!existing.version || stamp > existing.version) existing.version = stamp;
           if (!existing.configured) {
             existing.config = shape;
             existing.configured = true;
@@ -204,15 +227,17 @@ export async function POST(request: NextRequest) {
     // Grading weights and the passing bar decide who passes the year, so only
     // the office may touch them. This route previously accepted any signed-in
     // user, which let a teacher — or a student — rewrite their own pass mark.
-    if (!canManageOperations(session)) {
+    // G34: grading rules are the academic lead's decision — the principal, or a campus operator only while
+    // the campus has no principal.
+    if (!(await canLeadAcademics(session, session.campusId))) {
       return NextResponse.json(
-        { error: "Only admins and principals can change grading rules" },
+        { error: "Grading rules are set by your principal." },
         { status: 403 },
       );
     }
     await assertPermission(session, "exams", "edit");
 
-    const body = await request.json();
+    const body = await parseBody(request, jsonObjectBody);
     const academicYear = Number(body.academicYear);
     if (!academicYear) {
       return NextResponse.json({ error: "academicYear is required" }, { status: 400 });
@@ -220,13 +245,18 @@ export async function POST(request: NextRequest) {
 
     const incoming = shapeOf(body);
 
-    const weightTotal =
-      incoming.quizWeight + incoming.classTestWeight + incoming.midTermWeight + incoming.finalWeight;
-    if (Math.round(weightTotal) !== 100) {
+    // SKAI-152: non-negative, at most 100 each, exactly 100 together.
+    const weightProblems = validateCategoryWeights(incoming);
+    if (weightProblems.length) {
       return NextResponse.json(
-        { error: `Weights must add up to 100% — they currently add up to ${Math.round(weightTotal)}%` },
+        { error: describeWeightProblem(weightProblems[0]), code: "INVALID_WEIGHTS", problems: weightProblems },
         { status: 400 },
       );
+    }
+    for (const key of NUMERIC_KEYS) {
+      if (!Number.isFinite(incoming[key])) {
+        return NextResponse.json({ error: `${key} must be a number` }, { status: 400 });
+      }
     }
     if (incoming.passingPercentage < 0 || incoming.passingPercentage > 100) {
       return NextResponse.json({ error: "The pass mark must be between 0 and 100" }, { status: 400 });
@@ -287,6 +317,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const existingRows = await prisma.gradeWeightConfig.findMany({
+      where: { classId: { in: sections.map((s) => s.id) }, academicYear },
+    });
+    const currentVersion = existingRows.reduce<string | null>((latest, row) => {
+      const stamp = row.updatedAt.toISOString();
+      return !latest || stamp > latest ? stamp : latest;
+    }, null);
+
     const values = {
       quizWeight: incoming.quizWeight,
       classTestWeight: incoming.classTestWeight,
@@ -294,6 +332,10 @@ export async function POST(request: NextRequest) {
       finalWeight: incoming.finalWeight,
       passingPercentage: incoming.passingPercentage,
       weightMode: normalizeWeightMode(incoming.weightMode),
+      missingMarkPolicy: incoming.missingMarkPolicy,
+      absentMarkPolicy: incoming.absentMarkPolicy,
+      exemptMarkPolicy: incoming.exemptMarkPolicy,
+      roundingRule: incoming.roundingRule,
       gradeAplus: incoming.gradeAplus,
       gradeA: incoming.gradeA,
       gradeB: incoming.gradeB,
@@ -301,7 +343,53 @@ export async function POST(request: NextRequest) {
       gradeD: incoming.gradeD,
     };
 
-    await prisma.$transaction(
+    // SKAI-152: preview — what these rules would do to results already marked, without saving.
+    if (body.preview === true) {
+      const proposed: WeightConfig = {
+        ...defaultWeightConfig(),
+        ...values,
+        thresholds: { aplus: values.gradeAplus, a: values.gradeA, b: values.gradeB, c: values.gradeC, d: values.gradeD },
+      };
+      const students = await prisma.student.findMany({
+        where: { classId: { in: sections.map((s) => s.id) }, campusId: session.campusId },
+        select: { id: true, classId: true },
+      });
+      const outcome = (r: { studentId: string; overallPercentage: number; overallGrade: string; passed: boolean }): StudentOutcome =>
+        ({ studentId: r.studentId, percentage: r.overallPercentage, grade: r.overallGrade, passed: r.passed });
+      const before: (StudentOutcome | null)[] = [];
+      const after: (StudentOutcome | null)[] = [];
+      for (const student of students) {
+        const run = (override?: WeightConfig) =>
+          calculateWeightedGrade(student.id, session.campusId!, student.classId!, academicYear, prisma, undefined, override)
+            .then(outcome).catch(() => null);
+        const [was, now] = await Promise.all([run(), run(proposed)]);
+        before.push(was);
+        after.push(now);
+      }
+      return NextResponse.json({ success: true, preview: summarizeWeightImpact(before, after), version: currentVersion });
+    }
+
+    // SKAI-152: someone else saved this class since the editor opened — do not overwrite blindly.
+    if (body.expectedVersion !== undefined && (body.expectedVersion ?? null) !== currentVersion) {
+      return NextResponse.json(
+        { error: "These grading rules were changed by someone else after you opened them. Reload to see the latest rules, then make your change again.", code: "STALE_VERSION", version: currentVersion },
+        { status: 409 },
+      );
+    }
+
+    // SKO-443: values a group template sets cannot differ here unless an approved override allows it — the
+    // same rule the campus policy screen shows. Every row written keeps the version that governed it.
+    let policy;
+    try {
+      policy = await assertWritable(session, session.campusId, "GRADING", values);
+    } catch (error) {
+      if (error instanceof ApiError) return NextResponse.json({ error: error.message, code: "POLICY_LOCKED" }, { status: error.status });
+      throw error;
+    }
+    // Every row written here is recorded in audit_logs with its before/after
+    // values by the shared audit-trail extension (SKAI-1162), so the history
+    // shows each weight a class has had — including mid-term changes.
+    const saved = await prisma.$transaction(
       sections.map((s) =>
         prisma.gradeWeightConfig.upsert({
           where: { classId_academicYear: { classId: s.id, academicYear } },
@@ -310,6 +398,7 @@ export async function POST(request: NextRequest) {
         }),
       ),
     );
+    if (policy.version) await recordProvenance(prisma, session.schoolId, session.campusId, policy, "GRADE_WEIGHT_CONFIG", saved.map((row) => row.id));
 
     return NextResponse.json({
       success: true,
@@ -318,6 +407,7 @@ export async function POST(request: NextRequest) {
       sectionsUpdated: sections.length,
       sections: sections.map((s) => s.section).filter(Boolean),
       config: values,
+      version: saved.reduce((latest, row) => (row.updatedAt.toISOString() > latest ? row.updatedAt.toISOString() : latest), ""),
     });
   } catch (error: unknown) {
     console.error("GradeConfig POST error:", error);

@@ -1,9 +1,11 @@
 "use client";
 
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { Activity, AlertTriangle, CheckCircle2, Clock, Pause, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { SkeletonBar } from "@/components/ui/skeleton";
 import { ACADEMIC_CYCLE_CHANGED } from "@/lib/cycleEvents";
 
 type CycleStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "ENDED" | null;
@@ -18,45 +20,51 @@ interface CycleInfo {
 const statusConfig: Record<string, { icon: typeof Activity; bg: string; text: string; dot: string; label: string }> = {
   ACTIVE: {
     icon: CheckCircle2,
-    bg: "bg-emerald-50 border-emerald-200/50",
-    text: "text-emerald-700",
-    dot: "bg-emerald-500",
+    bg: "bg-status-success-surface border-status-success-border/50",
+    text: "text-status-success-text",
+    dot: "bg-status-success-text",
     label: "Active",
   },
   PAUSED: {
     icon: Pause,
-    bg: "bg-amber-50 border-amber-200/50",
-    text: "text-amber-700",
-    dot: "bg-amber-500",
+    bg: "bg-status-warning-surface border-status-warning-border/50",
+    text: "text-status-warning-text",
+    dot: "bg-status-warning-text",
     label: "Paused",
   },
   DRAFT: {
     icon: Clock,
-    bg: "bg-blue-50 border-blue-200/50",
-    text: "text-blue-700",
-    dot: "bg-blue-500",
+    bg: "bg-status-info-surface border-status-info-border/50",
+    text: "text-status-info-text",
+    dot: "bg-status-info-text",
     label: "Draft",
   },
   ENDED: {
     icon: XCircle,
-    bg: "bg-gray-50 border-gray-200/50",
-    text: "text-gray-600",
-    dot: "bg-gray-400",
+    bg: "bg-surface-subtle border-border-subtle",
+    text: "text-ink-muted",
+    dot: "bg-ink-subtle",
     label: "Ended",
   },
 };
 
 export function CycleBadge() {
+  const tr = useUiText();
   const [cycle, setCycle] = useState<CycleInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  // A context chip that failed to load says nothing rather than "No active academic year" (which would be false) or a toast
+  // on every page (R4); the screens that need the cycle show their own inline error.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
         const res = await fetch("/api/academic-cycle");
+        if (!res.ok) throw new Error(String(res.status));
         const json = await res.json();
         if (!cancelled) {
+          setFailed(false);
           if (json.active) {
             setCycle(json.active);
           } else if (json.data?.length > 0) {
@@ -65,7 +73,7 @@ export function CycleBadge() {
           }
         }
       } catch {
-        toast.error("Failed to load cycle");
+        if (!cancelled) setFailed(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -79,14 +87,15 @@ export function CycleBadge() {
     };
   }, []);
 
-  if (loading) return <div className="h-7 w-32 animate-pulse rounded-xl bg-[#cfc2d6]/20" />;
+  if (loading) return <SkeletonBar className="h-7 w-32 rounded-xl" />;
+  if (failed) return null;
 
   if (!cycle) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border border-rose-200/50 bg-rose-50 px-3 py-1.5">
-        <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-        <span className="text-[10px] font-semibold text-rose-600 uppercase tracking-wide">No Cycle</span>
-      </div>
+      <Badge variant="danger" dot>
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+        {tr("No active academic year")}
+      </Badge>
     );
   }
 
@@ -97,8 +106,8 @@ export function CycleBadge() {
     <div className={cn("flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-all", config.bg)}>
       <span className={cn("flex h-2 w-2 rounded-full", config.dot, cycle.status === "ACTIVE" && "animate-pulse")} />
       <Icon className={cn("h-3.5 w-3.5", config.text)} />
-      <span className={cn("text-[10px] font-semibold uppercase tracking-wide", config.text)}>
-        {cycle.label} &middot; {config.label}
+      <span className={cn("text-2xs font-semibold", config.text)}>
+        <bdi>{cycle.label}</bdi> &middot; {tr(config.label)}
       </span>
     </div>
   );

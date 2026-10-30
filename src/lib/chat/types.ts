@@ -19,7 +19,7 @@ export interface ChatAttachmentView {
   fileName: string;
   contentType: string;
   sizeBytes: number;
-  /** Presigned and short-lived; re-fetch the message rather than caching it. */
+  /** Authenticated application URL; every download rechecks current conversation access. */
   url: string | null;
 }
 
@@ -35,6 +35,8 @@ export interface ChatMessageView {
   isDeleted: boolean;
   createdAt: string;
   clientKey: string | null;
+  /** Sent outside quiet-hour suppression by staff; shown as urgent. */
+  isUrgent: boolean;
 }
 
 export interface ConversationMemberView {

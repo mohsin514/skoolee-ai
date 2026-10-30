@@ -1,6 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { ReviewedDeleteDialog } from "@/components/ui/reviewed-delete";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,24 +13,40 @@ import {
   Check,
   CheckCircle2,
   Clock,
-  Loader2,
   Plus,
   Trash2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
+import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
+import { Input as SystemInput } from "@/components/ui/input";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 
 const WEEKDAYS = [
-  { num: 1, short: "Mon" },
-  { num: 2, short: "Tue" },
-  { num: 3, short: "Wed" },
-  { num: 4, short: "Thu" },
-  { num: 5, short: "Fri" },
-  { num: 6, short: "Sat" },
-  { num: 7, short: "Sun" },
+  { num: 1 },
+  { num: 2 },
+  { num: 3 },
+  { num: 4 },
+  { num: 5 },
+  { num: 6 },
+  { num: 7 },
 ];
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** Month and weekday names in the viewer's language (2024-01-01 is a Monday, so day n of that week is weekday n). */
+function weekdayName(language: string, num: number, width: "short" | "narrow") {
+  return new Intl.DateTimeFormat(language, { weekday: width, timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, num)));
+}
+function weekendList(language: string, days: number[]) {
+  return days.map((d) => weekdayName(language, d, "short")).join(" · ");
+}
+function formatIso(language: string, iso: string) {
+  return new Intl.DateTimeFormat(language, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+}
+type WeekendPreview = { from: string; to: string; newlyClosed: number; newlyOpened: number; holidayDaysOnNewWeekend: number; closedSamples: string[] };
+function monthName(language: string, month: number) {
+  return new Intl.DateTimeFormat(language, { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2024, month, 1)));
+}
 
 function timeToMin(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -41,7 +61,27 @@ interface Room { id: string; roomNumber: string; capacity: number; }
 
 const STORAGE_KEY = (campusId: string | undefined) => `year-setup-wizard:${campusId || "default"}`;
 
-export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; onComplete?: () => void }) {
+/** Host-driven save (§4.4 "Save (sticky, per tab)"): a new nonce runs once. */
+export type YearSetupCommand = { id: "save"; nonce: number };
+
+/**
+ * Year set-up wizard (campus operations). Each holiday, period and room row is written when it is added; what can be
+ * pending is the academic year itself (step 1, before it is created) and a half-filled holiday/period/room row.
+ *
+ * Host-owned Save (§4.4, admin Campus setup): `hideSave` drops the wizard's own "Save and continue" (step 1's footer
+ * then only advances once the year exists); `command {id:"save"}` commits what is pending — creates the year (and
+ * moves on to the calendar), then adds every complete holiday/period/room row; `onDirtyChange(dirty, saving)` reports
+ * whether anything is pending and whether a save is running (and `(false, false)` on unmount).
+ */
+export function YearSetupWizard({ campusId, onComplete, hideSave = false, command, onDirtyChange }: {
+  campusId?: string;
+  onComplete?: () => void;
+  hideSave?: boolean;
+  command?: YearSetupCommand;
+  onDirtyChange?: (dirty: boolean, saving: boolean) => void;
+}) {
+  const ui = useUiText();
+  const { language } = useLocale();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -55,6 +95,7 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [cycleStatus, setCycleStatus] = useState<string>("DRAFT");
 
+  const [removingHoliday, setRemovingHoliday] = useState<{ id: string; name: string } | null>(null);
   const [weekends, setWeekends] = useState<number[]>([6, 7]);
   const [holidays, setHolidays] = useState<{ id: string; name: string; fromDate: string; toDate: string }[]>([]);
 
@@ -129,12 +170,12 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         body: JSON.stringify({ action: "create", label: yearLabel || `${year}-${year + 1}`, academicYear: year }),
       });
       const json = await res.json();
-      if (!json.success) { toast.error(json.error || "Failed to create year"); return false; }
+      if (!json.success) { toast.error(friendlyErrorMessage(new Error(typeof json.error === "string" ? json.error : ""), ui("The academic year could not be created"))); return false; }
       setCycleId(json.data.id);
       setCycleStatus(json.data.status);
-      toast.success("Academic year created (Draft)");
+      toast.success(ui("Academic year created as a draft"));
       return true;
-    } catch { toast.error("Failed to create year"); return false; }
+    } catch { toast.error(ui("The academic year could not be created")); return false; }
     finally { setSaving(false); }
   };
 
@@ -147,23 +188,55 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
   };
 
   // ── Step 2: calendar ──────────────────────────────────────────────────
-  const toggleWeekend = async (num: number) => {
-    const next = weekends.includes(num) ? weekends.filter((d) => d !== num) : [...weekends, num].sort();
-    setWeekends(next);
-    try {
-      const res = await fetch(`/api/academic/calendar${qp}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days: next }),
-      });
-      const json = await res.json();
-      if (json.success) setWeekends(json.data.weekends);
-    } catch { toast.error("Failed to update weekends"); }
+  // SKAI-118: weekday clicks stage a draft; the server previews the affected dates, and Apply sends the weekend
+  // the operator was looking at (`expected`) so a concurrent edit is refused instead of silently overwritten.
+  const [weekendDraft, setWeekendDraft] = useState<number[] | null>(null);
+  const [weekendPreview, setWeekendPreview] = useState<WeekendPreview | null>(null);
+  const [weekendBusy, setWeekendBusy] = useState(false);
+  const [weekendError, setWeekendError] = useState<string | null>(null);
+  const shownWeekends = weekendDraft ?? weekends;
+  const sendWeekend = async (days: number[], preview: boolean) => {
+    const res = await fetch(`/api/academic/calendar${qp}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ days, expected: weekends, preview }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.success) throw new Error(typeof json.error === "string" ? json.error : "");
+    return json.data;
   };
+  const toggleWeekend = async (num: number) => {
+    if (weekendBusy) return;
+    const next = shownWeekends.includes(num) ? shownWeekends.filter((d) => d !== num) : [...shownWeekends, num].sort();
+    const same = next.length === weekends.length && next.every((d) => weekends.includes(d));
+    setWeekendDraft(same ? null : next);
+    setWeekendPreview(null);
+    setWeekendError(null);
+    if (same) return;
+    if (!next.length || next.length === 7) { setWeekendError(ui(next.length ? "Keep at least one working day in the week." : "Choose at least one weekend day.")); return; }
+    setWeekendBusy(true);
+    try { setWeekendPreview((await sendWeekend(next, true)).impact); }
+    catch (error) { setWeekendError(friendlyErrorMessage(error, ui("The weekend change could not be previewed. Try again."))); }
+    finally { setWeekendBusy(false); }
+  };
+  const applyWeekend = async () => {
+    if (!weekendDraft || !weekendPreview || weekendBusy) return;
+    setWeekendBusy(true);
+    try {
+      const data = await sendWeekend(weekendDraft, false);
+      setWeekends(data.weekends);
+      setWeekendDraft(null);
+      setWeekendPreview(null);
+      toast.success(ui("Weekend updated"));
+    } catch (error) { setWeekendError(friendlyErrorMessage(error, ui("Weekends could not be updated"))); }
+    finally { setWeekendBusy(false); }
+  };
+  const discardWeekend = () => { setWeekendDraft(null); setWeekendPreview(null); setWeekendError(null); };
 
   const [holidayDraft, setHolidayDraft] = useState({ name: "", fromDate: "", toDate: "" });
+  const holidayReady = Boolean(holidayDraft.name.trim() && holidayDraft.fromDate && holidayDraft.toDate);
   const addHoliday = async () => {
-    if (!holidayDraft.name || !holidayDraft.fromDate || !holidayDraft.toDate) { toast.error("Fill holiday name and dates"); return; }
+    if (!holidayReady) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/academic/calendar${qp}`, {
@@ -175,20 +248,10 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
       if (json.success) {
         setHolidays((h) => [...h, { ...json.data, fromDate: json.data.fromDate.slice(0, 10), toDate: json.data.toDate.slice(0, 10) }]);
         setHolidayDraft({ name: "", fromDate: "", toDate: "" });
-        toast.success("Holiday added");
-      } else toast.error(json.error || "Failed");
+        toast.success(ui("Holiday added"));
+      } else toast.error(friendlyErrorMessage(new Error(typeof json.error === "string" ? json.error : ""), ui("The holiday could not be added. Try again.")));
     } finally { setSaving(false); }
   };
-  const removeHoliday = async (id: string) => {
-    try {
-      const sp = new URLSearchParams({ id });
-      if (campusId) sp.set("campusId", campusId);
-      const res = await fetch(`/api/academic/calendar?${sp.toString()}`, { method: "DELETE" });
-      const json = await res.json();
-      if (json.success) setHolidays((h) => h.filter((x) => x.id !== id));
-    } catch { toast.error("Failed to remove holiday"); }
-  };
-
   const isHoliday = (iso: string) => holidays.some((h) => iso >= h.fromDate && iso <= h.toDate);
   const holidayOn = (iso: string) => holidays.find((h) => iso >= h.fromDate && iso <= h.toDate);
 
@@ -218,11 +281,15 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
   const periodOverlap = (start: string, end: string, excludeId?: string) =>
     activePeriods.some((p) => p.id !== excludeId && overlaps(p.startTime, p.endTime, start, end));
 
+  // R4: validation shows inline under the row (Add stays disabled with the reason), never as a toast.
+  const periodNumber = parseInt(periodDraft.periodNumber, 10);
+  const periodProblem = !periodNumber || !periodDraft.startTime || !periodDraft.endTime ? null
+    : timeToMin(periodDraft.startTime) >= timeToMin(periodDraft.endTime) ? "End must be after start"
+    : periodOverlap(periodDraft.startTime, periodDraft.endTime) ? "Overlaps another period" : null;
+  const periodReady = Boolean(periodNumber && periodDraft.startTime && periodDraft.endTime) && !periodProblem;
   const addPeriod = async () => {
-    const num = parseInt(periodDraft.periodNumber, 10);
-    if (!num || !periodDraft.startTime || !periodDraft.endTime) { toast.error("Fill period number, start and end"); return; }
-    if (timeToMin(periodDraft.startTime) >= timeToMin(periodDraft.endTime)) { toast.error("End must be after start"); return; }
-    if (periodOverlap(periodDraft.startTime, periodDraft.endTime)) { toast.error("Overlaps another period"); return; }
+    const num = periodNumber;
+    if (!periodReady) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/academic/periods${qp}`, {
@@ -234,24 +301,28 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
       if (json.success) {
         setActivePeriods((p) => [...p, json.data].sort((a: PeriodDef, b: PeriodDef) => a.periodNumber - b.periodNumber));
         setPeriodDraft({ periodNumber: "", startTime: "", endTime: "" });
-        toast.success("Period added");
-      } else toast.error(json.error || "Failed");
+        toast.success(ui("Period added"));
+      } else toast.error(friendlyErrorMessage(new Error(typeof json.error === "string" ? json.error : ""), ui("The period could not be added. Try again.")));
     } finally { setSaving(false); }
   };
+  // SKAI-146: removal is confirmed first, and a refusal (for example a period timetables still use) is shown, not swallowed.
+  const [removingPeriod, setRemovingPeriod] = useState<PeriodDef | null>(null);
   const deletePeriod = async (id: string) => {
     try {
       const sp = new URLSearchParams({ id });
       if (campusId) sp.set("campusId", campusId);
       const res = await fetch(`/api/academic/periods?${sp.toString()}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) setActivePeriods((p) => p.filter((x) => x.id !== id));
-    } catch { toast.error("Failed to delete period"); }
+      if (!json.success) throw new Error(json.code === "PERIOD_IN_USE" ? ui("Timetables still have lessons in this period. Clear them first, then remove it.") : typeof json.error === "string" ? json.error : "");
+      setActivePeriods((p) => p.filter((x) => x.id !== id));
+      toast.success(ui("Period removed"));
+    } catch (error) { toast.error(friendlyErrorMessage(error, ui("The period could not be removed"))); }
   };
 
   // ── Step 4: rooms ─────────────────────────────────────────────────────
   const [roomDraft, setRoomDraft] = useState({ roomNumber: "", capacity: "" });
   const addRoom = async () => {
-    if (!roomDraft.roomNumber) { toast.error("Room number required"); return; }
+    if (!roomDraft.roomNumber.trim()) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/academic/rooms${qp}`, {
@@ -260,8 +331,8 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         body: JSON.stringify({ roomNumber: roomDraft.roomNumber, capacity: parseInt(roomDraft.capacity || "0", 10) }),
       });
       const json = await res.json();
-      if (json.success) { setRooms((r) => [...r, json.data]); setRoomDraft({ roomNumber: "", capacity: "" }); toast.success("Room added"); }
-      else toast.error(json.error || "Failed");
+      if (json.success) { setRooms((r) => [...r, json.data]); setRoomDraft({ roomNumber: "", capacity: "" }); toast.success(ui("Room added")); }
+      else toast.error(friendlyErrorMessage(new Error(typeof json.error === "string" ? json.error : ""), ui("The room could not be added. Try again.")));
     } finally { setSaving(false); }
   };
   const deleteRoom = async (id: string) => {
@@ -271,8 +342,41 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
       const res = await fetch(`/api/academic/rooms?${sp.toString()}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) setRooms((r) => r.filter((x) => x.id !== id));
-    } catch { toast.error("Failed to delete room"); }
+    } catch { toast.error(ui("The room could not be removed")); }
   };
+
+  // ── Host-owned Save (§4.4) ──────────────────────────────────────────────
+  const roomReady = Boolean(roomDraft.roomNumber.trim());
+  const dirty = !loading && (!cycleId
+    || Boolean(holidayDraft.name.trim() || holidayDraft.fromDate || holidayDraft.toDate)
+    || Boolean(periodDraft.periodNumber || periodDraft.startTime || periodDraft.endTime)
+    || Boolean(roomDraft.roomNumber.trim() || roomDraft.capacity)
+    || Boolean(weekendDraft));
+  const saveAll = async () => {
+    if (saving) return;
+    if (!cycleId) {
+      // The year is the wizard's first commit; once it exists the calendar is the next step.
+      if (await createCycle()) setStep((current) => (current === 0 ? 1 : current));
+      return;
+    }
+    if (holidayReady) await addHoliday();
+    if (periodReady) await addPeriod();
+    if (roomReady) await addRoom();
+    if (weekendDraft && weekendPreview) await applyWeekend();
+  };
+  const dirtyListener = useRef(onDirtyChange);
+  useEffect(() => { dirtyListener.current = onDirtyChange; });
+  useEffect(() => { dirtyListener.current?.(dirty, saving); }, [dirty, saving]);
+  // Reads the latest listener at unmount (kept current by the effect above).
+  useEffect(() => () => dirtyListener.current?.(false, false), []);
+  // Seeded with the command present at mount, so a remount never replays the last one.
+  const handledCommand = useRef<number | null>(command?.nonce ?? null);
+  useEffect(() => {
+    if (!command || handledCommand.current === command.nonce) return;
+    handledCommand.current = command.nonce;
+    if (command.id === "save") void saveAll();
+    // Only a new nonce runs a command; it reads the drafts on screen at that moment.
+  }, [command?.nonce]);
 
   const completeSetup = async () => {
     if (cycleStatus === "DRAFT" && cycleId) {
@@ -284,72 +388,78 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
           body: JSON.stringify({ action: "activate", cycleId }),
         });
         const json = await res.json();
-        if (json.success) { setCycleStatus(json.data.status); toast.success("Year setup complete — cycle is now ACTIVE"); }
+        if (json.success) { setCycleStatus(json.data.status); toast.success(ui("Year setup complete — the academic year is now active")); }
       } finally { setSaving(false); }
     }
     onComplete?.();
   };
 
-  const steps = ["Year & Terms", "Calendar", "Periods", "Rooms"];
+  const steps = ["Year and terms", "Calendar", "Periods", "Rooms"];
 
   if (loading) {
     return (
       <div className="space-y-4">
         <div className="flex gap-2">
           {steps.map((_, i) => (
-            <div key={i} className="h-12 flex-1 rounded-2xl bg-[#e8e0ec]/50 skeleton-shimmer" />
+            <div key={i} className="h-12 flex-1 rounded-2xl bg-border-subtle/50 skeleton-shimmer" />
           ))}
         </div>
-        <div className="h-72 rounded-[28px] bg-[#e8e0ec]/30 skeleton-shimmer" />
-        <div className="h-12 rounded-2xl bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-72 rounded-[28px] bg-border-subtle/30 skeleton-shimmer" />
+        <div className="h-12 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <ConfirmAction open={Boolean(removingPeriod)} title={ui("Remove period {0}?", [removingPeriod?.periodNumber ?? ""])}
+        description={removingPeriod ? ui("{0}–{1} is removed from this campus's bell schedule.", [removingPeriod.startTime, removingPeriod.endTime]) : ""}
+        confirmLabel={ui("Remove period")} cancelLabel={ui("Cancel")} tone="danger" onCancel={() => setRemovingPeriod(null)}
+        onConfirm={async () => { const target = removingPeriod; setRemovingPeriod(null); if (target) await deletePeriod(target.id); }} />
+      {removingHoliday ? <ReviewedDeleteDialog endpoint="academic/calendar" record={{ id: removingHoliday.id, campusId }} label={removingHoliday.name}
+        onCancel={() => setRemovingHoliday(null)} onDeleted={() => setHolidays(rows => rows.filter(row => row.id !== removingHoliday.id))} /> : null}
       {/* Stepper */}
       <div className="flex items-center gap-2">
         {steps.map((s, i) => (
           <div key={s} className="flex flex-1 items-center gap-2">
-            <button
+            <Button aria-pressed={i === step} variant="choice" aria-label={ui(s)}
               onClick={() => setStep(i)}
-              className={`flex flex-1 items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition-all ${
-                i === step ? "border-[#8127cf] bg-[#8127cf] text-white" : i < step ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-[#cfc2d6]/30 bg-white text-ink-muted"
-              }`}
+              className={"justify-start " + (`flex flex-1 items-center gap-2 px-4 py-2.5 ${
+                i === step ? "" : i < step ? "" : ""
+              } `)}
             >
-              {i < step ? <CheckCircle2 className="h-4 w-4" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/10 text-[10px]">{i + 1}</span>}
-              <span className="hidden sm:inline">{s}</span>
-            </button>
+              {i < step ? <CheckCircle2 className="h-4 w-4" /> : <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-2xs"><bdi>{i + 1}</bdi></span>}
+              <span className="hidden sm:inline">{ui(s)}</span>
+            </Button>
           </div>
         ))}
       </div>
 
-      <div className="rounded-[28px] border border-[#cfc2d6]/12 bg-white shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.18)] p-6">
+      <div className="sk-panel border-edge/12 p-6">
         {/* STEP 1 */}
         {step === 0 && (
           <div className="space-y-5">
-            <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><CalendarDays className="h-5 w-5 text-[#8127cf]" />Define Year &amp; Terms</h3>
+            <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><CalendarDays className="h-5 w-5 text-primary" />{ui("Define year and terms")}</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Year Label" value={yearLabel} onChange={setYearLabel} placeholder="2026-2027" />
-              <Field label="Academic Year" type="number" value={String(year)} onChange={(v) => setYear(parseInt(v || "0", 10))} />
+              <Field label={ui("Year label")} value={yearLabel} onChange={setYearLabel} placeholder="2026-2027" />
+              <Field label={ui("Academic year")} type="number" value={String(year)} onChange={(v) => setYear(parseInt(v || "0", 10))} />
             </div>
             <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-muted">Number of Terms</p>
+              <p className="mb-2 text-xs font-semibold text-ink-muted">{ui("Number of terms")}</p>
               <div className="flex gap-2">
                 {[1, 2, 3].map((n) => (
-                  <button key={n} onClick={() => { setTermCount(n); setTerms(Array.from({ length: n }, () => ({ start: "", end: "" }))); }}
-                    className={`rounded-xl border px-5 py-2 text-sm font-bold ${termCount === n ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
+                  <Button aria-pressed={termCount === n} variant="choice" key={n} onClick={() => { setTermCount(n); setTerms(Array.from({ length: n }, () => ({ start: "", end: "" }))); }}
+                    className={`px-5 py-2 ${termCount === n ? "" : ""} `}>
                     {n}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
             <div className="space-y-3">
               {terms.map((t, i) => (
-                <div key={i} className="grid grid-cols-2 gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-3">
-                  <Field label={`Term ${i + 1} Start`} type="date" value={t.start} onChange={(v) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, start: v } : x)))} />
-                  <Field label={`Term ${i + 1} End`} type="date" value={t.end} onChange={(v) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, end: v } : x)))} />
+                <div key={i} className="grid grid-cols-2 gap-3 rounded-2xl border border-edge/15 bg-surface-subtle p-3">
+                  <Field label={ui("Term {0} start", [i + 1])} type="date" value={t.start} onChange={(v) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, start: v } : x)))} />
+                  <Field label={ui("Term {0} end", [i + 1])} type="date" value={t.end} onChange={(v) => setTerms((ts) => ts.map((x, j) => (j === i ? { ...x, end: v } : x)))} />
                 </div>
               ))}
             </div>
@@ -364,38 +474,56 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         {/* STEP 2 — Calendar */}
         {step === 1 && (
           <div className="space-y-5">
-            <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><CalendarDays className="h-5 w-5 text-[#8127cf]" />Set Calendar</h3>
+            <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><CalendarDays className="h-5 w-5 text-primary" />{ui("Set the calendar")}</h3>
             <div className="flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => (
-                <button key={d.num} onClick={() => toggleWeekend(d.num)}
-                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${weekends.includes(d.num) ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
-                  {d.short}{weekends.includes(d.num) ? " · off" : ""}
-                </button>
+                <Button aria-pressed={shownWeekends.includes(d.num)} variant="choice" key={d.num} disabled={weekendBusy} onClick={() => toggleWeekend(d.num)}
+                  className="px-3 py-1.5">
+                  {weekdayName(language, d.num, "short")}{shownWeekends.includes(d.num) ? ` · ${ui("off")}` : ""}
+                </Button>
               ))}
-              <button
+              <Button aria-pressed={holidayMode} variant="choice"
                 onClick={() => { setHolidayMode((v) => !v); setHolidayPick(null); }}
-                className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${holidayMode ? "border-teal-500 bg-teal-500 text-white shadow-md shadow-teal-500/25" : "border-teal-500/40 bg-teal-50 text-teal-700 hover:bg-teal-100"}`}
+                className={`px-3 py-1.5 ${holidayMode ? "" : ""} `}
               >
-                {holidayMode ? (holidayPick ? `Finish range → ${holidayPick}` : "Pick end day…") : "✚ Mark holiday range"}
-              </button>
+                {holidayMode ? (holidayPick ? ui("Finish range → {0}", [holidayPick]) : ui("Pick end day…")) : ui("Mark holiday range")}
+              </Button>
             </div>
-            <p className="text-[10px] font-semibold text-ink-muted">
-              Tip: click any calendar day to toggle that weekday as a weekend. Use “Mark holiday range” then click two days to draft a holiday.
+            <p className="text-2xs font-medium text-ink-muted">
+              {ui("Tip: click any calendar day to toggle that weekday as a weekend. Use “Mark holiday range” then click two days to draft a holiday.")}
             </p>
-            <YearCalendar year={year} weekends={weekends} holidays={holidays} isHoliday={isHoliday} holidayOn={holidayOn} holidayMode={holidayMode} holidayPick={holidayPick} onDayClick={onDayClick} />
-            <div className="rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4">
-              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-ink-muted">Add Holiday</p>
+            {weekendDraft ? (
+              <Alert tone={weekendError ? "danger" : "warning"} title={ui("Review the weekend change")}
+                actions={<div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={applyWeekend} disabled={!weekendPreview || weekendBusy} loading={weekendBusy && Boolean(weekendPreview)}>{ui("Apply weekend")}</Button>
+                  <Button size="sm" variant="secondary" onClick={discardWeekend} disabled={weekendBusy}>{ui("Keep current weekend")}</Button>
+                </div>}>
+                <p>{ui("Current: {0}. New: {1}.", [weekendList(language, weekends), weekendList(language, weekendDraft)])}</p>
+                {weekendError ? <p>{weekendError}</p> : !weekendPreview ? <p>{ui("Checking the affected dates…")}</p> : (
+                  <ul className="mt-1 list-disc space-y-0.5 ps-5">
+                    <li>{ui("From {0} to {1}:", [formatIso(language, weekendPreview.from), formatIso(language, weekendPreview.to)])}</li>
+                    <li>{ui("{0} school days become weekend days — no attendance register or lessons on them.", [String(weekendPreview.newlyClosed)])}{weekendPreview.closedSamples.length ? ` (${weekendPreview.closedSamples.map((d) => formatIso(language, d)).join(", ")}…)` : ""}</li>
+                    <li>{ui("{0} weekend days become school days — attendance and the timetable will expect them.", [String(weekendPreview.newlyOpened)])}</li>
+                    {weekendPreview.holidayDaysOnNewWeekend ? <li>{ui("{0} holiday days now fall on the weekend.", [String(weekendPreview.holidayDaysOnNewWeekend)])}</li> : null}
+                    <li>{ui("Past attendance is unchanged; the change applies from today.")}</li>
+                  </ul>
+                )}
+              </Alert>
+            ) : null}
+            <YearCalendar year={year} weekends={shownWeekends} holidays={holidays} isHoliday={isHoliday} holidayOn={holidayOn} holidayMode={holidayMode} holidayPick={holidayPick} onDayClick={onDayClick} />
+            <div className="rounded-2xl border border-edge/15 bg-surface-subtle p-4">
+              <p className="mb-2 text-xs font-semibold text-ink-muted">{ui("Add a holiday")}</p>
               <div className="flex flex-wrap items-end gap-3">
-                <Field label="Name" value={holidayDraft.name} onChange={(v) => setHolidayDraft((d) => ({ ...d, name: v }))} />
-                <Field label="From" type="date" value={holidayDraft.fromDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, fromDate: v }))} />
-                <Field label="To" type="date" value={holidayDraft.toDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, toDate: v }))} />
-                <button onClick={addHoliday} disabled={saving} className="flex items-center gap-1 rounded-xl bg-[#8127cf] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Add</button>
+                <Field label={ui("Name")} value={holidayDraft.name} onChange={(v) => setHolidayDraft((d) => ({ ...d, name: v }))} />
+                <Field label={ui("From")} type="date" value={holidayDraft.fromDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, fromDate: v }))} />
+                <Field label={ui("To")} type="date" value={holidayDraft.toDate} onChange={(v) => setHolidayDraft((d) => ({ ...d, toDate: v }))} />
+                <Button variant="default" onClick={addHoliday} disabled={saving || !holidayReady} className="justify-start flex items-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />{ui("Add")}</Button>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {holidays.map((h) => (
-                  <span key={h.id} className="flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
+                  <span key={h.id} className="flex items-center gap-2 rounded-full bg-status-info-surface px-3 py-1 text-xs font-bold text-status-info-text">
                     {h.name} ({h.fromDate}→{h.toDate})
-                    <button onClick={() => removeHoliday(h.id)} className="text-teal-700/60 hover:text-rose-500"><X className="h-3 w-3" /></button>
+                    <Button variant="ghost" aria-label={ui("Delete {0}?", [h.name])} onClick={() => setRemovingHoliday(h)} className=""><X className="h-3 w-3" /></Button>
                   </span>
                 ))}
               </div>
@@ -407,30 +535,31 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         {step === 2 && (
           <div className="space-y-5">
             <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><Clock className="h-5 w-5 text-[#8127cf]" />Define Periods</h3>
+              <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Clock className="h-5 w-5 text-primary" />{ui("Define periods")}</h3>
               <div className="flex gap-2">
                 {(["CLASS", "EXAM"] as const).map((t) => (
-                  <button key={t} onClick={() => setPeriodTab(t)} className={`rounded-xl border px-4 py-1.5 text-xs font-bold ${periodTab === t ? "border-[#8127cf] bg-[#8127cf] text-white" : "border-[#cfc2d6]/30 bg-white text-ink-muted"}`}>
-                    {t === "CLASS" ? "Class Periods" : "Exam Periods"}
-                  </button>
+                  <Button aria-pressed={periodTab === t} variant="choice" key={t} onClick={() => setPeriodTab(t)} className={`px-4 py-1.5 ${periodTab === t ? "" : ""} `}>
+                    {ui(t === "CLASS" ? "Class periods" : "Exam periods")}
+                  </Button>
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4 sm:grid-cols-4">
-              <Field label="Period #" type="number" value={periodDraft.periodNumber} onChange={(v) => setPeriodDraft((d) => ({ ...d, periodNumber: v }))} />
-              <Field label="Start" type="time" value={periodDraft.startTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, startTime: v }))} />
-              <Field label="End" type="time" value={periodDraft.endTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, endTime: v }))} />
-              <button onClick={addPeriod} disabled={saving} className="flex items-end justify-center gap-1 rounded-xl bg-[#8127cf] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Add</button>
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-edge/15 bg-surface-subtle p-4 sm:grid-cols-4">
+              <Field label={ui("Period #")} type="number" value={periodDraft.periodNumber} onChange={(v) => setPeriodDraft((d) => ({ ...d, periodNumber: v }))} />
+              <Field label={ui("Start")} type="time" value={periodDraft.startTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, startTime: v }))} />
+              <Field label={ui("End")} type="time" value={periodDraft.endTime} onChange={(v) => setPeriodDraft((d) => ({ ...d, endTime: v }))} />
+              <Button variant="default" onClick={addPeriod} loading={saving} disabled={!periodReady} className="flex items-end justify-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />{ui("Add")}</Button>
+              {periodProblem ? <p role="alert" className="col-span-full text-xs font-semibold text-status-error-text">{ui(periodProblem)}</p> : null}
             </div>
             <div className="space-y-2">
-              {activePeriods.length === 0 && <p className="rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No {periodTab.toLowerCase()} periods yet</p>}
+              {activePeriods.length === 0 && <EmptyState size="sm" icon={Clock} title={ui(periodTab === "CLASS" ? "No class periods yet" : "No exam periods yet")} description={ui("Add the first period above with its start and end time.")} />}
               {activePeriods.map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+                <div key={p.id} className="sk-panel flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f3eeff] text-sm font-black text-[#8127cf]">P{p.periodNumber}</span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-100 text-sm font-bold text-primary">P{p.periodNumber}</span>
                     <span className="text-sm font-semibold text-ink">{p.startTime} – {p.endTime}</span>
                   </div>
-                  <button onClick={() => deletePeriod(p.id)} className="text-ink-subtle hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
+                  <IconButton label={ui("Remove period {0}", [p.periodNumber])} variant="ghost" onClick={() => setRemovingPeriod(p)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
                 </div>
               ))}
             </div>
@@ -440,30 +569,30 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
         {/* STEP 4 — Rooms */}
         {step === 3 && (
           <div className="space-y-5">
-            <h3 className="flex items-center gap-2 text-base font-black text-[#1f1a23]"><Building2 className="h-5 w-5 text-[#8127cf]" />Classrooms</h3>
-            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-[#cfc2d6]/15 bg-[#faf7fc] p-4 sm:grid-cols-4">
-              <Field label="Room #" value={roomDraft.roomNumber} onChange={(v) => setRoomDraft((d) => ({ ...d, roomNumber: v }))} />
-              <Field label="Capacity" type="number" value={roomDraft.capacity} onChange={(v) => setRoomDraft((d) => ({ ...d, capacity: v }))} />
+            <h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Building2 className="h-5 w-5 text-primary" />{ui("Classrooms")}</h3>
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-edge/15 bg-surface-subtle p-4 sm:grid-cols-4">
+              <Field label={ui("Room #")} value={roomDraft.roomNumber} onChange={(v) => setRoomDraft((d) => ({ ...d, roomNumber: v }))} />
+              <Field label={ui("Capacity")} type="number" value={roomDraft.capacity} onChange={(v) => setRoomDraft((d) => ({ ...d, capacity: v }))} />
               <div className="sm:col-span-2 flex items-end">
-                <button onClick={addRoom} disabled={saving} className="flex items-center gap-1 rounded-xl bg-[#8127cf] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus className="h-4 w-4" />Add Room</button>
+                <Button variant="default" onClick={addRoom} disabled={saving || !roomDraft.roomNumber.trim()} className="justify-start flex items-center gap-1 px-4 py-2"><Plus className="h-4 w-4" />{ui("Add room")}</Button>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {rooms.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-2xl border border-[#cfc2d6]/15 bg-white px-4 py-3">
+                <div key={r.id} className="sk-panel flex items-center justify-between px-4 py-3">
                   <div>
-                    <p className="text-sm font-bold text-[#1f1a23]">Room {r.roomNumber}</p>
-                    <p className="text-xs text-ink-muted">Capacity {r.capacity}</p>
+                    <p className="text-sm font-bold text-ink-strong">{ui("Room")}{" "}{r.roomNumber}</p>
+                    <p className="text-xs text-ink-muted">{ui("Capacity")}{" "}{r.capacity}</p>
                   </div>
-                  <button onClick={() => deleteRoom(r.id)} className="text-ink-subtle hover:text-rose-500"><Trash2 className="h-4 w-4" /></button>
+                  <IconButton label={ui("Remove room {0}", [r.roomNumber])} variant="ghost" onClick={() => deleteRoom(r.id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></IconButton>
                 </div>
               ))}
-              {rooms.length === 0 && <p className="sm:col-span-3 rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-6 text-center text-sm text-ink-muted">No rooms yet — optional, skip if not used</p>}
+              {rooms.length === 0 && <div className="sm:col-span-3"><EmptyState size="sm" icon={Building2} title={ui("No rooms yet")} description={ui("Optional. Skip this step if you do not use rooms.")} /></div>}
             </div>
             <div className="flex justify-end">
-              <button onClick={completeSetup} disabled={saving} className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-3 text-sm font-black text-white disabled:opacity-50">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Complete Setup
-              </button>
+              <Button variant="default" onClick={completeSetup} loading={saving} className="justify-start flex items-center gap-2 px-6 py-3">
+                {saving ? null : <Check className="h-4 w-4" aria-hidden="true" />}{" "}{ui("Complete setup")}
+              </Button>
             </div>
           </div>
         )}
@@ -471,43 +600,38 @@ export function YearSetupWizard({ campusId, onComplete }: { campusId?: string; o
 
       {/* nav */}
       <div className="flex justify-between">
-        <button onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}
-          className="flex items-center gap-2 rounded-2xl border border-[#cfc2d6]/30 bg-white px-5 py-2.5 text-sm font-bold text-ink disabled:opacity-40">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
+        <Button variant="outline" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}
+          className="justify-start flex items-center gap-2 px-5 py-2.5">
+          <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{" "}{ui("Back")}
+        </Button>
         {/* Step 1 has pending state to commit (the academic cycle); the later
             steps save each control as it changes, so a plain advance is
             correct there. */}
+        {/* With a host-owned Save (hideSave) step 1's footer only advances, once the year has been saved. */}
         {step < 3 && (
-          <button
-            onClick={step === 0 ? nextFromStep1 : () => setStep((s) => s + 1)}
-            disabled={saving}
-            className="flex items-center gap-2 rounded-2xl bg-[#8127cf] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          <Button variant={hideSave ? "outline" : "default"}
+            onClick={step === 0 && !hideSave ? nextFromStep1 : () => setStep((s) => s + 1)}
+            disabled={saving || (hideSave && step === 0 && !cycleId)}
+            loading={!hideSave && step === 0 && saving}
+            className="justify-start flex items-center gap-2 px-5 py-2.5"
           >
-            {step === 0 && saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Saving
-              </>
-            ) : (
-              <>
-                {step === 0 ? "Save & Continue" : "Next"} <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </button>
+            {step === 0 && !hideSave ? ui("Save and continue") : ui("Next")} <ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+          </Button>
         )}
       </div>
     </div>
   );
 }
 
-const TERM_COLORS = ["from-[#8127cf] to-[#6a1fb0]", "from-teal-500 to-teal-600", "from-amber-500 to-[#d97706]"];
+const TERM_COLORS = ["from-primary to-brand-700", "from-brand-400 to-brand-500", "from-brand-700 to-brand-900"];
 
 function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
+  const ui = useUiText();
   const filled = terms.filter((t) => t.start && t.end);
   if (filled.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-dashed border-[#cfc2d6]/30 bg-[#faf7fc] py-4 text-xs font-semibold text-ink-subtle">
-        Pick term dates above to preview the year divided into colored term blocks
+      <div className="flex items-center justify-center rounded-2xl border border-dashed border-edge/30 bg-surface-subtle py-4 text-xs font-semibold text-ink-subtle">
+        {ui("Pick term dates above to preview the year divided into colored term blocks")}
       </div>
     );
   }
@@ -517,9 +641,9 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
   const max = Math.max(...ends);
   const span = Math.max(1, max - min);
   return (
-    <div className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-4">
-      <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-ink-muted">Year Preview</p>
-      <div className="relative flex h-10 w-full gap-1 overflow-hidden rounded-xl bg-[#f3f4f9]">
+    <div className="sk-panel p-4">
+      <p className="mb-3 text-2xs font-semibold text-ink-muted">{ui("Year preview")}</p>
+      <div className="relative flex h-10 w-full gap-1 overflow-hidden rounded-xl bg-muted">
         {filled.map((t, i) => {
           const s = new Date(t.start).getTime();
           const e = new Date(t.end).getTime();
@@ -528,19 +652,19 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
           return (
             <div
               key={i}
-              className={`absolute top-0 h-full rounded-lg bg-gradient-to-r ${TERM_COLORS[i % TERM_COLORS.length]} flex items-center justify-center text-[9px] font-black uppercase tracking-wider text-white`}
+              className={`absolute top-0 h-full rounded-lg bg-gradient-to-r ${TERM_COLORS[i % TERM_COLORS.length]} flex items-center justify-center text-2xs font-semibold text-white`}
               style={{ left: `${left}%`, width: `${width}%` }}
             >
-              {width > 12 ? `Term ${i + 1}` : `T${i + 1}`}
+              {width > 12 ? ui("Term {0}", [i + 1]) : ui("T{0}", [i + 1])}
             </div>
           );
         })}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {filled.map((t, i) => (
-          <span key={i} className="flex items-center gap-1.5 text-[10px] font-bold text-ink-muted">
+          <span key={i} className="flex items-center gap-1.5 text-2xs font-bold text-ink-muted">
             <span className={`h-2 w-2 rounded-full bg-gradient-to-r ${TERM_COLORS[i % TERM_COLORS.length]}`} />
-            Term {i + 1}: {t.start} → {t.end}
+            {ui("Term")}{" "}{i + 1}: {t.start} → {t.end}
           </span>
         ))}
       </div>
@@ -551,9 +675,9 @@ function TermBlocksBar({ terms }: { terms: { start: string; end: string }[] }) {
 function Field({ label, value, onChange, type = "text", placeholder }: { label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-ink-muted">{label}</span>
-      <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1f1a23] outline-none focus:border-[#8127cf]/60" />
+      <span className="mb-1 block text-2xs font-semibold text-ink-muted">{label}</span>
+      <SystemInput type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
+        className="w-full" />
     </label>
   );
 }
@@ -568,6 +692,8 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
   holidayPick: string | null;
   onDayClick: (iso: string) => void;
 }) {
+  const ui = useUiText();
+  const { language } = useLocale();
   const months = Array.from({ length: 12 }, (_, m) => {
     const first = new Date(year, m, 1);
     const daysInMonth = new Date(year, m + 1, 0).getDate();
@@ -575,12 +701,12 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
     return { m, daysInMonth, leading };
   });
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 2xl:grid-cols-3">
       {months.map(({ m, daysInMonth, leading }) => (
-        <div key={m} className="rounded-2xl border border-[#cfc2d6]/15 bg-white p-3">
-          <p className="mb-2 text-center text-xs font-black text-[#8127cf]">{MONTHS[m]} {year}</p>
-          <div className="grid grid-cols-7 gap-0.5 text-center text-[8px] font-bold text-ink-subtle">
-            {WEEKDAYS.map((d) => <span key={d.num}>{d.short[0]}</span>)}
+        <div key={m} className="sk-panel p-3">
+          <p className="mb-2 text-center text-xs font-bold text-primary">{monthName(language, m)} {year}</p>
+          <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-bold text-ink-subtle">
+            {WEEKDAYS.map((d) => <span key={d.num}>{weekdayName(language, d.num, "narrow")}</span>)}
           </div>
           <div className="mt-1 grid grid-cols-7 gap-0.5">
             {Array.from({ length: leading }).map((_, i) => <span key={`e${i}`} />)}
@@ -592,23 +718,17 @@ function YearCalendar({ year, weekends, holidays, isHoliday, holidayOn, holidayM
               const hol = isHoliday(iso);
               const isPick = holidayMode && holidayPick === iso;
               return (
-                <button
+                <Button variant="choice"
+                  data-selected={isPick}
+                  aria-pressed={holidayMode ? isPick : isWeekend}
+                  aria-label={`${iso} · ${hol ? holidays.find((h) => iso >= h.fromDate && iso <= h.toDate)?.name : ui(holidayMode ? "Select for holiday range" : isWeekend ? "Make this weekday a working day" : "Make this weekday a weekend")}`}
                   key={dayNum}
                   type="button"
                   onClick={() => onDayClick(iso)}
-                  title={hol ? holidays.find((h) => iso >= h.fromDate && iso <= h.toDate)?.name : holidayMode ? "Click to select for holiday range" : isWeekend ? "Click to make this weekday a working day" : "Click to make this weekday a weekend"}
-                  className={`flex h-6 cursor-pointer items-center justify-center rounded text-[9px] font-semibold transition-all ${
-                    isPick
-                      ? "bg-teal-500 text-white ring-2 ring-teal-300"
-                      : hol
-                        ? "bg-teal-500 text-white"
-                        : isWeekend
-                          ? "bg-[#f3f4f9] text-ink-subtle hover:bg-[#e8e0ec]"
-                          : "text-ink hover:bg-[#fbf0fe] hover:text-[#8127cf]"
-                  }`}
+                  className={`min-h-11 min-w-0 px-0 py-1 ${hol ? "bg-status-info-surface text-status-info-text" : isWeekend ? "bg-surface-subtle text-ink-muted" : ""}`}
                 >
                   {dayNum}
-                </button>
+                </Button>
               );
             })}
           </div>

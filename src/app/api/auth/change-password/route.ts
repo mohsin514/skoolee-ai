@@ -2,11 +2,13 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import bcrypt from "bcryptjs";
 import { ApiError, errorResponse, requireAuthUser } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export async function PUT(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    const { currentPassword, newPassword } = await req.json();
+    const { currentPassword, newPassword } = await parseBody(req, jsonObjectBody, { preserve: ["currentPassword", "newPassword"] });
 
     if (!currentPassword || typeof currentPassword !== "string") {
       throw new ApiError("Current password is required", 400);
@@ -55,9 +57,10 @@ export async function PUT(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await prisma.$transaction([
+      prisma.loginSession.updateMany({ where: { userId: user.userId }, data: { isActive: false, logoutAt: new Date() } }),
       prisma.user.update({
         where: { id: user.userId },
-        data: { password: hashedPassword, lastPasswordChange: new Date() },
+        data: { password: hashedPassword, lastPasswordChange: new Date(), accessVersion: { increment: 1 } },
       }),
       prisma.passwordHistory.create({
         data: {
@@ -69,7 +72,7 @@ export async function PUT(req: NextRequest) {
       }),
     ]);
 
-    return Response.json({ success: true, message: "Password changed successfully" });
+    return Response.json({ success: true, message: "Password changed. Sign in again on each device." });
   } catch (error) {
     return errorResponse(error, "[auth/change-password] PUT failed");
   }

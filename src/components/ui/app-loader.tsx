@@ -1,58 +1,28 @@
-import { GraduationCap } from 'lucide-react';
-import styles from '@/components/SplashScreen.module.css';
+"use client";
 
+import SplashScreen from "@/components/SplashScreen";
+import { useDocumentLocale } from "@/hooks/use-document-locale";
+
+/**
+ * The full-screen brand loader `setLoading(true)` shows for a long client-side operation with nothing to render yet
+ * (route changes use the layout-shaped skeletons instead).
+ *
+ * It renders the ONE `SplashScreen` in `hold` mode — the exact same splash design as first landing and a hard reload,
+ * so there is a single splash design across the whole app. There is no `onDone`, so the beat holds while the operation
+ * runs; the provider unmounts it when `setLoading(false)` fires. It ignores the pointer so the app underneath stays
+ * usable until it is dismissed.
+ */
 export function AppLoaderUI() {
+  const { language, dir } = useDocumentLocale();
   return (
-    <div 
-      className={styles.splashContainer} 
-      style={{ animation: 'none' }}
+    <div
+      role="dialog"
+      aria-label="Loading Skoolee AI"
+      aria-hidden="true"
+      dir={dir}
+      className="pointer-events-none fixed inset-0 z-[9999] flex items-center-safe justify-center overflow-x-hidden overflow-y-auto sk-splash-surface"
     >
-      <div className={styles.contentWrapper} style={{ animation: 'none' }}>
-        <div className={styles.logoContainer}>
-          <h1 className={styles.logoText}>
-            <span className={styles.letter}>S</span>
-            <span className={styles.letter}>k</span>
-            <div className={styles.capWrapper}>
-              <GraduationCap className={styles.graduationCap} strokeWidth={2.5} />
-              <div className={styles.eye}>
-                <div className={styles.pupil} style={{ animationDuration: '2s' }} />
-              </div>
-            </div>
-            <div className={styles.eye}>
-              <div className={styles.pupil} style={{ animationDuration: '2s' }} />
-            </div>
-            <span className={styles.letter}>l</span>
-            <span className={styles.letter}>e</span>
-            <span className={styles.letter}>e</span>
-            <span className={styles.ai}>AI</span>
-          </h1>
-          <p className={styles.tagline}>Processing...</p>
-        </div>
-
-        <div className={styles.loaderWrapper}>
-          <div className={styles.progressBar}>
-            <div 
-              className={styles.progressFill} 
-              style={{ 
-                animation: 'none', 
-                width: '100%', 
-                background: 'linear-gradient(90deg, transparent, #8127CF, transparent)',
-                backgroundSize: '200% 100%',
-                animationName: 'shimmer',
-                animationDuration: '1.5s',
-                animationIterationCount: 'infinite',
-                animationTimingFunction: 'linear'
-              }} 
-            />
-          </div>
-        </div>
-      </div>
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes shimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}} />
+      <SplashScreen language={language} mode="hold" />
     </div>
   );
 }

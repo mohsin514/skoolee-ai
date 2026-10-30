@@ -1,3 +1,5 @@
+import type { AuthUser } from "@/lib/auth";
+import { applyManualTimetableSuggestion } from "./manual";
 import { prisma } from "@/lib/db/prisma";
 import {
   validateStoredTimetable,
@@ -81,6 +83,8 @@ async function loadContext(campusId: string, timetableId: string) {
     where: { id: timetableId, campusId },
     select: {
       classId: true,
+      academicYear: true,
+      term: true,
       class: { select: { name: true, section: true } },
       slots: {
         select: {
@@ -100,11 +104,11 @@ async function loadContext(campusId: string, timetableId: string) {
 
   const [allSlots, rooms, teachers, subjects, classSize] = await Promise.all([
     prisma.timetableSlot.findMany({
-      where: { timetable: { campusId }, slotType: "CLASS" },
+      where: { timetable: { campusId, academicYear: timetable.academicYear, ...(["TERM_1", "TERM_2", "TERM_3"].includes(timetable.term) ? { OR: [{ term: { in: ["ANNUAL", timetable.term] } }, { term: { notIn: ["ANNUAL", "TERM_1", "TERM_2", "TERM_3"] } }] } : {}) }, slotType: "CLASS" },
       select: { id: true, dayOfWeek: true, periodNumber: true, teacherId: true, roomId: true },
     }),
     prisma.classRoom.findMany({
-      where: { campusId },
+      where: { campusId, archivedAt: null },
       select: { id: true, roomNumber: true, capacity: true },
       orderBy: { capacity: "asc" },
     }),
@@ -278,106 +282,11 @@ export async function buildSuggestions(
  * approved rather than an assurance that it worked.
  */
 export async function applySuggestion(opts: {
+  user: AuthUser;
   campusId: string;
   timetableId: string;
   action: SuggestionAction;
 }): Promise<{ applied: SuggestionAction; report: SuggestionReport }> {
-  const { campusId, timetableId, action } = opts;
-
-  // The timetable must belong to the caller's campus before anything is
-  // written. TimetableSlot carries school_id but no campus_id, so the Prisma
-  // guard can only scope it to the school — it cannot see the campus boundary.
-  // Without this check a campus admin could reassign teachers and rooms on, and
-  // move lessons around in, another campus's timetable (ISO-6.1). loadContext()
-  // already scopes the read path this way; the write path was missing it.
-  const timetable = await prisma.timetable.findFirst({
-    where: { id: timetableId, campusId },
-    select: { id: true },
-  });
-  if (!timetable) {
-    throw new ApiErrorLike("That timetable does not belong to this campus", 403);
-  }
-
-  const slot = await prisma.timetableSlot.findFirst({
-    where: { id: action.slotId, timetableId },
-    select: {
-      id: true,
-      subjectId: true,
-      teacherId: true,
-      roomId: true,
-      roomNumber: true,
-      slotType: true,
-      startTime: true,
-      endTime: true,
-    },
-  });
-  if (!slot) throw new ApiErrorLike("That slot is not part of this timetable", 400);
-
-  if (action.type === "REASSIGN_TEACHER") {
-    if (!action.teacherId) throw new ApiErrorLike("teacherId is required", 400);
-    const teacher = await prisma.user.findFirst({
-      where: { id: action.teacherId, campusId, role: { in: ["TEACHER", "PRINCIPAL"] }, isActive: true },
-      select: { id: true },
-    });
-    if (!teacher) throw new ApiErrorLike("That teacher is not active in this campus", 400);
-    await prisma.timetableSlot.update({ where: { id: slot.id }, data: { teacherId: teacher.id } });
-  } else if (action.type === "REASSIGN_ROOM") {
-    if (!action.roomId) throw new ApiErrorLike("roomId is required", 400);
-    const room = await prisma.classRoom.findFirst({
-      where: { id: action.roomId, campusId },
-      select: { id: true, roomNumber: true },
-    });
-    if (!room) throw new ApiErrorLike("That room does not belong to this campus", 400);
-    await prisma.timetableSlot.update({
-      where: { id: slot.id },
-      data: { roomId: room.id, roomNumber: room.roomNumber },
-    });
-  } else if (action.type === "MOVE_SLOT") {
-    if (!action.targetSlotId) throw new ApiErrorLike("targetSlotId is required", 400);
-    const target = await prisma.timetableSlot.findFirst({
-      where: { id: action.targetSlotId, timetableId },
-      select: { id: true, subjectId: true },
-    });
-    if (!target) throw new ApiErrorLike("That target slot is not part of this timetable", 400);
-    if (target.subjectId) {
-      throw new ApiErrorLike("That period is no longer free — refresh the suggestions", 409);
-    }
-
-    // Both halves in one transaction: a move that only half-lands would either
-    // duplicate the lesson or delete it.
-    await prisma.$transaction([
-      prisma.timetableSlot.update({
-        where: { id: target.id },
-        data: {
-          subjectId: slot.subjectId,
-          teacherId: slot.teacherId,
-          roomId: slot.roomId,
-          roomNumber: slot.roomNumber,
-        },
-      }),
-      prisma.timetableSlot.update({
-        where: { id: slot.id },
-        data: { subjectId: null, teacherId: null, roomId: null, roomNumber: null },
-      }),
-    ]);
-  } else {
-    throw new ApiErrorLike("Unknown suggestion type", 400);
-  }
-
-  return { applied: action, report: await buildSuggestions(campusId, timetableId) };
-}
-
-/**
- * Local mirror of ApiError.
- *
- * Importing `@/lib/api/scope` here would pull the whole auth/entitlement chain
- * into a module that is otherwise pure scheduling logic; `errorResponse` reads
- * `.status` structurally, so this satisfies it without the coupling.
- */
-class ApiErrorLike extends Error {
-  status: number;
-  constructor(message: string, status = 400) {
-    super(message);
-    this.status = status;
-  }
+  await applyManualTimetableSuggestion(opts.user, opts.campusId, opts.timetableId, opts.action);
+  return { applied: opts.action, report: await buildSuggestions(opts.campusId, opts.timetableId) };
 }

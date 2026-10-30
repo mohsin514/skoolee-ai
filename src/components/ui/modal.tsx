@@ -47,6 +47,9 @@ import {
 import { createPortal } from "react-dom";
 import { AlertTriangle, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { dialogActionTones } from "./action-tones";
+import { Button } from "./button";
+import { useOverlayMessages } from "@/hooks/use-overlay-messages";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Layering
@@ -67,6 +70,23 @@ const listeners = new Set<() => void>();
 
 function emit() {
   for (const l of listeners) l();
+}
+
+/**
+ * True when no Modal, ConfirmAction, Dialog or ModalSurface is open. The
+ * spotlight tour and live notification toasts wait for this, so neither ever
+ * appears over (or behind) a dialog the user is working in.
+ */
+export function isModalStackEmpty(): boolean {
+  return stack.length === 0;
+}
+
+/** Called whenever a dialog opens or closes; returns the unsubscribe function. */
+export function subscribeModalStack(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 function useModalLayer(id: string, active = true) {
@@ -113,12 +133,15 @@ function useModalLayer(id: string, active = true) {
 
 let lockCount = 0;
 let savedOverflow = "";
+let savedRootOverflow = "";
 let savedPaddingRight = "";
 
 function lockScroll() {
   if (lockCount === 0 && typeof document !== "undefined") {
     const barWidth = window.innerWidth - document.documentElement.clientWidth;
     savedOverflow = document.body.style.overflow;
+    savedRootOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
     savedPaddingRight = document.body.style.paddingRight;
     document.body.style.overflow = "hidden";
     if (barWidth > 0) document.body.style.paddingRight = `${barWidth}px`;
@@ -130,6 +153,7 @@ function unlockScroll() {
   lockCount = Math.max(0, lockCount - 1);
   if (lockCount === 0 && typeof document !== "undefined") {
     document.body.style.overflow = savedOverflow;
+    document.documentElement.style.overflow = savedRootOverflow;
     document.body.style.paddingRight = savedPaddingRight;
   }
 }
@@ -140,12 +164,11 @@ function unlockScroll() {
 
 export const MODAL_TONES = {
   violet: {
-    wash: "from-[#faf7fc] via-white to-[#f3eeff]",
-    tile: "from-[#8127cf] to-[#6a1fb0] shadow-[#8127cf]/25",
-    eyebrow: "text-[#8127cf]",
-    orb: "from-[#8127cf]/12",
-    rule: "border-[#cfc2d6]/20",
-    ring: "focus-visible:ring-[#8127cf]/40",
+    wash: "from-surface-subtle via-white to-brand-100",
+    tile: "from-primary to-brand-700 shadow-primary/25",
+    eyebrow: "text-primary",
+    orb: "from-primary/12",
+    rule: "border-edge/20",
   },
   emerald: {
     wash: "from-emerald-50/70 via-white to-emerald-50/40",
@@ -153,7 +176,6 @@ export const MODAL_TONES = {
     eyebrow: "text-emerald-600",
     orb: "from-emerald-400/12",
     rule: "border-emerald-200/50",
-    ring: "focus-visible:ring-emerald-500/40",
   },
   amber: {
     wash: "from-amber-50/70 via-white to-amber-50/40",
@@ -161,7 +183,6 @@ export const MODAL_TONES = {
     eyebrow: "text-amber-600",
     orb: "from-amber-400/12",
     rule: "border-amber-200/50",
-    ring: "focus-visible:ring-amber-500/40",
   },
   rose: {
     wash: "from-rose-50/70 via-white to-rose-50/40",
@@ -169,7 +190,6 @@ export const MODAL_TONES = {
     eyebrow: "text-rose-600",
     orb: "from-rose-400/12",
     rule: "border-rose-200/50",
-    ring: "focus-visible:ring-rose-500/40",
   },
   sky: {
     wash: "from-sky-50/70 via-white to-sky-50/40",
@@ -177,7 +197,6 @@ export const MODAL_TONES = {
     eyebrow: "text-sky-600",
     orb: "from-sky-400/12",
     rule: "border-sky-200/50",
-    ring: "focus-visible:ring-sky-500/40",
   },
 } as const;
 
@@ -207,6 +226,9 @@ const FOCUSABLE =
 function focusablesIn(root: HTMLElement) {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
     (el) =>
+      !el.matches(":disabled") &&
+      el.tabIndex >= 0 &&
+      !el.closest("[inert]") &&
       !el.hasAttribute("data-modal-skip-focus") &&
       (el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement),
   );
@@ -226,26 +248,55 @@ function useFocusManagement(
   ref: React.RefObject<HTMLElement | null>,
   active: boolean,
   ready: boolean,
+  initialFocusRef?: React.RefObject<HTMLElement | null>,
+  returnFocusRef?: React.RefObject<HTMLElement | null>,
 ) {
+  // Descendant autoFocus runs during commit, before our entry effect. Capture
+  // the opener before that commit; keep it current for overlays mounted closed.
+  const [initialOpener] = useState(() => typeof document === "undefined" ? null : document.activeElement as HTMLElement | null);
+  const openerRef = useRef(initialOpener);
+  useEffect(() => {
+    if (ready) return;
+    const rememberPointer = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>(FOCUSABLE) : null;
+      if (target && !ref.current?.contains(target)) openerRef.current = target;
+    };
+    const rememberKeyboard = () => {
+      const target = document.activeElement;
+      if (target instanceof HTMLElement && !ref.current?.contains(target)) openerRef.current = target;
+    };
+    // A focusin listener here would capture a descendant autoFocus before its
+    // parent ref attaches. Remember the user's opening interaction instead.
+    document.addEventListener("pointerdown", rememberPointer, true);
+    document.addEventListener("keydown", rememberKeyboard, true);
+    return () => {
+      document.removeEventListener("pointerdown", rememberPointer, true);
+      document.removeEventListener("keydown", rememberKeyboard, true);
+    };
+  }, [ref, ready]);
+
   useEffect(() => {
     if (!ready) return;
     const root = ref.current;
     if (!root) return;
 
-    const opener = document.activeElement as HTMLElement | null;
     const items = focusablesIn(root);
     // Prefer a data-entry field over the close button, which is first in DOM
     // order: landing on "Close" as the opening move reads as an invitation to
     // leave, and on a form the caret should be where the typing starts.
     const firstField = items.find((el) => /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
-    const target = firstField ?? items[0] ?? root;
+    const preferred = initialFocusRef?.current;
+    const target = preferred && root.contains(preferred) && !preferred.matches(":disabled")
+      ? preferred
+      : firstField ?? items[0] ?? root;
     if (target === root) root.setAttribute("tabindex", "-1");
     target.focus({ preventScroll: true });
 
     return () => {
+      const opener = returnFocusRef?.current ?? openerRef.current;
       if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
     };
-  }, [ref, ready]);
+  }, [ref, ready, initialFocusRef, returnFocusRef]);
 
   useEffect(() => {
     if (!active || !ready) return;
@@ -257,6 +308,8 @@ function useFocusManagement(
       const items = focusablesIn(root);
       if (!items.length) {
         e.preventDefault();
+        root.setAttribute("tabindex", "-1");
+        root.focus({ preventScroll: true });
         return;
       }
       const first = items[0]!;
@@ -338,7 +391,7 @@ function useScrollEdges(deps: unknown[]) {
 
 export function useDialogBehaviour(
   panelRef: React.RefObject<HTMLElement | null>,
-  { onClose, active = true }: { onClose: () => void; active?: boolean },
+  { onClose, active = true, returnFocusRef }: { onClose: () => void; active?: boolean; returnFocusRef?: React.RefObject<HTMLElement | null> },
 ) {
   const id = useId();
   const { z, isTop } = useModalLayer(id, active);
@@ -352,12 +405,15 @@ export function useDialogBehaviour(
     return unlockScroll;
   }, [active]);
 
-  useFocusManagement(panelRef, active && isTop, mounted && active);
+  useFocusManagement(panelRef, active && isTop, mounted && active, undefined, returnFocusRef);
 
   useEffect(() => {
     if (!active || !isTop) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      // One Escape closes one layer. Closing re-renders synchronously during this same event, so
+      // the layer beneath can become top before dispatch ends; the handled mark stops it acting.
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
       e.stopPropagation();
       onClose();
     };
@@ -397,6 +453,8 @@ export function useModalSurface(): ModalSurfaceApi {
 export interface ModalSurfaceApi {
   /** Runs the unsaved-changes guard, plays the exit, then calls `onClose`. */
   requestClose: () => void;
+  /** Whether user dismissal is currently available through any shell control. */
+  dismissible: boolean;
   /** Spread onto whatever should be draggable on a phone — usually the header. */
   dragHandleProps: {
     onPointerDown: (e: React.PointerEvent) => void;
@@ -412,22 +470,41 @@ export function ModalSurface({
   onClose,
   size,
   wide = false,
+  fullscreen = false,
   dirty = false,
-  dirtyMessage = "You have unsaved changes. Discard them?",
+  dirtyMessage,
   disableBackdropClose = false,
+  dismissible = true,
+  initialFocusRef,
+  returnFocusRef,
   role = "dialog",
   labelledBy,
   describedBy,
   ariaLabel,
   className,
+  dir,
+  lang,
   children,
 }: {
   onClose: () => void;
   size?: ModalSize;
   wide?: boolean;
+  /**
+   * The dialog portals to <body>, outside the page's own `dir`/`lang` (the
+   * root <html> carries neither), so a right-to-left screen passes its
+   * direction and language here.
+   */
+  dir?: "ltr" | "rtl";
+  lang?: string;
+  /** An immersive workflow using the same focus, dismissal and draft guards. */
+  fullscreen?: boolean;
   dirty?: boolean;
   dirtyMessage?: string;
   disableBackdropClose?: boolean;
+  dismissible?: boolean;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Restore an async/temporarily disabled trigger when the dialog closes. */
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
   role?: "dialog" | "alertdialog";
   labelledBy?: string;
   describedBy?: string;
@@ -435,6 +512,7 @@ export function ModalSurface({
   className?: string;
   children: ReactNode;
 }) {
+  const copy = useOverlayMessages();
   const width = MODAL_SIZES[size ?? (wide ? "lg" : "sm")];
 
   const reactId = useId();
@@ -447,6 +525,7 @@ export function ModalSurface({
   const [mounted, setMounted] = useState(false);
   const [closing, setClosing] = useState(false);
   const [askDiscard, setAskDiscard] = useState(false);
+  const closeTimer = useRef<number | null>(null);
   // Drag offset for the mobile sheet, in px. Null means "not dragging".
   const [dragY, setDragY] = useState<number | null>(null);
 
@@ -457,7 +536,11 @@ export function ModalSurface({
     return unlockScroll;
   }, []);
 
-  useFocusManagement(panelRef, isTop && !askDiscard, mounted);
+  useFocusManagement(panelRef, isTop && !askDiscard, mounted, initialFocusRef, returnFocusRef);
+
+  useEffect(() => () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+  }, []);
 
   /**
    * Closing runs through here so the exit animation actually gets to play.
@@ -466,19 +549,19 @@ export function ModalSurface({
    * the dialog would vanish rather than leave.
    */
   const finishClose = useCallback(() => {
-    if (closing) return;
+    if (!dismissible || closeTimer.current !== null) return;
     setClosing(true);
-    window.setTimeout(onClose, EXIT_MS);
-  }, [closing, onClose]);
+    closeTimer.current = window.setTimeout(onClose, EXIT_MS);
+  }, [dismissible, onClose]);
 
   const requestClose = useCallback(() => {
-    if (closing) return;
+    if (!dismissible || closing || askDiscard || !isTop) return;
     if (dirty) {
       setAskDiscard(true);
       return;
     }
     finishClose();
-  }, [closing, dirty, finishClose]);
+  }, [dismissible, closing, askDiscard, isTop, dirty, finishClose]);
 
   // Escape belongs to the top-most dialog only. Without that check a confirm
   // opened over a form closed both at once, and the form's own unsaved-changes
@@ -486,17 +569,15 @@ export function ModalSurface({
   useEffect(() => {
     if (!isTop) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      // See useDialogBehaviour: an Escape another layer already handled is not ours.
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
       e.stopPropagation();
-      if (askDiscard) {
-        setAskDiscard(false);
-        return;
-      }
       requestClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [isTop, askDiscard, requestClose]);
+  }, [isTop, requestClose]);
 
   /* ── Drag-to-dismiss, phone only ──
      A sheet that rose from the bottom edge but could only be dismissed by
@@ -508,20 +589,21 @@ export function ModalSurface({
   });
 
   const onGrabStart = useCallback((e: React.PointerEvent) => {
+    if (fullscreen || !dismissible || closing || askDiscard || !isTop) return;
     if (window.matchMedia("(min-width: 640px)").matches) return;
     dragState.current = { startY: e.clientY, active: true, travelled: 0 };
     setDragY(0);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, []);
+  }, [fullscreen, dismissible, closing, askDiscard, isTop]);
 
   const onGrabMove = useCallback((e: React.PointerEvent) => {
-    if (!dragState.current.active) return;
+    if (!dragState.current.active || !dismissible) return;
     // Downward only: dragging a sheet up past its natural top is not a gesture
     // that means anything, and the rubber-banding just looks broken.
     const dy = Math.max(0, e.clientY - dragState.current.startY);
     dragState.current.travelled = dy;
     setDragY(dy);
-  }, []);
+  }, [dismissible]);
 
   const onGrabEnd = useCallback(() => {
     if (!dragState.current.active) return;
@@ -542,8 +624,8 @@ export function ModalSurface({
   );
 
   const api = useMemo<ModalSurfaceApi>(
-    () => ({ requestClose, dragHandleProps, titleId, descId }),
-    [requestClose, dragHandleProps, titleId, descId],
+    () => ({ requestClose, dismissible: dismissible && !closing, dragHandleProps, titleId, descId }),
+    [requestClose, dismissible, closing, dragHandleProps, titleId, descId],
   );
 
   if (!mounted) return null;
@@ -552,8 +634,11 @@ export function ModalSurface({
 
   const dialog = (
     <div
+      dir={dir}
+      lang={lang}
       className={cn(
-        "fixed inset-0 flex items-end justify-center sm:items-center sm:p-6",
+        "fixed inset-0 flex justify-center",
+        fullscreen ? "items-stretch p-0" : "items-end sm:items-center sm:p-6",
         closing ? "animate-backdrop-exit" : "animate-backdrop-enter",
       )}
       style={{ zIndex: z }}
@@ -569,7 +654,7 @@ export function ModalSurface({
     >
       <div
         className={cn(
-          "absolute inset-0 bg-[#1f1a23]/50 backdrop-blur-md",
+          "pointer-events-none absolute inset-0 bg-ink-strong/50 backdrop-blur-md",
           closing ? "animate-backdrop-exit" : "animate-backdrop-enter",
         )}
         aria-hidden
@@ -589,66 +674,60 @@ export function ModalSurface({
           transition: dragging ? "none" : undefined,
         }}
         className={cn(
-          "relative flex max-h-[92dvh] w-full flex-col overflow-hidden border border-[#cfc2d6]/20 bg-white",
-          "rounded-t-[32px] shadow-[0_-8px_60px_rgba(31,26,35,0.28)]",
-          "sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(31,26,35,0.28)]",
-          width,
-          closing ? "animate-sheet-exit sm:animate-modal-exit" : "animate-sheet-enter sm:animate-modal-enter",
-          "focus:outline-none",
+          "relative flex min-w-0 w-full max-w-full flex-col overflow-hidden bg-card",
+          fullscreen
+            ? "h-[100dvh] max-h-[100dvh] rounded-none"
+            : "max-h-[92dvh] rounded-t-[32px] border border-edge/20 shadow-[0_-8px_60px_rgba(120,70,180,0.28)] sm:max-h-[90dvh] sm:rounded-[32px] sm:shadow-[0_34px_90px_rgba(120,70,180,0.28)]",
+          !fullscreen && width,
+          fullscreen
+            ? closing ? "animate-modal-exit" : "animate-modal-enter"
+            : closing ? "animate-sheet-exit sm:animate-modal-exit" : "animate-sheet-enter sm:animate-modal-enter",
           className,
         )}
       >
         <ModalSurfaceContext.Provider value={api}>{children}</ModalSurfaceContext.Provider>
 
-        {/* ── Discard guard ──
-            Scoped to the dialog rather than thrown up as a `window.confirm`,
-            which is unstyled, unpositioned, and on mobile arrives detached
-            from the thing it is asking about. */}
+        {/* The child layer owns focus, Escape and restoration while asking.
+            It is never dirty itself, so discard cannot recurse. */}
         {askDiscard ? (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/80 p-6 backdrop-blur-sm animate-backdrop-enter">
-            <div
-              role="alertdialog"
-              aria-modal="true"
-              aria-label="Discard changes?"
-              className="w-full max-w-sm overflow-hidden rounded-[28px] border border-amber-200/60 bg-white shadow-[0_24px_60px_rgba(31,26,35,0.24)] animate-modal-enter"
-            >
-              <div className="flex items-start gap-3.5 border-b border-amber-200/50 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 px-5 py-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25">
-                  <AlertTriangle className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-amber-600">Unsaved changes</p>
-                  <h3 className="text-base font-black leading-tight text-[#1f1a23]">Discard them?</h3>
-                </div>
-              </div>
-              <p className="px-5 py-4 text-sm font-semibold leading-relaxed text-ink">{dirtyMessage}</p>
-              <div className="flex flex-col-reverse gap-2.5 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-5 py-3.5 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setAskDiscard(false)}
-                  className="h-11 cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98]"
-                >
-                  Keep editing
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAskDiscard(false);
-                    finishClose();
-                  }}
-                  className="h-11 cursor-pointer rounded-2xl bg-rose-500 px-5 text-sm font-bold text-white shadow-lg shadow-rose-500/25 transition-all hover:bg-rose-600 active:scale-[0.98]"
-                >
-                  Discard
-                </button>
-              </div>
-            </div>
-          </div>
+          <DiscardChangesPrompt
+            message={dirtyMessage ?? copy.unsavedMessage}
+            onKeepEditing={() => setAskDiscard(false)}
+            onDiscard={() => { setAskDiscard(false); finishClose(); }}
+          />
         ) : null}
       </div>
     </div>
   );
 
   return createPortal(dialog, document.body);
+}
+
+function DiscardChangesPrompt({ message, onKeepEditing, onDiscard }: {
+  message: string;
+  onKeepEditing: () => void;
+  onDiscard: () => void;
+}) {
+  const copy = useOverlayMessages();
+  const keepEditingRef = useRef<HTMLButtonElement>(null);
+  const descriptionId = useId();
+  return <ModalSurface onClose={onKeepEditing} size="xs" role="alertdialog"
+    ariaLabel={copy.discardTitle} describedBy={descriptionId} initialFocusRef={keepEditingRef}>
+    <div className="flex items-start gap-3.5 border-b border-amber-200/50 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 px-5 py-4">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25">
+        <AlertTriangle className="h-5 w-5" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <p className="text-2xs font-semibold uppercase tracking-wider text-amber-600">{copy.unsaved}</p>
+        <h3 className="text-base font-bold leading-tight text-ink-strong">{copy.discardHeading}</h3>
+      </div>
+    </div>
+    <p id={descriptionId} className="overflow-y-auto px-5 py-4 text-sm leading-relaxed text-ink">{message}</p>
+    <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-edge/15 bg-surface-subtle px-5 py-3.5 pb-[max(.875rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
+      <Button ref={keepEditingRef} type="button" variant="outline" onClick={onKeepEditing} className="px-5">{copy.keepEditing}</Button>
+      <Button type="button" variant="destructive" onClick={onDiscard} className="px-5">{copy.discard}</Button>
+    </div>
+  </ModalSurface>;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -685,6 +764,13 @@ export interface ModalProps {
   dirtyMessage?: string;
   /** Suppresses backdrop-click dismissal for a step the user must finish or cancel. */
   disableBackdropClose?: boolean;
+  /** Blocks every user dismissal path while a non-interruptible action runs. */
+  dismissible?: boolean;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
+  /** Restore an async/temporarily disabled trigger when the dialog closes. */
+  returnFocusRef?: React.RefObject<HTMLElement | null>;
+  /** ID of concise explanatory content, particularly for alert dialogs. */
+  describedBy?: string;
   /** Hides the header close button — for a flow that owns its own exit. */
   hideClose?: boolean;
   className?: string;
@@ -696,6 +782,9 @@ export interface ModalProps {
    * to be asked, which is the whole point of a confirm step.
    */
   role?: "dialog" | "alertdialog";
+  /** Direction and language for the portaled dialog (see ModalSurface). */
+  dir?: "ltr" | "rtl";
+  lang?: string;
 }
 
 export function Modal({
@@ -703,20 +792,32 @@ export function Modal({
   size,
   wide = false,
   dirty = false,
-  dirtyMessage = "You have unsaved changes. Discard them?",
+  dirtyMessage,
   disableBackdropClose = false,
+  dismissible = true,
+  initialFocusRef,
+  returnFocusRef,
+  describedBy,
   role = "dialog",
   className,
+  dir,
+  lang,
   ...chrome
 }: ModalProps) {
   return (
     <ModalSurface
+      dir={dir}
+      lang={lang}
       onClose={onClose}
       size={size}
       wide={wide}
       dirty={dirty}
       dirtyMessage={dirtyMessage}
       disableBackdropClose={disableBackdropClose}
+      dismissible={dismissible}
+      initialFocusRef={initialFocusRef}
+      returnFocusRef={returnFocusRef}
+      describedBy={describedBy}
       role={role}
       className={className}
     >
@@ -741,11 +842,12 @@ function ModalChrome({
   bodyClassName,
 }: Omit<
   ModalProps,
-  "onClose" | "size" | "wide" | "dirty" | "dirtyMessage" | "disableBackdropClose" | "role" | "className"
+  "onClose" | "size" | "wide" | "dirty" | "dirtyMessage" | "disableBackdropClose" | "dismissible" | "initialFocusRef" | "returnFocusRef" | "describedBy" | "role" | "className" | "dir" | "lang"
 >) {
+  const copy = useOverlayMessages();
   const t = MODAL_TONES[tone];
   const { edges, bodyRef } = useScrollEdges([children]);
-  const { requestClose, dragHandleProps, titleId, descId } = useModalSurface();
+  const { requestClose, dismissible, dragHandleProps, titleId, descId } = useModalSurface();
 
   return (
         <>
@@ -760,14 +862,14 @@ function ModalChrome({
             )}
           >
             <div
-              className={cn("pointer-events-none absolute -right-10 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl to-transparent blur-3xl", t.orb)}
+              className={cn("pointer-events-none absolute -end-10 -top-16 h-40 w-40 rounded-full bg-gradient-to-bl to-transparent blur-3xl", t.orb)}
               aria-hidden
             />
 
             {/* The grab handle is the phone's affordance for "this can be pulled
                 away", and it is the drag target. Desktop has a cursor and a
                 close button, so it does not need one. */}
-            <div className="mx-auto mb-3 h-1.5 w-11 rounded-full bg-[#1f1a23]/15 sm:hidden" aria-hidden />
+            <div className="mx-auto mb-3 h-1.5 w-11 rounded-full bg-ink-strong/15 sm:hidden" aria-hidden />
 
             <div className="relative flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-3.5">
@@ -787,7 +889,7 @@ function ModalChrome({
                 ) : null}
                 <div className="min-w-0">
                   {eyebrow ? (
-                    <p className={cn("text-[11px] font-black uppercase tracking-wider", t.eyebrow)}>{eyebrow}</p>
+                    <p className={cn("text-2xs font-semibold uppercase tracking-wider", t.eyebrow)}>{eyebrow}</p>
                   ) : null}
                   {/* Wraps rather than truncates. `truncate` clipped the title
                       of any dialog whose question did not fit one line — the
@@ -796,11 +898,11 @@ function ModalChrome({
                       whose question is unreadable is the one place that cannot
                       happen. The header is not height-constrained, so a second
                       line costs nothing. */}
-                  <h2 id={titleId} className="text-balance text-xl font-black leading-tight tracking-tight text-[#1f1a23] sm:text-2xl">
+                  <h2 id={titleId} className="text-balance text-xl font-bold leading-tight tracking-tight text-ink-strong sm:text-2xl">
                     {title}
                   </h2>
                   {subtitle ? (
-                    <p id={descId} className="mt-1 text-xs font-semibold leading-snug text-ink-muted">
+                    <p id={descId} className="mt-1 text-sm leading-snug text-ink-muted">
                       {subtitle}
                     </p>
                   ) : null}
@@ -814,11 +916,11 @@ function ModalChrome({
                   <button
                     type="button"
                     onClick={requestClose}
-                    aria-label="Close dialog"
-                    title="Close (Esc)"
+                    disabled={!dismissible}
+                    aria-label={copy.closeDialog}
+                    title={copy.closeEscape}
                     className={cn(
-                      "group/x flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-90 focus-visible:outline-none focus-visible:ring-4",
-                      t.ring,
+                      "group/x flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl text-ink-subtle transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 active:scale-90",
                     )}
                   >
                     <X className="h-5 w-5 transition-transform duration-300 group-hover/x:rotate-90" />
@@ -864,7 +966,7 @@ function ModalChrome({
 
           {/* ── Pinned footer ── */}
           {footer ? (
-            <div className="shrink-0 border-t border-[#cfc2d6]/15 bg-[#faf7fc] px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-4">
+            <div className="shrink-0 border-t border-edge/15 bg-surface-subtle px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-7 sm:pb-4">
               {footer}
             </div>
           ) : (
@@ -883,13 +985,34 @@ function ModalChrome({
  * what was missing.
  * ────────────────────────────────────────────────────────────────────────── */
 
+export type DialogActionTone = "violet" | "rose" | "emerald" | "amber";
+
+/**
+ * The solid action of a dialog footer, on the shared `Button`. Violet is the
+ * brand primary and rose the destructive variant; the amber (warning) and
+ * emerald (success) tones keep the Button's shape, focus ring and busy state and
+ * swap only the fill, so every dialog action in the product is the same control.
+ */
+export function dialogActionClass(tone: DialogActionTone): string | undefined {
+  if (tone === "violet" || tone === "rose") return undefined;
+  return cn(
+    "border-transparent bg-none text-white shadow-lg [&_svg]:text-white",
+    "actionable-hover:border-transparent actionable-hover:shadow-lg",
+    dialogActionTones[tone],
+  );
+}
+
+export function dialogActionVariant(tone: DialogActionTone): "default" | "destructive" {
+  return tone === "rose" ? "destructive" : "default";
+}
+
 export function ModalActions({
   busy = false,
   busyLabel,
   actionLabel,
   onCancel,
   onAction,
-  cancelLabel = "Cancel",
+  cancelLabel,
   blockedReason,
   tone = "violet",
   secondary,
@@ -902,48 +1025,43 @@ export function ModalActions({
   cancelLabel?: string;
   /** Non-empty means the form is not ready: the action is disabled and this says why. */
   blockedReason?: string | null;
-  tone?: "violet" | "rose" | "emerald";
-  /** An extra low-emphasis action pinned to the left, e.g. "Save draft". */
+  tone?: DialogActionTone;
+  /** An extra low-emphasis action pinned to the start side, e.g. "Save draft". */
   secondary?: ReactNode;
 }) {
+  const copy = useOverlayMessages();
+  const surface = useContext(ModalSurfaceContext);
   const blocked = Boolean(blockedReason);
-  const toneClass =
-    tone === "rose"
-      ? "bg-rose-500 hover:bg-rose-600 shadow-rose-500/25"
-      : tone === "emerald"
-        ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25"
-        : "bg-[#8127cf] hover:bg-[#6a1fb0] shadow-[#8127cf]/25";
 
   return (
     <div className="space-y-2.5">
       {blocked ? (
-        <p className="flex items-center gap-2 rounded-2xl bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-700">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        <p className="flex items-center gap-2 rounded-2xl border border-status-warning-border bg-status-warning-surface px-3.5 py-2.5 text-xs font-semibold text-status-warning-text">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {blockedReason}
         </p>
       ) : null}
       <div className="flex flex-col-reverse items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-end">
-        {secondary ? <div className="sm:mr-auto">{secondary}</div> : null}
-        <button
+        {secondary ? <div className="sm:me-auto">{secondary}</div> : null}
+        <Button
           type="button"
-          onClick={onCancel}
+          variant="outline"
+          onClick={surface?.requestClose ?? onCancel}
           disabled={busy}
-          className="h-12 cursor-pointer rounded-2xl border border-[#cfc2d6]/25 bg-white px-5 text-sm font-bold text-ink transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-12 px-5"
         >
-          {cancelLabel}
-        </button>
-        <button
+          {cancelLabel ?? copy.cancel}
+        </Button>
+        <Button
           type="button"
+          variant={dialogActionVariant(tone)}
           onClick={onAction}
-          disabled={busy || blocked}
-          className={cn(
-            "flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl px-6 text-sm font-bold text-white shadow-lg transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
-            toneClass,
-          )}
+          loading={busy}
+          disabled={blocked}
+          className={cn("min-h-12 px-6", dialogActionClass(tone))}
         >
-          {busy ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
           {busy ? (busyLabel ?? actionLabel) : actionLabel}
-        </button>
+        </Button>
       </div>
     </div>
   );

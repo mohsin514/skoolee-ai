@@ -3,11 +3,13 @@ import { prisma } from "@/lib/db/prisma";
 import {
   ApiError,
   assertModuleRead,
-  canManageOperations,
+  canManageCampusOps,
   errorResponse,
   requireAuthUser,
   resolveCampusId,
 } from "@/lib/api/scope";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const runtime = "nodejs";
 
@@ -48,15 +50,21 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthUser();
-    if (!canManageOperations(user)) throw new ApiError("Forbidden", 403);
+    if (!canManageCampusOps(user)) throw new ApiError("Forbidden", 403);
 
     const campusId = await resolveCampusId(user);
-    const body = await req.json();
-    const { itemId, storeId, kind, quantity, unitPrice, supplierId, issuedToUserId, note } = body;
+    const body = await parseBody(req, jsonObjectBody);
+    const { itemId, storeId, kind, quantity, unitPrice, supplierId, issuedToUserId, note, idempotencyKey } = body;
 
     if (!itemId || !storeId || !kind) throw new ApiError("itemId, storeId and kind required", 400);
     if (!VALID_KINDS.includes(kind)) throw new ApiError("Invalid kind", 400);
-    if (!quantity || quantity <= 0) throw new ApiError("quantity must be a positive number", 400);
+    if (!quantity || quantity <= 0 || !Number.isInteger(quantity)) throw new ApiError("quantity must be a positive whole number", 400);
+    if (idempotencyKey !== undefined && (typeof idempotencyKey !== "string" || !/^[A-Za-z0-9_-]{8,80}$/.test(idempotencyKey))) throw new ApiError("Invalid idempotency key", 400);
+    // SKO-435: a retried movement with the same key is the same movement.
+    if (idempotencyKey) {
+      const existing = await prisma.itemTransaction.findFirst({ where: { schoolId: user.schoolId, idempotencyKey }, include: { item: true, store: true, supplier: true } });
+      if (existing) return Response.json({ success: true, data: existing, replayed: true }, { status: 200 });
+    }
 
     const [item, store, supplier] = await Promise.all([
       prisma.item.findFirst({ where: { id: itemId, campusId } }),
@@ -75,17 +83,15 @@ export async function POST(req: NextRequest) {
           create: { itemId, storeId, quantity },
         });
       } else if (kind === "SELL" || kind === "ISSUE") {
-        const stock = await tx.itemStock.findUnique({
-          where: { itemId_storeId: { itemId, storeId } },
-        });
-        const available = stock?.quantity ?? 0;
-        if (available < quantity) {
-          throw new ApiError("Insufficient stock quantity", 409);
-        }
-        await tx.itemStock.update({
-          where: { itemId_storeId: { itemId, storeId } },
+        // SKO-435: one conditional decrement, so two concurrent issues of the last units cannot
+        // both succeed and stock can never go negative.
+        const taken = await tx.itemStock.updateMany({
+          where: { itemId, storeId, quantity: { gte: quantity } },
           data: { quantity: { decrement: quantity } },
         });
+        if (!taken.count) {
+          throw new ApiError("Insufficient stock quantity", 409);
+        }
       }
 
       return tx.itemTransaction.create({
@@ -99,6 +105,7 @@ export async function POST(req: NextRequest) {
           supplierId: supplierId ?? null,
           issuedToUserId: issuedToUserId ?? null,
           note: note ?? null,
+          idempotencyKey: idempotencyKey ?? null,
         },
         include: {
           item: true,

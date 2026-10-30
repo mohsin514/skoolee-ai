@@ -1,0 +1,59 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { errorResponse } from "../../src/lib/api/scope";
+import { parseBody, readJsonBody } from "../../src/lib/api/validate";
+import { jsonObjectBody, requiredIdBody } from "../../src/lib/validators/route-bodies";
+
+// Batch of SKAI-1161: platform owner write routes.
+const ADOPTED_ROUTES = [
+  "src/app/api/owner/ai-cost-report/route.ts",
+  "src/app/api/owner/pack-expansion/route.ts",
+  "src/app/api/owner/payment-settings/route.ts",
+  "src/app/api/owner/pilot-readiness/route.ts",
+  "src/app/api/owner/pilots/[id]/route.ts",
+  "src/app/api/owner/pilots/route.ts",
+  "src/app/api/owner/platform-config/route.ts",
+  "src/app/api/owner/provider-events/route.ts",
+  "src/app/api/owner/schools/[id]/pricing/route.ts",
+  "src/app/api/owner/schools/[id]/route.ts",
+  "src/app/api/owner/schools/route.ts",
+  "src/app/api/owner/sessions/route.ts",
+  "src/app/api/owner/subscription-requests/route.ts",
+  "src/app/api/owner/support/actions/route.ts",
+  "src/app/api/owner/support/grants/[id]/route.ts",
+  "src/app/api/owner/support/grants/route.ts",
+  "src/app/api/owner/users/[id]/password/route.ts",
+  "src/app/api/owner/users/route.ts",
+  "src/app/api/owner/workflows/route.ts",
+];
+
+const post = (body: string) =>
+  new Request("http://localhost/api/x", { method: "POST", headers: { "content-type": "application/json" }, body });
+
+const statusOf = (promise: Promise<unknown>) =>
+  promise.then(() => 200, (error) => errorResponse(error).status);
+
+test("platform owner routes reject malformed JSON with 400, not 500", async () => {
+  assert.equal(await statusOf(readJsonBody(post("{not json"))), 400);
+  assert.equal(await statusOf(parseBody(post("[1,2]"), jsonObjectBody)), 400);
+});
+
+test("platform owner routes keep valid bodies intact", async () => {
+  const body = { studentId: "stu_1", userId: "usr_1", note: "kept", extra: { nested: true } };
+  assert.deepEqual(await parseBody(post(JSON.stringify(body)), jsonObjectBody), body);
+});
+
+test("platform owner id lookups report the missing field", async () => {
+  const response = errorResponse(await parseBody(post("{\"userId\":\"\"}"), requiredIdBody("userId")).catch((e) => e));
+  assert.equal(response.status, 400);
+  assert.deepEqual((await response.json()).details, { userId: ["userId required"] });
+});
+
+test("platform owner write routes read bodies through the shared helper", () => {
+  for (const file of ADOPTED_ROUTES) {
+    const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /await (req|request)\.json\(\)(?!\.catch)/, file);
+    assert.match(source, /(parseBody|readJsonBody)\(/, file);
+  }
+});

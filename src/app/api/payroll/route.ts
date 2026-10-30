@@ -4,7 +4,6 @@ import {
   ApiError,
   assertPermission,
   assertStaffRole,
-  canManageOperations,
   errorResponse,
   requireAuthUser,
   resolveCampusId,

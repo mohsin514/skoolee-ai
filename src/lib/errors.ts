@@ -10,8 +10,7 @@
  * database hostname. That went straight into a toast when the database dropped.
  *
  * `userMessage` keeps short, sentence-like messages (the intentional ones) and
- * replaces anything that looks machine-generated with a plain fallback, logging
- * the original so it is still debuggable.
+ * replaces anything that looks machine-generated with a plain fallback. Diagnostics never include the original payload.
  */
 
 /** Markers that identify an engine/stack blob rather than an authored message. */
@@ -40,8 +39,8 @@ export function userMessage(error: unknown, fallback = "Something went wrong. Pl
     INTERNAL_MARKERS.some((marker) => raw.includes(marker));
 
   if (looksInternal) {
-    // Keep the real thing where an engineer can find it.
-    console.error("[userMessage] suppressed internal error:", error);
+    // Do not put query text, paths, credentials or personal data in browser logs.
+    console.error("[userMessage] suppressed internal error");
     return fallback;
   }
 
@@ -66,6 +65,9 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   }
 
   if (error && typeof error === "object") {
+    // SKAI-1163 envelope: `{ code, message, fields? }` reads as its message, not as a field map.
+    const envelope = error as { code?: unknown; message?: unknown };
+    if (typeof envelope.code === "string" && typeof envelope.message === "string" && envelope.message.trim()) return envelope.message;
     const joined = Object.entries(error as Record<string, unknown>)
       .map(([field, messages]) => {
         const text = apiErrorMessage(messages, "");

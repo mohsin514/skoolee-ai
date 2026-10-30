@@ -1,180 +1,108 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AvatarImage } from "@/components/ui/avatar-image";
-import type { ReactNode } from "react";
+/**
+ * Academic console (PRINCIPAL) — SPEC §3 `ROLE_NAV.principal`, §3.1, §4.4/§4.4b, §5.3.
+ *
+ * - Navigation, eyebrow, mobile slots, account menu (My leave) and the access fence come from the registry
+ *   (`console="principal"`); view and tab live in the URL through `useConsoleView("principal")`. Old view ids
+ *   alias (`academic-model`, `grading-rules`, `academic-hub`); retired ones (fees, transport, admissions,
+ *   leadership, permissions, …) land on Today with the registry's notice (M44–M55).
+ * - The principal is academic only: no fee meter, no Add student / Add class, no staff record, no
+ *   campus-operations writes (the server refuses them too, §7.6). Students, teacher profiles, the school
+ *   calendar and the promotion plan are read-only here; the principal approves (results, report versions,
+ *   teaching-staff leave, the promotion plan, AI drafts) and builds the timetable.
+ * - Every view opens with one PageHeader and at most one primary action (§4.3, §4.4). Load failures are an
+ *   inline ErrorState with retry inside the shell, never a forced sign-out (R4).
+ * - Today warns when the campus has no campus admin (§2.6 vacancy, GROUP schools only).
+ */
+
+import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentProps, type ComponentType } from "react";
 import {
-  AlertCircle,
+  AlertTriangle,
   ArrowRightLeft,
   Award,
-  BookOpen,
-  Calendar,
   CalendarCheck,
   CalendarDays,
-  Check,
-  CheckCircle2,
-  ClipboardList,
-  Clock,
-  Copy,
-  Download,
-  DoorOpen,
-  ExternalLink,
-  FileText,
-  MessageCircle,
-  PhoneCall,
-  Plane,
-  Shield,
-  GraduationCap,
-  Heart,
-  History,
-  LayoutGrid,
-  LayoutDashboard,
   CalendarRange,
-  Loader2,
-  MapPin,
-  MessageSquare,
-  Package,
-  Pencil,
+  ClipboardList,
+  FileCheck2,
+  GraduationCap,
+  History,
+  LayoutDashboard,
+  Plane,
   Plus,
-  Receipt,
+  Printer,
+  Download,
+  RefreshCw,
   Scale,
-  School,
   Send,
-  ShieldCheck,
   Sparkles,
-  Tags,
-  Trash2,
-  TrendingUp,
-  Upload,
-  User,
-  Bus,
-  Building2,
-  Wrench,
-  UserCog,
+  Target,
   Users,
-  X,
+  Eye,
+  CheckCheck,
+  ListChecks,
+  ShieldCheck,
+  Upload,
   type LucideIcon,
-  Network,
 } from "lucide-react";
-import { CollapsiblePanel } from "@/components/ui/collapsible-panel";
-import { toast } from "sonner";
-import { cancelInvitation, removeStaff, resendInvitation } from "@/app/actions/invite";
-import {
-  AiActionPanel,
-  AIReviewQueue,
-  BrandButton,
-  EmptyState,
-  RoleShell,
-  type RoleNavItem,
-} from "@/components/role-dashboard";
-import type { SidebarEntry } from "@/components/role-dashboard/RoleSidebar";
-import { AcademicOverview } from "@/components/insights";
-import { CommandCentreSkeleton, RoleShellSkeleton } from "@/components/role-dashboard/RoleShellSkeleton";
-import { cn } from "@/lib/utils";
+import { RoleShell, useShellSession } from "@/components/role-dashboard";
+import { DegradedNotice } from "@/components/role-dashboard/DegradedNotice";
+import { useConsoleView } from "@/components/nav/useConsoleView";
+import { subscribeWorkspaceNavigation } from "@/components/nav/useWorkspaceView";
+import { useConsoleAccess } from "@/components/nav/ViewGate";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
+import { leafForView } from "@/lib/navigation/role-nav";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+import { ViewTabs, type ViewTabItem } from "@/components/ui/view-tabs";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
-import { CornerSparkles } from "@/components/CornerSparkles";
-import { usePrincipalData } from "./principal-data-context";
-import { AdmissionForm } from "@/app/dashboard/students/admission-form";
-import { BulkImportDialog } from "@/app/dashboard/students/bulk-import-dialog";
-import { CreateClassWizard } from "@/components/shared-admin/create-class-wizard";
-import { AddTeacherForm } from "@/components/teacher/add-teacher-form";
-import { AddStaffForm } from "@/components/staff/add-staff-form";
-import { StaffHierarchyPanel } from "@/components/staff/hierarchy-panel";
-import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
-import { FeeOverviewTab } from "@/components/fees/FeeOverviewTab";
-import {
-  TransportPanel,
-  DormitoryPanel,
-  LibraryPanel,
-  InventoryPanel,
-} from "@/components/operations";
-import { TimetableStudio } from "@/components/timetable/TimetableStudio";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { downloadCSV } from "@/lib/csv";
+import { CommandCentreSkeleton, PageSkeleton, PAGE_CARD_BODY } from "@/components/role-dashboard/RoleShellSkeleton";
+import { FlagshipCard } from "@/components/ui/flagship";
+import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
+import { ActionQueue } from "@/components/principal/action-queue";
+import { AcademicOverview } from "@/components/insights/AcademicOverview";
+import { ReportCardPipeline, type ReportSelectionState } from "@/components/academic/ReportCardPipeline";
 import { ExamsWorkspace } from "@/components/academic/exams/ExamsWorkspace";
+import { QuestionNetwork } from "@/components/question-network/question-network";
+import { TimetableStudio, type TimetableCommand, type TimetableDraftState } from "@/components/timetable/TimetableStudio";
+import { AcademicModelPanel, type AcademicModelActionState, type AcademicModelCommand } from "@/components/academic/AcademicModelPanel";
 import { GradingRulesPanel } from "@/components/academic/GradingRulesPanel";
-import { RoomsManager } from "@/components/academic/RoomsManager";
 import { AcademicCalendar } from "@/components/academic/AcademicCalendar";
-import { AcademicHub } from "@/components/academic/AcademicHub";
-import { AcademicSubnav, ACADEMIC_VIEWS } from "@/components/academic/AcademicSubnav";
-import { StaffSubnav, STAFF_VIEWS } from "@/components/staff/StaffSubnav";
-import { StudentSubnav, STUDENT_VIEWS } from "@/components/student/StudentSubnav";
-import { YearSetupWizard } from "@/components/academic/YearSetupWizard";
-import { AcademicYearPanel } from "@/components/academic-year/AcademicYearPanel";
-import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
 import { TeacherPerformancePanel } from "@/components/academic-year/TeacherPerformancePanel";
+import { CycleManagementPanel } from "@/components/academic-year/CycleManagementPanel";
+import type { YearCloseCommand, YearClosureState } from "@/components/academic/YearClosureChecklist";
+import { RolloverReview, type RolloverApprovalState } from "@/components/academic/rollover-review";
+import { ScenarioPlanner } from "@/components/planning/scenario-planner";
+import { UnifiedAttendancePanel } from "@/components/attendance/unified-attendance-panel";
+import { LearningActions } from "@/components/learning/learning-actions";
+import { EngagementPanel, type EngagementCommand } from "@/components/communications/engagement-panel";
+import { AiWorkflowsHome, AI_COMPOSER_INPUT_ID } from "@/components/ai-workflows/AiWorkflowsHome";
+import { PathwayPanel } from "@/components/pathways/pathway-panel";
+import { MyLeavePanel } from "@/components/leave/my-leave";
 import {
   AcademicPanel,
-  ActivityLogModal,
-  AdmissionQueriesPanel,
-  AIPanel,
-  ArchivedStudentsPanel,
-  AdminRow,
-  FacultyRow,
-  PendingFacultyRow,
-  StudentDetailModal,
-  exportStudentsToCSV,
   ClassDetailModal,
-  HelpModal,
-  LeadershipPanel,
+  FacultyPanel,
   LeaveManagementPanel,
-  MoveStudentModal,
-  PeriodsPanel,
-  RolePermissionsPanel,
-  ReportCardsPanel,
+  StudentDetailModal,
   StudentsPanel,
-  StudentSetupPanel,
   TeacherConflictsBanner,
   TeacherDetailModal,
-  classLabel,
-  formatDate,
-  formatStatus,
-  groupClasses,
-  DetailRow,
-  EmptyInline,
-  FormInput,
-  FormSelect,
-  MiniMetric,
-  ModalActions,
-  ModalFrame,
-  PanelTitle,
-  StatusPill,
+  exportStudentsToCSV,
 } from "@/components/shared-admin";
+import { fetchAcademicImpact, subjectRemovalText, teacherChangeText } from "@/components/shared-admin/academic-impact";
+import { cn } from "@/lib/utils";
+import { usePrincipalData } from "./principal-data-context";
 
-type PrincipalView =
-  | "overview"
-  | "leadership"
-  | "classes"
-  | "teachers"
-  | "staff-hierarchy"
-  | "students"
-  | "admission-queries"
-  | "student-setup"
-  | "promote-archive"
-  | "leave"
-
-  | "permissions"
-  | "attendance"
-  | "year-cycle"
-  | "academic-hub"
-  | "year-setup"
-  | "exam-cycles"
-  | "grading-rules"
-  | "fees"
-  | "timetable"
-  | "class-rooms"
-  | "period-setup"
-  | "school-calendar"
-  | "teacher-performance"
-  | "report-cards"
-  | "ai"
-  | "engagement"
-  | "transport"
-  | "dormitory"
-  | "library"
-  | "inventory"
-;
-type ReportAction = "generate" | "pdf" | "review" | "publish" | "send";
-
-const principalAIFeatures = [
+/** The principal's AI workflows (academic only; the group admin no longer has these, M6). */
+const PRINCIPAL_AI_FEATURES = [
   { feature: "at_risk_students", label: "At-risk Students", placeholder: "Optional exam, class, or attendance focus" },
   { feature: "class_performance_summary", label: "Class Summary", placeholder: "Class or exam focus" },
   { feature: "teacher_class_comparison", label: "Class Comparison", placeholder: "Classes, teachers, or term to compare" },
@@ -182,705 +110,837 @@ const principalAIFeatures = [
   { feature: "pending_review_queue", label: "Review Queue", placeholder: "Optional priority note" },
 ];
 
-export default function PrincipalDashboard() {
-  // `loading` is not read: the provider hands back null until the first
-  // payload lands, and null is what the skeleton keys off.
-  const { data, refetch } = usePrincipalData();
-  const [activeView, setActiveView] = useState<PrincipalView>("overview");
-  const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [editingReportId, setEditingReportId] = useState<string | null>(null);
-  const [editedRemarks, setEditedRemarks] = useState({ en: "", ur: "" });
-  const [selectedClass, setSelectedClass] = useState<any>(null);
-  const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  // Set when a category or group card asks to see its students, cleared as soon
-  // as the roster has taken it — so it is a hand-off, not a sticky filter.
-  const [rosterFilter, setRosterFilter] = useState<{ categoryId?: string; groupId?: string } | null>(null);
-  // What the roster / faculty list is showing, so a profile dialog can page
-  // through the same set rather than making the admin close and reopen it.
-  const [studentSequence, setStudentSequence] = useState<any[]>([]);
-  const [teacherSequence, setTeacherSequence] = useState<any[]>([]);
-  const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
-  const [showClassWizard, setShowClassWizard] = useState(false);
-  const [showAdmissionForm, setShowAdmissionForm] = useState(false);
-  const [admissionClassId, setAdmissionClassId] = useState("");
-  const [convertingQuery, setConvertingQuery] = useState<any>(null);
-  const [admissionQueriesVersion, setAdmissionQueriesVersion] = useState(0);
-  const [studentsVersion, setStudentsVersion] = useState(0);
-  const [bulkImportClassId, setBulkImportClassId] = useState("");
-  const [showMoveStudentModal, setShowMoveStudentModal] = useState(false);
-  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
-  const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
-  const [showAddAdminForm, setShowAddAdminForm] = useState(false);
-  const [showAddPrincipalForm, setShowAddPrincipalForm] = useState(false);
-  const [showAddAccountantForm, setShowAddAccountantForm] = useState(false);
-  const [showAddLibrarianForm, setShowAddLibrarianForm] = useState(false);
-  const [showAddReceptionistForm, setShowAddReceptionistForm] = useState(false);
-  const [showActivityLogModal, setShowActivityLogModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [moveClassId, setMoveClassId] = useState("");
-  const [movingStudentBusy, setMovingStudentBusy] = useState(false);
-  const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
-  const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
-  const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
-  const [applyingSubjectClassId, setApplyingSubjectClassId] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
-  const [confirmBusy, setConfirmBusy] = useState(false);
-  const [savingClassUpdate, setSavingClassUpdate] = useState(false);
-  const [savingStudentUpdate, setSavingStudentUpdate] = useState(false);
-  const [savingSubjectUpdateId, setSavingSubjectUpdateId] = useState<string | null>(null);
+/** Icons for views whose registry leaf is not found (defensive; the registry always has one). */
+const FALLBACK_ICON: Record<string, LucideIcon> = {
+  overview: LayoutDashboard, "report-cards": ClipboardList, "exam-cycles": FileCheck2, timetable: CalendarRange,
+  classes: GraduationCap, "academic-rules": Scale, "school-calendar": CalendarDays, teachers: Users,
+  "teacher-performance": Award, leave: Plane, students: GraduationCap, attendance: CalendarCheck,
+  "learning-actions": Target, "promote-archive": ArrowRightLeft, "year-cycle": History, ai: Sparkles,
+  engagement: Send, "my-leave": Plane,
+};
 
-  // Sign-out lives in RoleHeader, which this console renders via RoleShell.
-  // An unreachable handleLogout() used to sit here (RoleShell takes no onLogout
-  // prop, so nothing could call it); its router.push("/login") would also have
-  // left this console renderable via Back after sign-out.
-  // Exports exactly what the directory is showing, so a filtered view exports
-  // the filtered roster rather than silently dumping every student.
-  const exportStudentsCSV = (visible?: any[]) =>
-    exportStudentsToCSV(visible ?? data?.students ?? [], data?.campusName);
+/** `?exam=<id>` — job and notification links point at one exam's report cards (P9 `jobSourceHref`). */
+const searchSnapshot = () => window.location.search;
+const serverSearchSnapshot = () => "";
+function useExamParam(): string | null {
+  const search = useSyncExternalStore(subscribeWorkspaceNavigation, searchSnapshot, serverSearchSnapshot);
+  return new URLSearchParams(search).get("exam");
+}
 
-  const handleAdmissionSuccess = async (createdStudent?: any) => {
-    const studentId = createdStudent?.id;
-    if (convertingQuery && studentId) {
-      try {
-        const res = await fetch("/api/admission-queries", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: convertingQuery.id, convertedStudentId: studentId }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          toast.success(`Query converted to ${createdStudent.fullName}`);
-        } else {
-          toast.error(data.error || "Could not mark query as converted");
-        }
-      } catch {
-        toast.error("Student created, but could not mark the query as converted");
-      }
-      setConvertingQuery(null);
-      // refetch() refreshes campus-wide counts but not the enquiries panel's
-      // own list — that only re-fetches when this version bumps, which is
-      // why a just-converted query kept showing ACTIVE until manual reload.
-      setAdmissionQueriesVersion((v) => v + 1);
-    }
-    setShowAdmissionForm(false);
-    refetch();
-  };
+type PendingConfirm = { title: string; description: string; confirmLabel: string; tone?: "danger" | "warning" | "primary"; run: () => Promise<void> } | null;
 
-  const handleMoveStudent = async () => {
-    if (!selectedStudent || !moveClassId || moveClassId === (selectedStudent.class?.id || selectedStudent.classId)) return;
-    setMovingStudentBusy(true);
-    try {
-      const res = await fetch("/api/students", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selectedStudent.id, classId: moveClassId }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to move student");
-      const moved = result.data;
-      const cls = moved?.class ? [moved.class.name, moved.class.section].filter(Boolean).join(" ") : "";
-      toast.success(moved?.rollNo ? `Moved to ${cls} — new roll: ${moved.rollNo}` : "Student moved");
-      setShowMoveStudentModal(false); setSelectedStudent(null); await refetch();
-    } catch (error: any) { toast.error(error.message); } finally { setMovingStudentBusy(false); }
-  };
-
-  const handleStaffAdded = async () => {
-    setShowAddAdminForm(false);
-    setShowAddPrincipalForm(false);
-    setShowAddAccountantForm(false);
-    setShowAddLibrarianForm(false);
-    setShowAddReceptionistForm(false);
-    await refetch();
-  };
-
-  const handleRemove = async (userId: string, label: string) => {
-    setConfirmAction({ title: `Remove ${label}`, description: `Are you sure you want to remove this ${label.toLowerCase()}? This action cannot be undone.`, confirmLabel: "Remove", run: async () => { setConfirmBusy(true); try { await removeStaff(userId); toast.success(`${label} removed`); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
-  };
-
-  const handleResendInvite = async (inviteId: string) => { try { await resendInvitation(inviteId); toast.success("Invitation resent"); await refetch(); } catch (error: any) { toast.error(error.message); } };
-  const handleCancelInvite = async (inviteId: string) => { try { await cancelInvitation(inviteId); toast.success("Invitation cancelled"); await refetch(); } catch (error: any) { toast.error(error.message); } };
-
-  const handleChangeClassTeacher = async (classId: string, teacherId: string) => {
-    setSavingClassTeacherId(classId);
-    try { const res = await fetch(`/api/classes/${classId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classTeacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class teacher"); toast.success("Class teacher updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingClassTeacherId(null); }
-  };
-
-  const handleUpdateClass = async (classId: string, updates: { name?: string; section?: string; academicYear?: number }) => {
-    setSavingClassUpdate(true);
-    try { const res = await fetch(`/api/classes/${classId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update class"); toast.success("Class updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingClassUpdate(false); }
-  };
-
-  const handleUpdateStudent = async (studentId: string, updates: { fullName?: string; rollNo?: number; guardianName?: string; guardianPhone?: string; guardianEmail?: string }) => {
-    setSavingStudentUpdate(true);
-    try { const res = await fetch(`/api/students/${studentId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update student"); toast.success("Student updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingStudentUpdate(false); }
-  };
-
-  const handleCreateSubject = async (classId: string, subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }) => {
-    if (!subject.name.trim()) { toast.error("Subject name is required"); return false; }
-    setCreatingSubjectClassId(classId);
-    try { const res = await fetch("/api/subjects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId, name: subject.name.trim(), totalMarks: subject.totalMarks || 100, teacherId: subject.teacherId || undefined, applyToAllSections: subject.applyToAllSections || undefined }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to create subject"); toast.success(result.createdCount > 1 ? `Subject added to ${result.createdCount} sections` : "Subject added"); await refetch(); return true; }
-    catch (error: any) { toast.error(error.message); return false; } finally { setCreatingSubjectClassId(null); }
-  };
-
-  const handleUpdateSubject = async (classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
-    setSavingSubjectUpdateId(subjectId);
-    try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update subject"); toast.success("Subject updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingSubjectUpdateId(null); }
-  };
-
-  const handleChangeSubjectTeacher = async (classId: string, subjectId: string, teacherId: string) => {
-    setSavingSubjectId(subjectId);
-    try { const res = await fetch("/api/subjects", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: subjectId, teacherId: teacherId || null }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Subject teacher could not be updated"); toast.success("Subject teacher updated"); (result.clashes || []).forEach((c: any) => toast.warning(c.message)); await refetch(); }
-    catch (error: any) { toast.error(error.message); } finally { setSavingSubjectId(null); }
-  };
-
-  // Switching to SINGLE makes the API propagate the class teacher across every
-  // subject in one call, so the two can never drift out of sync.
-  const handleChangeTeachingMode = async (classId: string, mode: "SINGLE" | "SUBJECT") => {
-    setApplyingSubjectClassId(classId);
-    try {
-      const res = await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: classId, teachingMode: mode }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Teaching mode could not be updated");
-      toast.success(mode === "SINGLE" ? "All subjects now follow the class teacher" : "Each subject can now have its own teacher");
-      (result.clashes || []).forEach((c: any) => toast.warning(c.message));
-      await refetch();
-    } catch (error: any) { toast.error(error.message); } finally { setApplyingSubjectClassId(null); }
-  };
-
-  const handleAddSection = async (name: string, section: string, academicYear: number, convertClassId?: string) => {
-    try {
-      // Converting: the class had no sections, so rename that row rather than
-      // spawning a sibling and stranding its students on an unnamed class.
-      const res = convertClassId
-        ? await fetch("/api/classes", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: convertClassId, section }) })
-        : await fetch("/api/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, section, sections: [section], academicYear }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Section could not be created");
-      toast.success(convertClassId ? `"${name}" now has section "${section}" — existing students moved into it` : `Section "${section}" created`);
-      await refetch();
-    } catch (error: any) { toast.error(error.message); }
-  };
-
-  const handleDeleteClass = (cls: any) => {
-    const studentCount = cls._count?.students || 0;
-    setConfirmAction({ title: "Delete Class", description: `Delete "${cls.name}${cls.section ? ` - ${cls.section}` : ""}"? This affects ${studentCount} student(s) and all subjects/exams.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/classes/${cls.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete class"); toast.success("Class deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
-  };
-
-  const handleDeleteStudent = (student: any) => {
-    setConfirmAction({ title: "Delete Student", description: `Delete "${student.fullName}" (Roll: ${student.rollNo})? All associated records will be removed.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/students/${student.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete student"); toast.success("Student deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
-  };
-
-  const handleDeleteSubject = (subject: any) => {
-    setConfirmAction({ title: "Delete Subject", description: `Delete "${subject.name}"? This will also remove all marks associated with this subject.`, confirmLabel: "Delete", run: async () => { setConfirmBusy(true); try { const res = await fetch(`/api/subjects?id=${subject.id}`, { method: "DELETE" }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to delete subject"); toast.success("Subject deleted"); await refetch(); } catch (error: any) { toast.error(error.message); } finally { setConfirmBusy(false); } } });
-  };
-
-  const handleUpdateTeacher = async (teacherId: string, updates: Record<string, any>) => {
-    try { const res = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: teacherId, ...updates }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Failed to update teacher"); toast.success("Teacher updated"); await refetch(); }
-    catch (error: any) { toast.error(error.message); }
-  };
-
-  const runReportAction = async (examId: string, action: ReportAction, successMessage: string) => {
-    setBusyAction(`${action}-${examId}`);
-    try { const res = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ examId, action }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Report action failed"); toast.success(successMessage); await refetch(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Report action failed"); } finally { setBusyAction(null); }
-  };
-
-  const runRemarkDrafts = async (examId: string) => {
-    setBusyAction(`ai-remarks-${examId}`);
-    try { const res = await fetch("/api/ai/generate-remarks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ batch: true, examId, language: "both", tone: "encouraging" }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Remark generation failed"); toast.success(`Generated ${result.succeeded || 0} remark drafts`); await refetch(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Remark generation failed"); } finally { setBusyAction(null); }
-  };
-
-  const saveRemark = async (report: any, approve = false) => {
-    setBusyAction(`remark-${report.id}`);
-    try { const res = await fetch(`/api/reports/${report.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remarksEn: editedRemarks.en, remarksUr: editedRemarks.ur, approve }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Could not save remarks"); toast.success(approve ? "Remarks approved" : "Remarks saved"); setEditingReportId(null); await refetch(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Could not save remarks"); } finally { setBusyAction(null); }
-  };
-
-  const runAutomation = async () => {
-    setBusyAction("communications");
-    try { const res = await fetch("/api/communications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "run-automation" }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Automation failed"); toast.success(`Processed ${result.processed} communication actions`); await refetch(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Automation failed"); } finally { setBusyAction(null); }
-  };
-
-  const openAdmissionForm = (classId?: string) => { setAdmissionClassId(classId || ""); setConvertingQuery(null); setShowAdmissionForm(true); };
-
-  const openConvertQuery = (query: any) => {
-    setConvertingQuery(query);
-    setAdmissionClassId(query.classInterested?.id || "");
-    setShowAdmissionForm(true);
-  };
-  const openAddStaff = (role: "CAMPUS_ADMIN" | "PRINCIPAL" | "ACCOUNTANT" | "LIBRARIAN" | "RECEPTIONIST") => {
-    if (role === "CAMPUS_ADMIN") setShowAddAdminForm(true);
-    else if (role === "PRINCIPAL") setShowAddPrincipalForm(true);
-    else if (role === "ACCOUNTANT") setShowAddAccountantForm(true);
-    else if (role === "LIBRARIAN") setShowAddLibrarianForm(true);
-    else if (role === "RECEPTIONIST") setShowAddReceptionistForm(true);
-  };
-
-  const navItems: SidebarEntry[] = [
-    { icon: LayoutGrid, label: "Overview", active: activeView === "overview", onClick: () => setActiveView("overview") },
-    {
-      icon: GraduationCap, label: "Students", children: [
-        { icon: GraduationCap, label: "Student List", active: activeView === "students", onClick: () => setActiveView("students") },
-        { icon: PhoneCall, label: "Admission Enquiries", active: activeView === "admission-queries", onClick: () => setActiveView("admission-queries") },
-        { icon: Tags, label: "Student Categories", active: activeView === "student-setup", onClick: () => setActiveView("student-setup") },
-        { icon: ArrowRightLeft, label: "Promote Students", active: activeView === "promote-archive", onClick: () => setActiveView("promote-archive") },
-      ],
-    },
-    {
-      icon: BookOpen, label: "Academics", children: [
-        { icon: LayoutDashboard, label: "Academic Overview", active: activeView === "academic-hub", onClick: () => setActiveView("academic-hub") },
-        { icon: CalendarRange, label: "Set Up New Year", active: activeView === "year-setup", onClick: () => setActiveView("year-setup") },
-        { icon: School, label: "Classes & Subjects", active: activeView === "classes", onClick: () => setActiveView("classes") },
-        { icon: History, label: "Academic Years", active: activeView === "year-cycle", onClick: () => setActiveView("year-cycle") },
-        { icon: CalendarDays, label: "Holidays & Calendar", active: activeView === "school-calendar", onClick: () => setActiveView("school-calendar") },
-        { icon: Calendar, label: "Class Timetable", active: activeView === "timetable", onClick: () => setActiveView("timetable") },
-        { icon: Clock, label: "Daily Periods", active: activeView === "period-setup", onClick: () => setActiveView("period-setup") },
-        { icon: DoorOpen, label: "Rooms", active: activeView === "class-rooms", onClick: () => setActiveView("class-rooms") },
-        { icon: FileText, label: "Exams & Results", active: activeView === "exam-cycles", onClick: () => setActiveView("exam-cycles") },
-        { icon: Scale, label: "Grading Rules", active: activeView === "grading-rules", onClick: () => setActiveView("grading-rules") },
-        { icon: ClipboardList, label: "Report Cards", active: activeView === "report-cards", onClick: () => setActiveView("report-cards") },
-      ],
-    },
-    {
-      icon: UserCog, label: "Staff", children: [
-        { icon: Users, label: "Teachers", active: activeView === "teachers", onClick: () => setActiveView("teachers") },
-        { icon: Network, label: "Staff Hierarchy", active: activeView === "staff-hierarchy", onClick: () => setActiveView("staff-hierarchy") },
-        { icon: Plane, label: "Staff Leave", active: activeView === "leave", onClick: () => setActiveView("leave") },
-        { icon: Award, label: "Teacher Performance", active: activeView === "teacher-performance", onClick: () => setActiveView("teacher-performance") },
-        { icon: Shield, label: "Staff Permissions", active: activeView === "permissions", onClick: () => setActiveView("permissions") },
-      ],
-    },
-    { icon: CalendarCheck, label: "Attendance", active: activeView === "attendance", onClick: () => setActiveView("attendance") },
-    { icon: Receipt, label: "Fees", active: activeView === "fees", onClick: () => setActiveView("fees") },
-    {
-      icon: Wrench, label: "Operations", children: [
-        { icon: Bus, label: "Transport", active: activeView === "transport", onClick: () => setActiveView("transport") },
-        { icon: Building2, label: "Hostel", active: activeView === "dormitory", onClick: () => setActiveView("dormitory") },
-        { icon: Package, label: "Inventory", active: activeView === "inventory", onClick: () => setActiveView("inventory") },
-        { icon: BookOpen, label: "Library", active: activeView === "library", onClick: () => setActiveView("library") },
-      ],
-    },
-    { icon: MessageSquare, label: "Engagement", active: activeView === "engagement", onClick: () => setActiveView("engagement") },
-    { icon: Sparkles, label: "AI Assistant", active: activeView === "ai", onClick: () => setActiveView("ai") },
-    { icon: MessageCircle, label: "Messages", href: "/messages" },
-    { icon: School, label: "Admins & Access", active: activeView === "leadership", onClick: () => setActiveView("leadership") },
-  ];
-  const bottomItems: RoleNavItem[] = [];
-  const communicationTotals = useMemo(() => { const s = data?.communicationSummary || {}; return { sent: s.SENT || 0, failed: s.FAILED || 0, blocked: s.BLOCKED || 0, noContact: s.NO_RECIPIENT || 0 }; }, [data]);
-
-  if (!data) {
-    return (
-      <RoleShellSkeleton navRows={8} label="Loading the academic command centre">
-        <CommandCentreSkeleton />
-      </RoleShellSkeleton>
-    );
-  }
-
-  const totalCollected = data.invoiceSummary?.byStatus?.reduce((sum: number, g: any) => { const paid = g.status === "PAID" || g.status === "PARTIAL"; return paid ? sum + (g._sum?.totalAmount || 0) : sum; }, 0) || 0;
+export default function PrincipalConsole() {
+  const { data, error, refetch } = usePrincipalData();
+  const { view, tab, setView, setTab, retiredNotice } = useConsoleView("principal");
+  const session = useShellSession();
 
   return (
-    <RoleShell navItems={navItems} bottomItems={bottomItems} eyebrow={`${data.schoolName} - ${data.campusName}`} userName={data.principalName} userRole="Principal Authority" avatarSeed={data.principalName} dashboardHref="/principal" logoUrl={data.logoUrl}>
-      <section className="bg-white rounded-[32px] shadow-[0_2px_8px_rgba(31,26,35,0.06),0_24px_60px_-24px_rgba(31,26,35,0.35)] flex-1 p-4 sm:p-5 overflow-y-auto custom-scrollbar">
-        {/* Academics is ten screens deep. This keeps them one click from each
-            other instead of one sidebar expansion away. */}
-        {ACADEMIC_VIEWS.has(activeView) ? (
-          <AcademicSubnav
-            active={activeView}
-            onNavigate={(v) => setActiveView(v as PrincipalView)}
-          />
-        ) : null}
-        {STAFF_VIEWS.has(activeView) ? (
-          <StaffSubnav
-            active={activeView}
-            onNavigate={(v) => setActiveView(v as PrincipalView)}
-          />
-        ) : null}
-        {STUDENT_VIEWS.has(activeView) ? (
-          <StudentSubnav
-            active={activeView}
-            onNavigate={(v) => setActiveView(v as PrincipalView)}
-          />
-        ) : null}
-        {activeView === "overview" ? (
-          <div className="space-y-6">
-            <AcademicOverview
-              data={data}
-              onNavigate={(view) => setActiveView(view as PrincipalView)}
-              onAddClass={() => setShowClassWizard(true)}
-              onAddStudent={data.classes.length > 0 ? () => openAdmissionForm() : undefined}
-            />
-            <OverviewPanel data={data} onViewReports={() => setActiveView("report-cards")} onComplete={() => { refetch(); }} />
-          </div>
-        ) : null}
-        {activeView === "leadership" ? (
-          <LeadershipPanel
+    <RoleShell
+      console="principal"
+      activeView={view}
+      onSelectView={setView}
+      userName={data?.principalName ?? session?.fullName}
+      avatarSeed={data?.principal?.email ?? data?.principalName ?? session?.fullName}
+      logoUrl={data?.logoUrl}
+      dashboardHref="/principal"
+    >
+      {/* The shell draws the one page card (addendum 2026-10-22); this is its scrolling body, with the shared padding. */}
+      <section className="flex min-h-0 flex-1 flex-col">
+        <div className={cn("custom-scrollbar flex-1 overflow-y-auto", PAGE_CARD_BODY)}>
+          <PrincipalWorkspace
             data={data}
-            onInviteAdmin={() => openAddStaff("CAMPUS_ADMIN")}
-            onInvitePrincipal={() => openAddStaff("PRINCIPAL")}
-            onInviteAccountant={() => openAddStaff("ACCOUNTANT")}
-            onInviteLibrarian={() => openAddStaff("LIBRARIAN")}
-            onInviteReceptionist={() => openAddStaff("RECEPTIONIST")}
-            onRemove={handleRemove}
-            onResend={handleResendInvite}
-            onCancel={handleCancelInvite}
-            onActivityLog={() => setShowActivityLogModal(true)}
+            loadError={error}
+            reload={refetch}
+            view={view}
+            tab={tab}
+            setView={setView}
+            setTab={setTab}
+            retiredNotice={retiredNotice}
           />
-        ) : null}
-        {activeView === "classes" ? (
-          <>
-          <TeacherConflictsBanner />
-          <AcademicPanel
-            classes={data.classes}
-            teachers={data.teachers}
-            students={data.students}
-            campusName={data.campusName}
-            onAddClass={() => setShowClassWizard(true)}
-            onAddStudent={openAdmissionForm}
-            onBulkImport={(classId) => {
-              setBulkImportClassId(classId || "");
-              setShowBulkImportModal(true);
-            }}
-            onViewClass={setSelectedClass}
-            onChangeTeacher={handleChangeClassTeacher}
-            onDeleteClass={handleDeleteClass}
-            onUpdateClass={handleUpdateClass}
-            onAddSection={handleAddSection}
-            onDeleteSubject={handleDeleteSubject}
-            onUpdateSubject={handleUpdateSubject}
-          />
-        </>
-        ) : null}
-        {activeView === "teachers" ? (
-          <FacultyPanel
-            teachers={data.teachers}
-            pendingInvites={data.pendingTeacherInvitations}
-            campusAdmins={data.campusAdmins}
-            pendingAdminInvites={data.pendingAdminInvitations}
-            onInvite={(role) => { if (role === "TEACHER") { setShowAddTeacherForm(true); } else { openAddStaff(role as "CAMPUS_ADMIN" | "PRINCIPAL"); } }}
-            onRemove={(id, label) => handleRemove(id, label)}
-            onViewTeacher={(teacher, visible) => {
-              setSelectedTeacher(teacher);
-              setTeacherSequence(visible || []);
-            }}
-            onResend={handleResendInvite}
-            onCancel={handleCancelInvite}
-          />
-        ) : null}
-        {activeView === "admission-queries" ? (
-          <AdmissionQueriesPanel
-            classes={data.classes}
-            version={admissionQueriesVersion}
-            onVersionBump={() => setAdmissionQueriesVersion((v) => v + 1)}
-            onConvert={openConvertQuery}
-          />
-        ) : null}
-        {activeView === "students" ? (
-          <StudentsPanel
-            students={data.students}
-            classes={data.classes}
-            onAddStudent={openAdmissionForm}
-            onViewStudent={(student, visible) => {
-              setSelectedStudent(student);
-              setStudentSequence(visible || []);
-            }}
-            onBulkImport={() => setShowBulkImportModal(true)}
-            onExport={exportStudentsCSV}
-            incomingFilter={rosterFilter}
-            onIncomingFilterApplied={() => setRosterFilter(null)}
-            onRefresh={refetch}
-          />
-        ) : null}
-        {activeView === "student-setup" ? <StudentSetupPanel
-              studentCount={data.students?.length}
-              onViewStudents={(filter) => {
-                setRosterFilter(filter);
-                setActiveView("students");
-              }}
-            /> : null}
-        {/*
-          Year-end work leads, matching /admin. This view is reached from a nav
-          item called "Promote Students", so opening on the archived list put
-          the promised action below the fold behind a list that is empty for
-          most of the year.
-        */}
-        {activeView === "promote-archive" ? (
-          <div className="space-y-6">
-            <div className="rounded-[32px] border border-[#cfc2d6]/25 bg-white p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#8127cf] to-[#55208b] text-white shadow-[0_6px_16px_-4px_rgba(129,39,207,0.5)]">
-                    <GraduationCap className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black tracking-tight text-[#1f1a23]">Year-End Promotion</h3>
-                    <p className="text-xs font-bold text-ink-muted">Batch promote students with final grades, pass/fail outcomes and fee carry-forward</p>
-                  </div>
-                </div>
-                <BrandButton variant="dark" icon={<ArrowRightLeft className="w-4 h-4" />} onClick={() => setActiveView("year-cycle")}>
-                  Open Promotion Wizard
-                </BrandButton>
-              </div>
-            </div>
-            <ArchivedStudentsPanel version={studentsVersion} onVersionBump={() => setStudentsVersion((v) => v + 1)} />
-          </div>
-        ) : null}
-        {activeView === "attendance" ? <UnifiedAttendancePanel /> : null}
-        {activeView === "staff-hierarchy" ? <StaffHierarchyPanel campusId={data.campusId} /> : null}
-
-        {activeView === "leave" ? <LeaveManagementPanel campusId={data.campusId} /> : null}
-
-        {activeView === "permissions" ? <RolePermissionsPanel /> : null}
-        {activeView === "year-cycle" ? (
-          <div className="space-y-8">
-            <CycleManagementPanel
-              campusId={data.campusId}
-              canForceClose
-              onNavigate={(v) => setActiveView(v as PrincipalView)}
-            />
-            <div className="border-t border-[#cfc2d6]/15 pt-6">
-              <h3 className="text-sm font-bold text-[#1d1b20] mb-4">Year History & Student Promotion</h3>
-              <AcademicYearPanel />
-            </div>
-          </div>
-        ) : null}
-        {activeView === "academic-hub" ? (
-          <AcademicHub
-            campusId={data.campusId}
-            onNavigate={(v) => setActiveView(v as PrincipalView)}
-          />
-        ) : null}
-
-        {activeView === "year-setup" ? (
-          <YearSetupWizard
-            campusId={data.campusId}
-            onComplete={() => setActiveView("academic-hub")}
-          />
-        ) : null}
-
-        {activeView === "exam-cycles" ? <ExamsWorkspace campusId={data.campusId} /> : null}
-
-        {activeView === "grading-rules" ? <GradingRulesPanel campusId={data.campusId} /> : null}
-        {activeView === "fees" ? <FeeOverviewTab /> : null}
-        {activeView === "timetable" ? <TimetableStudio campusId={data.campusId} /> : null}
-
-        {activeView === "class-rooms" ? <RoomsManager campusId={data.campusId} /> : null}
-
-        {activeView === "period-setup" ? <PeriodsPanel /> : null}
-
-        {activeView === "school-calendar" ? <AcademicCalendar campusId={data.campusId} role="PRINCIPAL" /> : null}
-        {activeView === "teacher-performance" ? <TeacherPerformancePanel /> : null}
-        {activeView === "report-cards" ? (
-          <div className="space-y-8">
-            <ReportsPanel data={data} busyAction={busyAction} editingReportId={editingReportId} editedRemarks={editedRemarks} onRunAction={runReportAction} onGenerateRemarks={runRemarkDrafts} onEdit={(report) => { setEditingReportId(report.id); setEditedRemarks({ en: report.remarksEn || "", ur: report.remarksUr || "" }); }} onCancelEdit={() => setEditingReportId(null)} onRemarkChange={setEditedRemarks} onSaveRemark={saveRemark} />
-            <ReportCardsPanel reports={data.recentReportCards} />
-          </div>
-        ) : null}
-        {activeView === "ai" ? <AIPanel features={principalAIFeatures} insights={data.aiInsights} reviewItems={data.pendingAIReviewItems} onComplete={() => { refetch(); }} title="Principal AI" /> : null}
-        {activeView === "engagement" ? <EngagementPanel data={data} totals={communicationTotals} busy={busyAction === "communications"} onRunAutomation={runAutomation} /> : null}
-
-        {activeView === "transport" ? <TransportPanel /> : null}
-        {activeView === "dormitory" ? <DormitoryPanel /> : null}
-        {activeView === "library" ? <LibraryPanel /> : null}
-        {activeView === "inventory" ? <InventoryPanel /> : null}
+        </div>
       </section>
-
-      {showClassWizard ? (
-        <CreateClassWizard
-          teachers={data.teachers || []}
-          classes={data.classes || []}
-          onClose={() => setShowClassWizard(false)}
-          onCreated={async () => {
-            setShowClassWizard(false);
-            await refetch();
-          }}
-        />
-      ) : null}
-      {showAdmissionForm && (
-        <AdmissionForm
-          classes={data.classes || []}
-          classGroups={groupClasses(data.classes || [])}
-          initialClassId={admissionClassId || undefined}
-          initialPrefill={convertingQuery ? {
-            fullName: convertingQuery.name,
-            guardianPhone: convertingQuery.phone,
-            guardianEmail: convertingQuery.email || "",
-          } : undefined}
-          onSuccess={handleAdmissionSuccess}
-          onClose={() => setShowAdmissionForm(false)}
-        />
-      )}
-      {selectedStudent && showMoveStudentModal ? <MoveStudentModal student={selectedStudent} classes={data.classes} classId={moveClassId} busy={movingStudentBusy} onClassChange={setMoveClassId} onSave={handleMoveStudent} onClose={() => { setShowMoveStudentModal(false); setSelectedStudent(null); }} /> : null}
-      {selectedClass ? (
-        <ClassDetailModal
-          cls={selectedClass}
-          students={data.students.filter((student: any) => student.class?.id === selectedClass.id)}
-          teachers={data.teachers}
-          classes={data.classes}
-          teacherBusy={savingClassTeacherId === selectedClass.id}
-          subjectBusyId={savingSubjectId}
-          creatingSubject={creatingSubjectClassId === selectedClass.id}
-          teachingModeBusy={applyingSubjectClassId === selectedClass.id}
-          classUpdateBusy={savingClassUpdate}
-          subjectUpdateBusyId={savingSubjectUpdateId}
-          onClose={() => setSelectedClass(null)}
-          onChangeTeacher={handleChangeClassTeacher}
-          onChangeTeachingMode={handleChangeTeachingMode}
-          onCreateSubject={handleCreateSubject}
-          onChangeSubjectTeacher={handleChangeSubjectTeacher}
-          onAddStudent={() => { setSelectedClass(null); openAdmissionForm(selectedClass.id); }}
-          onViewStudent={(student) => { setSelectedClass(null); setSelectedStudent(student); }}
-          onDeleteClass={handleDeleteClass}
-          onUpdateClass={handleUpdateClass}
-          onDeleteSubject={handleDeleteSubject}
-          onUpdateSubject={handleUpdateSubject}
-        />
-      ) : null}
-      {selectedStudent && !showMoveStudentModal ? (
-        <StudentDetailModal
-          student={selectedStudent}
-          busy={savingStudentUpdate}
-          sequence={studentSequence.map((s: any) => ({ id: s.id, label: s.fullName }))}
-          onNavigate={(id) => {
-            const next = studentSequence.find((s: any) => s.id === id);
-            if (next) setSelectedStudent(next);
-          }}
-          onUpdate={handleUpdateStudent}
-          onDelete={handleDeleteStudent}
-          onMove={() => { setMoveClassId(""); setShowMoveStudentModal(true); }}
-          onClose={() => { setSelectedStudent(null); }}
-        />
-      ) : null}
-      {selectedTeacher ? (
-        <TeacherDetailModal
-          teacher={selectedTeacher}
-          sequence={teacherSequence.map((t: any) => ({ id: t.id, label: t.fullName }))}
-          onNavigate={(id) => {
-            const next = teacherSequence.find((t: any) => t.id === id);
-            if (next) setSelectedTeacher(next);
-          }}
-          onUpdate={handleUpdateTeacher}
-          onClose={() => setSelectedTeacher(null)}
-        />
-      ) : null}
-      {showAddTeacherForm && (
-        <AddTeacherForm
-          onSuccess={() => { setShowAddTeacherForm(false); refetch(); }}
-          onClose={() => setShowAddTeacherForm(false)}
-        />
-      )}
-      {showAddAdminForm && (
-        <AddStaffForm role="CAMPUS_ADMIN" onSuccess={handleStaffAdded} onClose={() => setShowAddAdminForm(false)} />
-      )}
-      {showAddPrincipalForm && (
-        <AddStaffForm role="PRINCIPAL" onSuccess={handleStaffAdded} onClose={() => setShowAddPrincipalForm(false)} />
-      )}
-      {showAddAccountantForm && (
-        <AddStaffForm role="ACCOUNTANT" onSuccess={handleStaffAdded} onClose={() => setShowAddAccountantForm(false)} />
-      )}
-      {showAddLibrarianForm && (
-        <AddStaffForm role="LIBRARIAN" onSuccess={handleStaffAdded} onClose={() => setShowAddLibrarianForm(false)} />
-      )}
-      {showAddReceptionistForm && (
-        <AddStaffForm role="RECEPTIONIST" onSuccess={handleStaffAdded} onClose={() => setShowAddReceptionistForm(false)} />
-      )}
-      <BulkImportDialog
-        open={showBulkImportModal}
-        onOpenChange={setShowBulkImportModal}
-        classes={data.classes || []}
-        defaultClassId={bulkImportClassId || data.classes?.[0]?.id || ""}
-        onSuccess={refetch}
-      />
-      {showActivityLogModal ? <ActivityLogModal onClose={() => setShowActivityLogModal(false)} /> : null}
-      {showHelpModal ? <HelpModal onClose={() => setShowHelpModal(false)} /> : null}
-      <ConfirmAction open={!!confirmAction} title={confirmAction?.title || ""} description={confirmAction?.description || ""} confirmLabel={confirmAction?.confirmLabel} busy={confirmBusy} onConfirm={async () => { if (confirmAction) { await confirmAction.run(); setConfirmAction(null); } }} onCancel={() => setConfirmAction(null)} />
     </RoleShell>
   );
 }
 
-/** What the overview deck above does not cover: the review queue itself, and
- *  the two AI panels that act on it. */
-function OverviewPanel({ data, onViewReports, onComplete }: {
+/**
+ * §4.4b principal · Classes & subjects ("none" primary, Export secondary, one-sentence description). AcademicPanel
+ * (P5) owns the view's header; it gains `description` / `secondaryActions` for its WorkspaceHeader (P5 need in the
+ * P6 report). Typed here so the principal's Export and description render as soon as the panel forwards them.
+ */
+const HostedAcademicPanel = AcademicPanel as ComponentType<ComponentProps<typeof AcademicPanel> & { description?: string; secondaryActions?: PageAction[] }>;
+
+/* ────────────────────────── Workspace (inside RoleShell, so access is available) ────────────────────────── */
+
+function PrincipalWorkspace({
+  data,
+  loadError,
+  reload,
+  view,
+  tab,
+  setView,
+  setTab,
+  retiredNotice,
+}: {
   data: any;
-  onViewReports: () => void; onComplete: () => void | Promise<void>;
+  loadError: string | null;
+  reload: () => void;
+  view: string;
+  tab: string | null;
+  setView: (view: string, tab?: string | null) => void;
+  setTab: (tab: string | null) => void;
+  retiredNotice: string | null;
 }) {
-  return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-      <div className="xl:col-span-2">
-        <CollapsiblePanel icon={FileText} title="Report Card Queue" subtitle="Recent generated academic records"
-          headerRight={<BrandButton variant="soft" onClick={onViewReports} icon={<FileText className="w-4 h-4" />}>Open Review</BrandButton>} defaultOpen>
-          {data.recentReportCards.length > 0 ? (<div className="space-y-3">{data.recentReportCards.slice(0, 6).map((card: any, index: number) => (<div key={card.id} className="sk-rise flex items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-[#fbf0fe]/55 via-white to-[#fbf0fe]/20 border border-[#cfc2d6]/25 px-4 py-3" style={{ animationDelay: `${index * 60}ms` }}><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23] truncate">{card.student?.fullName || "Student"}</p><p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{card.exam?.title} · {card.grade || `${Math.round(card.percentage || 0)}%`}</p></div><StatusPill status={card.status} /></div>))}</div>) : (<EmptyState icon={FileText} title="No report cards yet" description="Locked exams and generated marks will appear here for academic review." />)}
-        </CollapsiblePanel>
-      </div>
-      <div className="space-y-6">
-        <div className="sk-rise bg-gradient-to-br from-white via-[#fbf0fe]/20 to-white p-6 rounded-[28px] border border-[#cfc2d6]/25 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] relative overflow-hidden transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: "240ms" }}><CornerSparkles /><AiActionPanel title="Principal AI" options={principalAIFeatures} compact onComplete={onComplete} /></div>
-        <div className="sk-rise bg-gradient-to-br from-[#fbf0fe]/40 via-[#fbf0fe]/20 to-white p-6 rounded-[28px] border border-[#8127cf]/10 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)] transition-all duration-300 hover:shadow-[0_10px_28px_-6px_rgba(31,26,35,0.14),0_22px_50px_-16px_rgba(129,39,207,0.32)] hover:border-[#8127cf]/25" style={{ animationDelay: "320ms" }}><div className="flex items-center gap-3 mb-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#8127cf]/10 to-[#b876f0]/10 text-[#8127cf] shadow-sm"><Sparkles className="w-5 h-5" /></div><p className="text-[10px] font-black text-ink-subtle uppercase tracking-wider">AI Review</p></div><AIReviewQueue items={data.pendingAIReviewItems} onComplete={onComplete} /></div>
-      </div>
+  const ui = useUiText();
+  const access = useConsoleAccess();
+  const accessMap = useNavigationAccess().access;
+  const session = useShellSession();
+
+  const leaf = leafForView("principal", view);
+  const title = leaf?.label ?? "Today";
+  const description = leaf?.summary;
+  const icon = leaf?.icon ?? FALLBACK_ICON[view] ?? LayoutDashboard;
+
+  // Read-only profile and class dialogs (the principal assigns teachers; campus ops edit records).
+  const [selectedClass, setSelectedClass] = useState<any>(null);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [studentSequence, setStudentSequence] = useState<any[]>([]);
+  const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
+  const [teacherSequence, setTeacherSequence] = useState<any[]>([]);
+  const [savingClassTeacherId, setSavingClassTeacherId] = useState<string | null>(null);
+  const [savingSubjectId, setSavingSubjectId] = useState<string | null>(null);
+  const [creatingSubjectClassId, setCreatingSubjectClassId] = useState<string | null>(null);
+  const [applyingSubjectClassId, setApplyingSubjectClassId] = useState<string | null>(null);
+  const [savingSubjectUpdateId, setSavingSubjectUpdateId] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<PendingConfirm>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  // Header actions owned by this page and carried out by the panel beneath it (§4.4: one PageHeader per view).
+  const [scheduleExamRequest, setScheduleExamRequest] = useState(0);
+  const [refreshExamsRequest, setRefreshExamsRequest] = useState(0);
+  const [noteRequest, setNoteRequest] = useState(0);
+  const [exportEvidenceRequest, setExportEvidenceRequest] = useState(0);
+  // Report cards (§4.4): the versions ticked across every exam's pipeline are approved from the PageHeader.
+  const [selections, setSelections] = useState<Record<string, ReportSelectionState>>({});
+  const [approveReportsRequest, setApproveReportsRequest] = useState(0);
+  const [previewReportsRequest, setPreviewReportsRequest] = useState(0);
+  const onReportSelection = useCallback((state: ReportSelectionState) => {
+    setSelections((previous) => {
+      const known = previous[state.examId];
+      if (known && known.selected === state.selected && known.canApprove === state.canApprove && known.reason === state.reason) return previous;
+      return { ...previous, [state.examId]: state };
+    });
+  }, []);
+  // Timetable & cover (§4.4): Publish (when a draft exists), Print, and Unpublish behind its confirmation.
+  const [timetableCommand, setTimetableCommand] = useState<TimetableCommand | undefined>(undefined);
+  const [timetableState, setTimetableState] = useState<TimetableDraftState | null>(null);
+  const onTimetableState = useCallback((_hasDraft: boolean, state: TimetableDraftState) => setTimetableState(state), []);
+  const runTimetable = (id: TimetableCommand["id"]) => setTimetableCommand((current) => ({ id, nonce: (current?.nonce ?? 0) + 1 }));
+  // Curriculum & grading (§4.4b): Save (or Approve, once the draft is saved and reviewed) and Change history.
+  const [modelCommand, setModelCommand] = useState<AcademicModelCommand | undefined>(undefined);
+  const [modelState, setModelState] = useState<AcademicModelActionState | null>(null);
+  const runModel = (id: AcademicModelCommand["id"]) => setModelCommand((current) => ({ id, nonce: (current?.nonce ?? 0) + 1 }));
+  // Promotion approval (§4.4b): Approve plan (ConfirmAction) and Preview.
+  const [approvePlanRequest, setApprovePlanRequest] = useState(0);
+  const [previewPlanRequest, setPreviewPlanRequest] = useState(0);
+  const [planState, setPlanState] = useState<RolloverApprovalState | null>(null);
+  // Academic year (§4.4b): Close year (ConfirmAction), Checklist, and Close anyway (reason) in the overflow.
+  const [yearCommand, setYearCommand] = useState<YearCloseCommand | undefined>(undefined);
+  const [closure, setClosure] = useState<YearClosureState | null>(null);
+  const runYear = (id: YearCloseCommand["id"]) => setYearCommand((current) => ({ id, nonce: (current?.nonce ?? 0) + 1 }));
+  // Attendance and Report delivery (§4.4b): read-only views whose Export (and Refresh) sit in the PageHeader.
+  const [attendanceExport, setAttendanceExport] = useState(0);
+  const [engagementCommand, setEngagementCommand] = useState<EngagementCommand | undefined>(undefined);
+  const runEngagement = (id: EngagementCommand["id"]) => setEngagementCommand((current) => ({ id, nonce: (current?.nonce ?? 0) + 1 }));
+  // A view reports its header state when it mounts; nothing from a previous visit may show in the meantime.
+  // Reset while rendering (not in an effect): child effects run before the parent's, so an effect here would wipe
+  // the state the newly mounted panel had just reported.
+  const [headerStateView, setHeaderStateView] = useState(view);
+  if (headerStateView !== view) {
+    setHeaderStateView(view);
+    setSelections({}); setTimetableState(null); setModelState(null); setPlanState(null); setClosure(null);
+  }
+  const { leafVisible } = access;
+  const canOpen = useCallback((next: string) => leafVisible("principal", next), [leafVisible]);
+
+  // A link to one exam's report cards opens the view with that exam first and in view.
+  const examParam = useExamParam();
+  const reviewReady = Boolean(data);
+  useEffect(() => {
+    if (view !== "report-cards" || !examParam || !reviewReady) return;
+    const node = document.getElementById(`report-exam-${examParam}`);
+    node?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  }, [view, examParam, reviewReady]);
+
+  /* ── Academic staffing (class and subject teachers, teaching mode, subjects) ── */
+  const patchJson = async (url: string, body: Record<string, unknown>, method = "PATCH") => {
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof result.error === "string" ? result.error : "");
+    return result;
+  };
+
+  const handleChangeClassTeacher = async (classId: string, teacherId: string) => {
+    setSavingClassTeacherId(classId);
+    try {
+      const result = await patchJson("/api/classes", { id: classId, classTeacherId: teacherId || null });
+      toast.success(ui("Class teacher updated"));
+      (result.clashes || []).forEach((c: { message: string }) => toast.warning(c.message));
+      await reload();
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not change the class teacher. Please try again.")));
+    } finally {
+      setSavingClassTeacherId(null);
+    }
+  };
+
+  const saveSubjectTeacher = async (subjectId: string, teacherId: string, effectiveFrom?: string) => {
+    setSavingSubjectId(subjectId);
+    try {
+      const result = await patchJson("/api/subjects", { id: subjectId, teacherId: teacherId || null, ...(effectiveFrom ? { effectiveFrom } : {}) });
+      toast.success(ui("Subject teacher updated"));
+      (result.clashes || []).forEach((c: { message: string }) => toast.warning(c.message));
+      await reload();
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not change the subject teacher. Please try again.")));
+    } finally {
+      setSavingSubjectId(null);
+    }
+  };
+
+  const handleChangeSubjectTeacher = async (_classId: string, subjectId: string, teacherId: string, effectiveFrom?: string) => {
+    // SKO-462: a scheduled or already-marked subject shows what moves before the teacher changes.
+    const impact = await fetchAcademicImpact("subject", subjectId).catch(() => null);
+    if (impact && (impact.counts.timetableSlots || impact.counts.marks)) {
+      setConfirm({
+        title: ui("Change the teacher of {0}?", [impact.label]),
+        description: teacherChangeText(impact, ui, effectiveFrom),
+        confirmLabel: ui("Change teacher"),
+        tone: "warning",
+        run: () => saveSubjectTeacher(subjectId, teacherId, effectiveFrom),
+      });
+      return;
+    }
+    await saveSubjectTeacher(subjectId, teacherId, effectiveFrom);
+  };
+
+  // Switching to SINGLE makes the API propagate the class teacher across every subject in one call.
+  const handleChangeTeachingMode = async (classId: string, mode: "SINGLE" | "SUBJECT") => {
+    setApplyingSubjectClassId(classId);
+    try {
+      const result = await patchJson("/api/classes", { id: classId, teachingMode: mode });
+      toast.success(ui(mode === "SINGLE" ? "All subjects now follow the class teacher" : "Each subject can now have its own teacher"));
+      (result.clashes || []).forEach((c: { message: string }) => toast.warning(c.message));
+      await reload();
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not change the teaching mode. Please try again.")));
+    } finally {
+      setApplyingSubjectClassId(null);
+    }
+  };
+
+  const handleCreateSubject = async (classId: string, subject: { name: string; totalMarks: number; teacherId: string; applyToAllSections?: boolean }) => {
+    if (!subject.name.trim()) { toast.error(ui("Subject name is required")); return false; }
+    setCreatingSubjectClassId(classId);
+    try {
+      const result = await patchJson("/api/subjects", { classId, name: subject.name.trim(), totalMarks: subject.totalMarks || 100, teacherId: subject.teacherId || undefined, applyToAllSections: subject.applyToAllSections || undefined }, "POST");
+      toast.success(result.createdCount > 1 ? ui("Subject added to {0} sections", [String(result.createdCount)]) : ui("Subject added"));
+      await reload();
+      return true;
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not add the subject. Please try again.")));
+      return false;
+    } finally {
+      setCreatingSubjectClassId(null);
+    }
+  };
+
+  const handleUpdateSubject = async (_classId: string, subjectId: string, updates: { name?: string; totalMarks?: number }) => {
+    setSavingSubjectUpdateId(subjectId);
+    try {
+      await patchJson("/api/subjects", { id: subjectId, ...updates });
+      toast.success(ui("Subject updated"));
+      await reload();
+    } catch (e) {
+      toast.error(friendlyErrorMessage(e, ui("Could not save the subject. Please try again.")));
+    } finally {
+      setSavingSubjectUpdateId(null);
+    }
+  };
+
+  const handleDeleteSubject = async (subject: any) => {
+    // SKO-462: the real impact, fetched before anything is confirmed (marks are never silently removed).
+    const impact = await fetchAcademicImpact("subject", subject.id).catch((e: Error) => { toast.error(friendlyErrorMessage(e)); return null; });
+    if (!impact) return;
+    const blocked = Boolean(impact.counts.marks || impact.counts.exams || impact.counts.examSchedules);
+    setConfirm({
+      title: ui("Delete {0}?", [subject.name]),
+      description: subjectRemovalText(impact, ui),
+      confirmLabel: blocked ? ui("Close") : ui("Delete subject"),
+      tone: blocked ? "primary" : "danger",
+      run: async () => {
+        if (blocked) return;
+        const res = await fetch(`/api/subjects?id=${encodeURIComponent(subject.id)}`, { method: "DELETE" });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) { toast.error(friendlyErrorMessage(new Error(typeof result.error === "string" ? result.error : ""), ui("Could not delete the subject. Please try again."))); return; }
+        toast.success(ui("Subject deleted"));
+        await reload();
+      },
+    });
+  };
+
+  // §4.4b principal · Classes & subjects: Export (secondary) — one row per section with its staffing gaps.
+  const exportClasses = () => {
+    const rows = (data?.classes ?? []).map((c: any) => {
+      const subjects: any[] = c.subjects ?? [];
+      return [c.name ?? "", c.section ?? "", String(c.academicYear ?? ""), c.classTeacher?.fullName ?? "", String(subjects.length), String(subjects.filter((s) => !s.teacher && !s.teacherId).length), String((c.students ?? []).length)];
+    });
+    downloadCSV(`classes-${data?.campusName ?? "campus"}.csv`, [[ui("Class"), ui("Section"), ui("Academic year"), ui("Class teacher"), ui("Subjects"), ui("Subjects without a teacher"), ui("Students")], ...rows]);
+  };
+
+  const exportTeachers = () => {
+    const rows = (data?.teachers ?? []).map((t: any) => [t.fullName ?? "", t.email ?? "", (t.taughtSubjects ?? []).map((s: any) => s.name ?? s).join("; "), (t.ledClasses ?? []).map((c: any) => [c.name, c.section].filter(Boolean).join(" ")).join("; ")]);
+    downloadCSV(`teachers-${data?.campusName ?? "campus"}.csv`, [[ui("Teacher"), ui("Email"), ui("Subjects"), ui("Class teacher of")], ...rows]);
+  };
+
+  /* ── Frame states ── */
+  // Shaped like the view being opened (addendum 2026-10-22, point 3): Today's tiles and charts, otherwise a
+  // PageHeader over a list. The access provider keeps confirmed access for the session, so this shows on the very
+  // first load only — never again on a ?view switch or window focus.
+  const viewSkeleton = view === "overview" ? <CommandCentreSkeleton tiles={4} /> : <PageSkeleton />;
+  if (!access.ready) return viewSkeleton;
+  if (!data) {
+    if (loadError) {
+      return (
+        <ErrorState
+          title={ui("The academic console could not be loaded")}
+          description={ui("Check your connection and try again. Nothing you entered was lost.")}
+          onRetry={reload}
+        />
+      );
+    }
+    return viewSkeleton;
+  }
+
+  const frame = (node: React.ReactNode, opts: { primaryAction?: PageAction; secondaryActions?: PageAction[]; status?: React.ReactNode; tabs?: React.ReactNode; description?: string } = {}) => (
+    <div className="space-y-5">
+      <PageHeader
+        title={title}
+        description={opts.description ?? description}
+        icon={icon}
+        primaryAction={opts.primaryAction}
+        secondaryActions={opts.secondaryActions}
+        status={opts.status}
+        tabs={opts.tabs}
+      />
+      <DegradedNotice degraded={data.degraded} onRetry={reload} />
+      {node}
     </div>
   );
-}
 
-function FacultyPanel({ teachers, pendingInvites, campusAdmins, pendingAdminInvites, onInvite, onRemove, onViewTeacher, onResend, onCancel }: {
-  teachers: any[]; pendingInvites: any[]; campusAdmins: any[]; pendingAdminInvites: any[];
-  onInvite: (role: string) => void; onRemove: (id: string, label: string) => void;
-  /** Receives the teacher and the list currently on screen, so the profile
-   *  dialog can step through it. */
-  onViewTeacher: (teacher: any, visible?: any[]) => void;
-  onResend: (id: string) => void; onCancel: (id: string) => void;
-}) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const filtered = teachers.filter((t) => { if (!searchQuery.trim()) return true; const q = searchQuery.toLowerCase(); return t.fullName?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q); });
-  if (teachers.length === 0 && pendingInvites.length === 0 && campusAdmins.length === 0 && pendingAdminInvites.length === 0) return (<EmptyState icon={Users} title="No faculty records found" description="Invite teachers so subjects and classes can be assigned from the central model." action={<BrandButton onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>} />);
-  return (
-    <div className="space-y-8">
-      <div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-gradient-to-br from-[#fbf0fe]/30 via-white to-[#fbf0fe]/20 p-6 shadow-[0_4px_16px_-4px_rgba(31,26,35,0.10),0_12px_32px_-12px_rgba(129,39,207,0.20)]" style={{ animationDelay: "80ms" }}>
-        <div className="flex items-center justify-between gap-4 mb-5"><PanelTitle icon={ShieldCheck} title="Campus Admins" /><div className="flex gap-2"></div></div>
-        {campusAdmins.length > 0 ? (<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{campusAdmins.map((admin: any) => (<AdminRow key={admin.id} admin={admin} onRemove={admin.id ? () => onRemove(admin.id, "Admin") : undefined} />))}</div>) : null}
-        {pendingAdminInvites.length > 0 ? (<div className="mt-4 space-y-2"><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle px-2">Pending Invitations</p>{pendingAdminInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div>) : null}
-        {campusAdmins.length === 0 && pendingAdminInvites.length === 0 ? (<p className="rounded-2xl bg-white/70 px-4 py-3 text-[10px] font-bold text-ink-subtle">No admins yet. Invite campus administrators to manage this campus.</p>) : null}
-      </div>
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-          <PanelTitle icon={Users} title="Teacher Profiles" />
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 h-12 shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-ink-subtle"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg><input type="text" placeholder="Search teachers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="ml-2 h-full w-40 bg-transparent border-none outline-none text-sm font-bold placeholder:text-ink-subtle" /></div>
-            <BrandButton variant="soft" onClick={() => onInvite("TEACHER")}>Add Teacher</BrandButton>
+  const pickTab = (items: ViewTabItem[]) => (items.some((item) => item.id === tab) ? (tab as string) : items[0].id);
+
+  let content: React.ReactNode;
+  switch (view) {
+    /* ── Today ── */
+    case "overview": {
+      const waiting = Number(data.pendingRemarkReviews ?? 0);
+      const aiWaiting = Number(data.pendingAIReviews ?? 0);
+      // §2.6: a GROUP campus without an active campus admin is a vacancy the group admin fills; the principal
+      // never gains campus operations, so say plainly what waits.
+      // Only an explicit `false` from the server counts (a missing key must never raise a false alarm).
+      const vacancy = accessMap?.hasCampusAdmin === false && session?.institution?.kind === "GROUP";
+      const authorityName = session?.institution?.authorityName ?? null;
+      // §4.5.11: a secondary never leads into an access notice — each is offered only while its view is open.
+      const secondary: PageAction[] = [];
+      if (canOpen("timetable")) secondary.push({ id: "open-timetable", label: "Open timetable", icon: CalendarRange, onClick: () => setView("timetable") });
+      if (aiWaiting > 0 && canOpen("ai")) secondary.push({ id: "ai-drafts", label: ui("AI drafts waiting ({0})", [aiWaiting]), icon: Sparkles, onClick: () => setView("ai") });
+      // Addendum 2026-10-22 — the two flagships lead Today for the academic lead: AI Workflows (/ai) and Exam
+      // Studio (/ai/studio). The principal is not the institution authority, so the school-setup questionnaire is
+      // never offered here; the screen's one primary stays "Review report cards".
+      const showAiCard = canOpen("ai-workflows");
+      const showExamCard = canOpen("exam-studio");
+      const flagships = showAiCard || showExamCard ? (
+        <div className={cn("grid gap-4", showAiCard && showExamCard && "lg:grid-cols-2")}>
+          {/* AI Workflows first-login sheet (Slice 7); hidden once ready or set aside. */}
+          {showAiCard ? <div className={cn(showExamCard && "lg:col-span-2")}><SetupPrompt /></div> : null}
+          {showAiCard ? (
+            <FlagshipCard
+              kind="ai-workflows"
+              title="AI Workflows"
+              description="Let AI draft timetables, exam sessions and announcements for your campus. You review every draft, and nothing applies until you approve it."
+              action={{ label: "Run an AI workflow", href: "/ai" }}
+              tourAnchor="principal.today.flagship-ai"
+            />
+          ) : null}
+          {showExamCard ? (
+            <FlagshipCard
+              kind="exam-studio"
+              title="Exam Studio"
+              description="Create an exam with AI from your source material, review the paper, then deliver it securely and mark it."
+              action={{ label: "Create an exam in Exam Studio", href: "/ai/studio" }}
+              tourAnchor="principal.today.flagship-exams"
+            />
+          ) : null}
+        </div>
+      ) : null;
+      content = frame(
+        <>
+          {flagships}
+          <ActionQueue campusId={data.campusId} />
+          <AcademicOverview data={data} variant="principal" onNavigate={(next) => setView(next)} canOpen={canOpen} />
+        </>,
+        {
+          primaryAction: access.has("reports")
+            ? { id: "review-report-cards", label: waiting > 0 ? ui("Review report cards ({0})", [waiting]) : "Review report cards", icon: ClipboardList, onClick: () => setView("report-cards") }
+            : undefined,
+          secondaryActions: secondary,
+          status: retiredNotice || vacancy ? (
+            <div className="space-y-2">
+              {retiredNotice ? <Alert tone="info" live="polite" compact>{ui(retiredNotice)}</Alert> : null}
+              {vacancy ? (
+                <Alert tone="warning" live="off" icon={AlertTriangle} title={ui("No campus admin is appointed")}>
+                  {authorityName
+                    ? ui("Admissions, fee approvals and campus setup wait until {0} appoints one.", [authorityName])
+                    : ui("Admissions, fee approvals and campus setup wait until your group admin appoints one.")}
+                </Alert>
+              ) : null}
+            </div>
+          ) : undefined,
+        },
+      );
+      break;
+    }
+
+    /* ── Results ── */
+    case "report-cards": {
+      const waitingExams: any[] = data.reviewExams ?? [];
+      // `?exam=<id>` (job and notification links): that exam first and outlined; the rest keep their order.
+      const exams = examParam ? [...waitingExams.filter((exam) => exam.id === examParam), ...waitingExams.filter((exam) => exam.id !== examParam)] : waitingExams;
+      const linkedGone = Boolean(examParam) && !waitingExams.some((exam) => exam.id === examParam);
+      // §4.4: "Approve selected" approves the versions ticked in every exam below; "Preview release" opens the
+      // first ticked version beside the last approved one (else the first exam's first version).
+      const picked = exams.filter((exam) => (selections[exam.id]?.selected ?? 0) > 0);
+      const selectedCount = picked.reduce((sum, exam) => sum + (selections[exam.id]?.selected ?? 0), 0);
+      const blockedBy = picked.map((exam) => selections[exam.id]).find((state) => state && !state.canApprove)?.reason ?? null;
+      const previewExamId = picked[0]?.id ?? exams[0]?.id ?? null;
+      content = frame(
+        exams.length ? (
+          <div className="space-y-6">
+            {exams.map((exam, index) => (
+              <div key={exam.id} id={`report-exam-${exam.id}`} className={cn("sk-panel scroll-mt-4 p-4 sm:p-5", exam.id === examParam && "ring-2 ring-primary/40")}>
+                {/* §9.4: the spotlight anchor stays unique on the page — the first pipeline carries it. */}
+                <ReportCardPipeline
+                  exam={exam}
+                  campusId={data.campusId}
+                  mode="lead"
+                  tourAnchor={index === 0}
+                  hideApprove
+                  approveRequest={approveReportsRequest}
+                  previewRequest={exam.id === previewExamId ? previewReportsRequest : undefined}
+                  onSelectionChange={onReportSelection}
+                  onChanged={() => void reload()}
+                />
+              </div>
+            ))}
           </div>
+        ) : (
+          <EmptyState
+            icon={ClipboardList}
+            title={ui("No exams ready for review")}
+            description={ui("An exam appears here once its marks are locked.")}
+            action={access.has("exams") ? <Button variant="outline" type="button" onClick={() => setView("exam-cycles")}>{ui("Open Exams & results")}</Button> : undefined}
+          />
+        ),
+        {
+          description: description ?? "Approve report versions; the office then sends them to families.",
+          primaryAction: exams.length ? {
+            id: "approve-selected",
+            label: selectedCount > 0 ? ui("Approve selected ({0})", [selectedCount]) : "Approve selected",
+            icon: CheckCheck,
+            disabled: selectedCount === 0 || Boolean(blockedBy),
+            disabledReason: blockedBy ?? "Tick the report versions to approve first.",
+            onClick: () => setApproveReportsRequest((n) => n + 1),
+          } : undefined,
+          secondaryActions: exams.length ? [{ id: "preview-release", label: "Preview release", icon: Eye, onClick: () => setPreviewReportsRequest((n) => n + 1) }] : undefined,
+          status: linkedGone ? <Alert tone="info" live="polite" compact>{ui("That exam's report cards are no longer waiting for your review.")}</Alert> : undefined,
+        },
+      );
+      break;
+    }
+
+    case "exam-cycles": {
+      const items: ViewTabItem[] = [
+        { id: "exams", label: "Exams" },
+        { id: "shared-questions", label: "Shared questions" },
+      ];
+      const active = pickTab(items);
+      const examsTab = active === "exams";
+      content = frame(
+        examsTab
+          ? <ExamsWorkspace campusId={data.campusId} hideActions scheduleRequest={scheduleExamRequest} refreshRequest={refreshExamsRequest} />
+          : <QuestionNetwork />,
+        {
+          description: description ?? "Schedule exams, lock marks, review and publish results.",
+          // §4.4: Schedule exam (primary) and Refresh belong to the Exams tab; shared questions are a queue.
+          primaryAction: examsTab ? { id: "schedule-exam", label: "Schedule exam", icon: Plus, onClick: () => setScheduleExamRequest((n) => n + 1) } : undefined,
+          secondaryActions: examsTab ? [{ id: "refresh-exams", label: "Refresh", icon: RefreshCw, onClick: () => setRefreshExamsRequest((n) => n + 1) }] : undefined,
+          tabs: <ViewTabs items={items} value={active} onChange={setTab} ariaLabel="Exams sections" />,
+        },
+      );
+      break;
+    }
+
+    /* ── Teaching ── */
+    case "timetable": {
+      // §4.4: Publish only while the chosen class has a draft (disabled with its reason while edits are unsaved);
+      // Print always; Unpublish (ConfirmAction inside the studio) only for a published timetable.
+      const tt = timetableState;
+      const secondaries: PageAction[] = [{ id: "print-timetable", label: "Print", icon: Printer, onClick: () => runTimetable("print") }];
+      if (tt?.published) secondaries.push({ id: "unpublish-timetable", label: "Unpublish", tone: "danger", onClick: () => runTimetable("unpublish") });
+      content = frame(<TimetableStudio campusId={data.campusId} hideActions command={timetableCommand} onDraftState={onTimetableState} />, {
+        description: description ?? "Build and publish the timetable and arrange cover.",
+        primaryAction: tt?.hasDraft ? {
+          id: "publish-timetable",
+          label: "Publish",
+          icon: Upload,
+          disabled: !tt.canPublish,
+          disabledReason: tt.unsavedChanges > 0 ? "Save your changes before you publish." : "Open the class view of a timetable to publish it.",
+          onClick: () => runTimetable("publish"),
+        } : undefined,
+        secondaryActions: secondaries,
+      });
+      break;
+    }
+
+    case "classes":
+      content = (
+        <div className="space-y-5">
+          <HostedAcademicPanel
+            title={title}
+            headingLevel={1}
+            description={description ?? "Assign class and subject teachers. Your campus admin creates and archives classes."}
+            secondaryActions={[{ id: "export-classes", label: "Export", icon: Download, onClick: exportClasses, disabled: !(data.classes ?? []).length }]}
+            // §4.3: the panel's header is the view's one h1; the conflicts banner sits under it, never above.
+            notice={<TeacherConflictsBanner />}
+            classes={data.classes ?? []}
+            teachers={data.teachers ?? []}
+            students={data.students ?? []}
+            campusName={data.campusName}
+            // Creating, renaming, sectioning and archiving classes and enrolling students are campus operations
+            // (G23); without onAddClass / onAddStudent / onDeleteClass / onUpdateClass the panel renders none of
+            // those controls.
+            onViewClass={setSelectedClass}
+            onChangeTeacher={handleChangeClassTeacher}
+            onDeleteSubject={handleDeleteSubject}
+            onUpdateSubject={handleUpdateSubject}
+          />
         </div>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((teacher: any) => (<FacultyRow key={teacher.id} teacher={teacher} onView={() => onViewTeacher(teacher, filtered)} onRemove={() => onRemove(teacher.id, "Teacher")} />))}
-          {filtered.length === 0 ? (<div className="md:col-span-2 xl:col-span-3"><EmptyState icon={Users} title={searchQuery ? "No matching teachers" : "No active teachers"} description={searchQuery ? "Try a different search term." : "Assigned teachers will appear here for principal oversight."} /></div>) : null}
+      );
+      break;
+
+    case "academic-rules": {
+      const items: ViewTabItem[] = [
+        { id: "curriculum", label: "Curriculum" },
+        { id: "grading", label: "Grading rules" },
+      ];
+      const active = pickTab(items);
+      const curriculum = active === "curriculum";
+      // §4.4b: on the curriculum tab the one primary follows the workflow — Save draft while there are edits,
+      // then Approve once the saved draft has been reviewed; Change history jumps to the version list. Grading
+      // rules are edited class by class in their own dialog, which carries its own Save.
+      const ms = modelState;
+      const modelPrimary: PageAction | undefined = !curriculum || !ms ? undefined
+        : ms.next === "approve"
+          ? { id: "approve-model", label: "Approve version", icon: ShieldCheck, disabled: !ms.canApprove || ms.busy, disabledReason: ms.approveReason ?? undefined, onClick: () => runModel("approve") }
+          : { id: "save-model", label: "Save draft", icon: CheckCheck, disabled: !ms.canSave || ms.busy, disabledReason: ms.saveReason ?? undefined, onClick: () => runModel("save") };
+      content = frame(
+        active === "grading"
+          ? <GradingRulesPanel campusId={data.campusId} hideHeading />
+          : <AcademicModelPanel campusId={data.campusId} hideHeading hideActions command={modelCommand} onActionState={setModelState} />,
+        {
+          description: description ?? "The curriculum model, terms and how marks become grades.",
+          primaryAction: modelPrimary,
+          secondaryActions: curriculum ? [{ id: "model-history", label: "Change history", icon: History, onClick: () => runModel("history") }] : undefined,
+          tabs: <ViewTabs items={items} value={active} onChange={setTab} ariaLabel="Curriculum and grading sections" />,
+        },
+      );
+      break;
+    }
+
+    case "school-calendar":
+      content = frame(<AcademicCalendar campusId={data.campusId} role="PRINCIPAL" readOnly />, {
+        description: description ?? "Terms, holidays and exam dates. Your campus admin keeps the calendar.",
+        secondaryActions: [{ id: "print", label: "Print", icon: Printer, onClick: () => window.print() }],
+      });
+      break;
+
+    /* ── Teachers ── */
+    case "teachers":
+      content = frame(
+        <FacultyPanel
+          teachers={data.teachers ?? []}
+          pendingInvites={[]}
+          canInvite={false}
+          onInvite={() => undefined}
+          onRemove={() => undefined}
+          onResend={() => undefined}
+          onCancel={() => undefined}
+          onViewTeacher={(teacher, visible) => { setSelectedTeacher(teacher); setTeacherSequence(visible || []); }}
+        />,
+        {
+          description: description ?? "Who teaches what on this campus. Your campus admin invites staff and keeps their records.",
+          secondaryActions: [{ id: "export-teachers", label: "Export", icon: Download, onClick: exportTeachers, disabled: !(data.teachers ?? []).length }],
+        },
+      );
+      break;
+
+    case "teacher-performance":
+      content = frame(<TeacherPerformancePanel hideHeading noteRequest={noteRequest} exportRequest={exportEvidenceRequest} />, {
+        description: description ?? "Record teaching evidence and support notes for each teacher.",
+        // §4.4b: Add note (primary) for the chosen teacher; Export the rows on screen.
+        primaryAction: { id: "add-note", label: "Add note", icon: Plus, onClick: () => setNoteRequest((n) => n + 1) },
+        secondaryActions: [{ id: "export-evidence", label: "Export", icon: Download, onClick: () => setExportEvidenceRequest((n) => n + 1) }],
+      });
+      break;
+
+    case "leave":
+      // The leave panel hosts its own PageHeader; the principal decides teaching-staff leave only (G36).
+      content = (
+        <LeaveManagementPanel
+          campusId={data.campusId}
+          tabs={["queue"]}
+          title={title}
+          description="Decide teachers' leave with cover in mind. Office staff leave goes to your campus admin."
+        />
+      );
+      break;
+
+    /* ── Learners ── */
+    case "students":
+      content = (
+        <div className="space-y-6">
+          <StudentsPanel
+            readOnly
+            title={title}
+            headingLevel={1}
+            students={data.students ?? []}
+            classes={data.classes ?? []}
+            onViewStudent={(student, visible) => { setSelectedStudent(student); setStudentSequence(visible || []); }}
+            onExport={(visible) => exportStudentsToCSV(visible ?? data.students ?? [], data.campusName)}
+            onRefresh={reload}
+          />
+          <PathwayPanel />
         </div>
-        {pendingInvites.length > 0 ? (<div className="mt-6 space-y-2"><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle px-2">Pending Teacher Invitations ({pendingInvites.length})</p><div className="space-y-2">{pendingInvites.map((invite: any) => (<PendingFacultyRow key={invite.inviteId || invite.id} invite={invite} onResend={() => onResend(invite.inviteId || invite.id)} onCancel={() => onCancel(invite.inviteId || invite.id)} />))}</div></div>) : null}
-      </div>
-    </div>
+      );
+      break;
+
+    case "attendance":
+      content = frame(<UnifiedAttendancePanel tabs={["students"]} exportRequest={attendanceExport} />, {
+        description: description ?? "Today's registers, absences and the classes still to mark.",
+        secondaryActions: [{ id: "export-attendance", label: "Export", icon: Download, onClick: () => setAttendanceExport((n) => n + 1) }],
+      });
+      break;
+
+    case "learning-actions":
+      content = frame(<LearningActions mode="review" />, {
+        description: description ?? "Activate the support plans teachers propose for students.",
+      });
+      break;
+
+    case "promote-archive": {
+      // §4.4b: Approve plan (ConfirmAction inside the review) as the primary, disabled with its reason until the
+      // plan is approvable; Preview shows every learner's decision.
+      const ps = planState;
+      content = frame(
+        <RolloverReview
+          campusId={data.campusId}
+          mode="approve"
+          hideApprove
+          approveRequest={approvePlanRequest}
+          previewRequest={previewPlanRequest}
+          onApprovalState={setPlanState}
+        />,
+        {
+          description: description ?? "Review the promotion plan your campus admin prepared and approve the exact version.",
+          primaryAction: ps?.approver ? {
+            id: "approve-plan",
+            label: ps.version ? ui("Approve plan (version {0})", [ps.version]) : "Approve plan",
+            icon: ShieldCheck,
+            disabled: !ps.canApprove,
+            disabledReason: ps.reason ?? undefined,
+            onClick: () => setApprovePlanRequest((n) => n + 1),
+          } : undefined,
+          secondaryActions: ps?.hasPlan ? [{ id: "preview-plan", label: "Preview", icon: Eye, onClick: () => setPreviewPlanRequest((n) => n + 1) }] : undefined,
+        },
+      );
+      break;
+    }
+
+    case "year-cycle": {
+      // §4.4b: Close year (ConfirmAction) as the primary — disabled with its reason until the checklist is green;
+      // Checklist and Refresh as secondaries; "Close anyway…" (typed reason) in the overflow for the academic lead.
+      // M56: the "Next-year planning" tab shows the campus admin's capacity scenarios read-only.
+      const items: ViewTabItem[] = [
+        { id: "close", label: "Close the year" },
+        { id: "planning", label: "Next-year planning" },
+      ];
+      const active = pickTab(items);
+      const cs = closure;
+      const closing = active === "close";
+      const yearSecondaries: PageAction[] = [];
+      if (closing && cs?.hasOpenYear) {
+        yearSecondaries.push({ id: "year-checklist", label: "Checklist", icon: ListChecks, onClick: () => runYear("focus") });
+        yearSecondaries.push({ id: "year-refresh", label: "Refresh checklist", icon: RefreshCw, onClick: () => runYear("refresh") });
+        if (cs.canForce) yearSecondaries.push({ id: "year-force", label: "Close anyway…", tone: "danger", onClick: () => runYear("force") });
+      }
+      content = frame(
+        closing ? (
+          <CycleManagementPanel
+            campusId={data.campusId}
+            canForceClose={access.has("academicLead")}
+            canManageCycles={false}
+            onNavigate={(next) => setView(next)}
+            canOpen={canOpen}
+            hideCloseActions
+            closeCommand={yearCommand}
+            onClosureState={setClosure}
+          />
+        ) : <ScenarioPlanner readOnly />,
+        {
+          description: description ?? "Close the academic year when its checklist is complete.",
+          primaryAction: closing && cs?.hasOpenYear ? {
+            id: "close-year",
+            label: "Close year",
+            icon: ShieldCheck,
+            disabled: !cs.ready || cs.loading,
+            disabledReason: "Finish the checklist below before closing the year.",
+            onClick: () => runYear("close"),
+          } : undefined,
+          secondaryActions: yearSecondaries.length ? yearSecondaries : undefined,
+          tabs: <ViewTabs items={items} value={active} onChange={setTab} ariaLabel="Academic year sections" />,
+        },
+      );
+      break;
+    }
+
+    /* ── More ── */
+    case "ai":
+      content = frame(
+        <AiWorkflowsHome
+          title="AI assistant"
+          hideHeading
+          features={PRINCIPAL_AI_FEATURES}
+          insights={data.aiInsights}
+          reviewItems={data.pendingAIReviewItems ?? []}
+          campusId={data.campusId}
+          onComplete={() => void reload()}
+        />,
+        {
+          description: description ?? "Draft insights and review AI-written remarks before families see them.",
+          primaryAction: {
+            id: "new-ai-request",
+            label: "New request",
+            icon: Sparkles,
+            onClick: () => {
+              const field = document.getElementById(AI_COMPOSER_INPUT_ID);
+              field?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+              field?.focus({ preventScroll: true });
+            },
+          },
+        },
+      );
+      break;
+
+    case "engagement":
+      content = frame(<EngagementPanel mode="academic" hideActions command={engagementCommand} />, {
+        description: description ?? "Report-card and exam notices sent to families. Your campus admin runs reminders.",
+        secondaryActions: [
+          { id: "export-delivery", label: "Export", icon: Download, onClick: () => runEngagement("export") },
+          { id: "refresh-delivery", label: "Refresh", icon: RefreshCw, onClick: () => runEngagement("refresh") },
+        ],
+      });
+      break;
+
+    case "my-leave":
+      content = frame(<MyLeavePanel />, { description: description ?? "Apply for leave and track your requests." });
+      break;
+
+    default:
+      content = frame(
+        <EmptyState icon={LayoutDashboard} title={ui("This workspace is not available")} description={ui("Choose a workspace from the menu.")} />,
+      );
+  }
+
+  return (
+    <>
+      {content}
+
+      {selectedClass ? (
+        <ClassDetailModal
+          cls={selectedClass}
+          students={(data.students ?? []).filter((student: any) => student.class?.id === selectedClass.id)}
+          teachers={data.teachers ?? []}
+          classes={data.classes ?? []}
+          teacherBusy={savingClassTeacherId === selectedClass.id}
+          subjectBusyId={savingSubjectId}
+          creatingSubject={creatingSubjectClassId === selectedClass.id}
+          teachingModeBusy={applyingSubjectClassId === selectedClass.id}
+          classUpdateBusy={false}
+          subjectUpdateBusyId={savingSubjectUpdateId}
+          onClose={() => setSelectedClass(null)}
+          onChangeTeacher={(classId, teacherId) => void handleChangeClassTeacher(classId, teacherId)}
+          onChangeTeachingMode={(classId, mode) => void handleChangeTeachingMode(classId, mode)}
+          onCreateSubject={handleCreateSubject}
+          onChangeSubjectTeacher={(classId, subjectId, teacherId) => void handleChangeSubjectTeacher(classId, subjectId, teacherId)}
+          onViewStudent={(student) => { setSelectedClass(null); setSelectedStudent(student); }}
+          onDeleteSubject={handleDeleteSubject}
+          onUpdateSubject={handleUpdateSubject}
+          // Enrolling, renaming and archiving classes are campus operations (G23; the server refuses them for the
+          // principal). Without onAddStudent / onDeleteClass / onUpdateClass the dialog renders none of those
+          // controls (§4.5.6, §4.5.11) — no ghost buttons, no info toast in their place.
+        />
+      ) : null}
+
+      {selectedStudent ? (
+        <StudentDetailModal
+          student={selectedStudent}
+          busy={false}
+          readOnly
+          sequence={studentSequence.map((s: any) => ({ id: s.id, label: s.fullName }))}
+          onNavigate={(id) => { const next = studentSequence.find((s: any) => s.id === id); if (next) setSelectedStudent(next); }}
+          onClose={() => setSelectedStudent(null)}
+          onMove={() => undefined}
+          onDelete={() => undefined}
+          onUpdate={async () => undefined}
+        />
+      ) : null}
+
+      {selectedTeacher ? (
+        <TeacherDetailModal
+          teacher={selectedTeacher}
+          showStaffRecord={false}
+          sequence={teacherSequence.map((t: any) => ({ id: t.id, label: t.fullName }))}
+          onNavigate={(id) => { const next = teacherSequence.find((t: any) => t.id === id); if (next) setSelectedTeacher(next); }}
+          onClose={() => setSelectedTeacher(null)}
+        />
+      ) : null}
+
+      <ConfirmAction
+        open={!!confirm}
+        title={confirm?.title || ""}
+        description={confirm?.description || ""}
+        confirmLabel={confirm?.confirmLabel}
+        cancelLabel={ui("Keep editing")}
+        tone={confirm?.tone}
+        busy={confirmBusy}
+        onConfirm={async () => {
+          if (!confirm) return;
+          setConfirmBusy(true);
+          try { await confirm.run(); } finally { setConfirmBusy(false); setConfirm(null); }
+        }}
+        onCancel={() => setConfirm(null)}
+      />
+    </>
   );
 }
 
-function ReportsPanel({ data, busyAction, editingReportId, editedRemarks, onRunAction, onGenerateRemarks, onEdit, onCancelEdit, onRemarkChange, onSaveRemark }: {
-  data: any; busyAction: string | null; editingReportId: string | null; editedRemarks: { en: string; ur: string };
-  onRunAction: (examId: string, action: ReportAction, successMessage: string) => void; onGenerateRemarks: (examId: string) => void; onEdit: (report: any) => void; onCancelEdit: () => void; onRemarkChange: (value: { en: string; ur: string }) => void; onSaveRemark: (report: any, approve?: boolean) => void;
-}) {
-  return (<div className="grid grid-cols-1 xl:grid-cols-[0.8fr_1.2fr] gap-8"><div className="space-y-4"><PanelTitle icon={ShieldCheck} title="Exam Review Actions" />{data.reviewExams.map((exam: any, i: number) => (<div key={exam.id} className="sk-rise rounded-[28px] border border-[#cfc2d6]/25 bg-[#fbf0fe]/35 p-5" style={{ animationDelay: `${i * 60}ms` }}><div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-black text-[#1f1a23]">{exam.title}</h3><p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{exam.term} - {classLabel(exam.class)}</p></div><StatusPill status={exam.status} /></div><div className="mt-4 grid grid-cols-2 gap-2"><ActionButton label="Generate" icon={FileText} busy={busyAction === `generate-${exam.id}`} onClick={() => onRunAction(exam.id, "generate", "Report cards generated")} /><ActionButton label="PDFs" icon={FileText} busy={busyAction === `pdf-${exam.id}`} onClick={() => onRunAction(exam.id, "pdf", "PDFs generated")} /><ActionButton label="AI Remarks" icon={Sparkles} busy={busyAction === `ai-remarks-${exam.id}`} onClick={() => onGenerateRemarks(exam.id)} /><ActionButton label="Review" icon={ShieldCheck} busy={busyAction === `review-${exam.id}`} onClick={() => onRunAction(exam.id, "review", "Exam marked as principal reviewed")} /><ActionButton label="Publish" icon={Upload} busy={busyAction === `publish-${exam.id}`} onClick={() => onRunAction(exam.id, "publish", "Reports published")} /><div className="col-span-2"><ActionButton label="Send To Parents" icon={Send} busy={busyAction === `send-${exam.id}`} onClick={() => onRunAction(exam.id, "send", "Delivery attempted")} /></div></div></div>))}{data.reviewExams.length === 0 ? (<p className="rounded-[24px] bg-[#fbf0fe]/50 p-5 text-sm font-semibold text-ink-muted">No locked exams are ready for principal review.</p>) : null}</div><div className="space-y-4"><PanelTitle icon={FileText} title="Report Card Remarks" />{data.recentReportCards.map((report: any) => (<ReportReviewCard key={report.id} report={report} busy={busyAction === `remark-${report.id}`} editing={editingReportId === report.id} editedRemarks={editedRemarks} onEdit={() => onEdit(report)} onCancel={onCancelEdit} onChange={onRemarkChange} onSave={() => onSaveRemark(report)} onApprove={() => onSaveRemark(report, true)} />))}{data.recentReportCards.length === 0 ? (<EmptyState icon={FileText} title="No report cards" description="Generated report cards will appear here for remark approval." />) : null}</div></div>);
-}
-
-function EngagementPanel({ data, totals, busy, onRunAutomation }: { data: any; totals: { sent: number; failed: number; blocked: number; noContact: number }; busy: boolean; onRunAutomation: () => void; }) {
-  return (<div className="space-y-6"><div className="grid grid-cols-1 md:grid-cols-4 gap-4"><EngagementStat icon={CheckCircle2} label="Sent" value={totals.sent} tone="green" /><EngagementStat icon={AlertCircle} label="Failed" value={totals.failed} tone="rose" /><EngagementStat icon={ShieldCheck} label="Blocked" value={totals.blocked} tone="purple" /><EngagementStat icon={MessageSquare} label="No Contact" value={totals.noContact} tone="amber" /></div><div className="sk-rise rounded-[32px] border border-[#cfc2d6]/25 bg-[#fbf0fe]/30 p-6" style={{ animationDelay: "160ms" }}><div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6"><PanelTitle icon={MessageSquare} title="Recent Parent Communication" /><BrandButton variant="soft" onClick={onRunAutomation} disabled={busy} icon={busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}>Run Automation</BrandButton></div><div className="space-y-3">{data.recentCommunications.map((item: any, i: number) => (<div key={item.id} className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5" style={{ animationDelay: `${i * 60}ms` }}><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="text-sm font-black text-[#1f1a23]">{formatStatus(item.templateKey)}</p><p className="mt-1 truncate text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{item.student?.fullName || item.recipientName || "Parent"} - {item.channel}</p><p className="mt-2 line-clamp-2 text-xs font-semibold leading-relaxed text-ink-muted">{item.body}</p></div><div className="flex shrink-0 flex-col items-start gap-2 sm:items-end"><StatusPill status={item.status} /><span className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">{formatDate(item.sentAt || item.createdAt)}</span></div></div></div>))}{data.recentCommunications.length === 0 ? (<p className="rounded-[24px] bg-white p-6 text-sm font-semibold text-ink-muted">No parent communication has been generated yet.</p>) : null}</div></div></div>);
-}
-
-
-function ActionButton({ label, icon: Icon, busy, onClick }: { label: string; icon: LucideIcon; busy: boolean; onClick: () => void }) {
-  return (<button type="button" onClick={onClick} disabled={busy} className="flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#fbf0fe] text-[9px] font-black uppercase tracking-wider text-[#8127cf] shadow-sm transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-md hover:shadow-[#8127cf]/20 disabled:opacity-40 disabled:cursor-not-allowed">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}{label}</button>);
-}
-
-function ReportReviewCard({ report, busy, editing, editedRemarks, onEdit, onCancel, onChange, onSave, onApprove }: {
-  report: any; busy: boolean; editing: boolean; editedRemarks: { en: string; ur: string }; onEdit: () => void; onCancel: () => void; onChange: (v: { en: string; ur: string }) => void; onSave: () => void; onApprove: () => void;
-}) {
-  return (<div className="sk-rise rounded-[24px] border border-[#cfc2d6]/25 bg-white p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#8127cf]/25"><div className="flex items-start justify-between gap-3 mb-3"><div className="min-w-0"><p className="text-xs font-black text-[#1f1a23]">{report.student?.fullName || "Student"}</p><p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-ink-subtle">{report.exam?.title || "Exam"} · {report.grade || `${Math.round(report.percentage || 0)}%`}</p></div><StatusPill status={report.status} /></div>{editing ? (<div className="space-y-3"><div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">English Remarks</p><textarea value={editedRemarks.en} onChange={(e) => onChange({ ...editedRemarks, en: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20 focus:border-[#8127cf]/35 focus:bg-white transition-all" /></div><div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle mb-1">Urdu Remarks</p><textarea value={editedRemarks.ur} onChange={(e) => onChange({ ...editedRemarks, ur: e.target.value })} className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#fbf0fe]/30 p-3 text-xs font-bold outline-none resize-none h-20 focus:border-[#8127cf]/35 focus:bg-white transition-all" /></div><div className="flex gap-2"><BrandButton variant="soft" onClick={onSave} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</BrandButton><BrandButton variant="dark" onClick={onApprove} disabled={busy}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save & Approve"}</BrandButton><button type="button" onClick={onCancel} className="h-10 rounded-xl bg-[#f3f4f9] px-4 text-[9px] font-black uppercase tracking-wider text-ink-muted cursor-pointer transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf]">Cancel</button></div></div>) : (<div className="flex gap-2"><button type="button" onClick={onEdit} className="h-9 cursor-pointer rounded-lg bg-[#fbf0fe] px-3 text-[9px] font-black uppercase tracking-wider text-[#8127cf] border border-[#8127cf]/10 shadow-sm transition-all hover:bg-[#8127cf] hover:text-white hover:shadow-md">Edit Remarks</button></div>)}</div>);
-}
-
-function EngagementStat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: number; tone: string }) {
-  const toneStyles: Record<string, string> = { green: "bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-700", rose: "bg-gradient-to-br from-rose-50 to-rose-100/50 text-rose-700", purple: "bg-gradient-to-br from-[#fbf0fe] to-[#f3eeff] text-[#8127cf]", amber: "bg-gradient-to-br from-amber-50 to-amber-100/50 text-amber-700" };
-  return (<div className="sk-rise rounded-3xl bg-white border border-[#cfc2d6]/25 p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"><div className="flex items-center gap-3 mb-3"><div className={`rounded-xl p-2 ${toneStyles[tone] || "bg-gradient-to-br from-[#f3f4f9] to-[#f3f4f9]/50 text-ink-muted"} shadow-sm`}><Icon className="w-4 h-4" /></div><p className="text-[9px] font-black uppercase tracking-wider text-ink-subtle">{label}</p></div><p className="text-3xl font-black tracking-wider text-[#1f1a23]">{value}</p></div>);
-}

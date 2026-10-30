@@ -1,4 +1,11 @@
 "use client";
+import { Button as SystemButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Tooltip } from "@/components/ui/tooltip";
+import { IconButton } from "@/components/ui/icon-button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, {
   useCallback,
@@ -9,18 +16,33 @@ import React, {
   type ReactNode,
 } from "react";
 import {
+  CalendarDays,
+  Grid2X2,
   ArrowDownWideNarrow,
   ArrowUpDown,
   ArrowUpWideNarrow,
   ChevronLeft,
   ChevronRight,
+  Inbox,
   Loader2,
   Search,
   X,
   type LucideIcon,
 } from "lucide-react";
+import { validWorkspaceView, type WorkspaceView, type CalendarDate, groupCalendarRows } from "@/lib/ui/workspace-views";
+import { formatDateOnly, localeTag } from "@/lib/locale/package";
 import { cn } from "@/lib/utils";
-import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
+import type { ModuleTone } from "@/lib/ui/module-tones";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Checkbox as SystemCheckbox } from "@/components/ui/checkbox";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { PageHeader, type PageAction } from "@/components/ui/page-header";
+
+/**
+ * Every label in this kit is an EN UI key and is translated here, so a caller may pass either the key or text it
+ * already translated (an Arabic or Urdu string is not a key and comes back unchanged).
+ */
 
 /**
  * The pieces every admin list screen was rebuilding by hand.
@@ -34,7 +56,7 @@ import { toneOf, type ModuleTone } from "@/lib/ui/module-tones";
 
 /* ────────────────────────── Preferences ────────────────────────── */
 
-export type WorkspaceView = "cards" | "table" | "board";
+export type { WorkspaceView } from "@/lib/ui/workspace-views";
 export type SortDir = "asc" | "desc";
 
 export interface WorkspacePrefs {
@@ -82,11 +104,19 @@ export function useWorkspacePrefs(
     let stored: Partial<WorkspacePrefs> = {};
     try {
       const raw = window.localStorage.getItem(storageKey(scope));
-      if (raw) stored = JSON.parse(raw) as Partial<WorkspacePrefs>;
+      if (raw) { const parsed: unknown = JSON.parse(raw); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) stored = parsed as Partial<WorkspacePrefs>; }
     } catch {
       /* a blocked or full storage must never break the screen */
     }
-    setPrefs({ ...base, ...stored });
+    const safe = { ...base };
+    if (validWorkspaceView(stored.view)) safe.view = stored.view;
+    if (stored.density === "compact" || stored.density === "comfortable") safe.density = stored.density;
+    if (typeof stored.sortKey === "string") safe.sortKey = stored.sortKey;
+    if (stored.sortDir === "asc" || stored.sortDir === "desc") safe.sortDir = stored.sortDir;
+    if (Number.isInteger(stored.perPage) && stored.perPage! > 0 && stored.perPage! <= 200) safe.perPage = stored.perPage!;
+    const viewFromUrl = new URL(window.location.href).searchParams.get(`view.${scope}`);
+    if (validWorkspaceView(viewFromUrl)) safe.view = viewFromUrl;
+    setPrefs(safe);
     setLoadedFor(scope);
   }, [scope, base]);
 
@@ -99,78 +129,105 @@ export function useWorkspacePrefs(
     }
   }, [prefs, loadedFor, scope]);
 
+  useEffect(() => {
+    const restore = () => {
+      const value = new URL(window.location.href).searchParams.get(`view.${scope}`);
+      setPrefs(p => ({ ...p, view: validWorkspaceView(value) ? value : base.view }));
+    };
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [scope, base.view]);
   const patch = useCallback((next: Partial<WorkspacePrefs>) => {
+    if (next.view && validWorkspaceView(next.view)) {
+      const url = new URL(window.location.href);
+      // Pass null so Next synchronizes its URL state. Copying history.state also
+      // copies Next's internal marker and bypasses its public History API integration.
+      // Capture the previous view so Back restores it after the first switch.
+      if (next.view !== prefs.view && !url.searchParams.has(`view.${scope}`)) {
+        url.searchParams.set(`view.${scope}`, prefs.view);
+        window.history.replaceState(null, "", url);
+      }
+      if (url.searchParams.get(`view.${scope}`) !== next.view) {
+        url.searchParams.set(`view.${scope}`, next.view);
+        window.history.pushState(null, "", url);
+      }
+    }
     setPrefs((p) => ({ ...p, ...next }));
-  }, []);
+  }, [scope, prefs.view]);
 
   return [prefs, patch];
 }
 
 /* ────────────────────────── Header ────────────────────────── */
 
+/**
+ * The list-screen header, now a thin wrapper over the one `PageHeader` (§4.3, R1): one heading, one
+ * sentence of summary, at most one primary action at the top-end and up to two visible secondaries.
+ *
+ * `headingLevel` is 2 by default (a section inside a view that already has its page title); a panel that
+ * is the whole view passes 1. `primaryAction` / `secondaryActions` are the preferred API; the legacy
+ * `actions` node still renders, in a row under the header, for callers not yet migrated.
+ *
+ * `description` (an EN UI key: the view's one sentence, §4.3) is the header's description whenever it is given;
+ * a `summary` then moves to the status row as a live line, so a counted summary never displaces the sentence.
+ */
 export function WorkspaceHeader({
   icon: Icon,
   eyebrow,
   title,
+  description,
   summary,
   actions,
   children,
-  tone = "brand",
+  primaryAction,
+  secondaryActions,
+  status,
+  tabs,
+  headingLevel = 2,
 }: {
-  icon: LucideIcon;
-  eyebrow: string;
+  icon?: LucideIcon;
+  eyebrow?: string;
   title: string;
+  /** The view's one-sentence description (EN UI key); wins over `summary` for the description slot. */
+  description?: string;
   /** One live sentence about what is on screen right now. */
   summary?: ReactNode;
+  /** @deprecated Pass `primaryAction` / `secondaryActions`. */
   actions?: ReactNode;
   children?: ReactNode;
-  /** The domain this screen belongs to — drives its accent colour. */
+  /** @deprecated Module tones are no longer painted on headers; kept for callers. */
   tone?: ModuleTone;
+  primaryAction?: PageAction;
+  secondaryActions?: PageAction[];
+  status?: ReactNode;
+  tabs?: ReactNode;
+  headingLevel?: 1 | 2;
 }) {
-  const t = toneOf(tone);
+  const ui = useUiText();
+  // The description slot takes `description` when given, else a text summary; any other summary is a status line
+  // (a text summary there is still a UI key, translated like the description would have been).
+  const summaryInDescription = !description && typeof summary === "string";
+  const summaryLine = !summaryInDescription && summary ? (typeof summary === "string" ? ui(summary) : summary) : null;
+  const statusRow = (
+    <>
+      {summaryLine ? <p className="w-full break-words text-sm font-medium leading-relaxed text-ink-muted">{summaryLine}</p> : null}
+      {status}
+    </>
+  );
   return (
-    <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
-      {/* A gradient rail reads as considered where a full gradient panel reads
-          as decoration — and it costs no vertical space. */}
-      <span
-        aria-hidden
-        className={cn("absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b", t.rail)}
+    <div className="space-y-3">
+      <PageHeader
+        title={title}
+        eyebrow={eyebrow}
+        icon={Icon}
+        description={description ?? (summaryInDescription ? (summary as string) : undefined)}
+        primaryAction={primaryAction}
+        secondaryActions={secondaryActions}
+        status={summaryLine || status ? statusRow : undefined}
+        tabs={tabs}
+        headingLevel={headingLevel}
       />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full blur-2xl"
-        style={{ background: `radial-gradient(circle, ${t.hex}14, transparent 70%)` }}
-      />
-
-      <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 items-center gap-3">
-          <span
-            className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", t.tile)}
-            style={{ boxShadow: `0 4px 12px -2px ${t.hex}73` }}
-          >
-            <Icon className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            {/* Eyebrow rides beside the title rather than above it: it is
-                context, not a heading, and a whole line for one word was the
-                single biggest waste of height on every screen. */}
-            <div className="flex items-baseline gap-2">
-              <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1f1a23]">
-                {title}
-              </h2>
-              <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", t.text)}>
-                {eyebrow}
-              </span>
-            </div>
-            {summary ? (
-              <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">
-                {summary}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
       {children}
     </div>
   );
@@ -189,13 +246,14 @@ export interface StatTileSpec {
   active?: boolean;
 }
 
+/** Tone names are kept for callers; each maps onto the status tokens (R10), never a raw palette. */
 const TILE_TONES = {
-  violet: { chip: "bg-[#f3eeff] text-[#8127cf]", ring: "rgba(129,39,207,0.9)", bar: "bg-[#8127cf]" },
-  teal: { chip: "bg-teal-50 text-teal-600", ring: "rgba(13,148,136,0.9)", bar: "bg-teal-500" },
-  amber: { chip: "bg-amber-50 text-amber-600", ring: "rgba(245,158,11,0.9)", bar: "bg-amber-500" },
-  emerald: { chip: "bg-emerald-50 text-emerald-600", ring: "rgba(16,185,129,0.9)", bar: "bg-emerald-500" },
-  rose: { chip: "bg-rose-50 text-rose-600", ring: "rgba(225,29,72,0.9)", bar: "bg-rose-500" },
-  slate: { chip: "bg-[#f3f4f9] text-ink-muted", ring: "rgba(107,114,128,0.9)", bar: "bg-[#9aa1ae]" },
+  violet: { chip: "bg-status-brand-surface text-status-brand-text", ring: "ring-primary", bar: "bg-primary" },
+  teal: { chip: "bg-status-info-surface text-status-info-text", ring: "ring-status-info-border", bar: "bg-status-info-text" },
+  amber: { chip: "bg-status-warning-surface text-status-warning-text", ring: "ring-status-warning-border", bar: "bg-status-warning-text" },
+  emerald: { chip: "bg-status-success-surface text-status-success-text", ring: "ring-status-success-border", bar: "bg-status-success-text" },
+  rose: { chip: "bg-status-error-surface text-status-error-text", ring: "ring-status-error-border", bar: "bg-status-error-text" },
+  slate: { chip: "bg-muted text-ink-muted", ring: "ring-border", bar: "bg-ink-faint" },
 } as const;
 
 /**
@@ -204,8 +262,10 @@ const TILE_TONES = {
  * Stacked vertically — icon, then number, then label, then hint — each tile ran
  * about 110px tall, which is a lot of screen to spend on four numbers before
  * any actual data appears. Side by side they read the same and cost half that.
+ * A tile with an `onClick` is a shared `Button` (a filter toggle, `aria-pressed`); the rest are plain blocks.
  */
 export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; columns?: 4 | 5 | 6 }) {
+  const ui = useUiText();
   return (
     <div
       className={cn(
@@ -219,46 +279,49 @@ export function StatTiles({ tiles, columns = 4 }: { tiles: StatTileSpec[]; colum
     >
       {tiles.map((t) => {
         const tone = TILE_TONES[t.tone ?? "violet"];
-        const interactive = Boolean(t.onClick);
-        // A card with nothing to do is not a button.
-        const Tag = interactive ? "button" : "div";
-        return (
-          <Tag
-            key={t.key}
-            {...(interactive
-              ? { type: "button" as const, onClick: t.onClick, "aria-pressed": Boolean(t.active) }
-              : {})}
-            className={cn(
-              "group relative flex items-center gap-3 overflow-hidden rounded-[18px] border bg-white px-3.5 py-2.5 text-left transition-all duration-200",
-              t.active
-                ? "border-transparent"
-                : "border-[#cfc2d6]/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)]",
-              interactive &&
-                "cursor-pointer hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]",
-            )}
-            style={t.active ? { boxShadow: `0 0 0 1.5px ${tone.ring}, 0 10px 24px -14px ${tone.ring}` } : undefined}
-          >
+        const body = (
+          <>
             {/* A tinted edge keeps the tone readable without a coloured card. */}
-            <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px]", tone.bar, t.active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60")} />
+            <span aria-hidden className={cn("absolute inset-y-0 start-0 w-[3px]", tone.bar, t.active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60")} />
             {t.icon ? (
-              <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105", tone.chip)}>
+              <span aria-hidden="true" className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105", tone.chip)}>
                 <t.icon className="h-4 w-4" />
               </span>
             ) : null}
             <span className="min-w-0 flex-1">
-              <span className="block text-xl font-black leading-none tracking-tight tabular-nums text-[#1f1a23] sm:text-[22px]">
+              <bdi className="block text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-2xl">
                 {t.value}
-              </span>
-              <span className="mt-1 block truncate text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
-                {t.label}
+              </bdi>
+              <span className="mt-1 line-clamp-2 break-words text-xs font-semibold leading-tight text-ink-muted">
+                {ui(t.label)}
               </span>
               {t.hint ? (
-                <span className="mt-0.5 block truncate text-[10px] font-semibold leading-tight text-ink-subtle">
-                  {t.hint}
+                <span className="mt-0.5 line-clamp-2 break-words text-2xs font-semibold leading-tight text-ink-subtle">
+                  {ui(t.hint)}
                 </span>
               ) : null}
             </span>
-          </Tag>
+          </>
+        );
+        // A card with nothing to do is not a button.
+        return t.onClick ? (
+          <Button
+            key={t.key}
+            type="button"
+            variant="choice"
+            onClick={t.onClick}
+            aria-pressed={Boolean(t.active)}
+            className={cn(
+              "group relative h-auto justify-start gap-3 overflow-hidden px-3.5 py-2.5 text-start font-normal",
+              t.active && cn("ring-2", tone.ring),
+            )}
+          >
+            {body}
+          </Button>
+        ) : (
+          <div key={t.key} className="group sk-panel relative flex items-center gap-3 overflow-hidden px-3.5 py-2.5 text-start">
+            {body}
+          </div>
         );
       })}
     </div>
@@ -275,9 +338,9 @@ export function WorkspaceToolbar({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
+    <div className="sk-toolbar md:sticky md:top-0 z-20 flex flex-wrap items-center backdrop-blur-xl">
       {children}
-      {trailing ? <div className="ml-auto flex flex-wrap items-center gap-2">{trailing}</div> : null}
+      {trailing ? <div className="ms-auto flex flex-wrap items-center gap-2">{trailing}</div> : null}
     </div>
   );
 }
@@ -299,6 +362,7 @@ export function SearchField({
   autoFocusKey?: string | null;
   className?: string;
 }) {
+  const ui = useUiText();
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -324,27 +388,28 @@ export function SearchField({
   }, [autoFocusKey]);
 
   return (
-    <div className={cn("relative min-w-[190px] flex-1", className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
-      <input
+    <InputGroup surfaceClassName="bg-surface-subtle" className={cn("relative min-w-0 grow basis-64", className)}>
+      <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
+      <SystemInput
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={autoFocusKey ? `${placeholder}   ( ${autoFocusKey} )` : placeholder}
-        aria-label={label}
-        className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] pl-9 pr-9 text-xs font-semibold text-[#1f1a23] outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/40 focus:bg-white focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+        placeholder={ui(placeholder)}
+        aria-keyshortcuts={autoFocusKey ?? undefined}
+        aria-label={ui(label)}
+        className="w-full ps-9 pe-9 transition-all"
       />
       {value ? (
-        <button
+        <SystemButton variant="ghost" data-field-affix="end"
           type="button"
           onClick={() => onChange("")}
-          aria-label="Clear search"
-          className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-ink-subtle transition-all hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+          aria-label={ui("Clear search")}
+          className="absolute end-2.5 top-1/2 flex -translate-y-1/2 items-center justify-center"
         >
           <X className="h-3.5 w-3.5" />
-        </button>
+        </SystemButton>
       ) : null}
-    </div>
+    </InputGroup>
   );
 }
 
@@ -360,21 +425,22 @@ export function ToolbarSelect({
   label: string;
   options: [string, string][];
 }) {
+  const ui = useUiText();
   return (
     <div className="relative">
-      <select
+      <SystemSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-        className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1f1a23] outline-none transition-all hover:border-[#8127cf]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+        aria-label={ui(label)}
+        className="cursor-pointer appearance-none ps-3 pe-8 transition-all"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
-            {l}
+            {ui(l)}
           </option>
         ))}
-      </select>
-      <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-[#8127cf]" />
+      </SystemSelect>
+
     </div>
   );
 }
@@ -394,31 +460,33 @@ export function ToolbarToggle({
   tone?: "amber" | "rose" | "violet";
   onClick: () => void;
 }) {
+  const ui = useUiText();
   const tones = {
-    amber: { on: "border-amber-300 bg-amber-50 text-amber-700", badge: "bg-amber-500" },
-    rose: { on: "border-rose-300 bg-rose-50 text-rose-700", badge: "bg-rose-500" },
-    violet: { on: "border-[#8127cf]/40 bg-[#fbf0fe] text-[#8127cf]", badge: "bg-[#8127cf]" },
+    amber: { on: "border-status-warning-border bg-status-warning-surface text-status-warning-text", badge: "bg-status-warning-surface text-status-warning-text" },
+    rose: { on: "border-status-error-border bg-status-error-surface text-status-error-text", badge: "bg-status-error-surface text-status-error-text" },
+    violet: { on: "border-primary/40 bg-brand-50 text-primary", badge: "bg-brand-100 text-primary" },
   } as const;
   return (
-    <button
+    <Button variant="outline"
+      size="sm"
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        "flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-[11px] font-black uppercase tracking-wider transition-all",
-        active
-          ? tones[tone].on
-          : "border-[#cfc2d6]/20 bg-white text-ink-muted hover:border-[#8127cf]/30 hover:text-[#8127cf]",
-      )}
+      className={cn("gap-1.5 px-3", active ? tones[tone].on : "text-ink-muted")}
     >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
+      <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+      {ui(label)}
       {count ? (
-        <span className={cn("rounded-full px-1.5 text-[9px] text-white", tones[tone].badge)}>{count}</span>
+        <bdi className={cn("rounded-full px-1.5 text-2xs font-bold tabular-nums", tones[tone].badge)}>{count}</bdi>
       ) : null}
-    </button>
+    </Button>
   );
 }
+
+export const additionalWorkspaceViews = [
+  { value: "grid" as const, label: "Grid", icon: Grid2X2 },
+  { value: "calendar" as const, label: "Calendar", icon: CalendarDays },
+];
 
 export function ViewSwitch({
   value,
@@ -429,45 +497,45 @@ export function ViewSwitch({
   onChange: (v: WorkspaceView) => void;
   options: { value: WorkspaceView; label: string; icon: LucideIcon }[];
 }) {
+  const ui = useUiText();
   return (
-    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
+    <div role="group" aria-label={ui("Layout")} className="flex items-center gap-1 rounded-2xl border border-border-subtle bg-surface-subtle p-1">
       {options.map((o) => (
-        <button
-          key={o.value}
+        <Tooltip key={o.value} content={ui(o.label)}>
+        <Button variant="choice"
+          size="sm"
           type="button"
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
-          title={o.label}
-          className={cn(
-            "flex h-full cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-black uppercase tracking-wider transition-all",
-            value === o.value
-              ? "bg-white text-[#8127cf] shadow-[0_1px_3px_rgba(31,26,35,0.12)]"
-              : "text-ink-muted hover:text-[#8127cf]",
-          )}
+          aria-label={ui(o.label)}
+          className={cn("gap-1.5 px-2.5", value === o.value ? "text-primary" : "border-transparent bg-transparent text-ink-muted")}
         >
-          <o.icon className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{o.label}</span>
-        </button>
+          <o.icon aria-hidden="true" className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{ui(o.label)}</span>
+        </Button>
+        </Tooltip>
       ))}
     </div>
   );
 }
 
 export function SortDirButton({ dir, onToggle }: { dir: SortDir; onToggle: () => void }) {
+  const ui = useUiText();
   return (
-    <button
+    <Tooltip content={ui(dir === "asc" ? "Ascending" : "Descending")}>
+    <Button variant="outline"
       type="button"
       onClick={onToggle}
-      aria-label={dir === "asc" ? "Sort descending" : "Sort ascending"}
-      title={dir === "asc" ? "Ascending" : "Descending"}
-      className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-all hover:border-[#8127cf]/30 hover:text-[#8127cf]"
+      aria-label={ui(dir === "asc" ? "Sort descending" : "Sort ascending")}
+      className="w-10"
     >
       {dir === "asc" ? (
         <ArrowUpWideNarrow className="h-4 w-4" />
       ) : (
         <ArrowDownWideNarrow className="h-4 w-4" />
       )}
-    </button>
+    </Button>
+    </Tooltip>
   );
 }
 
@@ -477,8 +545,10 @@ export interface BulkAction {
   key: string;
   label: string;
   icon?: LucideIcon;
-  /** Hex background. Omit for the neutral outline treatment. */
+  /** @deprecated Hex fills are no longer painted (R10); use `tone`. */
   accent?: string;
+  /** "danger" for a destructive bulk action (it still runs behind its own ConfirmAction, §4.5.4). */
+  tone?: "default" | "danger";
   count?: number;
   disabled?: boolean;
   onRun: () => void;
@@ -497,48 +567,44 @@ export function SelectionBar({
   busy?: boolean;
   note?: string;
 }) {
+  const ui = useUiText();
   if (total === 0) return null;
   return (
-    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-[#8127cf]/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
-      <span className="rounded-full bg-[#8127cf] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white">
-        {total} selected
+    <div role="region" aria-label={ui("Selection actions")} className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-2xl border border-primary/25 bg-card/95 p-2 shadow-lg backdrop-blur-xl">
+      <span className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold tabular-nums text-primary-foreground" aria-live="polite">
+        {ui("{0} selected", [total])}
       </span>
       {actions.length === 0 ? (
-        <span className="text-[11px] font-semibold text-ink-muted">
-          {note || "Nothing can be done to this selection right now."}
+        <span className="text-xs font-medium text-ink-muted">
+          {ui(note || "Nothing can be done to this selection right now.")}
         </span>
       ) : (
         actions.map((a) => (
-          <button
+          <Button variant={a.tone === "danger" ? "destructive" : "outline"}
+            size="sm"
             key={a.key}
             type="button"
             disabled={busy || a.disabled}
             onClick={a.onRun}
-            className={cn(
-              "flex cursor-pointer items-center gap-1.5 rounded-2xl px-3.5 py-2 text-[11px] font-black uppercase tracking-wider transition-all hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50",
-              a.accent
-                ? "text-white"
-                : "border border-[#cfc2d6]/30 bg-white text-ink-muted hover:text-[#8127cf]",
-            )}
-            style={a.accent ? { backgroundColor: a.accent } : undefined}
+            className="gap-1.5 px-3.5"
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : a.icon ? <a.icon className="h-3.5 w-3.5" /> : null}
-            {a.label}
+            {busy ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : a.icon ? <a.icon aria-hidden="true" className="h-3.5 w-3.5" /> : null}
+            {ui(a.label)}
             {a.count !== undefined ? (
-              <span className={cn("rounded-full px-1.5", a.accent ? "bg-white/25" : "bg-[#f3f4f9]")}>
+              <bdi className={cn("rounded-full px-1.5 tabular-nums", a.tone === "danger" ? "bg-card/25" : "bg-muted")}>
                 {a.count}
-              </span>
+              </bdi>
             ) : null}
-          </button>
+          </Button>
         ))
       )}
-      <button
+      <Button variant="ghost"
+        size="sm"
         type="button"
         onClick={onClear}
-        className="ml-auto cursor-pointer rounded-2xl px-3 py-2 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:text-[#8127cf]"
       >
-        Clear
-      </button>
+        {ui("Clear selection")}
+      </Button>
     </div>
   );
 }
@@ -549,12 +615,49 @@ export interface DataColumn<T> {
   key: string;
   label: string;
   sortable?: boolean;
-  align?: "left" | "right" | "center";
+  /** Prefer logical start/end; left/right retain their physical alignment. */
+  align?: "start" | "end" | "left" | "right" | "center";
   /** Tailwind width class, e.g. "w-32". */
   width?: string;
   /** Hide below the lg breakpoint — keeps narrow screens readable. */
   secondary?: boolean;
+  /** First-cell render owns its action, including opaque custom components. */
+  rowAction?: "provided";
   render: (row: T) => ReactNode;
+}
+
+const tableCopy = {
+  en: { select: "Select", deselect: "Deselect", all: "Select all displayed rows", open: "Open" },
+  ar: { select: "تحديد", deselect: "إلغاء تحديد", all: "تحديد جميع الصفوف المعروضة", open: "فتح" },
+  ur: { select: "منتخب کریں", deselect: "انتخاب ختم کریں", all: "تمام دکھائی گئی قطاریں منتخب کریں", open: "کھولیں" },
+};
+
+function cellText(node: ReactNode): string {
+  return React.Children.toArray(node).map(child => {
+    if (typeof child === "string" || typeof child === "number") return String(child);
+    return React.isValidElement<{ children?: ReactNode }>(child) ? cellText(child.props.children) : "";
+  }).filter(Boolean).join(" ");
+}
+
+/** Inspect supplied markup without calling a component or changing its children. */
+function hasCellControl(node: ReactNode): boolean {
+  return React.Children.toArray(node).some(child => {
+    if (!React.isValidElement<{ children?: ReactNode; href?: unknown; role?: string; contentEditable?: boolean | "true" | "false" }>(child)) return false;
+    if (child.props.role === "button" || child.props.role === "link") return true;
+    if (child.type === Button || (typeof child.type !== "string" && child.props.href !== undefined)) return true;
+    if (typeof child.type === "string" && (
+      ["button", "input", "select", "textarea", "summary"].includes(child.type) ||
+      (child.type === "a" && child.props.href !== undefined) ||
+      child.props.contentEditable === true || child.props.contentEditable === "true"
+    )) return true;
+    return hasCellControl(child.props.children);
+  });
+}
+
+const cellControlSelector = 'button, a[href], input, select, textarea, summary, [role="button"], [role="link"], [contenteditable]:not([contenteditable="false"])';
+
+function columnAlignment(align: DataColumn<unknown>["align"]) {
+  return { start: "text-start", end: "text-end", left: "text-left", right: "text-right", center: "text-center" }[align ?? "start"];
 }
 
 export function DataTable<T>({
@@ -571,6 +674,12 @@ export function DataTable<T>({
   density = "comfortable",
   empty,
   minWidth = 900,
+  caption,
+  getRowLabel,
+  selectAllLabel,
+  view = "table",
+  getCalendarDate,
+  calendarLabel,
 }: {
   rows: T[];
   columns: DataColumn<T>[];
@@ -585,59 +694,122 @@ export function DataTable<T>({
   density?: "compact" | "comfortable";
   empty?: ReactNode;
   minWidth?: number;
+  caption?: ReactNode;
+  /** A record name for selection/action labels; never passed through translation. */
+  getRowLabel?: (row: T) => string;
+  /** Describe the existing callback scope if it differs from the displayed rows. */
+  selectAllLabel?: string;
+  view?: WorkspaceView;
+  getCalendarDate?: (row: T) => CalendarDate;
+  calendarLabel?: string;
 }) {
+  const locale = useLocale();
+  const copy = tableCopy[locale.language];
+  const ui = useUiText();
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const selectable = Boolean(onToggleSelect);
   const allSelected =
     selectable && rows.length > 0 && rows.every((r) => selected?.has(rowKey(r)));
+  const partiallySelected = selectable && !allSelected && rows.some(r => selected?.has(rowKey(r)));
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = partiallySelected;
+  }, [partiallySelected, selectable, view]);
   const pad = density === "compact" ? "px-3 py-2" : "px-4 py-3";
 
+  if (view === "grid" || view === "calendar") {
+    const labels = {
+      en: { undated: "No valid date", records: "Displayed records", calendar: "Calendar", grid: "Grid", scope: "Dates for the displayed records; filters and pagination still apply." },
+      ur: { undated: "درست تاریخ موجود نہیں", records: "دکھائے گئے ریکارڈ", calendar: "کیلنڈر", grid: "گرڈ", scope: "دکھائے گئے ریکارڈ کی تاریخیں؛ فلٹر اور صفحات بدستور لاگو ہیں۔" },
+      ar: { undated: "لا يوجد تاريخ صالح", records: "السجلات المعروضة", calendar: "التقويم", grid: "الشبكة", scope: "تواريخ السجلات المعروضة؛ لا تزال عوامل التصفية والصفحات سارية." },
+    }[locale.language];
+    const renderRecord = (row: T) => {
+      const id = rowKey(row);
+      const cells = columns.map(column => column.render(row));
+      const label = getRowLabel?.(row).trim() || cellText(cells[0]).trim() || id;
+      return <li key={id} data-record-id={id} data-state={selected?.has(id) ? "selected" : undefined}
+        className={cn("sk-panel min-w-0 space-y-3 p-4", rowClassName?.(row))}>
+        {selectable ? <SystemCheckbox checked={Boolean(selected?.has(id))}
+          onChange={() => onToggleSelect?.(id)} aria-label={`${selected?.has(id) ? copy.deselect : copy.select} ${label}`} /> : null}
+        <dl className="space-y-3">
+          {columns.map((column, i) => <div key={column.key} className="min-w-0 break-words">
+            <dt className={column.label ? "text-xs font-semibold text-ink-muted" : "sr-only"}>{ui(column.label || "Actions")}</dt>
+            <dd className="min-w-0">{cells[i]}</dd>
+          </div>)}
+        </dl>
+        {onRowClick && columns[0]?.rowAction !== "provided" && !hasCellControl(cells[0]) ? <SystemButton type="button" variant="outline"
+          aria-label={`${copy.open} ${label}`} onClick={() => onRowClick(row)}>{copy.open}</SystemButton> : null}
+      </li>;
+    };
+    const grouped = groupCalendarRows(rows, row => getCalendarDate?.(row), locale.timezone);
+    const recordList = (items: T[]) => <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">{items.map(renderRecord)}</ul>;
+    return <section aria-label={typeof caption === "string" ? caption : labels.records} className="space-y-3">
+      <p role="status" className="text-sm text-ink-muted">{view === "calendar" ? labels.calendar : labels.grid} · {new Intl.NumberFormat(localeTag(locale)).format(rows.length)}</p>
+      {selectable ? <SystemCheckbox ref={selectAllRef} checked={allSelected} aria-checked={partiallySelected ? "mixed" : allSelected}
+        disabled={!onToggleAll || !rows.length} onChange={onToggleAll} aria-label={selectAllLabel ?? copy.all} /> : null}
+      {rows.length === 0 ? (empty == null || typeof empty === "string" ? <EmptyState size="sm" icon={Inbox} title={ui(empty ?? "Nothing to show.")} /> : empty) :
+        view === "grid" ? recordList(rows) : <>
+          <p className="text-sm text-ink-muted">{ui(calendarLabel ?? "Date")} · <bdi>{locale.timezone}</bdi></p>
+          <p className="text-xs text-ink-muted">{labels.scope}</p>
+          {grouped.days.map(([day, items]) => <section key={day} aria-label={formatDateOnly(day, locale)} className="space-y-2">
+            <h3 className="text-base font-semibold"><time dateTime={day}>{formatDateOnly(day, locale)}</time></h3>
+            {recordList(items)}
+          </section>)}
+          {grouped.undated.length ? <section aria-label={labels.undated} className="space-y-2"><h3 className="font-semibold">{labels.undated}</h3>{recordList(grouped.undated)}</section> : null}
+        </>}
+    </section>;
+  }
+
   return (
-    <div className="overflow-x-auto rounded-[28px] border border-[#cfc2d6]/25 bg-white shadow-sm custom-scrollbar">
-      <table className="w-full text-left" style={{ minWidth }}>
+    <div className="sk-panel overflow-x-auto custom-scrollbar">
+      <table className="sk-data-table" style={{ minWidth }}>
+        {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead>
-          <tr className="border-b border-[#cfc2d6]/10 bg-[#fbf0fe]/30">
+          <tr className="border-b border-edge/10 bg-brand-50/30">
             {selectable ? (
-              <th className={cn("w-10", pad)}>
-                <input
-                  type="checkbox"
+              <th scope="col" className={cn("w-10", pad)}>
+                <SystemCheckbox
+                  ref={selectAllRef}
                   checked={allSelected}
+                  aria-checked={partiallySelected ? "mixed" : allSelected}
+                  disabled={!onToggleAll || rows.length === 0}
                   onChange={onToggleAll}
-                  aria-label="Select everything in this list"
-                  className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                  aria-label={selectAllLabel ?? copy.all}
+                  className="h-4 w-4 cursor-pointer accent-primary"
                 />
               </th>
             ) : null}
             {columns.map((c) => (
               <th
                 key={c.key}
+                scope="col"
+                aria-sort={sort?.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
                 className={cn(
                   pad,
-                  "text-[9px] font-black uppercase tracking-wider text-ink-muted",
+                  "text-xs font-semibold text-ink-muted",
                   c.width,
-                  c.align === "right" && "text-right",
-                  c.align === "center" && "text-center",
+                  columnAlignment(c.align),
                   c.secondary && "hidden lg:table-cell",
                 )}
               >
                 {c.sortable && onSort ? (
-                  <button
+                  <SystemButton variant="ghost"
                     type="button"
                     onClick={() => onSort(c.key)}
-                    className="inline-flex cursor-pointer items-center gap-1 transition-colors hover:text-[#8127cf]"
+                    className="inline-flex items-center gap-1 justify-start"
                   >
-                    {c.label}
+                    {ui(c.label)}
                     {sort?.key === c.key ? (
                       sort.dir === "asc" ? (
-                        <ArrowUpWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowUpWideNarrow className="h-3 w-3 text-primary" />
                       ) : (
-                        <ArrowDownWideNarrow className="h-3 w-3 text-[#8127cf]" />
+                        <ArrowDownWideNarrow className="h-3 w-3 text-primary" />
                       )
                     ) : (
-                      <ArrowUpDown className="h-3 w-3 text-[#cfc2d6]" />
+                      <ArrowUpDown className="h-3 w-3 text-edge" />
                     )}
-                  </button>
+                  </SystemButton>
                 ) : (
-                  c.label
+                  ui(c.label)
                 )}
               </th>
             ))}
@@ -647,39 +819,57 @@ export function DataTable<T>({
           {rows.map((row) => {
             const id = rowKey(row);
             const isSelected = selected?.has(id);
+            const cells = columns.map(column => column.render(row));
+            const rowLabel = getRowLabel?.(row).trim() || cellText(cells[0]).trim() || id;
             return (
               <tr
                 key={id}
+                data-state={isSelected ? "selected" : undefined}
                 className={cn(
-                  "border-b border-[#cfc2d6]/5 transition-colors hover:bg-[#fbf0fe]/25",
-                  isSelected && "bg-[#fbf0fe]/40",
+                  "",
+
                   rowClassName?.(row),
                 )}
               >
                 {selectable ? (
                   <td className={pad}>
-                    <input
-                      type="checkbox"
+                    <SystemCheckbox
+
                       checked={Boolean(isSelected)}
                       onChange={() => onToggleSelect?.(id)}
-                      aria-label="Select row"
-                      className="h-4 w-4 cursor-pointer accent-[#8127cf]"
+                      aria-label={`${isSelected ? copy.deselect : copy.select} ${rowLabel}`}
+                      className="h-4 w-4 cursor-pointer accent-primary"
                     />
                   </td>
                 ) : null}
                 {columns.map((c, i) => (
                   <td
                     key={c.key}
-                    onClick={i === 0 && onRowClick ? () => onRowClick(row) : undefined}
+                    onClick={i === 0 && onRowClick ? event => {
+                      // Preserve the legacy cell click without also firing for its controls.
+                      if (event.defaultPrevented || (event.target instanceof Element && event.target.closest(cellControlSelector))) return;
+                      onRowClick(row);
+                    } : undefined}
                     className={cn(
                       pad,
-                      c.align === "right" && "text-right",
-                      c.align === "center" && "text-center",
+                      columnAlignment(c.align),
                       c.secondary && "hidden lg:table-cell",
                       i === 0 && onRowClick && "cursor-pointer",
                     )}
                   >
-                    {c.render(row)}
+                    {i === 0 && onRowClick && c.rowAction !== "provided" && !hasCellControl(cells[i]) ? (
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="min-w-0 flex-1">{cells[i]}</div>
+                        <SystemButton variant="ghost"
+                          type="button"
+                          aria-label={`${copy.open} ${rowLabel}`}
+                          onClick={() => onRowClick(row)}
+                          className="inline-flex min-h-11 shrink-0 items-center px-2 underline underline-offset-4 justify-start"
+                        >
+                          {copy.open}
+                        </SystemButton>
+                      </div>
+                    ) : cells[i]}
                   </td>
                 ))}
               </tr>
@@ -689,9 +879,13 @@ export function DataTable<T>({
             <tr>
               <td
                 colSpan={columns.length + (selectable ? 1 : 0)}
-                className="px-4 py-12 text-center text-sm font-semibold text-ink-muted"
+                className="px-4 py-8"
               >
-                {empty ?? "Nothing to show."}
+                {empty == null || typeof empty === "string" ? (
+                  <EmptyState size="sm" icon={Inbox} title={ui(empty ?? "Nothing to show.")} />
+                ) : (
+                  empty
+                )}
               </td>
             </tr>
           ) : null}
@@ -724,50 +918,51 @@ export function Pagination({
   onPerPage: (n: number) => void;
   perPageOptions?: number[];
 }) {
+  const ui = useUiText();
   if (total === 0) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#f3f4f9] pt-5">
-      <p className="text-[10px] font-black uppercase tracking-wider text-ink-muted">
-        Showing {firstShown}–{lastShown} of {total}
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-muted pt-5">
+      <p className="text-xs font-semibold text-ink-muted" aria-live="polite">
+        {ui("Showing {0}–{1} of {2}", [firstShown, lastShown, total])}
       </p>
       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-ink-subtle">
-          Per page
-          <select
+        <label className="flex items-center gap-2 text-xs font-semibold text-ink-subtle">
+          {ui("Per page")}
+          <SystemSelect
             value={perPage}
             onChange={(e) => onPerPage(Number(e.target.value))}
-            className="h-9 cursor-pointer rounded-xl border border-[#cfc2d6]/25 bg-white px-2.5 text-[11px] font-bold text-[#1f1a23] outline-none transition-all focus:border-[#8127cf]/40"
+            className="cursor-pointer px-2.5 transition-all"
           >
             {perPageOptions.map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
             ))}
-          </select>
+          </SystemSelect>
         </label>
         {totalPages > 1 ? (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button variant="outline"
               type="button"
               onClick={() => onPage(Math.max(1, page - 1))}
               disabled={page <= 1}
-              aria-label="Previous page"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label={ui("Previous page")}
+              className="w-10"
             >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="min-w-[64px] text-center text-[10px] font-black uppercase tracking-wider text-ink-muted">
+              <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+            </Button>
+            <bdi dir="ltr" className="min-w-[64px] text-center text-xs font-semibold tabular-nums text-ink-muted">
               {page} / {totalPages}
-            </span>
-            <button
+            </bdi>
+            <Button variant="outline"
               type="button"
               onClick={() => onPage(Math.min(totalPages, page + 1))}
               disabled={page >= totalPages}
-              aria-label="Next page"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-[#f3f4f9] text-ink-muted transition-all hover:bg-[#fbf0fe] hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label={ui("Next page")}
+              className="w-10"
             >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+              <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
+            </Button>
           </div>
         ) : null}
       </div>
@@ -817,6 +1012,7 @@ export function ModalPager({
   /** "light" sits on a white header, "dark" on a coloured one. */
   tone?: "light" | "dark";
 }) {
+  const ui = useUiText();
   const index = sequence.findIndex((s) => s.id === currentId);
   const prev = index > 0 ? sequence[index - 1] : undefined;
   const next = index >= 0 && index < sequence.length - 1 ? sequence[index + 1] : undefined;
@@ -847,52 +1043,43 @@ export function ModalPager({
 
   if (sequence.length < 2 || index < 0) return null;
 
-  const base =
-    tone === "dark"
-      ? "text-white/80 hover:bg-white/20"
-      : "text-ink-muted hover:bg-[#fbf0fe] hover:text-[#8127cf]";
+  // 44 px icon buttons (R9), the shared IconButton with its own tooltip; quiet on the dark modal header too.
+  const toneClass = tone === "dark" ? "text-white/80 actionable-hover:bg-white/20 actionable-hover:text-white" : "text-ink-muted";
 
   return (
     <div
       className={cn(
-        "flex items-center gap-1 rounded-2xl px-1.5 py-1",
-        tone === "dark" ? "bg-white/12" : "bg-[#f3f4f9]",
+        "flex items-center gap-1 rounded-2xl px-1 py-0.5",
+        tone === "dark" ? "bg-white/12" : "bg-muted",
       )}
     >
-      <button
-        type="button"
+      <IconButton
+        label={ui(`Previous ${noun}`)}
+        tooltip={prev ? `${ui(`Previous ${noun}`)}: ${prev.label}` : ui(`First ${noun}`)}
         disabled={!prev}
         onClick={() => prev && onNavigate(prev.id)}
-        title={prev ? `Previous ${noun}: ${prev.label}` : `First ${noun}`}
-        aria-label={`Previous ${noun}`}
-        className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-xl transition-colors enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-35",
-          base,
-        )}
+        className={toneClass}
       >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-      <span
+        <ChevronLeft className="rtl:rotate-180" aria-hidden="true" />
+      </IconButton>
+      <bdi
+        dir="ltr"
         className={cn(
-          "px-1 text-[10px] font-black tabular-nums",
+          "px-1 text-2xs font-bold tabular-nums",
           tone === "dark" ? "text-white/80" : "text-ink-muted",
         )}
       >
         {index + 1}/{sequence.length}
-      </span>
-      <button
-        type="button"
+      </bdi>
+      <IconButton
+        label={ui(`Next ${noun}`)}
+        tooltip={next ? `${ui(`Next ${noun}`)}: ${next.label}` : ui(`Last ${noun}`)}
         disabled={!next}
         onClick={() => next && onNavigate(next.id)}
-        title={next ? `Next ${noun}: ${next.label}` : `Last ${noun}`}
-        aria-label={`Next ${noun}`}
-        className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-xl transition-colors enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-35",
-          base,
-        )}
+        className={toneClass}
       >
-        <ChevronRight className="h-4 w-4" />
-      </button>
+        <ChevronRight className="rtl:rotate-180" aria-hidden="true" />
+      </IconButton>
     </div>
   );
 }

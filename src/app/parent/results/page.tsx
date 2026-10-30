@@ -1,17 +1,50 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Download, FileText, Loader2 } from "lucide-react";
+import { Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Download, FileText } from "lucide-react";
 import { ParentPage } from "@/components/parent/parent-page";
-import { toast } from "sonner";
-import { ParentErrorState, ParentListSkeleton, ParentEmptyState, ParentStat } from "@/components/parent/parent-components";
+import { FamilyPortfolio } from "@/components/portfolio/portfolio";
+import { toast } from "@/components/ui/toast";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ParentErrorState, ParentListSkeleton, ParentStat } from "@/components/parent/parent-components";
+import { DeskRowIcon, DeskStats, deskRow } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useParentData } from "../parent-data-context";
 import { downloadPdfFile } from "@/lib/download";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { LearnerInsights, learnerSeriesFromParent } from "@/components/insights";
+import { PathwayPanel } from "@/components/pathways/pathway-panel";
+import { FamilyResultNotes } from "@/components/parent/family-result-notes";
+import { FamilyExamResults } from "@/components/exams/family-exam-results";
 
 export const dynamic = "force-dynamic";
 
+// The report card's own language decides these labels, not the reader's, so
+// they sit beside the authored text they introduce.
+const REPORT_COPY = {
+  published: { en: "Published version", ar: "النسخة المنشورة", ur: "شائع شدہ نسخہ" },
+  correction: { en: "Correction", ar: "تصحيح", ur: "تصحیح" },
+} as const;
+
+function reportCopy(key: keyof typeof REPORT_COPY, language: unknown) {
+  return language === "ar" ? REPORT_COPY[key].ar : language === "ur" ? REPORT_COPY[key].ur : REPORT_COPY[key].en;
+}
+
+function scoreVariant(pct: number) {
+  return pct >= 80 ? "success" : pct >= 60 ? "warning" : "danger";
+}
+
+/**
+ * Results (family): report cards with a per-card download, subject marks, the child's record in chart
+ * form, shared portfolio collections, and careers & pathways only when goals were shared (M94).
+ */
 export default function ParentResultsPage() {
-  const { data, loading, error, refetch } = useParentData();
+  const ui = useUiText();
+  const { data, error, refetch, selectedStudentId } = useParentData();
   const [expandedExam, setExpandedExam] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -21,7 +54,7 @@ export default function ParentResultsPage() {
     try {
       await downloadPdfFile(rc.pdfUrl, `report-card-${rc.examTitle.replace(/[^a-z0-9]+/gi, "-") || "report-card"}.pdf`);
     } catch {
-      toast.error("Failed to download report card");
+      toast.error(ui("Could not download this report card. Please try again."));
     } finally {
       setDownloadingId(null);
     }
@@ -29,68 +62,77 @@ export default function ParentResultsPage() {
 
   // Without this an expired session leaves the page on a skeleton
   // forever, because `data` never arrives and `loading` is already false.
-  if (error) return <ParentErrorState error={error} onRetry={refetch} />;
-  if (loading || !data) return <ParentListSkeleton />;
+  if (error && !data) return <ParentErrorState error={error} onRetry={refetch} />;
+  if (!data) return <ParentListSkeleton />;
   const { reportCards, marksByExam } = data;
-  const publishedCount = reportCards.filter((r: any) => r.status === "PUBLISHED" || r.status === "SENT").length;
+  const publishedCount = reportCards.filter((r: any) => r.status === "PUBLISHED" || r.status === "SENT" || r.status === "CORRECTED").length;
 
   return (
     <ParentPage
-      tone="reports"
       icon={FileText}
-      eyebrow={<>{reportCards.length ? `${reportCards.length} report card${reportCards.length > 1 ? "s" : ""} · ${marksByExam.length} exams` : "Academic results"}</>}
       title="Results"
-      summary="Report cards and subject-wise marks for your child."
+      description={ui("Report cards and subject marks for {0}; download any card.", [`\u2068${data.student.fullName}\u2069`])}
     >
       <div className="space-y-3">
+        <FamilyResultNotes studentId={selectedStudentId} />
+        <FamilyExamResults studentId={selectedStudentId} />
         {reportCards.length === 0 && marksByExam.length === 0 ? (
-          <ParentEmptyState icon={FileText} title="No results yet" description="Results will appear here after exams are published." />
+          <EmptyState size="sm" icon={FileText} title={ui("No results yet")} description={ui("Results will appear here after exams are published.")} />
         ) : (
           <>
-            <div className="sk-rise grid grid-cols-2 gap-3 md:grid-cols-4" style={{ animationDelay: "40ms" }}>
-              <ParentStat icon={FileText} label="Report Cards" value={reportCards.length} sub="Issued to date" />
-              <ParentStat icon={Award} label="Best Score" value={reportCards.length ? `${Math.max(...reportCards.map((r: any) => Math.round(r.percentage)))}%` : "N/A"} sub="Highest result" tone="green" />
-              <ParentStat icon={ClipboardList} label="Exams" value={marksByExam.length} sub="Marked so far" tone="amber" />
-              <ParentStat icon={CheckCircle2} label="Published" value={publishedCount} sub={reportCards.length - publishedCount ? `${reportCards.length - publishedCount} pending release` : "All released"} tone="violet" />
-            </div>
+            <DeskStats>
+              <ParentStat icon={FileText} label={ui("Report cards")} value={reportCards.length} sub={ui("Issued to date")} />
+              <ParentStat icon={Award} label={ui("Best score")} value={reportCards.length ? `${Math.max(...reportCards.map((r: any) => Math.round(r.percentage)))}%` : "—"} sub={ui("Highest result")} tone="green" index={1} />
+              <ParentStat icon={ClipboardList} label={ui("Exams")} value={marksByExam.length} sub={ui("Marked so far")} tone="amber" index={2} />
+              <ParentStat icon={CheckCircle2} label={ui("Published")} value={publishedCount} sub={reportCards.length - publishedCount ? ui("{0} pending release", [reportCards.length - publishedCount]) : ui("All released")} tone="violet" index={3} />
+            </DeskStats>
 
-            <div className="space-y-3">
-              {reportCards.map((rc: any, index: number) => {
+            <div className="sk-stagger space-y-3">
+              {reportCards.map((rc: any) => {
                 const pct = Math.round(rc.percentage);
-                const scoreColor = pct >= 80 ? "text-emerald-600 bg-emerald-50" : pct >= 60 ? "text-amber-600 bg-amber-50" : "text-rose-600 bg-rose-50";
+                const downloading = downloadingId === rc.id;
+                const remarks = rc.language === "ar" ? rc.remarksAr : rc.language === "ur" ? rc.remarksUr : rc.remarksEn;
                 return (
-                  <div key={rc.id} className="sk-rise group relative rounded-[22px] border border-[#cfc2d6]/20 bg-white p-4 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${index * 80}ms` }}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[10px] font-bold text-ink-subtle uppercase">{rc.term} {rc.academicYear}</p>
-                        <h3 className="text-base font-bold text-[#1d1b20] mt-0.5 transition-colors group-hover:text-[#8127cf]">{rc.examTitle}</h3>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${scoreColor}`}>{pct}%</span>
-                          <span className="text-[10px] font-bold text-ink-subtle">Grade: {rc.grade || "N/A"}</span>
-                          {rc.rank && <span className="text-[10px] font-bold text-ink-subtle">Rank: #{rc.rank}</span>}
+                  <div key={rc.id} data-tone={scoreVariant(pct)} className={cn(deskRow, "p-4")}>
+                    <div className="flex min-w-0 items-start justify-between gap-4">
+                      <div className="flex min-w-0 items-start gap-3"><DeskRowIcon icon={Award} /><div className="min-w-0">
+                        <p className="sk-eyebrow [overflow-wrap:anywhere]">{rc.term} {rc.academicYear}</p>
+                        <h2 className="mt-0.5 text-base font-bold text-ink-strong [overflow-wrap:anywhere]"><bdi>{rc.examTitle}</bdi></h2>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                          <Badge variant={scoreVariant(pct)} size="sm" data-numeric className="tabular-nums">{pct}%</Badge>
+                          <span className="text-xs font-medium text-ink-muted">{ui("Grade: {0}", [rc.grade || "—"])}</span>
+                          {rc.rank && <span className="text-xs font-medium tabular-nums text-ink-muted">{ui("Rank: #{0}", [rc.rank])}</span>}
                         </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-2xl font-black text-[#8127cf]">{rc.obtainedMarks}<span className="text-sm font-bold text-ink-subtle">/{rc.totalMarks}</span></p>
+                      </div></div>
+                      <div className="shrink-0 text-end">
+                        <p className="text-2xl font-bold tabular-nums text-primary">{rc.obtainedMarks}<span className="text-sm font-semibold text-ink-subtle">/{rc.totalMarks}</span></p>
                       </div>
                     </div>
 
-                    {rc.remarksEn && (
-                      <div className="mt-3 p-3 rounded-xl bg-[#fbf0fe]/30 border border-[#cfc2d6]/5">
-                        <p className="text-[10px] font-bold text-ink-subtle uppercase mb-1">Teacher Remarks</p>
-                        <p className="text-xs text-ink leading-relaxed">{rc.remarksEn}</p>
+                    <p className="mt-3 text-xs text-ink-subtle" dir="auto">{reportCopy("published", rc.language)} <bdi>v{rc.version}</bdi></p>
+                    {rc.correctionReason && (
+                      <Alert tone="info" live="off" compact className="mt-2" dir="auto" title={reportCopy("correction", rc.language)}>
+                        {rc.correctionReason}
+                      </Alert>
+                    )}
+                    {(rc.remarksEn || rc.remarksAr || rc.remarksUr) && (
+                      <div className="mt-3 rounded-xl border border-border-subtle bg-surface-subtle p-3">
+                        <p className="sk-eyebrow mb-1">{ui("Teacher remarks")}</p>
+                        <p className="text-sm leading-relaxed text-ink" dir="auto">{remarks}</p>
                       </div>
                     )}
 
                     {rc.pdfUrl && (
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleDownloadPdf(rc)}
-                        disabled={downloadingId === rc.id}
-                        className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-[#8127cf] hover:text-[#6a1fb0] transition-colors cursor-pointer disabled:opacity-50"
+                        loading={downloading}
+                        className="mt-3"
                       >
-                        {downloadingId === rc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                        {downloadingId === rc.id ? "Downloading..." : "Download PDF"}
-                      </button>
+                        {downloading ? null : <Download aria-hidden="true" />}
+                        {ui("Download")}
+                      </Button>
                     )}
                   </div>
                 );
@@ -100,44 +142,52 @@ export default function ParentResultsPage() {
             {marksByExam.length > 0 && (
               <div>
                 <div className="mb-3 flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#fbf0fe] text-[#8127cf]">
+                  <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary">
                     <BookOpen className="h-4 w-4" />
                   </span>
-                  <h3 className="text-sm font-black tracking-tight text-[#1d1b20]">Subject-wise Marks</h3>
+                  <h2 className="text-base font-bold text-ink-strong">{ui("Subject marks")}</h2>
                 </div>
-                <div className="space-y-3">
-                  {marksByExam.map((exam: any, index: number) => {
+                <div className="sk-stagger space-y-3">
+                  {marksByExam.map((exam: any) => {
                     const isExpanded = expandedExam === exam.examId;
                     return (
-                      <div key={exam.examId} className="sk-rise overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white shadow-[0_1px_2px_rgba(31,26,35,0.04),0_10px_28px_-16px_rgba(31,26,35,0.35)] transition-all duration-200 hover:border-[#8127cf]/30 hover:shadow-[0_2px_4px_rgba(31,26,35,0.05),0_14px_28px_-14px_rgba(129,39,207,0.4)]" style={{ animationDelay: `${(index + 1) * 80}ms` }}>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
-                          aria-expanded={isExpanded}
-                          aria-controls={`exam-marks-${exam.examId}`}
-                          className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 transition-colors hover:bg-[#fbf0fe]/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8127cf]/25"
-                        >
-                          <div className="text-left">
-                            <p className="text-[10px] font-bold text-ink-subtle uppercase">{exam.term}</p>
-                            <h3 className="text-sm font-bold text-[#1d1b20]">{exam.examTitle}</h3>
-                            <p className="text-[10px] font-semibold text-ink-subtle mt-0.5">{exam.marks.length} subjects</p>
-                          </div>
-                          {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-[#8127cf]" /> : <ChevronDown className="h-4 w-4 shrink-0 text-ink-subtle" />}
-                        </button>
+                      <div key={exam.examId} className="sk-panel overflow-hidden transition-[border-color,box-shadow] duration-200 hover:border-primary/25 hover:shadow-md">
+                        <h4>
+                          <Button variant="ghost"
+                            type="button"
+                            onClick={() => setExpandedExam(isExpanded ? null : exam.examId)}
+                            aria-expanded={isExpanded}
+                            aria-controls={`exam-marks-${exam.examId}`}
+                            className="flex h-auto w-full items-center justify-between gap-3 rounded-none p-4 text-start"
+                          >
+                            <span className="block min-w-0">
+                              <span className="sk-eyebrow block [overflow-wrap:anywhere]">{exam.term}</span>
+                              <span className="block text-sm font-bold text-ink-strong [overflow-wrap:anywhere]">{exam.examTitle}</span>
+                              <span className="mt-0.5 block text-xs font-medium text-ink-subtle">{ui("{0} subjects", [exam.marks.length])}</span>
+                            </span>
+                            {isExpanded ? <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 text-primary" /> : <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle" />}
+                          </Button>
+                        </h4>
                         {isExpanded && (
-                          <div id={`exam-marks-${exam.examId}`} className="border-t border-[#f3f4f9] px-4 pb-4">
-                            <div className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 text-[9px] font-black uppercase text-ink-subtle">
-                              <span>Subject</span>
-                              <span className="text-right">Marks</span>
-                              <span className="text-right">Grade</span>
-                            </div>
-                            {exam.marks.map((m: any) => (
-                              <div key={m.subject} className="grid grid-cols-[1fr_80px_60px] gap-2 py-2 border-t border-[#f3f4f9]/50">
-                                <span className="text-xs font-semibold text-[#1d1b20]">{m.subject}</span>
-                                <span className="text-xs font-bold text-ink-muted text-right">{m.obtained}/{m.total}</span>
-                                <span className="text-xs font-black text-[#8127cf] text-right">{m.grade || "-"}</span>
-                              </div>
-                            ))}
+                          <div id={`exam-marks-${exam.examId}`} className="border-t border-border-subtle">
+                            <Table containerClassName="rounded-none border-0">
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>{ui("Subject")}</TableHead>
+                                  <TableHead className="text-end">{ui("Marks")}</TableHead>
+                                  <TableHead className="text-end">{ui("Grade")}</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {exam.marks.map((m: any) => (
+                                  <TableRow key={m.subject}>
+                                    <TableCell className="py-3 font-medium text-ink-strong [overflow-wrap:anywhere]">{m.subject}</TableCell>
+                                    <TableCell className="py-3 text-end font-semibold tabular-nums text-ink-muted">{m.obtained}/{m.total}</TableCell>
+                                    <TableCell className="py-3 text-end font-semibold text-primary">{m.grade || "-"}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
                           </div>
                         )}
                       </div>
@@ -148,8 +198,15 @@ export default function ParentResultsPage() {
             )}
           </>
         )}
+        {/* The child's record in chart form (moved from Home). */}
+        {data.access.learningRecords && reportCards.length > 0 ? (
+          <LearnerInsights series={learnerSeriesFromParent(data)} possessive={data.student.fullName.split(" ")[0] || ui("your child")} />
+        ) : null}
+        {/* SKO-427: learning-progress collections the school shared with this guardian. */}
+        <div className="mt-6"><FamilyPortfolio studentId={selectedStudentId ?? null} /></div>
+        {/* M94: careers and pathways only when goals were shared with the family. */}
+        <PathwayPanel hideWhenEmpty />
       </div>
     </ParentPage>
   );
 }
-

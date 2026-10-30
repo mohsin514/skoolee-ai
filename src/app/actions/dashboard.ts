@@ -1,13 +1,52 @@
 'use server'
+import { dominantInvoiceCurrency, pickDominantCurrency } from "@/app/api/fees/reports/invoice-currency";
+import { familyVersion, getPublishedVersion } from "@/lib/academic/report-versions";
+import { pendingReportReviewCount } from "@/lib/academic/report-review-count";
+
+import { getLocalePackage } from "@/lib/locale/store";
+import { studentScope, publishedReportsWhere } from "@/lib/auth/policy";
 
 import { cache } from "react";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { runAsUser } from "@/lib/db/tenant-context";
+import { createWidgetLoader, describeError, loadWidget } from "@/lib/dashboard/widget";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
-import { isCampusAdminRole, roleLabel } from "@/lib/roles";
+import { isCampusAdminRole, roleLabel, roleLabelFor } from "@/lib/roles";
+import { institutionKindOf, isInstitutionAuthority, kindFor } from "@/lib/auth/institution";
 import { assertSchoolOperational } from "@/lib/billing/entitlements";
 import { attendanceForYear, summarizeAttendance } from "@/lib/attendance";
+import { attendanceRuleFor } from "@/lib/attendance/rule";
 import { getActiveAcademicYear } from "@/lib/academic/cycle";
+import { announcementHistoryRestriction } from "@/lib/school-ai/announcement-history";
+import { rosterSummarySelect } from "@/lib/students/roster-summary";
+
+/**
+ * Production strips server-action error messages ("userMessage suppressed internal error" on the client), so a
+ * console that fails to load is only diagnosable from this server-side log of its cause.
+ */
+async function logConsoleFailure<T>(scope: string, load: () => Promise<T>): Promise<T> {
+  try {
+    return await load();
+  } catch (error) {
+    console.error(`[${scope}] load failed`, describeError(error));
+    throw error;
+  }
+}
+
+/**
+ * SKAI-1031: the campus the admin console reads. A standalone school has exactly one campus; an owner account whose
+ * campus was never linked (campusId null) threw "Campus context is required" on every load, which Retry could never
+ * fix. The standalone authority falls back to the school's only operating campus; anyone else still needs their own.
+ */
+async function campusAdminCampusId(session: AuthUser): Promise<string> {
+  if (session.campusId) return session.campusId;
+  if (kindFor(session) === "STANDALONE" && isInstitutionAuthority(session)) {
+    const campuses = await prisma.campus.findMany({ where: { schoolId: session.schoolId, archivedAt: null }, select: { id: true }, take: 2 });
+    if (campuses.length === 1) return campuses[0].id;
+  }
+  return requireCampusId(session);
+}
 
 function requireCampusId(session: AuthUser): string {
   if (!session.campusId) {
@@ -38,12 +77,14 @@ function aiReviewSelect() {
   } as const;
 }
 
-function formatPendingInvite(invite: { id: string; email: string; status: string; expiresAt: Date; role?: unknown }) {
+function formatPendingInvite(invite: { id: string; email: string; status: string; expiresAt: Date; role?: unknown; deliveryStatus?: string; lastDeliveryAt?: Date | null }) {
   return {
     inviteId: invite.id,
     email: invite.email,
     role: invite.role,
-    status: new Date() > invite.expiresAt ? "Expired" : "Invited",
+    status: invite.deliveryStatus === "failed" ? "Delivery failed" : new Date() > invite.expiresAt ? "Expired" : "Invited",
+    deliveryStatus: invite.deliveryStatus,
+    lastDeliveryAt: invite.lastDeliveryAt,
     expiresAt: invite.expiresAt,
   };
 }
@@ -59,10 +100,113 @@ function formatPendingInvite(invite: { id: string; email: string; status: string
  */
 const ON_ROLL = { status: { notIn: ["inactive", "archived", "transferred", "graduated"] } } satisfies Prisma.StudentWhereInput;
 
-export const getSuperAdminDashboardData = cache(async function getSuperAdminDashboardData() {
+/** The School AI guided-setup generation (`setup-generation-service.ts` FEATURE): questionnaire answers → drafts. */
+const SCHOOL_AI_SETUP_FEATURE = "SETUP_GENERATION_V1";
+
+/**
+ * Flagship AI Workflows (addendum 2026-10-22): whether the institution authority's Today leads with "Set up your
+ * school with AI" (`/ai?workflow=schoolSetup`) instead of "Run an AI workflow". True only for the authority, and only
+ * while the school is not set up yet — no guided-setup generation has completed and no academic year is active — so a
+ * school already running (set up by hand or before School AI) is never pushed back into setup. Presentation only;
+ * a failed read answers false (the card then offers "Run an AI workflow").
+ */
+async function aiSetupPendingFor(session: AuthUser): Promise<boolean> {
+  if (!isInstitutionAuthority(session)) return false;
+  try {
+    // A completed first-login questionnaire (AI Workflows) counts as set up, like a completed generation.
+    const built = await prisma.aiSetupResponse.count({ where: { schoolId: session.schoolId, userId: session.userId, status: "READY" } });
+    if (built > 0) return false;
+    const [generated, activeYears] = await Promise.all([
+      prisma.schoolAiRequest.count({ where: { schoolId: session.schoolId, feature: SCHOOL_AI_SETUP_FEATURE, status: "COMPLETED" } }),
+      prisma.academicCycle.count({ where: { schoolId: session.schoolId, status: "ACTIVE" } }),
+    ]);
+    if (generated === 0 && activeYears === 0) return true;
+    // Year readiness below 4/4 — no active year, no periods or no weekly off-days — keeps setup pending, so the
+    // authority is still led to "Set up your school with AI" until the timetable basics exist.
+    const [periods, weekends] = await Promise.all([
+      prisma.periodDefinition.count({ where: { schoolId: session.schoolId } }),
+      prisma.weekend.count({ where: { schoolId: session.schoolId } }),
+    ]);
+    return activeYears === 0 || periods === 0 || weekends === 0;
+  } catch (error) {
+    console.warn("[dashboard] AI setup state unavailable", { error: error instanceof Error ? error.message : String(error) });
+    return false;
+  }
+}
+
+/** What waits at a campus for its campus operator (§2.6, M117): grouped counts only, never rows. */
+type CampusWaiting = { adjustments: number; applications: number; leave: number };
+
+/**
+ * Per campus, the operator decisions waiting there (§2.6, M117, audit P4-G5): fee adjustments REQUESTED, admission
+ * applications SUBMITTED or UNDER_REVIEW, and non-teaching staff leave PENDING (teachers' leave is decided by the
+ * academic lead, everyone else's by the campus operator — `api/leave/review`). Three grouped counts for the whole
+ * school; the /super attention item "No campus admin at {campus}" shows them. Presentation only: a failed read answers
+ * null and the item keeps its plain explanation.
+ */
+async function campusWaitingCounts(schoolId: string): Promise<Map<string, CampusWaiting> | null> {
+  try {
+    const [adjustments, applications, leave] = await Promise.all([
+      prisma.financialAdjustment.groupBy({ by: ["campusId"], where: { schoolId, status: "REQUESTED" }, _count: { _all: true } }),
+      prisma.admissionApplication.groupBy({ by: ["campusId"], where: { schoolId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } }, _count: { _all: true } }),
+      prisma.leaveRequest.groupBy({ by: ["campusId"], where: { schoolId, status: "PENDING", user: { role: { not: "TEACHER" } } }, _count: { _all: true } }),
+    ]);
+    // SKAI-1026: a campus with no principal hands teachers' leave to its operator (`canLeadAcademics`), so those
+    // pending requests wait on the operator too.
+    const [teacherLeave, principals] = await Promise.all([
+      prisma.leaveRequest.groupBy({ by: ["campusId"], where: { schoolId, status: "PENDING", user: { role: "TEACHER" } }, _count: { _all: true } }),
+      prisma.user.groupBy({ by: ["campusId"], where: { schoolId, role: "PRINCIPAL", isActive: true }, _count: { _all: true } }),
+    ]);
+    const led = new Set(principals.map((row) => row.campusId));
+    const leaveByCampus = new Map<string, number>();
+    for (const row of leave) leaveByCampus.set(row.campusId, row._count._all);
+    for (const row of teacherLeave) if (!led.has(row.campusId)) leaveByCampus.set(row.campusId, (leaveByCampus.get(row.campusId) ?? 0) + row._count._all);
+    const waiting = new Map<string, CampusWaiting>();
+    const at = (campusId: string) => {
+      const row = waiting.get(campusId) ?? { adjustments: 0, applications: 0, leave: 0 };
+      waiting.set(campusId, row);
+      return row;
+    };
+    for (const row of adjustments) at(row.campusId).adjustments = row._count._all;
+    for (const row of applications) at(row.campusId).applications = row._count._all;
+    for (const [campusId, count] of leaveByCampus) at(campusId).leave = count;
+    return waiting;
+  } catch (error) {
+    console.warn("[dashboard] campus waiting counts unavailable", { error: error instanceof Error ? error.message : String(error) });
+    return null;
+  }
+}
+
+/**
+ * SKAI-1034 audit: every dashboard loader runs bound to the signed-in user's school instead of leaving each of
+ * its parallel queries to re-derive the tenant from the session cookie. Without a session the loader runs as
+ * before and its own auth check refuses.
+ */
+function boundToSession<T>(load: () => Promise<T>): () => Promise<T> {
+  return async () => {
+    const session = await getAuthUser();
+    return session ? runAsUser(session, load) : load();
+  };
+}
+
+export const getSuperAdminDashboardData = cache(boundToSession(async function getSuperAdminDashboardData() {
+  try {
+    return await loadSuperAdminDashboardData();
+  } catch (error) {
+    // SKAI-1038: production strips server-action messages, so the cause is only visible here.
+    console.error("[super-dashboard] load failed", describeError(error));
+    throw error;
+  }
+}));
+
+async function loadSuperAdminDashboardData() {
+  const degraded: string[] = [];
   const session = await getAuthUser();
   if (!session || session.role !== "SUPER_ADMIN") throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
+  const { currency } = await getLocalePackage(session.schoolId, null);
+  const aiSetupPending = aiSetupPendingFor(session);
+  const waitingCounts = campusWaitingCounts(session.schoolId);
 
   const [
     school,
@@ -75,7 +219,8 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
   ] = await Promise.all([
     prisma.school.findUnique({ where: { id: session.schoolId } }),
     prisma.campus.findMany({
-      where: { schoolId: session.schoolId },
+      // SKO-389: archived campuses leave the operating console; their history stays in reports.
+      where: { schoolId: session.schoolId, archivedAt: null },
       include: {
         users: {
           where: { role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, isActive: true },
@@ -97,98 +242,20 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
           select: { id: true, email: true, role: true, status: true, expiresAt: true, profile: true },
           orderBy: { createdAt: "desc" },
         },
-        classes: {
-          select: {
-            id: true,
-            name: true,
-            section: true,
-            academicYear: true,
-            classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-            _count: { select: { students: true, subjects: true, exams: true } },
-          },
-          orderBy: [{ academicYear: "desc" }, { name: "asc" }],
-        },
-        // Summary only. This is the whole campus roster on every dashboard
-        // load, so it carries what a list card, the filters and the CSV export
-        // actually render — and nothing else. Home address, medical notes,
-        // allergies, medications and special needs are read by exactly one
-        // screen, for one child at a time, and are fetched by
-        // GET /api/students/<id> when that profile is opened.
+        // Governance charts need dates and grades, not learner/guardian identities or full rosters.
         students: {
           select: {
-            id: true,
-            fullName: true,
-            rollNo: true,
-            dateOfBirth: true,
-            gender: true,
-            phone: true,
-            guardianName: true,
-            guardianPhone: true,
-            guardianEmail: true,
-            city: true,
             enrollmentDate: true,
-            status: true,
-            profileImageUrl: true,
-            studentUser: { select: { email: true, isActive: true } },
-            class: { select: { id: true, name: true, section: true, academicYear: true } },
-            // The roster's Category and Group filters build their options from
-            // these, and the CSV export has columns for them. Never selected,
-            // so both filters were permanently absent and both columns blank.
-            category: { select: { id: true, name: true } },
-            group: { select: { id: true, name: true } },
             reportCards: {
-              select: {
-                id: true,
-                percentage: true,
-                grade: true,
-                status: true,
-                remarksApproved: true,
-                deliveryStatus: true,
-                isSent: true,
-                generatedAt: true,
-                exam: { select: { title: true, term: true, status: true } },
-              },
-              orderBy: { generatedAt: "desc" },
+              select: { percentage: true, grade: true },
+              orderBy: [{ generatedAt: "desc" }, { id: "desc" }],
               take: 1,
             },
           },
-          orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
-        },
-        exams: {
-          select: {
-            id: true,
-            title: true,
-            term: true,
-            academicYear: true,
-            status: true,
-            isLocked: true,
-            reviewedAt: true,
-            publishedAt: true,
-            class: { select: { name: true, section: true } },
-            _count: { select: { reportCards: true } },
-          },
-          orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-          take: 8,
-        },
-        reportCards: {
-          select: {
-            id: true,
-            percentage: true,
-            grade: true,
-            status: true,
-            remarksApproved: true,
-            deliveryStatus: true,
-            isSent: true,
-            generatedAt: true,
-            student: { select: { fullName: true, rollNo: true, class: { select: { name: true, section: true } } } },
-            exam: { select: { title: true, term: true, status: true } },
-          },
-          orderBy: { generatedAt: "desc" },
-          take: 8,
         },
         _count: {
           select: {
-            users: true,
+            users: { where: { isActive: true, role: { in: ["CAMPUS_ADMIN", "ADMIN", "PRINCIPAL", "TEACHER", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] } } },
             classes: true,
             students: true,
             subjects: true,
@@ -201,35 +268,35 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.aIInsight.findMany({
+    loadWidget("aiInsights", () => prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId },
       select: aiInsightSelect(),
       orderBy: { createdAt: "desc" },
       take: 5,
-    }),
-    prisma.aIUsageLog.groupBy({
+    }), [], degraded),
+    loadWidget("aiUsage", () => prisma.aIUsageLog.groupBy({
       by: ["campusId"],
       where: { schoolId: session.schoolId },
       _count: { _all: true },
       _sum: { tokensUsed: true },
-    }),
-    prisma.aIReviewItem.findMany({
+    }), [], degraded),
+    loadWidget("aiReview", () => prisma.aIReviewItem.findMany({
       where: { schoolId: session.schoolId, status: "PENDING" },
       select: aiReviewSelect(),
       orderBy: { createdAt: "asc" },
       take: 5,
-    }),
-    prisma.parentCommunication.groupBy({
+    }), [], degraded),
+    loadWidget("communications", () => prisma.parentCommunication.groupBy({
       by: ["campusId", "status"],
       where: { schoolId: session.schoolId },
       _count: { _all: true },
-    }),
-    prisma.invoice.groupBy({
+    }), [], degraded),
+    loadWidget("invoices", () => prisma.invoice.groupBy({
       by: ["campusId", "status"],
-      where: { campus: { schoolId: session.schoolId } },
+      where: { currency, campus: { schoolId: session.schoolId } },
       _count: { _all: true },
-      _sum: { totalAmount: true },
-    }),
+      _sum: { totalAmount: true, totalAmountPaid: true },
+    }), [], degraded),
   ]);
 
   const aiUsageMap = aiUsageByCampus.reduce<Record<string, { runs: number; tokens: number }>>((acc, item) => {
@@ -244,15 +311,16 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     return acc;
   }, {});
 
-  const invoiceMap = invoiceSummary.reduce<Record<string, Record<string, { count: number; amount: number }>>>((acc, item) => {
+  const invoiceMap = invoiceSummary.reduce<Record<string, Record<string, { count: number; amount: number; collected: number }>>>((acc, item) => {
     const key = item.campusId || "school";
     acc[key] = {
       ...(acc[key] || {}),
-      [item.status]: { count: item._count._all, amount: item._sum.totalAmount || 0 },
+      [item.status]: { count: item._count._all, amount: item._sum.totalAmount || 0, collected: item._sum.totalAmountPaid || 0 },
     };
     return acc;
   }, {});
 
+  const waitingByCampus = await waitingCounts;
   const formattedCampuses = campuses.map((campus) => {
     const admin = campus.users.find((user) => user.role === "CAMPUS_ADMIN" || user.role === "ADMIN");
     const principal = campus.users.find((user) => user.role === "PRINCIPAL");
@@ -278,10 +346,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       communicationCount: campus._count.parentCommunications,
       teachers,
       teacherCount: teachers.length,
-      classes: campus.classes,
       students: campus.students,
-      recentExams: campus.exams,
-      recentReportCards: campus.reportCards,
       pendingInvitations: campus.staffInvitations.map(formatPendingInvite),
       pendingTeacherInvitations: pendingTeacherInvitations.map(formatPendingInvite),
       operationsStaff,
@@ -289,6 +354,9 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
       aiUsage: aiUsageMap[campus.id] || { runs: 0, tokens: 0 },
       communicationSummary: communicationMap[campus.id] || {},
       invoiceSummary: invoiceMap[campus.id] || {},
+      /** §2.6/M117: operator decisions waiting at this campus; undefined when the counts could not be read. */
+      waiting: waitingByCampus ? (waitingByCampus.get(campus.id) ?? { adjustments: 0, applications: 0, leave: 0 }) : undefined,
+      currency,
       admin: admin
         ? { ...admin, status: admin.onboardingComplete ? "Active" : "Onboarding" }
         : pendingAdmin
@@ -345,6 +413,7 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
   );
 
   return {
+    currency,
     schoolName: school?.name || "System",
     schoolSlug: school?.slug || "system",
     billing: {
@@ -358,22 +427,34 @@ export const getSuperAdminDashboardData = cache(async function getSuperAdminDash
     aiInsights,
     aiUsageByCampus,
     pendingAIReviewItems,
+    /** SKAI-1038: widgets whose read failed and show their empty state; the rest of the console still loads. */
+    degraded,
+    // G46a: GROUP or STANDALONE from the resolved session (§1.1), for kind-aware copy in the console.
+    institutionKind: kindFor(session) ?? institutionKindOf({}),
+    /** Flagship card on Today: "Set up your school with AI" while true, else "Run an AI workflow" (addendum 2026-10-22). */
+    aiSetupPending: await aiSetupPending,
     user: {
       fullName: session.fullName || "Owner",
       email: session.email,
-      role: roleLabel(session.role),
+      role: roleLabelFor(session),
     },
   };
-});
+}
 
-export const getCampusDashboardData = cache(async function getCampusDashboardData() {
+export const getCampusDashboardData = cache(boundToSession(async function getCampusDashboardData() {
+  return logConsoleFailure("admin-dashboard", loadCampusDashboardData);
+}));
+
+async function loadCampusDashboardData() {
   const session = await getAuthUser();
   if (!session || !isCampusAdminRole(session.role)) throw new Error("Permission Denied");
   await assertSchoolOperational(session.schoolId);
 
-  const campusId = requireCampusId(session);
+  const campusId = await campusAdminCampusId(session);
+  const L = createWidgetLoader("admin-dashboard");
 
   const [
+    locale,
     classes,
     teachers,
     campusAdmins,
@@ -382,7 +463,6 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     operationsStaff,
     school,
     campus,
-    campusCount,
     students,
     recentExams,
     recentReportCards,
@@ -390,10 +470,11 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     aiInsights,
     pendingAIReviewItems,
     attendanceRecords,
-    invoiceTotals,
-    invoiceGroups,
+    invoiceGroupsByCurrency,
+    aiSetupPending,
   ] = await Promise.all([
-    prisma.class.findMany({
+    L.required("locale", () => getLocalePackage(session.schoolId, campusId)),
+    L.widget("classes", () => prisma.class.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       include: {
         _count: { select: { students: true, subjects: true } },
@@ -402,15 +483,15 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
           select: {
             id: true,
             name: true,
-            totalMarks: true,
+            totalMarks: true, code: true, isElective: true, archivedAt: true,
             teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
           },
           orderBy: { name: "asc" },
         },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }],
-    }),
-    prisma.user.findMany({
+    }), []),
+    L.widget("teachers", () => prisma.user.findMany({
       where: { campusId, schoolId: session.schoolId, role: "TEACHER", isActive: true },
       select: {
         id: true,
@@ -457,8 +538,8 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         _count: { select: { taughtSubjects: true, ledClasses: true } },
       },
       orderBy: { fullName: "asc" },
-    }),
-    prisma.user.findMany({
+    }), []),
+    L.widget("campusAdmins", () => prisma.user.findMany({
       where: { campusId, schoolId: session.schoolId, role: { in: ["CAMPUS_ADMIN", "ADMIN"] }, isActive: true },
       select: {
         id: true,
@@ -471,64 +552,33 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         createdAt: true,
       },
       orderBy: { createdAt: "asc" },
-    }),
-    prisma.user.findFirst({
+    }), []),
+    L.widget("principal", () => prisma.user.findFirst({
       where: { campusId, schoolId: session.schoolId, role: "PRINCIPAL", isActive: true },
       select: { id: true, fullName: true, email: true, profileImageUrl: true, onboardingComplete: true, isActive: true },
-    }),
-    prisma.staffInvitation.findMany({
+    }), null),
+    L.widget("pendingInvitations", () => prisma.staffInvitation.findMany({
       where: {
         campusId,
         status: "pending",
         role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] },
         campus: { schoolId: session.schoolId },
       },
-      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
+      select: { id: true, email: true, role: true, status: true, deliveryStatus: true, lastDeliveryAt: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
-    }),
-    prisma.user.findMany({
+    }), []),
+    L.widget("operationsStaff", () => prisma.user.findMany({
       where: { campusId, schoolId: session.schoolId, role: { in: ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, isActive: true },
       select: { id: true, fullName: true, email: true, role: true, profileImageUrl: true, isActive: true, onboardingComplete: true, createdAt: true },
       orderBy: { createdAt: "asc" },
-    }),
-    prisma.school.findUnique({ where: { id: session.schoolId } }),
-    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId } }),
-    prisma.campus.count({ where: { schoolId: session.schoolId } }),
-    prisma.student.findMany({
+    }), []),
+    L.widget("school", () => prisma.school.findUnique({ where: { id: session.schoolId } }), null),
+    L.widget("campus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId } }), null),
+    L.widget("students", () => prisma.student.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
+      // The directory summary (SKAI-163); the profile reads the sensitive fields from /api/students/<id>.
       select: {
-        id: true,
-        fullName: true,
-        nameUr: true,
-        rollNo: true,
-        dateOfBirth: true,
-        gender: true,
-        bloodType: true,
-        nationality: true,
-        phone: true,
-        guardianName: true,
-        guardianNameUr: true,
-        guardianPhone: true,
-        guardianWhatsapp: true,
-        guardianEmail: true,
-        guardianRelationship: true,
-        guardianOccupation: true,
-        city: true,
-        province: true,
-        postalCode: true,
-        address: true,
-        medicalNotes: true,
-        specialNeeds: true,
-        allergies: true,
-        medications: true,
-        previousSchool: true,
-        enrollmentDate: true,
-        status: true,
-        profileImageUrl: true,
-        studentUser: { select: { email: true, isActive: true } },
-        class: { select: { id: true, name: true, section: true, academicYear: true } },
-        category: { select: { id: true, name: true } },
-        group: { select: { id: true, name: true } },
+        ...rosterSummarySelect,
         attendance: {
           select: { id: true, status: true, date: true },
           orderBy: { date: "desc" },
@@ -548,8 +598,8 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         },
       },
       orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
-    }),
-    prisma.exam.findMany({
+    }), []),
+    L.widget("recentExams", () => prisma.exam.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       select: {
         id: true,
@@ -564,8 +614,8 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         _count: { select: { reportCards: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-    }),
-    prisma.reportCard.findMany({
+    }), []),
+    L.widget("recentReportCards", () => prisma.reportCard.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       select: {
         id: true,
@@ -585,19 +635,19 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         exam: { select: { title: true, term: true, status: true } },
       },
       orderBy: { generatedAt: "desc" },
-    }),
-    prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }),
-    prisma.aIInsight.findMany({
+    }), []),
+    L.widget("studentCount", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
+    L.widget("aiInsights", () => prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId, campusId },
       select: aiInsightSelect(),
       orderBy: { createdAt: "desc" },
-    }),
-    prisma.aIReviewItem.findMany({
+    }), []),
+    L.widget("pendingAIReviewItems", () => prisma.aIReviewItem.findMany({
       where: { schoolId: session.schoolId, campusId, status: "PENDING" },
       select: aiReviewSelect(),
       orderBy: { createdAt: "asc" },
-    }),
-    prisma.attendance.findMany({
+    }), []),
+    L.widget("attendanceRecords", () => prisma.attendance.findMany({
       where: { campusId, date: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
       select: {
         id: true,
@@ -605,19 +655,38 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
         status: true,
         student: { select: { fullName: true, rollNo: true, classId: true } },
       },
-    }),
-    prisma.invoice.aggregate({
+    }), []),
+    L.widget("invoiceGroupsByCurrency", () => prisma.invoice.groupBy({
+      by: ["currency", "status"],
       where: { campusId, campus: { schoolId: session.schoolId } },
-      _sum: { totalAmount: true },
-      _count: true,
-    }),
-    prisma.invoice.groupBy({
-      by: ["status"],
-      where: { campusId, campus: { schoolId: session.schoolId } },
-      _count: true,
-      _sum: { totalAmount: true },
-    }),
+      _count: { _all: true },
+      _sum: { totalAmount: true, totalAmountPaid: true },
+    }), []),
+    L.widget("aiSetupPending", () => aiSetupPendingFor(session), false),
   ]);
+
+  const currencyCounts = new Map<string, number>();
+  for (const group of invoiceGroupsByCurrency) {
+    if (group.status === "CANCELLED" || !group.currency) continue;
+    currencyCounts.set(group.currency, (currencyCounts.get(group.currency) ?? 0) + group._count._all);
+  }
+  const currency = pickDominantCurrency(
+    [...currencyCounts].map(([currencyCode, count]) => ({ currency: currencyCode, count })),
+    locale.currency,
+  );
+  const invoiceGroups = invoiceGroupsByCurrency
+    .filter((group) => group.currency === currency)
+    .map(({ status, _count, _sum }) => ({ status, _count, _sum }));
+  const invoiceTotals = invoiceGroups.reduce(
+    (total, group) => ({
+      _count: total._count + group._count._all,
+      _sum: {
+        totalAmount: total._sum.totalAmount + (group._sum.totalAmount ?? 0),
+        totalAmountPaid: total._sum.totalAmountPaid + (group._sum.totalAmountPaid ?? 0),
+      },
+    }),
+    { _count: 0, _sum: { totalAmount: 0, totalAmountPaid: 0 } },
+  );
 
   const pendingAdmin = pendingInvitations.find((invite) => invite.role === "CAMPUS_ADMIN" || invite.role === "ADMIN");
   const pendingPrincipal = pendingInvitations.find((invite) => invite.role === "PRINCIPAL");
@@ -628,9 +697,14 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     campusCity: campus?.city || "",
     campusRegId: campus?.regId || "",
     logoUrl: campus?.logoUrl || school?.logoUrl || null,
-    isStandaloneCampus: campusCount === 1,
+    /** @deprecated G46a — read `institutionKind`. Derived from the institution kind, never from campus counts. */
+    isStandaloneCampus: kindFor(session) === "STANDALONE",
     currentUserId: session.userId,
-    canInviteAdmins: campusCount === 1,
+    /** @deprecated G46a — read the `inviteLeaders` capability key. True only for the institution authority. */
+    canInviteAdmins: isInstitutionAuthority(session),
+    institutionKind: kindFor(session) ?? institutionKindOf({}),
+    /** Flagship card on Today: true only for the standalone owner whose school is not set up yet (addendum 2026-10-22). */
+    aiSetupPending,
     classes,
     teachers,
     campusAdmins,
@@ -655,6 +729,7 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
       leave: attendanceRecords.filter((r: any) => r.status === "LEAVE").length,
     },
     invoiceSummary: {
+      currency,
       total: invoiceTotals._count || 0,
       totalAmount: invoiceTotals._sum?.totalAmount || 0,
       byStatus: invoiceGroups,
@@ -662,29 +737,36 @@ export const getCampusDashboardData = cache(async function getCampusDashboardDat
     adminName: session.fullName || "Administrator",
     adminEmail: session.email,
     role: session.role,
-    roleLabel: roleLabel(session.role),
+    roleLabel: roleLabelFor(session),
+    /** Widgets whose read failed and answered their empty fallback (SKAI-1031). */
+    degraded: L.degraded,
   };
-});
+}
 
-export const getTeacherDashboardData = cache(async function getTeacherDashboardData() {
+export const getTeacherDashboardData = cache(boundToSession(async function getTeacherDashboardData() {
+  return logConsoleFailure("teacher-dashboard", loadTeacherDashboardData);
+}));
+
+async function loadTeacherDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "TEACHER") throw new Error("Unauthorized");
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
+  const L = createWidgetLoader("teacher-dashboard");
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const [subjects, ledClasses, aiInsights, teacherCampus] = await Promise.all([
-    prisma.subject.findMany({
+    L.required("subjects", () => prisma.subject.findMany({
       where: { campusId, teacherId: session.userId, campus: { schoolId: session.schoolId } },
       include: {
         class: { select: { id: true, name: true, section: true, academicYear: true } },
         _count: { select: { marks: true } },
       },
       orderBy: { name: "asc" },
-    }),
-    prisma.class.findMany({
+    })),
+    L.required("ledClasses", () => prisma.class.findMany({
       where: { campusId, classTeacherId: session.userId, campus: { schoolId: session.schoolId } },
       include: {
         _count: { select: { students: true, subjects: true } },
@@ -692,7 +774,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
           select: {
             id: true,
             name: true,
-            totalMarks: true,
+            totalMarks: true, code: true, isElective: true, archivedAt: true,
             teacherId: true,
             teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
           },
@@ -700,14 +782,14 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
         },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }, { section: "asc" }],
-    }),
-    prisma.aIInsight.findMany({
+    })),
+    L.widget("aiInsights", () => prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId, campusId, userId: session.userId },
       select: aiInsightSelect(),
       orderBy: { createdAt: "desc" },
       take: 4,
-    }),
-    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { logoUrl: true, school: { select: { logoUrl: true } } } }),
+    }), []),
+    L.widget("teacherCampus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { logoUrl: true, school: { select: { logoUrl: true } } } }), null),
   ]);
 
   const classIds = [...new Set([...subjects.map((subject) => subject.classId), ...ledClasses.map((cls) => cls.id)])];
@@ -715,7 +797,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
 
   const [students, exams, attendanceToday, recentReportCards] = classIds.length
     ? await Promise.all([
-        prisma.student.findMany({
+        L.required("students", () => prisma.student.findMany({
           where: { campusId, classId: { in: classIds }, campus: { schoolId: session.schoolId } },
           select: {
             id: true,
@@ -764,8 +846,8 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
             },
           },
           orderBy: { rollNo: "asc" },
-        }),
-        prisma.exam.findMany({
+        })),
+        L.widget("exams", () => prisma.exam.findMany({
           where: {
             campusId,
             classId: { in: classIds },
@@ -793,12 +875,12 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
           },
           orderBy: [{ academicYear: "desc" }, { title: "asc" }],
           take: 24,
-        }),
-        prisma.attendance.findMany({
+        }), []),
+        L.widget("attendanceToday", () => prisma.attendance.findMany({
           where: { campusId, date: today, student: { classId: { in: classIds } } },
           select: { id: true, studentId: true, status: true, student: { select: { classId: true } } },
-        }),
-        prisma.reportCard.findMany({
+        }), []),
+        L.widget("recentReportCards", () => prisma.reportCard.findMany({
           where: { campusId, student: { classId: { in: classIds } }, campus: { schoolId: session.schoolId } },
           include: {
             student: { select: { id: true, fullName: true, rollNo: true, class: { select: { id: true, name: true, section: true, academicYear: true } } } },
@@ -806,7 +888,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
           },
           orderBy: { generatedAt: "desc" },
           take: 18,
-        }),
+        }), []),
       ])
     : [[], [], [], []];
 
@@ -841,7 +923,7 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
   // *newest* class first, which is typically a future year the admin has not
   // activated yet — an empty roster with no explanation. Classes in the admin's
   // ACTIVE cycle come first instead; the rest keep year-descending order.
-  const activeAcademicYear = await getActiveAcademicYear(campusId);
+  const activeAcademicYear = await L.widget("activeAcademicYear", () => getActiveAcademicYear(campusId), null);
   const classHubs = [...classHubsMap.values()]
     .map((cls) => ({ ...cls, inActiveCycle: Number(cls.academicYear) === activeAcademicYear }))
     .sort(
@@ -923,15 +1005,29 @@ export const getTeacherDashboardData = cache(async function getTeacherDashboardD
     recentReportCards,
     totalStudents: students.length,
     aiInsights,
+    /** Widgets whose read failed and answered their empty fallback (SKAI-1024). */
+    degraded: L.degraded,
   };
-});
+}
 
-export const getPrincipalDashboardData = cache(async function getPrincipalDashboardData() {
+export const getPrincipalDashboardData = cache(boundToSession(async function getPrincipalDashboardData() {
+  return logConsoleFailure("principal-dashboard", loadPrincipalDashboardData);
+}));
+
+async function loadPrincipalDashboardData() {
   const session = await getAuthUser();
   if (!session || session.role !== "PRINCIPAL") throw new Error("Unauthorized");
   await assertSchoolOperational(session.schoolId);
 
   const campusId = requireCampusId(session);
+  const L = createWidgetLoader("principal-dashboard");
+  // Currency and the announcement-history restriction shape other reads (the restriction fails closed), so they
+  // stay required; everything else is a widget.
+  const [currency, historyRestriction] = await Promise.all([
+    L.required("currency", async () => dominantInvoiceCurrency(session.schoolId, [campusId], (await getLocalePackage(session.schoolId, campusId)).currency)),
+    L.required("announcementHistory", () => announcementHistoryRestriction(session)),
+  ]);
+  const communicationScope = { schoolId: session.schoolId, campusId, ...historyRestriction };
 
   const today = new Date(new Date().setHours(0, 0, 0, 0));
 
@@ -960,33 +1056,23 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     invoiceGroups,
     pendingInvitations,
     operationsStaff,
-    campusCount,
   ] = await Promise.all([
-    prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }),
-    prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }),
-    prisma.user.count({ where: { campusId, schoolId: session.schoolId, role: "TEACHER", isActive: true } }),
-    prisma.class.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
-    prisma.exam.count({ where: { campusId, campus: { schoolId: session.schoolId } } }),
-    prisma.exam.count({ where: { campusId, campus: { schoolId: session.schoolId }, isLocked: true } }),
-    prisma.reportCard.count({
-      where: {
-        campusId,
-        campus: { schoolId: session.schoolId },
-        OR: [
-          { remarksApproved: false },
-          { remarksEn: null, remarksUr: null },
-        ],
-      },
-    }),
-    prisma.aIReviewItem.count({
+    L.widget("campus", () => prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, include: { school: true } }), null),
+    L.widget("totalStudents", () => prisma.student.count({ where: { campusId, campus: { schoolId: session.schoolId }, ...ON_ROLL } }), 0),
+    L.widget("totalTeachers", () => prisma.user.count({ where: { campusId, schoolId: session.schoolId, role: "TEACHER", isActive: true } }), 0),
+    L.widget("totalClasses", () => prisma.class.count({ where: { campusId, campus: { schoolId: session.schoolId } } }), 0),
+    L.widget("activeExams", () => prisma.exam.count({ where: { campusId, campus: { schoolId: session.schoolId } } }), 0),
+    L.widget("lockedExams", () => prisma.exam.count({ where: { campusId, campus: { schoolId: session.schoolId }, isLocked: true } }), 0),
+    L.widget("pendingRemarkReviews", () => pendingReportReviewCount(session.schoolId, campusId), 0),
+    L.widget("pendingAIReviews", () => prisma.aIReviewItem.count({
       where: { schoolId: session.schoolId, campusId, status: "PENDING" },
-    }),
-    prisma.aIReviewItem.findMany({
+    }), 0),
+    L.widget("pendingAIReviewItems", () => prisma.aIReviewItem.findMany({
       where: { schoolId: session.schoolId, campusId, status: "PENDING" },
       select: aiReviewSelect(),
       orderBy: { createdAt: "asc" },
-    }),
-    prisma.class.findMany({
+    }), []),
+    L.widget("classes", () => prisma.class.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       include: {
         classTeacher: { select: { id: true, fullName: true, email: true, phone: true, profileImageUrl: true } },
@@ -994,7 +1080,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
           select: {
             id: true,
             name: true,
-            totalMarks: true,
+            totalMarks: true, code: true, isElective: true, archivedAt: true,
             teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
           },
           orderBy: { name: "asc" },
@@ -1048,8 +1134,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         _count: { select: { students: true, subjects: true } },
       },
       orderBy: [{ academicYear: "desc" }, { name: "asc" }],
-    }),
-    prisma.student.findMany({
+    }), []),
+    L.widget("students", () => prisma.student.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       select: {
         id: true,
@@ -1084,8 +1170,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         },
       },
       orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
-    }),
-    prisma.user.findMany({
+    }), []),
+    L.widget("teachers", () => prisma.user.findMany({
       where: { campusId, schoolId: session.schoolId, role: "TEACHER", isActive: true },
       select: {
         id: true,
@@ -1131,8 +1217,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         _count: { select: { taughtSubjects: true, ledClasses: true } },
       },
       orderBy: { fullName: "asc" },
-    }),
-    prisma.user.findMany({
+    }), []),
+    L.widget("campusAdmins", () => prisma.user.findMany({
       where: { campusId, schoolId: session.schoolId, role: { in: ["CAMPUS_ADMIN", "ADMIN"] }, isActive: true },
       select: {
         id: true,
@@ -1145,8 +1231,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         createdAt: true,
       },
       orderBy: { fullName: "asc" },
-    }),
-    prisma.exam.findMany({
+    }), []),
+    L.widget("reviewExams", () => prisma.exam.findMany({
       where: {
         campusId,
         campus: { schoolId: session.schoolId },
@@ -1160,8 +1246,8 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         _count: { select: { reportCards: true } },
       },
       orderBy: [{ academicYear: "desc" }, { title: "asc" }],
-    }),
-    prisma.reportCard.findMany({
+    }), []),
+    L.widget("recentReportCards", () => prisma.reportCard.findMany({
       where: { campusId, campus: { schoolId: session.schoolId } },
       include: {
         student: {
@@ -1178,14 +1264,14 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         exam: { select: { id: true, title: true, term: true, status: true } },
       },
       orderBy: { generatedAt: "desc" },
-    }),
-    prisma.parentCommunication.groupBy({
+    }), []),
+    L.widget("communicationSummary", () => prisma.parentCommunication.groupBy({
       by: ["status"],
-      where: { schoolId: session.schoolId, campusId },
+      where: communicationScope,
       _count: { _all: true },
-    }),
-    prisma.parentCommunication.findMany({
-      where: { schoolId: session.schoolId, campusId },
+    }), []),
+    L.widget("recentCommunications", () => prisma.parentCommunication.findMany({
+      where: communicationScope,
       include: {
         student: {
           select: {
@@ -1198,18 +1284,18 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
       },
       orderBy: { createdAt: "desc" },
       take: 8,
-    }),
-    prisma.aIInsight.findMany({
+    }), []),
+    L.widget("aiInsights", () => prisma.aIInsight.findMany({
       where: { schoolId: session.schoolId, campusId },
       select: aiInsightSelect(),
       orderBy: { createdAt: "desc" },
       take: 5,
-    }),
-    prisma.mark.aggregate({
+    }), []),
+    L.widget("markAverage", () => prisma.mark.aggregate({
       where: { campusId, campus: { schoolId: session.schoolId } },
       _avg: { marksObtained: true },
-    }),
-    prisma.attendance.findMany({
+    }), { _avg: { marksObtained: null } }),
+    L.widget("attendanceRecords", () => prisma.attendance.findMany({
       where: { campusId, date: { gte: today } },
       select: {
         id: true,
@@ -1217,34 +1303,33 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
         status: true,
         student: { select: { fullName: true, rollNo: true, classId: true } },
       },
-    }),
-    prisma.invoice.aggregate({
-      where: { campusId, campus: { schoolId: session.schoolId } },
-      _sum: { totalAmount: true },
+    }), []),
+    L.widget("invoiceTotals", () => prisma.invoice.aggregate({
+      where: { currency, campusId, campus: { schoolId: session.schoolId } },
+      _sum: { totalAmount: true, totalAmountPaid: true },
       _count: true,
-    }),
-    prisma.invoice.groupBy({
+    }), { _sum: { totalAmount: null, totalAmountPaid: null }, _count: 0 }),
+    L.widget("invoiceGroups", () => prisma.invoice.groupBy({
       by: ["status"],
-      where: { campusId, campus: { schoolId: session.schoolId } },
+      where: { currency, campusId, campus: { schoolId: session.schoolId } },
       _count: true,
-      _sum: { totalAmount: true },
-    }),
-    prisma.staffInvitation.findMany({
+      _sum: { totalAmount: true, totalAmountPaid: true },
+    }), []),
+    L.widget("pendingInvitations", () => prisma.staffInvitation.findMany({
       where: {
         campusId,
         status: "pending",
         role: { in: ["CAMPUS_ADMIN", "ADMIN", "TEACHER", "PRINCIPAL", "ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] },
         campus: { schoolId: session.schoolId },
       },
-      select: { id: true, email: true, role: true, status: true, expiresAt: true, createdAt: true, profile: true },
+      select: { id: true, email: true, role: true, status: true, deliveryStatus: true, lastDeliveryAt: true, expiresAt: true, createdAt: true, profile: true },
       orderBy: { createdAt: "desc" },
-    }),
-    prisma.user.findMany({
+    }), []),
+    L.widget("operationsStaff", () => prisma.user.findMany({
       where: { campusId, schoolId: session.schoolId, role: { in: ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] }, isActive: true },
       select: { id: true, fullName: true, email: true, role: true, profileImageUrl: true, isActive: true, onboardingComplete: true, createdAt: true },
       orderBy: { createdAt: "asc" },
-    }),
-    prisma.campus.count({ where: { schoolId: session.schoolId } }),
+    }), []),
   ]);
 
   return {
@@ -1288,6 +1373,7 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
       leave: attendanceRecords.filter((r: any) => r.status === "LEAVE").length,
     },
     invoiceSummary: {
+      currency,
       total: invoiceTotals._count || 0,
       totalAmount: invoiceTotals._sum?.totalAmount || 0,
       byStatus: invoiceGroups,
@@ -1298,17 +1384,24 @@ export const getPrincipalDashboardData = cache(async function getPrincipalDashbo
     pendingTeacherInvitations: pendingInvitations.filter((invite) => invite.role === "TEACHER"),
     operationsStaff,
     pendingOperationsInvitations: pendingInvitations.filter((invite) => ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"].includes(invite.role)),
-    isStandaloneCampus: campusCount === 1,
-    canInviteAdmins: campusCount === 1,
+    /** @deprecated G46a — derived from the institution kind; the principal never invites campus leaders. */
+    isStandaloneCampus: kindFor(session) === "STANDALONE",
+    /** @deprecated G46a */
+    canInviteAdmins: false,
+    institutionKind: kindFor(session) ?? institutionKindOf({}),
     adminName: session.fullName || "Principal",
     adminEmail: session.email,
     roleLabel: "Principal",
+    /** Widgets whose read failed and answered their empty fallback (SKAI-1032). */
+    degraded: L.degraded,
   };
-});
+}
 
-export const getStudentDashboardData = cache(async function getStudentDashboardData() {
+export const getStudentDashboardData = cache(boundToSession(async function getStudentDashboardData() {
   const session = await getAuthUser();
-  if (!session || (session.role !== "STUDENT" && session.role !== "PARENT")) {
+  // G44: the learner dashboard is for learners. Guardians read their children through the family portal, whose
+  // data path applies guardian permissions per child (this loader would have shown one child unfiltered).
+  if (!session || session.role !== "STUDENT") {
     throw new Error("Unauthorized");
   }
   await assertSchoolOperational(session.schoolId);
@@ -1317,20 +1410,6 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     where: { id: session.userId },
     select: { id: true, fullName: true, email: true, campusId: true, profileImageUrl: true },
   });
-
-  const accountEmail = (account?.email || session.email || "").toLowerCase();
-  // Identity must come from an explicit link (studentUserId / parentUserId) or
-  // an address the office recorded for this guardian. Matching on fullName
-  // would hand any namesake another child's marks, attendance, and fees, so
-  // that fallback is deliberately absent: an unlinked account sees
-  // profileMissing instead of somebody else's record.
-  const identityFilters: any[] = [
-    ...(session.role === "PARENT" ? [{ parentUserId: session.userId }] : []),
-    ...(session.role === "PARENT" && accountEmail ? [{ guardianEmail: { equals: accountEmail, mode: "insensitive" as const } }] : []),
-  ];
-
-  // Kept outside the `as const` include below so Prisma sees a mutable string[].
-  const RELEASED_REPORT_CARD = { status: { in: ["PUBLISHED", "SENT"] } };
 
   const studentInclude = {
       campus: { select: { id: true, name: true, city: true, logoUrl: true, school: { select: { logoUrl: true } } } },
@@ -1345,7 +1424,7 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
             select: {
               id: true,
               name: true,
-              totalMarks: true,
+              totalMarks: true, code: true, isElective: true, archivedAt: true,
               teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
             },
             orderBy: { name: "asc" },
@@ -1355,21 +1434,6 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       // Marks and report cards reach the family only once the office has
       // published them — never while an exam is in DRAFT/MARKS_ENTRY or a card
       // is still GENERATED/REVIEWED.
-      marks: {
-        where: { exam: { status: "PUBLISHED" } },
-        include: {
-          subject: {
-            select: {
-              id: true,
-              name: true,
-              totalMarks: true,
-              teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
-            },
-          },
-          exam: { select: { id: true, title: true, term: true, status: true, academicYear: true } },
-          enterer: { select: { fullName: true } },
-        },
-      },
       attendance: {
         include: {
           marker: { select: { fullName: true } },
@@ -1379,11 +1443,11 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         orderBy: { date: "desc" },
         take: 200,
       },
+      // M100: every published card, each with its own download (the cap of three hid older terms).
       reportCards: {
-        where: RELEASED_REPORT_CARD,
+        where: publishedReportsWhere,
         include: { exam: { select: { id: true, title: true, term: true, status: true, academicYear: true } } },
         orderBy: { generatedAt: "desc" },
-        take: 3,
       },
       invoices: {
         include: { payments: { select: { amount: true } } },
@@ -1392,25 +1456,12 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
       },
   } as const;
 
-  const baseStudentWhere = {
-    campus: { schoolId: session.schoolId },
-    ...(session.campusId ? { campusId: session.campusId } : {}),
-  };
-
-  const linkedStudent = session.role === "STUDENT"
-    ? await prisma.student.findFirst({
-        where: { ...baseStudentWhere, studentUserId: session.userId },
-        include: studentInclude,
-      })
-    : null;
-
-  const student = linkedStudent || await prisma.student.findFirst({
-    where: {
-      ...baseStudentWhere,
-      OR: identityFilters.length ? identityFilters : [{ id: "__missing_student__" }],
-    },
-    include: studentInclude,
+  const student = await prisma.student.findFirst({
+    where: studentScope(session), include: studentInclude,
+    orderBy: [{ rollNo: "asc" }, { id: "asc" }],
   });
+
+  const released = await Promise.all((student?.reportCards || []).map(async r => familyVersion(await getPublishedVersion(r.id))));
 
   // Only the current year's days belong on the student's own dashboard;
   // previous years stay available as history elsewhere.
@@ -1418,14 +1469,18 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
     student?.attendance || [],
     student?.class?.academicYear
   );
-  const attendanceSummary = summarizeAttendance(currentYearAttendance);
+  const attendanceRule = await attendanceRuleFor(session.schoolId);
+  const attendanceSummary = summarizeAttendance(currentYearAttendance, attendanceRule);
   const attendanceRate = attendanceSummary.rate;
   // Read the ledger column rather than re-summing payments, so the dashboard,
   // the student fees page, and the parent portal all quote the same number.
-  const balanceDue = student?.invoices.reduce(
-    (total, invoice) => total + Math.max(invoice.balanceDue, 0),
-    0,
-  ) || 0;
+  const balanceCurrency = student?.invoices[0]?.currency ?? (await getLocalePackage(session.schoolId, student?.campusId ?? session.campusId)).currency;
+  // G44 / statement semantics: what is owed is every open (non-cancelled) invoice, not only the five shown.
+  const owed = student ? await prisma.invoice.aggregate({
+    where: { studentId: student.id, currency: balanceCurrency, status: { not: "CANCELLED" }, balanceDue: { gt: 0 } },
+    _sum: { balanceDue: true },
+  }) : null;
+  const balanceDue = owed?._sum.balanceDue ?? 0;
   const aiInsights = await prisma.aIInsight.findMany({
     where: {
       schoolId: session.schoolId,
@@ -1454,16 +1509,18 @@ export const getStudentDashboardData = cache(async function getStudentDashboardD
         : "Unassigned",
       classTeacher: student?.class?.classTeacher || null,
       subjects: student?.class?.subjects || [],
-      marks: student?.marks || [],
+      marks: released.flatMap(r => r.marks.map(m => ({ ...m, id: `${r.versionId}:${m.subjectId}`, marksObtained: m.obtained, subject: { id: m.subjectId, name: m.subject, totalMarks: m.total }, exam: { id: r.examId, title: r.examTitle, status: "PUBLISHED", term: r.term, academicYear: r.academicYear } }))),
       attendance: currentYearAttendance,
-      reportCards: student?.reportCards || [],
+      reportCards: released.map(report => ({ ...report, pdfUrl: `/api/reports/download?reportCardId=${report.id}&versionId=${report.versionId}&redirect=1` })),
       invoices: student?.invoices || [],
       attendanceRate,
+      attendanceRule,
       balanceDue,
+      balanceCurrency,
       aiInsights,
     },
   };
-});
+}));
 
 const OPS_ROLES = ["ACCOUNTANT", "LIBRARIAN", "RECEPTIONIST"] as const;
 
@@ -1473,6 +1530,9 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
   await assertSchoolOperational(session.schoolId);
   const campusId = requireCampusId(session);
 
+  // SKAI-1034: bound explicitly to the signed-in operator's school (standalone or a campus of a group) so these
+  // queries never fall back to per-query cookie resolution.
+  return runAsUser(session, async () => {
   const [school, campus] = await Promise.all([
     prisma.school.findUnique({ where: { id: session.schoolId }, select: { name: true, logoUrl: true } }),
     prisma.campus.findFirst({ where: { id: campusId, schoolId: session.schoolId }, select: { name: true, city: true, logoUrl: true } }),
@@ -1499,6 +1559,7 @@ export const getOperationsStaffDashboardData = cache(async function getOperation
     campusId,
     summary,
   };
+  });
 });
 
 /** Start of today, in the server's zone — the boundary every "today" count uses. */
@@ -1636,16 +1697,20 @@ async function librarianSummary(schoolId: string, campusId: string) {
 
 async function accountantSummary(schoolId: string, campusId: string) {
   const twelveMonths = monthsAgo(11);
+  const { currency: localeCurrency } = await getLocalePackage(schoolId, campusId);
+  // Summaries follow the currency the campus actually bills in, never the
+  // locale default — otherwise PKR invoices vanish behind a USD filter.
+  const currency = await dominantInvoiceCurrency(schoolId, [campusId], localeCurrency);
 
   const [invoiceGroups, payments, defaulters, payrollRuns, studentsBilled] = await Promise.all([
     prisma.invoice.groupBy({
       by: ["status"],
-      where: { campusId, campus: { schoolId } },
+      where: { currency, campusId, campus: { schoolId } },
       _count: true,
       _sum: { totalAmount: true, totalAmountPaid: true, balanceDue: true },
     }),
     prisma.payment.findMany({
-      where: { campusId, schoolId, paymentDate: { gte: twelveMonths } },
+      where: { campusId, schoolId, invoice: { currency }, paymentDate: { gte: twelveMonths } },
       select: { paymentDate: true, amount: true, paymentMethod: true },
     }),
     // "Past due" is any invoice still carrying a balance after its due date —
@@ -1654,7 +1719,7 @@ async function accountantSummary(schoolId: string, campusId: string) {
     // family that has paid something and then stopped.
     prisma.invoice.count({
       where: {
-        campusId,
+        currency, campusId,
         campus: { schoolId },
         status: { not: "CANCELLED" },
         balanceDue: { gt: 0 },
@@ -1663,7 +1728,7 @@ async function accountantSummary(schoolId: string, campusId: string) {
     }),
     prisma.payrollRun.count({ where: { campusId, schoolId } }),
     prisma.invoice.findMany({
-      where: { campusId, campus: { schoolId } },
+      where: { currency, campusId, campus: { schoolId } },
       select: { studentId: true },
       distinct: ["studentId"],
     }),
@@ -1680,6 +1745,7 @@ async function accountantSummary(schoolId: string, campusId: string) {
 
   return {
     kind: "ACCOUNTANT" as const,
+    currency,
     byStatus: invoiceGroups.map((g) => ({
       status: g.status,
       count: g._count,
@@ -1705,18 +1771,22 @@ async function receptionistSummary(schoolId: string, campusId: string) {
   const today = startOfToday();
   const fortnight = daysAgo(13);
 
-  const [visitorsToday, openVisits, visitors, complaintGroups, calls, postal, certificates] = await Promise.all([
-    prisma.visitorLog.count({ where: { campusId, schoolId, inTime: { gte: today } } }),
-    prisma.visitorLog.count({ where: { campusId, schoolId, outTime: null, inTime: { gte: today } } }),
+  const [visitorsToday, openVisits, visitors, complaintGroups, calls, callbacksDue, postal, certificates] = await Promise.all([
+    prisma.visitorLog.count({ where: { campusId, schoolId, inTime: { gte: today }, status: { not: "REFUSED" } } }),
+    // On site means not yet checked out, whatever the arrival day; refused visitors were never admitted (SKO-466).
+    prisma.visitorLog.count({ where: { campusId, schoolId, status: "ON_SITE" } }),
     prisma.visitorLog.findMany({
       where: { campusId, schoolId, inTime: { gte: fortnight } },
       select: { inTime: true, outTime: true },
     }),
-    prisma.complaint.groupBy({ by: ["status"], where: { campusId, schoolId }, _count: true }),
+    // Confidential concerns are not counted on the reception dashboard, so their existence is not disclosed (SKO-467).
+    prisma.complaint.groupBy({ by: ["status"], where: { campusId, schoolId, confidential: false }, _count: true }),
     prisma.phoneCallLog.findMany({
       where: { campusId, schoolId, date: { gte: fortnight } },
-      select: { date: true, direction: true, followUpDate: true },
+      select: { date: true, direction: true },
     }),
+    // Open callbacks due by the end of today, overdue ones included; a count only, never a caller or note (SKO-465).
+    prisma.phoneCallback.count({ where: { campusId, schoolId, status: "OPEN", dueAt: { lt: new Date(today.getTime() + 86_400_000) } } }),
     prisma.postalRecord.findMany({
       where: { campusId, schoolId, date: { gte: fortnight } },
       select: { date: true, direction: true },
@@ -1733,7 +1803,7 @@ async function receptionistSummary(schoolId: string, campusId: string) {
     callsByDay: bucketByDay(calls.map((c) => ({ date: c.date })), 14),
     callsIn: calls.filter((c) => c.direction === "IN").length,
     callsOut: calls.filter((c) => c.direction === "OUT").length,
-    followUpsDue: calls.filter((c) => c.followUpDate && c.followUpDate >= today).length,
+    followUpsDue: callbacksDue,
     postalReceived: postal.filter((p) => p.direction === "RECEIVE").length,
     postalDispatched: postal.filter((p) => p.direction === "DISPATCH").length,
     postalByDay: bucketByDay(postal.map((p) => ({ date: p.date })), 14),

@@ -1,8 +1,13 @@
+import { pageWindow } from "@/lib/lists/query";
+import { assertListBudget } from "@/lib/lists/access";
+import { bindProvisionHandoff, completeProvisionHandoff } from "@/lib/owner/workflow-provisioning";
+import { ownerPagination } from "@/lib/owner/list-query";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, errorResponse, requirePlatformOwner } from "@/lib/api/scope";
 import bcrypt from "bcryptjs";
 import { PLANS } from "@/config/plans";
+import { createPlanContract } from "@/config/commercial-contract";
 import { logSuperAdminAction } from "@/lib/audit";
 import {
   assertEmailAvailable,
@@ -12,33 +17,39 @@ import {
   normalizePlan,
   uniqueSlug,
 } from "@/lib/owner/provisioning";
+import { parseBody } from "@/lib/api/validate";
+import { jsonObjectBody } from "@/lib/validators/route-bodies";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requirePlatformOwner();
+    await assertListBudget(user, "owner/schools");
 
     const { searchParams } = new URL(req.url);
-    const page = Math.max(parseInt(searchParams.get("page") || "1", 10), 1);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "25", 10), 1), 100);
+    const { page: requestedPage, limit } = ownerPagination(searchParams);
     const search = searchParams.get("search")?.trim() || "";
     const status = searchParams.get("status") || "";
     const plan = searchParams.get("plan") || "";
 
     const where: any = {};
     if (status) where.status = status;
+    if (plan && !["FREE", "BASIC", "PRO", "ENTERPRISE"].includes(plan)) throw new ApiError("Unknown plan", 400);
     if (plan) where.plan = plan;
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
         { contactEmail: { contains: search, mode: "insensitive" } },
         { slug: { contains: search, mode: "insensitive" } },
+        { address: { contains: search, mode: "insensitive" } },
+        { city: { contains: search, mode: "insensitive" } },
       ];
     }
 
-    const [schools, total] = await Promise.all([
-      prisma.school.findMany({
+    const total = await prisma.school.count({ where });
+    const { page, skip, pages } = pageWindow(total, requestedPage, limit);
+    const schools = await prisma.school.findMany({
         where,
         include: {
           campuses: {
@@ -51,17 +62,15 @@ export async function GET(req: NextRequest) {
               website: true,
               principalName: true,
               board: true,
-              _count: { select: { students: true, users: true, classes: true } },
+              _count: { select: { students: true, users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } }, classes: true } },
             },
           },
-          _count: { select: { users: true } },
+          _count: { select: { users: { where: { role: { notIn: ["PARENT", "STUDENT", "APP_OWNER"] } } } } },
         },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip,
         take: limit,
-      }),
-      prisma.school.count({ where }),
-    ]);
+      });
 
     const data = schools.map((school) => ({
       id: school.id,
@@ -76,12 +85,15 @@ export async function GET(req: NextRequest) {
       establishedYear: school.establishedYear,
       status: school.status,
       plan: school.plan,
+      dataRegion: school.dataRegion,
+      attendanceRegulator: school.attendanceRegulator,
       aiCreditsUsed: school.aiCreditsUsed,
       aiCreditsLimit: school.aiCreditsLimit,
+      aiWorkflowsLiveAt: school.aiWorkflowsLiveAt,
       createdAt: school.createdAt,
       campusCount: school.campuses.length,
       totalStudents: school.campuses.reduce((sum, c) => sum + c._count.students, 0),
-      totalStaff: school.campuses.reduce((sum, c) => sum + c._count.users, 0),
+      totalStaff: school._count.users,
       totalClasses: school.campuses.reduce((sum, c) => sum + c._count.classes, 0),
       campuses: school.campuses.map((c) => ({
         id: c.id,
@@ -101,7 +113,7 @@ export async function GET(req: NextRequest) {
     return Response.json({
       success: true,
       data,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: { page, limit, total, pages },
     });
   } catch (error) {
     return errorResponse(error, "[owner/schools] GET failed");
@@ -111,9 +123,16 @@ export async function GET(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────
 // POST — Provision a new school (tenant)
 //
-// Creates School + first Campus + SUPER_ADMIN owner account in one
-// transaction, on the chosen plan. This replaces self-serve /register:
-// only the APP_OWNER can bring a new tenant into existence.
+// Creates School + first Campus + owner account in one transaction, on the
+// chosen plan. This replaces self-serve /register: only the APP_OWNER can
+// bring a new tenant into existence.
+//
+// G22: the institution kind is a required, explicit choice. It is stored as
+// `registrationKind` (the first signal `institutionKindOf` reads), and the
+// owner is created as that kind's institution authority with the owner and
+// purchase flags, so billing, invitations and approvals work from day one:
+//   GROUP      → SUPER_ADMIN, not pinned to a campus (campusId: null)
+//   STANDALONE → ADMIN, pinned to the school's only campus
 //
 // The generated password is returned exactly once, in this response.
 // It is never stored in plaintext and cannot be retrieved again.
@@ -122,7 +141,7 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await requirePlatformOwner();
 
-    const body = await req.json();
+    const body = await parseBody(req, jsonObjectBody);
 
     const schoolName = String(body.schoolName || "").trim();
     const city = String(body.city || "").trim();
@@ -135,6 +154,8 @@ export async function POST(req: NextRequest) {
     const phone = String(body.phone || "").trim() || null;
     const address = String(body.address || "").trim() || null;
 
+    const kind = body.kind === "GROUP" || body.kind === "STANDALONE" ? (body.kind as "GROUP" | "STANDALONE") : null;
+    if (!kind) throw new ApiError("Choose whether this is a school group or a single school", 400);
     if (!schoolName) throw new ApiError("School name is required", 400);
     if (!city) throw new ApiError("City is required", 400);
     if (!ownerName) throw new ApiError("Owner name is required", 400);
@@ -173,6 +194,7 @@ export async function POST(req: NextRequest) {
     const hashed = await bcrypt.hash(tempPassword, 12);
 
     const result = await prisma.$transaction(async (tx) => {
+      const handoff = await bindProvisionHandoff(tx, actor, body.workflowHandoffId);
       const school = await tx.school.create({
         data: {
           name: schoolName,
@@ -182,6 +204,8 @@ export async function POST(req: NextRequest) {
           contactEmail: schoolContact,
           status,
           plan,
+          registrationKind: kind,
+          commercialContract: createPlanContract(plan, { aiCredits: aiCreditsLimit }),
           aiCreditsLimit,
           regId: genRegId("SKL"),
         },
@@ -202,12 +226,15 @@ export async function POST(req: NextRequest) {
       const owner = await tx.user.create({
         data: {
           schoolId: school.id,
-          campusId: campus.id,
+          // A group admin works across every campus; a single school's admin runs its one campus.
+          campusId: kind === "GROUP" ? null : campus.id,
           email: ownerEmail,
           fullName: ownerName,
           phone,
           password: hashed,
-          role: "SUPER_ADMIN",
+          role: kind === "GROUP" ? "SUPER_ADMIN" : "ADMIN",
+          isInstitutionOwner: true,
+          canPurchaseSubscription: true,
           isActive: true,
           // Owner-provisioned accounts skip email verification but must
           // replace the generated password before reaching a dashboard.
@@ -216,6 +243,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      if (handoff) await completeProvisionHandoff(tx, actor, handoff, school.id);
       return { school, campus, owner };
     });
 
@@ -226,7 +254,7 @@ export async function POST(req: NextRequest) {
       targetType: "school",
       targetId: result.school.id,
       targetName: result.school.name,
-      newValues: { plan, status, ownerEmail, campusName },
+      newValues: { plan, status, kind, ownerEmail, campusName },
     }).catch(() => {});
 
     return Response.json(
@@ -240,6 +268,8 @@ export async function POST(req: NextRequest) {
           campusName: result.campus.name,
           ownerId: result.owner.id,
           ownerEmail: result.owner.email,
+          ownerRole: result.owner.role,
+          kind,
           plan,
           status,
           limits: {

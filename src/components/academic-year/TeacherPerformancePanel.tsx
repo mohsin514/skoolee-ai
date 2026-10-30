@@ -1,526 +1,210 @@
 "use client";
-
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle, Award, BarChart3, BookOpen, Download, LayoutGrid,
-  Search, Table2, TrendingDown, TrendingUp, UserCheck, Users,
-} from "lucide-react";
-import { BrandButton, EmptyState } from "@/components/role-dashboard";
-import { userMessage } from "@/lib/errors";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download, MessageSquareText, Search, Users } from "lucide-react";
+import { toast } from "@/components/ui/toast";
 import { downloadCSV } from "@/lib/csv";
-import { cn } from "@/lib/utils";
-import { AvatarImage } from "@/components/ui/avatar-image";
-import {
-  DataTable,
-  StatTiles,
-  ViewSwitch,
-  WorkspaceHeader,
-  WorkspaceToolbar,
-  type DataColumn,
-  type WorkspaceView,
-} from "@/components/shared-admin/workspace";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
+import { Modal, ModalActions } from "@/components/ui/modal";
+import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
+import { isApiOk, readApiError } from "@/lib/api/envelope-client";
 
-interface TeacherPerf {
-  teacherId: string;
-  fullName: string;
-  email: string;
-  profileImageUrl: string | null;
-  subjectsCount: number;
-  classesCount: number;
-  ledClasses: { id: string; name: string; section: string | null }[];
-  totalStudents: number;
-  avgPercentage: number | null;
-  passRate: number | null;
-  attendanceCompletionRate: number | null;
-  marksCompletionRate: number | null;
-  reportCardsGenerated: number;
-  teacherAttendanceRate: number | null;
-  teacherPresentDays?: number;
-  teacherTotalDays?: number;
+// SKO-461: "Teaching evidence" — bounded to the selected period, published
+// results only, every measure with its source, coverage and freshness, absent
+// evidence shown as unavailable (never zero), shared class outcomes marked as
+// shared. Teachers are listed by name: no ranking, no overall score, and no
+// employment decision is made here.
+
+type Measure = { key: string; value: number | null; unit: string; source: string; coverage: string | null; freshness: string | null; unavailable: string | null; shared: boolean; caution: string | null };
+type Row = { teacherId: string; fullName: string; subjects: string[]; ledClasses: string[]; measures: Measure[]; notes: number };
+type Evidence = { period: { start: string; end: string; source: "ACADEMIC_CYCLE" | "CALENDAR_YEAR"; label: string; academicYear: number }; policy: string[]; teachers: Row[]; self: boolean };
+type Note = { id: string; kind: string; body: string; author: string; createdAt: string };
+
+const MEASURE_LABEL: Record<string, string> = { registers: "Registers kept", marksEntry: "Marks entered", subjectResults: "Published results in own subjects", classOutcomes: "Class outcomes (shared)", staffAttendance: "Own attendance recorded" };
+const NOTE_LABEL: Record<string, string> = { TEACHER_RESPONSE: "Teacher response", SUPPORT_ACTION: "Support action" };
+const PERIOD_SOURCE = { ACADEMIC_CYCLE: "Dates from the campus academic year", CALENDAR_YEAR: "No academic year dates are set; the calendar year is used" } as const;
+
+export interface TeacherPerformancePanelProps {
+  /** The teacher's own evidence (respond only). */
+  self?: boolean;
+  /**
+   * §4.4b: the hosting page's PageHeader owns the title, "Add note" (primary) and "Export" (secondary). With
+   * `hideHeading` the panel drops its own heading and export button; each change of `exportRequest` downloads
+   * the visible rows and each change of `noteRequest` opens "Add a support note" (teacher picker + note).
+   */
+  hideHeading?: boolean;
+  exportRequest?: number;
+  noteRequest?: number;
 }
 
-type Lens = "all" | "attention" | "admin";
+const NOTE_MIN = 10;
 
-/**
- * Below this, a rate is treated as a problem rather than a number. Kept as one
- * constant so the "needs attention" count, the row highlight and the tile hint
- * can never disagree about what counts as behind.
- */
-const ATTENTION_BELOW = 60;
-
-/**
- * A teacher needs looking at when their classes are underperforming *or* when
- * the paperwork the school runs on has not been done. The two are different
- * problems and the second is the one an admin can act on today, so it is
- * surfaced rather than buried in a fourth metric tile.
- */
-function needsAttention(t: TeacherPerf) {
-  return (
-    (t.avgPercentage !== null && t.avgPercentage < ATTENTION_BELOW) ||
-    (t.passRate !== null && t.passRate < ATTENTION_BELOW) ||
-    (t.marksCompletionRate !== null && t.marksCompletionRate < ATTENTION_BELOW) ||
-    (t.teacherAttendanceRate !== null && t.teacherAttendanceRate < ATTENTION_BELOW)
-  );
-}
-
-/** Marks and attendance registers that are not up to date. */
-function adminBehind(t: TeacherPerf) {
-  return (
-    (t.marksCompletionRate !== null && t.marksCompletionRate < 100) ||
-    (t.attendanceCompletionRate !== null && t.attendanceCompletionRate < 100)
-  );
-}
-
-function rateColor(val: number | null) {
-  if (val === null) return "text-ink-subtle";
-  if (val >= 80) return "text-emerald-600";
-  if (val >= ATTENTION_BELOW) return "text-amber-600";
-  return "text-rose-600";
-}
-
-function rateBg(val: number | null) {
-  if (val === null) return "bg-[#f3f4f9]";
-  if (val >= 80) return "bg-emerald-50";
-  if (val >= ATTENTION_BELOW) return "bg-amber-50";
-  return "bg-rose-50";
-}
-
-function pct(val: number | null) {
-  return val !== null ? `${val}%` : "—";
-}
-
-/** A number with the bar behind it, so a column of rates is scannable. */
-function RateCell({ value }: { value: number | null }) {
-  return (
-    <div className="min-w-[68px]">
-      <p className={cn("text-sm font-bold tabular-nums", rateColor(value))}>{pct(value)}</p>
-      <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-[#f0ecf4]">
-        <div
-          className={cn(
-            "h-full rounded-full transition-all",
-            value === null ? "bg-transparent"
-              : value >= 80 ? "bg-emerald-500"
-                : value >= ATTENTION_BELOW ? "bg-amber-500" : "bg-rose-500",
-          )}
-          style={{ width: `${Math.max(0, Math.min(100, value ?? 0))}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-export function TeacherPerformancePanel({ campusId }: { campusId?: string }) {
-  const [teachers, setTeachers] = useState<TeacherPerf[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [lens, setLens] = useState<Lens>("all");
-  const [view, setView] = useState<WorkspaceView>("cards");
-  const [sortBy, setSortBy] = useState<"avgPercentage" | "passRate" | "teacherAttendanceRate" | "marksCompletionRate">("avgPercentage");
-  const [year, setYear] = useState(() => new Date().getFullYear());
-
-  const qs = campusId ? `&campusId=${campusId}` : "";
+export function TeacherPerformancePanel({ self = false, hideHeading = false, exportRequest, noteRequest }: TeacherPerformancePanelProps = {}) {
+  const ui = useUiText();
+  const { date, dateTime, number } = useLocaleFormat();
+  const thisYear = new Date().getFullYear();
+  const [year, setYear] = useState(thisYear), [query, setQuery] = useState("");
+  const [data, setData] = useState<Evidence | null>(null), [error, setError] = useState<{ message: string; denied: boolean } | null>(null);
+  const [open, setOpen] = useState<string | null>(null), [notes, setNotes] = useState<Note[] | null>(null), [draft, setDraft] = useState(""), [saving, setSaving] = useState(false);
+  // "Add note" from the page header: a dialog with its own teacher and text, independent of any open row.
+  const [composer, setComposer] = useState<{ teacherId: string; body: string } | null>(null);
+  const request = useRef(0);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
+    const ticket = ++request.current;
+    setError(null);
+    const response = await fetch(`/api/teachers/performance?academicYear=${year}`, { cache: "no-store" }).catch(() => null);
+    const json = await response?.json().catch(() => ({}));
+    if (ticket !== request.current) return;
+    if (!response?.ok || !isApiOk(json)) { setError({ message: ui(readApiError(json, "Teaching evidence could not be loaded.")), denied: response?.status === 403 }); return; }
+    setData(json.data);
+  }, [year, ui]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 0); return () => clearTimeout(timer); }, [load]);
+
+  const openNotes = async (teacherId: string) => {
+    if (open === teacherId) { setOpen(null); return; }
+    setOpen(teacherId); setNotes(null); setDraft("");
+    const response = await fetch(`/api/teachers/performance/notes?teacherId=${encodeURIComponent(teacherId)}&academicYear=${year}`, { cache: "no-store" }).catch(() => null);
+    const json = await response?.json().catch(() => ({}));
+    setNotes(response?.ok && isApiOk(json) ? json.data : []);
+  };
+  // One POST for the row editor and the "Add note" composer; `draft` is the note text either one passes in.
+  const postNote = async (teacherId: string, draft: string) => {
+    const response = await fetch("/api/teachers/performance/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teacherId, academicYear: year, body: draft }) }).catch(() => null);
+    const json = await response?.json().catch(() => ({}));
+    if (!response?.ok || !isApiOk(json)) { toast.error(ui(readApiError(json, "The note was not saved."))); return false; }
+    toast.success(ui("Note saved."));
+    return true;
+  };
+  const saveNote = async (teacherId: string) => {
+    setSaving(true);
     try {
-      const res = await fetch(`/api/teachers/performance?academicYear=${year}${qs}`);
-      const json = await res.json().catch(() => null);
-      // fetch resolves on a 4xx/5xx, so the old `if (json.success)` quietly did
-      // nothing and the panel rendered zeros — a broken endpoint was
-      // indistinguishable from a campus with no teachers.
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.error || `Request failed (${res.status})`);
-      }
-      setTeachers(json.data || []);
-    } catch (error) {
-      setTeachers([]);
-      setLoadError(userMessage(error, "Could not load teacher performance."));
-    } finally {
-      setLoading(false);
-    }
-  }, [year, qs]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const attentionList = useMemo(() => teachers.filter(needsAttention), [teachers]);
-  const adminList = useMemo(() => teachers.filter(adminBehind), [teachers]);
-
-  const sorted = useMemo(() => {
-    const pool =
-      lens === "attention" ? attentionList : lens === "admin" ? adminList : teachers;
-    return [...pool]
-      .filter((t) => !search || t.fullName.toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => (b[sortBy] ?? -1) - (a[sortBy] ?? -1));
-  }, [teachers, attentionList, adminList, lens, search, sortBy]);
-
-  /**
-   * Averages are taken over the teachers who actually have a figure. Dividing a
-   * sum that skipped nulls by the full headcount — as this did — pulled the
-   * campus average down every time a new teacher joined mid-year.
-   */
-  const avgOf = (read: (t: TeacherPerf) => number | null) => {
-    const values = teachers.map(read).filter((v): v is number => v !== null);
-    if (!values.length) return null;
-    return Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10) / 10;
+      if (!(await postNote(teacherId, draft))) return;
+      setDraft(""); setOpen(null); await openNotes(teacherId); await load();
+    } finally { setSaving(false); }
+  };
+  const saveComposer = async () => {
+    if (!composer) return;
+    setSaving(true);
+    try {
+      if (!(await postNote(composer.teacherId, composer.body))) return;
+      const teacherId = composer.teacherId;
+      setComposer(null);
+      if (open === teacherId) { setOpen(null); await openNotes(teacherId); }
+      await load();
+    } finally { setSaving(false); }
   };
 
-  const avgScore = useMemo(() => avgOf((t) => t.avgPercentage), [teachers]);
-  const avgPass = useMemo(() => avgOf((t) => t.passRate), [teachers]);
-  const avgMarks = useMemo(() => avgOf((t) => t.marksCompletionRate), [teachers]);
+  const visible = useMemo(() => (data?.teachers ?? []).filter(row => !query.trim() || row.fullName.toLowerCase().includes(query.trim().toLowerCase())), [data, query]);
+  const exportCsv = useCallback(() => {
+    if (!data || !visible.length) return;
+    const header = ["Teacher", "Measure", "Value", "Source", "Coverage", "Freshness", "Unavailable", "Shared", "Caution"].map(h => ui(h));
+    downloadCSV(`teaching-evidence-${data.period.start}-to-${data.period.end}.csv`, [header, ...visible.flatMap(row => row.measures.map(m => [row.fullName, ui(MEASURE_LABEL[m.key] ?? m.key), m.value ?? "", ui(m.source), m.coverage ? ui(m.coverage) : "", m.freshness ?? "", m.unavailable ? ui(m.unavailable) : "", m.shared ? ui("Yes") : ui("No"), m.caution ? ui(m.caution) : ""]))]);
+  }, [data, visible, ui]);
 
-  const exportCSV = () => {
-    if (!sorted.length) return;
-    downloadCSV(`teacher_performance_${year}`, [
-      ["Teacher", "Email", "Subjects", "Classes", "Students", "Class teacher of",
-        "Avg score %", "Pass rate %", "Own attendance %", "Marks entry %",
-        "Attendance entry %", "Report cards", "Needs attention"],
-      ...sorted.map((t) => [
-        t.fullName,
-        t.email,
-        t.subjectsCount,
-        t.classesCount,
-        t.totalStudents,
-        t.ledClasses.map((c) => `${c.name}${c.section ? `-${c.section}` : ""}`).join(" / "),
-        t.avgPercentage ?? "",
-        t.passRate ?? "",
-        t.teacherAttendanceRate ?? "",
-        t.marksCompletionRate ?? "",
-        t.attendanceCompletionRate ?? "",
-        t.reportCardsGenerated,
-        needsAttention(t) ? "Yes" : "No",
-      ]),
-    ]);
-  };
+  // Host-owned header actions: only a change of the counter fires, never the first render.
+  const lastExport = useRef(exportRequest);
+  useEffect(() => {
+    if (exportRequest === undefined || exportRequest === lastExport.current) return;
+    lastExport.current = exportRequest;
+    exportCsv();
+  }, [exportRequest, exportCsv]);
+  const lastNote = useRef(noteRequest);
+  useEffect(() => {
+    if (noteRequest === undefined || noteRequest === lastNote.current) return;
+    lastNote.current = noteRequest;
+    // Pre-select the teacher whose notes are open, else the only one on screen.
+    const preset = open ?? (visible.length === 1 ? visible[0].teacherId : "");
+    setComposer({ teacherId: preset, body: "" });
+  }, [noteRequest, open, visible]);
 
-  const columns: DataColumn<TeacherPerf>[] = [
-    {
-      key: "name",
-      label: "Teacher",
-      width: "w-64",
-      render: (t) => (
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-[#fbf0fe]">
-            <AvatarImage src={t.profileImageUrl} name={t.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-[10px]" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold tracking-tight text-[#1d1b20]">{t.fullName}</p>
-            <p className="truncate text-[10px] font-semibold text-ink-subtle">
-              {t.subjectsCount} subjects · {t.classesCount} classes · {t.totalStudents} students
-            </p>
-          </div>
+  if (error) return <section role="alert" data-teaching-evidence data-state={error.denied ? "denied" : "error"}>
+    <ErrorState title={error.denied ? ui("You do not have access to teaching evidence for this campus.") : ui("Teaching evidence could not be loaded.")} description={error.denied ? undefined : error.message} onRetry={error.denied ? undefined : () => void load()} retryLabel={ui("Retry")} />
+  </section>;
+
+  return <section className="space-y-4" aria-labelledby={hideHeading ? undefined : "evidence-title"} aria-label={hideHeading ? ui(self ? "My teaching evidence" : "Teaching evidence") : undefined} data-teaching-evidence data-state={data ? "ready" : "loading"}>
+    <div className="sk-panel space-y-3 p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          {hideHeading ? null : <h2 id="evidence-title" className="flex items-center gap-2 text-lg font-bold"><Users className="size-5 text-primary" aria-hidden />{self ? ui("My teaching evidence") : ui("Teaching evidence")}</h2>}
+          {data ? <p className="text-xs font-bold text-ink-muted" data-period>{ui("Period: {0} to {1}", [date(data.period.start), date(data.period.end)])} · {ui(PERIOD_SOURCE[data.period.source])}</p> : null}
         </div>
-      ),
-    },
-    { key: "avgPercentage", label: "Avg score", align: "center", render: (t) => <RateCell value={t.avgPercentage} /> },
-    { key: "passRate", label: "Pass rate", align: "center", render: (t) => <RateCell value={t.passRate} /> },
-    { key: "teacherAttendanceRate", label: "Own attendance", align: "center", secondary: true, render: (t) => <RateCell value={t.teacherAttendanceRate} /> },
-    { key: "marksCompletionRate", label: "Marks entry", align: "center", render: (t) => <RateCell value={t.marksCompletionRate} /> },
-    { key: "attendanceCompletionRate", label: "Register entry", align: "center", secondary: true, render: (t) => <RateCell value={t.attendanceCompletionRate} /> },
-    {
-      key: "reportCardsGenerated",
-      label: "Reports",
-      align: "center",
-      secondary: true,
-      render: (t) => <span className="text-sm font-bold tabular-nums text-ink">{t.reportCardsGenerated}</span>,
-    },
-  ];
+        <div className="flex flex-wrap items-end gap-2">
+          <FormField name="evidence-year" label={ui("Academic year")}><Select value={String(year)} onChange={event => setYear(Number(event.target.value))}>{[thisYear, thisYear - 1, thisYear - 2].map(y => <option key={y} value={y}>{y}</option>)}</Select></FormField>
+          {!self ? <FormField name="evidence-search" label={ui("Find a teacher")}><Input value={query} onChange={event => setQuery(event.target.value)} /></FormField> : null}
+          {hideHeading ? null : <Button variant="outline" disabled={!data || !visible.length} onClick={exportCsv}><Download className="size-4" aria-hidden />{ui("Export this view")}</Button>}
+        </div>
+      </div>
+      {data ? <details className="text-xs" data-policy><summary className="cursor-pointer font-bold">{ui("How these measures are counted")}</summary><ul className="mt-2 list-disc space-y-1 ps-5">{data.policy.map(line => <li key={line}>{ui(line)}</li>)}</ul></details> : null}
+    </div>
 
-  return (
-    <div className="space-y-4">
-      <WorkspaceHeader
-        icon={Award}
-        eyebrow="Staff"
-        title="Teacher Performance"
-        tone="reports"
-        summary={
-          loadError
-            ? "Figures unavailable — the performance service did not respond."
-            : `${teachers.length} teacher${teachers.length === 1 ? "" : "s"} in ${year}${attentionList.length ? ` · ${attentionList.length} need a look` : " · all on track"}`
-        }
-        actions={
-          <>
-            <select
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              aria-label="Academic year"
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors focus:border-[#8127cf]/30"
-            >
-              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-            <BrandButton
-              variant="soft"
-              icon={<Download className="h-4 w-4" />}
-              onClick={exportCSV}
-              disabled={!sorted.length}
-              className="h-10"
-            >
-              Export
-            </BrandButton>
-          </>
-        }
-      />
+    {!data ? <div role="status" aria-label={ui("Loading teaching evidence…")}><SkeletonCards /></div>
+      : !data.teachers.length ? <div className="sk-panel" data-empty><EmptyState icon={Users} title={ui("No active teachers in this campus.")} description={ui("Teachers appear here once your campus admin invites them.")} /></div>
+      : !visible.length ? <div className="sk-panel" data-empty-filter><EmptyState size="sm" icon={Search} title={ui("No teacher matches this search.")} action={<Button size="sm" variant="outline" onClick={() => setQuery("")}>{ui("Clear search")}</Button>} /></div>
+      : <ul className="space-y-3">{visible.map(row => <li key={row.teacherId} className="sk-panel space-y-3 p-4" data-teacher={row.teacherId}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h3 className="font-bold"><bdi>{row.fullName}</bdi></h3>
+              <p className="text-xs text-ink-muted">{row.subjects.length ? <>{ui("Teaches")}: <bdi>{row.subjects.join(", ")}</bdi></> : ui("No subjects assigned this year")}{row.ledClasses.length ? <> · {ui("Class teacher")}: <bdi>{row.ledClasses.join(", ")}</bdi></> : null}</p>
+            </div>
+            <Button size="sm" variant="secondary" aria-expanded={open === row.teacherId} onClick={() => void openNotes(row.teacherId)}><MessageSquareText className="size-4" aria-hidden />{ui("Support notes ({0})", [row.notes])}</Button>
+          </div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-xs" data-measures>
+            <caption className="sr-only">{ui("Evidence for {0}", [row.fullName])}</caption>
+            <thead><tr className="text-ink-subtle">{["Measure", "Value", "Source and coverage", "Latest record"].map(h => <th key={h} scope="col" className="px-2 py-1 text-start">{ui(h)}</th>)}</tr></thead>
+            <tbody>{row.measures.map(m => <tr key={m.key} className="border-t border-border align-top" data-measure={m.key} data-available={m.value !== null}>
+              <th scope="row" className="px-2 py-1.5 text-start font-bold">{ui(MEASURE_LABEL[m.key] ?? m.key)}{m.shared ? <span className="ms-1 rounded bg-status-warning-surface px-1 text-2xs font-bold text-status-warning-text">{ui("Shared")}</span> : null}</th>
+              <td className="px-2 py-1.5 font-bold">{m.value === null ? <span className="font-bold text-ink-muted">{ui("Unavailable")}</span> : `${number(m.value)}%`}</td>
+              <td className="px-2 py-1.5"><span>{ui(m.source)}</span>{m.coverage ? <span className="block text-ink-muted">{ui(m.coverage)}</span> : null}{m.unavailable ? <span className="block text-ink-muted">{ui(m.unavailable)}</span> : null}{m.caution ? <span className="block text-status-warning-text">{ui(m.caution)}</span> : null}</td>
+              <td className="px-2 py-1.5">{m.freshness ? date(m.freshness) : "—"}</td>
+            </tr>)}</tbody>
+          </table></div>
+          {open === row.teacherId ? <div className="space-y-2 rounded-xl bg-muted/60 p-3" data-notes>
+            <p className="text-xs text-ink-muted">{ui("Support notes are reviewed actions and responses. They are not employment decisions, which are made and recorded separately by an authorized person.")}</p>
+            {notes === null ? <div role="status" aria-label={ui("Loading notes…")}><SkeletonList /></div> : !notes.length ? <EmptyState size="sm" icon={MessageSquareText} title={ui("No notes yet.")} description={self ? ui("Add your response below.") : ui("Record the first support action below.")} />
+              : <ol className="space-y-1 text-xs">{notes.map(note => <li key={note.id} data-note-kind={note.kind}><span className="font-bold">{ui(NOTE_LABEL[note.kind] ?? note.kind)}</span> · <bdi>{note.author}</bdi> · {dateTime(note.createdAt)}<span className="block"><bdi>{note.body}</bdi></span></li>)}</ol>}
+            <FormField name={`note-${row.teacherId}`} label={self ? ui("Your response") : ui("Reviewed support action")}><Textarea maxLength={2000} value={draft} onChange={event => setDraft(event.target.value)} /></FormField>
+            <Button size="sm" loading={saving} disabled={saving || draft.trim().length < NOTE_MIN} onClick={() => void saveNote(row.teacherId)}>{self ? ui("Add your response") : ui("Record support action")}</Button>
+          </div> : null}
+        </li>)}</ul>}
 
-      {/* Four figures, each of which is also a filter. "Behind on paperwork" is
-          the one that changes what an admin does this afternoon. */}
-      <StatTiles
-        tiles={[
-          {
-            key: "teachers",
-            icon: Users,
-            label: "Teachers",
-            value: loadError ? "—" : teachers.length,
-            hint: `${teachers.reduce((s, t) => s + t.totalStudents, 0)} students taught`,
-            tone: "violet",
-            active: lens === "all",
-            onClick: () => setLens("all"),
-          },
-          {
-            key: "avg",
-            icon: BarChart3,
-            label: "Avg score",
-            value: loadError ? "—" : pct(avgScore),
-            hint: avgPass !== null ? `${avgPass}% average pass rate` : "No results recorded yet",
-            tone: avgScore === null ? "slate" : avgScore >= 80 ? "emerald" : avgScore >= ATTENTION_BELOW ? "amber" : "rose",
-          },
-          {
-            key: "attention",
-            icon: AlertTriangle,
-            label: "Need a look",
-            value: loadError ? "—" : attentionList.length,
-            hint: `Any rate under ${ATTENTION_BELOW}%`,
-            tone: attentionList.length ? "rose" : "emerald",
-            active: lens === "attention",
-            onClick: () => setLens(lens === "attention" ? "all" : "attention"),
-          },
-          {
-            key: "admin",
-            icon: BookOpen,
-            label: "Behind on entry",
-            value: loadError ? "—" : adminList.length,
-            hint: avgMarks !== null ? `${avgMarks}% of marks entered` : "Marks not started",
-            tone: adminList.length ? "amber" : "emerald",
-            active: lens === "admin",
-            onClick: () => setLens(lens === "admin" ? "all" : "admin"),
-          },
-        ]}
-      />
-
-      <WorkspaceToolbar
-        trailing={
-          <>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              aria-label="Sort teachers"
-              className="h-10 cursor-pointer rounded-xl border border-[#cfc2d6]/20 bg-white px-3 text-sm font-bold outline-none transition-colors focus:border-[#8127cf]/30"
-            >
-              <option value="avgPercentage">Sort: Avg Score</option>
-              <option value="passRate">Sort: Pass Rate</option>
-              <option value="teacherAttendanceRate">Sort: Own Attendance</option>
-              <option value="marksCompletionRate">Sort: Marks Entry</option>
-            </select>
-            <ViewSwitch
-              value={view}
-              onChange={setView}
-              options={[
-                { value: "cards", label: "Cards", icon: LayoutGrid },
-                { value: "table", label: "Table", icon: Table2 },
-              ]}
-            />
-          </>
+    {composer ? (
+      <Modal
+        title={ui("Add a support note")}
+        subtitle={ui("A reviewed support action for one teacher. It is not an employment decision.")}
+        icon={MessageSquareText}
+        size="md"
+        dirty={composer.body.trim().length > 0}
+        onClose={() => { if (!saving) setComposer(null); }}
+        footer={
+          <ModalActions
+            busy={saving}
+            actionLabel={ui("Save note")}
+            cancelLabel={ui("Keep editing")}
+            onCancel={() => setComposer(null)}
+            onAction={() => void saveComposer()}
+            blockedReason={!composer.teacherId ? ui("Choose a teacher.") : composer.body.trim().length < NOTE_MIN ? ui("Write at least {0} characters.", [NOTE_MIN]) : null}
+          />
         }
       >
-        <div className="relative min-w-[220px] flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search teachers..."
-            aria-label="Search teachers"
-            className="h-10 w-full rounded-xl border border-[#cfc2d6]/20 bg-white pl-9 pr-3 text-sm font-semibold outline-none transition-all placeholder:text-ink-subtle focus:border-[#8127cf]/30 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
-          />
+        <div className="space-y-4">
+          <FormField name="note-teacher" label={ui("Teacher")}>
+            <Select value={composer.teacherId} onChange={event => setComposer(c => (c ? { ...c, teacherId: event.target.value } : c))}>
+              <option value="">{ui("Choose a teacher")}</option>
+              {(data?.teachers ?? []).map(row => <option key={row.teacherId} value={row.teacherId}>{row.fullName}</option>)}
+            </Select>
+          </FormField>
+          <FormField name="note-body" label={ui("Reviewed support action")} hint={ui("At least {0} characters.", [NOTE_MIN])}>
+            <Textarea maxLength={2000} rows={5} value={composer.body} onChange={event => setComposer(c => (c ? { ...c, body: event.target.value } : c))} />
+          </FormField>
         </div>
-        {lens !== "all" ? (
-          <button
-            type="button"
-            onClick={() => setLens("all")}
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-[#fbf0fe] px-3 text-[10px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#f0e0f8]"
-          >
-            {lens === "attention" ? "Showing: need a look" : "Showing: behind on entry"} · Clear
-          </button>
-        ) : null}
-      </WorkspaceToolbar>
-
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="animate-skeleton-in rounded-2xl border border-[#cfc2d6]/10 bg-white p-5" style={{ animationDelay: `${i * 80}ms` }}>
-              <div className="flex items-start gap-4">
-                <div className="h-8 w-8 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="h-11 w-11 rounded-xl bg-[#e8e0ec]/50 skeleton-shimmer" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-36 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                  <div className="h-3 w-48 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                </div>
-              </div>
-              <div className="mt-4 grid grid-cols-4 gap-2">
-                {Array.from({ length: 4 }).map((_, j) => (
-                  <div key={j} className="rounded-xl bg-[#f3f4f9] p-2">
-                    <div className="mb-1 h-4 w-10 rounded-full bg-[#e8e0ec]/50 skeleton-shimmer" />
-                    <div className="h-2 w-14 rounded-full bg-[#e8e0ec]/40 skeleton-shimmer" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : loadError ? (
-        // A failed request is not an empty campus. Say so, and offer a retry,
-        // rather than showing zeros that read as "there are no teachers".
-        <div className="rounded-2xl border border-rose-200/60 bg-rose-50/50 p-6 text-center">
-          <AlertTriangle className="mx-auto mb-3 h-6 w-6 text-rose-500" />
-          <p className="text-sm font-black text-[#1f1a23]">Couldn&apos;t load teacher performance</p>
-          <p className="mt-1 text-xs font-semibold text-ink-muted">{loadError}</p>
-          <button
-            type="button"
-            onClick={load}
-            className="mt-4 rounded-xl bg-[#1f1a23] px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#332b38] active:scale-95"
-          >
-            Try again
-          </button>
-        </div>
-      ) : sorted.length === 0 ? (
-        <EmptyState
-          icon={Award}
-          title={lens === "all" ? "No Performance Data" : "Nothing in this filter"}
-          description={
-            lens === "all"
-              ? "No teacher performance data available for this year."
-              : "Every teacher is clear of this filter — switch back to all teachers."
-          }
-        />
-      ) : view === "table" ? (
-        <DataTable
-          rows={sorted}
-          columns={columns}
-          rowKey={(t) => t.teacherId}
-          rowClassName={(t) => (needsAttention(t) ? "bg-rose-50/40" : undefined)}
-        />
-      ) : (
-        <div className="space-y-3">
-          {sorted.map((teacher, rank) => (
-            <div
-              key={teacher.teacherId}
-              className={cn(
-                "sk-rise rounded-2xl border bg-white p-5 transition-all duration-200 hover:border-[#8127cf]/25 hover:shadow-md",
-                needsAttention(teacher) ? "border-rose-200/70" : "border-[#cfc2d6]/25",
-              )}
-              style={{ animationDelay: `${rank * 60}ms` }}
-            >
-              <div className="flex items-start gap-4">
-                {/* Rank is only meaningful while the list is the whole staff in
-                    score order; under a filter it would number an arbitrary
-                    subset, so it is dropped rather than made up. */}
-                {lens === "all" && !search ? (
-                  <div className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold",
-                    rank === 0 ? "bg-amber-50 text-amber-600" :
-                      rank === 1 ? "bg-slate-100 text-slate-500" :
-                        rank === 2 ? "bg-orange-50 text-orange-500" :
-                          "bg-[#f3f4f9] text-ink-subtle",
-                  )}>
-                    {rank + 1}
-                  </div>
-                ) : null}
-
-                <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-[#fbf0fe]">
-                  <AvatarImage src={teacher.profileImageUrl} name={teacher.fullName} alt="" className="h-full w-full object-cover" initialsClassName="text-xs" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-bold tracking-tight text-[#1d1b20]">{teacher.fullName}</p>
-                    {lens === "all" && !search && rank === 0 && teacher.avgPercentage !== null && (
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">Top Performer</span>
-                    )}
-                    {needsAttention(teacher) && (
-                      <span className="flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-rose-600">
-                        <AlertTriangle className="h-3 w-3" /> Needs a look
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-semibold text-ink-subtle">{teacher.subjectsCount} subjects</span>
-                    <span className="text-ink-subtle">|</span>
-                    <span className="text-[10px] font-semibold text-ink-subtle">{teacher.classesCount} classes</span>
-                    <span className="text-ink-subtle">|</span>
-                    <span className="text-[10px] font-semibold text-ink-subtle">{teacher.totalStudents} students</span>
-                    {teacher.ledClasses.length > 0 && (
-                      <>
-                        <span className="text-ink-subtle">|</span>
-                        <span className="text-[10px] font-semibold text-[#8127cf]">
-                          CT: {teacher.ledClasses.map((c) => `${c.name}${c.section ? `-${c.section}` : ""}`).join(", ")}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="hidden shrink-0 text-right sm:block">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-ink-subtle">Report cards</p>
-                  <p className="text-lg font-black tabular-nums leading-tight text-[#1f1a23]">{teacher.reportCardsGenerated}</p>
-                </div>
-              </div>
-
-              {/* Six rates, not four: whether the register is up to date is as
-                  actionable as the class average, and it was only in the CSV. */}
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                <div className={cn("rounded-xl px-3 py-2", rateBg(teacher.avgPercentage))}>
-                  <div className="flex items-center gap-1">
-                    {teacher.avgPercentage !== null && teacher.avgPercentage >= 70
-                      ? <TrendingUp className={cn("h-3.5 w-3.5", rateColor(teacher.avgPercentage))} />
-                      : <TrendingDown className={cn("h-3.5 w-3.5", rateColor(teacher.avgPercentage))} />}
-                    <p className={cn("text-sm font-bold tabular-nums", rateColor(teacher.avgPercentage))}>{pct(teacher.avgPercentage)}</p>
-                  </div>
-                  <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-ink-subtle">Avg Score</p>
-                </div>
-
-                <div className={cn("rounded-xl px-3 py-2", rateBg(teacher.passRate))}>
-                  <p className={cn("text-sm font-bold tabular-nums", rateColor(teacher.passRate))}>{pct(teacher.passRate)}</p>
-                  <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-ink-subtle">Pass Rate</p>
-                </div>
-
-                <div className={cn("rounded-xl px-3 py-2", rateBg(teacher.teacherAttendanceRate))}>
-                  <div className="flex items-center gap-1">
-                    <UserCheck className={cn("h-3.5 w-3.5", rateColor(teacher.teacherAttendanceRate))} />
-                    <p className={cn("text-sm font-bold tabular-nums", rateColor(teacher.teacherAttendanceRate))}>{pct(teacher.teacherAttendanceRate)}</p>
-                  </div>
-                  <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-ink-subtle">
-                    Own Attendance
-                    {teacher.teacherTotalDays
-                      ? ` · ${teacher.teacherPresentDays ?? 0}/${teacher.teacherTotalDays}`
-                      : ""}
-                  </p>
-                </div>
-
-                <div className={cn("rounded-xl px-3 py-2", rateBg(teacher.marksCompletionRate))}>
-                  <p className={cn("text-sm font-bold tabular-nums", rateColor(teacher.marksCompletionRate))}>{pct(teacher.marksCompletionRate)}</p>
-                  <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-ink-subtle">Marks Entry</p>
-                </div>
-
-                <div className={cn("rounded-xl px-3 py-2", rateBg(teacher.attendanceCompletionRate))}>
-                  <p className={cn("text-sm font-bold tabular-nums", rateColor(teacher.attendanceCompletionRate))}>{pct(teacher.attendanceCompletionRate)}</p>
-                  <p className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-ink-subtle">Register Entry</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+      </Modal>
+    ) : null}
+  </section>;
 }

@@ -1,4 +1,10 @@
 "use client";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { ReportCardPipeline } from "@/components/academic/ReportCardPipeline";
+
+import { UiText, useLocale, useUiText } from "@/components/locale/LocaleProvider";
+import { resultGradeLabel } from "@/lib/locale/result-grade";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -6,17 +12,20 @@ import {
   CheckCircle2,
   Download,
   FileText,
-  Loader2,
   Lock,
   RefreshCw,
   Send,
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { useNavigationAccess } from "@/components/nav/NavigationAccess";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Panel, StepEmpty } from "@/components/academic/exams/shared";
 import type { ExamItem } from "@/components/academic/ExamCycleManager";
+import { Input as SystemInput } from "@/components/ui/input";
 
 /**
  * Turning a marked exam into report cards families can read (§81).
@@ -57,7 +66,7 @@ interface ReportCard {
 type StepKey = "lock" | "review" | "pdf" | "publish" | "send";
 type StepState = "done" | "ready" | "blocked";
 
-export function ReportCardsPanel({
+function LegacyReportCardsPanel({
   exam,
   campusId,
   onChanged,
@@ -66,6 +75,14 @@ export function ReportCardsPanel({
   campusId?: string;
   onChanged?: () => void;
 }) {
+  const tr = useUiText();
+  // SKO-496: the result grade column, not the school level.
+  const gradeLabel = resultGradeLabel(useLocale().language);
+  // G31/G32: reviewing and publishing results are the academic lead's acts (the principal, or a campus admin
+  // while no principal is appointed); anyone else sees who does it instead of a button the server refuses.
+  const academicLead = useNavigationAccess().has("academicLead");
+  // R3/F16: publishing and sending to families are confirmed with their consequence.
+  const [pendingStep, setPendingStep] = useState<"publish" | "send" | null>(null);
   const [cards, setCards] = useState<ReportCard[]>([]);
   const [progress, setProgress] = useState<{ entered: number; expected: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,7 +129,7 @@ export function ReportCardsPanel({
         setProgress({ entered: pairs.size, expected: students.length * subjects.length });
       }
     } catch {
-      toast.error("Could not load report cards");
+      toast.error(tr("Could not load report cards"));
     } finally {
       setLoading(false);
     }
@@ -137,11 +154,13 @@ export function ReportCardsPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `${label} failed`);
-      toast.success(label);
+      if (data.jobId) { window.location.assign(`/jobs?id=${data.jobId}`); return true; }
+      toast.success(tr(label));
       await load();
       onChanged?.();
+      return true;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `${label} failed`);
+      toast.error(tr(e instanceof Error ? e.message : tr("{0} failed", [label])));
     } finally {
       setBusy(null);
     }
@@ -155,14 +174,14 @@ export function ReportCardsPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not lock the exam");
       toast.success(
-        data.reportCardsGenerated
-          ? `Marks locked — ${data.reportCardsGenerated} report cards created`
-          : "Marks locked",
+        tr(data.reportCardsGenerated
+          ? tr("Marks locked — {0} report cards created", [data.reportCardsGenerated])
+          : "Marks locked"),
       );
       await load();
       onChanged?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not lock the exam");
+      toast.error(tr(e instanceof Error ? e.message : "Could not lock the exam"));
     } finally {
       setBusy(null);
     }
@@ -189,7 +208,7 @@ export function ReportCardsPanel({
         ),
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save the remark");
+      toast.error(tr(e instanceof Error ? e.message : "Could not save the remark"));
     } finally {
       setBusy(null);
     }
@@ -198,7 +217,7 @@ export function ReportCardsPanel({
   const approveOne = async (card: ReportCard, silent = false) => {
     const text = (remarks[card.id] ?? card.remarksEn ?? "").trim();
     if (!text) {
-      if (!silent) toast.error("Write a remark before approving it");
+      if (!silent) toast.error(tr("Write a remark before approving it"));
       return false;
     }
     if (!silent) setBusy(`approve-${card.id}`);
@@ -215,10 +234,10 @@ export function ReportCardsPanel({
           c.id === card.id ? { ...c, remarksEn: text, remarksApproved: true } : c,
         ),
       );
-      if (!silent) toast.success("Remark approved");
+      if (!silent) toast.success(tr("Remark approved"));
       return true;
     } catch (e) {
-      if (!silent) toast.error(e instanceof Error ? e.message : "Could not approve");
+      if (!silent) toast.error(tr(e instanceof Error ? e.message : "Could not approve"));
       return false;
     } finally {
       if (!silent) setBusy(null);
@@ -231,7 +250,7 @@ export function ReportCardsPanel({
       (c) => !c.remarksApproved && (remarks[c.id] ?? c.remarksEn ?? "").trim(),
     );
     if (pending.length === 0) {
-      toast.error("None of the outstanding cards have a remark written yet");
+      toast.error(tr("None of the outstanding cards have a remark written yet"));
       return;
     }
     setBusy("approve-all");
@@ -240,7 +259,7 @@ export function ReportCardsPanel({
       if (await approveOne(card, true)) ok += 1;
     }
     setBusy(null);
-    toast.success(`Approved ${ok} remark${ok === 1 ? "" : "s"}`);
+    toast.success(tr("Approved remarks: {0}", [ok]));
     onChanged?.();
   };
 
@@ -261,6 +280,8 @@ export function ReportCardsPanel({
     state: StepState;
     reason: string;
     cta: string;
+    /** Only the academic lead runs this step (G31/G32). */
+    lead?: boolean;
     onRun: () => void;
   }[] => {
     const pdfsMissing = cards.filter((c) => !c.pdfUrl).length;
@@ -268,25 +289,25 @@ export function ReportCardsPanel({
     return [
       {
         key: "lock",
-        label: "Lock the marks",
+        label: tr("Lock the marks"),
         icon: Lock,
-        blurb: "Freezes every mark and creates one report card per pupil.",
+        blurb: tr("Freezes every mark and creates one report card per pupil."),
         state: isLocked ? "done" : marksComplete ? "ready" : "blocked",
         reason: !progress
-          ? "Checking how many marks are in…"
+          ? tr("Checking how many marks are in…")
           : progress.expected === 0
-          ? "This class has no students or no subjects yet."
+          ? tr("This class has no students or no subjects yet.")
           : marksComplete
-          ? `All ${progress.expected} marks are in.`
-          : `${missing} of ${progress.expected} marks still to enter — finish them on the Enter marks tab.`,
-        cta: "Lock marks",
+          ? tr("All {0} marks are in.", [progress.expected])
+          : tr("{0} of {1} marks still to enter — finish them on the Enter marks tab.", [missing, progress.expected]),
+        cta: tr("Lock marks"),
         onRun: lockExam,
       },
       {
         key: "review",
-        label: "Review",
+        label: tr("Review"),
         icon: ShieldCheck,
-        blurb: "The principal signs the results off before families see them.",
+        blurb: tr("The principal signs the results off before families see them."),
         // The server refuses to review while any card lacks an approved
         // remark, so the step has to test the same thing. Reporting "ready"
         // and then failing on click is the defect this panel was rebuilt for.
@@ -297,20 +318,21 @@ export function ReportCardsPanel({
             ? "ready"
             : "blocked",
         reason: !isLocked
-          ? "Lock the marks first — there is nothing to review yet."
+          ? tr("Lock the marks first — there is nothing to review yet.")
           : needingRemarks > 0
-          ? `${needingRemarks} report card${needingRemarks === 1 ? "" : "s"} still need an approved remark — write and approve them below.`
-          : "Every remark is approved. Ready for sign-off.",
-        cta: "Mark reviewed",
+          ? tr("Report cards awaiting an approved remark: {0}. Write and approve them below.", [needingRemarks])
+          : tr("Every remark is approved. Ready for sign-off."),
+        cta: tr("Mark reviewed"),
+        lead: true,
         onRun: () => run("review", "Results reviewed"),
       },
       {
         // Publishing refuses while any card lacks a PDF, and building them one
         // row at a time is not a workflow — so the bulk build is its own step.
         key: "pdf",
-        label: "Build the PDFs",
+        label: tr("Build the PDFs"),
         icon: FileText,
-        blurb: "Renders every report card to a PDF, ready to publish and send.",
+        blurb: tr("Renders every report card to a PDF, ready to publish and send."),
         state:
           isLocked && cards.length > 0 && pdfsMissing === 0
             ? "done"
@@ -318,49 +340,50 @@ export function ReportCardsPanel({
             ? "ready"
             : "blocked",
         reason: !isLocked
-          ? "Lock the marks first."
+          ? tr("Lock the marks first.")
           : pdfsMissing === 0 && cards.length > 0
-          ? `All ${cards.length} PDFs are built.`
-          : `${pdfsMissing} of ${cards.length} report cards have no PDF yet.`,
-        cta: "Build PDFs",
+          ? tr("All {0} PDFs are built.", [cards.length])
+          : tr("{0} of {1} report cards have no PDF yet.", [pdfsMissing, cards.length]),
+        cta: tr("Build PDFs"),
         onRun: () => run("pdf", "Report card PDFs built"),
       },
       {
         key: "publish",
-        label: "Publish",
+        label: tr("Publish"),
         icon: Upload,
-        blurb: "Makes the report cards visible to parents and students.",
+        blurb: tr("Makes the report cards visible to parents and students."),
         state: published ? "done" : reviewed && pdfsMissing === 0 ? "ready" : "blocked",
         reason: published
-          ? "Published."
+          ? tr("Published.")
           : !reviewed
-          ? "Needs the principal's review first."
+          ? tr("Needs the principal's review first.")
           : pdfsMissing > 0
-          ? `${pdfsMissing} report card${pdfsMissing === 1 ? " has" : "s have"} no PDF yet — run the step above.`
-          : "Reviewed, PDFs built, ready to publish.",
-        cta: "Publish all",
-        onRun: () => run("publish", "Report cards published"),
+          ? tr("Report cards without a PDF: {0}. Run the step above.", [pdfsMissing])
+          : tr("Reviewed, PDFs built, ready to publish."),
+        cta: tr("Publish all"),
+        lead: true,
+        onRun: () => setPendingStep("publish"),
       },
       {
         key: "send",
-        label: "Send to families",
+        label: tr("Send to families"),
         icon: Send,
-        blurb: "Delivers each report card over WhatsApp.",
+        blurb: tr("Delivers each report card over WhatsApp."),
         state: cards.length > 0 && cards.every((c) => c.isSent) ? "done" : published ? "ready" : "blocked",
         reason: published
-          ? `${cards.filter((c) => c.isSent).length} of ${cards.length} already sent.`
-          : "Publish the report cards before sending them out.",
-        cta: "Send all",
-        onRun: () => run("send", "Report cards sent"),
+          ? tr("{0} of {1} already sent.", [cards.filter((c) => c.isSent).length, cards.length])
+          : tr("Publish the report cards before sending them out."),
+        cta: tr("Send all"),
+        onRun: () => setPendingStep("send"),
       },
     ];
-  }, [isLocked, reviewed, published, marksComplete, missing, progress, cards, needingRemarks]);
+  }, [isLocked, reviewed, published, marksComplete, missing, progress, cards, needingRemarks, tr]);
 
   if (loading) {
     return (
       <div className="space-y-3">
-        <div className="h-56 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
-        <div className="h-40 rounded-[24px] bg-[#e8e0ec]/40 skeleton-shimmer" />
+        <div className="h-56 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
+        <div className="h-40 rounded-[24px] bg-border-subtle/40 skeleton-shimmer" />
       </div>
     );
   }
@@ -368,8 +391,8 @@ export function ReportCardsPanel({
   return (
     <div className="space-y-4">
       <Panel
-        title="From marks to report cards"
-        subtitle="Four steps, in order. Each one says what is holding it up."
+        title={tr("From marks to report cards")}
+        subtitle={tr("Four steps, in order. Each one says what is holding it up.")}
         icon={FileText}
       >
         <ol className="space-y-2.5">
@@ -382,20 +405,20 @@ export function ReportCardsPanel({
                 className={cn(
                   "flex flex-wrap items-center gap-3 rounded-[18px] border px-4 py-3 transition-colors",
                   step.state === "done"
-                    ? "border-emerald-200/70 bg-emerald-50/50"
+                    ? "border-status-success-border bg-status-success-surface/50"
                     : step.state === "ready"
-                    ? "border-[#8127cf]/30 bg-[#faf5ff]"
-                    : "border-[#cfc2d6]/25 bg-[#faf7fc]",
+                    ? "border-primary/30 bg-brand-50"
+                    : "border-edge/25 bg-surface-subtle",
                 )}
               >
                 <span
                   className={cn(
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white",
                     step.state === "done"
-                      ? "bg-emerald-500"
+                      ? "bg-status-success-text"
                       : step.state === "ready"
-                      ? "bg-[#8127cf]"
-                      : "bg-[#d9d2de] text-[#6f6579]",
+                      ? "bg-primary"
+                      : "bg-surface-sunken text-ink-muted",
                   )}
                 >
                   {step.state === "done" ? (
@@ -406,17 +429,17 @@ export function ReportCardsPanel({
                 </span>
 
                 <div className="min-w-[12rem] flex-1">
-                  <p className="text-[13px] font-black tracking-tight text-[#1f1a23]">
-                    <span className="mr-1.5 text-ink-subtle tabular-nums">{i + 1}.</span>
+                  <p className="text-sm font-bold tracking-tight text-ink-strong">
+                    <span className="me-1.5 text-ink-subtle tabular-nums">{i + 1}.</span>
                     {step.label}
                   </p>
-                  <p className="mt-0.5 text-[11px] font-semibold leading-snug text-ink-muted">
+                  <p className="mt-0.5 text-xs font-normal leading-relaxed text-ink-muted">
                     {step.blurb}
                   </p>
                   <p
                     className={cn(
-                      "mt-1 flex items-center gap-1 text-[11px] font-bold leading-snug",
-                      step.state === "blocked" ? "text-amber-700" : "text-ink-subtle",
+                      "mt-1 flex items-center gap-1 text-2xs font-bold leading-snug",
+                      step.state === "blocked" ? "text-status-warning-text" : "text-ink-subtle",
                     )}
                   >
                     {step.state === "blocked" ? (
@@ -427,28 +450,24 @@ export function ReportCardsPanel({
                 </div>
 
                 {step.state === "done" ? (
-                  <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-700">
-                    Done
-                  </span>
+                  <span className="rounded-full bg-status-success-surface px-3 py-1 text-2xs font-semibold text-status-success-text"><UiText>{"Done"}</UiText></span>
+                ) : step.lead && !academicLead ? (
+                  <span className="rounded-full bg-surface-subtle px-3 py-1 text-2xs font-semibold text-ink-muted"><UiText>{"With your principal"}</UiText></span>
                 ) : (
-                  <button
+                  // One decisive control per screen: only the step that is ready now is painted as primary.
+                  <Button variant={step.state === "ready" ? "default" : "outline"}
                     type="button"
                     disabled={step.state !== "ready" || !!busy}
                     onClick={step.onRun}
-                    className={cn(
-                      "flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-4 text-[11px] font-black uppercase tracking-wider transition-all",
-                      step.state === "ready"
-                        ? "bg-[#8127cf] text-white hover:bg-[#6f1fb5] active:scale-95 cursor-pointer"
-                        : "cursor-not-allowed bg-[#e8e0ec] text-ink-subtle",
-                    )}
+                    loading={running}
+                    className={"justify-start " + (cn(
+                      "flex shrink-0 items-center gap-1.5 px-4",
+                      "",
+                    ))}
                   >
-                    {running ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Icon className="h-3.5 w-3.5" />
-                    )}
+                    {running ? null : <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
                     {step.cta}
-                  </button>
+                  </Button>
                 )}
               </li>
             );
@@ -457,46 +476,35 @@ export function ReportCardsPanel({
       </Panel>
 
       <Panel
-        title={`Report cards (${cards.length})`}
+        title={tr("Report cards ({0})", [cards.length])}
         subtitle={
           isLocked
-            ? "One per pupil. Open any of them to check before publishing."
-            : "They appear here the moment the marks are locked."
+            ? tr("One per pupil. Open any of them to check before publishing.")
+            : tr("They appear here the moment the marks are locked.")
         }
         icon={FileText}
         actions={
           isLocked ? (
             <>
               {needingRemarks > 0 && !published ? (
-                <button
+                <Tooltip content={tr("Approve every remark that has been written")}><Button variant="default"
                   type="button"
                   disabled={!!busy}
                   onClick={approveAll}
-                  title="Approve every remark that has been written"
-                  className="flex h-9 items-center gap-1.5 rounded-xl bg-[#8127cf] px-3 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#6f1fb5] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
+                  loading={busy === "approve-all"}
+                  className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
                 >
-                  {busy === "approve-all" ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                  )}
-                  Approve all ({needingRemarks})
-                </button>
+                  {busy === "approve-all" ? null : <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />}<UiText>{"Approve all ("}</UiText>{needingRemarks})
+                </Button></Tooltip>
               ) : null}
-              <button
+              <Tooltip content={tr("Rebuild every report card from the marks as they stand now")}><Button variant="outline"
                 type="button"
                 disabled={!!busy}
                 onClick={() => run("generate", "Report cards rebuilt")}
-                title="Rebuild every report card from the marks as they stand now"
-                className="flex h-9 items-center gap-1.5 rounded-xl border border-[#cfc2d6]/30 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-[#1f1a23] transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf] disabled:cursor-not-allowed disabled:opacity-50 enabled:cursor-pointer"
+                loading={busy === "generate"}
+                className="justify-start flex items-center gap-1.5 px-3 enabled:cursor-pointer"
               >
-                {busy === "generate" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-                Rebuild
-              </button>
+                {busy === "generate" ? null : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}<UiText>{"Rebuild"}</UiText></Button></Tooltip>
             </>
           ) : null
         }
@@ -505,7 +513,7 @@ export function ReportCardsPanel({
         {cards.length === 0 ? (
           <StepEmpty
             icon={FileText}
-            title={isLocked ? "No report cards yet" : "Nothing to show until the marks are locked"}
+            title={isLocked ? tr("No report cards yet") : tr("Nothing to show until the marks are locked")}
             body={
               isLocked
                 ? "The exam is locked but no cards were built. Use Rebuild to create them from the marks on file."
@@ -513,104 +521,121 @@ export function ReportCardsPanel({
             }
           />
         ) : (
-          <div className="max-h-[22rem] overflow-y-auto custom-scrollbar">
-            <table className="w-full text-left">
-              <thead className="sticky top-0 z-10 bg-[#faf7fc]">
-                <tr className="border-b border-[#cfc2d6]/20">
+
+            <Table containerClassName="max-h-[22rem] custom-scrollbar" className="w-full text-start">
+              <TableHeader className="sticky top-0 z-10 bg-surface-subtle">
+                <TableRow className="border-b border-edge/20">
                   {["Pupil", "%", "Grade", "Remark for the report card", "Status", ""].map((h) => (
-                    <th
+                    <TableHead
                       key={h}
-                      className="px-4 py-2.5 text-[9px] font-black uppercase tracking-wider text-ink-subtle"
+                      className="px-4 py-2.5 text-xs font-semibold text-ink-subtle"
                     >
-                      {h}
-                    </th>
+                      {h === "Grade" ? gradeLabel : h ? tr(h) : null}
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {cards.map((c) => (
-                  <tr
+                  <TableRow
                     key={c.id}
-                    className="border-b border-[#cfc2d6]/10 transition-colors last:border-0 hover:bg-[#faf5ff]"
+                    className="border-b border-edge/10 transition-colors last:border-0 hover:bg-brand-50"
                   >
-                    <td className="px-4 py-2.5">
-                      <p className="text-[13px] font-bold text-[#1f1a23]">
+                    <TableCell className="px-4 py-2.5">
+                      <p className="text-[13px] font-bold text-ink-strong">
                         {c.student?.fullName ?? "—"}
                       </p>
-                      <p className="text-[10px] font-semibold text-ink-subtle">
+                      <p className="text-2xs font-semibold text-ink-subtle">
                         {c.student?.rollNo ?? "—"}
-                        {c.rank != null ? ` · rank ${c.rank}` : ""}
+                        {c.rank != null ? tr(" · rank {0}", [c.rank]) : ""}
                       </p>
-                    </td>
-                    <td className="px-4 py-2.5 text-[13px] font-black tabular-nums text-[#8127cf]">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5 text-[13px] font-bold tabular-nums text-primary">
                       {c.percentage != null ? `${Math.round(c.percentage)}%` : "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-[12px] font-black text-[#1f1a23]">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5 text-xs font-bold text-ink-strong">
                       {c.grade ?? "—"}
-                    </td>
-                    <td className="px-2 py-2 min-w-[16rem]">
-                      <input
+                    </TableCell>
+                    <TableCell className="px-2 py-2 min-w-[16rem]">
+                      <SystemInput
                         type="text"
                         defaultValue={remarkOf(c)}
                         disabled={published || c.isSent}
-                        placeholder="e.g. Steady progress — keep it up."
+                        placeholder={tr("e.g. Steady progress — keep it up.")}
                         onChange={(e) =>
                           setRemarks((r) => ({ ...r, [c.id]: e.target.value }))
                         }
                         onBlur={() => saveRemark(c)}
                         className={cn(
-                          "h-9 w-full rounded-lg border px-2.5 text-[12px] font-semibold text-[#1f1a23] outline-none transition-colors focus:border-[#8127cf]/50 focus:ring-4 focus:ring-[#8127cf]/12 disabled:bg-[#f6f2fa] disabled:text-ink-subtle",
-                          c.remarksApproved
-                            ? "border-emerald-200 bg-emerald-50/40"
-                            : "border-[#cfc2d6]/30 bg-white",
+                          "w-full",
+                          "",
                         )}
                       />
-                    </td>
-                    <td className="px-4 py-2.5">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5">
                       {c.remarksApproved ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-status-success-surface px-2.5 py-1 text-2xs font-semibold text-status-success-text">
                           <CheckCircle2 className="h-3 w-3" />
-                          {c.isSent ? "Sent" : "Approved"}
+                          {c.isSent ? tr("Sent") : tr("Approved")}
                         </span>
                       ) : (
-                        <button
+                        <Tooltip content={tr("Approve this remark so the results can be reviewed")}><span tabIndex={0} className="inline-flex"><Button variant="secondary"
                           type="button"
                           disabled={!!busy || published}
+                          loading={busy === `approve-${c.id}`}
                           onClick={() => approveOne(c)}
-                          title="Approve this remark so the results can be reviewed"
-                          className="inline-flex h-7 items-center gap-1 rounded-full bg-[#8127cf]/10 px-2.5 text-[9px] font-black uppercase tracking-wider text-[#8127cf] transition-colors hover:bg-[#8127cf]/20 disabled:opacity-50 enabled:cursor-pointer"
+                          className="justify-start inline-flex items-center gap-1 px-2.5 enabled:cursor-pointer"
                         >
-                          {busy === `approve-${c.id}` ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="h-3 w-3" />
-                          )}
-                          Approve
-                        </button>
+                          {busy === `approve-${c.id}` ? null : <CheckCircle2 className="h-3 w-3" aria-hidden="true" />}<UiText>{"Approve"}</UiText></Button></span></Tooltip>
                       )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
+                    </TableCell>
+                    <TableCell className="px-4 py-2.5 text-end">
                       {/* A link, not a button running window.open after an
                           await — that loses the click's gesture and the popup
                           blocker eats the window silently (§83). */}
-                      <a
+                      <Tooltip content={tr("Open this report card as a PDF")}><a
                         href={`/api/reports/download?reportCardId=${c.id}&redirect=1`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Open this report card as a PDF"
-                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[#cfc2d6]/30 px-2.5 text-[10px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:border-[#8127cf]/40 hover:text-[#8127cf]"
+                        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-edge/30 px-2.5 text-2xs font-semibold text-ink-muted transition-colors hover:border-primary/40 hover:text-primary"
                       >
-                        <Download className="h-3 w-3" />
-                        PDF
-                      </a>
-                    </td>
-                  </tr>
+                        <Download className="h-3 w-3" /><UiText>{"PDF"}</UiText></a></Tooltip>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+
         )}
       </Panel>
+
+      <ConfirmAction
+        open={pendingStep === "publish"}
+        title={tr("Publish report cards?")}
+        description={tr("Families and students see the approved versions as soon as they are published. A later correction creates a new version with a reason families can read.")}
+        confirmLabel={tr("Publish")}
+        cancelLabel={tr("Keep editing")}
+        tone="warning"
+        busy={busy === "publish"}
+        onCancel={() => setPendingStep(null)}
+        onConfirm={async () => { if (await run("publish", "Report cards published")) setPendingStep(null); }}
+      />
+      <ConfirmAction
+        open={pendingStep === "send"}
+        title={tr("Send report cards to families?")}
+        description={tr("Each guardian with a contact on file receives the published report card by their usual channel. Messages already sent are not repeated. This cannot be undone.")}
+        confirmLabel={tr("Send")}
+        cancelLabel={tr("Keep editing")}
+        tone="primary"
+        busy={busy === "send"}
+        onCancel={() => setPendingStep(null)}
+        onConfirm={async () => { if (await run("send", "Report cards sent")) setPendingStep(null); }}
+      />
     </div>
   );
+}
+
+export function ReportCardsPanel(props: { exam: ExamItem; campusId?: string; onChanged?: () => void }) {
+ return props.exam.isLocked || ["LOCKED", "PRINCIPAL_REVIEWED", "PUBLISHED"].includes(props.exam.status || "")
+  ? <ReportCardPipeline {...props} /> : <LegacyReportCardsPanel {...props} />;
 }

@@ -1,7 +1,9 @@
 "use client";
+import { Button } from "@/components/ui/button";
+import { InputGroup } from "@/components/ui/input-group";
+
 
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   AlertCircle,
   ArrowDownWideNarrow,
@@ -16,7 +18,6 @@ import {
   GraduationCap,
   Info,
   LayoutList,
-  Loader2,
   Lock,
   Plus,
   RefreshCw,
@@ -27,11 +28,21 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast, friendlyErrorMessage } from "@/components/ui/toast";
 import { BrandButton } from "@/components/role-dashboard";
 import { Modal } from "@/components/ui/modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { ErrorState } from "@/components/ui/error-state";
+import { useUiText } from "@/components/locale/LocaleProvider";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip } from "@/components/ui/tooltip";
+import { SkeletonBlock } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toneOf } from "@/lib/ui/module-tones";
+import { Select as SystemSelect } from "@/components/ui/select";
+import { Input as SystemInput } from "@/components/ui/input";
+import { Textarea as SystemTextarea } from "@/components/ui/textarea";
 
 /** Constant lookup — hoisted so it is not recomputed on every render. */
 const examTone = toneOf("exams");
@@ -146,12 +157,23 @@ const STATUS_ACCENT: Record<string, string> = {
 export function ExamCycleManager({
   campusId,
   role = "OFFICE",
+  hideHeading = false,
+  newRequest,
 }: {
   campusId?: string;
   role?: ExamCycleRole;
+  /**
+   * F25: the hosting page already renders the one PageHeader (title + "New test" primary), so the board's own
+   * title block and New button are dropped; the term filter and refresh stay as a toolbar.
+   */
+  hideHeading?: boolean;
+  /** Each change of this number opens the create flow (the host's PageHeader primary action). */
+  newRequest?: number;
 }) {
+  const ui = useUiText();
   const isTeacher = role === "TEACHER";
-  const columns = useMemo(() => columnsForRole(role), [role]);
+  // R11: lane titles and hints are EN keys from the pipeline; every lane, tile and dialog shows them translated.
+  const columns = useMemo(() => columnsForRole(role).map((c) => ({ ...c, title: ui(c.title), hint: ui(c.hint) })), [role, ui]);
 
   const [exams, setExams] = useState<ExamItem[]>([]);
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
@@ -159,6 +181,13 @@ export function ExamCycleManager({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
+  // The host's "New test" primary bumps `newRequest`; the first render never opens the dialog.
+  const lastNewRequest = useRef(newRequest);
+  useEffect(() => {
+    if (newRequest === undefined || newRequest === lastNewRequest.current) return;
+    lastNewRequest.current = newRequest;
+    setCreating(true);
+  }, [newRequest]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab | undefined>();
 
@@ -219,9 +248,11 @@ export function ExamCycleManager({
   const [announcement, setAnnouncement] = useState("");
 
   // `silent` refreshes skip the skeleton so background polling doesn't flicker.
+  // R4: the first load failing is an inline ErrorState with retry; a quiet refresh failing keeps the board.
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = useCallback(
     async (silent = false) => {
-      if (!silent) setLoading(true);
+      if (!silent) { setLoading(true); setLoadFailed(false); }
       else setRefreshing(true);
       try {
         const params = new URLSearchParams();
@@ -236,7 +267,8 @@ export function ExamCycleManager({
             : fetch(`/api/academic/exam-schedule?${qs}`).then((r) => r.json()),
         ]);
 
-        const all: ExamItem[] = examsRes.success ? examsRes.exams : [];
+        if (!examsRes.success) throw new Error("load failed");
+        const all: ExamItem[] = examsRes.exams;
         // Teachers only manage their own quizzes and class tests.
         const list = isTeacher
           ? all.filter((e) => (TEACHER_EXAM_TYPES as readonly string[]).includes(e.examType || ""))
@@ -285,7 +317,7 @@ export function ExamCycleManager({
         metas.forEach((x) => (metaMap[x.id] = x.meta));
         setMeta(metaMap);
       } catch {
-        if (!silent) toast.error("Failed to load exams");
+        if (!silent) setLoadFailed(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -494,6 +526,16 @@ export function ExamCycleManager({
     return expected > 0 ? Math.round((entered / expected) * 100) : null;
   }, [filtered, meta]);
 
+  // One translated line under the board title (or, with `hideHeading`, as the toolbar's only text). A teacher's
+  // board holds tests and quizzes, the office board exams.
+  const boardSummary = [
+    filtered.length === 1
+      ? ui(isTeacher ? "1 test shown" : "1 exam shown")
+      : ui(isTeacher ? "{0} tests shown" : "{0} exams shown", [filtered.length]),
+    flagged.size > 0 ? ui("{0} need your attention", [flagged.size]) : null,
+    overallProgress !== null ? ui("{0}% of marks entered", [overallProgress]) : null,
+  ].filter(Boolean).join(" · ");
+
   const visibleColumns = useMemo(
     () => (stageFilter === "ALL" ? columns : columns.filter((c) => c.key === stageFilter)),
     [columns, stageFilter],
@@ -541,9 +583,9 @@ export function ExamCycleManager({
       const columnTitle = columns.find((c) => c.key === to)?.title ?? to;
       const plan: MovePlan = {
         to,
-        eyebrow: `Move to ${columnTitle}`,
+        eyebrow: ui("Move to {0}", [columnTitle]),
         successText: (n) =>
-          n === 1 ? `Moved to ${columnTitle}` : `${n} exams moved to ${columnTitle}`,
+          n === 1 ? ui("Moved to {0}", [columnTitle]) : ui("{0} exams moved to {1}", [n, columnTitle]),
         eligible: [],
         blocked: [],
       };
@@ -560,7 +602,7 @@ export function ExamCycleManager({
       });
       return plan;
     },
-    [exams, role, hasSchedule, meta, columns],
+    [exams, role, hasSchedule, meta, columns, ui],
   );
 
   const runPlan = useCallback(
@@ -585,7 +627,7 @@ export function ExamCycleManager({
           }
           done += 1;
         } catch (e) {
-          failures.push(`${exam.title}: ${(e as Error)?.message || "failed"}`);
+          failures.push(ui("{0}: {1}", [exam.title, friendlyErrorMessage(e, ui("That did not work. Try again."))]));
         }
       }
       setBusy(false);
@@ -598,14 +640,14 @@ export function ExamCycleManager({
       failures.forEach((f) => toast.error(f));
       if (plan.blocked.length > 0 && done > 0) {
         toast.message(
-          `${plan.blocked.length} left where ${plan.blocked.length === 1 ? "it was" : "they were"}`,
-          { description: plan.blocked[0].reason },
+          ui(plan.blocked.length === 1 ? "{0} left where it was" : "{0} left where they were", [plan.blocked.length]),
+          { description: ui(plan.blocked[0].reason) },
         );
       }
       clearSelection();
       await load();
     },
-    [clearSelection, load],
+    [clearSelection, load, ui],
   );
 
   const requestMove = useCallback(
@@ -613,8 +655,8 @@ export function ExamCycleManager({
       const plan = buildPlan(ids, to);
       if (plan.eligible.length === 0) {
         const first = plan.blocked[0];
-        toast.error(first ? first.reason : "That move is not possible.");
-        setAnnouncement(first?.reason || "Move not possible.");
+        toast.error(ui(first ? first.reason : "That move is not possible."));
+        setAnnouncement(ui(first?.reason || "Move not possible."));
         return;
       }
       // Sending marks back needs a reason, so it always goes through the dialog.
@@ -630,7 +672,7 @@ export function ExamCycleManager({
       }
       void runPlan(plan);
     },
-    [buildPlan, runPlan],
+    [buildPlan, runPlan, ui],
   );
 
   /**
@@ -659,7 +701,7 @@ export function ExamCycleManager({
     if (role !== "TEACHER") {
       selectedExams
         .filter((e) => e.status === "LOCKED" || e.status === "PRINCIPAL_REVIEWED")
-        .forEach((e) => push("reject", "Send marks back", "#e11d48", e));
+        .forEach((e) => push("reject", "Send marks back", "var(--status-error-text)", e));
     }
     return Array.from(map.values());
   }, [selectedExams, hasSchedule, role]);
@@ -681,8 +723,8 @@ export function ExamCycleManager({
         // be dropped on — build the plan by hand rather than faking a move.
         setPendingPlan({
           to: "REVIEW",
-          eyebrow: "Approve marks",
-          successText: (n) => (n === 1 ? "Marks approved" : `${n} exams approved`),
+          eyebrow: ui("Approve marks"),
+          successText: (n) => (n === 1 ? ui("Marks approved") : ui("{0} exams approved", [n])),
           eligible: groupExams.map((exam) => ({
             exam,
             verdict: {
@@ -698,7 +740,7 @@ export function ExamCycleManager({
         });
       }
     },
-    [requestMove],
+    [requestMove, ui],
   );
 
   /** The card's own primary button — one exam, one step, no dialog. */
@@ -715,7 +757,7 @@ export function ExamCycleManager({
           const res = await fetch(`/api/exams/${exam.id}/lock`, { method: "POST" });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Failed to lock exam");
-          toast.success(`Exam locked — ${data.reportCardsGenerated ?? 0} report cards generated`);
+          toast.success(ui("Marks locked — {0} report cards generated", [data.reportCardsGenerated ?? 0]));
         } else {
           const res = await fetch("/api/exams", {
             method: "PATCH",
@@ -724,14 +766,15 @@ export function ExamCycleManager({
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Failed to update status");
-          toast.success(`Moved to ${action.status.replaceAll("_", " ")}`);
+          // R7: a translated stage name, never the raw status enum.
+          toast.success(action.status === "PUBLISHED" ? ui("Results released") : action.status === "PRINCIPAL_REVIEWED" ? ui("Results approved") : action.status === "MARKS_ENTRY" ? ui("Marks entry is open") : ui("Exam updated"));
         }
         await load();
       } catch (e) {
-        toast.error((e as Error)?.message || "Action failed");
+        toast.error(friendlyErrorMessage(e, ui("That did not work. Try again.")));
       }
     },
-    [load],
+    [load, ui],
   );
 
   const submitReject = useCallback(async () => {
@@ -746,23 +789,23 @@ export function ExamCycleManager({
           body: JSON.stringify({ reason: rejectReason.trim() }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Could not send the marks back");
+        if (!res.ok) throw new Error(data.error || "");
         done += 1;
       } catch (e) {
-        toast.error((e as Error)?.message || "Could not send the marks back");
+        toast.error(friendlyErrorMessage(e, ui("Could not send the marks back")));
       }
     }
     setRejectBusy(false);
     if (done > 0) {
       toast.success(
-        done === 1 ? "Marks sent back to the teacher" : `${done} exams sent back to their teachers`,
+        done === 1 ? ui("Marks sent back to the teacher") : ui("{0} exams sent back to their teachers", [done]),
       );
       setRejecting(null);
       setRejectReason("");
       clearSelection();
       await load();
     }
-  }, [rejecting, rejectReason, clearSelection, load]);
+  }, [rejecting, rejectReason, clearSelection, load, ui]);
 
   // ── Manual card order ──
   const reorderWithin = useCallback(
@@ -778,9 +821,9 @@ export function ExamCycleManager({
         writeJSON(orderKey(role, campusId), merged);
         return merged;
       });
-      setAnnouncement(`Card order updated in ${columns.find((c) => c.key === col)?.title}.`);
+      setAnnouncement(ui("Card order updated in {0}.", [columns.find((c) => c.key === col)?.title ?? ""]));
     },
-    [byColumn, role, campusId, columns],
+    [byColumn, role, campusId, columns, ui],
   );
 
   // ── Drag handlers ──
@@ -808,23 +851,23 @@ export function ExamCycleManager({
       });
       if (sameColumn) {
         return prefs.sortKey === "manual"
-          ? { ok: true, message: "Drop to reorder" }
-          : { ok: false, message: "Switch sorting to “Board order” to arrange cards by hand" };
+          ? { ok: true, message: ui("Drop to reorder") }
+          : { ok: false, message: ui("Switch sorting to “Board order” to arrange cards by hand") };
       }
       const plan = buildPlan(ids, col);
       if (plan.eligible.length === 0) {
-        return { ok: false, message: plan.blocked[0]?.reason || "Not allowed here" };
+        return { ok: false, message: ui(plan.blocked[0]?.reason || "Not allowed here") };
       }
-      const label = plan.eligible[0].verdict.label;
+      const label = ui(plan.eligible[0].verdict.label);
       return {
         ok: true,
         message:
           plan.blocked.length > 0
-            ? `${label} · ${plan.eligible.length} of ${ids.length} can move`
+            ? ui("{0} · {1} of {2} can move", [label, plan.eligible.length, ids.length])
             : label,
       };
     },
-    [exams, hasSchedule, role, prefs.sortKey, buildPlan],
+    [exams, hasSchedule, role, prefs.sortKey, buildPlan, ui],
   );
 
   const handleDrop = useCallback(
@@ -838,8 +881,8 @@ export function ExamCycleManager({
       });
       if (sameColumn) {
         if (prefs.sortKey !== "manual") {
-          toast.message("Sorting is not manual", {
-            description: "Switch the sort to “Board order” to arrange cards by hand.",
+          toast.message(ui("Sorting is not manual"), {
+            description: ui("Switch the sort to “Board order” to arrange cards by hand."),
           });
           return;
         }
@@ -937,17 +980,20 @@ export function ExamCycleManager({
       </p>
 
       {/* ── Header ── */}
-      <div className="sk-rise relative overflow-hidden rounded-[22px] border border-[#cfc2d6]/20 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-12px_rgba(129,39,207,0.22)] sm:px-5">
+      <div className="sk-panel sk-rise relative overflow-hidden px-4 py-3 sm:px-5">
         <span
           aria-hidden
-          className={cn("absolute inset-y-0 left-0 w-[3px] bg-gradient-to-b", examTone.rail)}
+          className={cn("absolute inset-y-0 start-0 w-[3px] bg-gradient-to-b", examTone.rail)}
         />
         <span
           aria-hidden
-          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full blur-2xl"
+          className="pointer-events-none absolute -end-16 -top-16 h-40 w-40 rounded-full blur-2xl"
           style={{ background: `radial-gradient(circle, ${examTone.hex}14, transparent 70%)` }}
         />
         <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {hideHeading ? (
+            <p className="min-w-0 truncate text-2xs font-semibold leading-tight text-ink-muted">{boardSummary}</p>
+          ) : (
           <div className="flex min-w-0 items-center gap-3">
             <span
               className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white", examTone.tile)}
@@ -957,53 +1003,51 @@ export function ExamCycleManager({
             </span>
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
-                <h2 className="truncate text-lg font-black leading-tight tracking-tight text-[#1d1b20]">
-                  {isTeacher ? "My Tests & Quizzes" : "Exams & Results"}
+                <h2 className="truncate text-lg font-bold leading-tight tracking-tight text-ink-strong">
+                  {ui(isTeacher ? "Tests & quizzes" : "Exams & results")}
                 </h2>
-                <span className={cn("hidden shrink-0 text-[9px] font-black uppercase tracking-[0.12em] opacity-80 sm:inline", examTone.text)}>
-                  {isTeacher ? "My Classroom" : "Academics"}
+                <span className={cn("hidden shrink-0 text-2xs font-semibold opacity-80 sm:inline", examTone.text)}>
+                  {ui(isTeacher ? "My classroom" : "Academics")}
                 </span>
               </div>
-              <p className="truncate text-[11px] font-semibold leading-tight text-ink-muted">
-                {filtered.length} exam{filtered.length === 1 ? "" : "s"} shown
-                {flagged.size > 0 ? ` · ${flagged.size} need your attention` : ""}
-                {overallProgress !== null ? ` · ${overallProgress}% of marks entered` : ""}
-              </p>
+              <p className="truncate text-2xs font-semibold leading-tight text-ink-muted">{boardSummary}</p>
             </div>
           </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
-              <select
+              <SystemSelect
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
-                aria-label="Filter by term"
-                className="h-10 cursor-pointer appearance-none rounded-xl border border-[#cfc2d6]/20 bg-white pl-3 pr-8 text-[11px] font-bold text-[#1d1b20] outline-none transition-all hover:border-[#8127cf]/30 focus:border-[#8127cf]/40 focus:shadow-[0_0_0_3px_rgba(129,39,207,0.08)]"
+                aria-label={ui("Filter by term")}
+                className="appearance-none ps-3 pe-8"
               >
-                <option value="ALL">All Terms</option>
+                <option value="ALL">{ui("All terms")}</option>
                 {termOptions.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8127cf]" />
+              </SystemSelect>
+
             </div>
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               onClick={() => load(true)}
-              aria-label="Refresh"
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-[#cfc2d6]/20 bg-white text-[#8127cf] transition-all hover:border-[#8127cf]/30 hover:bg-[#fbf0fe]"
+              aria-label={ui("Refresh")}
+              className="flex items-center justify-center"
             >
-              <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-            </button>
-            <BrandButton
-              variant="gradient"
-              icon={<Plus className="h-4 w-4" />}
-              onClick={() => setCreating(true)}
-              className="min-h-10"
-            >
-              {isTeacher ? "New Test" : "New Exam"}
-            </BrandButton>
+              <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin motion-reduce:animate-none")} />
+            </Button>
+            {hideHeading ? null : (
+              <BrandButton
+                variant="gradient"
+                icon={<Plus className="h-4 w-4" />}
+                onClick={() => setCreating(true)}
+              >
+                {ui(isTeacher ? "New test" : "New exam")}
+              </BrandButton>
+            )}
           </div>
         </div>
       </div>
@@ -1016,7 +1060,7 @@ export function ExamCycleManager({
         )}
       >
         <StageTile
-          label="All exams"
+          label={ui(isTeacher ? "All tests" : "All exams")}
           count={filtered.length}
           accent="#6b7280"
           active={stageFilter === "ALL"}
@@ -1035,132 +1079,127 @@ export function ExamCycleManager({
       </div>
 
       {/* ── Toolbar ── */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-[18px] border border-[#cfc2d6]/20 bg-white/85 p-2 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_8px_24px_-16px_rgba(31,26,35,0.35)] backdrop-blur-xl">
-        <div className="relative min-w-[190px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#cfc2d6]" />
-          <input
+      <div className="sticky top-0 z-20 sk-toolbar flex flex-wrap items-center gap-2 p-2">
+        <InputGroup surfaceClassName="bg-surface-subtle" className="relative min-w-[190px] flex-1">
+          <Search data-field-affix="start" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-edge" />
+          <SystemInput
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search exams, classes, subjects…   ( / )"
-            aria-label="Search exams"
-            className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] py-2.5 pl-9 pr-3 text-xs font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/40 focus:bg-white"
+            placeholder={ui(isTeacher ? "Search tests, classes, subjects… ( / )" : "Search exams, classes, subjects… ( / )")}
+            aria-label={ui(isTeacher ? "Search tests" : "Search exams")}
+            className="w-full ps-9 pe-3"
           />
-        </div>
+        </InputGroup>
 
         <FilterSelect
           value={classFilter}
           onChange={setClassFilter}
-          label="Class"
-          options={[["ALL", "All classes"], ...classOptions]}
+          label={ui("Class")}
+          options={[["ALL", ui("All classes")], ...classOptions]}
         />
         <FilterSelect
           value={typeFilter}
           onChange={setTypeFilter}
-          label="Type"
+          label={ui("Type")}
           options={[
-            ["ALL", "All types"],
+            ["ALL", ui("All types")],
             ...typeOptions.map(
-              (t) => [t, EXAM_TYPE_LABELS[t as ExamType] || t.replaceAll("_", " ")] as [string, string],
+              (t) => [t, ui(EXAM_TYPE_LABELS[t as ExamType] || t.replaceAll("_", " "))] as [string, string],
             ),
           ]}
         />
-        <button
+        <Button variant="choice"
           type="button"
           onClick={() => setAttentionOnly((v) => !v)}
           aria-pressed={attentionOnly}
-          className={cn(
-            "flex cursor-pointer items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-[11px] font-black uppercase tracking-wider transition-colors",
-            attentionOnly
-              ? "border-amber-300 bg-amber-50 text-amber-700"
-              : "border-[#cfc2d6]/20 bg-white text-ink-muted hover:text-[#8127cf]",
-          )}
+          className={"justify-start " + (cn(
+            "flex items-center gap-1.5 px-3 py-2.5",
+            "",
+          ))}
         >
-          <TriangleAlert className="h-3.5 w-3.5" />
-          Needs attention
+          <TriangleAlert aria-hidden="true" className="h-3.5 w-3.5" />
+          {ui("Needs attention")}
           {flagged.size > 0 ? (
-            <span className="rounded-full bg-amber-500 px-1.5 text-[9px] text-white">
+            <span className="rounded-full bg-status-warning-text px-1.5 text-2xs text-primary-foreground">
               {flagged.size}
             </span>
           ) : null}
-        </button>
+        </Button>
 
         {filtersActive ? (
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={resetFilters}
-            className="cursor-pointer rounded-2xl px-3 py-2.5 text-[11px] font-black uppercase tracking-wider text-ink-subtle transition-colors hover:text-[#8127cf]"
+            className="px-3 py-2.5"
           >
-            Clear
-          </button>
+            {ui("Clear")}
+          </Button>
         ) : null}
 
-        <div className="ml-auto flex items-center gap-2.5">
+        <div className="ms-auto flex items-center gap-2.5">
           <FilterSelect
             value={prefs.sortKey}
             onChange={(v) => patchPrefs({ sortKey: v as SortKey })}
-            label="Sort"
+            label={ui("Sort")}
             options={[
-              ["manual", "Board order"],
-              ["title", "Title"],
-              ["class", "Class"],
-              ["stage", "Stage"],
-              ["progress", "Marks progress"],
-              ["date", "Exam date"],
+              ["manual", ui("Board order")],
+              ["title", ui("Title")],
+              ["class", ui("Class")],
+              ["stage", ui("Stage")],
+              ["progress", ui("Marks progress")],
+              ["date", ui("Exam date")],
             ]}
           />
           {prefs.sortKey !== "manual" ? (
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               onClick={() => patchPrefs({ sortDir: prefs.sortDir === "asc" ? "desc" : "asc" })}
-              aria-label={prefs.sortDir === "asc" ? "Sort descending" : "Sort ascending"}
-              title={prefs.sortDir === "asc" ? "Ascending" : "Descending"}
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:text-[#8127cf]"
+              aria-label={ui(prefs.sortDir === "asc" ? "Sort descending" : "Sort ascending")}
+              className="flex items-center justify-center"
             >
               {prefs.sortDir === "asc" ? (
                 <ArrowUpWideNarrow className="h-4 w-4" />
               ) : (
                 <ArrowDownWideNarrow className="h-4 w-4" />
               )}
-            </button>
+            </Button>
           ) : null}
           {prefs.view === "board" ? (
-            <button
+            <Button variant="outline" size="icon"
               type="button"
               onClick={() =>
                 patchPrefs({ density: prefs.density === "compact" ? "comfortable" : "compact" })
               }
-              aria-label={
-                prefs.density === "compact" ? "Switch to comfortable cards" : "Switch to compact cards"
-              }
-              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-2xl border border-[#cfc2d6]/20 bg-white text-ink-muted transition-colors hover:text-[#8127cf]"
+              aria-label={ui(prefs.density === "compact" ? "Switch to comfortable cards" : "Switch to compact cards")}
+              className="flex items-center justify-center"
             >
               {prefs.density === "compact" ? (
                 <Rows3 className="h-4 w-4" />
               ) : (
                 <LayoutList className="h-4 w-4" />
               )}
-            </button>
+            </Button>
           ) : null}
 
-          <div className="flex items-center gap-0.5 rounded-2xl border border-[#cfc2d6]/20 bg-[#faf7fc] p-1">
+          <div className="flex items-center gap-0.5 rounded-2xl border border-edge/20 bg-surface-subtle p-1">
             <ViewTab
               active={prefs.view === "board"}
               icon={Columns3}
-              label="Board"
+              label={ui("Board")}
               onClick={() => patchPrefs({ view: "board" })}
             />
             <ViewTab
               active={prefs.view === "table"}
               icon={Table2}
-              label="List"
+              label={ui("List")}
               onClick={() => patchPrefs({ view: "table" })}
             />
             {!isTeacher ? (
               <ViewTab
                 active={prefs.view === "timeline"}
                 icon={CalendarDays}
-                label="Datesheet"
+                label={ui("Datesheet")}
                 onClick={() => patchPrefs({ view: "timeline" })}
               />
             ) : null}
@@ -1180,32 +1219,33 @@ export function ExamCycleManager({
       ) : null}
 
       {/* ── Views ── */}
-      {loading ? (
+      {loadFailed && !loading ? (
+        <ErrorState title={ui(isTeacher ? "Tests could not be loaded" : "Exams could not be loaded")} description={ui("Check your connection and try again.")} onRetry={() => void load()} />
+      ) : loading ? (
         <BoardSkeleton count={columns.length} />
       ) : exams.length === 0 ? (
         <EmptyBoard isTeacher={isTeacher} onCreate={() => setCreating(true)} />
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
-          <Search className="mb-3 h-10 w-10 text-ink-subtle" />
-          <p className="text-sm font-bold text-ink-muted">Nothing matches those filters</p>
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="mt-3 cursor-pointer rounded-xl bg-[#8127cf] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#6a1fb0]"
-          >
-            Clear filters
-          </button>
-        </div>
+        <EmptyState
+          icon={Search}
+          title={ui("Nothing matches those filters")}
+          description={ui(isTeacher ? "Clear the filters to see every test again." : "Clear the filters to see every exam again.")}
+          action={
+            <Button type="button" onClick={resetFilters}>
+              {ui("Clear filters")}
+            </Button>
+          }
+        />
       ) : prefs.view === "board" ? (
         <>
           {stageFilter !== "ALL" ? (
-            <button
+            <Button variant="secondary"
               type="button"
               onClick={() => setStageFilter("ALL")}
-              className="flex cursor-pointer items-center gap-1.5 rounded-full bg-[#fbf0fe] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#8127cf]"
+              className="justify-start flex items-center gap-1.5 px-3 py-1.5"
             >
-              <X className="h-3 w-3" /> Showing one stage — show all
-            </button>
+              <X aria-hidden="true" className="h-3 w-3" /> {ui("Showing one stage — show all")}
+            </Button>
           ) : null}
           <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
             {visibleColumns.map((col) => (
@@ -1301,10 +1341,9 @@ export function ExamCycleManager({
       )}
 
       {prefs.view === "board" && !loading && filtered.length > 0 ? (
-        <p className="flex items-center gap-1.5 px-1 text-[10px] font-semibold text-ink-subtle">
-          <Info className="h-3 w-3" />
-          Drag a card to move it along the pipeline, or focus one and press ← / →. Tick cards to
-          act on a batch from the bar at the top.
+        <p className="flex items-center gap-1.5 px-1 text-2xs font-semibold text-ink-subtle">
+          <Info aria-hidden="true" className="h-3 w-3" />
+          {ui("Drag a card to move it along the pipeline, or focus one and press ← / →. Tick cards to act on a batch from the bar at the top.")}
         </p>
       ) : null}
 
@@ -1411,30 +1450,33 @@ function BoardLane({
   onMove: (id: string, to: ColumnKey) => void;
   onNudge: (exam: ExamItem, direction: -1 | 1) => void;
 }) {
+  const ui = useUiText();
   const dragging = draggingIds.length > 0;
 
   if (collapsed) {
     return (
-      <button
+      <Button variant="outline"
         type="button"
         onClick={onToggleCollapse}
-        title={`Expand ${column.title}`}
-        className="flex w-14 shrink-0 cursor-pointer flex-col items-center gap-3 rounded-3xl border border-[#cfc2d6]/10 bg-gradient-to-b from-white to-[#faf7fc] py-4 shadow-sm transition-colors hover:border-[#8127cf]/30"
+        aria-label={ui("Expand {0}", [column.title])}
+        className="flex w-14 shrink-0 flex-col items-center gap-3 py-4"
       >
-        <ChevronRight className="h-4 w-4 text-ink-subtle" />
-        <span
-          className="rounded-full px-2 py-0.5 text-[9px] font-black"
+        <ChevronRight aria-hidden="true" className="h-4 w-4 text-ink-subtle rtl:rotate-180" />
+        <Badge
+          size="sm"
+          variant="outline"
+          className="border-transparent tabular-nums"
           style={{ backgroundColor: `${column.accent}1a`, color: column.accent }}
         >
           {exams.length}
-        </span>
+        </Badge>
         <span
-          className="text-[10px] font-black uppercase tracking-wider text-ink-muted"
+          className="text-2xs font-semibold text-ink-muted"
           style={{ writingMode: "vertical-rl" }}
         >
           {column.title}
         </span>
-      </button>
+      </Button>
     );
   }
 
@@ -1442,12 +1484,12 @@ function BoardLane({
     <section
       aria-label={column.title}
       className={cn(
-        "flex w-[320px] shrink-0 flex-col rounded-3xl border bg-gradient-to-b from-white to-[#faf7fc] p-4 shadow-sm transition-all",
+        "flex w-[min(320px,85vw)] shrink-0 flex-col rounded-3xl border bg-gradient-to-b from-card to-surface-subtle p-4 shadow-sm transition-all",
         dropZone
           ? dropZone.ok
-            ? "border-[#8127cf]/60 ring-4 ring-[#8127cf]/10"
-            : "border-rose-300 ring-4 ring-rose-100"
-          : "border-[#cfc2d6]/10",
+            ? "border-primary/60 ring-4 ring-primary/10"
+            : "border-status-error-border ring-4 ring-status-error-surface"
+          : "border-edge/10",
       )}
       onDragOver={(e) => {
         if (!dragging) return;
@@ -1464,41 +1506,33 @@ function BoardLane({
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: column.accent }} />
-          <h3 className="text-sm font-black text-[#1d1b20]">{column.title}</h3>
+          <h3 className="text-sm font-bold text-ink-strong">{column.title}</h3>
         </div>
         <div className="flex items-center gap-1">
-          <span
-            className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider"
+          <Badge
+            size="sm"
+            variant="outline"
+            className="border-transparent tabular-nums"
             style={{ backgroundColor: `${column.accent}1a`, color: column.accent }}
           >
             {exams.length}
-          </span>
-          <button
+          </Badge>
+          <Button variant="secondary" size="icon"
             type="button"
             onClick={onToggleCollapse}
-            aria-label={`Collapse ${column.title}`}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition-colors hover:bg-[#f3f4f9] hover:text-[#8127cf]"
+            aria-label={ui("Collapse {0}", [column.title])}
+            className="flex items-center justify-center"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
+            <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5 rtl:rotate-180" />
+          </Button>
         </div>
       </div>
-      <p className="mb-3 text-[10px] font-semibold text-ink-subtle">{column.hint}</p>
+      <p className="mb-3 text-2xs font-semibold text-ink-subtle">{column.hint}</p>
 
       {dropZone ? (
-        <div
-          className={cn(
-            "mb-3 flex items-start gap-1.5 rounded-2xl px-3 py-2 text-[11px] font-bold",
-            dropZone.ok ? "bg-[#fbf0fe] text-[#8127cf]" : "bg-rose-50 text-rose-600",
-          )}
-        >
-          {dropZone.ok ? (
-            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          ) : (
-            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          )}
-          <span className="leading-snug">{dropZone.message}</span>
-        </div>
+        <Alert tone={dropZone.ok ? "brand" : "danger"} compact live="polite" className="mb-3">
+          {dropZone.message}
+        </Alert>
       ) : null}
 
       <div role="list" className="flex flex-1 flex-col gap-3">
@@ -1550,13 +1584,13 @@ function BoardLane({
         {exams.length === 0 ? (
           <div
             className={cn(
-              "rounded-2xl border border-dashed py-10 text-center text-[11px] font-semibold transition-colors",
+              "rounded-2xl border border-dashed py-10 text-center text-2xs font-semibold transition-colors",
               dropZone?.ok
-                ? "border-[#8127cf]/40 bg-[#fbf0fe]/40 text-[#8127cf]"
-                : "border-[#cfc2d6]/20 text-ink-subtle",
+                ? "border-primary/40 bg-brand-50/40 text-primary"
+                : "border-edge/20 text-ink-subtle",
             )}
           >
-            {dragging ? "Drop here" : "Empty"}
+            {ui(dragging ? "Drop here" : "Empty")}
           </div>
         ) : null}
       </div>
@@ -1589,35 +1623,33 @@ function StageTile({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button variant="choice"
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        "group relative flex cursor-pointer items-center gap-2.5 overflow-hidden rounded-[18px] border bg-white px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5",
-        active
-          ? "border-transparent"
-          : "border-[#cfc2d6]/20 shadow-[0_1px_2px_rgba(31,26,35,0.04),0_6px_16px_-10px_rgba(31,26,35,0.25)] hover:border-[#8127cf]/30",
-      )}
+      className={"justify-start " + (cn(
+        "group relative flex items-center gap-2.5 overflow-hidden px-3 py-2.5 text-start hover:-translate-y-0.5",
+        "",
+      ))}
       style={active ? { boxShadow: `0 0 0 1.5px ${accent}, 0 10px 24px -14px ${accent}` } : undefined}
     >
       <span
         aria-hidden
         className={cn(
-          "absolute inset-y-0 left-0 w-[3px]",
+          "absolute inset-y-0 start-0 w-[3px]",
           active ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-60",
         )}
         style={{ backgroundColor: accent }}
       />
-      <span className="text-xl font-black leading-none tracking-tight tabular-nums text-[#1d1b20] sm:text-[22px]">
+      <span className="text-xl font-bold leading-none tracking-tight tabular-nums text-ink-strong sm:text-[22px]">
         {count}
       </span>
       {/* Wrapping beats truncating: "On the Dateshee…" and "Awaiting Appr…"
           are not names anyone can act on. */}
-      <span className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-ink-muted">
+      <span className="min-w-0 flex-1 text-xs font-semibold leading-tight text-ink-muted">
         {label}
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -1633,18 +1665,19 @@ function ViewTab({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button variant="choice"
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn(
-        "flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-all",
-        active ? "bg-white text-[#8127cf] shadow-sm" : "text-ink-muted hover:text-[#8127cf]",
-      )}
+      className={"justify-start " + (cn(
+        "flex items-center gap-1.5 px-3 py-2",
+        "",
+      ))}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon aria-hidden="true" className="h-3.5 w-3.5" />
       <span className="hidden sm:inline">{label}</span>
-    </button>
+      <span className="sr-only sm:hidden">{label}</span>
+    </Button>
   );
 }
 
@@ -1661,19 +1694,19 @@ function FilterSelect({
 }) {
   return (
     <div className="relative">
-      <select
+      <SystemSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
-        className="appearance-none rounded-2xl border border-[#cfc2d6]/20 bg-white py-2.5 pl-3 pr-8 text-[11px] font-bold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+        className="appearance-none ps-3 pe-8"
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
             {l}
           </option>
         ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8127cf]" />
+      </SystemSelect>
+
     </div>
   );
 }
@@ -1697,38 +1730,38 @@ function BulkBar({
   onClear: () => void;
   busy: boolean;
 }) {
+  const ui = useUiText();
   return (
-    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-[#8127cf]/25 bg-white/92 p-2 shadow-[0_2px_6px_rgba(129,39,207,0.10),0_16px_36px_-16px_rgba(129,39,207,0.45)] backdrop-blur-xl">
-      <span className="rounded-full bg-[#8127cf] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white">
-        {total} selected
+    <div className="sticky top-[60px] z-[19] flex flex-wrap items-center gap-2 rounded-[18px] border border-primary/25 bg-card/95 p-2 shadow-lg backdrop-blur-xl">
+      <span className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+        {ui("{0} selected", [total])}
       </span>
       {groups.length === 0 ? (
-        <span className="text-[11px] font-semibold text-ink-muted">
-          Nothing left to do on these — they are already finished.
+        <span className="text-2xs font-semibold text-ink-muted">
+          {ui("Nothing left to do on these — they are already finished.")}
         </span>
       ) : (
         groups.map((g) => (
-          <button
+          <Button variant="default"
             key={g.key}
             type="button"
-            disabled={busy}
+            loading={busy}
             onClick={() => onRun(g.key, g.exams)}
-            className="flex cursor-pointer items-center gap-1.5 rounded-2xl px-3.5 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:scale-[1.02] disabled:opacity-50"
+            className="justify-start flex items-center gap-1.5 px-3.5 py-2"
             style={{ backgroundColor: g.accent }}
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {g.label}
-            <span className="rounded-full bg-white/25 px-1.5">{g.exams.length}</span>
-          </button>
+            {ui(g.label)}
+            <span className="rounded-full bg-card/25 px-1.5 tabular-nums">{g.exams.length}</span>
+          </Button>
         ))
       )}
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={onClear}
-        className="ml-auto cursor-pointer rounded-2xl px-3 py-2 text-[11px] font-black uppercase tracking-wider text-ink-muted transition-colors hover:text-[#8127cf]"
+        className="ms-auto px-3 py-2"
       >
-        Clear
-      </button>
+        {ui("Clear")}
+      </Button>
     </div>
   );
 }
@@ -1737,11 +1770,11 @@ function BoardSkeleton({ count }: { count: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="rounded-3xl border border-[#cfc2d6]/10 bg-white p-4 shadow-sm">
-          <div className="skeleton-shimmer mb-4 h-3 w-24 rounded-full bg-[#e8e0ec]/50" />
+        <div key={i} className="sk-panel p-4">
+          <div className="skeleton-shimmer mb-4 h-3 w-24 rounded-full bg-border-subtle/50" />
           <div className="space-y-3">
             {Array.from({ length: 2 }).map((_, j) => (
-              <div key={j} className="skeleton-shimmer h-24 rounded-2xl bg-[#e8e0ec]/40" />
+              <div key={j} className="skeleton-shimmer h-24 rounded-2xl bg-border-subtle/40" />
             ))}
           </div>
         </div>
@@ -1751,18 +1784,24 @@ function BoardSkeleton({ count }: { count: number }) {
 }
 
 function EmptyBoard({ isTeacher, onCreate }: { isTeacher: boolean; onCreate: () => void }) {
+  const ui = useUiText();
   return (
-    <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#cfc2d6]/30 bg-white p-16 text-center">
-      <CalendarDays className="mb-3 h-10 w-10 text-ink-subtle" />
-      <p className="text-sm font-bold text-ink-muted">{isTeacher ? "No tests yet" : "No exams yet"}</p>
-      <p className="mt-1 text-xs font-semibold text-ink-subtle">
-        {isTeacher
-          ? "Create a quiz or class test for one of your subjects."
-          : "Create your first exam to start the cycle."}
-      </p>
-      <BrandButton variant="gradient" icon={<Plus className="h-4 w-4" />} onClick={onCreate} className="mt-5">
-        {isTeacher ? "New Test" : "New Exam"}
-      </BrandButton>
+    <div className="sk-panel border-dashed p-6 sm:p-10">
+      <EmptyState
+        icon={CalendarDays}
+        title={ui(isTeacher ? "No tests yet" : "No exams yet")}
+        description={ui(
+          isTeacher
+            ? "Create a quiz or class test for one of your subjects."
+            : "Create your first exam to start the cycle.",
+        )}
+        action={
+          // R5: the empty state repeats the PageHeader primary with the same label.
+          <BrandButton variant="gradient" icon={<Plus className="h-4 w-4" />} onClick={onCreate}>
+            {ui(isTeacher ? "New test" : "New exam")}
+          </BrandButton>
+        }
+      />
     </div>
   );
 }
@@ -1785,13 +1824,15 @@ function ConfirmMoveModal({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const ui = useUiText();
   const consequence = plan.eligible.find((e) => "confirm" in e.verdict && e.verdict.confirm);
-  const verdictLabel = plan.eligible[0]?.verdict.label ?? "Move";
+  const verdictLabel = ui(plan.eligible[0]?.verdict.label ?? "Move");
   return (
     <Modal
       title={verdictLabel}
       eyebrow={plan.eyebrow}
       icon={Lock}
+      tone="amber"
       role="alertdialog"
       size="xs"
       onClose={onCancel}
@@ -1799,10 +1840,10 @@ function ConfirmMoveModal({
       footer={
         <div className="flex gap-2">
           <BrandButton variant="soft" onClick={onCancel} disabled={busy} className="flex-1">
-            Cancel
+            {ui("Keep editing")}
           </BrandButton>
-          <BrandButton variant="gradient" onClick={onConfirm} disabled={busy} className="flex-1">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          <BrandButton variant="gradient" onClick={onConfirm} loading={busy} className="flex-1">
+            {busy ? null : <CheckCircle2 aria-hidden="true" className="h-4 w-4" />}
             {verdictLabel}
           </BrandButton>
         </div>
@@ -1811,31 +1852,31 @@ function ConfirmMoveModal({
 
         <div className="space-y-3 px-6 py-5">
           {consequence && "confirm" in consequence.verdict ? (
-            <p className="text-xs font-semibold leading-relaxed text-ink">
-              {consequence.verdict.confirm}
+            <p className="text-sm leading-relaxed text-ink">
+              {ui(consequence.verdict.confirm ?? "")}
             </p>
           ) : null}
 
-          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-2xl bg-[#faf7fc] p-3 custom-scrollbar">
+          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-2xl bg-surface-subtle p-3 custom-scrollbar">
             {plan.eligible.map(({ exam }) => (
-              <li key={exam.id} className="flex items-center gap-2 text-xs font-bold text-[#1d1b20]">
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                <span className="truncate">
+              <li key={exam.id} className="flex items-center gap-2 text-xs font-semibold text-ink-strong">
+                <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-status-success-text" />
+                <bdi className="truncate">
                   {exam.title} · {classLabel(exam.class)}
-                </span>
+                </bdi>
               </li>
             ))}
           </ul>
 
           {plan.blocked.length > 0 ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
-              <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">
-                {plan.blocked.length} will stay where {plan.blocked.length === 1 ? "it is" : "they are"}
-              </p>
-              <p className="mt-0.5 text-[11px] font-semibold leading-relaxed text-amber-800">
-                {plan.blocked[0].reason}
-              </p>
-            </div>
+            <Alert
+              tone="warning"
+              compact
+              live="off"
+              title={ui(plan.blocked.length === 1 ? "{0} will stay where it is" : "{0} will stay where they are", [plan.blocked.length])}
+            >
+              {ui(plan.blocked[0].reason)}
+            </Alert>
           ) : null}
         </div>
 
@@ -1863,90 +1904,94 @@ function RejectMarksModal({
   onClose: () => void;
   onSubmit: () => void;
 }) {
+  const ui = useUiText();
   const tooShort = reason.trim().length < 5;
   const reportCards = exams.reduce((sum, e) => sum + (e._count?.reportCards ?? 0), 0);
   const single = exams.length === 1 ? exams[0] : null;
 
   return (
     <Modal
-      title="Send marks back"
-      eyebrow="Marks review"
+      title={ui("Send marks back")}
+      eyebrow={ui("Marks review")}
       icon={RotateCcw}
       tone="amber"
       size="xs"
       onClose={onClose}
       // The reason is typed prose; a mistimed backdrop click used to bin it.
       dirty={reason.trim().length > 0}
-      dirtyMessage="Discard the reason you have written?"
+      dirtyMessage={ui("Discard the reason you have written?")}
       footer={
         <div className="flex gap-2">
           <BrandButton variant="soft" onClick={onClose} disabled={busy} className="flex-1">
-            Cancel
+            {ui("Keep editing")}
           </BrandButton>
-          <BrandButton
-            variant="gradient"
-            onClick={onSubmit}
-            disabled={busy || tooShort}
-            title={tooShort ? "Write a reason for the teacher first" : "Send these marks back to the teacher"}
-            className="flex-1"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-            Send back
-          </BrandButton>
+          <Tooltip content={ui(tooShort ? "Write a reason for the teacher first" : "Send these marks back to the teacher")}>
+            <span tabIndex={tooShort ? 0 : -1} className="flex flex-1">
+              <BrandButton
+                variant="gradient"
+                onClick={onSubmit}
+                disabled={tooShort}
+                loading={busy}
+                className="flex-1"
+              >
+                {busy ? null : <RotateCcw aria-hidden="true" className="h-4 w-4" />}
+                {ui("Send back")}
+              </BrandButton>
+            </span>
+          </Tooltip>
         </div>
       }
     >
-        <p className="mb-4 text-[11px] font-semibold leading-relaxed text-ink-muted">
-          {single
-            ? `${single.title}${single.class ? ` · ${classLabel(single.class)}` : ""}.`
-            : `${exams.length} exams.`}{" "}
-          The teacher will be able to edit the marks again, and the {reportCards} report card
-          {reportCards === 1 ? "" : "s"} generated when {exams.length === 1 ? "this exam was" : "these exams were"}{" "}
-          locked will be withdrawn until re-locked.
+        <p className="mb-4 text-2xs font-semibold leading-relaxed text-ink-muted">
+          <bdi>
+            {single
+              ? `${single.title}${single.class ? ` · ${classLabel(single.class)}` : ""}.`
+              : ui("{0} exams.", [exams.length])}
+          </bdi>{" "}
+          {ui(reportCards === 1
+            ? "The teacher will be able to edit the marks again, and the 1 report card generated at locking will be withdrawn until re-locked."
+            : "The teacher will be able to edit the marks again, and the {0} report cards generated at locking will be withdrawn until re-locked.", [reportCards])}
         </p>
 
         {exams.length > 1 ? (
-          <ul className="mb-4 max-h-28 space-y-1 overflow-y-auto rounded-2xl bg-[#faf7fc] p-3 custom-scrollbar">
+          <ul className="mb-4 max-h-28 space-y-1 overflow-y-auto rounded-2xl bg-surface-subtle p-3 custom-scrollbar">
             {exams.map((e) => (
-              <li key={e.id} className="truncate text-[11px] font-bold text-[#1d1b20]">
-                {e.title} · {classLabel(e.class)}
+              <li key={e.id} className="truncate text-2xs font-bold text-ink-strong">
+                <bdi>{e.title} · {classLabel(e.class)}</bdi>
               </li>
             ))}
           </ul>
         ) : null}
 
         <label className="block">
-          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
-            Reason for the teacher
+          <span className="mb-1.5 block text-xs font-semibold text-ink-muted">
+            {ui("Reason for the teacher")}
           </span>
-          <textarea
+          <SystemTextarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={4}
             autoFocus
             maxLength={2000}
-            placeholder="e.g. Mathematics totals need re-checking against the answer sheets."
-            className="w-full rounded-2xl border border-[#cfc2d6]/30 bg-white px-3 py-2 text-sm font-semibold text-[#1d1b20] outline-none transition focus:border-[#8127cf]/50"
+            placeholder={ui("e.g. Mathematics totals need re-checking against the answer sheets.")}
+            className="w-full"
           />
         </label>
         {/* Send back was simply disabled until the reason was long enough,
             with nothing on screen saying so — the admin was left clicking a
             dead button. */}
         <p className={cn(
-          "mt-1.5 text-[11px] font-semibold",
-          tooShort ? "text-amber-700" : "text-ink-subtle",
+          "mt-1.5 text-2xs font-semibold",
+          tooShort ? "text-status-warning-text" : "text-ink-subtle",
         )}>
           {tooShort
-            ? "Write at least a few words — this is the only thing the teacher will see."
-            : `${reason.trim().length} characters · the teacher sees this verbatim`}
+            ? ui("Write at least a few words — this is the only thing the teacher will see.")
+            : ui("{0} characters · the teacher sees this verbatim", [reason.trim().length])}
         </p>
 
     </Modal>
   );
 }
-
-const CLASSES_CACHE = new Map<string, { data: { id: string; name: string; section?: string | null }[]; ts: number }>();
-const CLASSES_CACHE_TTL = 60_000;
 
 function CreateExamModal({
   campusId,
@@ -1963,13 +2008,16 @@ function CreateExamModal({
   // scheduled by the office through the exam-session wizard, for every class at
   // once, because they need a date sheet and a seating plan this board has no
   // notion of.
+  const ui = useUiText();
   const typeOptions: readonly ExamType[] =
     role === "TEACHER" ? TEACHER_EXAM_TYPES : OFFICE_EXAM_TYPES;
   // Stamp new exams with the active cycle's year, not the calendar year — a
   // cycle labelled 2027 starts in August 2026, and filing under 2026 hides the
   // exam from the office's board.
   const cycleYear = useAcademicYear();
-  const [classes, setClasses] = useState<{ id: string; name: string; section?: string | null }[]>([]);
+  const [classResult, setClassResult] = useState<{ scope: string | undefined; data: { id: string; name: string; section?: string | null }[] }>({ scope: campusId, data: [] });
+  const classes = classResult.scope === campusId ? classResult.data : [];
+  const classRequest = useRef<AbortController | null>(null);
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [classesError, setClassesError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1985,54 +2033,57 @@ function CreateExamModal({
   const loadClasses = useCallback(async () => {
     setLoadingClasses(true);
     setClassesError(null);
-    const cacheKey = campusId || "default";
-    const cached = CLASSES_CACHE.get(cacheKey);
-    if (cached && Date.now() - cached.ts < CLASSES_CACHE_TTL) {
-      setClasses(cached.data);
-      setLoadingClasses(false);
-      return;
-    }
+    classRequest.current?.abort();
     const controller = new AbortController();
+    classRequest.current = controller;
+    setClassResult({ scope: campusId, data: [] });
     const timeout = setTimeout(() => controller.abort(), 20_000);
     try {
       const params = new URLSearchParams();
       if (campusId) params.set("campusId", campusId);
-      const res = await fetch(`/api/classes?${params.toString()}`, { signal: controller.signal });
+      const res = await fetch(`/api/classes?${params.toString()}`, { signal: controller.signal, cache: "no-store" });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Failed to load classes");
+      if (!res.ok) throw new Error(d.error || "");
       const list = d.data || [];
-      CLASSES_CACHE.set(cacheKey, { data: list, ts: Date.now() });
-      setClasses(list);
+      if (classRequest.current !== controller) return;
+      setClassResult({ scope: campusId, data: list });
     } catch (e) {
+      if (classRequest.current !== controller) return;
       const err = e as { name?: string; message?: string };
       setClassesError(
         err?.name === "AbortError"
-          ? "Classes took too long to load"
-          : err?.message || "Failed to load classes",
+          ? ui("Classes took too long to load")
+          : friendlyErrorMessage(e, ui("The classes could not be loaded.")),
       );
     } finally {
       clearTimeout(timeout);
-      setLoadingClasses(false);
+      if (classRequest.current === controller) setLoadingClasses(false);
     }
-  }, [campusId]);
+  }, [campusId, ui]);
 
   useEffect(() => {
-    loadClasses();
+    setForm(current => ({ ...current, classId: "", subjectId: "" }));
+    void loadClasses();
+    return () => { classRequest.current?.abort(); classRequest.current = null; };
   }, [loadClasses]);
 
 
   /* Class and title were "required", but the button stayed live and the check
      ran on submit as a toast — so a missing class was reported as an error the
      office had made rather than a field they had not filled in yet. */
-  const missing = [
-    !form.classId && "a class",
-    !form.title.trim() && "a title",
-  ].filter(Boolean) as string[];
-  const blockedReason = classesError
-    ? "Classes could not be loaded — retry above first."
-    : missing.length
-      ? `Choose ${missing.join(" and ")} to continue.`
-      : null;
+  const scopeReady = classResult.scope === campusId && !loadingClasses;
+  const selectedClassValid = scopeReady && classes.some(item => item.id === form.classId);
+  const blockedReason = !scopeReady
+    ? ui("Wait for this campus's classes to load.")
+    : classesError
+      ? ui("Classes could not be loaded — retry above first.")
+      : !selectedClassValid && !form.title.trim()
+        ? ui("Choose a class and a title to continue.")
+        : !selectedClassValid
+          ? ui("Choose a class to continue.")
+          : !form.title.trim()
+            ? ui("Choose a title to continue.")
+            : null;
 
   const submit = async () => {
     if (blockedReason) return;
@@ -2051,11 +2102,17 @@ function CreateExamModal({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create exam");
-      toast.success("Exam created");
+      if (!res.ok) {
+        // Server text is not guaranteed to be user-safe; log it and show a human message.
+        console.error("Create exam failed", data?.error);
+        toast.error(ui(role === "TEACHER" ? "Could not create the test. Please try again." : "Could not create the exam. Please try again."));
+        return;
+      }
+      toast.success(ui(role === "TEACHER" ? "Test created" : "Exam created"));
       onCreated();
     } catch (e) {
-      toast.error((e as Error)?.message || "Failed to create exam");
+      console.error(e);
+      toast.error(ui(role === "TEACHER" ? "Could not create the test. Please try again." : "Could not create the exam. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -2063,121 +2120,112 @@ function CreateExamModal({
 
   return (
     <Modal
-      title={role === "TEACHER" ? "Create Test" : "Create Exam"}
-      eyebrow="New"
+      title={ui(role === "TEACHER" ? "New test" : "New exam")}
       icon={Plus}
       size="sm"
       onClose={onClose}
       dirty={Boolean(form.title.trim() || form.classId)}
-      dirtyMessage={role === "TEACHER" ? "Discard this test without creating it?" : "Discard this exam without creating it?"}
+      dirtyMessage={ui(role === "TEACHER" ? "Discard this test without creating it?" : "Discard this exam without creating it?")}
       footer={
         <div>
           {blockedReason && !loadingClasses ? (
-            <p className="mb-2.5 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <Alert tone="warning" compact live="off" className="mb-2.5">
               {blockedReason}
-            </p>
+            </Alert>
           ) : null}
-          <div className="flex items-center justify-end gap-3">
-            <button
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <Button variant="secondary"
               type="button"
               onClick={onClose}
-              className="cursor-pointer rounded-2xl px-5 py-2.5 text-sm font-black text-ink-muted transition-colors hover:bg-[#4d4354]/5"
+              className="px-5 py-2.5"
             >
-              Cancel
-            </button>
-            <BrandButton
-              variant="gradient"
-              onClick={submit}
-              disabled={busy || loadingClasses || Boolean(blockedReason)}
-              title={blockedReason || (role === "TEACHER" ? "Create this test" : "Create this exam")}
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-              {role === "TEACHER" ? "Create Test" : "Create Exam"}
-            </BrandButton>
+              {ui("Cancel")}
+            </Button>
+            <Tooltip content={blockedReason || ui(role === "TEACHER" ? "Create this test" : "Create this exam")}>
+              <span tabIndex={loadingClasses || blockedReason ? 0 : -1} className="inline-flex">
+                <BrandButton
+                  variant="gradient"
+                  onClick={submit}
+                  disabled={loadingClasses || Boolean(blockedReason)}
+                  loading={busy}
+                >
+                  {busy ? null : <BookOpen aria-hidden="true" className="h-4 w-4" />}
+                  {ui(role === "TEACHER" ? "Create test" : "Create exam")}
+                </BrandButton>
+              </span>
+            </Tooltip>
           </div>
         </div>
       }
     >
         <div className="space-y-4">
           {loadingClasses ? (
-            <div className="space-y-3">
-              <div className="skeleton-shimmer h-40 w-full rounded-2xl bg-[#e8e0ec]/40" />
-              <p className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
-                Loading classes…
-              </p>
-            </div>
+            <SkeletonBlock className="h-40 rounded-2xl" label={ui("Loading classes")} />
           ) : classesError ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-rose-200 bg-rose-50/50 p-8 text-center">
-              <AlertCircle className="h-8 w-8 text-rose-400" />
-              <p className="text-xs font-bold text-rose-600">{classesError}</p>
-              <button
-                type="button"
-                onClick={loadClasses}
-                className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#8127cf] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:bg-[#6a1fb0]"
-              >
-                <RefreshCw className="h-3 w-3" /> Retry
-              </button>
-            </div>
+            <ErrorState
+              title={ui("Could not load classes")}
+              description={classesError}
+              onRetry={loadClasses}
+            />
           ) : (
             <>
               <Field label="Class">
-                <select
+                <SystemSelect
                   value={form.classId}
                   onChange={(e) => setForm({ ...form, classId: e.target.value })}
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                  className="w-full"
                 >
-                  <option value="">Select class…</option>
+                  <option value="">{ui("Select class…")}</option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
                       {classLabel(c)}
                     </option>
                   ))}
-                </select>
+                </SystemSelect>
               </Field>
 
-              <Field label="Exam Title">
-                <input
+              <Field label={role === "TEACHER" ? "Test title" : "Exam title"}>
+                <SystemInput
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="e.g. Mid-Term Examination"
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                  placeholder={ui(role === "TEACHER" ? "e.g. Fractions class test" : "e.g. Mid-term examination")}
+                  className="w-full"
                 />
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Term">
-                  <input
+                  <SystemInput
                     value={form.term}
                     onChange={(e) => setForm({ ...form, term: e.target.value })}
-                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                    className="w-full"
                   />
                 </Field>
-                <Field label="Academic Year">
-                  <input
+                <Field label="Academic year">
+                  <SystemInput
                     type="number"
                     value={form.academicYear}
                     onChange={(e) => setForm({ ...form, academicYear: Number(e.target.value) })}
-                    className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                    className="w-full"
                   />
                 </Field>
               </div>
 
-              <Field label={role === "TEACHER" ? "Type of Test" : "Type of Exam"}>
-                <select
+              <Field label={role === "TEACHER" ? "Type of test" : "Type of exam"}>
+                <SystemSelect
                   value={form.examType}
                   onChange={(e) => setForm({ ...form, examType: e.target.value })}
-                  className="w-full rounded-2xl border border-[#cfc2d6]/20 bg-white px-4 py-2.5 text-sm font-semibold text-[#1d1b20] focus:outline-none focus:ring-4 focus:ring-[#8127cf]/20"
+                  className="w-full"
                 >
                   {typeOptions.map((t) => (
                     <option key={t} value={t}>
-                      {EXAM_TYPE_LABELS[t]}
+                      {ui(EXAM_TYPE_LABELS[t])}
                     </option>
                   ))}
-                </select>
+                </SystemSelect>
                 {role === "TEACHER" ? (
-                  <p className="mt-1.5 text-[10px] font-semibold text-ink-subtle">
-                    Mid-term and final exams are set up by the school office.
+                  <p className="mt-1.5 text-2xs font-semibold text-ink-subtle">
+                    {ui("Mid-term and final exams are set up by the school office.")}
                   </p>
                 ) : null}
               </Field>
@@ -2189,11 +2237,13 @@ function CreateExamModal({
   );
 }
 
+/** `label` is an EN UI key (translated here). */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const ui = useUiText();
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-ink-muted">
-        {label}
+      <span className="mb-1.5 block text-xs font-semibold text-ink-muted">
+        {ui(label)}
       </span>
       {children}
     </label>
