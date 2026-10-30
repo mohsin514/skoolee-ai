@@ -184,14 +184,15 @@ export async function POST(req: NextRequest) {
           const { studentId, targetClassId, newRollNo } = promo;
           if (!studentId || !targetClassId) continue;
 
-          const student = await tx.student.findUnique({
-            where: { id: studentId },
+          const student = await tx.student.findFirst({
+            // SKAI-1401: promotions stay inside the caller school and campus.
+            where: { id: studentId, schoolId: user.schoolId, campusId },
             select: { id: true, classId: true, rollNo: true, campusId: true, class: { select: { academicYear: true } } },
           });
           if (!student) continue;
 
-          const targetClass = await tx.class.findUnique({
-            where: { id: targetClassId },
+          const targetClass = await tx.class.findFirst({
+            where: { id: targetClassId, schoolId: user.schoolId, campusId },
             select: { id: true, academicYear: true, name: true, section: true, campusId: true },
           });
           if (!targetClass) continue;
@@ -236,12 +237,12 @@ export async function POST(req: NextRequest) {
       const { fromClassId, toClassId } = body;
       if (!fromClassId || !toClassId) throw new ApiError("fromClassId and toClassId required", 400);
 
-      const fromClass = await prisma.class.findUnique({
-        where: { id: fromClassId },
+      const fromClass = await prisma.class.findFirst({
+        where: { id: fromClassId, schoolId: user.schoolId, campusId },
         select: { id: true, academicYear: true, campusId: true },
       });
-      const toClass = await prisma.class.findUnique({
-        where: { id: toClassId },
+      const toClass = await prisma.class.findFirst({
+        where: { id: toClassId, schoolId: user.schoolId, campusId },
         select: { id: true, academicYear: true, name: true, section: true, campusId: true },
       });
       if (!fromClass || !toClass) throw new ApiError("Class not found", 404);
