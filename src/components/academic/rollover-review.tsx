@@ -197,13 +197,13 @@ export function RolloverReview({ campusId, mode = "operate", hideApprove = false
       </div>
 
       {!plan ? <div data-rollover-empty><Alert tone={view.eligible ? "info" : "neutral"} compact live="off">{!operate ? ui("Your campus admin prepares the promotion plan. It appears here for your approval once it is ready.") : view.eligible ? ui("{0} learners are eligible. Prepare a plan to review each one.", [view.eligible]) : ui("No eligible learners in this source year. Check the year and enrollment filters.")}</Alert></div>
-        : <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-muted/60 p-3 text-sm" role="status" data-plan-bar>
+        : <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-3 text-sm" role="status" data-plan-bar>
           <span className="font-bold">{ui("Plan version {0}", [plan.version])}</span>
           <Badge dot variant={PLAN_TONE[plan.status] ?? "neutral"} data-plan-state>{ui(STATUS_LABEL[plan.status] ?? plan.status)}</Badge>
           {plan.approvedVersion && !plan.approvalCurrent ? <span className="text-status-warning-text">{ui("Version {0} was approved; changes since then need a new approval.", [plan.approvedVersion])}</span> : null}
           <span className="text-ink-muted">{view.needsDecision ? ui("{0} learners need a decision before this plan can be approved.", [view.needsDecision]) : view.withIssues ? ui("{0} learners still have problems to resolve.", [view.withIssues]) : ui("Every learner has a decision.")}</span>
         </div>}
-      {view.blockers?.length ? <ul className="space-y-1 rounded-xl bg-status-warning-surface p-3 text-xs font-medium text-status-warning-text" data-plan-blockers>{view.blockers.map(b => <li key={b.text}>{ui(b.text)}</li>)}</ul> : null}
+      {view.blockers?.length ? <Alert tone="warning" compact live="off"><ul className="list-inside list-disc space-y-1" data-plan-blockers>{view.blockers.map(b => <li key={b.text}>{ui(b.text)}</li>)}</ul></Alert> : null}
     </div>
 
     {plan ? <>

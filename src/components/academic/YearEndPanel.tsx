@@ -2,6 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { DeskPill, DeskStats, StatTile } from "@/components/ui/desk";
+import { Progress } from "@/components/ui/progress";
+import { SkeletonList } from "@/components/ui/skeleton";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
@@ -186,22 +189,18 @@ export function YearEndPanel({ campusId, role = "ADMIN", archiveRequest, hideArc
 
         <div className="p-6">
           {loading ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-24 rounded-2xl bg-border-subtle/40 skeleton-shimmer" />
-              ))}
-            </div>
+            <SkeletonList rows={3} label={ui("Loading…")} />
           ) : (
             <>
               {/* Headline counts */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                <StatCard icon={<Users className="h-4 w-4" />} tone="bg-brand-50 text-primary" label={ui("Students")} value={totals.totalStudents} />
-                <StatCard icon={<GraduationCap className="h-4 w-4" />} tone="bg-brand-50 text-primary" label={ui("Classes")} value={totals.totalClasses} />
-                <StatCard icon={<UserCheck className="h-4 w-4" />} tone="bg-status-success-surface text-status-success-text" label={ui("Promoted")} value={totals.promoted} />
-                <StatCard icon={<ArrowRight className="h-4 w-4" />} tone="bg-status-info-surface text-status-info-text" label={ui("Transferred")} value={totals.transferred} />
-                <StatCard icon={<TrendingUp className="h-4 w-4" />} tone="bg-status-warning-surface text-status-warning-text" label={ui("Retained")} value={totals.retained} />
-                <StatCard icon={<Archive className="h-4 w-4" />} tone="bg-status-error-surface text-status-error-text" label={ui("Graduated")} value={totals.graduated} />
-              </div>
+              <DeskStats data-year-end-totals>
+                <StatTile index={0} icon={Users} tone="brand" label={ui("Students")} value={totals.totalStudents} />
+                <StatTile index={1} icon={GraduationCap} tone="brand" label={ui("Classes")} value={totals.totalClasses} />
+                <StatTile index={2} icon={UserCheck} tone="success" label={ui("Promoted")} value={totals.promoted} />
+                <StatTile index={3} icon={ArrowRight} tone="info" label={ui("Transferred")} value={totals.transferred} />
+                <StatTile index={4} icon={TrendingUp} tone="warning" label={ui("Retained")} value={totals.retained} />
+                <StatTile index={5} icon={Archive} tone="neutral" label={ui("Graduated")} value={totals.graduated} />
+              </DeskStats>
 
               {/* Average grades per class + attendance */}
               <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -215,14 +214,9 @@ export function YearEndPanel({ campusId, role = "ADMIN", archiveRequest, hideArc
                   ) : (
                     <div className="space-y-2">
                       {classAvgs.map((c) => (
-                        <div key={c.classId} className="sk-panel flex items-center gap-3 px-3 py-2">
-                          <span className="flex-1 truncate text-xs font-bold text-ink-strong">{c.label}</span>
-                          <div className="h-2 w-28 overflow-hidden rounded-full bg-border-subtle/50">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-primary to-brand-700"
-                              style={{ width: `${c.avg != null ? Math.min(100, Math.max(0, c.avg)) : 0}%` }}
-                            />
-                          </div>
+                        <div key={c.classId} className="sk-panel flex flex-wrap items-center gap-3 px-3 py-2">
+                          <bdi className="min-w-0 flex-1 truncate text-sm font-bold text-ink-strong">{c.label}</bdi>
+                          <Progress className="w-28" size="sm" value={c.avg != null ? Math.min(100, Math.max(0, c.avg)) : 0} tone={c.avg == null ? "neutral" : c.avg >= 80 ? "success" : c.avg >= 50 ? "warning" : "danger"} label={c.label} />
                           <span className={cn("w-12 text-end text-sm font-bold tabular-nums", c.avg != null ? (c.avg >= 80 ? "text-status-success-text" : c.avg >= 50 ? "text-status-warning-text" : "text-status-error-text") : "text-ink-subtle")}>
                             {c.avg != null ? `${Math.round(c.avg)}%` : "—"}
                           </span>
@@ -240,10 +234,7 @@ export function YearEndPanel({ campusId, role = "ADMIN", archiveRequest, hideArc
                   <p className="text-2xs font-semibold leading-relaxed text-ink-muted">
                     {ui("A campus-wide attendance roll-up for the year is coming soon. Per-class attendance is available from each class profile.")}
                   </p>
-                  <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 border border-edge/10">
-                    <span aria-hidden="true" className="h-2 w-2 rounded-full bg-status-warning-text" />
-                    <span className="text-2xs font-semibold text-status-warning-text">{ui("Coming soon")}</span>
-                  </div>
+                  <DeskPill tone="warning" className="mt-3">{ui("Coming soon")}</DeskPill>
                 </div>
               </div>
             </>
@@ -259,6 +250,7 @@ export function YearEndPanel({ campusId, role = "ADMIN", archiveRequest, hideArc
         <Modal
           title={ui("Archive this academic year?")}
           eyebrow={ui("This cannot be undone")}
+          subtitle={activeCycle?.label}
           icon={Archive}
           tone="rose"
           role="alertdialog"
@@ -303,13 +295,3 @@ export function YearEndPanel({ campusId, role = "ADMIN", archiveRequest, hideArc
   );
 }
 
-function StatCard({ icon, tone, label, value }: { icon: React.ReactNode; tone: string; label: string; value: number }) {
-  return (
-    <div className={cn("rounded-2xl px-4 py-3", tone)}>
-      <div className="flex items-center gap-1.5 text-2xs font-semibold opacity-80">
-        {icon} {label}
-      </div>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
-    </div>
-  );
-}

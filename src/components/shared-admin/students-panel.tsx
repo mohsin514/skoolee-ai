@@ -3,6 +3,7 @@ import { useListField } from "@/hooks/use-list-field";
 import { pageWindow } from "@/lib/lists/query";
 
 import { Button as SystemButton } from "@/components/ui/button";
+import { DeskPill, DeskRowIcon, deskRow } from "@/components/ui/desk";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
@@ -909,9 +910,18 @@ export function StudentsPanel({
       ) : null}
 
       {bulkMove ? (
-        <Modal onClose={() => setBulkMove(false)} title={ui("Review enrollment changes")}>
-          <p className="mb-4">{ui("Review each pupil’s permanent identity, effective date and preserved records before changing placement.")}</p>
-          <ul className="space-y-3">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id}><a className="sk-link text-primary underline" href={`/pupils/${student.id}`}><bdi>{student.fullName}</bdi> · <bdi>{student.rollNo || "—"}</bdi></a></li>)}</ul>
+        <Modal
+          onClose={() => setBulkMove(false)}
+          title={ui("Review enrollment changes")}
+          eyebrow={ui("Bulk change")}
+          subtitle={ui("Review each pupil’s permanent identity, effective date and preserved records before changing placement.")}
+          icon={Users}
+          tone="amber"
+          size="sm"
+          chips={<DeskPill tone="warning">{ui(selected.size === 1 ? "{0} student selected" : "{0} students selected", [selected.size])}</DeskPill>}
+          footer={<div className="flex justify-end"><SystemButton variant="outline" onClick={() => setBulkMove(false)}>{ui("Close")}</SystemButton></div>}
+        >
+          <ul className="space-y-2">{students.filter(student => selected.has(student.id)).map(student => <li key={student.id} className={cn(deskRow, "flex items-center gap-3")}><DeskRowIcon icon={GraduationCap} /><a className="sk-link min-w-0 flex-1 text-primary underline [overflow-wrap:anywhere]" href={`/pupils/${student.id}`}><bdi>{student.fullName}</bdi> · <bdi>{student.rollNo || "—"}</bdi></a></li>)}</ul>
         </Modal>
       ) : null}
 
