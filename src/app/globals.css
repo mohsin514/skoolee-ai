@@ -3255,3 +3255,77 @@ html:has(.sk-step-dock) [data-sonner-toaster][data-y-position="bottom"] { bottom
     .sk-ai-rail::before, .sk-ai-rail > [data-part="fill"] { background: CanvasText; }
   }
 }
+
+/* SKAI-1331 workspace flexibility: focus mode, sidebar peek, compact header, density, card maximize, back to top.
+   Unlayered on purpose: these are user-chosen modes that must win over the utilities they adjust. */
+.sk-focus-dock {
+  position: fixed; inset-block-end: calc(var(--mobile-nav-height, 0px) + 16px); inset-inline-end: 16px; z-index: 1200;
+  display: flex; align-items: center; gap: .625rem; padding: .375rem .375rem .375rem .875rem;
+  border: 1px solid var(--border-subtle); border-radius: 999px; background: hsl(var(--card) / 0.92);
+  box-shadow: var(--shadow-lg); backdrop-filter: blur(10px);
+  animation: sk-dock-in 260ms var(--ease-enter, cubic-bezier(.16,1,.3,1)) both;
+}
+@keyframes sk-dock-in { from { opacity: 0; translate: 0 12px; } }
+/* The hidden mobile bar reserves no space in focus mode (its height is set inline, hence !important). */
+[data-role-shell][data-focus] { --mobile-nav-height: 0px !important; }
+[data-role-shell][data-focus] [data-page-card] { transition: border-radius 200ms ease; }
+@media (min-width: 768px) { [data-role-shell][data-focus] main#workspace-content { padding: 12px; } }
+
+/* Peek: the folded rail opens over the page with a lifted edge; nothing beneath it moves. */
+.sk-sidebar { transition: width 220ms cubic-bezier(.16,1,.3,1), box-shadow 220ms ease; }
+.sk-sidebar[data-sidebar-peek] { box-shadow: var(--shadow-2xl), var(--shadow-lg); }
+
+/* Compact header: slims while reading down a long page, returns on the way back up. */
+@media (min-width: 768px) {
+  [data-workspace-header] { transition: padding 200ms ease, margin 200ms ease, box-shadow 200ms ease; }
+  [data-role-shell][data-header-compact] [data-workspace-header] { padding-block: 4px; margin-block-end: 8px; box-shadow: var(--shadow-xs); }
+  [data-role-shell][data-header-compact] [data-workspace-header] [data-tour="shell.header.cycle"] { display: none; }
+}
+
+/* Compact density: tighter rows, tiles and panels so more fits on screen. Touch targets keep their 44px minimum. */
+[data-density="compact"] [data-page-card] {
+  .sk-desk-row { padding-block: .5rem; }
+  .sk-stat-tile { padding: .625rem .75rem; }
+  .sk-desk-section { padding: .75rem .875rem; gap: .5rem; }
+  .sk-panel > [role="button"] { padding-block: .875rem; }
+  :is(td, th) { padding-block: .375rem; }
+  :is(.space-y-6) > :not(:last-child) { margin-block-end: 1rem; }
+  :is(.space-y-4) > :not(:last-child) { margin-block-end: .625rem; }
+  :is(.gap-6) { gap: 1rem; }
+  :is(.gap-4) { gap: .625rem; }
+}
+
+/* A folded section shrinks to its head instead of stretching to its neighbour's height. */
+.sk-desk-section[data-collapsed] { align-self: start; }
+
+/* A card opened full screen sits over the page; the page behind it is dimmed and does not scroll. */
+.sk-max-backdrop { position: fixed; inset: 0; z-index: 1290; background: rgb(24 16 34 / 0.42); backdrop-filter: blur(3px); animation: sk-max-fade 180ms ease both; }
+[data-maximized] {
+  position: fixed !important; inset: 16px; z-index: 1300; margin: 0 !important; max-width: none !important;
+  overflow: auto !important; overscroll-behavior: contain; box-shadow: var(--shadow-2xl);
+  align-content: start;
+  animation: sk-max-in 220ms cubic-bezier(.16,1,.3,1) both;
+}
+@media (min-width: 1024px) { [data-maximized] { inset: 32px max(32px, calc((100vw - 1280px) / 2)); } }
+html[data-card-maximized] { overflow: hidden; }
+@keyframes sk-max-fade { from { opacity: 0; } }
+@keyframes sk-max-in { from { opacity: 0; scale: .97; } }
+
+/* Secondary card controls stay quiet until the card is hovered or focused; touch screens always show them. */
+@media (hover: hover) and (pointer: fine) {
+  .sk-reveal-on-hover { opacity: 0; transition: opacity 150ms ease; }
+  :is(.sk-panel, .sk-desk-section):is(:hover, :focus-within) .sk-reveal-on-hover, .sk-reveal-on-hover:focus-visible, [data-maximized] .sk-reveal-on-hover { opacity: 1; }
+}
+
+.sk-back-to-top {
+  position: absolute; inset-block-end: 16px; inset-inline-end: 16px; z-index: 20; border-radius: 999px;
+  box-shadow: var(--shadow-md); animation: sk-dock-in 220ms cubic-bezier(.16,1,.3,1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-focus-dock, .sk-max-backdrop, [data-maximized], .sk-back-to-top { animation: none; }
+  .sk-sidebar, [data-workspace-header] { transition: none; }
+}
+@media (forced-colors: active) {
+  .sk-focus-dock, [data-maximized] { border: 1px solid CanvasText; }
+}

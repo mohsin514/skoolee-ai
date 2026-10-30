@@ -5,7 +5,7 @@ import { UiText, useUiText, useLocale } from "@/components/locale/LocaleProvider
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronLeft, FileSearch, Menu, Search, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, ChevronLeft, FileSearch, Menu, Pin, Search, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { availableNavigation, isNavigationActive, searchNavigation } from "@/lib/navigation/items";
 import { ModalSurface } from "@/components/ui/modal";
@@ -70,6 +70,8 @@ interface RoleSidebarProps {
   logoUrl?: string | null;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** Set while the sidebar is folded: hovering the rail opens it over the content until the pointer leaves. */
+  peek?: { active: boolean; onChange: (open: boolean) => void };
   /** Registry `recordSearch` AND the caller's `recordSearch` capability (CA, ADMIN, PRINCIPAL, RECEPTIONIST). */
   recordSearch?: boolean;
   /** Role for the Help & tour row in the mobile sheet; omitted = no row. */
@@ -105,7 +107,7 @@ function useTabletRail(): boolean {
   return useSyncExternalStore(subscribeTablet, tabletSnapshot, serverTablet);
 }
 
-export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], mobileItems, logoUrl, collapsed = false, onToggleCollapse, recordSearch = false, helpRole, framed = false }: RoleSidebarProps) {
+export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItems, bottomItems: allBottomItems = [], mobileItems, logoUrl, collapsed = false, onToggleCollapse, peek, recordSearch = false, helpRole, framed = false }: RoleSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -123,6 +125,14 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
   const tablet = useTabletRail();
   const rail = collapsed || tablet;
   const asideRef = useRef<HTMLElement>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  const schedulePeek = (open: boolean) => {
+    if (!peek || tablet) return;
+    window.clearTimeout(peekTimer.current);
+    // A short intent delay: crossing the rail on the way to the page never flings the sidebar open.
+    peekTimer.current = window.setTimeout(() => peek.onChange(open), open ? 220 : 160);
+  };
+  useEffect(() => () => window.clearTimeout(peekTimer.current), []);
   const allLeaves = [...items.flatMap((entry) => isNavGroup(entry) ? entry.children : [entry]), ...bottomItems];
   // "More" lights up when the current screen is not one of the four slots, so the bar always shows where you are.
   const activeInSlot = shortcuts.some((item) => isNavigationActive(item, pathname));
@@ -192,7 +202,8 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
 
   return (
     <>
-      <aside ref={asideRef} className={cn("fixed inset-y-0 start-0 z-50 hidden flex-col border-e border-border/50 bg-card p-3 shadow-sm text-card-foreground md:flex", collapsed ? "w-[72px]" : "w-[72px] lg:w-64")}>
+      <aside ref={asideRef} data-sidebar-peek={peek?.active || undefined} onMouseEnter={() => schedulePeek(true)} onMouseLeave={() => schedulePeek(false)}
+        className={cn("sk-sidebar fixed inset-y-0 start-0 z-50 hidden flex-col border-e border-border/50 bg-card p-3 shadow-sm text-card-foreground md:flex", collapsed ? "w-[72px]" : "w-[72px] lg:w-64")}>
         <div className="mb-6 flex min-h-11 items-center gap-3 px-1">
           <InstitutionBadge logoUrl={logoUrl} name={tagline} />
           {!rail && <div className="min-w-0"><SkooleeLogo size="1.2rem" /><p lang={taglineLang} className="mt-1 truncate text-xs text-ink-muted" title={tagline}>{tagline}</p></div>}
@@ -206,9 +217,9 @@ export function RoleSidebar({ tagline = "SkooleeAI", taglineLang, items: allItem
           <FileSearch aria-hidden="true" className="h-4 w-4 shrink-0" />{!rail && <span className="min-w-0 text-start">{t("Search records")}</span>}
         </Link></Tooltip>}
         <nav aria-label={t("Primary navigation")} className="min-h-0 flex-1 space-y-1 overflow-y-auto">{navigation(rail)}</nav>
-        {onToggleCollapse && <Button variant="outline" type="button" data-tour="shell.sidebar.collapse" onClick={onToggleCollapse} aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!rail} className="mt-3 flex min-h-11 items-center justify-center gap-2">
-          <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />
-          {!collapsed && t("Collapse")}
+        {onToggleCollapse && <Button variant="outline" type="button" data-tour="shell.sidebar.collapse" onClick={onToggleCollapse} aria-label={peek?.active ? t("Keep sidebar open") : collapsed ? t("Expand sidebar") : t("Collapse sidebar")} aria-expanded={!rail} className="mt-3 flex min-h-11 items-center justify-center gap-2">
+          {peek?.active ? <Pin aria-hidden="true" className="h-4 w-4" /> : <ChevronLeft aria-hidden="true" className={cn("h-4 w-4 rtl:rotate-180", collapsed && "rotate-180 rtl:rotate-0")} />}
+          {!collapsed && t(peek?.active ? "Keep open" : "Collapse")}
         </Button>}
       </aside>
       <nav ref={mobileNavRef} aria-label={t("Mobile navigation")} className="fixed inset-x-0 bottom-0 z-50 flex items-stretch justify-around border-t border-border bg-card px-[4px] py-[4px] safe-area-pb md:hidden">

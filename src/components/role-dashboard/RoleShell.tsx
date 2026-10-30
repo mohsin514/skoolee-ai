@@ -21,6 +21,7 @@ import { RoleHeader, type AccountMenuLink } from "./RoleHeader";
 import { RoleSidebar, type RoleNavItem, type SidebarEntry } from "./RoleSidebar";
 import { HelpDialogsHost } from "./HelpMenu";
 import { useShellSession } from "./ScopeBadge";
+import { BackToTop, FocusDock, ShortcutSheet, WorkspacePrefsContext, useWorkspacePrefsState, useWorkspaceScroll } from "./workspace-controls";
 
 const SIDEBAR_KEY = "skoolee.sidebar.collapsed";
 const TAGLINE_KEY = "skoolee.sidebar.campus-line";
@@ -285,7 +286,13 @@ function RoleShellContent({
     }
   }, [collapsed, loaded]);
 
-  const toggleCollapsed = useCallback(() => setCollapsed((v) => !v), []);
+  // A folded rail slides open over the content while the pointer rests on it (no layout shift); its toggle pins it.
+  const [peek, setPeek] = useState(false);
+  useEffect(() => setPeek(false), [pathname, activeView]);
+  const toggleCollapsed = useCallback(() => { setPeek(false); setCollapsed((v) => !v); }, []);
+
+  const prefs = useWorkspacePrefsState();
+  const { focus, setFocus, density } = prefs;
 
   // The tour reveals a nav group; on the 72px rail that means expanding the sidebar first.
   useEffect(() => {
@@ -298,6 +305,7 @@ function RoleShellContent({
   // of snapping. Opacity only: a transform would re-anchor fixed descendants
   // for the length of the animation.
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const scroll = useWorkspaceScroll(workspaceRef);
   useEffect(() => {
     const element = workspaceRef.current;
     if (!element || typeof element.animate !== "function") return;
@@ -330,19 +338,20 @@ function RoleShellContent({
   const skeletonRows = nav ? nav.entries.length : navItems.length || 8;
 
   const shell = (
-    <div data-role-shell data-console={consoleId} className="sk-app-canvas min-h-dvh flex font-sans text-foreground selection:bg-primary/25">
+    <div data-role-shell data-console={consoleId} data-focus={focus || undefined} data-density={density} data-header-compact={scroll.compactHeader || undefined} className="sk-app-canvas min-h-dvh flex font-sans text-foreground selection:bg-primary/25">
       <a href="#workspace-content" className="sr-only focus:not-sr-only focus:fixed focus:start-4 focus:top-4 focus:z-[1400] focus:rounded-lg focus:p-3"><UiText>Skip to content</UiText></a>
       <TourProvider console={consoleId}>
       {/* Only a session's very first load shows these: afterwards the confirmed access is cached (NavigationAccess). */}
       {checkingAccess && <><SidebarSkeleton rows={skeletonRows} collapsed={collapsed} /><MobileBarSkeleton /></>}
-      <div style={{ display: checkingAccess ? "none" : "contents" }}><RoleSidebar
+      <div style={{ display: checkingAccess || focus ? "none" : "contents" }}><RoleSidebar
         tagline={sidebarTagline}
         items={sidebarItems}
         bottomItems={nav ? undefined : bottomItems}
         mobileItems={registryMobile}
         logoUrl={logoUrl}
-        collapsed={collapsed}
+        collapsed={collapsed && !peek}
         onToggleCollapse={toggleCollapsed}
+        peek={collapsed ? { active: peek, onChange: setPeek } : undefined}
         recordSearch={recordSearch}
         helpRole={effectiveRole}
         framed={frame}
@@ -354,12 +363,12 @@ function RoleShellContent({
             "flex-1 min-w-0 p-[12px] md:p-5 pb-[calc(var(--mobile-nav-height,5rem)+12px)] md:pb-5 flex flex-col transition-none md:transition-[margin] duration-300 ease-out",
             mobileDocumentFlow ? "h-auto min-h-dvh overflow-visible md:h-dvh md:min-h-0 md:overflow-hidden" : "h-dvh overflow-hidden",
             // Tablet (md–lg) always gets the 72px icon rail; the full sidebar starts at lg.
-            collapsed ? "md:ms-[72px]" : "md:ms-[72px] lg:ms-64",
+            focus ? "md:ms-0" : collapsed ? "md:ms-[72px]" : "md:ms-[72px] lg:ms-64",
             className,
           )}
         >
           {checkingAccess && <HeaderSkeleton />}
-          <div style={{ display: checkingAccess ? "none" : "contents" }}><RoleHeader
+          <div style={{ display: checkingAccess || focus ? "none" : "contents" }}><RoleHeader
             eyebrow={shellEyebrow}
             landing={landing}
             userName={userName ?? session?.fullName}
@@ -381,9 +390,12 @@ function RoleShellContent({
               </div>
             ) : null}
             {nav ? (!denied ? children : null) : <div style={{ display: denied ? "none" : "contents" }}>{children}</div>}
+            {scroll.showBackToTop ? <BackToTop onClick={scroll.toTop} /> : null}
           </div>
         </main>
       {effectiveRole ? <HelpDialogsHost role={effectiveRole} /> : null}
+      {focus ? <FocusDock onExit={() => setFocus(false)} /> : null}
+      {prefs.shortcutsOpen ? <ShortcutSheet onClose={prefs.closeShortcuts} /> : null}
       </TourProvider>
 
       {/* Mounted here rather than in each dashboard: every role console
@@ -393,5 +405,6 @@ function RoleShellContent({
     </div>
   );
 
-  return chatDock ? <ChatProvider>{shell}</ChatProvider> : shell;
+  const withPrefs = <WorkspacePrefsContext.Provider value={prefs}>{shell}</WorkspacePrefsContext.Provider>;
+  return chatDock ? <ChatProvider>{withPrefs}</ChatProvider> : withPrefs;
 }
