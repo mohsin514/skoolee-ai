@@ -186,3 +186,42 @@ test("SKAI-912: the institution authority switches adoption mode before go-live;
   await approveReadiness(s.owner, { expectedVersion: back.readiness.version });
   await assert.rejects(() => switchAdoptionMode(s.owner, { mode: "FULL_OPERATIONS", expectedVersion: back.readiness.version + 1 }), { status: 409 }, "no switch after go-live");
 });
+
+test("setup task tracking (SKAI-155): due dates, in-progress, stale edits, reminders, audit trail and two-school isolation", async () => {
+  const s = await school("FULL_OPERATIONS"), other = await school("FULL_OPERATIONS");
+  const view = await readinessView(s.owner);
+  if (!view.lead) return assert.fail("owner leads");
+  const area = view.tasks.find(task => task.key.startsWith("area:") || task.key === "roster")!;
+  const now = new Date("2026-11-01T09:00:00Z");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "schedule", taskId: area.id, dueOn: "2026-10-31", expectedVersion: area.version }, now), { status: 400 }, "no past due date");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "schedule", taskId: area.id, dueOn: "2026-02-30" }, now), { status: 400 }, "no impossible date");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, now), { status: 409 }, "nobody to remind yet");
+  const assigned = await updateReadinessTask(s.owner, { action: "assign", taskId: area.id, ownerId: s.teacher.userId, expectedVersion: area.version }, now);
+  const scheduled = await updateReadinessTask(s.owner, { action: "schedule", taskId: area.id, dueOn: "2026-11-15", expectedVersion: assigned.version }, now);
+  assert.equal(scheduled.dueOn?.toISOString().slice(0, 10), "2026-11-15");
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "assign", taskId: area.id, ownerId: null, expectedVersion: assigned.version }, now), { status: 409 }, "a stale tab cannot overwrite");
+  // Reminders: one notification per owner and task, at most once a day.
+  await updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, now);
+  await assert.rejects(() => updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, new Date(now.getTime() + 3_600_000)), { status: 409 });
+  await updateReadinessTask(s.owner, { action: "remind", taskId: area.id }, new Date(now.getTime() + DAY + 1));
+  const notices = await db.notification.findMany({ where: { userId: s.teacher.userId, dedupeKey: `readiness-task:${area.id}` } });
+  assert.deepEqual(notices.map(n => [n.reminderCount, n.category, n.resolvedAt]), [[2, "ACTION", null]]);
+  // The owner moves their own task along; only the lead plans it.
+  await assert.rejects(() => updateReadinessTask(s.teacher, { action: "schedule", taskId: area.id, dueOn: null }, now), { status: 403 });
+  await assert.rejects(() => updateReadinessTask(s.teacher, { action: "remind", taskId: area.id }, now), { status: 403 });
+  assert.equal((await updateReadinessTask(s.teacher, { action: "status", taskId: area.id, status: "IN_PROGRESS" }, now)).status, "IN_PROGRESS");
+  assert.equal((await updateReadinessTask(s.teacher, { action: "status", taskId: area.id, status: "DONE" }, now)).status, "DONE");
+  assert.ok((await db.notification.findFirstOrThrow({ where: { userId: s.teacher.userId, dedupeKey: `readiness-task:${area.id}` } })).resolvedAt, "done resolves the reminder");
+  // Another school's lead cannot see or touch the task.
+  await assert.rejects(() => updateReadinessTask(other.owner, { action: "status", taskId: area.id, status: "OPEN" }, now), { status: 404 });
+  await assert.rejects(() => updateReadinessTask(other.owner, { action: "remind", taskId: area.id }, now), { status: 404 });
+  const after = await readinessView(s.owner);
+  if (!after.lead) return;
+  const tracked = after.tasks.find(task => task.id === area.id)!;
+  assert.deepEqual(tracked.history.map(entry => entry.action), ["status:DONE", "status:IN_PROGRESS", "remind", "remind", "schedule"], "the latest five, newest first");
+  assert.ok(await db.auditLog.count({ where: { schoolId: s.schoolId, tableName: "readiness_tasks", recordId: area.id, newValue: { path: ["action"], equals: "assign" } } }), "every change is audited");
+  assert.equal(tracked.dueOn, "2026-11-15");
+  const otherView = await readinessView(other.owner);
+  if (!otherView.lead) return;
+  assert.ok(otherView.tasks.every(task => task.history.length === 0 && task.id !== area.id), "no history leaks across schools");
+});
