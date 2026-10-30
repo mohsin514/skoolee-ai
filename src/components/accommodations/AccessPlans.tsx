@@ -70,7 +70,7 @@ export function CoordinatorAccess() {
       const active = student.plans.find(plan => plan.status === "ACTIVE");
       return <li key={student.id} data-tone={active ? "success" : "neutral"} className={deskRow}>
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-start gap-3"><DeskRowIcon icon={active ? UserCheck : UserRound} /><div className="min-w-0"><p className="font-semibold" dir="auto">{student.fullName}</p>
+          <div className="flex min-w-0 flex-1 basis-full items-start gap-3 sm:basis-0"><DeskRowIcon icon={active ? UserCheck : UserRound} /><div className="min-w-0"><p className="font-semibold" dir="auto">{student.fullName}</p>
             {active ? <p className="text-xs text-ink-subtle">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-ink-subtle">{t.none}</p>}
           </div></div>
           <Button type="button" variant="outline" onClick={() => setEditing(editing?.id === student.id ? null : student)}>{active ? t.editPlan : t.newPlan}</Button>

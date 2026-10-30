@@ -92,11 +92,12 @@ export function FamilyFeeStatement({ studentId, onSummary, canPay = true }: { st
     {paymentRef && <PaymentReturnStatus key={paymentRef} orderRef={paymentRef} onSettled={settled} />}
     {statement.invoices.length === 0 ? <div className="sk-panel"><EmptyState icon={Receipt} title={ui("No fee obligations are available for this child.")} description={ui("New invoices from the school will appear here.")} /></div> : <>
       {statement.currencies.length > 1 && <FormField name="statementCurrency" label={ui("Currency")} hint={ui("Shows the invoices billed in this currency.")} className="w-full max-w-xs"><Select className="w-full" value={code} onChange={event => setCurrency(event.target.value)}>{statement.currencies.map(option => <option key={option} value={option}>{option}</option>)}</Select></FormField>}
-      <DeskStats data-statement-summary>
-        <StatTile index={0} icon={Banknote} label={ui("Outstanding")} value={<bdi className="tabular-nums">{fmt(s.outstanding)}</bdi>} tone={s.outstanding ? "danger" : "success"} />
-        <StatTile index={1} icon={CalendarClock} label={ui("Overdue")} value={<bdi className="tabular-nums">{fmt(s.overdue)}</bdi>} tone={s.overdue ? "danger" : "neutral"} />
-        <StatTile index={2} icon={CalendarClock} label={ui("Due today")} value={<bdi className="tabular-nums">{fmt(s.dueToday)}</bdi>} tone={s.dueToday ? "warning" : "neutral"} />
-        <StatTile index={3} icon={CheckCircle2} label={ui("Not yet due")} value={<bdi className="tabular-nums">{fmt(s.notYetDue)}</bdi>} tone="info" />
+      {/* Money figures need a wider tile than counts: one per row on a phone, so an amount is never clipped. */}
+      <DeskStats data-statement-summary className="grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
+        <StatTile index={0} icon={Banknote} label={ui("Outstanding")} value={<bdi className="break-words tabular-nums">{fmt(s.outstanding)}</bdi>} tone={s.outstanding ? "danger" : "success"} />
+        <StatTile index={1} icon={CalendarClock} label={ui("Overdue")} value={<bdi className="break-words tabular-nums">{fmt(s.overdue)}</bdi>} tone={s.overdue ? "danger" : "neutral"} />
+        <StatTile index={2} icon={CalendarClock} label={ui("Due today")} value={<bdi className="break-words tabular-nums">{fmt(s.dueToday)}</bdi>} tone={s.dueToday ? "warning" : "neutral"} />
+        <StatTile index={3} icon={CheckCircle2} label={ui("Not yet due")} value={<bdi className="break-words tabular-nums">{fmt(s.notYetDue)}</bdi>} tone="info" />
       </DeskStats>
       <p className="text-xs leading-relaxed text-ink-muted tabular-nums" data-statement-reconciliation={s.reconciles ? "ok" : "mismatch"}><bdi>{ui("Charges {0} − payments {1} = {2} owed", [fmt(s.charges), fmt(s.payments), fmt(s.closing)])}</bdi>{" · "}{ui("Dates as of {0} (school calendar)", [date(statement.today)])}{s.reconciles ? "" : ` · ${ui("These figures do not reconcile; please contact the school office.")}`}</p>
       {!canPay && s.outstanding > 0 ? <p className="text-xs leading-relaxed text-ink-muted" data-pay-note>{ui("Your parent or guardian pays fees from their family account.")}</p> : null}
