@@ -3,8 +3,6 @@ export const campusSetupUiEntries: readonly (readonly [string, string, string])[
   ["Active", "نشط", "فعال"],
   ["Paused", "متوقف مؤقتًا", "معطل"],
   ["Resumed", "استؤنف", "بحال"],
-  ["Pause", "إيقاف مؤقت", "معطل کریں"],
-  ["Resume", "استئناف", "بحال کریں"],
   ["Pause {0}?", "إيقاف {0} مؤقتًا؟", "{0} معطل کریں؟"],
   ["Resume {0}?", "استئناف {0}؟", "{0} بحال کریں؟"],
   ["Pause campus", "إيقاف الفرع مؤقتًا", "کیمپس معطل کریں"],
