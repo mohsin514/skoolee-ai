@@ -515,7 +515,7 @@ export function StatTile({
 
   const className = cn(
     "sk-stat-tile group/tile block p-5",
-    onClick && "h-auto w-full cursor-pointer justify-stretch whitespace-normal text-start font-normal actionable-hover:bg-card actionable-hover:text-ink",
+    onClick && "flex h-auto w-full cursor-pointer flex-col items-stretch justify-start whitespace-normal text-start font-normal actionable-hover:bg-card actionable-hover:text-ink",
   );
   const style = delay > 0 ? { animationDelay: `${delay}ms` } : undefined;
 

@@ -166,7 +166,7 @@ export function NetworkOverview({ data, onSelectCampus }: NetworkOverviewProps) 
                 <li key={campus.id}>
                   <Button variant="ghost" type="button" onClick={() => open(campus.id)} data-tone={campus.hasAdmin && campus.hasPrincipal ? "success" : !campus.hasAdmin ? "danger" : "warning"} className={cn(deskRow, "flex h-auto w-full flex-wrap items-center justify-between gap-3 whitespace-normal text-start font-normal actionable-hover:bg-card actionable-hover:text-ink")}>
                     <DeskRowIcon icon={campus.hasAdmin && campus.hasPrincipal ? CheckCircle2 : AlertTriangle} />
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-[min(100%,9rem)] flex-1">
                       <span className="block truncate text-sm font-bold text-ink-strong"><bdi>{campus.name}</bdi></span>
                       <span className="block text-2xs font-semibold text-ink-subtle">
                         <bdi>{campus.city || "—"}</bdi> · {count(campus.teachers, "teacher")}
