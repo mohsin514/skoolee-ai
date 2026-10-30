@@ -1,13 +1,15 @@
 "use client";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Lock } from "lucide-react";
+import { Accessibility, CalendarClock, CircleDashed, Lock, ShieldCheck } from "lucide-react";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowIcon, DeskSection, DeskStats, StatTile, deskRow, urgencyFirst } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { useLocale } from "@/components/locale/LocaleProvider";
+import { useLocale, useUiText } from "@/components/locale/LocaleProvider";
 import { effectiveSettings, type Capabilities, type EffectiveSettings, type PlanRow } from "@/lib/accommodations/plan";
 import { fillAccess, getAccessCopy, type AccessCopy } from "./access-copy";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,23 +54,35 @@ export function CoordinatorAccess() {
   const [classId, setClassId] = useState("");
   const [editing, setEditing] = useState<Student | null>(null);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  // SKAI-1277: the counters filter the roster; pupils whose plan needs review come first.
+  const ui = useUiText();
+  const [show, setShow] = useState<"" | "active" | "none" | "review">(""), [query, setQuery] = useState("");
   const load = useCallback(async () => { const data = await call(`/api/accommodations?view=coordinator${classId ? `&classId=${classId}` : ""}`); setView(data); }, [classId]);
   useEffect(() => { load().catch(error => setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed })); }, [load, t.failed]);
   const run = async (work: () => Promise<unknown>) => { setStatus(null); try { await work(); await load(); setStatus({ tone: "ok", text: t.saved }); return true; } catch (error) { setStatus({ tone: "error", text: error instanceof Error ? error.message : t.failed }); return false; } };
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(value));
   if (!view) return <div dir={rtl ? "rtl" : "ltr"}><Status status={status} />{!status && <SkeletonList rows={3} label={t.loading} />}</div>;
+  const reviewIds = new Set(view.review.map(row => row.studentId));
+  const hasPlan = (student: Student) => student.plans.some(plan => plan.status === "ACTIVE");
+  const needle = query.trim().toLocaleLowerCase();
+  const students = urgencyFirst(view.students.filter(student => (show === "" || (show === "review" ? reviewIds.has(student.id) : show === "active" ? hasPlan(student) : !hasPlan(student))) && (!needle || `${student.fullName} ${student.rollNo}`.toLocaleLowerCase().includes(needle))), student => reviewIds.has(student.id) ? 0 : 1);
+  const tiles = [{ key: "active", label: t.active, icon: ShieldCheck, tone: "success", value: view.students.filter(hasPlan).length }, { key: "none", label: ui("No plan"), icon: CircleDashed, tone: "neutral", value: view.students.filter(student => !hasPlan(student)).length }, { key: "review", label: t.review, icon: CalendarClock, tone: view.review.length ? "warning" : "neutral", value: view.review.length }] as const;
   return <div dir={rtl ? "rtl" : "ltr"} className="min-w-0 space-y-5">
-    <section aria-labelledby="review-heading" className="rounded-xl border bg-card p-4 text-sm">
-      <h2 id="review-heading" className="text-base font-semibold">{t.review}</h2>
-      {view.review.length ? <ul className="mt-2 grid gap-1">{view.review.map(row => <li key={row.planId}><span dir="auto">{row.fullName}</span> · {row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</li>)}</ul> : <p className="text-ink-muted">{t.noReview}</p>}
-    </section>
+    <DeskStats>{tiles.map((tile, index) => <StatTile key={tile.key} index={index} icon={tile.icon} tone={tile.tone} label={tile.label} value={tile.value} selected={show === tile.key} onSelect={() => setShow(current => current === tile.key ? "" : tile.key)} />)}</DeskStats>
+    <DeskSection aria-labelledby="review-heading" icon={CalendarClock} tone={view.review.length ? "warning" : "success"} title={<span id="review-heading">{t.review}</span>} className="text-sm">
+      {view.review.length ? <ul className="mt-2 grid gap-2">{view.review.map(row => <li key={row.planId} className="flex flex-wrap items-center gap-2"><span dir="auto" className="font-semibold text-ink-strong">{row.fullName}</span><DeskPill tone={row.expired ? "danger" : "warning"}>{row.expired ? t.reviewExpired : t.reviewSoon} {date(row.validUntil)}</DeskPill></li>)}</ul> : <p className="text-ink-muted">{t.noReview}</p>}
+    </DeskSection>
     <label className="grid max-w-sm gap-1 text-xs font-semibold">{t.class}<Select value={view.classId ?? ""} onChange={event => { setClassId(event.target.value); setEditing(null); }}>{view.classes.map(row => <option key={row.id} value={row.id}>{row.name}{row.section ? ` ${row.section}` : ""}</option>)}</Select></label>
     <Status status={status} />
-    <ul className="grid gap-3" aria-label={t.title}>{view.students.map(student => {
+    {view.students.length > 8 && <DeskQuickFilter value={query} onChange={setQuery} label={ui("Filter pupils")} />}
+    <DeskFilterStatus shown={students.length} total={view.students.length} onClear={() => { setShow(""); setQuery(""); }} />
+    {!view.students.length && <EmptyState size="sm" icon={Accessibility} title={t.none} />}
+    <ul className="grid gap-3" aria-label={t.title}>{students.map(student => {
       const active = student.plans.find(plan => plan.status === "ACTIVE");
-      return <li key={student.id} className="rounded-xl border bg-card p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0"><p className="font-semibold" dir="auto">{student.fullName}</p>
+      return <li key={student.id} data-tone={reviewIds.has(student.id) ? "warning" : active ? "success" : "muted"} className={deskRow}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <DeskRowIcon icon={active ? ShieldCheck : CircleDashed} />
+          <div className="min-w-0 flex-1"><p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><span dir="auto">{student.fullName}</span>{active ? <DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill> : null}</p>
             {active ? <p className="text-xs text-ink-subtle">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-ink-subtle">{t.none}</p>}
           </div>
           <Button type="button" variant="outline" onClick={() => setEditing(editing?.id === student.id ? null : student)}>{active ? t.editPlan : t.newPlan}</Button>
