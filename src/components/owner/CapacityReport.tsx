@@ -12,7 +12,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Modal } from "@/components/ui/modal";
 import { PageHeader } from "@/components/ui/page-header";
 import { SkeletonCards } from "@/components/ui/skeleton";
-import { Download, Gauge, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Gauge, Hourglass, RefreshCw, SlidersHorizontal, XCircle } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { DeskPill, DeskRowIcon, DeskStats, StatTile, deskRow } from "@/components/ui/desk";
 import { useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +64,7 @@ function RunDetail({ run }: { run: Run }) {
   </div>;
 }
 
+/** The policy-change review dialog; its actions sit in the pinned footer. */
 function PolicyForm({ data, onDone }: { data: Report; onDone: () => void }) {
   const ui = useUiText();
   const [f, setF] = useState({ targetSchoolId: "", scope: "BACKGROUND_REQUESTS", limitValue: "2", reason: "", expiresAt: "" });
@@ -71,8 +74,21 @@ function PolicyForm({ data, onDone }: { data: Report; onDone: () => void }) {
   const limit = Number(f.limitValue);
   const limitError = f.limitValue.trim() === "" || !Number.isInteger(limit) || limit < 0 || limit > 1000;
   const expiryError = Boolean(f.targetSchoolId && !f.expiresAt) || Boolean(f.expiresAt && (!Number.isFinite(new Date(f.expiresAt).getTime()) || new Date(f.expiresAt).getTime() <= openedAt));
-  if (done) return <div className="space-y-3" data-policy-result><p className="font-bold">{ui("Scoped policy applied. A follow-up measurement is required.")}</p><p className="text-sm">{ui("Limit {0} → {1}", [String(done.before.limit), String(done.after.limit)])}</p><Button onClick={onDone} data-policy-close>{ui("Done")}</Button></div>;
-  return <div className="space-y-3" data-policy-form>
+  const apply = async () => {
+    setBusy(true); setError(null);
+    try { setDone(await call("/api/owner/capacity", "POST", { action: "apply", targetSchoolId: f.targetSchoolId || null, scope: f.scope, limitValue: Number(f.limitValue), reason: f.reason, expiresAt: f.expiresAt ? new Date(f.expiresAt).toISOString() : null })); }
+    catch (e) { setError(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); }
+  };
+  if (done) return <Modal title={ui("Resource policy change review")} icon={CheckCircle2} tone="emerald" size="md" onClose={onDone}
+    footer={<div className="flex justify-end"><Button onClick={onDone} data-policy-close>{ui("Done")}</Button></div>}>
+    <div className="space-y-3" data-policy-result><Alert tone="success" live="polite" title={ui("Scoped policy applied. A follow-up measurement is required.")}>{ui("Limit {0} → {1}", [String(done.before.limit), String(done.after.limit)])}</Alert></div>
+  </Modal>;
+  return <Modal title={ui("Resource policy change review")} icon={SlidersHorizontal} tone="amber" size="md" subtitle={ui("Background exports are limited; interactive school work remains prioritized.")} onClose={onDone} dismissible={!busy}
+    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      <Button variant="outline" disabled={busy} onClick={onDone} data-policy-keep>{ui("Keep current policy")}</Button>
+      <Button loading={busy} disabled={busy || limitError || expiryError || f.reason.trim().length < 10} data-policy-save onClick={() => void apply()}>{ui("Apply scoped policy")}</Button>
+    </div>}>
+  <div className="space-y-3" data-policy-form>
     {error ? <Alert tone="danger" compact>{error}</Alert> : null}
     <fieldset disabled={busy} className="space-y-3">
     <FormField name="cp-school" label={ui("Scope")}><Select value={f.targetSchoolId} onChange={e => setF({ ...f, targetSchoolId: e.target.value })} data-policy-school><option value="">{ui("Platform default (all schools)")}</option>{data.schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></FormField>
@@ -83,16 +99,8 @@ function PolicyForm({ data, onDone }: { data: Report; onDone: () => void }) {
     <FormField name="cp-reason" label={ui("Reason")}><Textarea value={f.reason} onChange={e => setF({ ...f, reason: e.target.value })} rows={2} dir="auto" data-policy-reason /></FormField>
     <FormField name="cp-exp" label={ui("Expiry")} required={Boolean(f.targetSchoolId)} error={expiryError ? ui("Choose a future expiry for this change.") : undefined} hint={ui("Required for a school-scoped change, such as the end of the incident.")}><Input type="datetime-local" value={f.expiresAt} onChange={e => setF({ ...f, expiresAt: e.target.value })} data-policy-expires /></FormField>
     </fieldset>
-    <p className="text-xs text-ink-muted">{ui("Exam answer saves and payment confirmation are never limited by these settings.")}</p>
-    <div className="flex flex-wrap gap-2">
-      <Button loading={busy} disabled={busy || limitError || expiryError || f.reason.trim().length < 10} data-policy-save onClick={async () => {
-        setBusy(true); setError(null);
-        try { setDone(await call("/api/owner/capacity", "POST", { action: "apply", targetSchoolId: f.targetSchoolId || null, scope: f.scope, limitValue: Number(f.limitValue), reason: f.reason, expiresAt: f.expiresAt ? new Date(f.expiresAt).toISOString() : null })); }
-        catch (e) { setError(ui(e instanceof Error ? e.message : "The change was not saved.")); } finally { setBusy(false); }
-      }}>{ui("Apply scoped policy")}</Button>
-      <Button variant="outline" disabled={busy} onClick={onDone} data-policy-keep>{ui("Keep current policy")}</Button>
-    </div>
-  </div>;
+    <Alert tone="info" compact live="off">{ui("Exam answer saves and payment confirmation are never limited by these settings.")}</Alert>
+  </div></Modal>;
 }
 
 export function CapacityReport() {
@@ -147,17 +155,26 @@ export function CapacityReport() {
   const runs = failingOnly ? data.runs.filter(r => !r.passed) : data.runs;
   const req = data.requests;
   const stateText = req.state === "MEASURED" ? ui("Measured") : req.state === "STALE" ? ui("Stale: no request in the last minute") : ui("No measurement yet");
+  const failing = data.runs.filter(r => !r.passed);
+  const pending = data.queue.schools.reduce((sum, s) => sum + s.pending, 0), failed24h = data.queue.schools.reduce((sum, s) => sum + s.failed24h, 0);
+  const toggleFailing = () => { setFailingOnly(!failingOnly); const f = failing[0]; if (!failingOnly && f) setOpen(f.id); };
   return <div className={body} data-capacity>
     {header}
     {data.followUpRequired ? <Alert tone="warning" compact data-follow-up>{ui("Scoped policy applied. A follow-up measurement is required.")}</Alert> : null}
+    <DeskStats data-capacity-stats>
+      <StatTile index={0} icon={XCircle} tone={failing.length ? "danger" : "success"} label={ui("Objectives not met")} value={failing.length} hint={ui("Release performance report")} selected={failingOnly} onSelect={toggleFailing} />
+      <StatTile index={1} icon={Hourglass} tone={pending ? "warning" : "neutral"} label={ui("Pending")} value={data.queue.available ? pending : "—"} hint={ui("Durable queue by school")} />
+      <StatTile index={2} icon={AlertTriangle} tone={failed24h ? "danger" : "neutral"} label={ui("Failed (24 h)")} value={data.queue.available ? failed24h : "—"} />
+      <StatTile index={3} icon={SlidersHorizontal} tone={data.policy.active.length ? "warning" : "neutral"} label={ui("Resource policy")} value={data.policy.active.length} hint={data.policy.active.length ? undefined : ui("No scoped changes are in force.")} />
+    </DeskStats>
 
     <section className="sk-panel space-y-3 p-4" data-runs>
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Release performance report")}</h2>
-        <Button size="sm" variant={failingOnly ? "default" : "outline"} aria-pressed={failingOnly} onClick={() => { setFailingOnly(!failingOnly); const f = data.runs.find(r => !r.passed); if (!failingOnly && f) setOpen(f.id); }} data-review-failing>{ui("Review failing workload")}</Button></div>
-      {!data.runs.length ? <p className="text-sm" data-runs-empty>{ui("No representative benchmark has been recorded for this workload. No capacity claim is available until this workload is measured.")}</p> : !runs.length ? <p className="text-sm" role="status">{ui("No failing workloads in the recorded runs.")}</p> : <ul className="space-y-2">{runs.map(r => <li key={r.id} className="rounded-xl border border-border p-3" data-run={r.runId} data-run-passed={String(r.passed)}>
-        <Button variant="ghost" type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-start" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)} data-run-toggle={r.runId}>
-          <span className="font-semibold"><bdi dir="ltr">{r.runId}</bdi> · <bdi>{r.profile}</bdi></span>
-          <Badge variant={r.passed ? "success" : "danger"} dot>{r.passed ? ui("All objectives met") : ui("Objectives not met")}</Badge>
+        <Button size="sm" variant={failingOnly ? "default" : "outline"} aria-pressed={failingOnly} onClick={toggleFailing} data-review-failing>{ui("Review failing workload")}</Button></div>
+      {!data.runs.length ? <div data-runs-empty><EmptyState size="sm" icon={Gauge} title={ui("Not measured")} description={ui("No representative benchmark has been recorded for this workload. No capacity claim is available until this workload is measured.")} /></div> : !runs.length ? <div role="status"><EmptyState size="sm" icon={CheckCircle2} title={ui("No failing workloads in the recorded runs.")} /></div> : <ul className="space-y-2">{runs.map(r => <li key={r.id} className={deskRow} data-tone={r.passed ? "success" : "danger"} data-run={r.runId} data-run-passed={String(r.passed)}>
+        <Button variant="ghost" type="button" className="flex h-auto w-full flex-wrap items-center justify-between gap-2 px-0 text-start actionable-hover:bg-transparent" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)} data-run-toggle={r.runId}>
+          <span className="flex min-w-0 items-center gap-3"><DeskRowIcon icon={r.passed ? CheckCircle2 : XCircle} /><span className="min-w-0 font-semibold"><bdi dir="ltr" className="break-all">{r.runId}</bdi> · <bdi>{r.profile}</bdi></span></span>
+          <DeskPill tone={r.passed ? "success" : "danger"}>{r.passed ? ui("All objectives met") : ui("Objectives not met")}</DeskPill>
         </Button>
         <p className="mt-1 min-w-0 text-xs text-ink-muted">{ui("Release")} <bdi dir="ltr" className="break-all">{r.release}</bdi> · <bdi dir="ltr" className="break-all">{r.environment}</bdi> · {dateTime(r.finishedAt)}</p>
         {open === r.id ? <div className="mt-3"><RunDetail run={r} /></div> : null}
@@ -169,23 +186,23 @@ export function CapacityReport() {
       <p className="text-xs text-ink-muted">{ui(req.scope)} · {ui("Last {0} minutes", [String(req.windowSeconds / 60)])} · {ui("Measured at {0}", [dateTime(req.measuredAt)])}</p>
       <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("Class")}</TableHead><TableHead>{ui("Requests")}</TableHead><TableHead>p95</TableHead><TableHead>p99</TableHead><TableHead>{ui("Errors")}</TableHead><TableHead>{ui("Refused (429)")}</TableHead></TableRow></TableHeader>
         <TableBody>{req.classes.map(c => <TableRow key={c.serviceClass} data-live-class={c.serviceClass}><TableCell>{c.serviceClass}</TableCell><TableCell><bdi dir="ltr">{c.count}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(c.p95)}</bdi></TableCell><TableCell><bdi dir="ltr">{ms(c.p99)}</bdi></TableCell><TableCell><bdi dir="ltr">{c.errors}</bdi></TableCell><TableCell><bdi dir="ltr">{c.rejected}</bdi></TableCell></TableRow>)}</TableBody></Table></div>
-      <div data-database>{data.database.available ? <p className="text-sm">{ui("Database: {0} of {1} connections, {2} active, {3} waiting on locks, probe {4} ms", [String(data.database.connections), String(data.database.maxConnections), String(data.database.active), String(data.database.waitingOnLocks), String(data.database.probeMs)])}</p> : <p className="text-sm font-semibold text-status-error-text" data-database-unavailable>{ui(data.database.reason)}</p>}</div>
+      <div data-database>{data.database.available ? <p className="text-sm">{ui("Database: {0} of {1} connections, {2} active, {3} waiting on locks, probe {4} ms", [String(data.database.connections), String(data.database.maxConnections), String(data.database.active), String(data.database.waitingOnLocks), String(data.database.probeMs)])}</p> : <Alert tone="danger" compact live="off" data-database-unavailable>{ui(data.database.reason)}</Alert>}</div>
       <h3 className="text-sm font-bold">{ui("Durable queue by school")}</h3>
-      {!data.queue.available ? <p className="text-sm text-status-error-text">{ui(data.queue.reason ?? "Telemetry is unavailable; do not infer healthy service.")}</p> : !data.queue.schools.length ? <p className="text-sm text-ink-muted">{ui("No queued or recent durable work.")}</p> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("School")}</TableHead><TableHead>{ui("Pending")}</TableHead><TableHead>{ui("Running")}</TableHead><TableHead>{ui("Oldest waiting")}</TableHead><TableHead>{ui("Failed (24 h)")}</TableHead><TableHead>{ui("Estimate")}</TableHead></TableRow></TableHeader>
-        <TableBody>{data.queue.schools.map(s => <TableRow key={s.schoolId} data-queue-school={s.schoolId}><TableCell><bdi>{s.name ?? s.schoolId}</bdi></TableCell><TableCell><bdi dir="ltr">{s.pending}</bdi></TableCell><TableCell><bdi dir="ltr">{s.running}</bdi></TableCell><TableCell><bdi dir="ltr">{s.oldestPendingSeconds} s</bdi></TableCell><TableCell><bdi dir="ltr">{s.failed24h}</bdi></TableCell><TableCell className="text-xs italic">{s.estimate ? (s.estimate.drainMinutes === null ? ui("Estimate unavailable: {0}", [ui(s.estimate.basis)]) : ui("Estimate: about {0} min to drain, from {1}", [String(s.estimate.drainMinutes), ui(s.estimate.basis)])) : "—"}</TableCell></TableRow>)}</TableBody></Table></div>}
+      {!data.queue.available ? <Alert tone="danger" compact live="off">{ui(data.queue.reason ?? "Telemetry is unavailable; do not infer healthy service.")}</Alert> : !data.queue.schools.length ? <EmptyState size="sm" icon={Hourglass} title={ui("No queued or recent durable work.")} /> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ui("School")}</TableHead><TableHead>{ui("Pending")}</TableHead><TableHead>{ui("Running")}</TableHead><TableHead>{ui("Oldest waiting")}</TableHead><TableHead>{ui("Failed (24 h)")}</TableHead><TableHead>{ui("Estimate")}</TableHead></TableRow></TableHeader>
+        <TableBody>{data.queue.schools.map(s => <TableRow key={s.schoolId} data-queue-school={s.schoolId} className={s.failed24h ? "bg-status-error-surface/60" : undefined}><TableCell><bdi>{s.name ?? s.schoolId}</bdi></TableCell><TableCell><bdi dir="ltr">{s.pending}</bdi></TableCell><TableCell><bdi dir="ltr">{s.running}</bdi></TableCell><TableCell><bdi dir="ltr">{s.oldestPendingSeconds} s</bdi></TableCell><TableCell><bdi dir="ltr">{s.failed24h}</bdi></TableCell><TableCell className="text-xs italic">{s.estimate ? (s.estimate.drainMinutes === null ? ui("Estimate unavailable: {0}", [ui(s.estimate.basis)]) : ui("Estimate: about {0} min to drain, from {1}", [String(s.estimate.drainMinutes), ui(s.estimate.basis)])) : "—"}</TableCell></TableRow>)}</TableBody></Table></div>}
     </section>
 
     <section className="sk-panel space-y-3 p-4" data-policy>
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold">{ui("Resource policy")}</h2><Button size="sm" variant="outline" onClick={() => setChanging(true)} data-policy-open>{ui("Change policy")}</Button></div>
       <p className="text-sm">{ui("Platform default")}: {scopeLabel(ui, "BACKGROUND_REQUESTS")} <bdi dir="ltr">{data.policy.platform.BACKGROUND_REQUESTS.limit}</bdi> · {scopeLabel(ui, "BACKGROUND_JOBS")} <bdi dir="ltr">{data.policy.platform.BACKGROUND_JOBS.limit}</bdi></p>
       <p className="text-xs text-ink-muted">{ui("Background exports are limited; interactive school work remains prioritized.")}</p>
-      {data.policy.active.length ? <ul className="space-y-2">{data.policy.active.map(p => <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm" data-active-policy={p.id}>
-        <span><bdi>{p.schoolName ?? ui("Platform default")}</bdi> · {scopeLabel(ui, p.scope)} <bdi dir="ltr">{p.limitValue}</bdi> · <bdi>{p.reason}</bdi>{p.expiresAt ? <> · {ui("Until {0}", [dateTime(p.expiresAt)])}</> : null}</span>
-        <Button size="sm" variant="ghost" onClick={() => setReverting(p)} data-policy-revert={p.id}>{ui("Revert")}</Button></li>)}</ul> : <p className="text-sm text-ink-muted">{ui("No scoped changes are in force.")}</p>}
+      {data.policy.active.length ? <ul className="space-y-2">{data.policy.active.map(p => <li key={p.id} data-tone="warning" className={cn(deskRow, "flex flex-wrap items-center justify-between gap-2 text-sm")} data-active-policy={p.id}>
+        <span><bdi>{p.schoolName ?? ui("Platform default")}</bdi> · {scopeLabel(ui, p.scope)} <bdi dir="ltr">{p.limitValue}</bdi> · <bdi>{p.reason}</bdi>{p.expiresAt ? <> · <DeskPill tone="warning">{ui("Until {0}", [dateTime(p.expiresAt)])}</DeskPill></> : null}</span>
+        <Button size="sm" variant="ghost" onClick={() => setReverting(p)} data-policy-revert={p.id}>{ui("Revert")}</Button></li>)}</ul> : <EmptyState size="sm" icon={SlidersHorizontal} title={ui("No scoped changes are in force.")} />}
       {data.policy.history.length ? <details className="text-sm" data-policy-history><summary className="cursor-pointer font-semibold">{ui("Policy history")}</summary><ul className="mt-2 space-y-1">{data.policy.history.map(h => <li key={h.id}><bdi>{dateTime(h.createdAt)}</bdi> · <bdi>{h.schoolName ?? ui("Platform default")}</bdi> · <bdi dir="ltr">{h.scope} {h.limitValue}</bdi>{h.revokedAt ? <> · {ui("Reverted")} <bdi>{h.revokeReason}</bdi></> : null}</li>)}</ul></details> : null}
     </section>
 
-    {changing ? <Modal title={ui("Resource policy change review")} size="md" onClose={() => setChanging(false)}><PolicyForm data={data} onDone={async () => { setChanging(false); await load(); }} /></Modal> : null}
+    {changing ? <PolicyForm data={data} onDone={async () => { setChanging(false); await load(); }} /> : null}
     <ConfirmAction
       open={Boolean(reverting)}
       tone="warning"
