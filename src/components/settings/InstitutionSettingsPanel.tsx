@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchivedCampusList, CampusArchiveButton, CampusArchiveDialog } from "./campus-lifecycle";
+import { ArchivedCampusList, CampusArchiveButton, CampusArchiveDialog, CampusPauseButton } from "./campus-lifecycle";
 import { Button } from "@/components/ui/button";
 import { UiText, useLocale, useLocaleFormat, useUiText } from "@/components/locale/LocaleProvider";
 import { localeTag } from "@/lib/locale/package";
@@ -9,6 +9,7 @@ import { FormErrorSummary } from "@/components/ui/form-field";
 import { DraftRecovery } from "@/components/ui/draft-recovery";
 import { ErrorState } from "@/components/ui/error-state";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { SkeletonCards, SkeletonList } from "@/components/ui/skeleton";
 import { InputGroup } from "@/components/ui/input-group";
 import { usePanelCommand } from "@/components/fees/fee-utils";
@@ -93,7 +94,7 @@ function HistoryDialog({ level, campusId, title, onClose }: { level: "school" | 
   const { dateTime } = useLocaleFormat();
   const [rows, setRows] = useState<InstitutionHistoryEntry[] | null>(null), [error, setError] = useState("");
   useEffect(() => { let cancelled = false; getInstitutionHistory({ level, campusId }).then(data => { if (!cancelled) setRows(data); }).catch(failure => { if (!cancelled) setError(tr(failure instanceof Error ? failure.message : "History could not be loaded.")); }); return () => { cancelled = true; }; }, [level, campusId, tr]);
-  const kind = (entry: InstitutionHistoryEntry) => entry.kind === "ARCHIVED" ? tr("Archived") : entry.kind === "RESTORED" ? tr("Restored") : tr("Details changed");
+  const kind = (entry: InstitutionHistoryEntry) => entry.kind === "ARCHIVED" ? tr("Archived") : entry.kind === "RESTORED" ? tr("Restored") : entry.kind === "PAUSED" ? tr("Paused") : entry.kind === "RESUMED" ? tr("Resumed") : tr("Details changed");
   return <Modal title={tr("Change history")} eyebrow={title} icon={Clock} size="lg" onClose={onClose}>
     {error ? <Alert tone="danger" compact>{error}</Alert> : !rows ? <SkeletonList rows={3} label={tr("Loading history…")} /> : !rows.length ? <p className="text-sm text-ink-muted">{tr("No changes have been recorded yet.")}</p>
       : <ol className="space-y-2" data-institution-history>{rows.map(entry => <li key={entry.id} className="rounded-xl bg-brand-50/60 px-3 py-2 text-sm" data-history-kind={entry.kind}>
@@ -240,7 +241,8 @@ export function InstitutionSettingsPanel({
               <Building2 aria-hidden="true" className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-ink-strong"><bdi>{campus.name}</bdi></p>
+              <p className="flex min-w-0 items-center gap-2 text-sm font-bold text-ink-strong"><bdi className="truncate">{campus.name}</bdi>
+                <Badge size="sm" variant={campus.pausedAt ? "warning" : "success"} data-campus-status={campus.pausedAt ? "paused" : "active"}>{campus.pausedAt ? tr("Paused") : tr("Active")}</Badge></p>
               <p className="mt-0.5 truncate text-2xs font-bold text-ink-subtle">
                 <bdi>{campus.city}</bdi> · <bdi dir="ltr">{campus.regId}</bdi>
                 {campus.board ? <> · <bdi>{campus.board}</bdi></> : null}
@@ -252,9 +254,11 @@ export function InstitutionSettingsPanel({
               ) : null}
             </div>
           </div>
-          {readOnly ? null : (
+          {/* SKAI-113: the header owns Edit and Archive on the group admin's campus page; status stays on the record. */}
+          {readOnly ? (data.canArchiveCampuses && section === "campus" ? <CampusPauseButton campus={campus} onDone={afterSave} /> : null) : (
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               {editable || data.canArchiveCampuses ? <Button variant="ghost" type="button" onClick={() => setHistory({ level: "campus", campusId: campus.id, title: campus.name })} aria-label={tr("Change history for {0}", [campus.name])}><Clock aria-hidden="true" className="h-3 w-3" /></Button> : null}
+              {data.canArchiveCampuses && section !== "school-and-campus" ? <CampusPauseButton campus={campus} onDone={afterSave} /> : null}
               {data.canArchiveCampuses && section !== "school-and-campus" ? <CampusArchiveButton campus={campus} onDone={afterSave} /> : null}
               {editable ? (
                 <Button variant="default" type="button" onClick={() => setEditingCampus(campus)} className="flex shrink-0 items-center gap-1.5 px-3">

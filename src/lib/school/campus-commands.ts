@@ -58,6 +58,14 @@ export interface CampusCreateFields {
   /** Omit to have one generated. */
   regId?: string;
 }
+// SKAI-113: the campus ID is printed on letters and used in links, so it keeps a plain, typeable shape.
+const CAMPUS_REG_ID = /^[A-Z0-9][A-Z0-9-]{2,19}$/;
+export function normalizeCampusRegId(value?: string | null) {
+  const id = optional(value ?? undefined)?.toUpperCase() ?? null;
+  if (id && !CAMPUS_REG_ID.test(id)) throw new Error("Use 3 to 20 letters, digits or dashes for the campus ID, like BR-NORTH.");
+  return id;
+}
+
 export type ValidCampusFields = ReturnType<typeof validateCampusInput>;
 
 /** SKO-402: the same validators as editing a campus, so a campus can always be saved as it was created. */
@@ -67,7 +75,7 @@ export function validateCampusInput(input: CampusCreateFields) {
   const email = assertEmail(optional(input.email), "campus email address");
   const phone = assertPhone(optional(input.phone), "Phone number");
   const website = assertWebsite(optional(input.website), "website");
-  return { name, city, email, phone, website, address: optional(input.address), principalName: optional(input.principalName), board: optional(input.board), regId: optional(input.regId) };
+  return { name, city, email, phone, website, address: optional(input.address), principalName: optional(input.principalName), board: optional(input.board), regId: normalizeCampusRegId(input.regId) };
 }
 
 /**
@@ -198,9 +206,11 @@ export async function assertCanEditCampus(session: Pick<AuthUser, "schoolId" | "
   // Scoped read, so a campus id from another school simply is not found.
   const campus = await prisma.campus.findFirst({
     where: { id: campusId, schoolId: session.schoolId },
-    select: { id: true },
+    select: { id: true, archivedAt: true },
   });
   if (!campus) throw new Error("Campus not found.");
+  // SKAI-113: an archived campus is read-only until the group admin restores it.
+  if (campus.archivedAt) throw new Error("Restore this campus before editing it.");
 
   if (session.role === "SUPER_ADMIN") return;
   if ((session.role === "CAMPUS_ADMIN" || session.role === "ADMIN") && session.campusId === campusId) return;
