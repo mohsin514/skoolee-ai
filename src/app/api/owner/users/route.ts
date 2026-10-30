@@ -125,9 +125,13 @@ export async function POST(req: NextRequest) {
       if (!campusIdRaw) throw new ApiError(`${role} must be assigned to a campus`, 400);
       const campus = await prisma.campus.findFirst({
         where: { id: campusIdRaw, schoolId },
-        select: { id: true },
+        select: { id: true, archivedAt: true, pausedAt: true },
       });
       if (!campus) throw new ApiError("Campus not found in that school", 404);
+      // SKAI-1363: archived or paused campuses accept no new active staff.
+      if (campus.archivedAt || campus.pausedAt) {
+        throw new ApiError("This campus is archived or paused and cannot accept new staff", 409);
+      }
       campusId = campus.id;
     }
 
