@@ -57,8 +57,9 @@ export async function GET(req: NextRequest) {
   const examId = searchParams.get("examId");
   if (!examId) return Response.json({ error: "examId required" }, { status: 400 });
 
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
+  const exam = await prisma.exam.findFirst({
+    // SKAI-1384: scope to the caller school so a foreign exam id is a 404, even for campus-null roles.
+    where: { id: examId, schoolId: user.schoolId },
     include: {
       class: {
         select: {
