@@ -83,9 +83,8 @@ async function seedOptionalTasks(tx: TxClient, user: AuthUser) {
   const setup = await tx.institutionSetup.findUnique({ where: { schoolId: user.schoolId } });
   if (!setup) return;
   const keys = unresolvedOptionalWork(setup.institutionType as InstitutionType, setup.adoptionMode as SetupAdoptionMode | null, parseSetupDraft(setup.draft));
-  for (const key of keys) {
-    await tx.readinessTask.upsert({ where: { schoolId_key: { schoolId: user.schoolId, key } }, create: { schoolId: user.schoolId, key, title: OPTIONAL_TITLES[key], createdById: user.userId }, update: {} });
-  }
+  // One insert, existing follow-ups untouched: a per-key upsert outlived the transaction timeout on a slow database.
+  await tx.readinessTask.createMany({ data: keys.map(key => ({ schoolId: user.schoolId, key, title: OPTIONAL_TITLES[key], createdById: user.userId })), skipDuplicates: true });
 }
 
 export async function readinessView(user: AuthUser, now = new Date()) {
