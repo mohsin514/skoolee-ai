@@ -89,7 +89,8 @@ export function ReadinessHome() {
   async function run(work: () => Promise<unknown>, quiet = false) {
     setBusy(true);
     try { await work(); await load(); if (!quiet) toast.success(t.saved); return true; }
-    catch (error) { toast.error(error); }
+    // A conflict means the screen is stale: show the latest so the next try starts from it.
+    catch (error) { toast.error(error); if (error instanceof ReadinessError && error.status === 409) await load(); }
     finally { setBusy(false); }
   }
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
