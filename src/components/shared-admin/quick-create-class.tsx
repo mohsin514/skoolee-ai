@@ -804,12 +804,9 @@ export function QuickCreateClass({
                     )}
 
                     {clashingSections.length > 0 && (
-                      <p className="mt-2.5 flex items-start gap-1.5 rounded-xl bg-status-error-surface px-3 py-2 text-2xs font-bold leading-relaxed text-status-error-text">
-                        <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
-                        <span>
-                          {ui("Struck-through sections already exist for {0}. Remove them, or change the class name or year.", [year])}
-                        </span>
-                      </p>
+                      <Alert tone="danger" compact live="polite" className="mt-2.5">
+                        {ui("Struck-through sections already exist for {0}. Remove them, or change the class name or year.", [year])}
+                      </Alert>
                     )}
                   </div>
                 )}
