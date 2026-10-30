@@ -89,7 +89,7 @@ import { Progress } from "@/components/ui/progress";
 
 /** A record's name cell with the desk's icon tile, so every operations table reads like the desk rows. */
 function NameCell({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
-  return <span className="flex min-w-0 items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8 shrink-0"><Icon /></span><bdi className="min-w-0 font-semibold [overflow-wrap:anywhere]">{children}</bdi></span>;
+  return <span className="flex items-center gap-2.5"><span aria-hidden="true" className="sk-desk-row-icon size-8 shrink-0"><Icon /></span><bdi className="whitespace-nowrap font-semibold">{children}</bdi></span>;
 }
 const inputCls =
   "max-w-full";

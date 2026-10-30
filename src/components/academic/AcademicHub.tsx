@@ -591,7 +591,7 @@ export function AcademicHub({ campusId, onNavigate, showPlanner = true }: { camp
                   <div key={a.id} data-tone={tone} className={cn(deskRow, "flex w-full flex-wrap items-center gap-3")}>
                     <DeskRowIcon icon={AlertTriangle} />
                     <span className="min-w-0 flex-1">{title}</span>
-                    <DeskPill tone="neutral">{ui("With your principal")}</DeskPill>
+                    <span className="basis-full ps-12 sm:basis-auto sm:ps-0"><DeskPill tone="neutral">{ui("With your principal")}</DeskPill></span>
                   </div>
                 );
               })}
