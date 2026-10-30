@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const ip = clientIp(req.headers);
     const { ok } = rateLimit(`signup2:${ip}`, { limit: 5, windowMs: 300_000 });
     if (!ok) {
-      return Response.json({ success: false, error: "Too many attempts. Please try again later." }, { status: 429 });
+      return Response.json({ success: false, code: "rate_limited", error: "Too many attempts. Please try again later." }, { status: 429 });
     }
     const body = await parseBody(req, jsonObjectBody, { preserve: ["password"] });
     const result = await completeSignupStep2(body as Parameters<typeof completeSignupStep2>[0]);
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     console.error("[api/signup-step2]", error);
     if (error?.code === "P2002") {
       return Response.json(
-        { success: false, error: "This registration already exists. Try logging in or use a different email/Reg ID." },
+        { success: false, code: "duplicate", error: "This registration already exists. Try logging in or use a different email/Reg ID." },
         { status: 409 }
       );
     }

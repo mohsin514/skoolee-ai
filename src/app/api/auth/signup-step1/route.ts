@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const ip = clientIp(req.headers);
     const { ok } = rateLimit(`signup:${ip}`, { limit: 5, windowMs: 300_000 });
     if (!ok) {
-      return Response.json({ success: false, error: "Too many attempts. Please try again later." }, { status: 429 });
+      return Response.json({ success: false, code: "rate_limited", error: "Too many attempts. Please try again later." }, { status: 429 });
     }
     const body = await parseBody(req, jsonObjectBody);
     const result = await saveSignupStep1(body as Parameters<typeof saveSignupStep1>[0]);
