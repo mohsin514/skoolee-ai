@@ -90,6 +90,8 @@ jobs:
           # The test suites run plain `node --test`; the shim resolves the
           # `server-only` import (tests/authz/* etc.), same as corrections.yml.
           NODE_OPTIONS: --max-old-space-size=12288 --import=./tests/support/server-only.mjs
+      - name: AI release evaluation gate (report only; the production deploy enforces it)
+        run: pnpm run check:ai-release --report
       - name: Production build
         run: pnpm run build
       - name: Page-weight budget (public + login first load <= 300 KB gzip, G-10)
