@@ -206,6 +206,9 @@ const ROWS: ReadonlyArray<readonly [string, string, string]> = [
   ["No rooms match these filters.", "لا توجد غرف تطابق هذه المرشحات.", "ان فلٹرز سے کوئی کمرہ میل نہیں کھاتا۔"],
   // SKAI-1272 whole-app UI pass
   ["No classes match these filters.", "لا توجد صفوف تطابق هذه المرشحات.", "ان فلٹرز سے کوئی جماعت میل نہیں کھاتی۔"],
+  // SKAI-1274 whole-app UI pass
+  ["Leave the pilot ledger?", "مغادرة سجل التجربة؟", "پائلٹ لیجر چھوڑیں؟"],
+  ["Everything the ledger kept for this school is deleted. You can join again later.", "يُحذف كل ما احتفظ به السجل لهذه المدرسة. يمكنك الانضمام مجددًا لاحقًا.", "اس اسکول کے لیے لیجر میں محفوظ سب کچھ حذف ہو جائے گا۔ آپ بعد میں دوبارہ شامل ہو سکتے ہیں۔"],
 ];
 
 export const arabicP9Ui: Record<string, string> = Object.fromEntries(ROWS.map(([en, ar]) => [en, ar]));

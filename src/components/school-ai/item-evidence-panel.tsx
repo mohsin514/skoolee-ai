@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DeskPill, deskRow } from "@/components/ui/desk";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -86,7 +87,7 @@ function ItemCard({ item, recordId, disabled, post }: { item: Item; recordId: st
   const c = item.counts;
   return (
     <details className="rounded-xl border border-border p-3">
-      <summary className="cursor-pointer break-words text-sm font-semibold"><bdi>{item.prompt}</bdi> · {ui("Version {0}", [item.paperVersion])}{openFlag ? <span className="ms-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{ui("Question flagged")}</span> : null}</summary>
+      <summary className="cursor-pointer break-words text-sm font-semibold"><bdi>{item.prompt}</bdi> · {ui("Version {0}", [item.paperVersion])}{openFlag ? <DeskPill tone="warning" className="ms-2">{ui("Question flagged")}</DeskPill> : null}</summary>
       <div className="mt-3 space-y-3 text-sm">
         <p className="text-ink-subtle">{item.outcomes.length ? <>{ui("Objectives")}: <bdi>{item.outcomes.map((o) => o.title).join(", ")}</bdi></> : ui("Not mapped to an objective: there is not enough evidence to interpret this question.")}</p>
         <table className="w-full text-start text-sm">
@@ -149,11 +150,11 @@ function DecisionRow({ decision, responses, post, disabled }: { decision: Decisi
   const open = decision.status === "OPEN";
   const review = (action: string, success: string) => post({ action: "review", decisionId: decision.id, data: { action, version: decision.version, reason } }, success);
   return (
-    <div className={`space-y-2 rounded-xl border p-3 ${decision.stale ? "border-amber-400 bg-amber-50" : "border-border"}`}>
+    <div data-tone={decision.stale ? "warning" : undefined} className={`${deskRow} space-y-2`}>
       <p className="font-semibold">{ui(KIND_LABEL[decision.kind])}{decision.flagCategory ? ` · ${ui(FLAG_LABEL[decision.flagCategory] ?? decision.flagCategory)}` : ""} · {ui(STATUS_LABEL[decision.status] ?? decision.status)}</p>
       <p><bdi>{decision.statement}</bdi></p>
       {decision.kind === "HYPOTHESIS" ? <p className="text-xs text-ink-subtle">{ui("{0} cited answers", [decision.citedAttemptIds.length])}{decision.actionPlanIds.length ? ` · ${ui("{0} draft learning actions", [decision.actionPlanIds.length])}` : ""}</p> : null}
-      {decision.stale ? <p className="text-xs font-semibold text-amber-900">{ui("The answers or marks changed after this was recorded. Re-confirm or dismiss it before acting.")}</p> : null}
+      {decision.stale ? <p className="text-xs font-semibold text-status-warning-text">{ui("The answers or marks changed after this was recorded. Re-confirm or dismiss it before acting.")}</p> : null}
       {open && !disabled ? (
         <div className="space-y-2">
           <FormField name={`review-${decision.id}`} label={ui("Reason")}><Input value={reason} onChange={(e) => setReason(e.target.value)} /></FormField>

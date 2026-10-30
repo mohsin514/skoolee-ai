@@ -1,8 +1,14 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { BookOpen, FileUp, Plus, Search } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Archive, ArrowLeft, BookOpen, FileCheck2, FilePen, FileUp, Plus, Search, ShieldCheck } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { DeskFilterStatus, DeskPill, DeskQuickFilter, DeskRowButton, DeskRowIcon, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { useUiText } from "@/components/locale/LocaleProvider";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +22,9 @@ async function request(url: string, init?: RequestInit) {
   if (!response.ok) throw new Error(body.error ?? "The request could not be completed.");
   return body;
 }
+const DOC_TONE: Record<string, DeskTone> = { PUBLISHED: "success", DRAFT: "info", ARCHIVED: "neutral" };
+const DOC_ICON = { PUBLISHED: FileCheck2, DRAFT: FilePen, ARCHIVED: Archive } as const;
+const docIcon = (status: string) => DOC_ICON[status as keyof typeof DOC_ICON] ?? FilePen;
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boolean; role: UserRole; campusId: string | null }) {
@@ -25,7 +34,12 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [query, setQuery] = useState(""), [answer, setAnswer] = useState<Answer | null>(null);
   const file = useRef<HTMLInputElement>(null);
-  const refresh = useCallback(async () => { const data = await request("/api/ai-knowledge"); setDocuments(data.documents); }, []);
+  const ui = useUiText();
+  const [loaded, setLoaded] = useState(false), [filter, setFilter] = useState("");
+  const refresh = useCallback(async () => { const data = await request("/api/ai-knowledge"); setDocuments(data.documents); setLoaded(true); }, []);
+  // Drafts waiting for review lead the list; archived documents sink to the end.
+  const listed = useMemo(() => { const needle = filter.trim().toLowerCase(); return urgencyFirst(documents.filter(doc => !needle || doc.title.toLowerCase().includes(needle)), doc => doc.status === "DRAFT" ? 0 : doc.status === "ARCHIVED" ? 2 : 1); }, [documents, filter]);
+  const startNew = () => { setSelected(null); setTitle(""); setContent(""); setAudience([role]); setExpiry(""); setReviewed(false); setEditing(true); };
   useEffect(() => { void refresh().catch(cause => setError(cause.message)); }, [refresh]);
   const run = async (work: () => Promise<void>) => {
     if (busy) return;
@@ -49,13 +63,11 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
     await refresh();
   });
   const dirty = !selected || selected.title !== title || selected.content !== content || JSON.stringify(selected.roles) !== JSON.stringify(audience) || (selected.expiresAt?.slice(0, 10) ?? "") !== expiry;
-  return <main className="mx-auto w-full max-w-7xl space-y-6 p-4 pb-20 sm:p-8">
-    <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand-100 bg-brand-50/60 p-6">
-      <div><p className="sk-eyebrow text-primary">Skoolee knowledge</p><h1 className="mt-2 text-2xl font-semibold">Knowledge library</h1><p className="mt-2 text-sm text-muted-foreground">Published guides and policies give Ask Skoolee evidence it can cite. Access follows your school, campus and role.</p></div>
-      <Link href="/ai" className={buttonVariants({ variant: "outline" })}>Back to Ask Skoolee</Link>
-    </header>
-    {error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-destructive">{error}</p> : null}
-    {notice ? <p role="status" className="rounded-xl bg-brand-50 p-4 text-sm">{notice}</p> : null}
+  return <main className="mx-auto w-full min-w-0 max-w-7xl space-y-6 p-1 pb-20 sm:p-4">
+    <PageHeader icon={BookOpen} eyebrow="Skoolee knowledge" title="Knowledge library" description="Published guides and policies give Ask Skoolee evidence it can cite. Access follows your school, campus and role."
+      secondaryActions={[{ id: "back-to-ask", label: "Back to Ask Skoolee", href: "/ai", icon: ArrowLeft }]} />
+    {error ? <Alert tone="danger" onDismiss={() => setError("")}>{error}</Alert> : null}
+    {notice ? <Alert tone={notice.startsWith("Review extraction") ? "warning" : "success"} onDismiss={() => setNotice("")}>{notice}</Alert> : null}
     <section className="space-y-3 rounded-2xl border bg-card p-5" aria-labelledby="knowledge-search-title">
       <h2 id="knowledge-search-title" className="font-semibold">Ask your published knowledge</h2>
       <form className="flex flex-col gap-3 sm:flex-row" onSubmit={event => { event.preventDefault(); void run(async () => setAnswer(await request("/api/ai-knowledge/search", json("POST", { query })))); }}>
@@ -66,9 +78,13 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
     </section>
     <div className="grid gap-6 lg:grid-cols-[minmax(260px,1fr)_minmax(0,2fr)]">
       <section className="space-y-4 rounded-2xl border bg-card p-5">
-        <div className="flex items-center justify-between"><h2 className="font-semibold">Documents ({documents.length})</h2>{canManage ? <Button size="sm" variant="outline" disabled={busy} onClick={() => { setSelected(null); setTitle(""); setContent(""); setAudience([role]); setExpiry(""); setReviewed(false); setEditing(true); }}><Plus aria-hidden="true" />New</Button> : null}</div>
-        {!documents.length ? <p className="text-sm text-muted-foreground">No documents available. {canManage ? "Add a guide or policy, review it, then publish." : "Your school manager can publish documents for your role."}</p> : null}
-        <ul className="space-y-2">{documents.map(doc => <li key={doc.id}>{canManage ? <Button variant="outline" disabled={busy} onClick={() => void open(doc)} className="h-auto w-full flex-col items-start whitespace-normal rounded-xl p-3 text-start"><span className="block font-medium">{doc.title}</span><span className="text-xs text-muted-foreground">{doc.status} · v{doc.version}{doc.indexMode ? ` · ${doc.indexMode}` : ""}</span></Button> : <Link className="block rounded-xl border p-3 text-primary" href={`/ai/knowledge/${doc.id}?version=${doc.version}`}>{doc.title}</Link>}</li>)}</ul>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Documents ({documents.length})</h2>{canManage ? <Button size="sm" variant="outline" disabled={busy} onClick={startNew}><Plus aria-hidden="true" />New</Button> : null}</div>
+        {documents.length > 8 ? <DeskQuickFilter value={filter} onChange={setFilter} label={ui("Filter this list")} /> : null}
+        <DeskFilterStatus shown={listed.length} total={documents.length} onClear={() => setFilter("")} />
+        {!loaded && !error ? <SkeletonList rows={3} label="Documents" /> : null}
+        {loaded && !documents.length ? <EmptyState size="sm" icon={BookOpen} title="No documents available." description={canManage ? "Add a guide or policy, review it, then publish." : "Your school manager can publish documents for your role."} /> : null}
+        <ul className="space-y-2">{listed.map(doc => <li key={doc.id}>{canManage ? <DeskRowButton tone={DOC_TONE[doc.status] ?? "neutral"} icon={docIcon(doc.status)} disabled={busy} onClick={() => void open(doc)} aria-current={selected?.id === doc.id ? "true" : undefined}><span className="block break-words font-medium">{doc.title}</span><span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"><DeskPill tone={DOC_TONE[doc.status] ?? "neutral"}>{doc.status}</DeskPill><span>v{doc.version}{doc.indexMode ? ` · ${doc.indexMode}` : ""}</span></span></DeskRowButton>
+          : <Link className={`${deskRow} flex items-center gap-3 text-primary`} data-tone={DOC_TONE[doc.status]} href={`/ai/knowledge/${doc.id}?version=${doc.version}`}><DeskRowIcon icon={docIcon(doc.status)} /><span className="min-w-0 flex-1 break-words font-medium">{doc.title}</span></Link>}</li>)}</ul>
       </section>
       {canManage && editing ? <section className="space-y-4 rounded-2xl border bg-card p-5" aria-label="Document editor">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{selected ? "Review document" : "New document"}</h2><Button variant="outline" size="sm" disabled={busy} onClick={() => file.current?.click()}><FileUp aria-hidden="true" />Import file</Button></div>
@@ -81,7 +97,7 @@ export function KnowledgeLibrary({ canManage, role, campusId }: { canManage: boo
         <label className="block space-y-2 text-sm font-medium">Expiry date (optional)<Input type="date" value={expiry} disabled={busy} onChange={event => { setExpiry(event.target.value); setReviewed(false); }} /></label>
         <div className="flex flex-wrap gap-2"><Button disabled={busy || !dirty || content.trim().length < 20 || title.trim().length < 3 || !audience.length} onClick={() => void save()}>Save draft</Button>{selected && !dirty ? <Button variant="outline" disabled={busy || selected.status === "ARCHIVED"} onClick={() => void act("archive")}>Archive</Button> : null}</div>
         {selected && !dirty ? <div className="space-y-3 border-t pt-4"><label className="flex items-start gap-2 text-sm"><Checkbox checked={reviewed} disabled={busy} onChange={event => setReviewed(event.target.checked)} />I reviewed this text and audience. These users may receive and cite it in AI answers.</label><Button disabled={busy || !reviewed} onClick={() => void act("publish")}>{busy ? "Working…" : selected.status === "PUBLISHED" ? "Rebuild search index" : "Publish reviewed document"}</Button></div> : null}
-      </section> : <section className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-8 text-center text-muted-foreground"><BookOpen aria-hidden="true" className="size-10 text-primary" /><h2 className="font-semibold text-foreground">Evidence before answers</h2><p className="max-w-md text-sm">Only current published documents are searchable. Drafts, archived sources, expired versions and other schools’ documents are excluded.</p></section>}
+      </section> : <section className="self-start rounded-2xl border border-dashed bg-card"><EmptyState icon={ShieldCheck} title="Evidence before answers" description="Only current published documents are searchable. Drafts, archived sources, expired versions and other schools’ documents are excluded." action={canManage ? <Button variant="outline" disabled={busy} onClick={startNew}><Plus aria-hidden="true" />New</Button> : undefined} /></section>}
     </div>
   </main>;
 }

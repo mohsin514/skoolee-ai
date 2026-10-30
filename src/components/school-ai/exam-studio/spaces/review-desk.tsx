@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { SearchCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
@@ -50,7 +51,7 @@ export default function ReviewDesk({ language, scope, records, capabilities, rel
     <PaperDnaStrip language={language} paperId={paper.id} version={paper.version} />
     <ExamReleasePanel key={`${paper.id}:${paper.version}`} recordId={paper.id} locale={language} canApprove={capabilities.canApprove} disabled={!capabilities.canCreate} onChanged={onChanged}
       onLoaded={onLoaded} inspectLabel={t.inspect} onInspect={questionId => { opener.current = document.activeElement as HTMLElement | null; setInspecting(questionId); }} />
-    {item && view && <Modal title={fillStudioCopy(t.evidenceFor, [new Intl.NumberFormat(language).format(number(item.id))])} subtitle={r.states[item.state]} size="md" returnFocusRef={opener} onClose={() => setInspecting(null)}>
+    {item && view && <Modal title={fillStudioCopy(t.evidenceFor, [new Intl.NumberFormat(language).format(number(item.id))])} icon={SearchCheck} tone="sky" subtitle={r.states[item.state]} size="md" returnFocusRef={opener} onClose={() => setInspecting(null)}>
       <div className="space-y-4 text-sm" data-evidence-drawer>
         <p dir="auto" className="whitespace-pre-wrap font-medium">{item.prompt}</p>
         <section aria-labelledby="ev-why" className="space-y-2"><h4 id="ev-why" className="font-semibold">{t.why}</h4>
