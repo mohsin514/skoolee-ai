@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, KeyRound } from "lucide-react";
+import { ArrowRight, Building2, KeyRound, RefreshCw, ShieldAlert } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/ui/form-field";
@@ -28,7 +28,8 @@ export function SsoChooser() {
   };
   useEffect(() => { if (params.get("school")) void look(params.get("school")!); }, [params]);
   return <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-5 px-4 py-8" data-sso>
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <span aria-hidden="true" className="sk-page-icon"><Building2 className="size-5" /></span>
       <h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("Sign in with your school account")}</h1>
       <p className="text-sm leading-relaxed text-ink-muted">{ui("Enter your school code to see the sign-in options your school has turned on.")}</p>
     </div>
@@ -37,7 +38,7 @@ export function SsoChooser() {
       <FormField name="sso-school" label={ui("School code")} hint={ui("Your school's Skoolee code, for example cedar-school.")}><Input value={school} onChange={e => setSchool(e.target.value)} dir="ltr" autoComplete="organization" data-sso-school /></FormField>
       <Button type="submit" variant="outline" loading={loading} disabled={!school.trim()} data-sso-find>{ui("Find sign-in options")}</Button>
     </form>
-    {failed ? <Alert tone="danger" compact live="polite">{ui("Could not look up sign-in options. Check your connection and try again.")}</Alert> : null}
+    {failed ? <Alert tone="danger" compact live="polite" actions={<Button type="button" size="sm" variant="outline" onClick={() => void look(school)}><RefreshCw aria-hidden="true" />{ui("Try again")}</Button>}>{ui("Could not look up sign-in options. Check your connection and try again.")}</Alert> : null}
     {loading ? <SkeletonRegion label={ui("Finding sign-in options…")} className="space-y-2"><Skeleton className="h-11 w-full rounded-xl" /><Skeleton className="h-11 w-full rounded-xl" /></SkeletonRegion> : null}
     {data ? data.connections.length ? <div className="sk-stagger space-y-2" data-sso-options>
       <p className="text-sm font-semibold text-ink-strong"><bdi>{data.school}</bdi></p>
@@ -73,6 +74,7 @@ export function SsoCallback() {
   }, [params, router]);
   return <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4 py-8" data-sso-callback>
     {message ? <>
+      <span aria-hidden="true" className="flex size-12 items-center justify-center rounded-2xl bg-status-error-surface text-status-error-text shadow-xs"><ShieldAlert className="size-6" /></span>
       <h1 className="text-2xl font-bold tracking-tight text-ink-strong sm:text-3xl">{ui("School sign-in did not finish")}</h1>
       <Alert tone="danger" live="assertive" data-sso-callback-message>{ui(message)}</Alert>
       <div className="flex flex-wrap gap-2">
