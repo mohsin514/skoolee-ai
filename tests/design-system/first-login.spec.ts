@@ -54,7 +54,7 @@ async function mount(page: Page, language = "en") {
   await expect(page.getByRole("heading", {level:1,name:({ ar: "عيّن كلمة المرور", ur: "اپنا پاس ورڈ مقرر کریں" } as Record<string, string>)[language] ?? "Set your password"})).toBeVisible();
 }
 
-async function fillPasswords(page: Page, value = "Synthetic9") {
+async function fillPasswords(page: Page, value = "Synthetic9!") {
   await page.getByLabel(/^New Password/).fill(value);
   await page.getByLabel(/^Confirm Password/).fill(value);
 }
@@ -64,7 +64,7 @@ test("confirmation mismatch has an accessible error description", async ({ page 
   await mount(page);
   await fillPasswords(page);
   const confirm = page.getByLabel(/^Confirm Password/);
-  await confirm.fill("Different9");
+  await confirm.fill("Different9!");
   await expect(confirm).toHaveAttribute("aria-invalid", "true");
   await expect(confirm).toHaveAccessibleDescription(/Passwords do not match/);
 });
@@ -80,7 +80,7 @@ test("pending save stays named and fields are protected", async ({ page }) => {
   await expect(page.getByLabel(/^Confirm Password/)).toHaveAttribute("readonly", "");
   expect(pending).toHaveLength(1);
   expect(pending[0].request().method()).toBe("PUT");
-  expect(pending[0].request().postDataJSON()).toEqual({newPassword:"Synthetic9"});
+  expect(pending[0].request().postDataJSON()).toEqual({newPassword:"Synthetic9!"});
   await pending[0].fulfill({status:500,json:{error:"Synthetic service failure. Try again."}});
 });
 
@@ -94,19 +94,19 @@ test("read-only anonymous route guard and synthetic geometry", async ({ page }) 
   }
 });
 
-test("required password rules, recommended symbol and independent keyboard reveals", async ({ page }) => {
+test("required password rules including symbol and independent keyboard reveals", async ({ page }) => {
   await mount(page);
   const password = page.getByLabel(/^New Password/);
   const confirm = page.getByLabel(/^Confirm Password/);
   const save = page.getByRole("button", {name:"Save and continue"});
   await expect(save).toBeDisabled();
-  await expect(password).toHaveAccessibleDescription(/One symbol \(recommended\)/);
-  for (const weakValue of ["Abc123", "12345678", "LettersOnly"]) {
+  await expect(password).toHaveAccessibleDescription(/One uppercase letter.*One symbol/);
+  for (const weakValue of ["Abc123!", "12345678", "LettersOnly", "synthetic9!", "Synthetic9"]) {
     await fillPasswords(page, weakValue);
     await expect(save).toBeDisabled();
-    await expect(password).toHaveAccessibleDescription(/Use at least 8 characters, including one letter and one number/);
+    await expect(password).toHaveAccessibleDescription(/Use 8–72 characters with an uppercase letter, a number and a symbol/);
   }
-  await fillPasswords(page, "Synthetic9");
+  await fillPasswords(page, "Synthetic9!");
   await expect(save).toBeEnabled();
   await page.getByRole("button", {name:"Show new password",exact:true}).press("Enter");
   await expect(password).toHaveAttribute("type","text"); await expect(confirm).toHaveAttribute("type","password");
@@ -121,13 +121,13 @@ test("required password rules, recommended symbol and independent keyboard revea
 test("server error is persistent and focused; retry preserves values", async ({ page }) => {
   await page.setViewportSize({width:390,height:844});
   await mount(page);
-  await page.route("**/api/auth/first-password", route => route.fulfill({status:400,json:{error:"Choose a password different from the one you were given"}}));
+  await page.route("**/api/auth/first-password", route => route.fulfill({status:400,json:{code:"reused",error:"server english"}}));
   await fillPasswords(page);
   await page.getByLabel(/^Confirm Password/).press("Enter");
-  await expect(page.getByRole("alert")).toHaveText("Choose a password different from the one you were given");
-  await expect(page.getByRole("group", {name:"Choose a password different from the one you were given"})).toBeFocused();
-  await expect(page.getByLabel(/^New Password/)).toHaveValue("Synthetic9");
-  await expect(page.getByLabel(/^Confirm Password/)).toHaveValue("Synthetic9");
+  await expect(page.getByRole("alert")).toHaveText("Choose a password you have not used before, including the temporary one.");
+  await expect(page.getByRole("group", {name:"Choose a password you have not used before, including the temporary one."})).toBeFocused();
+  await expect(page.getByLabel(/^New Password/)).toHaveValue("Synthetic9!");
+  await expect(page.getByLabel(/^Confirm Password/)).toHaveValue("Synthetic9!");
   await expect(page.getByRole("button",{name:"Save and continue"})).toBeEnabled();
   await page.screenshot({path:"test-results/design-system/evidence/auth-first-login/error-390.png",fullPage:true});
   await page.route("**/api/auth/first-password", route => route.fulfill({status:200,json:{role:"ADMIN",onboardingComplete:true}}));
@@ -152,9 +152,21 @@ for (const scenario of [
     await page.getByLabel(/^Confirm Password/).press("Enter");
     await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).__firstLoginNavigation)).toEqual([scenario.target]);
     expect(await page.evaluate(() => (window as unknown as FixtureWindow).__firstLoginRefreshes)).toBe(1);
-    expect(requests).toEqual([{method:"PUT",data:{newPassword:"Synthetic9"}}]);
+    expect(requests).toEqual([{method:"PUT",data:{newPassword:"Synthetic9!"}}]);
   });
 }
+
+test("server codes are localized and unknown failures stay generic", async ({ page }) => {
+  await mount(page, "ar");
+  await page.route("**/api/auth/first-password", route => route.fulfill({status:429,json:{code:"limited",error:"Wait five minutes before trying again"}}));
+  await page.getByLabel(/^كلمة المرور الجديدة/).fill("Synthetic9!");
+  await page.getByLabel(/^تأكيد كلمة المرور/).fill("Synthetic9!");
+  await page.getByLabel(/^تأكيد كلمة المرور/).press("Enter");
+  await expect(page.getByRole("alert")).toHaveText("محاولات كثيرة جداً. انتظر خمس دقائق ثم حاول مرة أخرى.");
+  await page.route("**/api/auth/first-password", route => route.fulfill({status:502,contentType:"text/html",body:"<html>bad gateway</html>"}));
+  await page.getByRole("button",{name:"حفظ ومتابعة"}).click();
+  await expect(page.getByRole("alert")).toHaveText("تعذر تحديث كلمة المرور");
+});
 
 for (const language of ["en","ar","ur"]) {
   test(`first-login responsive ${language} direction with localized copy`, async ({ page }) => {

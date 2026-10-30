@@ -19,14 +19,12 @@ import { AuthColophon, authClaimItem } from "@/components/auth/AuthColophon";
 import { AuthMascot } from "@/components/auth/AuthMascot";
 import { RequirementChecklist } from "@/components/auth/RequirementChecklist";
 import { authCopy } from "@/lib/auth/auth-copy";
+import { passwordRules, RESET_PASSWORD_MAX } from "@/lib/auth/reset-password-policy";
 import type { Language } from "@/lib/locale/package";
 
-const RULES: ((v: string) => boolean)[] = [
-  (v) => v.length >= 8,
-  (v) => /[A-Za-z]/.test(v),
-  (v) => /[0-9]/.test(v),
-  (v) => /[^A-Za-z0-9]/.test(v),
-];
+/** SKAI-87: the reset policy's four password rules (the fifth, confirmation, is checked separately). */
+const meetsRules = (v: string) => passwordRules(v, v).slice(0, 4);
+const savable = (p: string, c: string) => meetsRules(p).every(Boolean) && p.length <= RESET_PASSWORD_MAX && c.length > 0 && c === p;
 
 /** Meter colour per strength step (empty, weak … strong). */
 const STRENGTH_TONE: ProgressTone[] = ["neutral", "danger", "warning", "brand", "success"];
@@ -52,13 +50,16 @@ const en = {
   confirmPlaceholder: "Type it again",
   showConfirm: "Show confirmed password",
   hideConfirm: "Hide confirmed password",
-  rules: ["At least 8 characters", "One letter", "One number", "One symbol (recommended)"],
+  rules: ["At least 8 characters", "One uppercase letter", "One number", "One symbol"],
   strength: ["Too short", "Weak", "Fair", "Good", "Strong"],
   strengthLabel: "Password strength: {0}",
   enterPassword: "Enter a password",
   met: "Met: ",
   notMet: "Not yet met: ",
-  passwordError: "Use at least 8 characters, including one letter and one number.",
+  passwordError: "Use 8–72 characters with an uppercase letter, a number and a symbol.",
+  reused: "Choose a password you have not used before, including the temporary one.",
+  limited: "Too many attempts. Wait five minutes, then try again.",
+  notPending: "This password is already set. Sign in again to continue.",
   confirmError: "Passwords do not match",
   saving: "Saving…",
   save: "Save and continue",
@@ -85,13 +86,16 @@ const copy: Record<Language, FirstLoginCopy> = {
     confirmPlaceholder: "اكتبها مرة أخرى",
     showConfirm: "إظهار كلمة المرور المؤكدة",
     hideConfirm: "إخفاء كلمة المرور المؤكدة",
-    rules: ["٨ أحرف على الأقل", "حرف واحد", "رقم واحد", "رمز واحد (موصى به)"],
+    rules: ["٨ أحرف على الأقل", "حرف كبير واحد", "رقم واحد", "رمز واحد"],
     strength: ["قصيرة جداً", "ضعيفة", "مقبولة", "جيدة", "قوية"],
     strengthLabel: "قوة كلمة المرور: {0}",
     enterPassword: "أدخل كلمة مرور",
     met: "مكتمل: ",
     notMet: "غير مكتمل بعد: ",
-    passwordError: "استخدم ٨ أحرف على الأقل، منها حرف واحد ورقم واحد.",
+    passwordError: "استخدم من ٨ إلى ٧٢ حرفاً، منها حرف كبير ورقم ورمز.",
+    reused: "اختر كلمة مرور لم تستخدمها من قبل، بما فيها كلمة المرور المؤقتة.",
+    limited: "محاولات كثيرة جداً. انتظر خمس دقائق ثم حاول مرة أخرى.",
+    notPending: "تم تعيين كلمة المرور بالفعل. سجّل الدخول مرة أخرى للمتابعة.",
     confirmError: "كلمتا المرور غير متطابقتين",
     saving: "جارٍ الحفظ…",
     save: "حفظ ومتابعة",
@@ -114,13 +118,16 @@ const copy: Record<Language, FirstLoginCopy> = {
     confirmPlaceholder: "دوبارہ لکھیں",
     showConfirm: "تصدیق شدہ پاس ورڈ دکھائیں",
     hideConfirm: "تصدیق شدہ پاس ورڈ چھپائیں",
-    rules: ["کم از کم ۸ حروف", "ایک حرف", "ایک عدد", "ایک علامت (تجویز کردہ)"],
+    rules: ["کم از کم ۸ حروف", "ایک بڑا حرف", "ایک عدد", "ایک علامت"],
     strength: ["بہت چھوٹا", "کمزور", "مناسب", "اچھا", "مضبوط"],
     strengthLabel: "پاس ورڈ کی مضبوطی: {0}",
     enterPassword: "پاس ورڈ درج کریں",
     met: "مکمل: ",
     notMet: "ابھی باقی: ",
-    passwordError: "کم از کم ۸ حروف استعمال کریں، جن میں ایک حرف اور ایک عدد شامل ہو۔",
+    passwordError: "۸ سے ۷۲ حروف استعمال کریں، جن میں ایک بڑا حرف، ایک عدد اور ایک علامت ہو۔",
+    reused: "ایسا پاس ورڈ منتخب کریں جو آپ نے پہلے استعمال نہ کیا ہو، بشمول عارضی پاس ورڈ۔",
+    limited: "بہت زیادہ کوششیں۔ پانچ منٹ انتظار کریں، پھر دوبارہ کوشش کریں۔",
+    notPending: "پاس ورڈ پہلے ہی مقرر ہو چکا ہے۔ جاری رکھنے کے لیے دوبارہ سائن ان کریں۔",
     confirmError: "پاس ورڈ ایک جیسے نہیں",
     saving: "محفوظ ہو رہا ہے…",
     save: "محفوظ کریں اور جاری رکھیں",
@@ -148,10 +155,10 @@ export default function FirstLoginPage() {
   const [readyPulse, setReadyPulse] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const passed = useMemo(() => RULES.map((rule) => rule(password)), [password]);
+  const passed = useMemo(() => meetsRules(password), [password]);
   const score = passed.filter(Boolean).length;
   const strengthIndex = password.length === 0 ? 0 : score;
-  const required = passed[0] && passed[1] && passed[2];
+  const required = passed.every(Boolean) && password.length <= RESET_PASSWORD_MAX;
   const matches = confirm.length > 0 && confirm === password;
   const canSubmit = Boolean(required && matches) && !isLoading;
   const passwordError = passwordTouched && !required ? t.passwordError : undefined;
@@ -166,7 +173,6 @@ export default function FirstLoginPage() {
 
   /** The moment the password becomes savable, the mascot smiles once. */
   const edit = (nextPassword: string, nextConfirm: string) => {
-    const savable = (p: string, c: string) => RULES.slice(0, 3).every((rule) => rule(p)) && c.length > 0 && c === p;
     if (savable(nextPassword, nextConfirm) && !savable(password, confirm)) {
       setReadyPulse(true);
       window.clearTimeout(readyTimer.current);
@@ -187,8 +193,12 @@ export default function FirstLoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPassword: password }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || t.updateFailed);
+      // A non-JSON failure (proxy, timeout page) falls through to the generic localized message.
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const byCode: Record<string, string> = { policy: t.passwordError, reused: t.reused, limited: t.limited, not_pending: t.notPending };
+        throw new Error(byCode[json.code] ?? t.updateFailed);
+      }
 
       toast.success(t.updated);
       setSaved(true);
@@ -199,7 +209,9 @@ export default function FirstLoginPage() {
       router.push(target);
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : t.updateFailed;
+      // Only our own localized messages reach the screen; network errors read as the generic failure.
+      const known = [t.passwordError, t.reused, t.limited, t.notPending];
+      const message = err instanceof Error && known.includes(err.message) ? err.message : t.updateFailed;
       setError(message);
       setErrorSeq((n) => n + 1);
       toast.error(message);

@@ -123,3 +123,12 @@ test('forced password change rotates to a recorded session and revokes the prior
  const response = await fetch(base + '/api/auth/first-password', { method: 'PUT', headers: { cookie: session, 'content-type': 'application/json' }, body: JSON.stringify({ newPassword: 'UpdatedSynthetic209!' }) });
  assert.equal(response.status, 200, await response.clone().text()); assert.equal((await sessionCheck(session)).status, 401); assert.equal((await sessionCheck(cookie(response, 'skoolee_token'))).status, 200);
 });
+test('SKAI-87 forced change refuses the temporary password and a replayed submit', async () => {
+ await raw.user.update({ where: { id: accounts.get('STUDENT')!.id }, data: { mustChangePassword: true } });
+ const session = cookie(await login('ACCOUNTANT'), 'skoolee_token');
+ const put = (cookieHeader: string, newPassword: string) => fetch(base + '/api/auth/first-password', { method: 'PUT', headers: { cookie: cookieHeader, 'content-type': 'application/json' }, body: JSON.stringify({ newPassword }) });
+ const reused = await put(session, password); assert.equal(reused.status, 400); assert.equal((await reused.json()).code, 'reused');
+ const done = await put(session, 'FirstLoginSynthetic87!'); assert.equal(done.status, 200, await done.clone().text());
+ const replay = await put(cookie(done, 'skoolee_token'), 'OtherSynthetic87!'); assert.equal(replay.status, 409); assert.equal((await replay.json()).code, 'not_pending');
+ assert.equal(await raw.passwordHistory.count({ where: { userId: accounts.get('ACCOUNTANT')!.id, changeReason: 'admin_forced' } }), 1);
+});
