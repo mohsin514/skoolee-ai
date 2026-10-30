@@ -38,6 +38,14 @@ import { Input as SystemInput } from "@/components/ui/input";
 
 /** How many assessment cards show before "Show all". */
 const EXAM_PAGE = 6;
+// SKAI-1385: status cells keep their token on the sheet so an unrelated edit cannot turn them into a scored zero.
+const ABSENT_TOKEN = "ABSENT";
+const EXEMPT_TOKEN = "EXEMPT";
+function markCellValue(mark: { marksObtained: number; isAbsent?: boolean; isExempt?: boolean }) {
+  if (mark.isAbsent) return ABSENT_TOKEN;
+  if (mark.isExempt) return EXEMPT_TOKEN;
+  return String(mark.marksObtained);
+}
 
 export default function MarksPage() {
   const ui = useUiText();
@@ -62,7 +70,7 @@ export default function MarksPage() {
       const response = await fetch(`/api/marks?examId=${selectedExamId}`, { cache: "no-store" });
       if (!response.ok) throw new Error([401, 403, 404].includes(response.status) ? "Access revoked" : "Server unavailable");
       const latest = await response.json();
-      return Object.fromEntries((latest.marks || []).map((mark: { studentId: string; subjectId: string; marksObtained: number }) => [`${mark.studentId}:${mark.subjectId}`, String(mark.marksObtained)]));
+      return Object.fromEntries((latest.marks || []).map((mark: { studentId: string; subjectId: string; marksObtained: number }) => [`${mark.studentId}:${mark.subjectId}`, markCellValue(mark)]));
     },
   });
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -119,7 +127,7 @@ export default function MarksPage() {
           for (const subject of result.subjects || []) {
             const key = `${student.id}:${subject.id}`;
             const mark = (result.marks || []).find((m: any) => m.studentId === student.id && m.subjectId === subject.id);
-            if (mark) map[key] = String(mark.marksObtained);
+            if (mark) map[key] = markCellValue(mark);
           }
         }
         setMarksByKey(map);
@@ -146,7 +154,10 @@ export default function MarksPage() {
           const key = `${student.id}:${subject.id}`;
           const value = marksByKey[key];
           if (value === "" || value === undefined) continue;
-          payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: Number(value) });
+          // SKAI-1385: ABSENT and EXEMPT cells round-trip as flags, never as a scored zero.
+          if (value === ABSENT_TOKEN) payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: 0, isAbsent: true });
+          else if (value === EXEMPT_TOKEN) payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: 0, isExempt: true });
+          else payload.push({ studentId: student.id, subjectId: subject.id, marksObtained: Number(value) });
         }
       }
       if (payload.length === 0) { toast.error(ui("Enter at least one mark before saving.")); return; }
