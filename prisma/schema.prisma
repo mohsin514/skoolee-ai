@@ -113,6 +113,11 @@ model School {
   logoUrl              String?   @map("logo_url") // Institution icon / logo
   establishedYear      Int?      @map("established_year") // Year the institution was founded
   tagline              String? // Motto / short descriptor
+  // SKAI-114: official name in Urdu/Arabic, a short name and a palette brand colour (src/lib/school/branding.ts).
+  nameUr               String?   @map("name_ur")
+  nameAr               String?   @map("name_ar")
+  shortName            String?   @map("short_name")
+  brandColor           String?   @map("brand_color")
   // Which ladder of ranks this tenant starts from: SCHOOL | COLLEGE |
   // UNIVERSITY | ACADEMY | CUSTOM. It only chooses the preset seeded into
   // StaffDesignation — every rank stays editable afterwards.

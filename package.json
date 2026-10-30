@@ -14,6 +14,7 @@
     "test:weekend": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/weekend-rules.test.ts",
     "test:grading-model": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/grading-model.test.ts tests/academic/model-config.test.ts",
     "test:grade-weights": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/grade-weights.test.ts",
+    "test:school-branding": "node --import ./tests/support/server-only.mjs --import tsx --test tests/school-branding/school-branding.test.ts",
     "test:campus-setup": "node --import ./tests/support/server-only.mjs --import tsx --test tests/campus-setup/campus-setup.test.ts",
     "test:year-dates": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/year-dates.test.ts",
     "test:cycle-rules": "node --import ./tests/support/server-only.mjs --import tsx --test tests/academic/cycle-rules.test.ts",
