@@ -211,3 +211,16 @@ test("finance review retains changed prices, dependency history, credits and cro
   assert.equal((await db.feeCarryForward.findUniqueOrThrow({ where: { id: credit.id } })).balance, -1250);
   assert.equal(await db.auditLog.count({ where: { schoolId, recordId: { in: [line.id, credit.id, assignment.id] } } }), 0);
 });
+test("SKAI-1281: a dormitory room with allocation history is kept, with or without a review token", async () => {
+  const type = await db.dormRoomType.create({ data: { ...scope, name: randomUUID() } });
+  const room = await db.dormRoom.create({ data: { ...scope, number: randomUUID(), roomTypeId: type.id, capacity: 2 } });
+  const cls = await db.class.create({ data: { ...scope, name: randomUUID(), section: "A", academicYear: 2026 } });
+  const student = await db.student.create({ data: { ...scope, classId: cls.id, fullName: "Synthetic Boarder", rollNo: randomUUID(), gender: "FEMALE" } });
+  await db.dormAllocation.create({ data: { ...scope, roomId: room.id, studentId: student.id, startDate: new Date("2026-09-01"), endDate: new Date("2026-10-01"), reason: "Synthetic stay", endReason: "Synthetic move", createdById: lead.userId } });
+  const p = await preview(lead, "dormitory/rooms", room.id);
+  assert.equal(p.blocked, true); assert.equal(p.dependents, 1); assert.match(p.message ?? "", /1 allocation record in its history/);
+  await assert.rejects(() => remove(lead, "dormitory/rooms", room.id, null), { status: 409, message: /out of service/ });
+  await assert.rejects(() => remove(lead, "dormitory/rooms", room.id, p.version), { status: 409 });
+  assert.ok(await db.dormRoom.findUnique({ where: { id: room.id } }), "room kept");
+  assert.equal(await db.dormAllocation.count({ where: { roomId: room.id } }), 1, "history kept");
+});
