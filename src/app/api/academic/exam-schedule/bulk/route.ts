@@ -73,6 +73,8 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthUser();
     assertStaffRole(user);
+    // SKAI-1300: staff roles without exam access must not read planning or seating.
+    await assertPermission(user, "exams", "view");
     const sessionId = req.nextUrl.searchParams.get("sessionId");
     if (!sessionId) throw new ApiError("sessionId is required", 400);
     const campusId = await resolveExamSchedulingCampus(user, req.nextUrl.searchParams.get("campusId"), { kind: "session", id: sessionId });

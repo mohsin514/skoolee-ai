@@ -66,7 +66,9 @@ export async function GET(req: NextRequest) {
           name: true,
           section: true,
           classTeacherId: true,
+          // SKAI-1299: archived learners are not on the exam marks roster.
           students: {
+            where: { archivedAt: null },
             select: { id: true, fullName: true, rollNo: true, profileImageUrl: true },
             orderBy: [{ rollNo: "asc" }, { fullName: "asc" }],
           },

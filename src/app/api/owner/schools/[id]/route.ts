@@ -179,6 +179,22 @@ export async function DELETE(
       throw new ApiError("School is already deleted.", 409);
     }
 
+    // SKAI-1356: archiving the school that holds the only active platform owner
+    // would lock every owner out. Refuse unless another live school keeps an owner.
+    const ownersInSchool = await prisma.user.count({ where: { schoolId: id, role: "APP_OWNER", isActive: true } });
+    if (ownersInSchool > 0) {
+      const ownersElsewhere = await prisma.user.count({
+        where: {
+          role: "APP_OWNER",
+          isActive: true,
+          school: { is: { id: { not: id }, status: { not: "DELETED" } } },
+        },
+      });
+      if (ownersElsewhere === 0) {
+        throw new ApiError("This school holds the only active platform owner. Add another platform owner before archiving it.", 409);
+      }
+    }
+
     await prisma.school.update({
       where: { id },
       data: { status: "DELETED", deletedAt: new Date() },
