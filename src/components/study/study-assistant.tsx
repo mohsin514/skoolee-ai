@@ -4,7 +4,11 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "@/components/ui/toast";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { DeskRowIcon, deskRow } from "@/components/ui/desk";
+import { BookOpen, LifeBuoy, Lightbulb, Lock, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,17 +52,18 @@ export function StudyAssistant() {
 
   if (error) return <section className="sk-panel p-5" data-study><ErrorState title={ui("Could not load study help.")} description={error} onRetry={() => void load()} action={<Link className="sk-link text-sm font-semibold text-primary" href="/student/resources">{ui("Open class resources")}</Link>} /></section>;
   if (!data) return <section className="sk-panel p-5" data-study aria-busy="true"><p className="sr-only">{ui("Loading your class material…")}</p><SkeletonList /></section>;
-  if (data.blocked) return <section className="sk-panel space-y-2 p-5" data-study data-study-blocked><p className="text-sm font-semibold text-ink-strong">{ui("Help for this assessment is restricted until it ends.")}</p><Link className="text-sm underline" href={data.blocked.href}>{data.blocked.title ? <><bdi>{data.blocked.title}</bdi> — </> : null}{ui("Return to your exam")}</Link></section>;
+  if (data.blocked) return <section className="sk-panel p-5" data-study data-study-blocked><Alert tone="warning" icon={Lock} live="off" title={ui("Help for this assessment is restricted until it ends.")} actions={<Link className={buttonVariants({ variant: "outline", size: "sm" })} href={data.blocked.href}>{data.blocked.title ? <><bdi>{data.blocked.title}</bdi> — </> : null}{ui("Return to your exam")}</Link>} /></section>;
 
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-study>
-    <header><h3 className="text-base font-bold text-ink-strong">{ui("Study with class resources")}</h3><p className="text-xs text-ink-muted">{ui("Answers use only your class's approved materials, with their sources. Do not enter private personal information.")}</p></header>
-    {!data.resources.length ? <p className="rounded-xl border border-dashed p-4 text-sm text-ink-muted" data-study-empty>{ui("Your teachers have not added study material yet.")} <Link className="underline" href="/student/resources">{ui("Open class resources")}</Link></p> : <>
+    <header><h3 className="flex items-center gap-2 text-base font-bold text-ink-strong"><Sparkles aria-hidden="true" className="size-4 text-primary" />{ui("Study with class resources")}</h3><p className="text-xs text-ink-muted">{ui("Answers use only your class's approved materials, with their sources. Do not enter private personal information.")}</p></header>
+    {!data.resources.length ? <div data-study-empty><EmptyState size="sm" icon={BookOpen} title={ui("Your teachers have not added study material yet.")} primaryAction={{ id: "open-resources", label: "Open class resources", href: "/student/resources", icon: BookOpen }} /></div> : <>
       <FormField name="study-resource" label={ui("Material")}><Select className="w-full min-w-0" value={resourceId} onChange={e => setResourceId(e.target.value)}><option value="">{ui("All my approved class material")}</option>{data.resources.map(r => <option key={r.id} value={r.id}>{r.title} · v{r.version}</option>)}</Select></FormField>
       <FormField name="study-question" label={ui("Your question")}><Textarea rows={2} value={question} onChange={e => setQuestion(e.target.value)} maxLength={600} /></FormField>
-      <div className="flex flex-wrap justify-end gap-2"><Link className="inline-flex min-h-11 items-center rounded-xl border px-3 text-xs font-bold" href="/student/resources">{ui("Open resources")}</Link><Button loading={busy} disabled={busy || question.trim().length < 3} onClick={() => void submit()} data-study-ask>{busy ? ui("Finding an explanation…") : ui("Explain this topic")}</Button></div>
+      <div className="flex flex-wrap justify-end gap-2"><Link className={buttonVariants({ variant: "outline" })} href="/student/resources">{ui("Open resources")}</Link><Button loading={busy} disabled={busy || question.trim().length < 3} onClick={() => void submit()} data-study-ask>{busy ? ui("Finding an explanation…") : ui("Explain this topic")}</Button></div>
     </>}
 
-    {latest ? <article className={cn("space-y-2 rounded-2xl border p-3", latest.outcome === "ANSWERED" ? "border-status-success-border" : "border-status-warning-border bg-status-warning-surface")} data-study-answer={latest.outcome} aria-live="polite">
+    {latest ? <article data-tone={latest.outcome === "ANSWERED" ? "success" : "warning"} className={cn(deskRow, "space-y-2 p-4")} data-study-answer={latest.outcome} aria-live="polite">
+      <p className="flex items-center gap-2 text-xs font-semibold text-ink-muted"><DeskRowIcon icon={latest.outcome === "ANSWERED" ? Lightbulb : LifeBuoy} />{latest.outcome === "ANSWERED" ? ui("Explain this topic") : ui("Ask my teacher")}</p>
       {latest.outcome === "ANSWERED" ? <>
         <p className="text-sm" dir="auto">{latest.answer.explanation}</p>
         <div className="space-y-1" data-study-sources><p className="text-2xs font-semibold text-ink-muted">{ui("Sources")}</p>{latest.sources.map(s => <div key={s.passageId} className="rounded-lg bg-surface-sunken p-2 text-xs" data-study-source={s.passageId}>
@@ -90,7 +95,7 @@ export function TeacherStudyDesk() {
   const eligible = desk.resources.filter(r => r.eligible);
   return <section className="sk-panel space-y-4 p-4 sm:p-5" data-study-desk>
     <header><h3 className="text-base font-bold text-ink-strong">{ui("Study help")}</h3><p className="text-xs text-ink-muted">{ui("The study assistant answers only from text you approve here, for the published version of each resource. Answer keys and staff material are never used.")}</p></header>
-    {desk.flagged.length ? <div className="space-y-2" data-study-flagged><p className="text-2xs font-semibold text-ink-muted">{ui("Reports and help requests")}</p>{desk.flagged.map(f => <div key={f.id} className="rounded-xl border border-status-warning-border bg-status-warning-surface p-3 text-sm" data-study-flag={f.id}>
+    {desk.flagged.length ? <div className="space-y-2" data-study-flagged><p className="text-2xs font-semibold text-ink-muted">{ui("Reports and help requests")}</p>{desk.flagged.map(f => <div key={f.id} data-tone="warning" className={cn(deskRow, "text-sm")} data-study-flag={f.id}>
       <p className="text-xs text-ink-muted"><bdi>{f.learner}</bdi> · {f.helpRequestedAt ? ui("Asked for help") : ui("Reported an answer")}{f.reportReason ? <> · <span dir="auto">{f.reportReason}</span></> : null}</p>
       <p className="font-bold" dir="auto">{f.question}</p>{f.answer?.explanation ? <p className="text-xs" dir="auto">{f.answer.explanation}</p> : null}
       <div className="mt-1 flex justify-end"><Button size="sm" variant="outline" disabled={busy} onClick={() => void post({ action: "reviewed", turnId: f.id }, "Marked as reviewed.")} data-study-reviewed>{ui("Mark reviewed")}</Button></div>

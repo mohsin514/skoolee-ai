@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Target } from "lucide-react";
+import { DeskPill, DeskRowIcon, deskRow, urgencyFirst, type DeskTone } from "@/components/ui/desk";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -28,6 +30,7 @@ const PARTICIPATION: Record<string, string> = { FULL: "Took part fully", PARTIAL
 const DECISION: Record<string, string> = { CLOSE: "Close: goal reviewed", EXTEND: "Extend with a new review date", ESCALATE: "Escalate to another adult", INCONCLUSIVE: "Close as inconclusive" };
 const EVENT: Record<string, string> = { CREATED: "Created", EDITED: "Draft edited", EDITED_ACTIVE: "Plan changed while active", ACTIVATED: "Activated", SHARED_WITH_FAMILY: "Shared with the family", CHECK_IN: "Check-in recorded", RESCHEDULED: "Check-in rescheduled", OWNER_CHANGED: "Responsible adult changed", REVIEW_CLOSE: "Closed after review", REVIEW_EXTEND: "Extended", REVIEW_ESCALATE: "Escalated", REVIEW_INCONCLUSIVE: "Closed as inconclusive", SUGGESTION_REVIEWED: "AI suggestion reviewed", SUGGESTION_REJECTED: "AI suggestion rejected" };
 const EVIDENCE_STATE: Record<string, string> = { CONFIRMED: "Confirmed by the teacher", NEEDS_OBSERVATION: "Needs more observation" };
+const STATUS_TONE: Record<string, DeskTone> = { DRAFT: "warning", ACTIVE: "info", CLOSED: "success", ESCALATED: "danger", REJECTED: "neutral" };
 const todayText = () => new Date().toISOString().slice(0, 10);
 
 /**
@@ -67,24 +70,23 @@ export function LearningActions({ mode = "author" }: { mode?: "author" | "review
     {!ctx.actions.length ? <div data-empty>{review
       ? <EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions are waiting")} description={ui("Support plans teachers propose for students appear here for you to activate.")} />
       : <EmptyState size="sm" icon={ClipboardList} title={ui("No learning actions yet")} description={ui("Start from a specific concern and the evidence behind it.")} action={<Button size="sm" onClick={() => setCreating(true)}>{ui("New learning action")}</Button>} />}</div>
-      : <ul className="space-y-2">{ctx.actions.map(row => <li key={row.id} className={`rounded-2xl border p-3 ${row.checkInOverdue ? "border-status-warning-border" : "border-border"}`} data-action={row.id} data-status={row.status}>
+      : <ul className="space-y-2">{urgencyFirst(ctx.actions, row => row.staleSince ? 0 : row.checkInOverdue ? 1 : 2).map(row => <li key={row.id} data-tone={row.staleSince || row.checkInOverdue ? "warning" : STATUS_TONE[row.status] ?? "neutral"} className={cn(deskRow, "p-3")} data-action={row.id} data-status={row.status}>
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
+            <div className="flex min-w-0 flex-1 items-start gap-3"><DeskRowIcon icon={Target} /><div className="min-w-0">
               <p className="text-sm font-semibold text-ink-strong"><bdi>{row.learner}</bdi> · <bdi>{row.title}</bdi></p>
               <p className="text-xs">{ui("Responsible adult")}: <bdi>{row.owner ?? ui("Not set")}</bdi> · {ui("Next check-in")}: {row.nextCheckInDate ? date(row.nextCheckInDate) : "—"}{row.checkInOverdue ? <span className="ms-1 font-semibold text-status-warning-text" data-overdue>{ui("Check-in missed")}</span> : null} · {ui("Review")}: {row.reviewDate ? date(row.reviewDate) : "—"}</p>
               {row.goal ? <p className="text-xs text-ink-muted">{ui("Goal")}: <bdi>{row.goal}</bdi></p> : null}
-            </div>
+            </div></div>
             <div className="flex flex-wrap items-center gap-1 text-xs">
-              <Badge size="sm" variant="neutral" dot>{ui(STATUS[row.status] ?? row.status)}</Badge>
+              <DeskPill tone={STATUS_TONE[row.status] ?? "neutral"}>{ui(STATUS[row.status] ?? row.status)}</DeskPill>
               {row.origin === "AI" && row.status === "DRAFT" ? <Badge size="sm" variant="warning">{ui("AI suggestion — edit before use")}</Badge> : null}
               {row.shared ? <Badge size="sm" variant="success">{ui("Shared with family")}</Badge> : null}
               <Button size="sm" variant="secondary" aria-expanded={open === row.id} onClick={() => setOpen(open === row.id ? null : row.id)}>{open === row.id ? ui("Hide") : ui("Open")}</Button>
             </div>
           </div>
-          {row.staleSince ? <div role="status" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-status-warning-border bg-status-warning-surface p-2 text-xs text-status-warning-text" data-stale-action>
-            <p className="min-w-0"><span className="font-bold">{ui("Needs review after an assessment repair")}</span> · <bdi>{row.staleReason ?? ""}</bdi></p>
-            <Button size="sm" variant="secondary" onClick={async () => { const response = await fetch(`/api/learning-actions/${encodeURIComponent(row.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "acknowledge-repair", data: {} }) }).catch(() => null); if (response?.ok) await load(); }}>{ui("Mark as reviewed")}</Button>
-          </div> : null}
+          {row.staleSince ? <div className="mt-2" data-stale-action><Alert tone="warning" compact title={ui("Needs review after an assessment repair")} actions={<Button size="sm" variant="secondary" onClick={async () => { const response = await fetch(`/api/learning-actions/${encodeURIComponent(row.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "acknowledge-repair", data: {} }) }).catch(() => null); if (response?.ok) await load(); }}>{ui("Mark as reviewed")}</Button>}>
+            <bdi>{row.staleReason ?? ""}</bdi>
+          </Alert></div> : null}
           {open === row.id ? <Panel id={row.id} ctx={ctx} onChanged={load} dateTime={dateTime} /> : null}
         </li>)}</ul>}
   </section>;

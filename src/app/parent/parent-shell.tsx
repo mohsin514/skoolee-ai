@@ -1,11 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ModalSurface } from "@/components/ui/modal";
+import { Modal } from "@/components/ui/modal";
 import { useUiText } from "@/components/locale/LocaleProvider";
 import { RoleShell } from "@/components/role-dashboard";
 import { useParentData } from "./parent-data-context";
@@ -80,13 +79,8 @@ function ChildSwitcher() {
         </span>
         <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-ink-subtle" />
       </Button>
-      {open && <ModalSurface ariaLabel={t("Choose child")} onClose={() => setOpen(false)}>
-        <div className="flex items-center justify-between gap-2 border-b border-border-subtle p-3">
-          <h2 className="text-lg font-bold text-ink-strong">{t("Choose child")}</h2>
-          <IconButton label={t("Close")} tooltip={false} onClick={() => setOpen(false)}><X aria-hidden="true" /></IconButton>
-        </div>
-        <p className="px-3 pt-3 text-sm text-ink-muted">{t("Every page follows the child you choose.")}</p>
-        <div className="min-h-0 space-y-2 overflow-y-auto p-3">
+      {open && <Modal size="xs" icon={Users} tone="violet" title={t("Choose child")} subtitle={t("Every page follows the child you choose.")} onClose={() => setOpen(false)}>
+        <div className="space-y-2">
           {siblings.map(child => {
             const active = child.id === selected.id;
             return (
@@ -107,7 +101,7 @@ function ChildSwitcher() {
             );
           })}
         </div>
-      </ModalSurface>}
+      </Modal>}
     </>
   );
 }
