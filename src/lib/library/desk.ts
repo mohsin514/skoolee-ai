@@ -163,6 +163,30 @@ export async function returnCopy(user: AuthUser, raw: unknown) {
   });
 }
 
+/**
+ * SKAI-1288: return a loan from the circulation list (a title without a barcoded copy). It charges
+ * the same overdue fine as the lending desk, under the loan's own rule version.
+ */
+export async function returnIssue(user: AuthUser, id: string) {
+  const existing = await prisma.bookIssue.findFirst({ where: { id, book: { campus: { schoolId: user.schoolId } } }, include: { book: { select: { campusId: true } } } });
+  if (!existing) throw new ApiError("Issue not found", 404);
+  if (existing.returnedAt) throw new ApiError("Book already returned", 409);
+  // SKO-436: loans of a barcoded copy are returned at the lending desk, which also settles the
+  // copy, any fine and the reservation queue.
+  if (existing.copyId) throw new ApiError("Return this copy by scanning it at the lending desk.", 409);
+  const now = new Date(), campusId = existing.book.campusId;
+  return prisma.$transaction(async (tx) => {
+    const rules = (existing.policySnapshot as LoanRules | null) ?? (await currentRules(tx, user.schoolId, campusId));
+    const fine = finePreview(existing.dueAt, now, rules);
+    // One conditional update decides the return, so a repeated request cannot add a copy twice.
+    const closed = await tx.bookIssue.updateMany({ where: { id, returnedAt: null }, data: { returnedAt: now, fine: fine.amount } });
+    if (!closed.count) throw new ApiError("Book already returned", 409);
+    if (fine.amount > 0) await tx.libraryCharge.create({ data: { schoolId: user.schoolId, campusId, issueId: id, memberId: existing.memberId, kind: "FINE", amount: fine.amount, currency: fine.currency, detail: fine as unknown as Prisma.InputJsonValue } });
+    await tx.book.update({ where: { id: existing.bookId }, data: { copiesAvailable: { increment: 1 } } });
+    return tx.bookIssue.findUniqueOrThrow({ where: { id } });
+  });
+}
+
 export async function renewLoan(user: AuthUser, raw: unknown) {
   assertDesk(user);
   const input = parse(z.object({ issueId: text(1, 120) }).strict(), raw);
