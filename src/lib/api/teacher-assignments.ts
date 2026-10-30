@@ -10,6 +10,7 @@ import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { syncTimetableSlotsForSubjects, type TimetableClash } from "./timetable-sync";
 import { assertSubjectCodeFree, normalizeSubjectCode } from "@/lib/academic/subject-catalogue";
 import { effectiveDate, findDuplicateClass, findDuplicateSubject, recordTeachingAssignment } from "@/lib/academic/structure";
+import { assertCapacityFitsEnrolled, parseClassCapacity } from "@/lib/academic/class-setup";
 
 type AssignmentInput = Record<string, unknown>;
 function recordId(value: unknown) {
@@ -65,7 +66,7 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
   const id = recordId(body.id), scope = campusScope(user, campusId);
   const staffingOnly = Object.keys(body).every((key) => STAFFING_ONLY_KEYS.has(key));
   const grants = await authorizeAssignment(tx, user, staffingOnly ? "exams" : "students");
-  const existing = await tx.class.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, classTeacherId: true, teachingMode: true, academicYear: true, name: true, section: true, archivedAt: true } });
+  const existing = await tx.class.findFirst({ where: { id, ...scope, campusId: campusId }, select: { id: true, campusId: true, classTeacherId: true, teachingMode: true, academicYear: true, name: true, section: true, capacity: true, archivedAt: true } });
   if (!existing) throw new ApiError("Class not found", 404);
   // SKO-462: an archived class is history; restore it before changing it.
   if (existing.archivedAt) throw new ApiError("Restore this class before editing it.", 409);
@@ -78,6 +79,12 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
     if (!Number.isInteger(academicYear)) throw new ApiError("A valid academic year is required", 400);
     if (academicYear !== existing.academicYear && await tx.timetable.count({ where: { schoolId: user.schoolId, campusId: existing.campusId, classId: id } })) throw new ApiError("A class with timetables cannot move to another academic year. Create the new year's class instead.", 409);
     data.academicYear = academicYear;
+  }
+  // SKAI-148: seats are a campus-operations field; never fewer than the students already enrolled.
+  if (body.capacity !== undefined) {
+    const capacity = parseClassCapacity(body.capacity);
+    assertCapacityFitsEnrolled(capacity, await tx.student.count({ where: { schoolId: user.schoolId, classId: id, archivedAt: null, status: "active" } }));
+    data.capacity = capacity;
   }
   if (data.name !== undefined || data.section !== undefined || data.academicYear !== undefined) {
     if (data.name === "") throw new ApiError("A class name is required", 400);
@@ -107,7 +114,7 @@ export async function updateClassWithTeacherAssignmentTx(tx: TxClient, user: Aut
     await syncTimetableSlotsForSubjects(tx, { schoolId: user.schoolId, campusId: existing.campusId }, ids, classTeacherId);
   }
   if (teacherProvided) await recordTeachingAssignment(tx, user, { campusId: existing.campusId, classId: id, subjectId: null, teacherId: classTeacherId, from });
-  if (teacherProvided || modeChanged || data.name !== undefined || data.section !== undefined || data.academicYear !== undefined) await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { classTeacherId: existing.classTeacherId, teachingMode: existing.teachingMode, name: existing.name, section: existing.section, academicYear: existing.academicYear }, newValue: { classTeacherId, teachingMode: effectiveMode, name: cls.name, section: cls.section, academicYear: cls.academicYear, effectiveFrom: from.toISOString().slice(0, 10) }, userId: user.userId } });
+  if (teacherProvided || modeChanged || data.name !== undefined || data.section !== undefined || data.academicYear !== undefined || data.capacity !== undefined) await tx.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { classTeacherId: existing.classTeacherId, teachingMode: existing.teachingMode, name: existing.name, section: existing.section, academicYear: existing.academicYear, capacity: existing.capacity }, newValue: { classTeacherId, teachingMode: effectiveMode, name: cls.name, section: cls.section, academicYear: cls.academicYear, capacity: cls.capacity, effectiveFrom: from.toISOString().slice(0, 10) }, userId: user.userId } });
   return { existing, cls, clashes: [] as TimetableClash[] };
 }
 

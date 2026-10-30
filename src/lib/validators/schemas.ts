@@ -240,7 +240,8 @@ export const classSchema = z.object({
   academicYear: z.coerce.number().int().min(2000).max(2100),
   teacherId: z.string().optional(),
   classTeacherId: z.string().optional(),
-  capacity: z.coerce.number().int().min(1).default(40),
+  // SKAI-148: blank = not set; the route validates the range (parseClassCapacity).
+  capacity: z.union([z.number(), z.string(), z.null()]).optional(),
 });
 
 export const subjectSchema = z.object({

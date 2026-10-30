@@ -19,6 +19,7 @@ import { lockTimetableCampus } from "@/lib/timetable/locking";
 import { parseBody } from "@/lib/api/validate";
 import { parseTeachingMode } from "@/lib/academic/teaching-mode";
 import { jsonObjectBody } from "@/lib/validators/route-bodies";
+import { gradeRangeNames, parseClassCapacity, parseGradeRange } from "@/lib/academic/class-setup";
 
 /** Fields of a class PATCH that are academic staffing decisions (the principal's job); everything else
  *  (name, section, year, capacity, room, restore) is campus operations (§7.6). */
@@ -93,7 +94,9 @@ export async function POST(req: NextRequest) {
     if (!canManageCampusOps(user)) throw new ApiError("Classes are set up by your campus admin.", 403);
 
     const body = await parseBody(req, jsonObjectBody);
-    const parsed = classSchema.safeParse(body);
+    // SKAI-148: a grade range ("Grade" 1–5) names the classes; the prefix stands in for the name.
+    const gradeRange = parseGradeRange(body.gradeRange);
+    const parsed = classSchema.safeParse(gradeRange ? { ...body, name: gradeRange.prefix } : body);
     if (!parsed.success) {
       return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
     }
@@ -115,8 +118,13 @@ export async function POST(req: NextRequest) {
       user.schoolId
     );
     const teachingMode = parseTeachingMode(body.teachingMode, "SINGLE");
+    const capacity = parseClassCapacity(parsed.data.capacity);
 
     const className = parsed.data.name.trim();
+    const classNames = gradeRange ? gradeRangeNames(gradeRange) : [className];
+    const targets = classNames.flatMap(name => targetSections.map(section => ({ name, section })));
+    if (targets.length > 60) throw new ApiError("That would create more than 60 classes at once. Split the range or the sections.", 400);
+    if (gradeRange && classTeacherId) throw new ApiError("Assign class teachers to each grade after the range is created.", 400);
     // SKO-462: create inside the campus fence with the actor re-authorized; the normalized duplicate
     // check answers with the conflicting class, and the database index settles any concurrent create.
     let classes;
@@ -125,24 +133,25 @@ export async function POST(req: NextRequest) {
         await lockTimetableCampus(tx, user.schoolId, campusId);
         await authorizeAssignment(tx, user, "students");
         if (!await tx.campus.findFirst({ where: { id: campusId, schoolId: user.schoolId, archivedAt: null }, select: { id: true } })) throw new ApiError("Classes can only be added to an active campus", 409);
-        for (const section of targetSections) {
-          const duplicate = await findDuplicateClass(tx, { schoolId: user.schoolId, campusId }, { name: className, section, academicYear: parsed.data.academicYear });
+        // All-or-nothing: one existing name/section in the campus and year stops the whole batch.
+        for (const { name, section } of targets) {
+          const duplicate = await findDuplicateClass(tx, { schoolId: user.schoolId, campusId }, { name, section, academicYear: parsed.data.academicYear });
           if (duplicate) throw new ApiError(`${duplicate.name}${duplicate.section ? ` ${duplicate.section}` : ""} already exists for ${parsed.data.academicYear} (class ${duplicate.id}).`, 409);
         }
         const created = [];
-        for (const section of targetSections) {
+        for (const { name, section } of targets) {
           const cls = await tx.class.create({
-            data: { schoolId: user.schoolId, campusId, name: className, section, academicYear: parsed.data.academicYear, classTeacherId, teachingMode },
+            data: { schoolId: user.schoolId, campusId, name, section, academicYear: parsed.data.academicYear, classTeacherId: gradeRange ? null : classTeacherId, teachingMode, capacity },
             include: {
               classTeacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } },
               subjects: { include: { teacher: { select: { id: true, fullName: true, email: true, profileImageUrl: true } } }, orderBy: { name: "asc" } },
               _count: { select: { students: true, subjects: true } },
             },
           });
-          if (classTeacherId) await recordTeachingAssignment(tx, user, { campusId, classId: cls.id, subjectId: null, teacherId: classTeacherId, from: effectiveDate(body.effectiveFrom) });
+          if (classTeacherId && !gradeRange) await recordTeachingAssignment(tx, user, { campusId, classId: cls.id, subjectId: null, teacherId: classTeacherId, from: effectiveDate(body.effectiveFrom) });
           created.push(cls);
         }
-        await tx.auditLog.createMany({ data: created.map(cls => ({ schoolId: user.schoolId, tableName: "class", recordId: cls.id, newValue: { name: cls.name, section: cls.section, academicYear: cls.academicYear }, userId: user.userId })) });
+        await tx.auditLog.createMany({ data: created.map(cls => ({ schoolId: user.schoolId, tableName: "class", recordId: cls.id, newValue: { name: cls.name, section: cls.section, academicYear: cls.academicYear, capacity: cls.capacity }, userId: user.userId })) });
         return created;
       });
     } catch (error) {
@@ -155,7 +164,7 @@ export async function POST(req: NextRequest) {
       campusId,
       actorId: user.userId,
       actorName: user.fullName,
-      className,
+      className: classNames.length > 1 ? `${classNames[0]} – ${classNames[classNames.length - 1]}` : className,
       section: sections.length ? sections.join(",") : undefined,
       classId: classes[0]?.id,
     });
@@ -198,13 +207,14 @@ export async function PATCH(req: NextRequest) {
       if (!archived.archivedAt) return Response.json({ success: true, restored: false, alreadyActive: true });
       const [campus, conflict] = await Promise.all([
         prisma.campus.findFirst({ where: { id: archived.campusId, archivedAt: null, ...(user.schoolId ? { schoolId: user.schoolId } : {}) }, select: { id: true } }),
-        prisma.class.findFirst({ where: { id: { not: id }, campusId: archived.campusId, name: archived.name, section: archived.section, academicYear: archived.academicYear, archivedAt: null }, select: { id: true } }),
+        // SKAI-148: the same normalized identity rule as create, so "grade 1 " cannot sit beside "Grade 1".
+        findDuplicateClass(prisma, { schoolId: user.schoolId, campusId: archived.campusId }, { name: archived.name, section: archived.section, academicYear: archived.academicYear }, id),
       ]);
       if (!campus) throw new ApiError("Restore requires an active campus", 409);
       if (conflict) throw new ApiError("A class with this name, section and academic year already exists in this campus", 409);
       const reopened = await prisma.class.updateMany({ where: { id, archivedAt: { not: null } }, data: { archivedAt: null, archiveReason: null, status: archived.archivePreviousStatus || "ACTIVE", archivePreviousStatus: null } });
       if (reopened.count !== 1) return Response.json({ success: true, restored: false, alreadyActive: true });
-      await prisma.auditLog.create({ data: { tableName: "class", recordId: id, oldValue: { archived: true }, newValue: { archived: false }, userId: user.userId } });
+      await prisma.auditLog.create({ data: { schoolId: user.schoolId, tableName: "class", recordId: id, oldValue: { archived: true }, newValue: { archived: false }, userId: user.userId } });
       return Response.json({ success: true, restored: true });
     }
 
