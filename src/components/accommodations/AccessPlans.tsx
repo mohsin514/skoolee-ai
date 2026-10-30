@@ -83,7 +83,7 @@ export function CoordinatorAccess() {
       return <li key={student.id} data-tone={reviewIds.has(student.id) ? "warning" : active ? "success" : "muted"} className={deskRow}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <DeskRowIcon icon={active ? ShieldCheck : CircleDashed} />
-          <div className="min-w-0 flex-1"><p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><span dir="auto">{student.fullName}</span>{active ? <DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill> : null}</p>
+          <div className="min-w-0 flex-1 basis-48"><p className="flex flex-wrap items-center gap-2 font-semibold text-ink-strong"><span dir="auto">{student.fullName}</span>{active ? <DeskPill tone="success">{t.statuses.ACTIVE}</DeskPill> : null}</p>
             {active ? <p className="text-xs text-ink-subtle">{t.active} · {t.version} {active.version} · {t.validity} {date(active.validFrom)} – {date(active.validUntil)} · {active.assessmentTypes.map(type => t.types[type]).join(", ")}</p> : <p className="text-xs text-ink-subtle">{t.none}</p>}
           </div>
           <Button type="button" variant="outline" onClick={() => setEditing(editing?.id === student.id ? null : student)}>{active ? t.editPlan : t.newPlan}</Button>
