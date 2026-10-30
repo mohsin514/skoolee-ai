@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { legacyInvoiceAmounts, pickStructureForClass, recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
+import { feeStructureActiveWhere, invoiceBatchStatus, legacyInvoiceAmounts, pickStructureForClass, recomputePendingInvoices, resolveFeeStructureYearId } from "@/lib/fees/structure-year";
 
 // SKAI-1123: fee structures per academic year + re-pricing unpaid PENDING invoices on edit.
 
@@ -111,5 +111,47 @@ describe("recomputePendingInvoices", () => {
     assert.deepEqual(await recomputePendingInvoices(f.tx, ACTOR, structure()), { updated: 0, skipped: 2 });
     const g = fakeTx([inv("x")], { assignment: true });
     assert.deepEqual(await recomputePendingInvoices(g.tx, ACTOR, structure()), { updated: 0, skipped: 0 });
+  });
+});
+
+// SKAI-1285: fixed-term structures (activeTo set) still bill the months inside their validity.
+describe("feeStructureActiveWhere", () => {
+  const monthStart = new Date("2026-11-01T00:00:00Z");
+  const monthEnd = new Date("2026-11-30T00:00:00Z");
+  /** Evaluates the Prisma where the way Postgres would for these two fields. */
+  function matches(where: any, row: { activeFrom: Date; activeTo: Date | null }) {
+    if (where.AND) return false; // the reported bug: AND [activeTo null, activeTo range]
+    if (!(row.activeFrom <= where.activeFrom.lte)) return false;
+    return where.OR.some((branch: any) => branch.activeTo === null ? row.activeTo === null : row.activeTo !== null && row.activeTo >= branch.activeTo.gte);
+  }
+  const where = feeStructureActiveWhere(monthStart, monthEnd);
+
+  it("selects a fixed-term structure whose activeTo is after the month", () => {
+    assert.equal(matches(where, { activeFrom: new Date("2025-12-31"), activeTo: new Date("2026-12-31") }), true);
+  });
+  it("selects an open-ended structure", () => {
+    assert.equal(matches(where, { activeFrom: new Date("2025-12-31"), activeTo: null }), true);
+  });
+  it("selects a structure ending mid-month and one starting mid-month", () => {
+    assert.equal(matches(where, { activeFrom: new Date("2025-01-01"), activeTo: new Date("2026-11-15") }), true);
+    assert.equal(matches(where, { activeFrom: new Date("2026-11-20"), activeTo: null }), true);
+  });
+  it("skips structures that ended before or start after the month", () => {
+    assert.equal(matches(where, { activeFrom: new Date("2025-01-01"), activeTo: new Date("2026-10-31") }), false);
+    assert.equal(matches(where, { activeFrom: new Date("2026-12-01"), activeTo: null }), false);
+  });
+  it("never conjoins activeTo null with an activeTo range", () => {
+    assert.equal("AND" in where, false);
+    assert.deepEqual(where.OR, [{ activeTo: null }, { activeTo: { gte: monthStart } }]);
+  });
+});
+
+describe("invoiceBatchStatus", () => {
+  it("a run that billed nobody and errored is 422, not 201", () => {
+    assert.equal(invoiceBatchStatus(0, 10), 422);
+  });
+  it("partial and full successes stay 201", () => {
+    assert.equal(invoiceBatchStatus(9, 1), 201);
+    assert.equal(invoiceBatchStatus(10, 0), 201);
   });
 });
