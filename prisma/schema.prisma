@@ -7484,6 +7484,10 @@ model ReadinessTask {
   createdAt     DateTime  @default(now()) @map("created_at")
   completedById String?   @map("completed_by_id")
   completedAt   DateTime? @map("completed_at")
+  // SKAI-155: setup task tracking. Status is OPEN | IN_PROGRESS | DONE | DEFERRED; version guards stale edits.
+  dueOn         DateTime? @map("due_on") @db.Date
+  remindedAt    DateTime? @map("reminded_at")
+  version       Int       @default(1)
 
   @@unique([schoolId, key])
   @@index([schoolId, ownerId, status])
