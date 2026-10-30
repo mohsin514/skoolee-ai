@@ -48,6 +48,11 @@ export async function GET(req: NextRequest) {
     const campusId =
       user.role === "SUPER_ADMIN" && !requestedCampusId ? null : requestedCampusId || user.campusId;
 
+    // SKAI-150: read the weekly capacity inputs alongside the teachers, not after them.
+    const capacityInputs = campusId
+      ? Promise.all([prisma.periodDefinition.count({ where: { schoolId: user.schoolId, campusId, timeType: "CLASS" } }), getLocalePackage(user.schoolId, campusId)])
+      : Promise.resolve([0, null] as const);
+    capacityInputs.catch(() => {}); // awaited below; never an unhandled rejection if the teacher read fails first
     const teachers = await prisma.user.findMany({
       where: {
         role: { in: ["TEACHER", "PRINCIPAL"] },
@@ -79,9 +84,7 @@ export async function GET(req: NextRequest) {
       orderBy: { fullName: "asc" },
     });
 
-    const [classPeriods, locale] = campusId
-      ? await Promise.all([prisma.periodDefinition.count({ where: { schoolId: user.schoolId, campusId, timeType: "CLASS" } }), getLocalePackage(user.schoolId, campusId)])
-      : [0, null];
+    const [classPeriods, locale] = await capacityInputs;
     const weeklyCapacity = locale ? weeklyPeriodCapacity(classPeriods, locale.weekend.length) : null;
 
     const data: TeacherAvailability[] = teachers.map((t) => {
