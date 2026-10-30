@@ -21,6 +21,7 @@ import { getReadinessCopy } from "./readiness-copy";
 import { getLaunchCopy } from "./readiness-launch-copy";
 import { SetupPrompt } from "@/components/ai-workflows/setup-prompt";
 import { SetupAreasGuide, type SetupArea } from "./SetupAreasGuide";
+import { TaskTracking, type TaskAction, type TrackedTask } from "./TaskTracking";
 import { setupAreaFromTaskKey } from "@/lib/onboarding/setup-areas";
 
 /**
@@ -36,7 +37,7 @@ import { setupAreaFromTaskKey } from "@/lib/onboarding/setup-areas";
  * result is a toast, and go-live approval waits behind a ConfirmAction.
  */
 type Check = { id: string; required: boolean; passed: boolean; evidence: Record<string, number | boolean>; href: string | null; delegated?: boolean; handledElsewhere?: boolean };
-type Task = { id: string; key: string; title: string; ownerId: string | null; status: "OPEN" | "DONE" | "DEFERRED" };
+type Task = TrackedTask;
 type Batch = { id: string; kind: string; state: string; sourceName: string; total: number; accepted: number; rejected: number; unresolved: number; unknownClass: number };
 type LeadView = {
   lead: true; readiness: { status: "SETUP" | "READY"; version: number; approvedAt: string | null; rehearsal: Record<string, string> };
@@ -88,11 +89,11 @@ export function ReadinessHome() {
   async function run(work: () => Promise<unknown>, quiet = false) {
     setBusy(true);
     try { await work(); await load(); if (!quiet) toast.success(t.saved); return true; }
-    catch (error) { toast.error(error); }
+    // A conflict means the screen is stale: show the latest so the next try starts from it.
+    catch (error) { toast.error(error); if (error instanceof ReadinessError && error.status === 409) await load(); }
     finally { setBusy(false); }
   }
   const date = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-  const owner = (id: string | null) => !view || !view.lead || !id ? t.unassigned : view.staff.find(person => person.id === id)?.fullName ?? t.unassigned;
   const checkTitle = (id: string) => t.checks[id as keyof typeof t.checks] ?? id;
   /** Who finishes a check the viewer has no screen for (P9-08): campus admins (group admin), or the campus team. */
   const handoff = (check: Check) => check.delegated || check.handledElsewhere ? (
@@ -118,26 +119,26 @@ export function ReadinessHome() {
     </div>
   );
 
-  const taskRow = (task: Task, lead: boolean) => (
-    <li key={task.id} className="sk-launch-task" data-status={task.status}>
-      <div className="min-w-0">
-        <p className="font-semibold text-ink-strong">{t.optionalTasks[task.key] ?? task.title}</p>
-        <span className="sk-choice-tag mt-1" data-tone={task.status === "DONE" ? undefined : task.status === "DEFERRED" ? "brand" : "info"}>{t.statuses[task.status]}</span>
-      </div>
-      {lead && view?.lead ? (
-        <label className="grid gap-1 text-xs font-semibold text-ink-muted">{t.owner}
-          <Select value={task.ownerId ?? ""} disabled={busy} onChange={event => run(() => call({ op: "task", action: "assign", taskId: task.id, ownerId: event.target.value || null }))}>
-            <option value="">{t.unassigned}</option>{view.staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}
-          </Select>
-        </label>
-      ) : <p className="text-sm text-ink-muted">{lead ? `${t.owner}: ${owner(task.ownerId)}` : t.assignedToYou}</p>}
-      <div className="flex flex-wrap gap-2">
-        {task.status !== "DONE" && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DONE" }))}>{t.markDone}</Button>}
-        {lead && task.status === "OPEN" && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "DEFERRED" }))}>{t.defer}</Button>}
-        {lead && task.status !== "OPEN" && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => run(() => call({ op: "task", action: "status", taskId: task.id, status: "OPEN" }))}>{t.reopen}</Button>}
-      </div>
-    </li>
-  );
+  const taskAction = (body: TaskAction) => void run(() => call({ op: "task", ...body }));
+  const taskRow = (task: Task, lead: boolean) => {
+    const status = (next: Task["status"]) => taskAction({ action: "status", taskId: task.id, status: next, expectedVersion: task.version });
+    const live = task.status === "OPEN" || task.status === "IN_PROGRESS";
+    return (
+      <li key={task.id} className="sk-launch-task" data-status={task.status}>
+        <div className="min-w-0 space-y-2">
+          <p className="font-semibold text-ink-strong">{t.optionalTasks[task.key] ?? task.title}</p>
+          <span className="sk-choice-tag" data-tone={task.status === "DONE" ? undefined : task.status === "DEFERRED" ? "brand" : "info"}>{t.statuses[task.status]}</span>
+          {!lead ? <p className="text-sm text-ink-muted">{t.assignedToYou}</p> : null}
+          <TaskTracking task={task} language={language} lead={lead && !!view?.lead} staff={view?.lead ? view.staff : []} busy={busy} onAction={taskAction} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {task.status !== "DONE" && <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => status("DONE")}>{t.markDone}</Button>}
+          {lead && live && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => status("DEFERRED")}>{t.defer}</Button>}
+          {lead && !live && <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => status("OPEN")}>{t.reopen}</Button>}
+        </div>
+      </li>
+    );
+  };
 
   const lead = view?.lead ? view : null;
   const required = lead ? lead.checks.filter(check => check.required) : [];
@@ -223,7 +224,7 @@ export function ReadinessHome() {
         </section>
 
         {/* ── The wizard's setup areas (SKAI-111), in order ── */}
-        {lead.areas?.length ? <SetupAreasGuide language={language} areas={lead.areas} tasks={lead.tasks} busy={busy} onStatus={(taskId, status) => void run(() => call({ op: "task", action: "status", taskId, status }))} /> : null}
+        {lead.areas?.length ? <SetupAreasGuide language={language} areas={lead.areas} tasks={lead.tasks} staff={lead.staff} busy={busy} onAction={taskAction} /> : null}
 
         {/* ── The journey ── */}
         <section id="checks" aria-label={l.nav.checks} className="sk-launch-journey">
@@ -335,7 +336,7 @@ export function ReadinessHome() {
             <div className="min-w-0 space-y-1">
               <h2 id="approve-heading" className="flex items-center gap-2 text-lg font-bold text-ink-strong"><Rocket aria-hidden="true" className="size-5 text-primary" />{t.approveTitle}</h2>
               <p className="text-sm text-ink-muted">{lead.ready ? l.approveBar : t.approveBlocked} {t.approveHelp}</p>
-              <p className="text-xs text-ink-subtle"><bdi dir="ltr">{lead.tasks.filter(task => task.status === "OPEN").length}</bdi> {t.outstanding}</p>
+              <p className="text-xs text-ink-subtle"><bdi dir="ltr">{lead.tasks.filter(task => task.status === "OPEN" || task.status === "IN_PROGRESS").length}</bdi> {t.outstanding}</p>
             </div>
             {/* When every check is done the spotlight holds the primary "Approve go-live"; this one repeats it quietly. */}
             <Button type="button" variant="outline" disabled={busy || !lead.ready} onClick={() => setConfirmingApproval(true)} className="shrink-0 gap-2">
