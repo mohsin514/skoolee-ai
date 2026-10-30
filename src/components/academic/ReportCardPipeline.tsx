@@ -316,28 +316,24 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
   useEffect(() => {
     onSelectionChange?.({ examId: exam.id, selected: canReview ? selected.length : 0, canApprove: canReview && !approveBlocked, reason: selectionReason });
     // selectionKey captures every input; the callback identity may change on each host render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionKey]);
   const seenRequests = useRef({ approve: approveRequest, preview: previewRequest, deliver: deliverRequest, generate: generateRequest });
   const deliveryKey = `${canDeliver && cards.length > 0}:${canDeliver && anyPublished}:${busy}`;
   useEffect(() => {
     onDeliveryState?.({ examId: exam.id, canGenerate: canDeliver && cards.length > 0 && !busy, canDeliver: canDeliver && anyPublished && !busy });
     // deliveryKey captures every input; the callback identity may change on each host render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveryKey]);
   useEffect(() => {
     if (deliverRequest === undefined || seenRequests.current.deliver === deliverRequest) return;
     seenRequests.current.deliver = deliverRequest;
     if (canDeliver && anyPublished && !busy) setPending("send");
     // Only a new number opens the confirmation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliverRequest]);
   useEffect(() => {
     if (generateRequest === undefined || seenRequests.current.generate === generateRequest) return;
     seenRequests.current.generate = generateRequest;
     if (canDeliver && !busy) void action("generate");
     // Only a new number builds the PDFs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generateRequest]);
   useEffect(() => {
     if (approveRequest === undefined || seenRequests.current.approve === approveRequest) return;
@@ -346,7 +342,6 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
     if (needsReason) { setMessage(""); setFailure(ui("Add the family-facing correction reason first.")); return; }
     if (!approveBlocked) void action("approve");
     // Only a new number runs the approval.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approveRequest]);
   useEffect(() => {
     if (previewRequest === undefined || seenRequests.current.preview === previewRequest) return;
@@ -356,7 +351,6 @@ function ScopedReportCardPipeline({ exam, campusId, onChanged, mode = "lead", to
     setActive(card.id); setLanguage(card.review.language); setNote(card.review.reviewerNote || ""); setRemark(remarkFor(card, card.review.language));
     requestAnimationFrame(() => document.getElementById(`report-inspect-${exam.id}`)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     // Only a new number opens the preview.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewRequest]);
   const visibleCards = cards
     .filter((c) => !reviewerFilter || c.review.lastReviewerId === reviewerFilter)

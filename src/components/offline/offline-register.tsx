@@ -88,7 +88,7 @@ export function OfflineRegister({ classes }: { classes: { id: string; label: str
       toast.warning(ui("No connection. Your changes stay on this device until the server accepts them."));
     } finally { setBusy(false); }
   }, [me, bucket, persist, ui]);
-  useEffect(() => { if (online && bucket && bucket.ops.some(o => o.state === "LOCAL")) void sync(); }, [online]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (online && bucket && bucket.ops.some(o => o.state === "LOCAL")) void sync(); }, [online]);
   const decide = async (decision: string) => {
     if (!resolving || !bucket) return;
     setBusy(true);

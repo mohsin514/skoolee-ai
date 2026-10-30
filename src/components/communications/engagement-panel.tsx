@@ -191,7 +191,6 @@ export function EngagementPanel({ mode, hideActions = false, command }: Engageme
       else toast.info(ui("Nothing to export yet."));
     } else if (command.id === "run-reminders" && office) setConfirmRun(true);
     // Only a new nonce runs a command; it reads the rows on screen at that moment.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [command?.nonce]);
 
   return (
