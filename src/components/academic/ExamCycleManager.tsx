@@ -1832,6 +1832,7 @@ function ConfirmMoveModal({
       title={verdictLabel}
       eyebrow={plan.eyebrow}
       icon={Lock}
+      tone="amber"
       role="alertdialog"
       size="xs"
       onClose={onCancel}
